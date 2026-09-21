@@ -28,7 +28,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(search.calls, 1);
-    expect(find.text('Jericoacoara'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Jericoacoara'), findsOneWidget);
   });
 
   testWidgets('matching fake fica bloqueado no fluxo normal', (tester) async {
@@ -53,7 +53,7 @@ void main() {
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Jericoacoara'));
+    await tester.tap(find.widgetWithText(ListTile, 'Jericoacoara'));
     await tester.pumpAndSettle();
 
     expect(find.text('2,5 km · 7 min'), findsOneWidget);
