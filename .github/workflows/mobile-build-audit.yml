@@ -1,9 +1,14 @@
 name: Mobile Build Audit
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/mobile-build-audit.yml"
+
+concurrency:
+  group: mobile-build-audit-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
