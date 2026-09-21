@@ -27,6 +27,26 @@ void main() {
     expect(results.first.position.longitude, closeTo(-40.5142, 0.0001));
   });
 
+
+  test('Nominatim reutiliza cache para a mesma busca', () async {
+    var requests = 0;
+    final client = MockClient((request) async {
+      requests++;
+      return http.Response(
+        '[{"lat":"-2.7956","lon":"-40.5142","name":"Jericoacoara",'
+        '"display_name":"Jericoacoara, Ceará, Brasil"}]',
+        200,
+      );
+    });
+
+    final service = NominatimPlaceSearchService(client: client);
+
+    await service.search('Jericoacoara');
+    await service.search('  JERICOACOARA  ');
+
+    expect(requests, 1);
+  });
+
   test('OSRM converte GeoJSON em rota, distância e ETA', () async {
     final client = MockClient((request) async {
       expect(request.url.path, contains('/route/v1/driving/'));
