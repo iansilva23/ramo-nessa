@@ -152,7 +152,7 @@ class _MapPreviewPainter extends CustomPainter {
       canvas.translate(destination.dx, destination.dy);
       canvas.rotate(math.pi / 4);
       canvas.drawRect(
-        const Rect.fromCenter(center: Offset.zero, width: 16, height: 16),
+        Rect.fromCenter(center: Offset.zero, width: 16, height: 16),
         Paint()..color = route,
       );
       canvas.restore();
