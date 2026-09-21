@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -25,7 +23,6 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   late final PlaceSearchService _searchService =
       widget.searchService ?? NominatimPlaceSearchService();
 
-  Timer? _debounce;
   List<RamoPlace> _results = const [];
   bool _loading = false;
   String? _error;
@@ -33,28 +30,25 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _onQueryChanged(String value) {
-    _debounce?.cancel();
-    final query = value.trim();
+    setState(() {
+      _results = const [];
+      _error = null;
+    });
+  }
 
-    if (query.length < 3) {
-      setState(() {
-        _results = const [];
-        _loading = false;
-        _error = null;
-      });
+  Future<void> _submitSearch() async {
+    final query = _controller.text.trim();
+    if (query.length < 3 || _loading) {
       return;
     }
 
-    _debounce = Timer(
-      const Duration(milliseconds: 1100),
-      () => _search(query),
-    );
+    FocusScope.of(context).unfocus();
+    await _search(query);
   }
 
   Future<void> _search(String query) async {
@@ -90,7 +84,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasQuery = _controller.text.trim().length >= 3;
+    final canSearch = _controller.text.trim().length >= 3 && !_loading;
 
     return Scaffold(
       appBar: AppBar(
@@ -106,18 +100,26 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                 controller: _controller,
                 onChanged: _onQueryChanged,
                 textInputAction: TextInputAction.search,
-                onSubmitted: (value) {
-                  _debounce?.cancel();
-                  if (value.trim().length >= 3) {
-                    _search(value.trim());
-                  }
-                },
-                decoration: const InputDecoration(
+                onSubmitted: (_) => _submitSearch(),
+                decoration: InputDecoration(
                   hintText: 'Busque rua, pousada ou lugar',
-                  prefixIcon: Icon(Icons.search_rounded),
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: 'Buscar',
+                    onPressed: canSearch ? _submitSearch : null,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                  ),
                 ),
               ),
-              const SizedBox(height: RamoSpacing.md),
+              const SizedBox(height: RamoSpacing.sm),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Digite e toque em buscar.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
               if (_loading) const LinearProgressIndicator(minHeight: 3),
               if (_error != null)
                 Padding(
@@ -130,7 +132,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                     ),
                   ),
                 ),
-              if (!hasQuery && !_loading)
+              if (_results.isEmpty && !_loading && _error == null)
                 const Expanded(child: _SearchHint())
               else
                 Expanded(
@@ -188,12 +190,12 @@ class _SearchHint extends StatelessWidget {
             const Icon(Icons.map_outlined, size: 42),
             const SizedBox(height: RamoSpacing.sm),
             Text(
-              'Digite pelo menos 3 letras',
+              'Busque seu destino',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: RamoSpacing.xs),
             Text(
-              'Você pode buscar endereços e lugares no Brasil.',
+              'A busca acontece somente quando você confirmar.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
