@@ -13,6 +13,13 @@ on:
       - "packages/design_system/**"
       - ".github/workflows/passenger-ci.yml"
 
+concurrency:
+  group: passenger-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   flutter:
     runs-on: ubuntu-latest
