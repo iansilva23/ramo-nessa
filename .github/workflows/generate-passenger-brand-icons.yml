@@ -15,6 +15,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild verified passenger artwork
+        run: |
+          cat .brand-transfer/passenger_icon/*.b64 | tr -d '\n' | base64 --decode > apps/passenger/assets/brand/passenger/app_icon_source.jpg
+          echo "5fdffc4bde89ed0ebceba5ebe365bef2b5a15c33273597ffe7df07d76b7c9c9c  apps/passenger/assets/brand/passenger/app_icon_source.jpg" | sha256sum -c -
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -39,9 +46,14 @@ jobs:
 
       - name: Commit generated launcher icons
         run: |
+          rm -rf .brand-transfer/passenger_icon
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/passenger/android/app/src/main/res apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset apps/passenger/pubspec.lock
+          git add -A .brand-transfer
+          git add apps/passenger/assets/brand/passenger/app_icon_source.jpg
+          git add apps/passenger/android/app/src/main/res
+          git add apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset
+          git add apps/passenger/pubspec.lock
           if git diff --cached --quiet; then
             echo "Launcher icons already synchronized."
             exit 0
