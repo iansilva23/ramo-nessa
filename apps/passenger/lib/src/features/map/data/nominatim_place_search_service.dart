@@ -12,6 +12,7 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       : _client = client ?? http.Client();
 
   final http.Client _client;
+  final Map<String, List<RamoPlace>> _cache = {};
   DateTime? _nextAllowedRequestAt;
   Future<void> _rateLimitQueue = Future<void>.value();
 
@@ -20,6 +21,12 @@ class NominatimPlaceSearchService implements PlaceSearchService {
     final normalized = query.trim();
     if (normalized.length < 3) {
       return const [];
+    }
+
+    final cacheKey = normalized.toLowerCase();
+    final cached = _cache[cacheKey];
+    if (cached != null) {
+      return cached;
     }
 
     await _respectRateLimit();
@@ -59,11 +66,14 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       throw const FormatException('Resposta de busca inválida.');
     }
 
-    return decoded
+    final results = decoded
         .whereType<Map<String, dynamic>>()
         .map(_parsePlace)
         .whereType<RamoPlace>()
         .toList(growable: false);
+
+    _cache[cacheKey] = results;
+    return results;
   }
 
   Future<void> _respectRateLimit() {
