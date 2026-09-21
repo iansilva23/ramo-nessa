@@ -135,11 +135,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     if (_userLocation == null) {
       await _locateUser();
+      return;
     }
 
-    if (_userLocation != null) {
-      await _loadRoute();
-    }
+    await _loadRoute();
   }
 
   Future<void> _loadRoute() async {
