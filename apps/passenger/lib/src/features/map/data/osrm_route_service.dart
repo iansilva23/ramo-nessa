@@ -31,13 +31,15 @@ class OsrmRouteService implements RouteService {
       },
     );
 
-    final response = await _client.get(
-      uri,
-      headers: const {
-        'User-Agent': RamoMapConfig.userAgent,
-        'Accept': 'application/json',
-      },
-    );
+    final response = await _client
+        .get(
+          uri,
+          headers: const {
+            'User-Agent': RamoMapConfig.userAgent,
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(RamoMapConfig.requestTimeout);
 
     if (response.statusCode != 200) {
       throw StateError(
