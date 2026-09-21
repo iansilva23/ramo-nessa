@@ -13,7 +13,7 @@ abstract final class RamoMapConfig {
   static const requestTimeout = Duration(seconds: 10);
 
   /// Fica desligado até existir um backend confiável fazendo matching.
-  static const matchingEnabled = false;
+  static bool get matchingEnabled => false;
 
   static const userAgent =
       'RamoNessa/0.1 (br.com.ramonessa.ramo_nessa_passenger)';
