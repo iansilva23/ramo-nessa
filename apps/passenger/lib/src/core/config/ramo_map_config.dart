@@ -16,5 +16,5 @@ abstract final class RamoMapConfig {
   static bool get matchingEnabled => false;
 
   static const userAgent =
-      'RamoNessa/0.1 (br.com.ramonessa.ramo_nessa_passenger)';
+      'RamoNessa/0.1 (br.com.ramonessa.passenger)';
 }
