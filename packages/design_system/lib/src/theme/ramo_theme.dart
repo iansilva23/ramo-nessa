@@ -20,6 +20,7 @@ abstract final class RamoTheme {
       inputDecorationTheme: _inputDecoration(
         fill: RamoColors.surface,
         border: RamoColors.border,
+        focusedBorderColor: RamoColors.ink,
       ),
       navigationBarTheme: _navigationBar(
         background: RamoColors.surface,
@@ -45,6 +46,7 @@ abstract final class RamoTheme {
       inputDecorationTheme: _inputDecoration(
         fill: RamoColors.darkRaised,
         border: RamoColors.darkBorder,
+        focusedBorderColor: RamoColors.signal,
       ),
       navigationBarTheme: _navigationBar(
         background: RamoColors.darkSurface,
@@ -113,6 +115,7 @@ abstract final class RamoTheme {
   static InputDecorationTheme _inputDecoration({
     required Color fill,
     required Color border,
+    required Color focusedBorderColor,
   }) {
     OutlineInputBorder shape(Color color, {double width = 1}) {
       return OutlineInputBorder(
@@ -130,7 +133,7 @@ abstract final class RamoTheme {
       ),
       border: shape(border),
       enabledBorder: shape(border),
-      focusedBorder: shape(RamoColors.ink, width: 1.5),
+      focusedBorder: shape(focusedBorderColor, width: 1.5),
     );
   }
 
