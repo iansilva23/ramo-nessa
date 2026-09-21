@@ -74,7 +74,9 @@ class ServiceSelector extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        service.previewEta,
+                        service.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: isSelected
                                   ? Theme.of(context)
