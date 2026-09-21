@@ -12,6 +12,8 @@ class RideBottomSheet extends StatelessWidget {
     required this.onDestinationTap,
     required this.onRequestRide,
     this.destination,
+    this.routeSummary,
+    this.routeLoading = false,
   });
 
   final ServiceType selectedService;
@@ -19,17 +21,19 @@ class RideBottomSheet extends StatelessWidget {
   final VoidCallback onDestinationTap;
   final VoidCallback onRequestRide;
   final String? destination;
+  final String? routeSummary;
+  final bool routeLoading;
 
   @override
   Widget build(BuildContext context) {
     final hasDestination = destination != null;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasDestination ? 0.48 : 0.43,
+      initialChildSize: hasDestination ? 0.50 : 0.43,
       minChildSize: 0.34,
-      maxChildSize: 0.72,
+      maxChildSize: 0.74,
       snap: true,
-      snapSizes: const [0.43, 0.72],
+      snapSizes: const [0.43, 0.74],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -103,6 +107,25 @@ class RideBottomSheet extends StatelessWidget {
                   ),
                 ),
               ),
+              if (routeLoading) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                const LinearProgressIndicator(minHeight: 3),
+              ],
+              if (routeSummary != null && !routeLoading) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                Row(
+                  children: [
+                    const Icon(Icons.route_rounded, size: 18),
+                    const SizedBox(width: RamoSpacing.xs),
+                    Text(
+                      routeSummary!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: RamoSpacing.md),
               ServiceSelector(
                 selected: selectedService,
@@ -131,11 +154,15 @@ class RideBottomSheet extends StatelessWidget {
                                   .titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
+                            Text(
+                              'valor provisório',
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
                           ],
                         ),
                       ),
                       FilledButton(
-                        onPressed: onRequestRide,
+                        onPressed: routeLoading ? null : onRequestRide,
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(154, 54),
                           backgroundColor: RamoColors.signal,
