@@ -23,7 +23,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Ramo Nessa'), findsOneWidget);
+    expect(find.text('RAMO NESSA'), findsOneWidget);
     expect(find.text('Pra onde vamos?'), findsOneWidget);
     expect(find.text('© OpenStreetMap contributors'), findsNothing);
 
