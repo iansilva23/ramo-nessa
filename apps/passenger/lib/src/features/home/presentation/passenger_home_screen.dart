@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../../core/config/ramo_map_config.dart';
 import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
 import '../../map/data/nominatim_place_search_service.dart';
@@ -52,6 +53,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _mapReady = false;
   bool _locating = false;
   bool _routeLoading = false;
+  int _routeRequestId = 0;
 
   @override
   void initState() {
@@ -123,9 +125,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    _routeRequestId++;
+
     setState(() {
       _destination = destination;
       _route = null;
+      _routeLoading = false;
     });
 
     if (_userLocation == null) {
@@ -141,10 +146,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     final origin = _userLocation;
     final destination = _destination;
 
-    if (origin == null || destination == null || _routeLoading) {
+    if (origin == null || destination == null) {
       return;
     }
 
+    final requestId = ++_routeRequestId;
     setState(() => _routeLoading = true);
 
     try {
@@ -153,7 +159,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         destination: destination.position,
       );
 
-      if (!mounted) {
+      if (!mounted || requestId != _routeRequestId) {
         return;
       }
 
@@ -166,7 +172,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _fitRoute();
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || requestId != _routeRequestId) {
         return;
       }
 
@@ -209,6 +215,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     if (_route == null) {
       _loadRoute();
+      return;
+    }
+
+    if (!RamoMapConfig.matchingEnabled) {
+      _showMessage(
+        'Mapa, GPS e rota estão reais. O matching com motoristas será '
+        'conectado na próxima etapa.',
+      );
       return;
     }
 
