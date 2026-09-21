@@ -49,11 +49,7 @@ jobs:
           rm -rf .brand-transfer/passenger_icon
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A .brand-transfer
-          git add apps/passenger/assets/brand/passenger/app_icon_source.jpg
-          git add apps/passenger/android/app/src/main/res
-          git add apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset
-          git add apps/passenger/pubspec.lock
+          git add -A
           if git diff --cached --quiet; then
             echo "Launcher icons already synchronized."
             exit 0
