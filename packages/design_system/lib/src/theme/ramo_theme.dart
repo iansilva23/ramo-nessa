@@ -62,7 +62,8 @@ abstract final class RamoTheme {
     );
 
     return base.copyWith(
-      splashFactory: InkSparkle.splashFactory,
+      // InkRipple is deterministic across platforms and widget tests.
+      splashFactory: InkRipple.splashFactory,
       textTheme: base.textTheme.copyWith(
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w800,
@@ -73,7 +74,7 @@ abstract final class RamoTheme {
           letterSpacing: -0.7,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w750,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.4,
         ),
         titleMedium: base.textTheme.titleMedium?.copyWith(
@@ -91,7 +92,7 @@ abstract final class RamoTheme {
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w750,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -113,11 +114,12 @@ abstract final class RamoTheme {
     required Color fill,
     required Color border,
   }) {
-    OutlineInputBorder shape(Color color, {double width = 1}) =>
-        OutlineInputBorder(
-          borderRadius: BorderRadius.circular(RamoRadius.md),
-          borderSide: BorderSide(color: color, width: width),
-        );
+    OutlineInputBorder shape(Color color, {double width = 1}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
 
     return InputDecorationTheme(
       filled: true,
@@ -142,7 +144,10 @@ abstract final class RamoTheme {
       backgroundColor: background,
       indicatorColor: indicator,
       labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(color: foreground, fontWeight: FontWeight.w650),
+        TextStyle(
+          color: foreground,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
