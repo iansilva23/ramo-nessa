@@ -15,6 +15,33 @@ Palavras-chave:
 - responsivo
 - vivo sem ser exagerado
 
+## Identidade oficial
+
+A identidade escolhida para o produto é **amarelo/dourado + preto**.
+
+Tokens principais:
+
+- Brand Yellow: `#FAD50E`
+- Brand Yellow Light: `#FFF21A`
+- Brand Gold: `#F6BF09`
+- Brand Black: `#0D0D0D`
+- Ink: `#111315`
+- Off-white/canvas: `#F5F5F1`
+
+O amarelo é cor de assinatura, seleção, ação e estados de marca. Ele não deve preencher todas as telas. A interface continua usando bastante espaço neutro para manter legibilidade e aparência premium.
+
+A antiga cor verde provisória não faz mais parte do Design System.
+
+## Arquivos de marca
+
+Os arquivos-fonte ficam separados por finalidade:
+
+- `apps/passenger/assets/brand/common` — logos e símbolo compartilhados
+- `apps/passenger/assets/brand/passenger` — ícone e splash do Passageiro
+- `apps/driver/assets/brand` — identidade específica do Motorista
+
+O ícone do Passageiro e o ícone com a inscrição **MOTORISTA** são tratados como produtos distintos da mesma marca.
+
 ## Princípios visuais
 
 - mapa como protagonista

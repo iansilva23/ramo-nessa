@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// Paleta inicial do Ramo Nessa.
+/// Paleta oficial do Ramo Nessa.
 ///
-/// A cor [signal] é propositalmente provisória enquanto a identidade final
-/// ainda está sendo refinada. O restante da interface parte de neutros para
-/// que a troca do acento não exija redesenhar o produto.
+/// A identidade usa amarelo/dourado e preto como assinatura. Os neutros
+/// continuam predominando nas telas para preservar legibilidade e deixar o
+/// amarelo funcionar como cor de ação, seleção e momentos de marca.
 abstract final class RamoColors {
+  static const brandYellow = Color(0xFFFAD50E);
+  static const brandYellowLight = Color(0xFFFFF21A);
+  static const brandGold = Color(0xFFF6BF09);
+  static const brandBlack = Color(0xFF0D0D0D);
+
   static const ink = Color(0xFF111315);
   static const inkSoft = Color(0xFF383B40);
   static const muted = Color(0xFF74787F);
@@ -20,8 +25,8 @@ abstract final class RamoColors {
   static const darkRaised = Color(0xFF1D2024);
   static const darkBorder = Color(0xFF2A2E33);
 
-  static const signal = Color(0xFFCCFF3D);
-  static const signalInk = Color(0xFF12170A);
+  static const signal = brandYellow;
+  static const signalInk = brandBlack;
 
   static const success = Color(0xFF16845B);
   static const warning = Color(0xFFE5A11A);
