@@ -36,14 +36,16 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       },
     );
 
-    final response = await _client.get(
-      uri,
-      headers: const {
-        'User-Agent': RamoMapConfig.userAgent,
-        'Accept': 'application/json',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-      },
-    );
+    final response = await _client
+        .get(
+          uri,
+          headers: const {
+            'User-Agent': RamoMapConfig.userAgent,
+            'Accept': 'application/json',
+            'Accept-Language': 'pt-BR,pt;q=0.9',
+          },
+        )
+        .timeout(RamoMapConfig.requestTimeout);
 
     if (response.statusCode != 200) {
       throw StateError(
