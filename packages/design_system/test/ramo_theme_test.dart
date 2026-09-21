@@ -13,6 +13,16 @@ void main() {
     expect(dark.colorScheme.secondary, RamoColors.signal);
   });
 
+  test('dark input focus remains visible', () {
+    final focusedBorder = RamoTheme.dark.inputDecorationTheme.focusedBorder;
+
+    expect(focusedBorder, isA<OutlineInputBorder>());
+    expect(
+      (focusedBorder! as OutlineInputBorder).borderSide.color,
+      RamoColors.signal,
+    );
+  });
+
   test('core design tokens stay valid', () {
     expect(RamoRadius.sm, greaterThan(0));
     expect(RamoRadius.md, greaterThan(RamoRadius.sm));
