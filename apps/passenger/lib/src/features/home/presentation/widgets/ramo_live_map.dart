@@ -98,7 +98,7 @@ class RamoLiveMap extends StatelessWidget {
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(
-                    '© OpenStreetMap contributors',
+                    '© OpenStreetMap contributors · Rotas: OSRM',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
