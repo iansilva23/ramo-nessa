@@ -60,7 +60,7 @@ class RamoLiveMap extends StatelessWidget {
               TileLayer(
                 urlTemplate: RamoMapConfig.osmTileUrl,
                 userAgentPackageName:
-                    'br.com.ramonessa.ramo_nessa_passenger',
+                    'br.com.ramonessa.passenger',
                 tileProvider: NetworkTileProvider(
                   headers: const {
                     'User-Agent': RamoMapConfig.userAgent,
