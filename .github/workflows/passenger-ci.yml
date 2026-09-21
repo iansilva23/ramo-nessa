@@ -1,0 +1,39 @@
+name: Passenger CI
+
+on:
+  push:
+    paths:
+      - "apps/passenger/**"
+      - "packages/design_system/**"
+      - ".github/workflows/passenger-ci.yml"
+  pull_request:
+    paths:
+      - "apps/passenger/**"
+      - "packages/design_system/**"
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get passenger dependencies
+        working-directory: apps/passenger
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: apps/passenger
+        run: flutter analyze
+
+      - name: Test
+        working-directory: apps/passenger
+        run: flutter test
