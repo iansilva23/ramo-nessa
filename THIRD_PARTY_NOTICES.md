@@ -26,3 +26,19 @@ Isso inclui qualquer template comprado cujo direito de redistribuição/incorpor
 ## Regra
 
 Nenhuma credencial, chave privada ou configuração de terceiros será copiada para o Ramo Nessa.
+
+
+## Dependências atualmente incorporadas ao app Passageiro
+
+- **flutter_map 8.3.2** — BSD-3-Clause
+- **geolocator 14.0.3** — MIT
+- **http 1.6.0** — BSD-3-Clause
+- **latlong2 0.10.1** — Apache-2.0
+
+## Dados e serviços usados durante desenvolvimento
+
+- **OpenStreetMap** — dados sob ODbL; atribuição deve permanecer visível.
+- **Nominatim público (OSMF)** — somente para desenvolvimento/baixo volume e pesquisa explícita do usuário; não usar como autocomplete.
+- **OSRM demo server** — somente para desenvolvimento/validação; sem garantia de disponibilidade para operação comercial.
+
+Os serviços públicos acima não devem ser tratados como infraestrutura de produção do Ramo Nessa.
