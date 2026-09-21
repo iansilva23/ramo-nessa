@@ -1,4 +1,4 @@
-# Roadmap inicial — Ramo Nessa
+# Roadmap — Ramo Nessa
 
 ## Etapa 0 — Fundação
 
@@ -6,23 +6,28 @@
 - [x] repositório privado
 - [x] arquitetura inicial documentada
 - [x] direção de design definida
-- [ ] auditoria final das fontes de código selecionadas
-- [ ] matriz USAR / ADAPTAR / REFERÊNCIA / DESCARTAR
+- [x] auditoria das principais fontes de código selecionadas
+- [x] matriz USAR / ADAPTAR / REFERÊNCIA / NÃO INCORPORAR
+- [x] design tokens iniciais
 - [ ] definição final do backend
-- [ ] design tokens iniciais
 
 ## Etapa 1 — Passageiro
 
-- [ ] projeto Flutter moderno
-- [ ] splash/onboarding
+- [x] projeto Flutter Android/iOS
+- [x] Design System inicial
+- [x] permissões de localização em primeiro plano
+- [x] mapa real em ambiente de desenvolvimento
+- [x] origem por GPS
+- [x] busca explícita de destino
+- [x] rota, distância e ETA reais
+- [x] Carro / Moto / Entrega
+- [x] CI, testes e build Android de validação
+- [ ] splash/onboarding final
 - [ ] autenticação
-- [ ] permissões de localização
-- [ ] mapa
-- [ ] busca de origem/destino
-- [ ] Carro / Moto / Entrega
-- [ ] estimativa de preço e ETA
-- [ ] solicitar serviço
-- [ ] busca de motorista
+- [ ] origem manual
+- [ ] motor de preço real
+- [ ] solicitar serviço no backend
+- [ ] matching real
 - [ ] acompanhamento em tempo real
 - [ ] chat
 - [ ] pagamento
@@ -74,13 +79,16 @@
 
 ## Etapa 5 — Produção
 
+- [x] compilação Android debug validada em CI
+- [x] compilação Android release validada tecnicamente em CI
+- [x] compilação iOS Simulator validada em CI
 - [ ] testes reais com dois celulares
 - [ ] internet ruim/reconexão
-- [ ] testes de background
-- [ ] segurança
+- [ ] testes de background do Motorista
+- [ ] assinatura Android de produção
+- [ ] Apple Developer Team + assinatura/dispositivo iOS
+- [ ] segurança de produção
 - [ ] LGPD
 - [ ] políticas de privacidade/termos
-- [ ] builds Android
-- [ ] builds iOS
 - [ ] beta
 - [ ] publicação
