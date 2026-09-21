@@ -59,6 +59,12 @@ void main() {
 
     expect(find.text('2,5 km · 7 min'), findsOneWidget);
 
+    await tester.drag(
+      find.byType(ListView).last,
+      const Offset(0, -260),
+    );
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Solicitar'));
     await tester.pump();
 
