@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "br.com.ramonessa.ramo_nessa_passenger"
+    namespace = "br.com.ramonessa.passenger"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "br.com.ramonessa.ramo_nessa_passenger"
+        applicationId = "br.com.ramonessa.passenger"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
