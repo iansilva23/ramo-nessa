@@ -35,8 +35,11 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   }
 
   void _onQueryChanged(String value) {
+    _requestId++;
+
     setState(() {
       _results = const [];
+      _loading = false;
       _error = null;
     });
   }
