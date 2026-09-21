@@ -1,0 +1,50 @@
+name: Generate Passenger Brand Icons
+
+on:
+  push:
+    paths:
+      - ".github/workflows/generate-passenger-brand-icons.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: apps/passenger
+        run: flutter pub get
+
+      - name: Generate Android and iOS launcher icons
+        working-directory: apps/passenger
+        run: dart run flutter_launcher_icons
+
+      - name: Validate generated icon files
+        run: |
+          test -s apps/passenger/android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          test -s apps/passenger/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png
+
+      - name: Commit generated launcher icons
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/passenger/android/app/src/main/res apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset apps/passenger/pubspec.lock
+          if git diff --cached --quiet; then
+            echo "Launcher icons already synchronized."
+            exit 0
+          fi
+          git commit -m "feat(brand): generate official passenger launcher icons"
+          git push
