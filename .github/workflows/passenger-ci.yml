@@ -15,7 +15,7 @@ on:
 jobs:
   flutter:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -53,3 +53,7 @@ jobs:
       - name: Test passenger
         working-directory: apps/passenger
         run: flutter test
+
+      - name: Build Android debug APK
+        working-directory: apps/passenger
+        run: flutter build apk --debug
