@@ -1,0 +1,99 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+
+import '../../../core/config/ramo_map_config.dart';
+import '../domain/route_info.dart';
+import 'route_service.dart';
+
+class OsrmRouteService implements RouteService {
+  OsrmRouteService({http.Client? client}) : _client = client ?? http.Client();
+
+  final http.Client _client;
+
+  @override
+  Future<RouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final coordinates =
+        '${origin.longitude},${origin.latitude};'
+        '${destination.longitude},${destination.latitude}';
+
+    final uri = Uri.parse(
+      '${RamoMapConfig.osrmBaseUrl}/route/v1/driving/$coordinates',
+    ).replace(
+      queryParameters: const {
+        'overview': 'full',
+        'geometries': 'geojson',
+        'steps': 'false',
+      },
+    );
+
+    final response = await _client.get(
+      uri,
+      headers: const {
+        'User-Agent': RamoMapConfig.userAgent,
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw StateError(
+        'Não foi possível calcular a rota agora (HTTP ${response.statusCode}).',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic> || decoded['code'] != 'Ok') {
+      throw StateError('Não encontramos uma rota para esse destino.');
+    }
+
+    final routes = decoded['routes'];
+    if (routes is! List || routes.isEmpty || routes.first is! Map) {
+      throw StateError('Não encontramos uma rota para esse destino.');
+    }
+
+    final route = Map<String, dynamic>.from(routes.first as Map);
+    final geometry = route['geometry'];
+    if (geometry is! Map) {
+      throw const FormatException('Geometria da rota inválida.');
+    }
+
+    final coordinatesJson = geometry['coordinates'];
+    if (coordinatesJson is! List) {
+      throw const FormatException('Coordenadas da rota inválidas.');
+    }
+
+    final points = coordinatesJson
+        .whereType<List>()
+        .where((coordinate) => coordinate.length >= 2)
+        .map(
+          (coordinate) => LatLng(
+            (coordinate[1] as num).toDouble(),
+            (coordinate[0] as num).toDouble(),
+          ),
+        )
+        .toList(growable: false);
+
+    if (points.length < 2) {
+      throw const FormatException(
+        'A rota retornada não possui pontos suficientes.',
+      );
+    }
+
+    final distance = (route['distance'] as num?)?.toDouble();
+    final durationSeconds = (route['duration'] as num?)?.toDouble();
+
+    if (distance == null || durationSeconds == null) {
+      throw const FormatException('Distância ou duração da rota inválida.');
+    }
+
+    return RouteInfo(
+      points: points,
+      distanceMeters: distance,
+      duration: Duration(seconds: durationSeconds.round()),
+    );
+  }
+}
