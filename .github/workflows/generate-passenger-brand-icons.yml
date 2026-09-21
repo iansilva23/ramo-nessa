@@ -47,4 +47,5 @@ jobs:
             exit 0
           fi
           git commit -m "feat(brand): generate official passenger launcher icons"
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main
