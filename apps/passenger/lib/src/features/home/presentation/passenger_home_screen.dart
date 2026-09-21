@@ -285,20 +285,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                         horizontal: RamoSpacing.md,
                         vertical: RamoSpacing.sm,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _BrandDot(),
-                          SizedBox(width: RamoSpacing.xs),
-                          Text(
-                            'Ramo Nessa',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: RamoBrandLockup(compact: true),
                     ),
                   ),
                   const Spacer(),
@@ -334,22 +321,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onRequestRide: _requestRide,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _BrandDot extends StatelessWidget {
-  const _BrandDot();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 11,
-      height: 11,
-      decoration: const BoxDecoration(
-        color: RamoColors.signal,
-        shape: BoxShape.circle,
       ),
     );
   }
