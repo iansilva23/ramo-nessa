@@ -50,6 +50,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.pump();
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
