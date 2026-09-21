@@ -13,6 +13,7 @@ class NominatimPlaceSearchService implements PlaceSearchService {
 
   final http.Client _client;
   DateTime? _nextAllowedRequestAt;
+  Future<void> _rateLimitQueue = Future<void>.value();
 
   @override
   Future<List<RamoPlace>> search(String query) async {
@@ -65,16 +66,21 @@ class NominatimPlaceSearchService implements PlaceSearchService {
         .toList(growable: false);
   }
 
-  Future<void> _respectRateLimit() async {
-    final now = DateTime.now();
-    final nextAllowed = _nextAllowedRequestAt;
+  Future<void> _respectRateLimit() {
+    final scheduled = _rateLimitQueue.then((_) async {
+      final now = DateTime.now();
+      final nextAllowed = _nextAllowedRequestAt;
 
-    if (nextAllowed != null && now.isBefore(nextAllowed)) {
-      await Future<void>.delayed(nextAllowed.difference(now));
-    }
+      if (nextAllowed != null && now.isBefore(nextAllowed)) {
+        await Future<void>.delayed(nextAllowed.difference(now));
+      }
 
-    _nextAllowedRequestAt =
-        DateTime.now().add(const Duration(milliseconds: 1100));
+      _nextAllowedRequestAt =
+          DateTime.now().add(const Duration(milliseconds: 1100));
+    });
+
+    _rateLimitQueue = scheduled;
+    return scheduled;
   }
 
   RamoPlace? _parsePlace(Map<String, dynamic> item) {
