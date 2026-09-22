@@ -5,6 +5,7 @@ import 'core/location/location_service.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
+import 'features/pricing/data/pricing_quote_service.dart';
 
 class RamoNessaPassengerApp extends StatelessWidget {
   const RamoNessaPassengerApp({
@@ -12,12 +13,14 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.locationService,
     this.routeService,
     this.placeSearchService,
+    this.pricingQuoteService,
     this.networkTilesEnabled = true,
   });
 
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
+  final PricingQuoteService? pricingQuoteService;
   final bool networkTilesEnabled;
 
   @override
@@ -32,6 +35,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         locationService: locationService,
         routeService: routeService,
         placeSearchService: placeSearchService,
+        pricingQuoteService: pricingQuoteService,
         networkTilesEnabled: networkTilesEnabled,
       ),
     );

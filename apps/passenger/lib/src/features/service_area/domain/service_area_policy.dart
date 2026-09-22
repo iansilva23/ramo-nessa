@@ -27,12 +27,6 @@ class ServiceAreaCheck {
   }
 }
 
-/// Geofences operacionais iniciais do MVP.
-///
-/// Os raios são configuração de produto, não limites administrativos.
-/// Eles foram dimensionados para cobrir Jeri, Jijoca, Preá e o corredor local
-/// entre essas regiões. Antes do lançamento comercial podem ser substituídos
-/// por polígonos vindos do backend/admin sem alterar o fluxo do app.
 abstract final class RamoServiceArea {
   static const zones = <ServiceZone>[
     ServiceZone(
@@ -52,6 +46,12 @@ abstract final class RamoServiceArea {
       label: 'Preá',
       center: LatLng(-2.82017, -40.41467),
       radiusMeters: 6500,
+    ),
+    ServiceZone(
+      id: 'airport-jjd',
+      label: 'Aeroporto JJD',
+      center: LatLng(-2.906425, -40.357338),
+      radiusMeters: 3000,
     ),
   ];
 
