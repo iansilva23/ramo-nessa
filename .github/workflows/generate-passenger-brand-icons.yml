@@ -18,10 +18,60 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Rebuild verified passenger artwork
+      - name: Replace only the connected white outer background
         run: |
-          cat .brand-transfer/passenger_icon/*.b64 | tr -d '\n' | base64 --decode > apps/passenger/assets/brand/passenger/app_icon_source.jpg
-          echo "5fdffc4bde89ed0ebceba5ebe365bef2b5a15c33273597ffe7df07d76b7c9c9c  apps/passenger/assets/brand/passenger/app_icon_source.jpg" | sha256sum -c -
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from collections import deque
+          from pathlib import Path
+          from PIL import Image
+
+          source = Path("apps/passenger/assets/brand/passenger/app_icon_source.jpg")
+          target = Path("apps/passenger/assets/brand/passenger/app_icon_source.png")
+
+          image = Image.open(source).convert("RGB")
+          pixels = image.load()
+          width, height = image.size
+          brand_yellow = (250, 213, 14)
+
+          def is_outer_white(rgb):
+              r, g, b = rgb
+              return min(r, g, b) >= 232 and max(r, g, b) - min(r, g, b) <= 28
+
+          queue = deque()
+          visited = set()
+
+          for x in range(width):
+              queue.append((x, 0))
+              queue.append((x, height - 1))
+          for y in range(height):
+              queue.append((0, y))
+              queue.append((width - 1, y))
+
+          while queue:
+              x, y = queue.popleft()
+              if (x, y) in visited:
+                  continue
+              visited.add((x, y))
+
+              if not is_outer_white(pixels[x, y]):
+                  continue
+
+              pixels[x, y] = brand_yellow
+
+              if x > 0:
+                  queue.append((x - 1, y))
+              if x + 1 < width:
+                  queue.append((x + 1, y))
+              if y > 0:
+                  queue.append((x, y - 1))
+              if y + 1 < height:
+                  queue.append((x, y + 1))
+
+          image.save(target, format="PNG", optimize=True)
+          source.unlink()
+          print(f"Prepared {target} ({width}x{height})")
+          PY
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -38,15 +88,15 @@ jobs:
         working-directory: apps/passenger
         run: dart run flutter_launcher_icons
 
-      - name: Validate generated icon files
+      - name: Validate generated brand files
         run: |
+          test -s apps/passenger/assets/brand/passenger/app_icon_source.png
           test -s apps/passenger/android/app/src/main/res/mipmap-mdpi/ic_launcher.png
           test -s apps/passenger/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -s apps/passenger/ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png
 
-      - name: Commit generated launcher icons
+      - name: Commit refined launcher icons
         run: |
-          rm -rf .brand-transfer/passenger_icon
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
@@ -54,6 +104,6 @@ jobs:
             echo "Launcher icons already synchronized."
             exit 0
           fi
-          git commit -m "feat(brand): generate official passenger launcher icons"
+          git commit -m "feat(brand): refine passenger launcher background"
           git pull --rebase origin main
           git push origin HEAD:main
