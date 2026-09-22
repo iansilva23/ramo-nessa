@@ -167,6 +167,28 @@ test('Comfort no Preá adiciona R$50 sobre carro quando permitido', () => {
   }
 });
 
+test('noturno local do Preá soma R$10, mas viagem longa mantém preço-base', () => {
+  const local = quoteFare({
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'car',
+    period: 'after_22',
+  });
+  const long = quoteFare({
+    origin: zone('prea'),
+    destination: zone('external', 'sobral'),
+    category: 'car',
+    period: 'after_22',
+  });
+
+  assert.equal(local.kind, 'exact');
+  assert.equal(long.kind, 'exact');
+  if (local.kind === 'exact' && long.kind === 'exact') {
+    assert.equal(local.baseAmountCents, 4500);
+    assert.equal(long.baseAmountCents, 52000);
+  }
+});
+
 test('faixas ainda não fechadas permanecem faixa e impedem falsa precisão', () => {
   const quote = quoteFare({
     origin: zone('prea'),
