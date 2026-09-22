@@ -24,10 +24,4 @@ extension ServiceTypeUi on ServiceType {
         ServiceType.moto => Icons.two_wheeler_rounded,
         ServiceType.delivery => Icons.inventory_2_rounded,
       };
-
-  String get previewPrice => switch (this) {
-        ServiceType.car => 'R\$ 32,80',
-        ServiceType.moto => 'R\$ 18,40',
-        ServiceType.delivery => 'R\$ 22,90',
-      };
 }

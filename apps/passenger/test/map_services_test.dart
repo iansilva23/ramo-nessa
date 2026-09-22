@@ -6,10 +6,12 @@ import 'package:ramo_nessa_passenger/src/features/map/data/nominatim_place_searc
 import 'package:ramo_nessa_passenger/src/features/map/data/osrm_route_service.dart';
 
 void main() {
-  test('Nominatim converte resultado em RamoPlace', () async {
+  test('Nominatim converte resultado em RamoPlace e limita busca local', () async {
     final client = MockClient((request) async {
       expect(request.headers['User-Agent'], contains('RamoNessa'));
       expect(request.url.queryParameters['countrycodes'], 'br');
+      expect(request.url.queryParameters['bounded'], '1');
+      expect(request.url.queryParameters['viewbox'], isNotEmpty);
 
       return http.Response(
         '[{"lat":"-2.7956","lon":"-40.5142","name":"Jericoacoara",'
@@ -26,7 +28,6 @@ void main() {
     expect(results.first.position.latitude, closeTo(-2.7956, 0.0001));
     expect(results.first.position.longitude, closeTo(-40.5142, 0.0001));
   });
-
 
   test('Nominatim reutiliza cache para a mesma busca', () async {
     var requests = 0;

@@ -41,6 +41,8 @@ class NominatimPlaceSearchService implements PlaceSearchService {
         'countrycodes': 'br',
         'addressdetails': '1',
         'accept-language': 'pt-BR',
+        'viewbox': RamoMapConfig.nominatimViewbox,
+        'bounded': '1',
       },
     );
 
