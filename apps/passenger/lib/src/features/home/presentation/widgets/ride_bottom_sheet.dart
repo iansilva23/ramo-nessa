@@ -16,9 +16,13 @@ class RideBottomSheet extends StatelessWidget {
     this.destination,
     this.routeSummary,
     this.estimatedFare,
+    this.fareCaption,
+    this.pricingMessage,
     this.serviceAreaLabel,
     this.coverageMessage,
     this.routeLoading = false,
+    this.pricingLoading = false,
+    this.priceIsFinal = false,
   });
 
   final ServiceType selectedService;
@@ -30,24 +34,30 @@ class RideBottomSheet extends StatelessWidget {
   final String? destination;
   final String? routeSummary;
   final String? estimatedFare;
+  final String? fareCaption;
+  final String? pricingMessage;
   final String? serviceAreaLabel;
   final String? coverageMessage;
   final bool routeLoading;
+  final bool pricingLoading;
+  final bool priceIsFinal;
 
   @override
   Widget build(BuildContext context) {
     final hasTrip = origin != null && destination != null;
     final canRequest = hasTrip &&
         estimatedFare != null &&
+        priceIsFinal &&
         coverageMessage == null &&
-        !routeLoading;
+        !routeLoading &&
+        !pricingLoading;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.58 : 0.50,
+      initialChildSize: hasTrip ? 0.60 : 0.50,
       minChildSize: 0.40,
-      maxChildSize: 0.82,
+      maxChildSize: 0.84,
       snap: true,
-      snapSizes: const [0.50, 0.82],
+      snapSizes: const [0.50, 0.84],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -139,12 +149,20 @@ class RideBottomSheet extends StatelessWidget {
                 selected: selectedService,
                 onChanged: onServiceChanged,
               ),
+              if (pricingMessage != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                _PricingNotice(message: pricingMessage!),
+              ],
               if (hasTrip) ...[
                 const SizedBox(height: RamoSpacing.lg),
                 AnimatedSwitcher(
                   duration: RamoMotion.standard,
                   child: Row(
-                    key: ValueKey((selectedService, estimatedFare)),
+                    key: ValueKey((
+                      selectedService,
+                      estimatedFare,
+                      pricingLoading,
+                    )),
                     children: [
                       Expanded(
                         child: Column(
@@ -156,14 +174,16 @@ class RideBottomSheet extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              estimatedFare ?? '—',
+                              pricingLoading
+                                  ? 'Calculando…'
+                                  : estimatedFare ?? '—',
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             Text(
-                              'estimativa pela rota',
+                              fareCaption ?? 'cotação do Ramo Nessa Core',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                           ],
@@ -272,9 +292,45 @@ class _CoverageNotice extends StatelessWidget {
           const SizedBox(width: RamoSpacing.xs),
           Expanded(
             child: Text(
-              '$message Atendemos Jeri, Jijoca e Preá.',
+              '$message Atendemos Jeri, Jijoca, Preá e Aeroporto JJD.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PricingNotice extends StatelessWidget {
+  const _PricingNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.sm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(RamoRadius.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: RamoSpacing.xs),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
                     fontWeight: FontWeight.w700,
                   ),
             ),

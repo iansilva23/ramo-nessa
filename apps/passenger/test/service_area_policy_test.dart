@@ -3,7 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/features/service_area/domain/service_area_policy.dart';
 
 void main() {
-  test('Jeri, Jijoca e Preá ficam dentro da área operacional', () {
+  test('Jeri, Jijoca, Preá e Aeroporto JJD ficam na área operacional', () {
     expect(
       RamoServiceArea.zoneFor(const LatLng(-2.80023, -40.51638))?.id,
       'jericoacoara',
@@ -15,6 +15,10 @@ void main() {
     expect(
       RamoServiceArea.zoneFor(const LatLng(-2.82017, -40.41467))?.id,
       'prea',
+    );
+    expect(
+      RamoServiceArea.zoneFor(const LatLng(-2.906425, -40.357338))?.id,
+      'airport-jjd',
     );
   });
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../../core/config/ramo_core_config.dart';
 import '../../../core/config/ramo_map_config.dart';
 import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
@@ -11,7 +12,9 @@ import '../../map/data/place_search_service.dart';
 import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../map/domain/route_info.dart';
-import '../../pricing/domain/fare_calculator.dart';
+import '../../pricing/data/http_pricing_quote_service.dart';
+import '../../pricing/data/pricing_quote_service.dart';
+import '../../pricing/domain/pricing_quote.dart';
 import '../../service_area/domain/service_area_policy.dart';
 import '../domain/service_type.dart';
 import 'destination_search_screen.dart';
@@ -25,12 +28,14 @@ class PassengerHomeScreen extends StatefulWidget {
     this.locationService,
     this.routeService,
     this.placeSearchService,
+    this.pricingQuoteService,
     this.networkTilesEnabled = true,
   });
 
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
+  final PricingQuoteService? pricingQuoteService;
   final bool networkTilesEnabled;
 
   @override
@@ -46,17 +51,28 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.routeService ?? OsrmRouteService();
   late final PlaceSearchService _placeSearchService =
       widget.placeSearchService ?? NominatimPlaceSearchService();
+  late final PricingQuoteService? _pricingQuoteService =
+      widget.pricingQuoteService ??
+          (RamoCoreConfig.enabled
+              ? HttpPricingQuoteService(
+                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                )
+              : null);
 
   ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
   RouteInfo? _route;
+  PricingQuote? _pricingQuote;
+  String? _pricingMessage;
   String? _coverageMessage;
   String? _serviceAreaLabel;
   bool _mapReady = false;
   bool _locating = false;
   bool _routeLoading = false;
+  bool _pricingLoading = false;
   int _routeRequestId = 0;
+  int _pricingRequestId = 0;
 
   @override
   void initState() {
@@ -71,6 +87,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _resetPricing() {
+    _pricingRequestId++;
+    _pricingQuote = null;
+    _pricingMessage = null;
+    _pricingLoading = false;
   }
 
   Future<void> _locateUser({bool showErrors = true}) async {
@@ -97,6 +120,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _locating = false;
         _coverageMessage = null;
         _serviceAreaLabel = null;
+        _resetPricing();
       });
 
       if (_mapReady) {
@@ -156,6 +180,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       _routeLoading = false;
       _coverageMessage = null;
       _serviceAreaLabel = null;
+      _resetPricing();
     });
 
     if (_destination != null) {
@@ -183,6 +208,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       _routeLoading = false;
       _coverageMessage = null;
       _serviceAreaLabel = null;
+      _resetPricing();
     });
 
     if (_origin == null) {
@@ -191,6 +217,23 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     await _loadRoute();
+  }
+
+  ServiceType _suggestService(ServiceAreaCheck coverage) {
+    final origin = coverage.originZone?.id;
+    final destination = coverage.destinationZone?.id;
+
+    if (origin == 'jericoacoara' && destination == 'jericoacoara') {
+      return ServiceType.buggy;
+    }
+
+    final jeriRoute =
+        origin == 'jericoacoara' || destination == 'jericoacoara';
+    if (jeriRoute) {
+      return ServiceType.comfortBlack;
+    }
+
+    return _service;
   }
 
   Future<void> _loadRoute() async {
@@ -213,16 +256,21 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
         _coverageMessage = coverage.message;
         _serviceAreaLabel = null;
+        _resetPricing();
       });
       return;
     }
 
     final requestId = ++_routeRequestId;
+    final suggestedService = _suggestService(coverage);
+
     setState(() {
+      _service = suggestedService;
       _routeLoading = true;
       _coverageMessage = null;
       _serviceAreaLabel =
           '${coverage.originZone!.label} → ${coverage.destinationZone!.label}';
+      _resetPricing();
     });
 
     try {
@@ -240,6 +288,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
       });
 
+      await _loadQuote(route: route, coverage: coverage);
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fitRoute();
       });
@@ -251,9 +301,110 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       setState(() {
         _route = null;
         _routeLoading = false;
+        _resetPricing();
       });
       _showMessage('Não conseguimos calcular essa rota agora.');
     }
+  }
+
+  Future<void> _loadQuote({
+    required RouteInfo route,
+    required ServiceAreaCheck coverage,
+  }) async {
+    final origin = _origin;
+    final destination = _destination;
+    final service = _pricingQuoteService;
+
+    if (origin == null ||
+        destination == null ||
+        coverage.originZone == null ||
+        coverage.destinationZone == null) {
+      return;
+    }
+
+    if (service == null) {
+      setState(() {
+        _pricingQuote = null;
+        _pricingLoading = false;
+        _pricingMessage =
+            'Core não configurado neste build. Nenhum preço local será inventado.';
+      });
+      return;
+    }
+
+    final requestId = ++_pricingRequestId;
+    setState(() {
+      _pricingLoading = true;
+      _pricingQuote = null;
+      _pricingMessage = null;
+    });
+
+    try {
+      final quote = await service.quote(
+        service: _service,
+        origin: origin,
+        destination: destination,
+        originZoneId: coverage.originZone!.id,
+        destinationZoneId: coverage.destinationZone!.id,
+        route: route,
+      );
+
+      if (!mounted || requestId != _pricingRequestId) {
+        return;
+      }
+
+      setState(() {
+        _pricingQuote = quote;
+        _pricingLoading = false;
+        _pricingMessage = quote.isExact
+            ? null
+            : 'Essa tarifa ainda é uma faixa e precisa ser resolvida antes do pagamento.';
+      });
+    } on PricingQuoteException catch (error) {
+      if (!mounted || requestId != _pricingRequestId) {
+        return;
+      }
+
+      setState(() {
+        _pricingQuote = null;
+        _pricingLoading = false;
+        _pricingMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _pricingRequestId) {
+        return;
+      }
+
+      setState(() {
+        _pricingQuote = null;
+        _pricingLoading = false;
+        _pricingMessage = 'Não conseguimos obter a cotação do Core agora.';
+      });
+    }
+  }
+
+  Future<void> _reloadQuoteForService(ServiceType service) async {
+    setState(() {
+      _service = service;
+      _resetPricing();
+    });
+
+    final origin = _origin;
+    final destination = _destination;
+    final route = _route;
+    if (origin == null || destination == null || route == null) {
+      return;
+    }
+
+    final coverage = RamoServiceArea.checkTrip(
+      origin: origin.position,
+      destination: destination.position,
+    );
+    if (!coverage.isSupported) {
+      return;
+    }
+
+    await _loadQuote(route: route, coverage: coverage);
   }
 
   void _fitRoute() {
@@ -298,7 +449,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     );
     if (!coverage.isSupported) {
       _showMessage(
-        '${coverage.message} Atendemos Jeri, Jijoca e Preá.',
+        '${coverage.message} Atendemos Jeri, Jijoca, Preá e Aeroporto JJD.',
       );
       return;
     }
@@ -308,10 +459,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    if (_pricingQuote == null || !_pricingQuote!.isExact) {
+      _showMessage(
+        _pricingMessage ?? 'Aguardando preço confirmado pelo Ramo Nessa Core.',
+      );
+      return;
+    }
+
     if (!RamoMapConfig.matchingEnabled) {
       _showMessage(
-        'Mapa, origem, zonas, rota e preço já estão ativos. O matching com '
-        'motoristas será conectado na próxima etapa.',
+        'Rota e preço do Core já estão conectados. O matching real será '
+        'ativado junto do fluxo de pagamento confirmado.',
       );
       return;
     }
@@ -339,22 +497,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     final routeSummary = _route == null
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
-
-    final coverage = _origin == null || _destination == null
-        ? null
-        : RamoServiceArea.checkTrip(
-            origin: _origin!.position,
-            destination: _destination!.position,
-          );
-
-    final estimatedFare = _route == null
-        ? null
-        : FareCalculator.estimate(
-            service: _service,
-            route: _route!,
-            originZoneId: coverage?.originZone?.id,
-            destinationZoneId: coverage?.destinationZone?.id,
-          ).formatted;
 
     return Scaffold(
       body: Stack(
@@ -421,15 +563,19 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
-            estimatedFare: estimatedFare,
+            estimatedFare: _pricingQuote?.formatted,
+            fareCaption: _pricingQuote?.isExact == true
+                ? 'preço confirmado pelo Core'
+                : 'cotação do Ramo Nessa Core',
+            priceIsFinal: _pricingQuote?.isExact == true,
+            pricingMessage: _pricingMessage,
+            pricingLoading: _pricingLoading,
             serviceAreaLabel: _serviceAreaLabel,
             coverageMessage: _coverageMessage,
             routeLoading: _routeLoading,
             onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
-            onServiceChanged: (service) {
-              setState(() => _service = service);
-            },
+            onServiceChanged: _reloadQuoteForService,
             onRequestRide: _requestRide,
           ),
         ],

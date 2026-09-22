@@ -1,87 +1,60 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
-import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
-import 'package:ramo_nessa_passenger/src/features/pricing/domain/fare_calculator.dart';
+import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_location_resolver.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 
 void main() {
-  const route = RouteInfo(
-    points: [
-      LatLng(-2.80023, -40.51638),
-      LatLng(-2.82017, -40.41467),
-    ],
-    distanceMeters: 2500,
-    duration: Duration(minutes: 7),
-  );
+  test('cotação exata do Core formata BRL', () {
+    final quote = PricingQuote.fromJson(const {
+      'kind': 'exact',
+      'ruleId': 'jeri-prea-comfort',
+      'totalAmountCents': 15000,
+      'platformCommissionCents': 1500,
+      'driverNetCents': 13500,
+    });
 
-  test('preço base usa distância e tempo reais da rota', () {
-    expect(
-      FareCalculator.estimate(service: ServiceType.car, route: route).formatted,
-      'R\$ 14,50',
-    );
-    expect(
-      FareCalculator.estimate(service: ServiceType.moto, route: route).formatted,
-      'R\$ 9,10',
-    );
-    expect(
-      FareCalculator.estimate(
-        service: ServiceType.delivery,
-        route: route,
-      ).formatted,
-      'R\$ 10,80',
-    );
+    expect(quote.isExact, isTrue);
+    expect(quote.formatted, 'R$ 150,00');
+    expect(quote.platformCommissionCents, 1500);
+    expect(quote.driverNetCents, 13500);
   });
 
-  test('tarifa mínima da categoria é respeitada', () {
-    const shortRoute = RouteInfo(
-      points: [
-        LatLng(-2.80023, -40.51638),
-        LatLng(-2.80050, -40.51600),
-      ],
-      distanceMeters: 100,
-      duration: Duration(minutes: 1),
-    );
+  test('faixa de preço não finge valor exato', () {
+    final quote = PricingQuote.fromJson(const {
+      'kind': 'range',
+      'ruleId': 'prea-formosa-moto',
+      'minTotalAmountCents': 800,
+      'maxTotalAmountCents': 1000,
+    });
 
-    expect(
-      FareCalculator.estimate(
-        service: ServiceType.car,
-        route: shortRoute,
-      ).amountCents,
-      1200,
-    );
+    expect(quote.isExact, isFalse);
+    expect(quote.formatted, 'R$ 8,00–R$ 10,00');
   });
 
-  test('piso do corredor Jeri-Preá é aplicado nos dois sentidos', () {
-    final outbound = FareCalculator.estimate(
-      service: ServiceType.car,
-      route: route,
-      originZoneId: 'jericoacoara',
-      destinationZoneId: 'prea',
+  test('resolver reconhece Aeroporto JJD e localidades explícitas', () {
+    const airport = RamoPlace(
+      name: 'Aeroporto de Jericoacoara',
+      address: 'Cruz, Ceará',
+      position: LatLng(-2.906425, -40.357338),
     );
-    final inbound = FareCalculator.estimate(
-      service: ServiceType.car,
-      route: route,
-      originZoneId: 'prea',
-      destinationZoneId: 'jericoacoara',
+    const mangueSeco = RamoPlace(
+      name: 'Mangue Seco',
+      address: 'Jijoca de Jericoacoara, Ceará',
+      position: LatLng(-2.8, -40.5),
     );
 
-    expect(outbound.amountCents, 5500);
-    expect(outbound.pricingRuleId, 'jeri-prea');
-    expect(outbound.corridorMinimumApplied, isTrue);
-    expect(inbound.amountCents, 5500);
-    expect(inbound.pricingRuleId, 'jeri-prea');
-  });
-
-  test('mesma zona não recebe piso de corredor', () {
-    final estimate = FareCalculator.estimate(
-      service: ServiceType.car,
-      route: route,
-      originZoneId: 'jericoacoara',
-      destinationZoneId: 'jericoacoara',
+    final airportRef = PricingLocationResolver.resolve(
+      place: airport,
+      serviceZoneId: 'airport-jjd',
+    );
+    final mangueRef = PricingLocationResolver.resolve(
+      place: mangueSeco,
+      serviceZoneId: 'jijoca',
     );
 
-    expect(estimate.amountCents, 1450);
-    expect(estimate.pricingRuleId, isNull);
-    expect(estimate.corridorMinimumApplied, isFalse);
+    expect(airportRef.zoneId, 'external');
+    expect(airportRef.localityId, 'airport-jjd');
+    expect(mangueRef.localityId, 'mangue-seco');
   });
 }
