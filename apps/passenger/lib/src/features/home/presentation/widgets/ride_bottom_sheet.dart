@@ -23,6 +23,8 @@ class RideBottomSheet extends StatelessWidget {
     this.routeLoading = false,
     this.pricingLoading = false,
     this.priceIsFinal = false,
+    this.passengerCount = 1,
+    this.onPassengerCountChanged,
   });
 
   final ServiceType selectedService;
@@ -41,6 +43,8 @@ class RideBottomSheet extends StatelessWidget {
   final bool routeLoading;
   final bool pricingLoading;
   final bool priceIsFinal;
+  final int passengerCount;
+  final ValueChanged<int>? onPassengerCountChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +153,13 @@ class RideBottomSheet extends StatelessWidget {
                 selected: selectedService,
                 onChanged: onServiceChanged,
               ),
+              if (selectedService == ServiceType.buggy) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                _PassengerCounter(
+                  count: passengerCount,
+                  onChanged: onPassengerCountChanged,
+                ),
+              ],
               if (pricingMessage != null) ...[
                 const SizedBox(height: RamoSpacing.sm),
                 _PricingNotice(message: pricingMessage!),
@@ -206,6 +217,66 @@ class RideBottomSheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _PassengerCounter extends StatelessWidget {
+  const _PassengerCounter({
+    required this.count,
+    required this.onChanged,
+  });
+
+  final int count;
+  final ValueChanged<int>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: RamoSpacing.sm,
+        vertical: RamoSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.groups_2_rounded, size: 20),
+          const SizedBox(width: RamoSpacing.xs),
+          Expanded(
+            child: Text(
+              'Passageiros',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remover passageiro',
+            onPressed:
+                count > 1 && onChanged != null ? () => onChanged!(count - 1) : null,
+            icon: const Icon(Icons.remove_rounded),
+          ),
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$count',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Adicionar passageiro',
+            onPressed:
+                count < 4 && onChanged != null ? () => onChanged!(count + 1) : null,
+            icon: const Icon(Icons.add_rounded),
+          ),
+        ],
+      ),
     );
   }
 }

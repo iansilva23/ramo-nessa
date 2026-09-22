@@ -73,6 +73,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _pricingLoading = false;
   int _routeRequestId = 0;
   int _pricingRequestId = 0;
+  int _passengerCount = 1;
 
   @override
   void initState() {
@@ -347,6 +348,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         originZoneId: coverage.originZone!.id,
         destinationZoneId: coverage.destinationZone!.id,
         route: route,
+        passengers: _passengerCount,
       );
 
       if (!mounted || requestId != _pricingRequestId) {
@@ -386,6 +388,35 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   Future<void> _reloadQuoteForService(ServiceType service) async {
     setState(() {
       _service = service;
+      _passengerCount = 1;
+      _resetPricing();
+    });
+
+    final origin = _origin;
+    final destination = _destination;
+    final route = _route;
+    if (origin == null || destination == null || route == null) {
+      return;
+    }
+
+    final coverage = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
+    );
+    if (!coverage.isSupported) {
+      return;
+    }
+
+    await _loadQuote(route: route, coverage: coverage);
+  }
+
+  Future<void> _changePassengerCount(int count) async {
+    if (count < 1 || count > 4 || count == _passengerCount) {
+      return;
+    }
+
+    setState(() {
+      _passengerCount = count;
       _resetPricing();
     });
 
@@ -575,6 +606,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             routeLoading: _routeLoading,
             onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
+            passengerCount: _passengerCount,
+            onPassengerCountChanged: _changePassengerCount,
             onServiceChanged: _reloadQuoteForService,
             onRequestRide: _requestRide,
           ),

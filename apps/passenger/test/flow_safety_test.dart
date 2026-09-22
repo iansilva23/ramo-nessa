@@ -75,6 +75,10 @@ void main() {
     expect(find.text('R\$ 42,00'), findsOneWidget);
     expect(find.text('preço confirmado pelo Core'), findsOneWidget);
 
+    await tester.tap(find.byTooltip('Adicionar passageiro'));
+    await tester.pumpAndSettle();
+    expect(find.text('R\$ 44,00'), findsOneWidget);
+
     await tester.tap(find.text('Solicitar'));
     await tester.pump();
 
@@ -151,12 +155,15 @@ class _FakePricingQuoteService implements PricingQuoteService {
     int passengers = 1,
     DateTime? now,
   }) async {
-    return PricingQuote.fromJson(const {
+    final amount = service == ServiceType.buggy
+        ? 4000 + passengers * 200
+        : 4200;
+    return PricingQuote.fromJson({
       'kind': 'exact',
       'ruleId': 'test-exact',
-      'totalAmountCents': 4200,
-      'platformCommissionCents': 420,
-      'driverNetCents': 3780,
+      'totalAmountCents': amount,
+      'platformCommissionCents': (amount * 0.10).round(),
+      'driverNetCents': (amount * 0.90).round(),
     });
   }
 }
