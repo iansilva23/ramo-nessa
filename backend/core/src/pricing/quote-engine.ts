@@ -164,10 +164,14 @@ function resolveHubLocality(
 ): string | null {
   const originIsHub =
     origin.localityId === hubId ||
-    (origin.zoneId === hubId && origin.localityId == null);
+    (origin.zoneId === hubId &&
+      origin.localityId == null &&
+      destination.zoneId !== hubId);
   const destinationIsHub =
     destination.localityId === hubId ||
-    (destination.zoneId === hubId && destination.localityId == null);
+    (destination.zoneId === hubId &&
+      destination.localityId == null &&
+      origin.zoneId !== hubId);
 
   // Mesma zona sem localidade identificada não pode ser tratada como sede:
   // o GPS pode estar em um interior com tarifa diferente.
