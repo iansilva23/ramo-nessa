@@ -3,7 +3,7 @@
 Status: APROVADO para implementação.
 Data-base: 2026-09-22.
 
-Este documento é a fonte comercial de verdade da v1. Os valores abaixo devem ser servidos pelo Core/backend e administráveis pelo painel. O estimador local do Flutter é apenas técnico/de desenvolvimento até a integração definitiva.
+Este documento é a fonte comercial de verdade da v1. Os valores abaixo são servidos pelo Core/backend. O Passageiro consulta o Core para obter a cotação e não mantém um preço comercial autoritativo no Flutter. A administração pelo painel e o versionamento persistente ainda serão implementados.
 
 ## Regras globais
 
