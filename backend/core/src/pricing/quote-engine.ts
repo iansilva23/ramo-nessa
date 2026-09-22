@@ -6,6 +6,7 @@ import {
   JIJOCA_LOCALITIES,
   MOTO_REFERENCE_KM_PER_LITER,
   PREA_COMFORT_SURCHARGE_CENTS,
+  PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS,
   PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS,
   PREA_LOCALITIES,
   type PriceBand,
@@ -224,8 +225,11 @@ function quotePrea(request: QuoteRequest): FareQuote | null {
 
     const night =
       request.period === 'after_22' &&
-      localityId !== 'jijoca' &&
-      localityId !== 'airport-jjd'
+      PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(
+        localityId as (typeof PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS extends Set<infer T>
+          ? T
+          : never),
+      )
         ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
         : 0;
 
@@ -246,8 +250,11 @@ function quotePrea(request: QuoteRequest): FareQuote | null {
   const localCarNight =
     request.category === 'car' &&
     request.period === 'after_22' &&
-    localityId !== 'jijoca' &&
-    localityId !== 'airport-jjd'
+    PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(
+      localityId as (typeof PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS extends Set<infer T>
+        ? T
+        : never),
+    )
       ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
       : 0;
 
