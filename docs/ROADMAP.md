@@ -9,6 +9,8 @@
 - [x] auditoria das principais fontes de código selecionadas
 - [x] matriz USAR / ADAPTAR / REFERÊNCIA / NÃO INCORPORAR
 - [x] design tokens iniciais
+- [x] regras comerciais e preços v1 aprovados
+- [x] política de pagamentos e comissão v1 aprovada
 - [ ] definição final do backend
 
 ## Etapa 1 — Passageiro
@@ -25,12 +27,18 @@
 - [ ] splash/onboarding final
 - [ ] autenticação
 - [x] origem manual
-- [x] estimativa local por rota + zona (provisória)\n- [ ] motor de preço autoritativo no backend
+- [x] estimativa local por rota + zona (somente desenvolvimento)
+- [ ] cotação comercial v1 servida pelo backend
+- [ ] Comfort/Black 4x4
+- [ ] Buggy
+- [ ] pagamento Pix
+- [ ] pagamento cartão
+- [ ] Carteira Ramo Nessa
+- [ ] pagamento confirmado antes do despacho
 - [ ] solicitar serviço no backend
 - [ ] matching real
 - [ ] acompanhamento em tempo real
 - [ ] chat
-- [ ] pagamento
 - [ ] histórico
 - [ ] avaliação
 
@@ -38,14 +46,15 @@
 
 - [ ] onboarding
 - [ ] documentos
-- [ ] veículo
+- [ ] veículo e capacidade
+- [ ] elegibilidade 4x4/rotas
 - [ ] online/offline
 - [ ] GPS em background
 - [ ] recebimento de ofertas
 - [ ] aceitar/recusar
 - [ ] navegação/coleta
 - [ ] início e finalização
-- [ ] ganhos
+- [ ] ganhos bruto/líquido
 - [ ] carteira/repasse
 - [ ] histórico e avaliações
 
@@ -55,10 +64,15 @@
 - [ ] matching
 - [ ] localização em tempo real
 - [ ] máquina de estados
-- [ ] pricing
-- [ ] comissão
+- [ ] catálogo de preços por localidade/rota
+- [ ] regras de horário/noturno
+- [ ] compensação de coleta distante
+- [ ] elegibilidade por categoria/veículo
+- [ ] comissão de 10%
+- [ ] Pix/cartão
+- [ ] carteira do passageiro
+- [ ] saldo/repasse do motorista
 - [ ] notificações
-- [ ] pagamentos
 - [ ] chat
 - [ ] auditoria
 - [ ] observabilidade
@@ -72,8 +86,10 @@
 - [ ] viagens em andamento
 - [ ] histórico
 - [ ] cancelamentos
-- [ ] preços e zonas
+- [ ] preços, localidades, zonas e vigência
+- [ ] categorias e elegibilidade
 - [ ] pagamentos/comissões
+- [ ] habilitar/desabilitar dinheiro futuramente
 - [ ] bloqueios
 - [ ] logs administrativos
 
