@@ -29,6 +29,26 @@ void main() {
     expect(results.first.position.longitude, closeTo(-40.5142, 0.0001));
   });
 
+  test('Nominatim permite destino externo somente quando aprovado', () async {
+    final client = MockClient((request) async {
+      expect(request.url.queryParameters['bounded'], isNull);
+      expect(request.url.queryParameters['viewbox'], isNull);
+      expect(request.url.queryParameters['q'], contains('Sobral'));
+
+      return http.Response(
+        '[{"lat":"-3.68","lon":"-40.35","name":"Sobral",'
+        '"display_name":"Sobral, Ceará, Brasil"}]',
+        200,
+      );
+    });
+
+    final service = NominatimPlaceSearchService(client: client);
+    final results = await service.search('Sobral');
+
+    expect(results, hasLength(1));
+    expect(results.first.name, 'Sobral');
+  });
+
   test('Nominatim reutiliza cache para a mesma busca', () async {
     var requests = 0;
     final client = MockClient((request) async {

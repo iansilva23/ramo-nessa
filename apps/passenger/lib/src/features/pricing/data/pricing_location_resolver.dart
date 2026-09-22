@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:latlong2/latlong.dart';
 
 import '../../map/domain/ramo_place.dart';
+import '../../service_area/domain/approved_destination_catalog.dart';
 
 class PricingLocationRef {
   const PricingLocationRef({
@@ -32,6 +33,14 @@ abstract final class PricingLocationResolver {
       return const PricingLocationRef(
         zoneId: 'external',
         localityId: 'airport-jjd',
+      );
+    }
+
+    if (serviceZoneId == 'external') {
+      final external = ApprovedDestinationCatalog.matchPlace(place);
+      return PricingLocationRef(
+        zoneId: 'external',
+        localityId: external?.id,
       );
     }
 

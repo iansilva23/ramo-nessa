@@ -244,9 +244,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    final coverage = RamoServiceArea.checkTrip(
-      origin: origin.position,
-      destination: destination.position,
+    final coverage = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
     );
 
     if (!coverage.isSupported) {
@@ -396,9 +396,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    final coverage = RamoServiceArea.checkTrip(
-      origin: origin.position,
-      destination: destination.position,
+    final coverage = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
     );
     if (!coverage.isSupported) {
       return;
@@ -443,9 +443,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    final coverage = RamoServiceArea.checkTrip(
-      origin: origin.position,
-      destination: destination.position,
+    final coverage = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
     );
     if (!coverage.isSupported) {
       _showMessage(

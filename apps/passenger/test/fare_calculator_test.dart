@@ -57,4 +57,20 @@ void main() {
     expect(airportRef.localityId, 'airport-jjd');
     expect(mangueRef.localityId, 'mangue-seco');
   });
+
+  test('resolver envia destino longo aprovado como localidade externa', () {
+    const sobral = RamoPlace(
+      name: 'Sobral',
+      address: 'Sobral, Ceará, Brasil',
+      position: LatLng(-3.68, -40.35),
+    );
+
+    final ref = PricingLocationResolver.resolve(
+      place: sobral,
+      serviceZoneId: 'external',
+    );
+
+    expect(ref.zoneId, 'external');
+    expect(ref.localityId, 'sobral');
+  });
 }

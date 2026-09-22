@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/service_area/domain/service_area_policy.dart';
 
 void main() {
@@ -20,6 +21,28 @@ void main() {
       RamoServiceArea.zoneFor(const LatLng(-2.906425, -40.357338))?.id,
       'airport-jjd',
     );
+  });
+
+  test('destino externo aprovado entra na área comercial sem abrir qualquer ponto', () {
+    const prea = RamoPlace(
+      name: 'Preá',
+      address: 'Preá, Cruz, Ceará',
+      position: LatLng(-2.82017, -40.41467),
+    );
+    const sobral = RamoPlace(
+      name: 'Sobral',
+      address: 'Sobral, Ceará, Brasil',
+      position: LatLng(-3.68, -40.35),
+    );
+
+    final check = RamoServiceArea.checkPlaceTrip(
+      origin: prea,
+      destination: sobral,
+    );
+
+    expect(check.isSupported, isTrue);
+    expect(check.destinationZone?.id, 'external');
+    expect(check.destinationZone?.label, 'Sobral');
   });
 
   test('ponto distante fica fora da área operacional', () {

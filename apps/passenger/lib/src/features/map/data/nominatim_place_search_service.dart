@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/config/ramo_map_config.dart';
+import '../../service_area/domain/approved_destination_catalog.dart';
 import '../domain/ramo_place.dart';
 import 'place_search_service.dart';
 
@@ -29,21 +30,56 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       return cached;
     }
 
+    final approvedExternal =
+        ApprovedDestinationCatalog.matchQuery(normalized);
+
     await _respectRateLimit();
+
+    final results = approvedExternal == null
+        ? await _request(
+            query: normalized,
+            boundedToLocalArea: true,
+          )
+        : await _request(
+            query: '${approvedExternal.label}, Ceará, Brasil',
+            boundedToLocalArea: false,
+          );
+
+    final safeResults = approvedExternal == null
+        ? results
+        : results
+            .where(
+              (place) =>
+                  ApprovedDestinationCatalog.matchPlace(place)?.id ==
+                  approvedExternal.id,
+            )
+            .toList(growable: false);
+
+    _cache[cacheKey] = safeResults;
+    return safeResults;
+  }
+
+  Future<List<RamoPlace>> _request({
+    required String query,
+    required bool boundedToLocalArea,
+  }) async {
+    final parameters = <String, String>{
+      'q': query,
+      'format': 'jsonv2',
+      'limit': '6',
+      'countrycodes': 'br',
+      'addressdetails': '1',
+      'accept-language': 'pt-BR',
+      if (boundedToLocalArea) ...{
+        'viewbox': RamoMapConfig.nominatimViewbox,
+        'bounded': '1',
+      },
+    };
 
     final uri = Uri.https(
       RamoMapConfig.nominatimHost,
       '/search',
-      {
-        'q': normalized,
-        'format': 'jsonv2',
-        'limit': '6',
-        'countrycodes': 'br',
-        'addressdetails': '1',
-        'accept-language': 'pt-BR',
-        'viewbox': RamoMapConfig.nominatimViewbox,
-        'bounded': '1',
-      },
+      parameters,
     );
 
     final response = await _client
@@ -68,14 +104,11 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       throw const FormatException('Resposta de busca inválida.');
     }
 
-    final results = decoded
+    return decoded
         .whereType<Map<String, dynamic>>()
         .map(_parsePlace)
         .whereType<RamoPlace>()
         .toList(growable: false);
-
-    _cache[cacheKey] = results;
-    return results;
   }
 
   Future<void> _respectRateLimit() {
