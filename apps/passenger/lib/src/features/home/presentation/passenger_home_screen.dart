@@ -340,11 +340,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
+    final coverage = _origin == null || _destination == null
+        ? null
+        : RamoServiceArea.checkTrip(
+            origin: _origin!.position,
+            destination: _destination!.position,
+          );
+
     final estimatedFare = _route == null
         ? null
         : FareCalculator.estimate(
             service: _service,
             route: _route!,
+            originZoneId: coverage?.originZone?.id,
+            destinationZoneId: coverage?.destinationZone?.id,
           ).formatted;
 
     return Scaffold(
