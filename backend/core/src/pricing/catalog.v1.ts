@@ -22,7 +22,7 @@ export const CAR_REFERENCE_KM_PER_LITER = 9;
 export const PREA_COMFORT_SURCHARGE_CENTS = 5000;
 export const PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS = 1000;
 
-export const PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS = new Set([
+export const PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS: ReadonlySet<string> = new Set([
   'prea',
   'formosa',
   'cavalo-bravo',
@@ -56,7 +56,7 @@ export const PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS = new Set([
   'beach-house',
   'vida-ao-vento',
   'casa-de-praia-teto-branco',
-] as const);
+]);
 
 export const PREA_LOCALITIES: Record<string, LocalityPricing> = {
   'prea': { moto: 700, delivery: 700, car: 2500 },
