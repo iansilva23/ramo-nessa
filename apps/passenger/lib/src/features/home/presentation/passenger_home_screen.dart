@@ -283,10 +283,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     return const [];
   }
 
-  ServiceType _suggestService(
-    ServiceAreaCheck coverage,
-    List<ServiceType> available,
-  ) {
+  ServiceType _suggestService(List<ServiceType> available) {
     if (available.contains(_service)) {
       return _service;
     }
@@ -341,7 +338,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     final requestId = ++_routeRequestId;
-    final suggestedService = _suggestService(coverage, availableServices);
+    final suggestedService = _suggestService(availableServices);
 
     setState(() {
       _service = suggestedService;
@@ -559,9 +556,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       destination: destination,
     );
     if (!coverage.isSupported) {
-      _showMessage(
-        '${coverage.message} Atendemos Jeri, Jijoca, Preá e Aeroporto JJD.',
-      );
+      _showMessage(coverage.message ?? 'Essa rota ainda não é atendida.');
       return;
     }
 

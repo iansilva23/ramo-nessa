@@ -26,11 +26,13 @@
 - [x] rota, distância e ETA reais
 - [x] Carro / Moto / Entrega no domínio
 - [x] Comfort/Black e Buggy no domínio/seletor
+- [x] categorias filtradas por elegibilidade comercial da rota
+- [x] contador de 1–4 passageiros para preço do Buggy
 - [x] cliente de cotação comercial do Core
 - [x] remoção do preço comercial autoritativo do Flutter
 - [x] Aeroporto JJD incluído na área operacional inicial
 - [x] CI, testes e build Android de validação
-- [ ] resolver todas as localidades/rotas externas aprovadas no fluxo de busca
+- [x] busca controlada dos destinos longos aprovados na tabela comercial
 - [ ] splash/onboarding final
 - [ ] autenticação
 - [ ] tela/fluxo Pix
