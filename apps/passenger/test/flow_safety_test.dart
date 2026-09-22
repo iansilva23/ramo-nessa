@@ -61,14 +61,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
-    expect(find.text('R\$ 16,00'), findsOneWidget);
-    expect(find.text('estimativa pela rota'), findsOneWidget);
 
     await tester.drag(
       find.byType(ListView).last,
       const Offset(0, -260),
     );
     await tester.pumpAndSettle();
+
+    expect(find.text('R\$ 16,00'), findsOneWidget);
+    expect(find.text('estimativa pela rota'), findsOneWidget);
 
     await tester.tap(find.text('Solicitar'));
     await tester.pump();
