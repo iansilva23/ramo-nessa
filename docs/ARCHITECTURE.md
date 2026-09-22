@@ -20,7 +20,10 @@ A primeira camada implementada é deliberadamente independente de banco/gateway 
 - comissão;
 - regras noturnas aprovadas;
 - compensação por motorista distante;
-- política de meios de pagamento.
+- política de meios de pagamento;
+- máquina de estados de pagamento;
+- máquina de estados inicial da corrida;
+- bloqueio de matching sem pagamento autorizado/pago.
 
 Essa camada pura pode ser testada sem infraestrutura externa e depois conectada a persistência, autenticação, pagamentos, matching e tempo real.
 

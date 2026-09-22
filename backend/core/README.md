@@ -17,6 +17,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - compensação de combustível para coleta distante;
 - comissão Ramo Nessa de 10%;
 - política de pagamento digital (Pix/cartão/carteira; dinheiro desligado);
+- máquina de estados de pagamento;
+- máquina de estados da corrida com bloqueio de matching antes do pagamento;
+- validação runtime do contrato de cotação;
 - endpoint inicial `POST /v1/pricing/quote`;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;

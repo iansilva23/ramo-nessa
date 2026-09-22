@@ -76,12 +76,12 @@
 - [x] política de pagamento v1 (Pix/cartão/carteira; dinheiro desligado)
 - [x] endpoint de cotação
 - [x] testes e CI do domínio comercial
-- [ ] validação de schema das requisições HTTP
+- [x] validação runtime das requisições de cotação
 - [ ] autenticação e autorização
 - [ ] persistência/Postgres
 - [ ] matching
 - [ ] localização em tempo real
-- [ ] máquina de estados
+- [x] máquina de estados inicial de corrida/pagamento
 - [ ] integração real Pix/cartão
 - [ ] ledger/carteira do passageiro
 - [ ] saldo/repasse do motorista

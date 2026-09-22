@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { quoteFare } from './pricing/quote-engine.js';
-import { PricingError, type QuoteRequest } from './pricing/types.js';
+import { PricingError } from './pricing/types.js';
+import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validation.js';
 import { PAYMENT_POLICY_V1 } from './payments/payment-policy.js';
 
 const port = Number(process.env.PORT ?? 8080);
@@ -33,7 +34,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && request.url === '/v1/pricing/quote') {
-      const body = (await readJson(request)) as QuoteRequest;
+      const body = parseQuoteRequest(await readJson(request));
       const quote = quoteFare(body);
       json(response, 200, quote);
       return;
@@ -41,6 +42,11 @@ const server = createServer(async (request, response) => {
 
     json(response, 404, { error: 'NOT_FOUND' });
   } catch (error) {
+    if (error instanceof InvalidQuoteRequestError) {
+      json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
+      return;
+    }
+
     if (error instanceof PricingError) {
       json(response, 422, { error: error.code, message: error.message });
       return;
