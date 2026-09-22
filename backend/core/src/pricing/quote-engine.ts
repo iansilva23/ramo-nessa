@@ -225,11 +225,7 @@ function quotePrea(request: QuoteRequest): FareQuote | null {
 
     const night =
       request.period === 'after_22' &&
-      PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(
-        localityId as (typeof PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS extends Set<infer T>
-          ? T
-          : never),
-      )
+      PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(localityId)
         ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
         : 0;
 
@@ -250,11 +246,7 @@ function quotePrea(request: QuoteRequest): FareQuote | null {
   const localCarNight =
     request.category === 'car' &&
     request.period === 'after_22' &&
-    PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(
-      localityId as (typeof PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS extends Set<infer T>
-        ? T
-        : never),
-    )
+    PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(localityId)
       ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
       : 0;
 
