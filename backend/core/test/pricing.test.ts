@@ -191,7 +191,7 @@ test('noturno local do Preá soma R$10, mas viagem longa mantém preço-base', (
 
 test('faixas ainda não fechadas permanecem faixa e impedem falsa precisão', () => {
   const quote = quoteFare({
-    origin: zone('prea'),
+    origin: zone('prea', 'prea'),
     destination: zone('prea', 'formosa'),
     category: 'moto',
     period: 'day',
@@ -213,7 +213,7 @@ test('coleta distante cobra só combustível excedente aos 3 km', () => {
 
 test('comissão de 10% incide sobre o total inclusive adicional', () => {
   const quote = quoteFare({
-    origin: zone('jijoca'),
+    origin: zone('jijoca', 'jijoca'),
     destination: zone('jijoca', 'mangue-seco'),
     category: 'moto',
     period: 'day',
