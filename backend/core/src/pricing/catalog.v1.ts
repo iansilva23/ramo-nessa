@@ -22,6 +22,42 @@ export const CAR_REFERENCE_KM_PER_LITER = 9;
 export const PREA_COMFORT_SURCHARGE_CENTS = 5000;
 export const PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS = 1000;
 
+export const PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS = new Set([
+  'prea',
+  'formosa',
+  'cavalo-bravo',
+  'caicara',
+  'laguim',
+  'buraco-azul',
+  'caicara-de-baixo',
+  'corrego-dos-anas',
+  'corrego-das-panelas',
+  'guias-monteiros',
+  'cajueirinho',
+  'lagoa-azul',
+  'lagoa-do-paraiso',
+  'castelhano',
+  'ius',
+  'barrinha-de-baixo',
+  'pinguela',
+  'lagamar',
+  'munzua',
+  'carrapateiras',
+  'aranau',
+  'prea-beach-villas',
+  'play-kitie',
+  'cabana',
+  'ranchos',
+  'vila-prea',
+  'clube-da-irrancha',
+  'casas-eli-lula',
+  'd3-luna',
+  'kite-lodge',
+  'beach-house',
+  'vida-ao-vento',
+  'casa-de-praia-teto-branco',
+] as const);
+
 export const PREA_LOCALITIES: Record<string, LocalityPricing> = {
   'prea': { moto: 700, delivery: 700, car: 2500 },
   'formosa': { moto: { minCents: 800, maxCents: 1000 }, delivery: { minCents: 800, maxCents: 1000 }, car: 2500 },
