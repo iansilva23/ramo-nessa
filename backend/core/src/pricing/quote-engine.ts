@@ -161,11 +161,46 @@ function resolveHubLocality(
   destination: LocationRef,
   hubId: string,
 ): string | null {
-  const a = endpointId(origin);
-  const b = endpointId(destination);
-  if (a === hubId && b !== hubId) return b;
-  if (b === hubId && a !== hubId) return a;
-  if (a === hubId && b === hubId) return hubId;
+  const originIsHub =
+    origin.localityId === hubId ||
+    (origin.zoneId === hubId && origin.localityId == null);
+  const destinationIsHub =
+    destination.localityId === hubId ||
+    (destination.zoneId === hubId && destination.localityId == null);
+
+  // Mesma zona sem localidade identificada não pode ser tratada como sede:
+  // o GPS pode estar em um interior com tarifa diferente.
+  if (
+    origin.zoneId === hubId &&
+    destination.zoneId === hubId &&
+    origin.localityId == null &&
+    destination.localityId == null
+  ) {
+    return null;
+  }
+
+  if (originIsHub) {
+    if (destination.localityId != null && destination.localityId !== hubId) {
+      return destination.localityId;
+    }
+    if (destination.zoneId !== hubId) {
+      return endpointId(destination);
+    }
+  }
+
+  if (destinationIsHub) {
+    if (origin.localityId != null && origin.localityId !== hubId) {
+      return origin.localityId;
+    }
+    if (origin.zoneId !== hubId) {
+      return endpointId(origin);
+    }
+  }
+
+  if (origin.localityId === hubId && destination.localityId === hubId) {
+    return hubId;
+  }
+
   return null;
 }
 
