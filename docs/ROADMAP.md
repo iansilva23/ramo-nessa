@@ -11,7 +11,8 @@
 - [x] design tokens iniciais
 - [x] regras comerciais e preços v1 aprovados
 - [x] política de pagamentos e comissão v1 aprovada
-- [ ] definição final do backend
+- [x] stack inicial do Core definida: Node.js + TypeScript
+- [ ] persistência e infraestrutura final do backend
 
 ## Etapa 1 — Passageiro
 
@@ -20,21 +21,22 @@
 - [x] permissões de localização em primeiro plano
 - [x] mapa real em ambiente de desenvolvimento
 - [x] origem por GPS
+- [x] origem manual
 - [x] busca explícita de destino
 - [x] rota, distância e ETA reais
-- [x] Carro / Moto / Entrega
+- [x] Carro / Moto / Entrega no domínio
+- [x] Comfort/Black e Buggy no domínio/seletor
+- [x] cliente de cotação comercial do Core
+- [x] remoção do preço comercial autoritativo do Flutter
+- [x] Aeroporto JJD incluído na área operacional inicial
 - [x] CI, testes e build Android de validação
+- [ ] resolver todas as localidades/rotas externas aprovadas no fluxo de busca
 - [ ] splash/onboarding final
 - [ ] autenticação
-- [x] origem manual
-- [x] estimativa local por rota + zona (somente desenvolvimento)
-- [ ] cotação comercial v1 servida pelo backend
-- [ ] Comfort/Black 4x4
-- [ ] Buggy
-- [ ] pagamento Pix
-- [ ] pagamento cartão
+- [ ] tela/fluxo Pix
+- [ ] tela/fluxo cartão
 - [ ] Carteira Ramo Nessa
-- [ ] pagamento confirmado antes do despacho
+- [ ] confirmação de pagamento antes do despacho
 - [ ] solicitar serviço no backend
 - [ ] matching real
 - [ ] acompanhamento em tempo real
@@ -60,21 +62,30 @@
 
 ## Etapa 3 — Core
 
+- [x] projeto Node.js + TypeScript
+- [x] endpoint inicial de saúde
+- [x] catálogo comercial v1 em código
+- [x] cotação por rota/localidade
+- [x] regras de horário/noturno aprovadas
+- [x] compensação de coleta distante
+- [x] Comfort/Black + R$ 50 quando aplicável
+- [x] bloqueio comercial de Carro comum em rotas 4x4 de Jeri
+- [x] comissão de 10%
+- [x] política de pagamento v1 (Pix/cartão/carteira; dinheiro desligado)
+- [x] endpoint de cotação
+- [x] testes e CI do domínio comercial
+- [ ] validação de schema das requisições HTTP
 - [ ] autenticação e autorização
+- [ ] persistência/Postgres
 - [ ] matching
 - [ ] localização em tempo real
 - [ ] máquina de estados
-- [ ] catálogo de preços por localidade/rota
-- [ ] regras de horário/noturno
-- [ ] compensação de coleta distante
-- [ ] elegibilidade por categoria/veículo
-- [ ] comissão de 10%
-- [ ] Pix/cartão
-- [ ] carteira do passageiro
+- [ ] integração real Pix/cartão
+- [ ] ledger/carteira do passageiro
 - [ ] saldo/repasse do motorista
 - [ ] notificações
 - [ ] chat
-- [ ] auditoria
+- [ ] auditoria persistente
 - [ ] observabilidade
 
 ## Etapa 4 — Admin
@@ -98,6 +109,8 @@
 - [x] compilação Android debug validada em CI
 - [x] compilação Android release validada tecnicamente em CI
 - [x] compilação iOS Simulator validada em CI
+- [ ] deploy seguro do Core
+- [ ] provedor comercial de mapas/geocoding/rotas
 - [ ] testes reais com dois celulares
 - [ ] internet ruim/reconexão
 - [ ] testes de background do Motorista
