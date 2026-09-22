@@ -72,7 +72,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('R$ 42,00'), findsOneWidget);
+    expect(find.text('R\$ 42,00'), findsOneWidget);
     expect(find.text('preço confirmado pelo Core'), findsOneWidget);
 
     await tester.tap(find.text('Solicitar'));
