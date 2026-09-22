@@ -1,3 +1,7 @@
+import 'dart:math' as math;
+
+import 'package:latlong2/latlong.dart';
+
 import '../../map/domain/ramo_place.dart';
 
 class PricingLocationRef {
@@ -16,6 +20,10 @@ class PricingLocationRef {
 }
 
 abstract final class PricingLocationResolver {
+  static const _preaCenter = LatLng(-2.82017, -40.41467);
+  static const _jijocaCenter = LatLng(-2.89860, -40.45060);
+  static const _hubRecognitionRadiusKm = 2.0;
+
   static PricingLocationRef resolve({
     required RamoPlace place,
     required String serviceZoneId,
@@ -27,18 +35,46 @@ abstract final class PricingLocationResolver {
       );
     }
 
+    final name = _normalize(place.name);
     final text = _normalize('${place.name} ${place.address}');
 
-    final localityId = switch (serviceZoneId) {
-      'prea' => _match(text, _preaAliases),
-      'jijoca' => _match(text, _jijocaAliases),
-      _ => null,
-    };
+    String? localityId;
+    if (serviceZoneId == 'prea') {
+      localityId = _match(name, _preaAliases) ?? _match(text, _preaAliases);
+      localityId ??= _isNear(place.position, _preaCenter) ? 'prea' : null;
+    } else if (serviceZoneId == 'jijoca') {
+      localityId =
+          _match(name, _jijocaAliases) ?? _match(text, _jijocaAliases);
+      localityId ??= _isNear(place.position, _jijocaCenter) ? 'jijoca' : null;
+    }
 
     return PricingLocationRef(
       zoneId: serviceZoneId,
       localityId: localityId,
     );
+  }
+
+  static bool _isNear(LatLng point, LatLng center) {
+    return _distanceKm(point, center) <= _hubRecognitionRadiusKm;
+  }
+
+  static double _distanceKm(LatLng a, LatLng b) {
+    const earthRadiusKm = 6371.0;
+    double radians(double degrees) => degrees * math.pi / 180;
+
+    final lat1 = radians(a.latitude);
+    final lat2 = radians(b.latitude);
+    final deltaLat = radians(b.latitude - a.latitude);
+    final deltaLon = radians(b.longitude - a.longitude);
+
+    final h = math.pow(math.sin(deltaLat / 2), 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.pow(math.sin(deltaLon / 2), 2);
+
+    return earthRadiusKm *
+        2 *
+        math.atan2(math.sqrt(h), math.sqrt(1 - h));
   }
 
   static String? _match(String text, Map<String, List<String>> aliases) {
@@ -86,8 +122,9 @@ abstract final class PricingLocationResolver {
     'vida-ao-vento': ['vida ao vento'],
     'kite-lodge': ['kite lodge'],
     'beach-house': ['beach house'],
-    'play-kitie': ['play kitie', 'play kitie'],
+    'play-kitie': ['play kitie'],
     'd3-luna': ['d3 luna'],
+    'vila-prea': ['vila prea'],
     'cajueirinho': ['cajueirinho'],
     'castelhano': ['castelhano'],
     'carrapateiras': ['carrapateiras'],
@@ -100,7 +137,7 @@ abstract final class PricingLocationResolver {
     'laguim': ['laguim'],
     'cabana': ['cabana'],
     'ranchos': ['ranchos'],
-    'vila-prea': ['vila prea'],
+    'prea': ['prea'],
     'bela-cruz': ['bela cruz'],
     'parazinha': ['parazinha'],
     'itapipoca': ['itapipoca'],
@@ -113,8 +150,7 @@ abstract final class PricingLocationResolver {
     'acarau': ['acarau'],
     'marco': ['marco'],
     'cruz': ['cruz'],
-    'ius': [' ius '],
-    'prea': ['prea'],
+    'ius': ['ius'],
   };
 
   static const _jijocaAliases = <String, List<String>>{
