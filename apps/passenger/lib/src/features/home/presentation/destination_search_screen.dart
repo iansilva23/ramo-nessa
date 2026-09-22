@@ -9,9 +9,15 @@ class DestinationSearchScreen extends StatefulWidget {
   const DestinationSearchScreen({
     super.key,
     this.searchService,
+    this.title = 'Escolher destino',
+    this.hintText = 'Busque rua, pousada ou lugar',
+    this.emptyTitle = 'Busque seu destino',
   });
 
   final PlaceSearchService? searchService;
+  final String title;
+  final String hintText;
+  final String emptyTitle;
 
   @override
   State<DestinationSearchScreen> createState() => _DestinationSearchScreenState();
@@ -80,7 +86,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
       setState(() {
         _results = const [];
         _loading = false;
-        _error = 'Não conseguimos buscar destinos agora. Tente novamente.';
+        _error = 'Não conseguimos buscar lugares agora. Tente novamente.';
       });
     }
   }
@@ -91,7 +97,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Escolher destino'),
+        title: Text(widget.title),
       ),
       body: SafeArea(
         child: Padding(
@@ -105,7 +111,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _submitSearch(),
                 decoration: InputDecoration(
-                  hintText: 'Busque rua, pousada ou lugar',
+                  hintText: widget.hintText,
                   prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: IconButton(
                     tooltip: 'Buscar',
@@ -136,7 +142,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                   ),
                 ),
               if (_results.isEmpty && !_loading && _error == null)
-                const Expanded(child: _SearchHint())
+                Expanded(child: _SearchHint(title: widget.emptyTitle))
               else
                 Expanded(
                   child: ListView.separated(
@@ -180,7 +186,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 }
 
 class _SearchHint extends StatelessWidget {
-  const _SearchHint();
+  const _SearchHint({required this.title});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +201,7 @@ class _SearchHint extends StatelessWidget {
             const Icon(Icons.map_outlined, size: 42),
             const SizedBox(height: RamoSpacing.sm),
             Text(
-              'Busque seu destino',
+              title,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: RamoSpacing.xs),

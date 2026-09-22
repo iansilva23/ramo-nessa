@@ -12,6 +12,8 @@ import '../../map/data/place_search_service.dart';
 import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../map/domain/route_info.dart';
+import '../../pricing/domain/fare_calculator.dart';
+import '../../service_area/domain/service_area_policy.dart';
 import '../domain/service_type.dart';
 import 'destination_search_screen.dart';
 import 'finding_driver_screen.dart';
@@ -47,9 +49,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.placeSearchService ?? NominatimPlaceSearchService();
 
   ServiceType _service = ServiceType.car;
-  LatLng? _userLocation;
+  RamoPlace? _origin;
   RamoPlace? _destination;
   RouteInfo? _route;
+  String? _coverageMessage;
+  String? _serviceAreaLabel;
   bool _mapReady = false;
   bool _locating = false;
   bool _routeLoading = false;
@@ -83,9 +87,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         return;
       }
 
+      final origin = RamoPlace(
+        name: 'Minha localização',
+        address: 'Localização atual do aparelho',
+        position: location,
+      );
+
       setState(() {
-        _userLocation = location;
+        _origin = origin;
         _locating = false;
+        _coverageMessage = null;
+        _serviceAreaLabel = null;
       });
 
       if (_mapReady) {
@@ -112,13 +124,52 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
   }
 
-  Future<void> _chooseDestination() async {
-    final destination = await Navigator.of(context).push<RamoPlace>(
+  Future<RamoPlace?> _searchPlace({
+    required String title,
+    required String emptyTitle,
+  }) {
+    return Navigator.of(context).push<RamoPlace>(
       MaterialPageRoute(
         builder: (_) => DestinationSearchScreen(
           searchService: _placeSearchService,
+          title: title,
+          emptyTitle: emptyTitle,
         ),
       ),
+    );
+  }
+
+  Future<void> _chooseOrigin() async {
+    final origin = await _searchPlace(
+      title: 'Escolher origem',
+      emptyTitle: 'Busque sua origem',
+    );
+
+    if (origin == null || !mounted) {
+      return;
+    }
+
+    _routeRequestId++;
+
+    setState(() {
+      _origin = origin;
+      _route = null;
+      _routeLoading = false;
+      _coverageMessage = null;
+      _serviceAreaLabel = null;
+    });
+
+    if (_destination != null) {
+      await _loadRoute();
+    } else if (_mapReady) {
+      _mapController.move(origin.position, 16);
+    }
+  }
+
+  Future<void> _chooseDestination() async {
+    final destination = await _searchPlace(
+      title: 'Escolher destino',
+      emptyTitle: 'Busque seu destino',
     );
 
     if (destination == null || !mounted) {
@@ -131,9 +182,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       _destination = destination;
       _route = null;
       _routeLoading = false;
+      _coverageMessage = null;
+      _serviceAreaLabel = null;
     });
 
-    if (_userLocation == null) {
+    if (_origin == null) {
       await _locateUser();
       return;
     }
@@ -142,19 +195,40 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   Future<void> _loadRoute() async {
-    final origin = _userLocation;
+    final origin = _origin;
     final destination = _destination;
 
     if (origin == null || destination == null) {
       return;
     }
 
+    final coverage = RamoServiceArea.checkTrip(
+      origin: origin.position,
+      destination: destination.position,
+    );
+
+    if (!coverage.isSupported) {
+      _routeRequestId++;
+      setState(() {
+        _route = null;
+        _routeLoading = false;
+        _coverageMessage = coverage.message;
+        _serviceAreaLabel = null;
+      });
+      return;
+    }
+
     final requestId = ++_routeRequestId;
-    setState(() => _routeLoading = true);
+    setState(() {
+      _routeLoading = true;
+      _coverageMessage = null;
+      _serviceAreaLabel =
+          '${coverage.originZone!.label} → ${coverage.destinationZone!.label}';
+    });
 
     try {
       final route = await _routeService.route(
-        origin: origin,
+        origin: origin.position,
         destination: destination.position,
       );
 
@@ -184,7 +258,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   void _fitRoute() {
-    final origin = _userLocation;
+    final origin = _origin;
     final destination = _destination;
     final route = _route;
 
@@ -195,20 +269,38 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     _mapController.fitCamera(
       CameraFit.coordinates(
         coordinates: [
-          origin,
+          origin.position,
           ...route.points,
           destination.position,
         ],
-        padding: const EdgeInsets.fromLTRB(34, 130, 34, 360),
+        padding: const EdgeInsets.fromLTRB(34, 130, 34, 390),
         maxZoom: 16,
       ),
     );
   }
 
   void _requestRide() {
+    final origin = _origin;
     final destination = _destination;
+
+    if (origin == null) {
+      _chooseOrigin();
+      return;
+    }
+
     if (destination == null) {
       _chooseDestination();
+      return;
+    }
+
+    final coverage = RamoServiceArea.checkTrip(
+      origin: origin.position,
+      destination: destination.position,
+    );
+    if (!coverage.isSupported) {
+      _showMessage(
+        '${coverage.message} Atendemos Jeri, Jijoca e Preá.',
+      );
       return;
     }
 
@@ -219,8 +311,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     if (!RamoMapConfig.matchingEnabled) {
       _showMessage(
-        'Mapa, GPS e rota estão reais. O matching com motoristas será '
-        'conectado na próxima etapa.',
+        'Mapa, origem, zonas, rota e preço já estão ativos. O matching com '
+        'motoristas será conectado na próxima etapa.',
       );
       return;
     }
@@ -249,22 +341,29 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
+    final estimatedFare = _route == null
+        ? null
+        : FareCalculator.estimate(
+            service: _service,
+            route: _route!,
+          ).formatted;
+
     return Scaffold(
       body: Stack(
         children: [
           Positioned.fill(
             child: RamoLiveMap(
               controller: _mapController,
-              userLocation: _userLocation,
+              origin: _origin,
               destination: _destination,
               routePoints: _route?.points ?? const [],
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
                 _mapReady = true;
 
-                final location = _userLocation;
-                if (location != null) {
-                  _mapController.move(location, 16);
+                final origin = _origin;
+                if (origin != null) {
+                  _mapController.move(origin.position, 16);
                 }
               },
             ),
@@ -290,7 +389,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   ),
                   const Spacer(),
                   IconButton.filledTonal(
-                    tooltip: 'Minha localização',
+                    tooltip: 'Usar minha localização',
                     onPressed: _locating ? null : () => _locateUser(),
                     icon: _locating
                         ? const SizedBox.square(
@@ -311,9 +410,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           ),
           RideBottomSheet(
             selectedService: _service,
+            origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
+            estimatedFare: estimatedFare,
+            serviceAreaLabel: _serviceAreaLabel,
+            coverageMessage: _coverageMessage,
             routeLoading: _routeLoading,
+            onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
             onServiceChanged: (service) {
               setState(() => _service = service);

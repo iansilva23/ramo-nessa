@@ -31,7 +31,8 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Jericoacoara'), findsOneWidget);
   });
 
-  testWidgets('matching fake fica bloqueado no fluxo normal', (tester) async {
+  testWidgets('rota real calcula preço e matching fake continua bloqueado',
+      (tester) async {
     final search = _FakePlaceSearchService();
 
     await tester.pumpWidget(
@@ -46,6 +47,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
+    expect(find.text('Minha localização'), findsOneWidget);
+
     await tester.tap(find.text('Pra onde vamos?'));
     await tester.pumpAndSettle();
 
@@ -57,7 +60,9 @@ void main() {
     await tester.tap(find.widgetWithText(ListTile, 'Jericoacoara'));
     await tester.pumpAndSettle();
 
-    expect(find.text('2,5 km · 7 min'), findsOneWidget);
+    expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
+    expect(find.text('R\$ 16,00'), findsOneWidget);
+    expect(find.text('estimativa pela rota'), findsOneWidget);
 
     await tester.drag(
       find.byType(ListView).last,
@@ -73,6 +78,38 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Procurando carro'), findsNothing);
+  });
+
+  testWidgets('passageiro consegue trocar a origem manualmente', (tester) async {
+    final search = _FakePlaceSearchService();
+    final route = _FakeRouteService();
+
+    await tester.pumpWidget(
+      RamoNessaPassengerApp(
+        locationService: _FakeLocationService(),
+        routeService: route,
+        placeSearchService: search,
+        networkTilesEnabled: false,
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.text('Minha localização'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Escolher origem'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Preá');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ListTile, 'Preá'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Preá'), findsOneWidget);
   });
 }
 
@@ -103,6 +140,17 @@ class _FakePlaceSearchService implements PlaceSearchService {
   @override
   Future<List<RamoPlace>> search(String query) async {
     calls++;
+
+    if (query.toLowerCase().contains('pre')) {
+      return const [
+        RamoPlace(
+          name: 'Preá',
+          address: 'Preá, Cruz, Ceará, Brasil',
+          position: LatLng(-2.82017, -40.41467),
+        ),
+      ];
+    }
+
     return const [
       RamoPlace(
         name: 'Jericoacoara',

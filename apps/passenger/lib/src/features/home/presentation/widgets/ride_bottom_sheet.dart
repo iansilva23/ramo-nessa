@@ -9,31 +9,45 @@ class RideBottomSheet extends StatelessWidget {
     super.key,
     required this.selectedService,
     required this.onServiceChanged,
+    required this.onOriginTap,
     required this.onDestinationTap,
     required this.onRequestRide,
+    this.origin,
     this.destination,
     this.routeSummary,
+    this.estimatedFare,
+    this.serviceAreaLabel,
+    this.coverageMessage,
     this.routeLoading = false,
   });
 
   final ServiceType selectedService;
   final ValueChanged<ServiceType> onServiceChanged;
+  final VoidCallback onOriginTap;
   final VoidCallback onDestinationTap;
   final VoidCallback onRequestRide;
+  final String? origin;
   final String? destination;
   final String? routeSummary;
+  final String? estimatedFare;
+  final String? serviceAreaLabel;
+  final String? coverageMessage;
   final bool routeLoading;
 
   @override
   Widget build(BuildContext context) {
-    final hasDestination = destination != null;
+    final hasTrip = origin != null && destination != null;
+    final canRequest = hasTrip &&
+        estimatedFare != null &&
+        coverageMessage == null &&
+        !routeLoading;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasDestination ? 0.50 : 0.43,
-      minChildSize: 0.34,
-      maxChildSize: 0.74,
+      initialChildSize: hasTrip ? 0.58 : 0.50,
+      minChildSize: 0.40,
+      maxChildSize: 0.82,
       snap: true,
-      snapSizes: const [0.43, 0.74],
+      snapSizes: const [0.50, 0.82],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -69,7 +83,7 @@ class RideBottomSheet extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Escolha como você quer ir.',
+                'Escolha de onde sai e pra onde vai.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context)
                           .colorScheme
@@ -78,38 +92,26 @@ class RideBottomSheet extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: RamoSpacing.md),
-              InkWell(
-                borderRadius: BorderRadius.circular(RamoRadius.md),
+              _LocationField(
+                icon: Icons.trip_origin_rounded,
+                label: 'Origem',
+                value: origin ?? 'Escolher origem',
+                onTap: onOriginTap,
+              ),
+              const SizedBox(height: RamoSpacing.xs),
+              _LocationField(
+                icon: Icons.flag_rounded,
+                label: 'Destino',
+                value: destination ?? 'Pra onde vamos?',
                 onTap: onDestinationTap,
-                child: Ink(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: RamoSpacing.md,
-                    vertical: RamoSpacing.md,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(RamoRadius.md),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search_rounded),
-                      const SizedBox(width: RamoSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          destination ?? 'Pra onde vamos?',
-                          style: Theme.of(context).textTheme.titleMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Icon(Icons.chevron_right_rounded),
-                    ],
-                  ),
-                ),
               ),
               if (routeLoading) ...[
                 const SizedBox(height: RamoSpacing.sm),
                 const LinearProgressIndicator(minHeight: 3),
+              ],
+              if (coverageMessage != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                _CoverageNotice(message: coverageMessage!),
               ],
               if (routeSummary != null && !routeLoading) ...[
                 const SizedBox(height: RamoSpacing.sm),
@@ -117,11 +119,17 @@ class RideBottomSheet extends StatelessWidget {
                   children: [
                     const Icon(Icons.route_rounded, size: 18),
                     const SizedBox(width: RamoSpacing.xs),
-                    Text(
-                      routeSummary!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                    Expanded(
+                      child: Text(
+                        serviceAreaLabel == null
+                            ? routeSummary!
+                            : '$routeSummary · $serviceAreaLabel',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
                     ),
                   ],
                 ),
@@ -131,12 +139,12 @@ class RideBottomSheet extends StatelessWidget {
                 selected: selectedService,
                 onChanged: onServiceChanged,
               ),
-              if (hasDestination) ...[
+              if (hasTrip) ...[
                 const SizedBox(height: RamoSpacing.lg),
                 AnimatedSwitcher(
                   duration: RamoMotion.standard,
                   child: Row(
-                    key: ValueKey(selectedService),
+                    key: ValueKey((selectedService, estimatedFare)),
                     children: [
                       Expanded(
                         child: Column(
@@ -148,21 +156,21 @@ class RideBottomSheet extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              selectedService.previewPrice,
+                              estimatedFare ?? '—',
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             Text(
-                              'valor provisório',
+                              'estimativa pela rota',
                               style: Theme.of(context).textTheme.labelSmall,
                             ),
                           ],
                         ),
                       ),
                       FilledButton(
-                        onPressed: routeLoading ? null : onRequestRide,
+                        onPressed: canRequest ? onRequestRide : null,
                         style: FilledButton.styleFrom(
                           minimumSize: const Size(154, 54),
                           backgroundColor: RamoColors.signal,
@@ -178,6 +186,101 @@ class RideBottomSheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _LocationField extends StatelessWidget {
+  const _LocationField({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(RamoRadius.md),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(
+          horizontal: RamoSpacing.md,
+          vertical: RamoSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: BorderRadius.circular(RamoRadius.md),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: RamoSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverageNotice extends StatelessWidget {
+  const _CoverageNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.sm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(RamoRadius.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.location_off_rounded,
+            size: 18,
+            color: Theme.of(context).colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: RamoSpacing.xs),
+          Expanded(
+            child: Text(
+              '$message Atendemos Jeri, Jijoca e Preá.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -10,7 +10,7 @@ class RamoLiveMap extends StatelessWidget {
   const RamoLiveMap({
     super.key,
     required this.controller,
-    required this.userLocation,
+    required this.origin,
     required this.destination,
     required this.routePoints,
     this.onMapReady,
@@ -18,7 +18,7 @@ class RamoLiveMap extends StatelessWidget {
   });
 
   final MapController controller;
-  final LatLng? userLocation;
+  final RamoPlace? origin;
   final RamoPlace? destination;
   final List<LatLng> routePoints;
   final VoidCallback? onMapReady;
@@ -27,12 +27,12 @@ class RamoLiveMap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final markers = <Marker>[
-      if (userLocation != null)
+      if (origin != null)
         Marker(
-          point: userLocation!,
+          point: origin!.position,
           width: 48,
           height: 48,
-          child: const _CurrentLocationMarker(),
+          child: const _OriginMarker(),
         ),
       if (destination != null)
         Marker(
@@ -59,8 +59,7 @@ class RamoLiveMap extends StatelessWidget {
             if (networkTilesEnabled)
               TileLayer(
                 urlTemplate: RamoMapConfig.osmTileUrl,
-                userAgentPackageName:
-                    'br.com.ramonessa.passenger',
+                userAgentPackageName: 'br.com.ramonessa.passenger',
                 tileProvider: NetworkTileProvider(
                   headers: const {
                     'User-Agent': RamoMapConfig.userAgent,
@@ -113,20 +112,31 @@ class RamoLiveMap extends StatelessWidget {
   }
 }
 
-class _CurrentLocationMarker extends StatelessWidget {
-  const _CurrentLocationMarker();
+class _OriginMarker extends StatelessWidget {
+  const _OriginMarker();
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        width: 26,
-        height: 26,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           color: RamoColors.signal,
           shape: BoxShape.circle,
-          border: Border.all(color: RamoColors.ink, width: 5),
+          border: Border.all(color: RamoColors.ink, width: 4),
           boxShadow: RamoElevation.floating(context),
+        ),
+        child: const Center(
+          child: SizedBox.square(
+            dimension: 6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: RamoColors.ink,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
         ),
       ),
     );
