@@ -14,25 +14,25 @@ void main() {
     duration: Duration(minutes: 7),
   );
 
-  test('preço é calculado com distância e tempo reais da rota', () {
+  test('preço base usa distância e tempo reais da rota', () {
     expect(
       FareCalculator.estimate(service: ServiceType.car, route: route).formatted,
-      'R\$ 16,00',
+      'R\$ 14,50',
     );
     expect(
       FareCalculator.estimate(service: ServiceType.moto, route: route).formatted,
-      'R\$ 9,60',
+      'R\$ 9,10',
     );
     expect(
       FareCalculator.estimate(
         service: ServiceType.delivery,
         route: route,
       ).formatted,
-      'R\$ 11,30',
+      'R\$ 10,80',
     );
   });
 
-  test('tarifa mínima é respeitada', () {
+  test('tarifa mínima da categoria é respeitada', () {
     const shortRoute = RouteInfo(
       points: [
         LatLng(-2.80023, -40.51638),
@@ -49,5 +49,39 @@ void main() {
       ).amountCents,
       1200,
     );
+  });
+
+  test('piso do corredor Jeri-Preá é aplicado nos dois sentidos', () {
+    final outbound = FareCalculator.estimate(
+      service: ServiceType.car,
+      route: route,
+      originZoneId: 'jericoacoara',
+      destinationZoneId: 'prea',
+    );
+    final inbound = FareCalculator.estimate(
+      service: ServiceType.car,
+      route: route,
+      originZoneId: 'prea',
+      destinationZoneId: 'jericoacoara',
+    );
+
+    expect(outbound.amountCents, 5500);
+    expect(outbound.pricingRuleId, 'jeri-prea');
+    expect(outbound.corridorMinimumApplied, isTrue);
+    expect(inbound.amountCents, 5500);
+    expect(inbound.pricingRuleId, 'jeri-prea');
+  });
+
+  test('mesma zona não recebe piso de corredor', () {
+    final estimate = FareCalculator.estimate(
+      service: ServiceType.car,
+      route: route,
+      originZoneId: 'jericoacoara',
+      destinationZoneId: 'jericoacoara',
+    );
+
+    expect(estimate.amountCents, 1450);
+    expect(estimate.pricingRuleId, isNull);
+    expect(estimate.corridorMinimumApplied, isFalse);
   });
 }
