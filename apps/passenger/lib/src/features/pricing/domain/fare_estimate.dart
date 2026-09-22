@@ -1,9 +1,13 @@
 class FareEstimate {
   const FareEstimate({
     required this.amountCents,
+    this.pricingRuleId,
+    this.corridorMinimumApplied = false,
   });
 
   final int amountCents;
+  final String? pricingRuleId;
+  final bool corridorMinimumApplied;
 
   double get amount => amountCents / 100;
 
