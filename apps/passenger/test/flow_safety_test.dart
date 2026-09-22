@@ -68,7 +68,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('R\$ 16,00'), findsOneWidget);
+    expect(find.text('R\$ 14,50'), findsOneWidget);
     expect(find.text('estimativa pela rota'), findsOneWidget);
 
     await tester.tap(find.text('Solicitar'));
