@@ -3,11 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/app.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
+import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/destination_search_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 
 void main() {
   testWidgets('digitar destino não faz autocomplete no Nominatim', (tester) async {
@@ -31,7 +34,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Jericoacoara'), findsOneWidget);
   });
 
-  testWidgets('rota real calcula preço e matching fake continua bloqueado',
+  testWidgets('rota usa cotação do Core e matching fake continua bloqueado',
       (tester) async {
     final search = _FakePlaceSearchService();
 
@@ -40,6 +43,7 @@ void main() {
         locationService: _FakeLocationService(),
         routeService: _FakeRouteService(),
         placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
         networkTilesEnabled: false,
       ),
     );
@@ -68,28 +72,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('R\$ 14,50'), findsOneWidget);
-    expect(find.text('estimativa pela rota'), findsOneWidget);
+    expect(find.text('R$ 42,00'), findsOneWidget);
+    expect(find.text('preço confirmado pelo Core'), findsOneWidget);
 
     await tester.tap(find.text('Solicitar'));
     await tester.pump();
 
     expect(
-      find.textContaining('O matching com motoristas será conectado'),
+      find.textContaining('matching real será ativado'),
       findsOneWidget,
     );
-    expect(find.textContaining('Procurando carro'), findsNothing);
+    expect(find.textContaining('Procurando buggy'), findsNothing);
   });
 
   testWidgets('passageiro consegue trocar a origem manualmente', (tester) async {
     final search = _FakePlaceSearchService();
-    final route = _FakeRouteService();
 
     await tester.pumpWidget(
       RamoNessaPassengerApp(
         locationService: _FakeLocationService(),
-        routeService: route,
+        routeService: _FakeRouteService(),
         placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
         networkTilesEnabled: false,
       ),
     );
@@ -132,6 +136,28 @@ class _FakeRouteService implements RouteService {
       distanceMeters: 2500,
       duration: const Duration(minutes: 7),
     );
+  }
+}
+
+class _FakePricingQuoteService implements PricingQuoteService {
+  @override
+  Future<PricingQuote> quote({
+    required ServiceType service,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required String originZoneId,
+    required String destinationZoneId,
+    required RouteInfo route,
+    int passengers = 1,
+    DateTime? now,
+  }) async {
+    return PricingQuote.fromJson(const {
+      'kind': 'exact',
+      'ruleId': 'test-exact',
+      'totalAmountCents': 4200,
+      'platformCommissionCents': 420,
+      'driverNetCents': 3780,
+    });
   }
 }
 
