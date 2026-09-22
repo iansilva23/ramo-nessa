@@ -1,6 +1,15 @@
 # Zonas e preço — MVP Passageiro
 
-## Estado atual
+## Fonte comercial vigente
+
+A especificação aprovada de preços e regras comerciais está em:
+
+- `docs/COMMERCIAL_RULES_V1.md`
+- `docs/PAYMENTS_AND_COMMISSION_V1.md`
+
+Esses documentos substituem os antigos pisos provisórios de corredor como referência comercial.
+
+## Estado atual do aplicativo
 
 O Passageiro já possui:
 
@@ -8,76 +17,57 @@ O Passageiro já possui:
 - origem manual pela busca;
 - destino manual;
 - validação da área atendida;
-- rota, distância e ETA pelo OSRM;
-- estimativa local para Carro, Moto e Entrega.
+- rota, distância e ETA reais em desenvolvimento;
+- Carro, Moto e Entrega no fluxo atual;
+- estimativa local técnica.
 
-A estimativa continua sendo **provisória**. O preço autoritativo de produção deverá ser calculado pelo Core/backend e enviado ao app.
+A estimativa local do Flutter **não é o preço comercial final**. Ela existe apenas para UX/testes enquanto o Core/backend autoritativo ainda não foi implementado.
 
 ## Área operacional inicial
 
-Zonas configuradas no cliente para o MVP:
+Zonas atuais do MVP:
 
 - Jericoacoara;
 - Jijoca;
 - Preá.
 
-As geofences atuais são raios operacionais que se sobrepõem para cobrir a região local. Elas não representam limites administrativos.
+As geofences existentes no cliente são raios operacionais de desenvolvimento. Elas não representam limites administrativos nem substituem as futuras zonas/localidades configuráveis do backend.
 
-A evolução prevista é mover as zonas para o backend/Admin e usar polígonos configuráveis sem publicar uma nova versão do app.
+## Modelo comercial aprovado
 
-## Regra de preço local
+A v1 exige mais do que uma fórmula simples por km. O backend deverá suportar:
 
-O cálculo de referência usa:
+1. tarifas fixas por origem/destino/localidade;
+2. categorias diferentes por rota;
+3. preço por janela de horário;
+4. rotas exclusivas para Comfort/Black 4x4;
+5. tabela de Moto e Entrega por localidade;
+6. Comfort/Black derivado de Carro comum (+R$ 50) quando ambos forem permitidos;
+7. compensação de combustível quando o único motorista elegível estiver distante;
+8. comissão de 10%;
+9. versionamento e vigência de tabela.
 
-```text
-estimativa = tarifa_base
-           + distancia_km * valor_por_km
-           + duracao_min * valor_por_minuto
-```
+Por isso a antiga lógica `base + km + minuto + piso de corredor` não deve ser usada como autoridade comercial.
 
-Depois são aplicados:
-
-1. tarifa mínima da categoria;
-2. piso do corredor entre zonas, quando existir;
-3. arredondamento para dezenas de centavos.
-
-### Tabela técnica do piloto
-
-| Categoria | Base | Por km | Por minuto | Mínimo local |
-| --- | ---: | ---: | ---: | ---: |
-| Carro | R$ 6,50 | R$ 2,50 | R$ 0,25 | R$ 12,00 |
-| Moto | R$ 4,00 | R$ 1,50 | R$ 0,18 | R$ 8,00 |
-| Entrega | R$ 5,00 | R$ 1,80 | R$ 0,18 | R$ 9,50 |
-
-### Pisos provisórios por corredor
-
-| Corredor | Carro | Moto | Entrega |
-| --- | ---: | ---: | ---: |
-| Jeri ↔ Preá | R$ 55,00 | R$ 30,00 | R$ 35,00 |
-| Jeri ↔ Jijoca | R$ 80,00 | R$ 50,00 | R$ 60,00 |
-| Jijoca ↔ Preá | R$ 85,00 | R$ 55,00 | R$ 65,00 |
-
-Esses pisos existem para evitar que pequenas diferenças de roteamento ou tempo em vias locais/areia produzam valores anormalmente baixos.
-
-## Atenção: acesso a Jericoacoara
+## Jericoacoara e elegibilidade
 
 Preço não equivale a autorização de operação.
 
-A Vila possui regras próprias de circulação e transporte. Quando o matching real for implementado, o backend deverá filtrar motoristas/veículos elegíveis para a zona antes de oferecer uma corrida.
+O Core deverá filtrar motoristas e veículos elegíveis antes do matching. Onde a rota exigir 4x4, Carro comum não deve ser exibido nem receber oferta.
 
-Nenhuma regra de preço deve permitir que um veículo não autorizado seja selecionado para uma operação restrita.
-
-## Próxima evolução
+## Implementação necessária
 
 Antes do lançamento:
 
-- mover tarifa-base, km, minuto, mínimos e pisos de corredor para o backend/Admin;
-- versionar cada tabela;
-- registrar a versão usada em cada cotação;
-- adicionar comissão e repasse;
-- definir cancelamento;
-- definir regras de pico somente se houver necessidade operacional;
-- permitir ativar/desativar categorias por zona;
-- fazer o servidor recalcular e assinar a cotação.
+- criar catálogo autoritativo de preços no backend;
+- modelar localidades/zonas e corredores direcionais/bidirecionais;
+- adicionar Comfort/Black e Buggy ao domínio;
+- modelar janela após 22h;
+- implementar compensação de coleta distante;
+- implementar comissão, carteira e pagamentos;
+- versionar cada cotação;
+- registrar a regra usada em cada corrida;
+- permitir configuração pelo Admin;
+- remover dependência comercial do estimador local.
 
-O Flutter deve tratar a estimativa local apenas como UX de desenvolvimento.
+O cliente Flutter deve exibir a cotação assinada/confirmada pelo Core.
