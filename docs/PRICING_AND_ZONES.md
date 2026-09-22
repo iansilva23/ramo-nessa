@@ -1,31 +1,33 @@
 # Zonas e preço — MVP Passageiro
 
-## Área operacional
+## Estado atual
 
-O app valida origem e destino antes de chamar a rota.
+O Passageiro já possui:
+
+- origem por GPS;
+- origem manual pela busca;
+- destino manual;
+- validação da área atendida;
+- rota, distância e ETA pelo OSRM;
+- estimativa local para Carro, Moto e Entrega.
+
+A estimativa continua sendo **provisória**. O preço autoritativo de produção deverá ser calculado pelo Core/backend e enviado ao app.
+
+## Área operacional inicial
 
 Zonas configuradas no cliente para o MVP:
 
-- Jericoacoara
-- Jijoca
-- Preá
+- Jericoacoara;
+- Jijoca;
+- Preá.
 
-As geofences atuais são raios operacionais que se sobrepõem para cobrir a região local. Elas não representam limites administrativos. A evolução prevista é mover essas zonas para o backend/Admin e usar polígonos configuráveis sem precisar publicar uma nova versão do app.
+As geofences atuais são raios operacionais que se sobrepõem para cobrir a região local. Elas não representam limites administrativos.
 
-A busca do Nominatim também fica limitada ao recorte de Jeri/Jijoca/Preá e entorno, evitando que o passageiro receba resultados do restante do Brasil no fluxo normal.
+A evolução prevista é mover as zonas para o backend/Admin e usar polígonos configuráveis sem publicar uma nova versão do app.
 
-## Origem
+## Regra de preço local
 
-A origem pode ser:
-
-1. a localização GPS atual; ou
-2. um lugar escolhido manualmente pela mesma busca usada para o destino.
-
-Trocar a origem invalida a rota anterior e força novo cálculo.
-
-## Estimativa de preço
-
-O valor agora é calculado a partir da rota retornada pelo OSRM:
+O cálculo de referência usa:
 
 ```text
 estimativa = tarifa_base
@@ -33,20 +35,49 @@ estimativa = tarifa_base
            + duracao_min * valor_por_minuto
 ```
 
-Depois é aplicada a tarifa mínima da categoria e o resultado é arredondado para dezenas de centavos.
+Depois são aplicados:
 
-As três categorias possuem cartões de tarifa independentes:
+1. tarifa mínima da categoria;
+2. piso do corredor entre zonas, quando existir;
+3. arredondamento para dezenas de centavos.
 
-- Carro
-- Moto
-- Entrega
+### Tabela técnica do piloto
 
-### Importante
+| Categoria | Base | Por km | Por minuto | Mínimo local |
+| --- | ---: | ---: | ---: | ---: |
+| Carro | R$ 6,50 | R$ 2,50 | R$ 0,25 | R$ 12,00 |
+| Moto | R$ 4,00 | R$ 1,50 | R$ 0,18 | R$ 8,00 |
+| Entrega | R$ 5,00 | R$ 1,80 | R$ 0,18 | R$ 9,50 |
 
-Os coeficientes atuais são configuração técnica de desenvolvimento do MVP. Eles ainda não são uma tabela comercial aprovada.
+### Pisos provisórios por corredor
 
-Antes de produção, os valores devem ser controlados pelo backend/Admin, versionados e associados à área/horário/regras comerciais. O aplicativo deve receber a cotação pronta ou assinada pelo servidor para impedir manipulação no cliente.
+| Corredor | Carro | Moto | Entrega |
+| --- | ---: | ---: | ---: |
+| Jeri ↔ Preá | R$ 55,00 | R$ 30,00 | R$ 35,00 |
+| Jeri ↔ Jijoca | R$ 80,00 | R$ 50,00 | R$ 60,00 |
+| Jijoca ↔ Preá | R$ 85,00 | R$ 55,00 | R$ 65,00 |
 
-## Regra de segurança futura
+Esses pisos existem para evitar que pequenas diferenças de roteamento ou tempo em vias locais/areia produzam valores anormalmente baixos.
 
-A estimativa local serve para UX durante o desenvolvimento. O preço definitivo de uma corrida nunca deve ser autoritativo no Flutter. Quando o Core estiver conectado, o servidor recalculará a cotação com a mesma versão de tabela e devolverá o valor válido para a solicitação.
+## Atenção: acesso a Jericoacoara
+
+Preço não equivale a autorização de operação.
+
+A Vila possui regras próprias de circulação e transporte. Quando o matching real for implementado, o backend deverá filtrar motoristas/veículos elegíveis para a zona antes de oferecer uma corrida.
+
+Nenhuma regra de preço deve permitir que um veículo não autorizado seja selecionado para uma operação restrita.
+
+## Próxima evolução
+
+Antes do lançamento:
+
+- mover tarifa-base, km, minuto, mínimos e pisos de corredor para o backend/Admin;
+- versionar cada tabela;
+- registrar a versão usada em cada cotação;
+- adicionar comissão e repasse;
+- definir cancelamento;
+- definir regras de pico somente se houver necessidade operacional;
+- permitir ativar/desativar categorias por zona;
+- fazer o servidor recalcular e assinar a cotação.
+
+O Flutter deve tratar a estimativa local apenas como UX de desenvolvimento.
