@@ -1,0 +1,315 @@
+import {
+  CAR_REFERENCE_KM_PER_LITER,
+  FIXED_ROUTES,
+  FREE_PICKUP_KM,
+  FUEL_PRICE_CENTS_PER_LITER,
+  JIJOCA_LOCALITIES,
+  MOTO_REFERENCE_KM_PER_LITER,
+  PREA_COMFORT_SURCHARGE_CENTS,
+  PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS,
+  PREA_LOCALITIES,
+  type PriceBand,
+  type PriceValue,
+  valueForPeriod,
+} from './catalog.v1.js';
+import { splitCommission } from './commission.js';
+import {
+  PricingError,
+  type FareQuote,
+  type LocationRef,
+  type QuoteRequest,
+  type ServiceCategory,
+} from './types.js';
+
+function endpointId(location: LocationRef): string {
+  return location.localityId ?? location.zoneId;
+}
+
+function matchesPair(a: string, b: string, x: string, y: string): boolean {
+  return (a === x && b === y) || (a === y && b === x);
+}
+
+function isBand(value: PriceValue): value is PriceBand {
+  return typeof value !== 'number';
+}
+
+function pickupFuelProfile(category: ServiceCategory): number | null {
+  switch (category) {
+    case 'moto':
+    case 'delivery':
+      return MOTO_REFERENCE_KM_PER_LITER;
+    case 'car':
+    case 'comfort_black':
+      return CAR_REFERENCE_KM_PER_LITER;
+    case 'buggy':
+      return null;
+  }
+}
+
+export function pickupCompensationCents(
+  category: ServiceCategory,
+  driverPickupDistanceKm = 0,
+): number {
+  const kmPerLiter = pickupFuelProfile(category);
+  const chargeableKm = Math.max(0, driverPickupDistanceKm - FREE_PICKUP_KM);
+
+  if (kmPerLiter == null || chargeableKm <= 0) {
+    return 0;
+  }
+
+  const rawCents =
+    (chargeableKm * FUEL_PRICE_CENTS_PER_LITER) / kmPerLiter;
+
+  // Regra comercial: compensação simples, arredondada para cima em reais.
+  return Math.ceil(rawCents / 100) * 100;
+}
+
+function exactQuote(
+  ruleId: string,
+  baseAmountCents: number,
+  request: QuoteRequest,
+): FareQuote {
+  const pickup = pickupCompensationCents(
+    request.category,
+    request.driverPickupDistanceKm,
+  );
+  const total = baseAmountCents + pickup;
+  const split = splitCommission(total);
+
+  return {
+    kind: 'exact',
+    ruleId,
+    baseAmountCents,
+    pickupCompensationCents: pickup,
+    totalAmountCents: total,
+    platformCommissionCents: split.platformCommissionCents,
+    driverNetCents: split.driverNetCents,
+  };
+}
+
+function rangeQuote(
+  ruleId: string,
+  value: PriceBand,
+  request: QuoteRequest,
+): FareQuote {
+  const pickup = pickupCompensationCents(
+    request.category,
+    request.driverPickupDistanceKm,
+  );
+  const minTotal = value.minCents + pickup;
+  const maxTotal = value.maxCents + pickup;
+  const minSplit = splitCommission(minTotal);
+  const maxSplit = splitCommission(maxTotal);
+
+  return {
+    kind: 'range',
+    ruleId,
+    minBaseAmountCents: value.minCents,
+    maxBaseAmountCents: value.maxCents,
+    pickupCompensationCents: pickup,
+    minTotalAmountCents: minTotal,
+    maxTotalAmountCents: maxTotal,
+    minPlatformCommissionCents: minSplit.platformCommissionCents,
+    maxPlatformCommissionCents: maxSplit.platformCommissionCents,
+    minDriverNetCents: minSplit.driverNetCents,
+    maxDriverNetCents: maxSplit.driverNetCents,
+    requiresExactResolution: true,
+  };
+}
+
+function localityPrice(
+  table: typeof PREA_LOCALITIES,
+  localityId: string,
+  category: ServiceCategory,
+): PriceValue | undefined {
+  const entry = table[localityId];
+  if (entry == null) return undefined;
+
+  switch (category) {
+    case 'moto':
+      return entry.moto;
+    case 'delivery':
+      return entry.delivery;
+    case 'car':
+      return entry.car;
+    default:
+      return undefined;
+  }
+}
+
+function quoteFixedRoute(request: QuoteRequest): FareQuote | null {
+  const a = endpointId(request.origin);
+  const b = endpointId(request.destination);
+
+  const rule = FIXED_ROUTES.find(
+    (candidate) =>
+      candidate.category === request.category &&
+      matchesPair(candidate.a, candidate.b, a, b),
+  );
+
+  if (rule == null) return null;
+
+  return exactQuote(
+    rule.id,
+    valueForPeriod(rule.dayCents, rule.after22Cents, request.period),
+    request,
+  );
+}
+
+function resolveHubLocality(
+  origin: LocationRef,
+  destination: LocationRef,
+  hubId: string,
+): string | null {
+  const a = endpointId(origin);
+  const b = endpointId(destination);
+  if (a === hubId && b !== hubId) return b;
+  if (b === hubId && a !== hubId) return a;
+  if (a === hubId && b === hubId) return hubId;
+  return null;
+}
+
+function quotePrea(request: QuoteRequest): FareQuote | null {
+  const localityId = resolveHubLocality(request.origin, request.destination, 'prea');
+  if (localityId == null) return null;
+
+  if (request.category === 'comfort_black') {
+    const car = localityPrice(PREA_LOCALITIES, localityId, 'car');
+    if (car == null) return null;
+    if (isBand(car)) {
+      return rangeQuote(
+        `prea-${localityId}-comfort`,
+        {
+          minCents: car.minCents + PREA_COMFORT_SURCHARGE_CENTS,
+          maxCents: car.maxCents + PREA_COMFORT_SURCHARGE_CENTS,
+        },
+        request,
+      );
+    }
+
+    const night =
+      request.period === 'after_22' &&
+      localityId !== 'jijoca' &&
+      localityId !== 'airport-jjd'
+        ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
+        : 0;
+
+    return exactQuote(
+      `prea-${localityId}-comfort`,
+      car + night + PREA_COMFORT_SURCHARGE_CENTS,
+      request,
+    );
+  }
+
+  const value = localityPrice(PREA_LOCALITIES, localityId, request.category);
+  if (value == null) return null;
+
+  if (isBand(value)) {
+    return rangeQuote(`prea-${localityId}-${request.category}`, value, request);
+  }
+
+  const localCarNight =
+    request.category === 'car' &&
+    request.period === 'after_22' &&
+    localityId !== 'jijoca' &&
+    localityId !== 'airport-jjd'
+      ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
+      : 0;
+
+  return exactQuote(
+    `prea-${localityId}-${request.category}`,
+    value + localCarNight,
+    request,
+  );
+}
+
+function quoteJijoca(request: QuoteRequest): FareQuote | null {
+  const localityId = resolveHubLocality(
+    request.origin,
+    request.destination,
+    'jijoca',
+  );
+  if (localityId == null) return null;
+
+  const value = localityPrice(JIJOCA_LOCALITIES, localityId, request.category);
+  if (value == null) return null;
+
+  if (isBand(value)) {
+    return rangeQuote(
+      `jijoca-${localityId}-${request.category}`,
+      value,
+      request,
+    );
+  }
+
+  return exactQuote(
+    `jijoca-${localityId}-${request.category}`,
+    value,
+    request,
+  );
+}
+
+function quoteJeriLocal(request: QuoteRequest): FareQuote | null {
+  if (
+    request.origin.zoneId !== 'jericoacoara' ||
+    request.destination.zoneId !== 'jericoacoara'
+  ) {
+    return null;
+  }
+
+  if (request.category === 'buggy') {
+    const passengers = request.passengers ?? 1;
+    if (passengers < 1 || passengers > 4 || !Number.isInteger(passengers)) {
+      throw new PricingError(
+        'INVALID_PASSENGER_COUNT',
+        'Buggy aceita de 1 a 4 passageiros.',
+      );
+    }
+
+    const base = request.period === 'after_22' ? 6000 : 4000;
+    return exactQuote('jeri-buggy', base + passengers * 200, request);
+  }
+
+  if (request.category === 'delivery') {
+    const distance = request.tripDistanceKm;
+    if (distance == null) {
+      throw new PricingError(
+        'MISSING_DISTANCE',
+        'Distância da entrega é obrigatória em Jeri.',
+      );
+    }
+
+    if (distance <= 0.7) return exactQuote('jeri-delivery-0-07', 500, request);
+    if (distance <= 1.2) return exactQuote('jeri-delivery-07-12', 700, request);
+    if (distance <= 1.6) return exactQuote('jeri-delivery-12-16', 800, request);
+    if (distance <= 2.0) return exactQuote('jeri-delivery-16-20', 1000, request);
+
+    throw new PricingError(
+      'UNKNOWN_ROUTE',
+      'Entrega acima de 2 km dentro de Jeri exige regra específica.',
+    );
+  }
+
+  return null;
+}
+
+export function quoteFare(request: QuoteRequest): FareQuote {
+  const fixed = quoteFixedRoute(request);
+  if (fixed != null) return fixed;
+
+  const jeri = quoteJeriLocal(request);
+  if (jeri != null) return jeri;
+
+  const prea = quotePrea(request);
+  if (prea != null) return prea;
+
+  const jijoca = quoteJijoca(request);
+  if (jijoca != null) return jijoca;
+
+  throw new PricingError(
+    'UNKNOWN_ROUTE',
+    `Não há tarifa v1 para ${endpointId(request.origin)} -> ${endpointId(
+      request.destination,
+    )} em ${request.category}.`,
+  );
+}
