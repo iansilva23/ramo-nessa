@@ -15,7 +15,7 @@ void main() {
     });
 
     expect(quote.isExact, isTrue);
-    expect(quote.formatted, 'R$ 150,00');
+    expect(quote.formatted, 'R\$ 150,00');
     expect(quote.platformCommissionCents, 1500);
     expect(quote.driverNetCents, 13500);
   });
@@ -29,7 +29,7 @@ void main() {
     });
 
     expect(quote.isExact, isFalse);
-    expect(quote.formatted, 'R$ 8,00–R$ 10,00');
+    expect(quote.formatted, 'R\$ 8,00–R\$ 10,00');
   });
 
   test('resolver reconhece Aeroporto JJD e localidades explícitas', () {
