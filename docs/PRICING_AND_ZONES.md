@@ -1,73 +1,93 @@
-# Zonas e preço — MVP Passageiro
+# Zonas e preço — Passageiro + Core
 
 ## Fonte comercial vigente
 
-A especificação aprovada de preços e regras comerciais está em:
+A especificação aprovada está em:
 
 - `docs/COMMERCIAL_RULES_V1.md`
 - `docs/PAYMENTS_AND_COMMISSION_V1.md`
 
-Esses documentos substituem os antigos pisos provisórios de corredor como referência comercial.
+Esses documentos são a referência comercial da v1.
 
-## Estado atual do aplicativo
+## Estado implementado
 
 O Passageiro já possui:
 
-- origem por GPS;
-- origem manual pela busca;
+- origem por GPS e origem manual;
 - destino manual;
-- validação da área atendida;
-- rota, distância e ETA reais em desenvolvimento;
-- Carro, Moto e Entrega no fluxo atual;
-- estimativa local técnica.
+- busca local limitada a Jeri/Jijoca/Preá e entorno;
+- busca externa liberada somente para destinos longos presentes na tabela aprovada;
+- Aeroporto JJD;
+- rota, distância e ETA em ambiente de desenvolvimento;
+- Carro, Moto, Entrega, Comfort/Black e Buggy;
+- filtro de categorias por elegibilidade comercial da rota;
+- contador de 1 a 4 passageiros no Buggy;
+- cotação HTTP pelo Ramo Nessa Core;
+- bloqueio de despacho quando a cotação não é exata;
+- nenhum preço comercial autoritativo calculado localmente no Flutter.
 
-A estimativa local do Flutter **não é o preço comercial final**. Ela existe apenas para UX/testes enquanto o Core/backend autoritativo ainda não foi implementado.
+O Core já implementa:
 
-## Área operacional inicial
+- catálogo comercial v1;
+- preços fixos por localidade/corredor;
+- regras após 22h aprovadas;
+- Comfort/Black quando permitido;
+- compensação de coleta distante;
+- comissão de 10%;
+- política de pagamentos digitais;
+- endpoint de cotação;
+- testes e CI.
 
-Zonas atuais do MVP:
+## Área operacional
+
+As geofences locais do cliente continuam sendo raios operacionais do MVP, não limites administrativos.
+
+A cobertura inicial reconhecida pelo app inclui:
 
 - Jericoacoara;
 - Jijoca;
-- Preá.
+- Preá;
+- Aeroporto JJD;
+- destinos longos explicitamente aprovados na tabela comercial, quando pesquisados por nome.
 
-As geofences existentes no cliente são raios operacionais de desenvolvimento. Elas não representam limites administrativos nem substituem as futuras zonas/localidades configuráveis do backend.
+Um ponto externo aleatório não vira rota atendida apenas por estar no Ceará.
 
-## Modelo comercial aprovado
+## Modelo comercial
 
-A v1 exige mais do que uma fórmula simples por km. O backend deverá suportar:
+A v1 não usa uma fórmula simples de `base + km + minuto` como autoridade.
 
-1. tarifas fixas por origem/destino/localidade;
-2. categorias diferentes por rota;
-3. preço por janela de horário;
-4. rotas exclusivas para Comfort/Black 4x4;
-5. tabela de Moto e Entrega por localidade;
-6. Comfort/Black derivado de Carro comum (+R$ 50) quando ambos forem permitidos;
-7. compensação de combustível quando o único motorista elegível estiver distante;
-8. comissão de 10%;
-9. versionamento e vigência de tabela.
+O Core resolve a tarifa por:
 
-Por isso a antiga lógica `base + km + minuto + piso de corredor` não deve ser usada como autoridade comercial.
+1. origem/destino/localidade;
+2. categoria permitida;
+3. janela de horário;
+4. regra 4x4 quando aplicável;
+5. quantidade de passageiros no Buggy;
+6. compensação por coleta distante;
+7. comissão da plataforma;
+8. regra comercial identificável pelo `ruleId`.
 
-## Jericoacoara e elegibilidade
+Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são retornadas como faixa e não podem ser despachadas como se fossem um preço exato.
 
-Preço não equivale a autorização de operação.
+## Elegibilidade
 
-O Core deverá filtrar motoristas e veículos elegíveis antes do matching. Onde a rota exigir 4x4, Carro comum não deve ser exibido nem receber oferta.
+Preço não equivale a autorização operacional.
 
-## Implementação necessária
+O app já oculta categorias comercialmente incompatíveis com a rota. O backend ainda deverá validar o veículo e o motorista concretos antes do matching, especialmente nas rotas que exigem 4x4 em Jericoacoara.
 
-Antes do lançamento:
+## Próximas implementações
 
-- criar catálogo autoritativo de preços no backend;
-- modelar localidades/zonas e corredores direcionais/bidirecionais;
-- adicionar Comfort/Black e Buggy ao domínio;
-- modelar janela após 22h;
-- implementar compensação de coleta distante;
-- implementar comissão, carteira e pagamentos;
-- versionar cada cotação;
-- registrar a regra usada em cada corrida;
-- permitir configuração pelo Admin;
-- remover dependência comercial do estimador local.
+Ainda faltam:
 
-O cliente Flutter deve exibir a cotação assinada/confirmada pelo Core.
+- persistência/versionamento de tabelas e cotações;
+- Admin para alterar preços e vigência;
+- validação robusta de schema da API;
+- autenticação/autorização;
+- disponibilidade e matching real;
+- integração de Pix/cartão/carteira;
+- ledger, estornos, repasses e conciliação;
+- resolução de motorista distante antes da cobrança final;
+- deploy seguro do Core;
+- provedor comercial de mapas/geocoding/rotas.
+
+O preço, a comissão e a elegibilidade final devem continuar sob autoridade do Core.
