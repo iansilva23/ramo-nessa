@@ -220,21 +220,86 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     await _loadRoute();
   }
 
-  ServiceType _suggestService(ServiceAreaCheck coverage) {
+  bool _isPair(String? a, String? b, String x, String y) {
+    return (a == x && b == y) || (a == y && b == x);
+  }
+
+  List<ServiceType> _servicesForCoverage(ServiceAreaCheck coverage) {
     final origin = coverage.originZone?.id;
     final destination = coverage.destinationZone?.id;
 
-    if (origin == 'jericoacoara' && destination == 'jericoacoara') {
-      return ServiceType.buggy;
+    if (origin == null || destination == null) {
+      return const [];
     }
 
-    final jeriRoute =
-        origin == 'jericoacoara' || destination == 'jericoacoara';
-    if (jeriRoute) {
+    if (origin == 'jericoacoara' && destination == 'jericoacoara') {
+      return const [
+        ServiceType.buggy,
+        ServiceType.delivery,
+      ];
+    }
+
+    if (_isPair(origin, destination, 'jericoacoara', 'prea')) {
+      return const [
+        ServiceType.moto,
+        ServiceType.delivery,
+        ServiceType.comfortBlack,
+      ];
+    }
+
+    if (_isPair(origin, destination, 'jericoacoara', 'jijoca') ||
+        _isPair(origin, destination, 'jericoacoara', 'airport-jjd')) {
+      return const [ServiceType.comfortBlack];
+    }
+
+    if (origin == 'prea' && destination == 'prea') {
+      return const [
+        ServiceType.car,
+        ServiceType.moto,
+        ServiceType.delivery,
+        ServiceType.comfortBlack,
+      ];
+    }
+
+    if (origin == 'jijoca' && destination == 'jijoca') {
+      return const [
+        ServiceType.car,
+        ServiceType.moto,
+        ServiceType.delivery,
+      ];
+    }
+
+    if (_isPair(origin, destination, 'prea', 'jijoca') ||
+        _isPair(origin, destination, 'prea', 'airport-jjd') ||
+        _isPair(origin, destination, 'prea', 'external')) {
+      return const [
+        ServiceType.car,
+        ServiceType.moto,
+        ServiceType.delivery,
+        ServiceType.comfortBlack,
+      ];
+    }
+
+    return const [];
+  }
+
+  ServiceType _suggestService(
+    ServiceAreaCheck coverage,
+    List<ServiceType> available,
+  ) {
+    if (available.contains(_service)) {
+      return _service;
+    }
+
+    if (available.contains(ServiceType.comfortBlack)) {
       return ServiceType.comfortBlack;
     }
 
-    return _service;
+    if (available.contains(ServiceType.buggy)) {
+      return ServiceType.buggy;
+    }
+
+    return available.first;
   }
 
   Future<void> _loadRoute() async {
@@ -262,8 +327,21 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    final availableServices = _servicesForCoverage(coverage);
+    if (availableServices.isEmpty) {
+      _routeRequestId++;
+      setState(() {
+        _route = null;
+        _routeLoading = false;
+        _coverageMessage = 'Essa rota ainda não tem serviço configurado.';
+        _serviceAreaLabel = null;
+        _resetPricing();
+      });
+      return;
+    }
+
     final requestId = ++_routeRequestId;
-    final suggestedService = _suggestService(coverage);
+    final suggestedService = _suggestService(coverage, availableServices);
 
     setState(() {
       _service = suggestedService;
@@ -403,7 +481,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       origin: origin,
       destination: destination,
     );
-    if (!coverage.isSupported) {
+    if (!coverage.isSupported ||
+        !_servicesForCoverage(coverage).contains(service)) {
       return;
     }
 
@@ -431,7 +510,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       origin: origin,
       destination: destination,
     );
-    if (!coverage.isSupported) {
+    if (!coverage.isSupported ||
+        !_servicesForCoverage(coverage).contains(ServiceType.buggy)) {
       return;
     }
 
@@ -525,6 +605,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final coverage = _origin != null && _destination != null
+        ? RamoServiceArea.checkPlaceTrip(
+            origin: _origin!,
+            destination: _destination!,
+          )
+        : null;
+    final availableServices = coverage == null
+        ? const [
+            ServiceType.car,
+            ServiceType.moto,
+            ServiceType.delivery,
+          ]
+        : _servicesForCoverage(coverage);
+
     final routeSummary = _route == null
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
@@ -608,6 +702,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onDestinationTap: _chooseDestination,
             passengerCount: _passengerCount,
             onPassengerCountChanged: _changePassengerCount,
+            availableServices: availableServices,
             onServiceChanged: _reloadQuoteForService,
             onRequestRide: _requestRide,
           ),

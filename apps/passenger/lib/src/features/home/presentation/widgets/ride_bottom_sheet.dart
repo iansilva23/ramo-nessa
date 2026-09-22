@@ -25,6 +25,7 @@ class RideBottomSheet extends StatelessWidget {
     this.priceIsFinal = false,
     this.passengerCount = 1,
     this.onPassengerCountChanged,
+    this.availableServices = ServiceType.values,
   });
 
   final ServiceType selectedService;
@@ -45,6 +46,7 @@ class RideBottomSheet extends StatelessWidget {
   final bool priceIsFinal;
   final int passengerCount;
   final ValueChanged<int>? onPassengerCountChanged;
+  final List<ServiceType> availableServices;
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +153,7 @@ class RideBottomSheet extends StatelessWidget {
               const SizedBox(height: RamoSpacing.md),
               ServiceSelector(
                 selected: selectedService,
+                services: availableServices,
                 onChanged: onServiceChanged,
               ),
               if (selectedService == ServiceType.buggy) ...[
@@ -363,7 +366,7 @@ class _CoverageNotice extends StatelessWidget {
           const SizedBox(width: RamoSpacing.xs),
           Expanded(
             child: Text(
-              '$message Atendemos Jeri, Jijoca, Preá e Aeroporto JJD.',
+              message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onErrorContainer,
                     fontWeight: FontWeight.w700,

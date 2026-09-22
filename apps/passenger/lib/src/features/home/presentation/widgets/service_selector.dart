@@ -8,22 +8,24 @@ class ServiceSelector extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onChanged,
+    this.services = ServiceType.values,
   });
 
   final ServiceType selected;
   final ValueChanged<ServiceType> onChanged;
+  final List<ServiceType> services;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: ServiceType.values.map((service) {
+        children: services.map((service) {
           final isSelected = service == selected;
 
           return Padding(
             padding: EdgeInsets.only(
-              right: service == ServiceType.values.last ? 0 : RamoSpacing.xs,
+              right: service == services.last ? 0 : RamoSpacing.xs,
             ),
             child: SizedBox(
               width: 112,

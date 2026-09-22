@@ -74,6 +74,8 @@ void main() {
 
     expect(find.text('R\$ 42,00'), findsOneWidget);
     expect(find.text('preço confirmado pelo Core'), findsOneWidget);
+    expect(find.text('Buggy'), findsOneWidget);
+    expect(find.text('Carro'), findsNothing);
 
     await tester.tap(find.byTooltip('Adicionar passageiro'));
     await tester.pumpAndSettle();
