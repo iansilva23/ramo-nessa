@@ -24,8 +24,8 @@
 - [x] CI, testes e build Android de validação
 - [ ] splash/onboarding final
 - [ ] autenticação
-- [ ] origem manual
-- [ ] motor de preço real
+- [x] origem manual
+- [x] estimativa local por rota + zona (provisória)\n- [ ] motor de preço autoritativo no backend
 - [ ] solicitar serviço no backend
 - [ ] matching real
 - [ ] acompanhamento em tempo real
