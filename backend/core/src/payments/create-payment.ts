@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   isDriverPaymentHoldExpired,
+  isRidePreparedForPayment,
   type RideRecord,
 } from '../rides/ride.js';
 import { isPaymentMethodEnabled, type EnabledPaymentMethod } from './payment-policy.js';
@@ -31,6 +32,13 @@ export async function createPaymentForRide(
     throw new PaymentDomainError(
       'RIDE_NOT_AWAITING_PAYMENT',
       'Corrida não está aguardando pagamento.',
+    );
+  }
+
+  if (!isRidePreparedForPayment(input.ride)) {
+    throw new PaymentDomainError(
+      'RIDE_NOT_PREPARED',
+      'Prepare a corrida e reserve um motorista antes do pagamento.',
     );
   }
 
