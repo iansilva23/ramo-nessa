@@ -68,6 +68,35 @@ void main() {
     expect(requests, 1);
   });
 
+  test('Nominatim rejeita JSON inválido de forma controlada', () async {
+    final client = MockClient((_) async => http.Response('<html>erro</html>', 200));
+    final service = NominatimPlaceSearchService(client: client);
+
+    await expectLater(
+      service.search('Jericoacoara'),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('OSRM rejeita coordenadas não numéricas', () async {
+    final client = MockClient(
+      (_) async => http.Response(
+        '{"code":"Ok","routes":[{"distance":1000,"duration":120,'
+        '"geometry":{"coordinates":[["x","y"],[-40.45,-2.81]]}}]}',
+        200,
+      ),
+    );
+    final service = OsrmRouteService(client: client);
+
+    await expectLater(
+      service.route(
+        origin: const LatLng(-2.7956, -40.5142),
+        destination: const LatLng(-2.8100, -40.4500),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
   test('OSRM converte GeoJSON em rota, distância e ETA', () async {
     final client = MockClient((request) async {
       expect(request.url.path, contains('/route/v1/driving/'));
