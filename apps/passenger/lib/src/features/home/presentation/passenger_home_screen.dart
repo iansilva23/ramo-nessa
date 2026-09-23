@@ -70,7 +70,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.pricingQuoteService ??
           (RamoCoreConfig.enabled
               ? HttpPricingQuoteService(
-                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  baseUrl: RamoCoreConfig.baseUri!,
                 )
               : null);
 
@@ -78,7 +78,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.ridePreparationService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? HttpRidePreparationService(
-                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  baseUrl: RamoCoreConfig.baseUri!,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
@@ -87,7 +87,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.paymentService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? HttpPassengerPaymentService(
-                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  baseUrl: RamoCoreConfig.baseUri!,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
@@ -96,7 +96,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.rideTrackingService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? HttpPassengerRideTrackingService(
-                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  baseUrl: RamoCoreConfig.baseUri!,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
@@ -105,7 +105,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.rideRealtimeService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? IoPassengerRideRealtimeService(
-                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  baseUrl: RamoCoreConfig.baseUri!,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
