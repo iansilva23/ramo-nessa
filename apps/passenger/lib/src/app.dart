@@ -53,8 +53,13 @@ class RamoNessaPassengerApp extends StatelessWidget {
                 ? configuredToken
                 : null;
 
-    Widget home(String? token) => PassengerHomeScreen(
+    Widget home(
+      String? token, [
+      Future<bool> Function()? logout,
+    ]) =>
+        PassengerHomeScreen(
           accessToken: token,
+          onLogout: logout,
           locationService: locationService,
           routeService: routeService,
           placeSearchService: placeSearchService,
@@ -82,7 +87,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código para confirmar sua conta.',
-        authenticatedBuilder: home,
+        authenticatedBuilder: (token, logout) => home(token, logout),
       );
     }
 
