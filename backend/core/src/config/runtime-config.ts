@@ -47,3 +47,15 @@ export function resolveDbPoolMax(
     max: 100,
   });
 }
+
+export function resolveRoutingTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return parseIntegerSetting({
+    name: 'ROUTING_TIMEOUT_MS',
+    value: env.ROUTING_TIMEOUT_MS,
+    defaultValue: 5000,
+    min: 250,
+    max: 30000,
+  });
+}
