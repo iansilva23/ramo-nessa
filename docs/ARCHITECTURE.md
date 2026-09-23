@@ -40,7 +40,9 @@ Essa camada pura continua testável sem infraestrutura externa e já foi conecta
 - sessão usa token opaco aleatório; somente SHA-256 do Bearer é persistido;
 - token mobile fica no Keychain/Keystore e não é embutido no build;
 - logout revoga a sessão no Core antes de apagar o token local;
-- provider dev é proibido em produção; produção usa adapter de entrega HTTPS.
+- sessão Bearer é recusada imediatamente se a identidade estiver suspensa;
+- provider dev é proibido em produção; produção usa adapter de entrega HTTPS;
+- Core falha ao iniciar em produção sem provider OTP/segredo válidos.
 
 ## Autoridade
 
