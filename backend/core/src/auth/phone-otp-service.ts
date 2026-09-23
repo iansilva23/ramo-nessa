@@ -54,13 +54,15 @@ export function normalizeBrazilMobilePhone(value: string): string {
   return `+55${national}`;
 }
 
-function otpHashSecret(): string {
-  const configured = process.env.OTP_HASH_SECRET?.trim();
+export function resolveOtpHashSecret(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = env.OTP_HASH_SECRET?.trim();
   if (configured != null && configured.length >= 32) {
     return configured;
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (env.NODE_ENV === 'production') {
     throw new PhoneOtpError(
       'OTP_DELIVERY_NOT_CONFIGURED',
       'OTP_HASH_SECRET não está configurado com segurança.',
@@ -71,7 +73,7 @@ function otpHashSecret(): string {
 }
 
 function otpDigest(challengeId: string, code: string): string {
-  return createHmac('sha256', otpHashSecret())
+  return createHmac('sha256', resolveOtpHashSecret())
     .update(`${challengeId}:${code}`, 'utf8')
     .digest('hex');
 }
