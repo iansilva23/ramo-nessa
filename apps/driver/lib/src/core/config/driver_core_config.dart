@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 abstract final class DriverCoreConfig {
   static const baseUrl = String.fromEnvironment(
     'RAMO_CORE_BASE_URL',
@@ -12,6 +14,22 @@ abstract final class DriverCoreConfig {
   static const requestTimeout = Duration(seconds: 10);
   static const offerPollingInterval = Duration(seconds: 10);
 
+  static Uri? get baseUri {
+    final uri = Uri.tryParse(baseUrl.trim());
+    if (
+      uri == null ||
+      !uri.hasScheme ||
+      uri.host.isEmpty ||
+      (uri.scheme != 'http' && uri.scheme != 'https')
+    ) {
+      return null;
+    }
+
+    // Release nunca deve apontar o Core para HTTP sem TLS.
+    if (kReleaseMode && uri.scheme != 'https') return null;
+    return uri;
+  }
+
   static bool get enabled =>
-      baseUrl.trim().isNotEmpty && devDriverId.trim().length >= 3;
+      baseUri != null && devDriverId.trim().length >= 3;
 }
