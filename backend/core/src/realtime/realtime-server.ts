@@ -16,6 +16,7 @@ import {
   driverOfferView,
   getDriverSupplyForApp,
 } from '../drivers/driver-app-service.js';
+import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
@@ -31,6 +32,7 @@ interface AttachRealtimeServerInput {
   hub: RealtimeHub;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
+  registry: DriverRegistryRepository;
   matching: RideMatchingRepository;
   sessions: AuthSessionRepository;
   identities: AuthOtpRepository;
@@ -136,6 +138,7 @@ export function attachRealtimeServer(
         });
         await getDriverSupplyForApp({
           drivers: input.drivers,
+          registry: input.registry,
           driverId,
         });
 
