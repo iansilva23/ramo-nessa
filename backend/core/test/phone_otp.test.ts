@@ -290,3 +290,76 @@ test('novo OTP após cooldown invalida o desafio anterior', async () => {
   });
   assert.equal(verified.subjectType, 'passenger');
 });
+
+
+test('requisições OTP simultâneas para o mesmo telefone geram só um desafio', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const delivery = new RecordingDelivery();
+  const now = new Date('2026-09-23T12:10:00.000Z');
+
+  const results = await Promise.allSettled([
+    requestPhoneOtp({
+      repository,
+      delivery,
+      subjectType: 'passenger',
+      phone: '88999991242',
+      now,
+    }),
+    requestPhoneOtp({
+      repository,
+      delivery,
+      subjectType: 'passenger',
+      phone: '88999991242',
+      now,
+    }),
+  ]);
+
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
+  assert.equal(delivery.sent.length, 1);
+
+  const rejected = results.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+  assert.ok(rejected);
+  assert.ok(rejected.reason instanceof PhoneOtpError);
+  assert.equal(rejected.reason.code, 'OTP_RATE_LIMITED');
+});
+
+test('rate-limit por dispositivo bloqueia flood entre telefones diferentes', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const delivery = new RecordingDelivery();
+  const context = {
+    clientIp: '203.0.113.10',
+    clientInstanceId: 'device-auth-test-0000000001',
+  };
+  const base = Date.parse('2026-09-23T13:00:00.000Z');
+
+  for (let index = 0; index < 20; index += 1) {
+    const phone = String(88910000000 + index);
+    await requestPhoneOtp({
+      repository,
+      delivery,
+      subjectType: 'passenger',
+      phone,
+      context,
+      now: new Date(base + index * 1000),
+    });
+  }
+
+  await assert.rejects(
+    () =>
+      requestPhoneOtp({
+        repository,
+        delivery,
+        subjectType: 'passenger',
+        phone: '88910000020',
+        context,
+        now: new Date(base + 21_000),
+      }),
+    (error: unknown) =>
+      error instanceof PhoneOtpError &&
+      error.code === 'OTP_RATE_LIMITED',
+  );
+  assert.equal(delivery.sent.length, 20);
+});

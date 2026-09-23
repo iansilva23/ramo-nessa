@@ -86,6 +86,7 @@ test(
 
 class PostgresRecordingDelivery implements OtpDeliveryProvider {
   code = '';
+  sent = 0;
 
   async sendCode(input: {
     phoneE164: string;
@@ -94,6 +95,7 @@ class PostgresRecordingDelivery implements OtpDeliveryProvider {
     expiresInSeconds: number;
   }): Promise<void> {
     this.code = input.code;
+    this.sent += 1;
   }
 }
 
@@ -176,6 +178,85 @@ test(
           'DELETE FROM auth_sessions WHERE subject_id = $1',
           [identity.subject_id],
         );
+        await pool.query(
+          'DELETE FROM auth_otp_challenges WHERE identity_id = $1',
+          [identity.id],
+        );
+      }
+      await pool.query(
+        'DELETE FROM auth_identities WHERE phone_e164 = $1',
+        [phone],
+      );
+      await pool.end();
+    }
+  },
+);
+
+
+test(
+  'PostgreSQL serializa solicitações OTP concorrentes do mesmo telefone',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const otpRepository = new PostgresAuthOtpRepository(pool);
+    const delivery = new PostgresRecordingDelivery();
+    const phone = '+5588944441242';
+    const now = new Date('2026-09-23T12:30:00.000Z');
+
+    try {
+      const results = await Promise.allSettled([
+        requestPhoneOtp({
+          repository: otpRepository,
+          delivery,
+          subjectType: 'passenger',
+          phone,
+          now,
+        }),
+        requestPhoneOtp({
+          repository: otpRepository,
+          delivery,
+          subjectType: 'passenger',
+          phone,
+          now,
+        }),
+      ]);
+
+      assert.equal(
+        results.filter((result) => result.status === 'fulfilled').length,
+        1,
+      );
+      assert.equal(
+        results.filter((result) => result.status === 'rejected').length,
+        1,
+      );
+      assert.equal(delivery.sent, 1);
+
+      const active = await pool.query<{ count: string }>(
+        `
+        SELECT COUNT(*)::text AS count
+        FROM auth_otp_challenges c
+        JOIN auth_identities i ON i.id = c.identity_id
+        WHERE i.phone_e164 = $1 AND c.consumed_at IS NULL
+        `,
+        [phone],
+      );
+      assert.equal(active.rows[0]?.count, '1');
+
+      const rawLeak = await pool.query<{ count: string }>(
+        `
+        SELECT COUNT(*)::text AS count
+        FROM auth_otp_rate_limits
+        WHERE bucket_key LIKE '%' || $1 || '%'
+        `,
+        [phone],
+      );
+      assert.equal(rawLeak.rows[0]?.count, '0');
+    } finally {
+      const identities = await pool.query<{ id: string }>(
+        'SELECT id FROM auth_identities WHERE phone_e164 = $1',
+        [phone],
+      );
+      for (const identity of identities.rows) {
         await pool.query(
           'DELETE FROM auth_otp_challenges WHERE identity_id = $1',
           [identity.id],

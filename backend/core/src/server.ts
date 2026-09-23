@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
+import { isIP } from 'node:net';
 
 import { quoteFare } from './pricing/quote-engine.js';
 import { PricingError } from './pricing/types.js';
@@ -45,12 +50,14 @@ import {
   AuthenticationError,
   authenticateBearer,
   issueAuthSession,
+  revokeBearerSession,
 } from './auth/auth-service.js';
 import {
   normalizeBrazilMobilePhone,
   PhoneOtpError,
   requestPhoneOtp,
   resolveOtpHashSecret,
+  resolveOtpRateLimitSecret,
   verifyPhoneOtp,
 } from './auth/phone-otp-service.js';
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
@@ -119,6 +126,31 @@ const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 resolveOtpHashSecret();
+resolveOtpRateLimitSecret();
+
+function headerValue(
+  request: IncomingMessage,
+  name: string,
+): string | undefined {
+  const raw = request.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+function requestClientIp(request: IncomingMessage): string | undefined {
+  if (process.env.TRUST_PROXY === 'true') {
+    const forwarded = headerValue(request, 'x-forwarded-for')
+      ?.split(',')[0]
+      ?.trim();
+    if (forwarded != null && isIP(forwarded) !== 0) {
+      return forwarded;
+    }
+  }
+
+  const remote = request.socket.remoteAddress?.trim();
+  return remote != null && isIP(remote) !== 0 ? remote : undefined;
+}
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
@@ -169,6 +201,10 @@ const server = createServer(async (request, response) => {
         delivery: otpDeliveryProvider,
         subjectType,
         phone,
+        context: {
+          clientIp: requestClientIp(request),
+          clientInstanceId: headerValue(request, 'x-client-instance-id'),
+        },
       });
       json(response, 202, requested);
       return;
@@ -279,15 +315,10 @@ const server = createServer(async (request, response) => {
       request.method === 'DELETE' &&
       requestUrl.pathname === '/v1/auth/session'
     ) {
-      const session = await authenticateBearer({
+      await revokeBearerSession({
         repository: authSessionRepository,
-        identities: authOtpRepository,
         headers: request.headers,
       });
-      await authSessionRepository.revoke(
-        session.id,
-        new Date().toISOString(),
-      );
       response.writeHead(204, {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',

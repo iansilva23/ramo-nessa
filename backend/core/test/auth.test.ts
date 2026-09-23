@@ -8,6 +8,7 @@ import {
   AuthenticationError,
   hashBearerToken,
   issueAuthSession,
+  revokeBearerSession,
 } from '../src/auth/auth-service.js';
 
 test('sessão Bearer guarda apenas hash e autentica o papel correto', async () => {
@@ -184,5 +185,60 @@ test('sessão ainda válida é recusada quando a identidade está suspensa', asy
     (error: unknown) =>
       error instanceof AuthenticationError &&
       error.code === 'AUTH_IDENTITY_DISABLED',
+  );
+});
+
+
+test('logout revoga token mesmo depois de a identidade ser suspensa', async () => {
+  const sessions = new InMemoryAuthSessionRepository();
+  const identities = new InMemoryAuthOtpRepository();
+  const now = new Date('2026-09-23T12:00:00.000Z');
+
+  await identities.createIdentity({
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    subjectId: 'driver-logout-suspended',
+    subjectType: 'driver',
+    phoneE164: '+5588999991241',
+    status: 'active',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  const issued = await issueAuthSession({
+    repository: sessions,
+    subjectId: 'driver-logout-suspended',
+    subjectType: 'driver',
+    now,
+    ttlMs: 120_000,
+  });
+
+  await identities.setIdentityStatus({
+    subjectType: 'driver',
+    subjectId: 'driver-logout-suspended',
+    status: 'suspended',
+    updatedAt: '2026-09-23T12:00:10.000Z',
+  });
+
+  const revoked = await revokeBearerSession({
+    repository: sessions,
+    headers: { authorization: `Bearer ${issued.token}` },
+    now: new Date('2026-09-23T12:00:20.000Z'),
+  });
+  assert.equal(revoked.id, issued.session.id);
+
+  const stored = await sessions.findByTokenHash(hashBearerToken(issued.token));
+  assert.equal(stored?.revokedAt, '2026-09-23T12:00:20.000Z');
+
+  await assert.rejects(
+    () =>
+      authenticateBearer({
+        repository: sessions,
+        identities,
+        headers: { authorization: `Bearer ${issued.token}` },
+        now: new Date('2026-09-23T12:00:30.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof AuthenticationError &&
+      error.code === 'AUTH_INVALID',
   );
 });

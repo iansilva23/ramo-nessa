@@ -4,7 +4,9 @@ import type {
   AuthIdentityRecord,
   AuthIdentityStatus,
   AuthOtpRepository,
+  AuthRateLimitResult,
   OtpAttemptResult,
+  OtpChallengeCreationResult,
   OtpChallengeRecord,
 } from '../auth-otp-repository.js';
 import type { AuthSubjectType } from '../auth-session-repository.js';
@@ -16,6 +18,13 @@ interface IdentityRow {
   phone_e164: string;
   status: AuthIdentityStatus;
   created_at: Date;
+  updated_at: Date;
+}
+
+interface RateLimitRow {
+  bucket_key: string;
+  window_started_at: Date;
+  attempt_count: number;
   updated_at: Date;
 }
 
@@ -67,6 +76,38 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         id, subject_id, subject_type, phone_e164,
         status, created_at, updated_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+      `,
+      [
+        identity.id,
+        identity.subjectId,
+        identity.subjectType,
+        identity.phoneE164,
+        identity.status,
+        identity.createdAt,
+        identity.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Identidade não foi persistida.');
+    return mapIdentity(row);
+  }
+
+  async findOrCreatePassengerIdentity(
+    identity: AuthIdentityRecord,
+  ): Promise<AuthIdentityRecord> {
+    if (identity.subjectType !== 'passenger') {
+      throw new Error('Somente passageiro pode ser criado automaticamente.');
+    }
+
+    const result = await this.pool.query<IdentityRow>(
+      `
+      INSERT INTO auth_identities (
+        id, subject_id, subject_type, phone_e164,
+        status, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (subject_type, phone_e164)
+      DO UPDATE SET phone_e164 = auth_identities.phone_e164
       RETURNING *
       `,
       [
@@ -145,6 +186,171 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       ],
     );
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async consumeRateLimits(input: {
+    rules: Array<{ key: string; limit: number; windowMs: number }>;
+    now: string;
+  }): Promise<AuthRateLimitResult> {
+    if (input.rules.length === 0) {
+      return { allowed: true, retryAfterMs: 0 };
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const nowMs = Date.parse(input.now);
+
+      for (const rule of input.rules) {
+        await client.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [rule.key],
+        );
+
+        const existing = await client.query<RateLimitRow>(
+          `
+          SELECT bucket_key, window_started_at, attempt_count, updated_at
+          FROM auth_otp_rate_limits
+          WHERE bucket_key = $1
+          FOR UPDATE
+          `,
+          [rule.key],
+        );
+        const row = existing.rows[0];
+
+        if (
+          row == null ||
+          nowMs - row.window_started_at.getTime() >= rule.windowMs
+        ) {
+          await client.query(
+            `
+            INSERT INTO auth_otp_rate_limits (
+              bucket_key, window_started_at, attempt_count, updated_at
+            ) VALUES ($1, $2, 1, $2)
+            ON CONFLICT (bucket_key)
+            DO UPDATE SET
+              window_started_at = EXCLUDED.window_started_at,
+              attempt_count = 1,
+              updated_at = EXCLUDED.updated_at
+            `,
+            [rule.key, input.now],
+          );
+          continue;
+        }
+
+        if (row.attempt_count >= rule.limit) {
+          const retryAfterMs = Math.max(
+            1,
+            rule.windowMs -
+              Math.max(0, nowMs - row.window_started_at.getTime()),
+          );
+          await client.query('ROLLBACK');
+          return { allowed: false, retryAfterMs };
+        }
+
+        await client.query(
+          `
+          UPDATE auth_otp_rate_limits
+          SET attempt_count = attempt_count + 1, updated_at = $2
+          WHERE bucket_key = $1
+          `,
+          [rule.key, input.now],
+        );
+      }
+
+      await client.query('COMMIT');
+      return { allowed: true, retryAfterMs: 0 };
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createChallengeWithCooldown(input: {
+    challenge: OtpChallengeRecord;
+    now: string;
+    cooldownMs: number;
+  }): Promise<OtpChallengeCreationResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const lockedIdentity = await client.query<{ id: string }>(
+        'SELECT id FROM auth_identities WHERE id = $1 FOR UPDATE',
+        [input.challenge.identityId],
+      );
+      if (lockedIdentity.rows[0] == null) {
+        throw new Error('Identidade OTP não encontrada.');
+      }
+
+      const latestResult = await client.query<ChallengeRow>(
+        `
+        SELECT *
+        FROM auth_otp_challenges
+        WHERE identity_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1
+        `,
+        [input.challenge.identityId],
+      );
+      const latest = latestResult.rows[0];
+      if (latest != null && latest.consumed_at == null) {
+        const elapsedMs = Math.max(
+          0,
+          Date.parse(input.now) - latest.created_at.getTime(),
+        );
+        if (elapsedMs < input.cooldownMs) {
+          await client.query('ROLLBACK');
+          return {
+            created: false,
+            retryAfterMs: Math.max(1, input.cooldownMs - elapsedMs),
+          };
+        }
+
+        await client.query(
+          `
+          UPDATE auth_otp_challenges
+          SET consumed_at = COALESCE(consumed_at, $2::timestamptz)
+          WHERE id = $1
+          `,
+          [latest.id, input.now],
+        );
+      }
+
+      const inserted = await client.query<ChallengeRow>(
+        `
+        INSERT INTO auth_otp_challenges (
+          id, identity_id, code_digest, expires_at,
+          attempt_count, consumed_at, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+        `,
+        [
+          input.challenge.id,
+          input.challenge.identityId,
+          input.challenge.codeDigest,
+          input.challenge.expiresAt,
+          input.challenge.attemptCount,
+          input.challenge.consumedAt ?? null,
+          input.challenge.createdAt,
+        ],
+      );
+      const row = inserted.rows[0];
+      if (row == null) throw new Error('Desafio OTP não foi persistido.');
+
+      await client.query('COMMIT');
+      return { created: true, challenge: mapChallenge(row) };
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async createChallenge(

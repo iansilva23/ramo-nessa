@@ -80,6 +80,36 @@ function bearerToken(headers: IncomingHttpHeaders): string | null {
   return match?.[1] ?? null;
 }
 
+export async function revokeBearerSession(input: {
+  repository: AuthSessionRepository;
+  headers: IncomingHttpHeaders;
+  now?: Date;
+}): Promise<AuthSessionRecord> {
+  const token = bearerToken(input.headers);
+  if (token == null) {
+    throw new AuthenticationError(
+      'AUTH_REQUIRED',
+      'Envie um Bearer token válido.',
+    );
+  }
+
+  const session = await input.repository.findByTokenHash(
+    hashBearerToken(token),
+  );
+  if (session == null) {
+    throw new AuthenticationError(
+      'AUTH_INVALID',
+      'Sessão inválida.',
+    );
+  }
+
+  await input.repository.revoke(
+    session.id,
+    (input.now ?? new Date()).toISOString(),
+  );
+  return session;
+}
+
 export async function authenticateBearer(input: {
   repository: AuthSessionRepository;
   headers: IncomingHttpHeaders;

@@ -7,6 +7,7 @@ import {
 import type {
   AuthIdentityRecord,
   AuthOtpRepository,
+  AuthRateLimitRule,
   OtpChallengeRecord,
 } from './auth-otp-repository.js';
 import type {
@@ -19,6 +20,15 @@ import type { OtpDeliveryProvider } from './otp-delivery-provider.js';
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const OTP_PHONE_PER_HOUR = 5;
+const OTP_PHONE_PER_DAY = 12;
+const OTP_DEVICE_PER_HOUR = 20;
+const OTP_DEVICE_PER_DAY = 60;
+const OTP_IP_PER_HOUR = 60;
+const OTP_IP_PER_DAY = 300;
 
 export class PhoneOtpError extends Error {
   constructor(
@@ -35,6 +45,11 @@ export class PhoneOtpError extends Error {
     super(message);
     this.name = 'PhoneOtpError';
   }
+}
+
+export interface OtpRequestContext {
+  clientIp?: string;
+  clientInstanceId?: string;
 }
 
 export function normalizeBrazilMobilePhone(value: string): string {
@@ -72,10 +87,120 @@ export function resolveOtpHashSecret(
   return 'ramo-nessa-development-otp-secret-only';
 }
 
+export function resolveOtpRateLimitSecret(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const configured = env.OTP_RATE_LIMIT_SECRET?.trim();
+  if (configured != null && configured.length >= 32) {
+    return configured;
+  }
+
+  if (env.NODE_ENV === 'production') {
+    throw new PhoneOtpError(
+      'OTP_DELIVERY_NOT_CONFIGURED',
+      'OTP_RATE_LIMIT_SECRET não está configurado com segurança.',
+    );
+  }
+
+  return 'ramo-nessa-development-rate-limit-secret';
+}
+
 function otpDigest(challengeId: string, code: string): string {
   return createHmac('sha256', resolveOtpHashSecret())
     .update(`${challengeId}:${code}`, 'utf8')
     .digest('hex');
+}
+
+function rateLimitKey(scope: string): string {
+  return createHmac('sha256', resolveOtpRateLimitSecret())
+    .update(scope, 'utf8')
+    .digest('hex');
+}
+
+function normalizedClientInstanceId(value?: string): string | null {
+  const normalized = value?.trim();
+  if (
+    normalized == null ||
+    normalized.length < 16 ||
+    normalized.length > 128 ||
+    !/^[A-Za-z0-9._:-]+$/.test(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+async function enforceOtpRequestRateLimits(input: {
+  repository: AuthOtpRepository;
+  subjectType: AuthSubjectType;
+  phoneE164: string;
+  context?: OtpRequestContext;
+  now: Date;
+}): Promise<void> {
+  const rules: AuthRateLimitRule[] = [
+    {
+      key: rateLimitKey(
+        `otp-request:phone:hour:${input.subjectType}:${input.phoneE164}`,
+      ),
+      limit: OTP_PHONE_PER_HOUR,
+      windowMs: HOUR_MS,
+    },
+    {
+      key: rateLimitKey(
+        `otp-request:phone:day:${input.subjectType}:${input.phoneE164}`,
+      ),
+      limit: OTP_PHONE_PER_DAY,
+      windowMs: DAY_MS,
+    },
+  ];
+
+  const instanceId = normalizedClientInstanceId(
+    input.context?.clientInstanceId,
+  );
+  if (instanceId != null) {
+    rules.push(
+      {
+        key: rateLimitKey(`otp-request:device:hour:${instanceId}`),
+        limit: OTP_DEVICE_PER_HOUR,
+        windowMs: HOUR_MS,
+      },
+      {
+        key: rateLimitKey(`otp-request:device:day:${instanceId}`),
+        limit: OTP_DEVICE_PER_DAY,
+        windowMs: DAY_MS,
+      },
+    );
+  }
+
+  const clientIp = input.context?.clientIp?.trim();
+  if (clientIp) {
+    rules.push(
+      {
+        key: rateLimitKey(`otp-request:ip:hour:${clientIp}`),
+        limit: OTP_IP_PER_HOUR,
+        windowMs: HOUR_MS,
+      },
+      {
+        key: rateLimitKey(`otp-request:ip:day:${clientIp}`),
+        limit: OTP_IP_PER_DAY,
+        windowMs: DAY_MS,
+      },
+    );
+  }
+
+  const result = await input.repository.consumeRateLimits({
+    rules,
+    now: input.now.toISOString(),
+  });
+  if (!result.allowed) {
+    throw new PhoneOtpError(
+      'OTP_RATE_LIMITED',
+      `Muitas solicitações. Tente novamente em ${Math.max(
+        1,
+        Math.ceil(result.retryAfterMs / 1000),
+      )}s.`,
+    );
+  }
 }
 
 async function resolveIdentity(input: {
@@ -106,7 +231,7 @@ async function resolveIdentity(input: {
   }
 
   const id = randomUUID();
-  return input.repository.createIdentity({
+  return input.repository.findOrCreatePassengerIdentity({
     id,
     subjectId: id,
     subjectType: 'passenger',
@@ -121,7 +246,6 @@ export interface RequestedPhoneOtp {
   challengeId: string;
   expiresAt: string;
   retryAfterSeconds: number;
-  // Nunca enviar em produção. Existe somente para testes/dev local.
   devCode?: string;
 }
 
@@ -130,6 +254,7 @@ export async function requestPhoneOtp(input: {
   delivery: OtpDeliveryProvider | null;
   subjectType: AuthSubjectType;
   phone: string;
+  context?: OtpRequestContext;
   now?: Date;
 }): Promise<RequestedPhoneOtp> {
   if (input.delivery == null) {
@@ -141,34 +266,21 @@ export async function requestPhoneOtp(input: {
 
   const now = input.now ?? new Date();
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
+
+  await enforceOtpRequestRateLimits({
+    repository: input.repository,
+    subjectType: input.subjectType,
+    phoneE164,
+    context: input.context,
+    now,
+  });
+
   const identity = await resolveIdentity({
     repository: input.repository,
     subjectType: input.subjectType,
     phoneE164,
     now,
   });
-
-  const latest =
-    await input.repository.findLatestChallengeByIdentityId(identity.id);
-  if (
-    latest != null &&
-    latest.consumedAt == null &&
-    now.getTime() - Date.parse(latest.createdAt) < OTP_COOLDOWN_MS
-  ) {
-    const remainingMs =
-      OTP_COOLDOWN_MS - (now.getTime() - Date.parse(latest.createdAt));
-    throw new PhoneOtpError(
-      'OTP_RATE_LIMITED',
-      `Aguarde ${Math.max(1, Math.ceil(remainingMs / 1000))}s para reenviar.`,
-    );
-  }
-
-  if (latest != null && latest.consumedAt == null) {
-    await input.repository.cancelChallenge(
-      latest.id,
-      now.toISOString(),
-    );
-  }
 
   const challengeId = randomUUID();
   const code = randomInt(100000, 1000000).toString();
@@ -181,7 +293,21 @@ export async function requestPhoneOtp(input: {
     createdAt: now.toISOString(),
   };
 
-  await input.repository.createChallenge(challenge);
+  const creation = await input.repository.createChallengeWithCooldown({
+    challenge,
+    now: now.toISOString(),
+    cooldownMs: OTP_COOLDOWN_MS,
+  });
+  if (!creation.created) {
+    throw new PhoneOtpError(
+      'OTP_RATE_LIMITED',
+      `Aguarde ${Math.max(
+        1,
+        Math.ceil(creation.retryAfterMs / 1000),
+      )}s para reenviar.`,
+    );
+  }
+
   try {
     await input.delivery.sendCode({
       phoneE164,
