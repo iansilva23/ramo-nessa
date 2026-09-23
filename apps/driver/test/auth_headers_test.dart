@@ -11,7 +11,9 @@ void main() {
       return http.Response(
         '{"driverId":"driver-1","vehicleId":"vehicle-1",'
         '"categories":["car"],"fourByFour":false,"seatCapacity":4,'
-        '"online":false,"busy":false}',
+        '"online":false,"busy":false,'
+        '"latitude":-2.82,"longitude":-40.41,'
+        '"locationUpdatedAt":"2026-09-23T09:40:00.000Z"}',
         200,
       );
     });
