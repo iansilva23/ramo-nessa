@@ -484,6 +484,108 @@
                 </form>
               </article>
             </div>
+
+            <article class="panel-card driver-registry-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CADASTRO OPERACIONAL</span>
+                  <h2>Perfil e veículo</h2>
+                  <p class="muted-copy">
+                    Cadastro separado do acesso OTP. Aprovação do perfil e do veículo é explícita.
+                  </p>
+                </div>
+                <span id="driver-registry-overall" class="pill">Não carregado</span>
+              </div>
+
+              <div id="driver-registry-result" class="driver-registry-result empty-state">
+                Abra um motorista para consultar o perfil e o veículo.
+              </div>
+
+              <div id="driver-registry-write-controls" class="driver-registry-write-controls">
+                <form id="driver-registry-form" class="registry-form">
+                  <div class="registry-grid">
+                    <label class="field registry-span-2">
+                      <span>Nome completo</span>
+                      <input id="registry-full-name" required maxlength="120" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Nome preferido</span>
+                      <input id="registry-preferred-name" maxlength="80" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Placa</span>
+                      <input id="registry-plate" required maxlength="10" autocomplete="off" placeholder="ABC1D23">
+                    </label>
+                    <label class="field">
+                      <span>Marca</span>
+                      <input id="registry-make" required maxlength="60" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Modelo</span>
+                      <input id="registry-model" required maxlength="80" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Ano</span>
+                      <input id="registry-model-year" required type="number" min="1980" max="2100" inputmode="numeric">
+                    </label>
+                    <label class="field">
+                      <span>Cor</span>
+                      <input id="registry-color" required maxlength="40" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Lugares</span>
+                      <input id="registry-seat-capacity" required type="number" min="1" max="12" inputmode="numeric">
+                    </label>
+                    <label class="registry-check">
+                      <input id="registry-four-by-four" type="checkbox">
+                      <span>Veículo 4x4</span>
+                    </label>
+                  </div>
+
+                  <fieldset class="registry-categories">
+                    <legend>Categorias habilitadas</legend>
+                    <label><input type="checkbox" name="registry-category" value="moto"> Moto</label>
+                    <label><input type="checkbox" name="registry-category" value="delivery"> Entrega</label>
+                    <label><input type="checkbox" name="registry-category" value="car"> Carro</label>
+                    <label><input type="checkbox" name="registry-category" value="comfort_black"> Comfort/Black</label>
+                    <label><input type="checkbox" name="registry-category" value="buggy"> Buggy</label>
+                  </fieldset>
+
+                  <button id="registry-save-button" class="button button--primary" type="submit">
+                    Salvar perfil e veículo
+                  </button>
+                </form>
+
+                <div class="registry-status-panel">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">APROVAÇÃO</span>
+                    <h3>Status cadastral</h3>
+                    <p class="muted-copy">
+                      Editar dados não aprova silenciosamente. Os dois status são controlados aqui.
+                    </p>
+                  </div>
+                  <label class="field">
+                    <span>Perfil</span>
+                    <select id="registry-profile-status">
+                      <option value="pending">Pendente</option>
+                      <option value="approved">Aprovado</option>
+                      <option value="suspended">Suspenso</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Veículo</span>
+                    <select id="registry-vehicle-status">
+                      <option value="pending">Pendente</option>
+                      <option value="approved">Aprovado</option>
+                      <option value="suspended">Suspenso</option>
+                    </select>
+                  </label>
+                  <button id="registry-status-button" class="button button--dark" type="button">
+                    Atualizar aprovação
+                  </button>
+                </div>
+              </div>
+            </article>
           </section>
 
           <section id="view-passengers" class="view-panel" hidden>
