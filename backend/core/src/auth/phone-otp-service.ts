@@ -48,8 +48,8 @@ export class PhoneOtpError extends Error {
 }
 
 export interface OtpRequestContext {
-  clientIp?: string;
-  clientInstanceId?: string;
+  clientIp?: string | undefined;
+  clientInstanceId?: string | undefined;
 }
 
 export function normalizeBrazilMobilePhone(value: string): string {
@@ -134,7 +134,7 @@ async function enforceOtpRequestRateLimits(input: {
   repository: AuthOtpRepository;
   subjectType: AuthSubjectType;
   phoneE164: string;
-  context?: OtpRequestContext;
+  context?: OtpRequestContext | undefined;
   now: Date;
 }): Promise<void> {
   const rules: AuthRateLimitRule[] = [
