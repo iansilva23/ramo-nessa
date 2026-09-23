@@ -88,7 +88,16 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         challengeId: challenge.challengeId,
         code: code,
       );
-      await widget.tokenStore.saveAccessToken(session.accessToken);
+
+      try {
+        await widget.tokenStore.saveAccessToken(session.accessToken);
+      } catch (_) {
+        try {
+          await widget.service.logout(session.accessToken);
+        } catch (_) {}
+        rethrow;
+      }
+
       if (!mounted) return;
       widget.onAuthenticated(session.accessToken);
     } catch (error) {
