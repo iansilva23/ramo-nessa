@@ -49,7 +49,8 @@
 - [x] pagamento confirmado dispara matching automaticamente
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
-- [ ] entrega realtime da oferta ao app
+- [x] Core WebSocket para entrega realtime da oferta
+- [ ] app Motorista conectado ao WebSocket
 - [x] acompanhamento do motorista via polling temporário
 - [ ] acompanhamento realtime via WebSocket
 - [ ] chat
@@ -110,7 +111,8 @@
 - [x] sincronização contínua de localização motorista -> Core
 - [x] endpoint seguro de tracking do passageiro
 - [x] polling temporário passageiro <- localização do motorista
-- [ ] websocket/realtime bidirecional para acompanhamento da corrida
+- [x] Core WebSocket para tracking da corrida
+- [ ] apps conectados ao WebSocket com fallback HTTP
 - [x] distância roteada motorista→passageiro para preço final
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão

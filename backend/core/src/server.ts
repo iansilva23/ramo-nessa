@@ -33,6 +33,7 @@ import {
 import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
+  driverOfferView,
   getDriverSupplyForApp,
   DriverAppError,
   rejectOfferFromDriverApp,
@@ -66,6 +67,8 @@ import {
 } from './rides/confirm-payment.js';
 import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import { RealtimeHub } from './realtime/realtime-hub.js';
+import { attachRealtimeServer } from './realtime/realtime-server.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const {
@@ -77,6 +80,7 @@ const {
   storageMode,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
+const realtimeHub = new RealtimeHub();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -124,6 +128,24 @@ const server = createServer(async (request, response) => {
         driverId,
         ...body,
       });
+
+      const activeRide =
+        await rideRepository.findActiveByDriverId(driverId);
+      if (activeRide != null) {
+        const tracking = await passengerRideTracking({
+          rides: rideRepository,
+          drivers: driverSupplyRepository,
+          rideId: activeRide.id,
+          passengerId: activeRide.passengerId,
+        });
+        if (tracking != null) {
+          realtimeHub.publishPassengerRide(activeRide.id, {
+            type: 'passenger.ride.tracking',
+            tracking,
+            serverTime: new Date().toISOString(),
+          });
+        }
+      }
 
       json(response, 200, {
         driverId: supply.driverId,
@@ -173,6 +195,30 @@ const server = createServer(async (request, response) => {
         rideId,
         action,
       });
+
+      realtimeHub.publishDriver(driverId, {
+        type: 'driver.ride.updated',
+        ride: result.ride,
+        serverTime: new Date().toISOString(),
+      });
+
+      const ride = await rideRepository.findById(rideId);
+      if (ride != null) {
+        const tracking = await passengerRideTracking({
+          rides: rideRepository,
+          drivers: driverSupplyRepository,
+          rideId,
+          passengerId: ride.passengerId,
+        });
+        if (tracking != null) {
+          realtimeHub.publishPassengerRide(rideId, {
+            type: 'passenger.ride.tracking',
+            tracking,
+            serverTime: new Date().toISOString(),
+          });
+        }
+      }
+
       json(response, 200, result);
       return;
     }
@@ -207,9 +253,41 @@ const server = createServer(async (request, response) => {
           offerId,
           driverId,
         });
+
+        realtimeHub.publishDriver(driverId, {
+          type: 'driver.offer.updated',
+          offer: null,
+          serverTime: new Date().toISOString(),
+        });
+        realtimeHub.publishDriver(driverId, {
+          type: 'driver.ride.updated',
+          ride: result.ride,
+          serverTime: new Date().toISOString(),
+        });
+
+        const acceptedRide = await rideRepository.findById(result.ride.id);
+        if (acceptedRide != null) {
+          const tracking = await passengerRideTracking({
+            rides: rideRepository,
+            drivers: driverSupplyRepository,
+            rideId: acceptedRide.id,
+            passengerId: acceptedRide.passengerId,
+          });
+          if (tracking != null) {
+            realtimeHub.publishPassengerRide(acceptedRide.id, {
+              type: 'passenger.ride.tracking',
+              tracking,
+              serverTime: new Date().toISOString(),
+            });
+          }
+        }
+
         json(response, 200, result);
         return;
       }
+
+      const previousOffer =
+        await rideMatchingRepository.findOfferById(offerId);
 
       const result = await rejectOfferFromDriverApp({
         rides: rideRepository,
@@ -218,6 +296,34 @@ const server = createServer(async (request, response) => {
         offerId,
         driverId,
       });
+      realtimeHub.publishDriver(driverId, {
+        type: 'driver.offer.updated',
+        offer: null,
+        serverTime: new Date().toISOString(),
+      });
+
+      if (previousOffer != null) {
+        const offers =
+          await rideMatchingRepository.listOffersForRide(
+            previousOffer.rideId,
+          );
+        const nextOffer = [...offers]
+          .reverse()
+          .find((candidate) => candidate.status === 'OFFERED');
+
+        if (nextOffer != null) {
+          const nextRide =
+            await rideRepository.findById(nextOffer.rideId);
+          if (nextRide != null) {
+            realtimeHub.publishDriver(nextOffer.driverId, {
+              type: 'driver.offer.updated',
+              offer: driverOfferView(nextOffer, nextRide),
+              serverTime: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
       json(response, 200, result);
       return;
     }
@@ -396,6 +502,21 @@ const server = createServer(async (request, response) => {
             dispatch.kind === 'OFFER_ACTIVE'
               ? 'SEARCHING_DRIVER'
               : dispatch.kind;
+
+          if (
+            dispatch.kind === 'OFFER_CREATED' ||
+            dispatch.kind === 'OFFER_ACTIVE'
+          ) {
+            const offerRide =
+              await rideRepository.findById(dispatch.offer.rideId);
+            if (offerRide != null) {
+              realtimeHub.publishDriver(dispatch.offer.driverId, {
+                type: 'driver.offer.updated',
+                offer: driverOfferView(dispatch.offer, offerRide),
+                serverTime: new Date().toISOString(),
+              });
+            }
+          }
         } catch (dispatchError) {
           console.error(
             'Pagamento confirmado, mas despacho automático falhou.',
@@ -542,6 +663,14 @@ const server = createServer(async (request, response) => {
 
     json(response, 500, { error: 'INTERNAL_ERROR' });
   }
+});
+
+attachRealtimeServer({
+  server,
+  hub: realtimeHub,
+  rides: rideRepository,
+  drivers: driverSupplyRepository,
+  matching: rideMatchingRepository,
 });
 
 server.listen(port, '0.0.0.0', () => {

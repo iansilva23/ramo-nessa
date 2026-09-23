@@ -110,3 +110,11 @@ npm start
 - auditoria e observabilidade.
 
 A autoridade de preço deve permanecer no Core. O Flutter nunca deve decidir sozinho preço final, comissão ou elegibilidade de veículo.
+
+
+## Realtime
+- WebSocket /v1/realtime/driver para ofertas e corrida ativa;
+- WebSocket /v1/realtime/passenger?rideId=<id> para tracking da corrida;
+- identidade continua validada por header de desenvolvimento;
+- produção continua bloqueada até autenticação real;
+- HTTP/polling permanece como fallback de reconexão.

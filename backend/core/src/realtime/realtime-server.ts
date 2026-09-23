@@ -1,0 +1,164 @@
+import type { Server } from 'node:http';
+
+import { WebSocketServer, type WebSocket } from 'ws';
+
+import {
+  resolveDriverId,
+  resolvePassengerId,
+} from '../auth/dev-identity.js';
+import {
+  currentDriverRide,
+  driverRideView,
+} from '../drivers/driver-ride-service.js';
+import {
+  driverOfferView,
+  getDriverSupplyForApp,
+} from '../drivers/driver-app-service.js';
+import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
+import type { RideRepository } from '../rides/ride-repository.js';
+import { passengerRideTracking } from '../rides/passenger-ride-tracking.js';
+import { RealtimeHub } from './realtime-hub.js';
+
+interface AttachRealtimeServerInput {
+  server: Server;
+  hub: RealtimeHub;
+  rides: RideRepository;
+  drivers: DriverSupplyRepository;
+  matching: RideMatchingRepository;
+}
+
+function rejectUpgrade(
+  socket: import('node:stream').Duplex,
+  status: number,
+  message: string,
+): void {
+  const body = JSON.stringify({ error: message });
+  socket.write(
+    `HTTP/1.1 ${status} ${status === 401 ? 'Unauthorized' : 'Bad Request'}\r\n` +
+      'Content-Type: application/json\r\n' +
+      `Content-Length: ${Buffer.byteLength(body)}\r\n` +
+      'Connection: close\r\n\r\n' +
+      body,
+  );
+  socket.destroy();
+}
+
+function sendJson(socket: WebSocket, payload: unknown): void {
+  if (socket.readyState === socket.OPEN) {
+    socket.send(JSON.stringify(payload));
+  }
+}
+
+export function attachRealtimeServer(
+  input: AttachRealtimeServerInput,
+): void {
+  const wss = new WebSocketServer({ noServer: true });
+
+  input.server.on('upgrade', async (request, socket, head) => {
+    const requestUrl = new URL(
+      request.url ?? '/',
+      'http://ramo-nossa.local',
+    );
+
+    try {
+      if (requestUrl.pathname === '/v1/realtime/driver') {
+        const driverId = resolveDriverId(request);
+        await getDriverSupplyForApp({
+          drivers: input.drivers,
+          driverId,
+        });
+
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          const unsubscribe = input.hub.subscribeDriver(driverId, ws);
+          const cleanup = () => unsubscribe();
+          ws.once('close', cleanup);
+          ws.once('error', cleanup);
+
+          void (async () => {
+            const offerRecord =
+              await input.matching.findLatestOfferedForDriver(driverId);
+            let offer = null;
+            if (
+              offerRecord != null &&
+              offerRecord.status === 'OFFERED' &&
+              Date.parse(offerRecord.expiresAt) > Date.now()
+            ) {
+              const ride = await input.rides.findById(offerRecord.rideId);
+              if (ride != null) {
+                offer = driverOfferView(offerRecord, ride);
+              }
+            }
+
+            const ride = await currentDriverRide({
+              rides: input.rides,
+              drivers: input.drivers,
+              driverId,
+            });
+
+            sendJson(ws, {
+              type: 'driver.bootstrap',
+              offer,
+              ride,
+              serverTime: new Date().toISOString(),
+            });
+          })().catch(() => {
+            if (ws.readyState === ws.OPEN) {
+              ws.close(1011, 'bootstrap_failed');
+            }
+          });
+        });
+        return;
+      }
+
+      if (requestUrl.pathname === '/v1/realtime/passenger') {
+        const passengerId = resolvePassengerId(request);
+        const rideId = requestUrl.searchParams.get('rideId')?.trim();
+        if (rideId == null || rideId.length < 3) {
+          rejectUpgrade(socket, 400, 'rideId_required');
+          return;
+        }
+
+        const ride = await input.rides.findById(rideId);
+        if (ride == null || ride.passengerId !== passengerId) {
+          rejectUpgrade(socket, 401, 'ride_not_authorized');
+          return;
+        }
+
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          const unsubscribe =
+            input.hub.subscribePassengerRide(rideId, ws);
+          const cleanup = () => unsubscribe();
+          ws.once('close', cleanup);
+          ws.once('error', cleanup);
+
+          void passengerRideTracking({
+            rides: input.rides,
+            drivers: input.drivers,
+            rideId,
+            passengerId,
+          })
+            .then((tracking) => {
+              if (tracking != null) {
+                sendJson(ws, {
+                  type: 'passenger.ride.tracking',
+                  tracking,
+                  serverTime: new Date().toISOString(),
+                });
+              }
+            })
+            .catch(() => {
+              if (ws.readyState === ws.OPEN) {
+                ws.close(1011, 'bootstrap_failed');
+              }
+            });
+        });
+        return;
+      }
+
+      rejectUpgrade(socket, 400, 'unknown_realtime_endpoint');
+    } catch {
+      rejectUpgrade(socket, 401, 'realtime_auth_failed');
+    }
+  });
+}
