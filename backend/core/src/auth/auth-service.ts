@@ -81,7 +81,7 @@ function bearerToken(headers: IncomingHttpHeaders): string | null {
 export async function authenticateBearer(input: {
   repository: AuthSessionRepository;
   headers: IncomingHttpHeaders;
-  requiredType: AuthSubjectType;
+  requiredType?: AuthSubjectType;
   now?: Date;
 }): Promise<AuthSessionRecord> {
   const token = bearerToken(input.headers);
@@ -110,7 +110,10 @@ export async function authenticateBearer(input: {
     );
   }
 
-  if (session.subjectType !== input.requiredType) {
+  if (
+    input.requiredType != null &&
+    session.subjectType !== input.requiredType
+  ) {
     throw new AuthenticationError(
       'AUTH_ROLE_MISMATCH',
       'Esta sessão não possui acesso a este recurso.',
