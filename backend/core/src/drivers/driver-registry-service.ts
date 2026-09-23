@@ -9,6 +9,34 @@ import type {
   DriverVehicleRecord,
 } from './driver-registry-repository.js';
 import type { UpsertDriverRegistryRequest } from './driver-registry-validation.js';
+import type { DriverSupplyRepository } from './driver-supply-repository.js';
+
+async function synchronizeOperationalSupply(input: {
+  drivers: DriverSupplyRepository;
+  profile: DriverProfileRecord;
+  vehicle: DriverVehicleRecord;
+  now: string;
+}): Promise<void> {
+  const supply = await input.drivers.findByDriverId(input.profile.driverId);
+  if (supply == null) return;
+
+  const approved =
+    input.profile.status === 'approved' &&
+    input.vehicle.status === 'approved';
+
+  await input.drivers.upsert({
+    ...supply,
+    ...(approved
+      ? {
+          vehicleId: input.vehicle.id,
+          categories: input.vehicle.categories,
+          fourByFour: input.vehicle.fourByFour,
+          seatCapacity: input.vehicle.seatCapacity,
+        }
+      : { online: false }),
+    updatedAt: input.now,
+  });
+}
 
 export class DriverRegistryError extends Error {
   constructor(
@@ -64,6 +92,7 @@ export async function getDriverRegistryForAdmin(input: {
 export async function upsertDriverRegistryFromAdmin(input: {
   identities: AuthOtpRepository;
   registry: DriverRegistryRepository;
+  drivers: DriverSupplyRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -128,6 +157,13 @@ export async function upsertDriverRegistryFromAdmin(input: {
       updatedAt: instant,
     });
 
+  await synchronizeOperationalSupply({
+    drivers: input.drivers,
+    profile,
+    vehicle,
+    now: instant,
+  });
+
   await input.admin.appendAudit({
     id: randomUUID(),
     actor: input.actor,
@@ -155,6 +191,7 @@ export async function upsertDriverRegistryFromAdmin(input: {
 
 export async function setDriverRegistryStatusFromAdmin(input: {
   registry: DriverRegistryRepository;
+  drivers: DriverSupplyRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -209,6 +246,13 @@ export async function setDriverRegistryStatusFromAdmin(input: {
       'Veículo do motorista não encontrado.',
     );
   }
+
+  await synchronizeOperationalSupply({
+    drivers: input.drivers,
+    profile,
+    vehicle,
+    now: instant,
+  });
 
   await input.admin.appendAudit({
     id: randomUUID(),
