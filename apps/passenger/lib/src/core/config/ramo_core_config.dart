@@ -8,11 +8,6 @@ abstract final class RamoCoreConfig {
 
   static const requestTimeout = Duration(seconds: 10);
 
-  static const authToken = String.fromEnvironment(
-    'RAMO_AUTH_TOKEN',
-    defaultValue: '',
-  );
-
   // Fallback somente para desenvolvimento local.
   static const devPassengerId = String.fromEnvironment(
     'RAMO_DEV_PASSENGER_ID',
@@ -37,12 +32,7 @@ abstract final class RamoCoreConfig {
 
   static bool get enabled => baseUri != null;
 
-  static bool get bearerIdentityEnabled =>
-      enabled && authToken.trim().length >= 20;
-
   static bool get devPassengerIdentityEnabled =>
       !kReleaseMode && enabled && devPassengerId.trim().length >= 3;
 
-  static bool get authenticated =>
-      bearerIdentityEnabled || devPassengerIdentityEnabled;
 }
