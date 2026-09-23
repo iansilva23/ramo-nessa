@@ -39,6 +39,7 @@ A versão inicial implementa:
 - diretório paginado somente leitura de passageiros;
 - indicadores reais de total/aprovados/suspensos;
 - dashboard operacional de corridas com estados reais e janela móvel de 24h;
+- módulo Viagens com filtros, busca, paginação e detalhe read-only;
 - tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
 - provisionamento seguro (suspenso por padrão);

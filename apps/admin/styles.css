@@ -1300,3 +1300,144 @@ td strong {
     padding: 18px 18px 15px;
   }
 }
+
+
+.ride-directory-toolbar {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 1fr)
+    minmax(130px, 170px)
+    minmax(190px, 260px)
+    auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ride-directory-toolbar .field {
+  margin: 0;
+}
+
+.ride-directory-table {
+  min-width: 1120px;
+}
+
+.ride-directory-table td {
+  vertical-align: middle;
+}
+
+.ride-detail-card {
+  margin-top: 18px;
+}
+
+.ride-detail-content {
+  display: grid;
+  gap: 18px;
+}
+
+.ride-detail-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ride-detail-hero h3 {
+  max-width: 650px;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  letter-spacing: -0.35px;
+}
+
+.ride-detail-route {
+  max-width: 420px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.ride-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ride-finance-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ride-detail-item {
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--raised);
+}
+
+.ride-detail-item span,
+.ride-detail-item strong {
+  display: block;
+}
+
+.ride-detail-item span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.ride-detail-item strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ride-detail-section-title {
+  margin-top: 2px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+@media (max-width: 1180px) {
+  .ride-directory-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ride-detail-grid,
+  .ride-finance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .ride-directory-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .ride-directory-toolbar .button {
+    width: 100%;
+  }
+
+  .ride-detail-hero {
+    flex-direction: column;
+  }
+
+  .ride-detail-route {
+    max-width: none;
+    text-align: left;
+  }
+
+  .ride-detail-grid,
+  .ride-finance-grid {
+    grid-template-columns: 1fr;
+  }
+}

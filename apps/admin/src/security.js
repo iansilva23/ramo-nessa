@@ -148,3 +148,25 @@ export function locationLabel(location) {
   };
   return zones[location.zoneId] ?? String(location.zoneId ?? '—');
 }
+
+
+export function paymentStatusLabel(status) {
+  const labels = {
+    created: 'Criado',
+    pending: 'Pendente',
+    authorized: 'Autorizado',
+    paid: 'Pago',
+    failed: 'Falhou',
+    cancelled: 'Cancelado',
+    refunded: 'Reembolsado',
+  };
+  return labels[status] ?? String(status ?? '—');
+}
+
+export function pricePeriodLabel(period) {
+  const labels = {
+    day: 'Diurno',
+    after_22: 'Após 22h',
+  };
+  return labels[period] ?? String(period ?? '—');
+}

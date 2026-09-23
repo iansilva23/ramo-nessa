@@ -6,6 +6,8 @@ import {
   formatDateTime,
   formatSessionRemaining,
   locationLabel,
+  paymentStatusLabel,
+  pricePeriodLabel,
   rideStatePresentation,
   secondsUntil,
   serviceCategoryLabel,
@@ -48,6 +50,14 @@ const state = {
     query: '',
     status: '',
   },
+  rideDirectory: {
+    items: [],
+    nextCursor: null,
+    scope: 'active',
+    state: '',
+    query: '',
+  },
+  selectedRide: null,
   auditEntries: [],
   sessionTimer: null,
 };
@@ -135,6 +145,14 @@ function clearSession(message = '') {
     query: '',
     status: '',
   };
+  state.rideDirectory = {
+    items: [],
+    nextCursor: null,
+    scope: 'active',
+    state: '',
+    query: '',
+  };
+  state.selectedRide = null;
   state.auditEntries = [];
   adminView.hidden = true;
   authView.hidden = false;
@@ -231,7 +249,13 @@ function renderIdentity() {
 }
 
 function activateView(viewName) {
-  const known = new Set(['overview', 'drivers', 'passengers', 'audit']);
+  const known = new Set([
+    'overview',
+    'rides',
+    'drivers',
+    'passengers',
+    'audit',
+  ]);
   const view = known.has(viewName) ? viewName : 'overview';
 
   document.querySelectorAll('.view-panel').forEach((panel) => {
@@ -245,6 +269,7 @@ function activateView(viewName) {
 
   const titles = {
     overview: 'Visão geral',
+    rides: 'Viagens',
     drivers: 'Motoristas',
     passengers: 'Passageiros',
     audit: 'Auditoria',
@@ -260,6 +285,9 @@ function activateView(viewName) {
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
+  }
+  if (view === 'rides' && hasScope('rides:read')) {
+    void loadRideDirectory({ reset: true, announce: false });
   }
   if (
     view === 'passengers' &&
@@ -854,6 +882,302 @@ async function loadPassengerDirectory({
   }
 }
 
+function formatKm(value) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? `${number.toFixed(1)} km`
+    : '—';
+}
+
+function renderRideDirectory() {
+  const body = byId('ride-directory-body');
+  const empty = byId('ride-directory-empty');
+  const more = byId('ride-directory-more');
+  const count = byId('ride-directory-count');
+  const summary = byId('ride-directory-summary');
+
+  body.replaceChildren();
+  const items = state.rideDirectory.items;
+
+  for (const ride of items) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const statePill = document.createElement('span');
+    statePill.className = `pill pill--${stateInfo.tone}`;
+    statePill.textContent = stateInfo.label;
+    stateCell.append(statePill);
+
+    const route = document.createElement('td');
+    const routeStrong = document.createElement('strong');
+    routeStrong.textContent =
+      `${locationLabel(ride.origin)} → ` +
+      locationLabel(ride.destination);
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = ride.id;
+    route.append(routeStrong, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const passenger = document.createElement('td');
+    passenger.textContent = ride.passengerId ?? '—';
+
+    const driver = document.createElement('td');
+    driver.textContent =
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(
+      ride.totalAmountCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir';
+    open.addEventListener('click', () => {
+      void lookupRide(ride.id);
+    });
+    actions.append(open);
+
+    row.append(
+      stateCell,
+      route,
+      category,
+      passenger,
+      driver,
+      amount,
+      updated,
+      actions,
+    );
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.rideDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent = `${items.length} carregada(s)`;
+  summary.textContent = `${items.length} carregada(s)`;
+}
+
+function renderRideDetailEmpty(
+  message = 'Abra uma corrida na tabela para ver os detalhes.',
+) {
+  state.selectedRide = null;
+  const content = byId('ride-detail-content');
+  content.replaceChildren();
+  content.className = 'ride-detail-content empty-state';
+  content.textContent = message;
+
+  const status = byId('ride-detail-status');
+  status.className = 'pill pill--neutral';
+  status.textContent = 'Nenhuma';
+}
+
+function rideDetailItem(label, value) {
+  const item = document.createElement('div');
+  item.className = 'ride-detail-item';
+
+  const term = document.createElement('span');
+  term.textContent = label;
+  const data = document.createElement('strong');
+  data.textContent = value;
+
+  item.append(term, data);
+  return item;
+}
+
+function renderRideDetail(ride) {
+  state.selectedRide = ride;
+  const content = byId('ride-detail-content');
+  content.replaceChildren();
+  content.className = 'ride-detail-content';
+
+  const stateInfo = rideStatePresentation(ride.state);
+  const status = byId('ride-detail-status');
+  status.className = `pill pill--${stateInfo.tone}`;
+  status.textContent = stateInfo.label;
+
+  const identity = document.createElement('div');
+  identity.className = 'ride-detail-hero';
+
+  const title = document.createElement('div');
+  const kicker = document.createElement('span');
+  kicker.className = 'eyebrow eyebrow--dark';
+  kicker.textContent = 'CORRIDA';
+  const id = document.createElement('h3');
+  id.textContent = ride.id;
+  title.append(kicker, id);
+
+  const route = document.createElement('strong');
+  route.className = 'ride-detail-route';
+  route.textContent =
+    `${locationLabel(ride.origin)} → ` +
+    locationLabel(ride.destination);
+
+  identity.append(title, route);
+
+  const grid = document.createElement('div');
+  grid.className = 'ride-detail-grid';
+  grid.append(
+    rideDetailItem(
+      'Pagamento',
+      paymentStatusLabel(ride.paymentStatus),
+    ),
+    rideDetailItem(
+      'Categoria',
+      serviceCategoryLabel(ride.category),
+    ),
+    rideDetailItem('Período', pricePeriodLabel(ride.period)),
+    rideDetailItem(
+      'Passageiros',
+      String(ride.passengers ?? '—'),
+    ),
+    rideDetailItem('Passageiro', ride.passengerId ?? '—'),
+    rideDetailItem(
+      'Motorista',
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando',
+    ),
+    rideDetailItem(
+      'Distância da viagem',
+      formatKm(ride.tripDistanceKm),
+    ),
+    rideDetailItem(
+      'Distância até coleta',
+      formatKm(ride.driverPickupDistanceKm),
+    ),
+    rideDetailItem('Criada', formatDateTime(ride.createdAt)),
+    rideDetailItem('Atualizada', formatDateTime(ride.updatedAt)),
+  );
+
+  const finance = document.createElement('div');
+  finance.className = 'ride-finance-grid';
+  const quote = ride.quote ?? {};
+  finance.append(
+    rideDetailItem(
+      'Tarifa-base',
+      formatCurrencyCents(quote.baseAmountCents),
+    ),
+    rideDetailItem(
+      'Compensação de coleta',
+      formatCurrencyCents(quote.pickupCompensationCents),
+    ),
+    rideDetailItem(
+      'Total',
+      formatCurrencyCents(quote.totalAmountCents),
+    ),
+    rideDetailItem(
+      'Comissão plataforma',
+      formatCurrencyCents(quote.platformCommissionCents),
+    ),
+    rideDetailItem(
+      'Líquido motorista',
+      formatCurrencyCents(quote.driverNetCents),
+    ),
+  );
+
+  const financeTitle = document.createElement('div');
+  financeTitle.className = 'ride-detail-section-title';
+  financeTitle.textContent = 'Snapshot financeiro';
+
+  content.append(identity, grid, financeTitle, finance);
+  content.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+async function lookupRide(rideId) {
+  if (!state.token || !hasScope('rides:read')) return;
+
+  try {
+    const ride = await api.getRide(state.token, rideId);
+    renderRideDetail(ride);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 404) {
+      renderRideDetailEmpty('Corrida não encontrada.');
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+async function loadRideDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    state.rideDirectory.items = [];
+    state.rideDirectory.nextCursor = null;
+    renderRideDirectory();
+    renderRideDetailEmpty('Sua conta não possui o escopo rides:read.');
+    return;
+  }
+
+  const more = byId('ride-directory-more');
+  if (reset) {
+    state.rideDirectory.query =
+      byId('ride-directory-query').value.trim();
+    state.rideDirectory.scope =
+      byId('ride-directory-scope').value === 'all'
+        ? 'all'
+        : 'active';
+    state.rideDirectory.state =
+      byId('ride-directory-state').value;
+    state.rideDirectory.items = [];
+    state.rideDirectory.nextCursor = null;
+    renderRideDetailEmpty();
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.rides(state.token, {
+      scope: state.rideDirectory.scope,
+      state: state.rideDirectory.state,
+      query: state.rideDirectory.query,
+      limit: 25,
+      cursor: reset ? null : state.rideDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.rideDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.rideDirectory.items.map((item) => item.id),
+      );
+      state.rideDirectory.items.push(
+        ...incoming.filter((item) => !known.has(item.id)),
+      );
+    }
+
+    state.rideDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderRideDirectory();
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de viagens atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
 async function lookupDriver(driverId) {
   if (!state.token) return;
   try {
@@ -1033,6 +1357,13 @@ loginForm.addEventListener('submit', (event) => {
 });
 byId('logout-button').addEventListener('click', () => {
   void handleLogout();
+});
+byId('ride-directory-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  void loadRideDirectory({ reset: true });
+});
+byId('ride-directory-more').addEventListener('click', () => {
+  void loadRideDirectory({ reset: false, announce: false });
 });
 byId('passenger-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();

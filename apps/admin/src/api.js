@@ -102,6 +102,40 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/dashboard', { token });
     },
 
+    rides(
+      token,
+      {
+        scope = 'active',
+        state = '',
+        query = '',
+        limit = 25,
+        cursor = null,
+      } = {},
+    ) {
+      const params = new URLSearchParams();
+      params.set('scope', scope === 'all' ? 'all' : 'active');
+      params.set(
+        'limit',
+        String(Math.max(1, Math.min(100, Math.trunc(limit)))),
+      );
+      if (String(state).trim()) {
+        params.set('state', String(state).trim());
+      }
+      if (String(query).trim()) {
+        params.set('query', String(query).trim());
+      }
+      if (cursor) {
+        params.set('cursor', cursor);
+      }
+      return request(`/v1/admin/rides?${params.toString()}`, {
+        token,
+      });
+    },
+
+    getRide(token, rideId) {
+      return request(`/v1/admin/rides/${rideId}`, { token });
+    },
+
     passengers(
       token,
       { query = '', status = '', limit = 25, cursor = null } = {},
