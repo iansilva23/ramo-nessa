@@ -97,6 +97,36 @@ export async function payRideWithWallet(
     );
   }
 
+  const key = input.idempotencyKey.trim();
+  if (key.length < 8) {
+    throw new WalletDomainError(
+      'WALLET_IDEMPOTENCY_CONFLICT',
+      'Chave de idempotência do pagamento é inválida.',
+    );
+  }
+
+  const existing = await repository.findPaymentByIdempotencyKey(key);
+  if (existing != null) {
+    if (
+      existing.rideId !== input.ride.id ||
+      existing.amountCents !== input.ride.quote.totalAmountCents ||
+      existing.method !== 'wallet' ||
+      existing.processor !== 'internal-wallet'
+    ) {
+      throw new WalletDomainError(
+        'WALLET_IDEMPOTENCY_CONFLICT',
+        'Chave de idempotência já usada em outro pagamento.',
+      );
+    }
+
+    // Replays continuam válidos mesmo depois que a corrida avançou ou foi
+    // estornada. O adapter devolve o débito original sem movimentar saldo.
+    return repository.payRideFromWallet({
+      passengerId: input.passengerId,
+      payment: existing,
+    });
+  }
+
   if (input.ride.state !== 'AWAITING_PAYMENT') {
     throw new WalletDomainError(
       'RIDE_NOT_AWAITING_WALLET_PAYMENT',
@@ -116,14 +146,6 @@ export async function payRideWithWallet(
     throw new PaymentDomainError(
       'DRIVER_HOLD_EXPIRED',
       'A reserva do motorista expirou. Prepare a corrida novamente.',
-    );
-  }
-
-  const key = input.idempotencyKey.trim();
-  if (key.length < 8) {
-    throw new WalletDomainError(
-      'WALLET_IDEMPOTENCY_CONFLICT',
-      'Chave de idempotência do pagamento é inválida.',
     );
   }
 
