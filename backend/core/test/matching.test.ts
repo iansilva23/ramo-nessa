@@ -1,173 +1,156 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { DriverSupplyRecord } from '../src/drivers/driver-supply.js';
+import { InMemoryDriverAvailabilityRepository } from '../src/matching/repositories/in-memory-driver-availability-repository.js';
 import {
-  rankEligibleDrivers,
-  selectDriverForDispatch,
-} from '../src/matching/select-driver.js';
-import type { RideRecord } from '../src/rides/ride.js';
+  findDriverCandidates,
+  routeRequiresJeri4x4,
+} from '../src/matching/find-driver-candidates.js';
 
 const now = new Date('2026-09-23T12:00:00.000Z');
 
-function supply(
-  overrides: Partial<DriverSupplyRecord> = {},
-): DriverSupplyRecord {
-  return {
-    driverId: 'driver-1',
-    vehicleId: 'vehicle-1',
-    categories: ['comfort_black'],
-    fourByFour: true,
-    seatCapacity: 4,
-    online: true,
-    latitude: -2.82,
-    longitude: -40.42,
-    locationUpdatedAt: '2026-09-23T11:59:30.000Z',
-    updatedAt: '2026-09-23T11:59:30.000Z',
-    ...overrides,
-  };
-}
+test('matching ordena pelo motorista elegível mais próximo', async () => {
+  const repository = new InMemoryDriverAvailabilityRepository();
 
-function paidRide(
-  overrides: Partial<RideRecord> = {},
-): RideRecord {
-  return {
-    id: '99999999-9999-4999-8999-999999999999',
-    passengerId: 'passenger-1',
-    state: 'PAID',
-    paymentStatus: 'paid',
+  await repository.upsert({
+    driverId: 'driver-far',
+    status: 'available',
+    serviceCategories: ['car'],
+    passengerCapacity: 4,
+    jeri4x4Eligible: false,
+    position: { lat: -2.9000, lon: -40.4500 },
+    lastSeenAt: now.toISOString(),
+  });
+  await repository.upsert({
+    driverId: 'driver-near',
+    status: 'available',
+    serviceCategories: ['car'],
+    passengerCapacity: 4,
+    jeri4x4Eligible: false,
+    position: { lat: -2.8210, lon: -40.4140 },
+    lastSeenAt: now.toISOString(),
+  });
+
+  const candidates = await findDriverCandidates(repository, {
+    category: 'car',
+    passengers: 2,
+    pickup: { lat: -2.82017, lon: -40.41467 },
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'jijoca' },
+    now,
+  });
+
+  assert.equal(candidates[0]?.driver.driverId, 'driver-near');
+  assert.equal(candidates[0]?.routeDistanceRequiredForFinalFare, true);
+});
+
+test('rota Comfort para Jeri exclui veículo sem elegibilidade 4x4', async () => {
+  const repository = new InMemoryDriverAvailabilityRepository();
+
+  await repository.upsert({
+    driverId: 'comfort-common',
+    status: 'available',
+    serviceCategories: ['comfort_black'],
+    passengerCapacity: 4,
+    jeri4x4Eligible: false,
+    position: { lat: -2.8202, lon: -40.4147 },
+    lastSeenAt: now.toISOString(),
+  });
+  await repository.upsert({
+    driverId: 'comfort-4x4',
+    status: 'available',
+    serviceCategories: ['comfort_black'],
+    passengerCapacity: 4,
+    jeri4x4Eligible: true,
+    position: { lat: -2.83, lon: -40.42 },
+    lastSeenAt: now.toISOString(),
+  });
+
+  const candidates = await findDriverCandidates(repository, {
+    category: 'comfort_black',
+    passengers: 3,
+    pickup: { lat: -2.82017, lon: -40.41467 },
     origin: { zoneId: 'prea' },
     destination: { zoneId: 'jericoacoara' },
+    now,
+  });
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.driver.driverId),
+    ['comfort-4x4'],
+  );
+});
+
+test('capacidade real do veículo é respeitada', async () => {
+  const repository = new InMemoryDriverAvailabilityRepository();
+
+  await repository.upsert({
+    driverId: 'driver-capacity-2',
+    status: 'available',
+    serviceCategories: ['comfort_black'],
+    passengerCapacity: 2,
+    jeri4x4Eligible: true,
+    position: { lat: -2.82, lon: -40.41 },
+    lastSeenAt: now.toISOString(),
+  });
+
+  const candidates = await findDriverCandidates(repository, {
     category: 'comfort_black',
-    period: 'day',
-    passengers: 2,
-    quote: {
-      ruleId: 'jeri-prea-comfort',
-      baseAmountCents: 15000,
-      pickupCompensationCents: 0,
-      totalAmountCents: 15000,
-      platformCommissionCents: 1500,
-      driverNetCents: 13500,
-    },
-    createdAt: '2026-09-23T11:55:00.000Z',
-    updatedAt: '2026-09-23T11:56:00.000Z',
-    ...overrides,
-  };
-}
-
-test('rota de Jeri em Comfort/Black exige 4x4', () => {
-  const ranked = rankEligibleDrivers({
-    ride: paidRide(),
-    pickup: { latitude: -2.82017, longitude: -40.41467 },
-    candidates: [
-      supply({
-        driverId: 'common-premium',
-        vehicleId: 'vehicle-common',
-        fourByFour: false,
-      }),
-      supply({
-        driverId: 'four-by-four',
-        vehicleId: 'vehicle-4x4',
-        fourByFour: true,
-      }),
-    ],
+    passengers: 4,
+    pickup: { lat: -2.82017, lon: -40.41467 },
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'jericoacoara' },
     now,
   });
 
-  assert.deepEqual(
-    ranked.map((item) => item.supply.driverId),
-    ['four-by-four'],
-  );
+  assert.equal(candidates.length, 0);
 });
 
-test('matching elimina localização velha e capacidade insuficiente', () => {
-  const ranked = rankEligibleDrivers({
-    ride: paidRide({ passengers: 4 }),
-    pickup: { latitude: -2.82017, longitude: -40.41467 },
-    candidates: [
-      supply({
-        driverId: 'stale',
-        locationUpdatedAt: '2026-09-23T11:55:00.000Z',
-      }),
-      supply({
-        driverId: 'small',
-        seatCapacity: 3,
-      }),
-      supply({
-        driverId: 'valid',
-        seatCapacity: 4,
-      }),
-    ],
-    now,
-    maxLocationAgeSeconds: 120,
+test('posição antiga não entra no matching', async () => {
+  const repository = new InMemoryDriverAvailabilityRepository();
+
+  await repository.upsert({
+    driverId: 'stale-driver',
+    status: 'available',
+    serviceCategories: ['moto'],
+    passengerCapacity: 1,
+    jeri4x4Eligible: false,
+    position: { lat: -2.82, lon: -40.41 },
+    lastSeenAt: '2026-09-23T11:58:00.000Z',
   });
 
-  assert.deepEqual(
-    ranked.map((item) => item.supply.driverId),
-    ['valid'],
-  );
-});
-
-test('pré-seleção ordena pelo motorista elegível mais próximo', () => {
-  const ranked = rankEligibleDrivers({
-    ride: paidRide({
-      origin: { zoneId: 'prea' },
-      destination: { zoneId: 'prea', localityId: 'formosa' },
-      category: 'car',
-    }),
-    pickup: { latitude: -2.82017, longitude: -40.41467 },
-    candidates: [
-      supply({
-        driverId: 'far',
-        vehicleId: 'vehicle-far',
-        categories: ['car'],
-        fourByFour: false,
-        latitude: -2.88,
-        longitude: -40.45,
-      }),
-      supply({
-        driverId: 'near',
-        vehicleId: 'vehicle-near',
-        categories: ['car'],
-        fourByFour: false,
-        latitude: -2.821,
-        longitude: -40.415,
-      }),
-    ],
+  const candidates = await findDriverCandidates(repository, {
+    category: 'moto',
+    passengers: 1,
+    pickup: { lat: -2.82017, lon: -40.41467 },
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'prea', localityId: 'formosa' },
     now,
   });
 
-  assert.equal(ranked[0]?.supply.driverId, 'near');
-  assert.ok(
-    (ranked[0]?.approximatePickupDistanceKm ?? 99) <
-      (ranked[1]?.approximatePickupDistanceKm ?? 0),
-  );
+  assert.equal(candidates.length, 0);
 });
 
-test('despacho recusa corrida que ainda não está paga', () => {
-  assert.throws(
-    () =>
-      selectDriverForDispatch({
-        ride: paidRide({
-          state: 'AWAITING_PAYMENT',
-          paymentStatus: 'created',
-        }),
-        pickup: { latitude: -2.82017, longitude: -40.41467 },
-        candidates: [supply()],
-        now,
-      }),
-    /só pode iniciar depois/,
+test('regra 4x4 só vale quando a rota cruza para/de Jeri', () => {
+  assert.equal(
+    routeRequiresJeri4x4(
+      { zoneId: 'prea' },
+      { zoneId: 'jericoacoara' },
+    ),
+    true,
   );
-});
-
-test('despacho pago avança para SEARCHING_DRIVER', () => {
-  const selected = selectDriverForDispatch({
-    ride: paidRide(),
-    pickup: { latitude: -2.82017, longitude: -40.41467 },
-    candidates: [supply()],
-    now,
-  });
-
-  assert.equal(selected.nextRideState, 'SEARCHING_DRIVER');
-  assert.equal(selected.driver.supply.driverId, 'driver-1');
+  assert.equal(
+    routeRequiresJeri4x4(
+      { zoneId: 'jericoacoara' },
+      { zoneId: 'jericoacoara' },
+    ),
+    false,
+  );
+  assert.equal(
+    routeRequiresJeri4x4(
+      { zoneId: 'prea' },
+      { zoneId: 'jijoca' },
+    ),
+    false,
+  );
 });

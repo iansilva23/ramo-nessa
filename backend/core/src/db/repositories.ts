@@ -8,6 +8,9 @@ import { PostgresFinanceRepository } from '../payments/repositories/postgres-fin
 import { InMemoryRideRepository } from '../rides/repositories/in-memory-ride-repository.js';
 import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repository.js';
 import { createPostgresPool } from './postgres.js';
+import type { DriverAvailabilityRepository } from '../matching/driver-availability-repository.js';
+import { InMemoryDriverAvailabilityRepository } from '../matching/repositories/in-memory-driver-availability-repository.js';
+import { PostgresDriverAvailabilityRepository } from '../matching/repositories/postgres-driver-availability-repository.js';
 
 export interface RepositoryBundle {
   rideRepository: RideRepository;
