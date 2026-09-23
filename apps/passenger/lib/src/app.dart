@@ -45,13 +45,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final coreUri = RamoCoreConfig.baseUri;
     final restoredToken = accessToken?.trim();
-    final configuredToken = RamoCoreConfig.authToken.trim();
     final initialToken =
         restoredToken != null && restoredToken.length >= 20
             ? restoredToken
-            : configuredToken.length >= 20
-                ? configuredToken
-                : null;
+            : null;
 
     Widget home(
       String? token, [
