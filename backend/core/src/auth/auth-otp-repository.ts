@@ -38,6 +38,12 @@ export interface AuthOtpRepository {
     subjectType: AuthSubjectType,
     subjectId: string,
   ): Promise<AuthIdentityRecord | null>;
+  setIdentityStatus(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    status: AuthIdentityStatus;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
   createChallenge(
     challenge: OtpChallengeRecord,
   ): Promise<OtpChallengeRecord>;
