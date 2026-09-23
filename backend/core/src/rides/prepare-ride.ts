@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import { rankEligibleDrivers, type GeoPoint } from '../matching/select-driver.js';
 import { quoteFare } from '../pricing/quote-engine.js';
+import { pricingPeriodAt } from '../pricing/period.js';
 import type { QuoteRequest } from '../pricing/types.js';
 import {
   RoutingDistanceError,
@@ -61,11 +62,19 @@ export async function prepareRideForPayment(input: {
     throw new Error('holdSeconds deve ficar entre 30 e 300.');
   }
 
-  // Nunca confiar em distância motorista->passageiro enviada pelo cliente.
+  const now = input.now ?? new Date();
+
+  // Nunca confiar em horário ou distância motorista->passageiro enviados
+  // pelo cliente. Ambos alteram dinheiro e são autoridade do Core.
   const {
     driverPickupDistanceKm: _ignoredClientPickupDistance,
-    ...trustedQuoteRequest
+    period: _ignoredClientPeriod,
+    ...clientQuoteRequest
   } = input.quoteRequest;
+  const trustedQuoteRequest: QuoteRequest = {
+    ...clientQuoteRequest,
+    period: pricingPeriodAt(now),
+  };
 
   const baseFare = quoteFare(trustedQuoteRequest);
   if (baseFare.kind !== 'exact') {
@@ -75,7 +84,6 @@ export async function prepareRideForPayment(input: {
     );
   }
 
-  const now = input.now ?? new Date();
   const instant = now.toISOString();
   const rideId = randomUUID();
   const provisionalRide: RideRecord = {
