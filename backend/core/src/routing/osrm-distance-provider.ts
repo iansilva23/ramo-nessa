@@ -3,6 +3,7 @@ import {
   type RoutingDistanceProvider,
 } from './distance-provider.js';
 import type { GeoPoint } from '../matching/select-driver.js';
+import { resolveRoutingTimeoutMs } from '../config/runtime-config.js';
 
 interface OsrmResponse {
   code?: string;
@@ -55,7 +56,15 @@ export class OsrmRoutingDistanceProvider
       );
     }
 
-    const payload = (await response.json()) as OsrmResponse;
+    let payload: OsrmResponse;
+    try {
+      payload = (await response.json()) as OsrmResponse;
+    } catch {
+      throw new RoutingDistanceError(
+        'Provedor de rotas retornou uma resposta inválida.',
+      );
+    }
+
     const meters = payload.routes?.[0]?.distance;
     if (
       payload.code !== 'Ok' ||
@@ -78,9 +87,19 @@ export function createRoutingDistanceProviderFromEnv():
   const baseUrl = process.env.ROUTING_BASE_URL?.trim();
   if (!baseUrl) return null;
 
-  const timeoutMs = Number(process.env.ROUTING_TIMEOUT_MS ?? 5000);
+  let parsed: URL;
+  try {
+    parsed = new URL(baseUrl);
+  } catch {
+    throw new Error('ROUTING_BASE_URL precisa ser uma URL válida.');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('ROUTING_BASE_URL deve usar http ou https.');
+  }
+
   return new OsrmRoutingDistanceProvider(
-    baseUrl,
-    Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 5000,
+    parsed.toString(),
+    resolveRoutingTimeoutMs(),
   );
 }
