@@ -147,6 +147,7 @@
 - [x] diretório read-only de passageiros com busca/filtro/paginação
 - [x] backend do dashboard operacional com métricas reais de corridas
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
+- [ ] mapa da frota em tempo real (carros/motos, livres, em corrida, entrega e GPS atrasado)
 - [x] backend do diretório administrativo de viagens + detalhe read-only
 - [x] frontend de viagens com filtros, paginação e detalhe read-only
 - [x] catálogo Admin read-only de preços, localidades, categorias e rotas fixas
