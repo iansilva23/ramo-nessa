@@ -50,6 +50,7 @@ import {
   normalizeBrazilMobilePhone,
   PhoneOtpError,
   requestPhoneOtp,
+  resolveOtpHashSecret,
   verifyPhoneOtp,
 } from './auth/phone-otp-service.js';
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
@@ -117,6 +118,7 @@ const {
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
+resolveOtpHashSecret();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
