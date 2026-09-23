@@ -64,11 +64,7 @@ class PassengerHomeScreen extends StatefulWidget {
 class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   final MapController _mapController = MapController();
 
-  late final String _accessToken = () {
-    final restored = widget.accessToken?.trim();
-    if (restored != null && restored.length >= 20) return restored;
-    return RamoCoreConfig.authToken.trim();
-  }();
+  late final String _accessToken = widget.accessToken?.trim() ?? '';
   late final bool _authenticated =
       RamoCoreConfig.enabled &&
       (_accessToken.length >= 20 ||
