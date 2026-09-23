@@ -182,9 +182,11 @@ export class PostgresRideMatchingRepository
       const driver = await client.query<{
         online: boolean;
         busy: boolean;
+        reserved_ride_id: string | null;
+        reserved_until: Date | null;
       }>(
         `
-        SELECT online, busy
+        SELECT online, busy, reserved_ride_id, reserved_until
         FROM driver_supply
         WHERE driver_id = $1
         FOR UPDATE
@@ -192,7 +194,17 @@ export class PostgresRideMatchingRepository
         [input.driverId],
       );
       const driverRow = driver.rows[0];
-      if (driverRow == null || !driverRow.online || driverRow.busy) {
+      const activeHoldByAnotherRide =
+        driverRow?.reserved_ride_id != null &&
+        driverRow.reserved_until != null &&
+        driverRow.reserved_until.getTime() > Date.parse(input.createdAt) &&
+        driverRow.reserved_ride_id !== ride.id;
+      if (
+        driverRow == null ||
+        !driverRow.online ||
+        driverRow.busy ||
+        activeHoldByAnotherRide
+      ) {
         throw new RideOfferError(
           'DRIVER_NOT_AVAILABLE',
           'Motorista não está disponível para oferta.',
@@ -309,6 +321,17 @@ export class PostgresRideMatchingRepository
         [offer.id, nextStatus, input.rejectedAt],
       );
 
+      await client.query(
+        `
+        UPDATE driver_supply
+        SET reserved_ride_id = NULL, reserved_until = NULL,
+            updated_at = $3
+        WHERE driver_id = $1
+          AND reserved_ride_id = $2
+        `,
+        [offer.driver_id, offer.ride_id, input.rejectedAt],
+      );
+
       await client.query('COMMIT');
       if (expired) {
         throw new RideOfferError('OFFER_EXPIRED', 'Oferta expirou.');
@@ -371,6 +394,18 @@ export class PostgresRideMatchingRepository
          RETURNING ${OFFER_COLUMNS}`,
         [offer.id, input.expiredAt],
       );
+
+      await client.query(
+        `
+        UPDATE driver_supply
+        SET reserved_ride_id = NULL, reserved_until = NULL,
+            updated_at = $3
+        WHERE driver_id = $1
+          AND reserved_ride_id = $2
+        `,
+        [offer.driver_id, offer.ride_id, input.expiredAt],
+      );
+
       await client.query('COMMIT');
       return mapOffer(updated.rows[0]!);
     } catch (error) {
@@ -423,6 +458,16 @@ export class PostgresRideMatchingRepository
           'Ainda existe uma oferta ativa para esta corrida.',
         );
       }
+
+      await client.query(
+        `
+        UPDATE driver_supply
+        SET reserved_ride_id = NULL, reserved_until = NULL,
+            updated_at = $2
+        WHERE reserved_ride_id = $1
+        `,
+        [input.rideId, input.at],
+      );
 
       const updated = await client.query<RideRow>(
         `UPDATE rides
@@ -507,9 +552,11 @@ export class PostgresRideMatchingRepository
       const driverResult = await client.query<{
         online: boolean;
         busy: boolean;
+        reserved_ride_id: string | null;
+        reserved_until: Date | null;
       }>(
         `
-        SELECT online, busy
+        SELECT online, busy, reserved_ride_id, reserved_until
         FROM driver_supply
         WHERE driver_id = $1
         FOR UPDATE
@@ -550,7 +597,10 @@ export class PostgresRideMatchingRepository
       await client.query(
         `
         UPDATE driver_supply
-        SET busy = TRUE, updated_at = $2
+        SET busy = TRUE,
+            reserved_ride_id = NULL,
+            reserved_until = NULL,
+            updated_at = $2
         WHERE driver_id = $1
         `,
         [input.driverId, input.acceptedAt],

@@ -57,7 +57,7 @@ export async function dispatchNextDriver(input: {
   }
 
   const attemptedDriverIds = new Set(offers.map((offer) => offer.driverId));
-  const candidates = rankEligibleDrivers({
+  let candidates = rankEligibleDrivers({
     ride,
     pickup: input.pickup,
     candidates: await input.drivers.listOnline(),
@@ -66,6 +66,17 @@ export async function dispatchNextDriver(input: {
       ? { maxLocationAgeSeconds: input.maxLocationAgeSeconds }
       : {}),
   }).filter((candidate) => !attemptedDriverIds.has(candidate.supply.driverId));
+
+  const holdIsActive =
+    ride.reservedDriverId != null &&
+    ride.driverHoldExpiresAt != null &&
+    Date.parse(ride.driverHoldExpiresAt) > now.getTime();
+
+  if (holdIsActive) {
+    candidates = candidates.filter(
+      (candidate) => candidate.supply.driverId === ride.reservedDriverId,
+    );
+  }
 
   const next = candidates[0];
   if (next == null) {

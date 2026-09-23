@@ -50,7 +50,17 @@ export class InMemoryRideMatchingRepository
     }
 
     const driver = await this.drivers.findByDriverId(input.driverId);
-    if (driver == null || !driver.online || driver.busy) {
+    const activeHoldByAnotherRide =
+      driver?.reservedRideId != null &&
+      driver.reservedUntil != null &&
+      Date.parse(driver.reservedUntil) > Date.parse(input.createdAt) &&
+      driver.reservedRideId !== ride.id;
+    if (
+      driver == null ||
+      !driver.online ||
+      driver.busy ||
+      activeHoldByAnotherRide
+    ) {
       throw new RideOfferError(
         'DRIVER_NOT_AVAILABLE',
         'Motorista não está disponível para oferta.',
@@ -134,6 +144,20 @@ export class InMemoryRideMatchingRepository
       updatedAt: input.rejectedAt,
     };
     this.offers.set(offer.id, structuredClone(rejected));
+
+    const driver = await this.drivers.findByDriverId(offer.driverId);
+    if (driver?.reservedRideId === offer.rideId) {
+      const {
+        reservedRideId: _reservedRideId,
+        reservedUntil: _reservedUntil,
+        ...releasedDriver
+      } = driver;
+      await this.drivers.upsert({
+        ...releasedDriver,
+        updatedAt: input.rejectedAt,
+      });
+    }
+
     return structuredClone(rejected);
   }
 
@@ -164,6 +188,20 @@ export class InMemoryRideMatchingRepository
       updatedAt: input.expiredAt,
     };
     this.offers.set(offer.id, structuredClone(expired));
+
+    const driver = await this.drivers.findByDriverId(offer.driverId);
+    if (driver?.reservedRideId === offer.rideId) {
+      const {
+        reservedRideId: _reservedRideId,
+        reservedUntil: _reservedUntil,
+        ...releasedDriver
+      } = driver;
+      await this.drivers.upsert({
+        ...releasedDriver,
+        updatedAt: input.expiredAt,
+      });
+    }
+
     return structuredClone(expired);
   }
 
@@ -192,6 +230,23 @@ export class InMemoryRideMatchingRepository
           'ACTIVE_OFFER_EXISTS',
           'Ainda existe uma oferta ativa para esta corrida.',
         );
+      }
+    }
+
+    if (ride.reservedDriverId != null) {
+      const driver = await this.drivers.findByDriverId(
+        ride.reservedDriverId,
+      );
+      if (driver?.reservedRideId === ride.id) {
+        const {
+          reservedRideId: _reservedRideId,
+          reservedUntil: _reservedUntil,
+          ...releasedDriver
+        } = driver;
+        await this.drivers.upsert({
+          ...releasedDriver,
+          updatedAt: input.at,
+        });
       }
     }
 
@@ -269,8 +324,13 @@ export class InMemoryRideMatchingRepository
       driverId: input.driverId,
       updatedAt: input.acceptedAt,
     });
+    const {
+      reservedRideId: _reservedRideId,
+      reservedUntil: _reservedUntil,
+      ...driverWithoutHold
+    } = driver;
     await this.drivers.upsert({
-      ...driver,
+      ...driverWithoutHold,
       busy: true,
       updatedAt: input.acceptedAt,
     });

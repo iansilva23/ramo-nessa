@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import type { RideRecord } from '../rides/ride.js';
+import {
+  isDriverPaymentHoldExpired,
+  type RideRecord,
+} from '../rides/ride.js';
 import { isPaymentMethodEnabled, type EnabledPaymentMethod } from './payment-policy.js';
 import type { FinanceRepository } from './finance-repository.js';
 import { PaymentDomainError, type PaymentRecord } from './payment.js';
@@ -28,6 +31,14 @@ export async function createPaymentForRide(
     throw new PaymentDomainError(
       'RIDE_NOT_AWAITING_PAYMENT',
       'Corrida não está aguardando pagamento.',
+    );
+  }
+
+  const now = input.now ?? new Date();
+  if (isDriverPaymentHoldExpired(input.ride, now)) {
+    throw new PaymentDomainError(
+      'DRIVER_HOLD_EXPIRED',
+      'A reserva do motorista expirou. Prepare a corrida novamente.',
     );
   }
 
@@ -65,7 +76,7 @@ export async function createPaymentForRide(
     return existing;
   }
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const instant = now.toISOString();
   return repository.createPayment({
     id: randomUUID(),
     rideId: input.ride.id,

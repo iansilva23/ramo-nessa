@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import type { RideRecord } from '../rides/ride.js';
+import {
+  isDriverPaymentHoldExpired,
+  type RideRecord,
+} from '../rides/ride.js';
 import type { FinanceRepository } from './finance-repository.js';
-import type { PaymentRecord } from './payment.js';
+import { PaymentDomainError, type PaymentRecord } from './payment.js';
 import {
   WalletDomainError,
   type WalletTopupMethod,
@@ -100,6 +103,14 @@ export async function payRideWithWallet(
     );
   }
 
+  const now = input.now ?? new Date();
+  if (isDriverPaymentHoldExpired(input.ride, now)) {
+    throw new PaymentDomainError(
+      'DRIVER_HOLD_EXPIRED',
+      'A reserva do motorista expirou. Prepare a corrida novamente.',
+    );
+  }
+
   const key = input.idempotencyKey.trim();
   if (key.length < 8) {
     throw new WalletDomainError(
@@ -108,7 +119,7 @@ export async function payRideWithWallet(
     );
   }
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const instant = now.toISOString();
   const payment: PaymentRecord = {
     id: randomUUID(),
     rideId: input.ride.id,

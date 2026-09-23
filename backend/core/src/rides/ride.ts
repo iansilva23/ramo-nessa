@@ -39,6 +39,20 @@ export interface RideRecord {
   updatedAt: string;
 }
 
+export function isDriverPaymentHoldExpired(
+  ride: RideRecord,
+  now: Date,
+): boolean {
+  const hasDriver = ride.reservedDriverId != null;
+  const hasExpiry = ride.driverHoldExpiresAt != null;
+
+  if (!hasDriver && !hasExpiry) return false;
+  if (!hasDriver || !hasExpiry) return true;
+
+  const expiresAt = Date.parse(ride.driverHoldExpiresAt!);
+  return Number.isNaN(expiresAt) || expiresAt <= now.getTime();
+}
+
 export function snapshotExactFare(fare: ExactFare): RideQuoteSnapshot {
   return {
     ruleId: fare.ruleId,

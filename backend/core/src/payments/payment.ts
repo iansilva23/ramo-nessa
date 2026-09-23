@@ -19,6 +19,7 @@ export class PaymentDomainError extends Error {
     public readonly code:
       | 'PAYMENT_METHOD_DISABLED'
       | 'RIDE_NOT_AWAITING_PAYMENT'
+      | 'DRIVER_HOLD_EXPIRED'
       | 'INVALID_PAYMENT_AMOUNT'
       | 'IDEMPOTENCY_CONFLICT'
       | 'PAYMENT_NOT_FOUND'
