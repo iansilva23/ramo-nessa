@@ -245,6 +245,7 @@ test('uma placa não pode ser vinculada a dois motoristas', async () => {
       upsertDriverRegistryFromAdmin({
         identities,
         registry,
+        drivers,
         admin,
         actor,
         driverId: 'driver-plate-b',
@@ -267,6 +268,7 @@ test('cadastro exige identidade de motorista previamente provisionada', async ()
       upsertDriverRegistryFromAdmin({
         identities,
         registry,
+        drivers,
         admin,
         actor,
         driverId: 'driver-unknown',
@@ -324,6 +326,7 @@ test(
       const created = await upsertDriverRegistryFromAdmin({
         identities,
         registry,
+        drivers,
         admin,
         actor: apiActor,
         driverId,
@@ -334,6 +337,7 @@ test(
 
       const approved = await setDriverRegistryStatusFromAdmin({
         registry,
+        drivers,
         admin,
         actor: apiActor,
         driverId,
