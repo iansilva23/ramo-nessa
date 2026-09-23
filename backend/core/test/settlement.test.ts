@@ -49,8 +49,16 @@ async function seedPaidPayment(
   repository: InMemoryFinanceRepository,
 ): Promise<PaymentRecord> {
   const payment = paidPayment();
-  await repository.createPayment(payment);
-  return payment;
+  await repository.createPayment({
+    ...payment,
+    status: 'pending',
+  });
+  const capture = await repository.capturePayment({
+    paymentId: payment.id,
+    processorEventId: 'settlement-seed-capture',
+    capturedAt: new Date('2026-09-23T00:11:00.000Z'),
+  });
+  return capture.payment;
 }
 
 test('liquidação separa 10% da plataforma e 90% do motorista', async () => {
@@ -153,5 +161,30 @@ test('captura seguida de liquidação zera escrow', async () => {
   assert.equal(
     await repository.getAccountBalanceCents('driver:driver-77:payable'),
     13500,
+  );
+});
+
+
+test('registro paid sem saldo no escrow não pode liquidar', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const payment = paidPayment();
+  await repository.createPayment(payment);
+
+  await assert.rejects(
+    () =>
+      settleCompletedRide(repository, {
+        ride: completedRide(),
+        payment,
+      }),
+    /Escrow da corrida não possui saldo suficiente/,
+  );
+
+  assert.equal(
+    await repository.getAccountBalanceCents('platform:revenue'),
+    0,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents('driver:driver-77:payable'),
+    0,
   );
 });
