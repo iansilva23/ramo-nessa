@@ -39,6 +39,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - solicitação de saque idempotente;
 - reserva atômica do saldo para impedir saque duplicado;
 - saldo reservado separado em payout_pending;
+- Carteira Ramo Nessa baseada no ledger;
+- crédito de carteira idempotente após recarga confirmada;
+- pagamento de corrida com carteira e proteção contra saldo negativo;
 - Carteira Ramo Nessa do passageiro no ledger;
 - recarga só creditada após captura confirmada;
 - pagamento de corrida pela carteira com débito atômico;
@@ -67,7 +70,7 @@ npm start
 - localização em tempo real;
 - máquina de estados;
 - integração real com gateway Pix/cartão;
-- ledger/carteira persistente;
+- interface da carteira no Passageiro;
 - repasses;
 - notificações;
 - chat;

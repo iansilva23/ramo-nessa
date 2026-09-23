@@ -1,147 +1,159 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { createPaymentForRide } from '../src/payments/create-payment.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import {
-  createWalletTopup,
-  passengerWalletBalanceCents,
-  payRideWithWallet,
-} from '../src/payments/wallet-services.js';
+  creditPassengerWallet,
+  getPassengerWalletBalance,
+  payRideUsingWallet,
+} from '../src/payments/wallet-service.js';
 import { WalletDomainError } from '../src/payments/wallet.js';
 import type { RideRecord } from '../src/rides/ride.js';
 
-function ride(amountCents = 6000): RideRecord {
+function ride(): RideRecord {
   return {
     id: '66666666-6666-4666-8666-666666666666',
-    passengerId: 'passenger-wallet',
+    passengerId: 'passenger-wallet-1',
     state: 'AWAITING_PAYMENT',
     paymentStatus: 'created',
-    origin: { zoneId: 'jijoca', localityId: 'jijoca' },
-    destination: { zoneId: 'jijoca', localityId: 'mangue-seco' },
-    category: 'moto',
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'jericoacoara' },
+    category: 'comfort_black',
     period: 'day',
     passengers: 1,
     quote: {
-      ruleId: 'jijoca-mangue-seco-moto',
-      baseAmountCents: amountCents,
+      ruleId: 'jeri-prea-comfort',
+      baseAmountCents: 15000,
       pickupCompensationCents: 0,
-      totalAmountCents: amountCents,
-      platformCommissionCents: Math.round(amountCents * 0.1),
-      driverNetCents:
-        amountCents - Math.round(amountCents * 0.1),
+      totalAmountCents: 15000,
+      platformCommissionCents: 1500,
+      driverNetCents: 13500,
     },
     createdAt: '2026-09-23T00:00:00.000Z',
     updatedAt: '2026-09-23T00:00:00.000Z',
   };
 }
 
-async function walletWithBalance(amountCents = 10000) {
+test('recarga confirmada aumenta saldo e é idempotente', async () => {
   const repository = new InMemoryFinanceRepository();
-  const topup = await createWalletTopup(repository, {
-    passengerId: 'passenger-wallet',
-    method: 'pix',
+
+  const first = await creditPassengerWallet(repository, {
+    passengerId: 'passenger-wallet-1',
     processor: 'test-gateway',
-    amountCents,
-    idempotencyKey: 'wallet-topup-001',
+    processorEventId: 'topup-event-001',
+    amountCents: 20000,
+    creditedAt: new Date('2026-09-23T04:00:00.000Z'),
   });
 
-  await repository.captureWalletTopup({
-    walletTopupId: topup.id,
-    processorEventId: 'wallet-topup-event-001',
-  });
-
-  return repository;
-}
-
-test('recarga só vira saldo após captura confirmada', async () => {
-  const repository = new InMemoryFinanceRepository();
-  const topup = await createWalletTopup(repository, {
-    passengerId: 'passenger-wallet',
-    method: 'pix',
+  const second = await creditPassengerWallet(repository, {
+    passengerId: 'passenger-wallet-1',
     processor: 'test-gateway',
-    amountCents: 10000,
-    idempotencyKey: 'wallet-topup-002',
+    processorEventId: 'topup-event-001',
+    amountCents: 20000,
   });
 
+  assert.equal(first.duplicateCredit, false);
+  assert.equal(second.duplicateCredit, true);
   assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    0,
-  );
-
-  const captured = await repository.captureWalletTopup({
-    walletTopupId: topup.id,
-    processorEventId: 'wallet-topup-event-002',
-  });
-
-  assert.equal(captured.topup.status, 'paid');
-  assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    10000,
-  );
-
-  const duplicate = await repository.captureWalletTopup({
-    walletTopupId: topup.id,
-    processorEventId: 'wallet-topup-event-002',
-  });
-
-  assert.equal(duplicate.duplicateEvent, true);
-  assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    10000,
+    await getPassengerWalletBalance(repository, 'passenger-wallet-1'),
+    20000,
   );
 });
 
-test('carteira paga corrida e move saldo para escrow', async () => {
-  const repository = await walletWithBalance();
+test('pagamento com carteira move saldo para escrow da corrida', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const currentRide = ride();
 
-  const result = await payRideWithWallet(repository, {
-    ride: ride(6000),
-    passengerId: 'passenger-wallet',
+  await creditPassengerWallet(repository, {
+    passengerId: currentRide.passengerId,
+    processor: 'test-gateway',
+    processorEventId: 'topup-event-002',
+    amountCents: 20000,
+  });
+
+  const payment = await createPaymentForRide(repository, {
+    ride: currentRide,
+    method: 'wallet',
+    processor: 'internal-wallet',
     idempotencyKey: 'wallet-ride-payment-001',
   });
 
+  const result = await payRideUsingWallet(repository, {
+    passengerId: currentRide.passengerId,
+    rideId: currentRide.id,
+    paymentId: payment.id,
+    amountCents: currentRide.quote.totalAmountCents,
+  });
+
   assert.equal(result.payment.status, 'paid');
-  assert.equal(result.payment.method, 'wallet');
-  assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    4000,
-  );
+  assert.equal(result.balanceCents, 5000);
   assert.equal(
     await repository.getAccountBalanceCents(
-      'ride:66666666-6666-4666-8666-666666666666:escrow',
+      `ride:${currentRide.id}:escrow`,
     ),
-    6000,
+    15000,
   );
 });
 
-test('pagamento da carteira é idempotente', async () => {
-  const repository = await walletWithBalance();
-  const input = {
-    ride: ride(6000),
-    passengerId: 'passenger-wallet',
+test('pagamento de carteira é idempotente', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const currentRide = ride();
+
+  await creditPassengerWallet(repository, {
+    passengerId: currentRide.passengerId,
+    processor: 'test-gateway',
+    processorEventId: 'topup-event-003',
+    amountCents: 20000,
+  });
+
+  const payment = await createPaymentForRide(repository, {
+    ride: currentRide,
+    method: 'wallet',
+    processor: 'internal-wallet',
     idempotencyKey: 'wallet-ride-payment-002',
+  });
+
+  const input = {
+    passengerId: currentRide.passengerId,
+    rideId: currentRide.id,
+    paymentId: payment.id,
+    amountCents: 15000,
   };
 
-  const first = await payRideWithWallet(repository, input);
-  const second = await payRideWithWallet(repository, input);
+  const first = await payRideUsingWallet(repository, input);
+  const second = await payRideUsingWallet(repository, input);
 
-  assert.equal(first.payment.id, second.payment.id);
+  assert.equal(first.duplicatePayment, false);
   assert.equal(second.duplicatePayment, true);
-  assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    4000,
-  );
+  assert.equal(second.balanceCents, 5000);
 });
 
-test('carteira nunca permite saldo negativo', async () => {
-  const repository = await walletWithBalance(5000);
+test('carteira nunca fica negativa', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const currentRide = ride();
+
+  await creditPassengerWallet(repository, {
+    passengerId: currentRide.passengerId,
+    processor: 'test-gateway',
+    processorEventId: 'topup-event-004',
+    amountCents: 10000,
+  });
+
+  const payment = await createPaymentForRide(repository, {
+    ride: currentRide,
+    method: 'wallet',
+    processor: 'internal-wallet',
+    idempotencyKey: 'wallet-ride-payment-003',
+  });
 
   await assert.rejects(
     () =>
-      payRideWithWallet(repository, {
-        ride: ride(6000),
-        passengerId: 'passenger-wallet',
-        idempotencyKey: 'wallet-insufficient-001',
+      payRideUsingWallet(repository, {
+        passengerId: currentRide.passengerId,
+        rideId: currentRide.id,
+        paymentId: payment.id,
+        amountCents: 15000,
       }),
     (error: unknown) =>
       error instanceof WalletDomainError &&
@@ -149,7 +161,7 @@ test('carteira nunca permite saldo negativo', async () => {
   );
 
   assert.equal(
-    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
-    5000,
+    await getPassengerWalletBalance(repository, currentRide.passengerId),
+    10000,
   );
 });

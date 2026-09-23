@@ -1,22 +1,22 @@
 import {
   driverPayoutReserveLedger,
+  passengerWalletCreditLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
-  walletTopupCaptureLedger,
   type LedgerTransaction,
 } from '../ledger.js';
 import {
   type CapturePaymentInput,
   type CapturePaymentResult,
-  type CaptureWalletTopupInput,
-  type CaptureWalletTopupResult,
+  type CreditPassengerWalletInput,
   type FinanceRepository,
-  type PayRideFromWalletInput,
-  type PayRideFromWalletResult,
+  type PayRideWithWalletInput,
   type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
+  type WalletCreditResult,
+  type WalletPaymentResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
@@ -25,24 +25,15 @@ import {
   type DriverPayoutRecord,
 } from '../payout.js';
 import {
+  passengerWalletAccountKey,
   WalletDomainError,
-  type WalletTopupRecord,
 } from '../wallet.js';
 
 export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly payments = new Map<string, PaymentRecord>();
   private readonly idempotencyIndex = new Map<string, string>();
-
-  private readonly walletTopups = new Map<string, WalletTopupRecord>();
-  private readonly walletTopupIdempotencyIndex = new Map<string, string>();
-  private readonly processedTopupEvents = new Map<
-    string,
-    { topupId: string; ledger: LedgerTransaction }
-  >();
-
   private readonly payouts = new Map<string, DriverPayoutRecord>();
   private readonly payoutIdempotencyIndex = new Map<string, string>();
-
   private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
     string,
@@ -145,182 +136,15 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       paymentId: payment.id,
       ledger: structuredClone(ledger),
     });
-    this.ledgerByReference.set(ledger.referenceKey, structuredClone(ledger));
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
 
     return {
       payment: structuredClone(updated),
       ledgerTransaction: structuredClone(ledger),
       duplicateEvent: false,
-    };
-  }
-
-  async findWalletTopupByIdempotencyKey(
-    key: string,
-  ): Promise<WalletTopupRecord | null> {
-    const id = this.walletTopupIdempotencyIndex.get(key);
-    const topup = id == null ? null : this.walletTopups.get(id);
-    return topup == null ? null : structuredClone(topup);
-  }
-
-  async createWalletTopup(
-    topup: WalletTopupRecord,
-  ): Promise<WalletTopupRecord> {
-    if (
-      this.walletTopups.has(topup.id) ||
-      this.walletTopupIdempotencyIndex.has(topup.idempotencyKey)
-    ) {
-      throw new WalletDomainError(
-        'WALLET_IDEMPOTENCY_CONFLICT',
-        'Recarga duplicada.',
-      );
-    }
-
-    this.walletTopups.set(topup.id, structuredClone(topup));
-    this.walletTopupIdempotencyIndex.set(
-      topup.idempotencyKey,
-      topup.id,
-    );
-    return structuredClone(topup);
-  }
-
-  async captureWalletTopup(
-    input: CaptureWalletTopupInput,
-  ): Promise<CaptureWalletTopupResult> {
-    const topup = this.walletTopups.get(input.walletTopupId);
-    if (topup == null) {
-      throw new WalletDomainError(
-        'WALLET_TOPUP_NOT_FOUND',
-        'Recarga não encontrada.',
-      );
-    }
-
-    const eventKey = `${topup.processor}:${input.processorEventId}`;
-    const existing = this.processedTopupEvents.get(eventKey);
-    if (existing != null) {
-      const stored = this.walletTopups.get(existing.topupId);
-      if (stored == null) {
-        throw new Error('Evento de recarga aponta para registro inexistente.');
-      }
-
-      return {
-        topup: structuredClone(stored),
-        ledgerTransaction: structuredClone(existing.ledger),
-        duplicateEvent: true,
-      };
-    }
-
-    let nextStatus: WalletTopupRecord['status'];
-    try {
-      nextStatus = topup.status === 'authorized'
-          ? transitionPayment('authorized', 'paid')
-          : transitionPayment(topup.status, 'paid');
-    } catch {
-      throw new WalletDomainError(
-        'INVALID_TOPUP_TRANSITION',
-        `Recarga em estado ${topup.status} não pode ser capturada.`,
-      );
-    }
-
-    const capturedAt = (input.capturedAt ?? new Date()).toISOString();
-    const updated: WalletTopupRecord = {
-      ...topup,
-      status: nextStatus,
-      ...(input.processorTopupId != null
-        ? { processorTopupId: input.processorTopupId }
-        : {}),
-      updatedAt: capturedAt,
-    };
-
-    const ledger = walletTopupCaptureLedger({
-      walletTopupId: topup.id,
-      passengerId: topup.passengerId,
-      processor: topup.processor,
-      processorEventId: input.processorEventId,
-      amountCents: topup.amountCents,
-      createdAt: capturedAt,
-    });
-
-    this.walletTopups.set(topup.id, structuredClone(updated));
-    this.processedTopupEvents.set(eventKey, {
-      topupId: topup.id,
-      ledger: structuredClone(ledger),
-    });
-    this.ledgerByReference.set(ledger.referenceKey, structuredClone(ledger));
-
-    return {
-      topup: structuredClone(updated),
-      ledgerTransaction: structuredClone(ledger),
-      duplicateEvent: false,
-    };
-  }
-
-  async payRideFromWallet(
-    input: PayRideFromWalletInput,
-  ): Promise<PayRideFromWalletResult> {
-    const existingId = this.idempotencyIndex.get(
-      input.payment.idempotencyKey,
-    );
-
-    if (existingId != null) {
-      const existing = this.payments.get(existingId);
-      if (existing == null) {
-        throw new Error('Índice de pagamento aponta para registro inexistente.');
-      }
-
-      if (
-        existing.rideId !== input.payment.rideId ||
-        existing.amountCents !== input.payment.amountCents ||
-        existing.method !== 'wallet'
-      ) {
-        throw new WalletDomainError(
-          'WALLET_IDEMPOTENCY_CONFLICT',
-          'Chave de idempotência já usada em outro pagamento.',
-        );
-      }
-
-      const ledger = this.ledgerByReference.get(
-        `wallet-ride-payment:${existing.id}`,
-      );
-      if (ledger == null) {
-        throw new Error('Pagamento de carteira sem lançamento no ledger.');
-      }
-
-      return {
-        payment: structuredClone(existing),
-        ledgerTransaction: structuredClone(ledger),
-        duplicatePayment: true,
-      };
-    }
-
-    const accountKey = `passenger:${input.passengerId}:wallet`;
-    const available = await this.getAccountBalanceCents(accountKey);
-
-    if (input.payment.amountCents > available) {
-      throw new WalletDomainError(
-        'INSUFFICIENT_WALLET_BALANCE',
-        'Saldo da Carteira Ramo Nessa insuficiente.',
-      );
-    }
-
-    const ledger = walletRidePaymentLedger({
-      rideId: input.payment.rideId,
-      paymentId: input.payment.id,
-      passengerId: input.passengerId,
-      amountCents: input.payment.amountCents,
-      createdAt: input.payment.createdAt,
-    });
-
-    this.payments.set(input.payment.id, structuredClone(input.payment));
-    this.idempotencyIndex.set(
-      input.payment.idempotencyKey,
-      input.payment.id,
-    );
-    this.ledgerByReference.set(ledger.referenceKey, structuredClone(ledger));
-
-    return {
-      payment: structuredClone(input.payment),
-      ledgerTransaction: structuredClone(ledger),
-      duplicatePayment: false,
     };
   }
 
@@ -423,12 +247,141 @@ export class InMemoryFinanceRepository implements FinanceRepository {
 
     this.payouts.set(payout.id, structuredClone(payout));
     this.payoutIdempotencyIndex.set(payout.idempotencyKey, payout.id);
-    this.ledgerByReference.set(ledger.referenceKey, structuredClone(ledger));
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
 
     return {
       payout: structuredClone(payout),
       ledgerTransaction: structuredClone(ledger),
       duplicateRequest: false,
+    };
+  }
+
+  async creditPassengerWallet(
+    input: CreditPassengerWalletInput,
+  ): Promise<WalletCreditResult> {
+    const referenceKey =
+      `wallet-credit:${input.processor}:${input.processorEventId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+
+    if (existing != null) {
+      const expectedAccount = passengerWalletAccountKey(input.passengerId);
+      const expectedCredit = existing.entries.find(
+        (entry) =>
+          entry.accountKey === expectedAccount &&
+          entry.direction === 'credit',
+      );
+
+      if (expectedCredit?.amountCents !== input.amountCents) {
+        throw new WalletDomainError(
+          'WALLET_IDEMPOTENCY_CONFLICT',
+          'Evento de recarga já foi usado com outro valor ou passageiro.',
+        );
+      }
+
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicateCredit: true,
+        balanceCents: await this.getAccountBalanceCents(expectedAccount),
+      };
+    }
+
+    const ledger = passengerWalletCreditLedger({
+      passengerId: input.passengerId,
+      processor: input.processor,
+      processorEventId: input.processorEventId,
+      amountCents: input.amountCents,
+      createdAt: (input.creditedAt ?? new Date()).toISOString(),
+    });
+
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicateCredit: false,
+      balanceCents: await this.getAccountBalanceCents(
+        passengerWalletAccountKey(input.passengerId),
+      ),
+    };
+  }
+
+  async payRideWithWallet(
+    input: PayRideWithWalletInput,
+  ): Promise<WalletPaymentResult> {
+    const payment = this.payments.get(input.paymentId);
+    if (
+      payment == null ||
+      payment.method !== 'wallet' ||
+      payment.rideId !== input.rideId ||
+      payment.amountCents !== input.amountCents
+    ) {
+      throw new WalletDomainError(
+        'WALLET_PAYMENT_INVALID',
+        'Pagamento da carteira não confere com a corrida.',
+      );
+    }
+
+    const referenceKey = `wallet-payment:${payment.id}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    const accountKey = passengerWalletAccountKey(input.passengerId);
+
+    if (existing != null) {
+      const stored = this.payments.get(payment.id);
+      if (stored == null || stored.status !== 'paid') {
+        throw new Error('Pagamento idempotente da carteira está inconsistente.');
+      }
+
+      return {
+        payment: structuredClone(stored),
+        ledgerTransaction: structuredClone(existing),
+        duplicatePayment: true,
+        balanceCents: await this.getAccountBalanceCents(accountKey),
+      };
+    }
+
+    if (payment.status !== 'created') {
+      throw new WalletDomainError(
+        'WALLET_PAYMENT_INVALID',
+        `Pagamento da carteira está em estado ${payment.status}.`,
+      );
+    }
+
+    const available = await this.getAccountBalanceCents(accountKey);
+    if (input.amountCents > available) {
+      throw new WalletDomainError(
+        'INSUFFICIENT_WALLET_BALANCE',
+        'Saldo insuficiente na Carteira Ramo Nessa.',
+      );
+    }
+
+    const pending = transitionPayment('created', 'pending');
+    const paid = transitionPayment(pending, 'paid');
+    const paidAt = (input.paidAt ?? new Date()).toISOString();
+
+    const updated: PaymentRecord = {
+      ...payment,
+      status: paid,
+      updatedAt: paidAt,
+    };
+
+    const ledger = walletRidePaymentLedger({
+      passengerId: input.passengerId,
+      rideId: input.rideId,
+      paymentId: payment.id,
+      amountCents: input.amountCents,
+      createdAt: paidAt,
+    });
+
+    this.payments.set(payment.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      payment: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicatePayment: false,
+      balanceCents: await this.getAccountBalanceCents(accountKey),
     };
   }
 

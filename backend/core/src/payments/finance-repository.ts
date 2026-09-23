@@ -1,7 +1,6 @@
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
 import type { DriverPayoutRecord } from './payout.js';
-import type { WalletTopupRecord } from './wallet.js';
 
 export interface CapturePaymentInput {
   paymentId: string;
@@ -38,29 +37,33 @@ export interface ReserveDriverPayoutResult {
   duplicateRequest: boolean;
 }
 
-export interface CaptureWalletTopupInput {
-  walletTopupId: string;
-  processorEventId: string;
-  processorTopupId?: string;
-  payload?: unknown;
-  capturedAt?: Date;
-}
-
-export interface CaptureWalletTopupResult {
-  topup: WalletTopupRecord;
-  ledgerTransaction: LedgerTransaction;
-  duplicateEvent: boolean;
-}
-
-export interface PayRideFromWalletInput {
+export interface CreditPassengerWalletInput {
   passengerId: string;
-  payment: PaymentRecord;
+  processor: string;
+  processorEventId: string;
+  amountCents: number;
+  creditedAt?: Date;
 }
 
-export interface PayRideFromWalletResult {
+export interface WalletCreditResult {
+  ledgerTransaction: LedgerTransaction;
+  duplicateCredit: boolean;
+  balanceCents: number;
+}
+
+export interface PayRideWithWalletInput {
+  passengerId: string;
+  rideId: string;
+  paymentId: string;
+  amountCents: number;
+  paidAt?: Date;
+}
+
+export interface WalletPaymentResult {
   payment: PaymentRecord;
   ledgerTransaction: LedgerTransaction;
   duplicatePayment: boolean;
+  balanceCents: number;
 }
 
 export interface FinanceRepository {
@@ -68,22 +71,15 @@ export interface FinanceRepository {
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
-
-  findWalletTopupByIdempotencyKey(
-    key: string,
-  ): Promise<WalletTopupRecord | null>;
-  createWalletTopup(topup: WalletTopupRecord): Promise<WalletTopupRecord>;
-  captureWalletTopup(
-    input: CaptureWalletTopupInput,
-  ): Promise<CaptureWalletTopupResult>;
-  payRideFromWallet(
-    input: PayRideFromWalletInput,
-  ): Promise<PayRideFromWalletResult>;
-
   settleRide(input: SettleRideInput): Promise<SettleRideResult>;
   reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
-
+  creditPassengerWallet(
+    input: CreditPassengerWalletInput,
+  ): Promise<WalletCreditResult>;
+  payRideWithWallet(
+    input: PayRideWithWalletInput,
+  ): Promise<WalletPaymentResult>;
   getAccountBalanceCents(accountKey: string): Promise<number>;
 }
