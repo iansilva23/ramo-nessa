@@ -124,6 +124,29 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
   }
 
+  async setIdentityStatus(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    status: AuthIdentityStatus;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const result = await this.pool.query<IdentityRow>(
+      `
+      UPDATE auth_identities
+      SET status = $3, updated_at = $4
+      WHERE subject_type = $1 AND subject_id = $2
+      RETURNING *
+      `,
+      [
+        input.subjectType,
+        input.subjectId,
+        input.status,
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
   async createChallenge(
     challenge: OtpChallengeRecord,
   ): Promise<OtpChallengeRecord> {
