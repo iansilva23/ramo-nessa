@@ -53,7 +53,11 @@ function sendJson(socket: WebSocket, payload: unknown): void {
 export function attachRealtimeServer(
   input: AttachRealtimeServerInput,
 ): void {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 16 * 1024,
+    perMessageDeflate: false,
+  });
 
   input.server.on('upgrade', async (request, socket, head) => {
     const requestUrl = new URL(
