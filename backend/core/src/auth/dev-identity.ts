@@ -1,5 +1,11 @@
 import type { IncomingMessage } from 'node:http';
 
+import type { AuthSessionRepository } from './auth-session-repository.js';
+import {
+  authenticateBearer,
+  AuthenticationError,
+} from './auth-service.js';
+
 export class IdentityUnavailableError extends Error {
   constructor(message: string) {
     super(message);
@@ -7,11 +13,14 @@ export class IdentityUnavailableError extends Error {
   }
 }
 
-export function resolvePassengerId(request: IncomingMessage): string {
-  // Segurança: nunca aceitar identidade de teste em produção.
+function devIdentityHeader(
+  request: IncomingMessage,
+  headerName: 'x-dev-passenger-id' | 'x-dev-driver-id',
+): string {
   if (process.env.NODE_ENV === 'production') {
-    throw new IdentityUnavailableError(
-      'Autenticação ainda não está configurada para produção.',
+    throw new AuthenticationError(
+      'AUTH_REQUIRED',
+      'Autenticação Bearer é obrigatória em produção.',
     );
   }
 
@@ -21,40 +30,45 @@ export function resolvePassengerId(request: IncomingMessage): string {
     );
   }
 
-  const value = request.headers['x-dev-passenger-id'];
-  const passengerId = Array.isArray(value) ? value[0] : value;
-
-  if (passengerId == null || passengerId.trim().length < 3) {
+  const raw = request.headers[headerName];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value == null || value.trim().length < 3) {
     throw new IdentityUnavailableError(
-      'Envie x-dev-passenger-id apenas no ambiente de desenvolvimento.',
+      `Envie ${headerName} apenas no ambiente de desenvolvimento.`,
     );
   }
 
-  return passengerId.trim();
+  return value.trim();
 }
 
-
-export function resolveDriverId(request: IncomingMessage): string {
-  if (process.env.NODE_ENV === 'production') {
-    throw new IdentityUnavailableError(
-      'Autenticação do motorista ainda não está configurada para produção.',
-    );
+export async function resolvePassengerId(input: {
+  request: IncomingMessage;
+  sessions: AuthSessionRepository;
+}): Promise<string> {
+  if (input.request.headers.authorization != null) {
+    const session = await authenticateBearer({
+      repository: input.sessions,
+      headers: input.request.headers,
+      requiredType: 'passenger',
+    });
+    return session.subjectId;
   }
 
-  if (process.env.ALLOW_DEV_IDENTITY !== 'true') {
-    throw new IdentityUnavailableError(
-      'Identidade de desenvolvimento está desativada.',
-    );
+  return devIdentityHeader(input.request, 'x-dev-passenger-id');
+}
+
+export async function resolveDriverId(input: {
+  request: IncomingMessage;
+  sessions: AuthSessionRepository;
+}): Promise<string> {
+  if (input.request.headers.authorization != null) {
+    const session = await authenticateBearer({
+      repository: input.sessions,
+      headers: input.request.headers,
+      requiredType: 'driver',
+    });
+    return session.subjectId;
   }
 
-  const value = request.headers['x-dev-driver-id'];
-  const driverId = Array.isArray(value) ? value[0] : value;
-
-  if (driverId == null || driverId.trim().length < 3) {
-    throw new IdentityUnavailableError(
-      'Envie x-dev-driver-id apenas no ambiente de desenvolvimento.',
-    );
-  }
-
-  return driverId.trim();
+  return devIdentityHeader(input.request, 'x-dev-driver-id');
 }
