@@ -340,7 +340,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final ride = _activeRide;
     if (ride == null) return;
 
-    final useDropoff = ride.state === 'IN_PROGRESS';
+    final useDropoff = ride.state == 'IN_PROGRESS';
     final latitude =
         useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
     final longitude =
