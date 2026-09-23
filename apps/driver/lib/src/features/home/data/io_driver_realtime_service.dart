@@ -36,39 +36,44 @@ class IoDriverRealtimeService implements DriverRealtimeService {
 
         await for (final message in socket) {
           if (message is! String) continue;
-          final decoded = jsonDecode(message);
-          if (decoded is! Map<String, dynamic>) continue;
 
-          switch (decoded['type']) {
-            case 'driver.bootstrap':
-              final offer = decoded['offer'];
-              final ride = decoded['ride'];
-              yield DriverRealtimeUpdate(
-                offer: offer is Map<String, dynamic>
-                    ? DriverOffer.fromJson(offer)
-                    : null,
-                ride: ride is Map<String, dynamic>
-                    ? AcceptedDriverRide.fromJson(ride)
-                    : null,
-                offerUpdated: true,
-                rideUpdated: true,
-              );
-            case 'driver.offer.updated':
-              final offer = decoded['offer'];
-              yield DriverRealtimeUpdate(
-                offer: offer is Map<String, dynamic>
-                    ? DriverOffer.fromJson(offer)
-                    : null,
-                offerUpdated: true,
-              );
-            case 'driver.ride.updated':
-              final ride = decoded['ride'];
-              yield DriverRealtimeUpdate(
-                ride: ride is Map<String, dynamic>
-                    ? AcceptedDriverRide.fromJson(ride)
-                    : null,
-                rideUpdated: true,
-              );
+          try {
+            final decoded = jsonDecode(message);
+            if (decoded is! Map<String, dynamic>) continue;
+
+            switch (decoded['type']) {
+              case 'driver.bootstrap':
+                final offer = decoded['offer'];
+                final ride = decoded['ride'];
+                yield DriverRealtimeUpdate(
+                  offer: offer is Map<String, dynamic>
+                      ? DriverOffer.fromJson(offer)
+                      : null,
+                  ride: ride is Map<String, dynamic>
+                      ? AcceptedDriverRide.fromJson(ride)
+                      : null,
+                  offerUpdated: true,
+                  rideUpdated: true,
+                );
+              case 'driver.offer.updated':
+                final offer = decoded['offer'];
+                yield DriverRealtimeUpdate(
+                  offer: offer is Map<String, dynamic>
+                      ? DriverOffer.fromJson(offer)
+                      : null,
+                  offerUpdated: true,
+                );
+              case 'driver.ride.updated':
+                final ride = decoded['ride'];
+                yield DriverRealtimeUpdate(
+                  ride: ride is Map<String, dynamic>
+                      ? AcceptedDriverRide.fromJson(ride)
+                      : null,
+                  rideUpdated: true,
+                );
+            }
+          } catch (_) {
+            // Ignora somente a mensagem inválida; não força reconexão.
           }
         }
       } catch (_) {
