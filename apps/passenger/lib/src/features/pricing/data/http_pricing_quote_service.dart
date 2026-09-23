@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
 import '../../home/domain/service_type.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../map/domain/route_info.dart';
@@ -58,21 +59,23 @@ class HttpPricingQuoteService implements PricingQuoteService {
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
-    final decoded = jsonDecode(response.body);
+    final decoded = decodeJsonObject(response.body);
 
-    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
-      return PricingQuote.fromJson(decoded);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PricingQuote.fromJson(decoded);
+      } catch (_) {
+        throw const PricingQuoteException(
+          'O servidor retornou uma cotação inválida.',
+        );
+      }
     }
 
-    if (decoded is Map<String, dynamic>) {
-      throw PricingQuoteException(
-        decoded['message'] as String? ??
-            'Essa categoria ainda não está disponível para a rota.',
-      );
-    }
-
-    throw const PricingQuoteException(
-      'Não conseguimos obter o preço dessa rota agora.',
+    throw PricingQuoteException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos obter o preço dessa rota agora.',
+      ),
     );
   }
 }
