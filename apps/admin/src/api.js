@@ -98,6 +98,30 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    drivers(
+      token,
+      { query = '', status = '', limit = 25, cursor = null } = {},
+    ) {
+      const params = new URLSearchParams();
+      const normalizedLimit = Math.max(
+        1,
+        Math.min(100, Math.trunc(limit)),
+      );
+      params.set('limit', String(normalizedLimit));
+      if (String(query).trim()) {
+        params.set('query', String(query).trim());
+      }
+      if (status === 'active' || status === 'suspended') {
+        params.set('status', status);
+      }
+      if (cursor) {
+        params.set('cursor', cursor);
+      }
+      return request(`/v1/admin/drivers?${params.toString()}`, {
+        token,
+      });
+    },
+
     getDriver(token, driverId) {
       return request(`/v1/admin/drivers/${driverId}/auth`, { token });
     },

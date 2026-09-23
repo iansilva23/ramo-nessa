@@ -51,6 +51,43 @@ test('apresentação de status e expiração não inventa estado operacional', (
   assert.equal(formatSessionRemaining(61), '2min restantes');
 });
 
+test('cliente Admin monta diretório com filtros e cursor sem vazar token', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      items: [],
+      summary: { total: 0, active: 0, suspended: 0 },
+      nextCursor: null,
+    });
+  };
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_directory-test';
+
+  await api.drivers(token, {
+    query: 'driver 001',
+    status: 'active',
+    limit: 25,
+    cursor: 'opaque_cursor_123',
+  });
+
+  assert.equal(calls.length, 1);
+  const requestUrl = new URL(calls[0].url, 'https://admin.local');
+  assert.equal(requestUrl.pathname, '/v1/admin/drivers');
+  assert.equal(requestUrl.searchParams.get('query'), 'driver 001');
+  assert.equal(requestUrl.searchParams.get('status'), 'active');
+  assert.equal(requestUrl.searchParams.get('limit'), '25');
+  assert.equal(
+    requestUrl.searchParams.get('cursor'),
+    'opaque_cursor_123',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+});
+
 test('cliente Admin envia Bearer somente no header e nunca na URL', async () => {
   const calls = [];
   const fakeFetch = async (url, options) => {
@@ -152,4 +189,8 @@ test('frontend não persiste sessão e evita sinks HTML inseguros', () => {
   assert.match(html, /Content-Security-Policy/);
   assert.match(html, /connect-src 'self'/);
   assert.match(html, /script-src 'self'/);
+  assert.match(html, /id="driver-directory-body"/);
+  assert.match(html, /id="drivers-total"/);
+  assert.match(html, /id="drivers-active"/);
+  assert.match(html, /id="drivers-suspended"/);
 });

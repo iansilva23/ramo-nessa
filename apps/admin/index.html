@@ -226,19 +226,19 @@
 
             <div class="overview-grid">
               <article class="metric-card metric-card--signal">
-                <span class="metric-label">Core</span>
-                <strong id="core-status">Conectado</strong>
-                <small>Sessão validada pelo backend</small>
+                <span class="metric-label">Motoristas</span>
+                <strong id="drivers-total">0</strong>
+                <small>Total provisionado no Core</small>
               </article>
               <article class="metric-card">
-                <span class="metric-label">Sessão</span>
-                <strong id="session-time">—</strong>
-                <small>Expiração automática</small>
+                <span class="metric-label">Aprovados</span>
+                <strong id="drivers-active">0</strong>
+                <small>OTP e acesso liberados</small>
               </article>
               <article class="metric-card">
-                <span class="metric-label">Escopos</span>
-                <strong id="scope-count">0</strong>
-                <small>Permissões concedidas</small>
+                <span class="metric-label">Suspensos</span>
+                <strong id="drivers-suspended">0</strong>
+                <small>Acesso bloqueado pelo Core</small>
               </article>
               <article class="metric-card">
                 <span class="metric-label">Auditoria carregada</span>
@@ -283,6 +283,69 @@
                 <p>Consulte, provisione, aprove ou suspenda o acesso de um motorista.</p>
               </div>
             </div>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Motoristas provisionados</h2>
+                </div>
+                <span id="driver-directory-summary" class="pill">0 motoristas</span>
+              </div>
+
+              <form id="driver-directory-form" class="directory-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="driver-directory-query"
+                    maxlength="80"
+                    placeholder="ID ou telefone"
+                  >
+                </label>
+                <label class="field directory-status">
+                  <span>Status</span>
+                  <select id="driver-directory-status">
+                    <option value="">Todos</option>
+                    <option value="active">Aprovados</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table">
+                  <thead>
+                    <tr>
+                      <th>Motorista</th>
+                      <th>Telefone</th>
+                      <th>Status</th>
+                      <th>Atualizado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="driver-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="driver-directory-empty" class="empty-state" hidden>
+                Nenhum motorista corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="driver-directory-count">0 carregados</span>
+                <button
+                  id="driver-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
 
             <div class="driver-layout">
               <article class="panel-card">

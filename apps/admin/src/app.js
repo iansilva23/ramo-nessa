@@ -18,6 +18,13 @@ const state = {
   user: null,
   expiresAt: null,
   currentDriver: null,
+  driverDirectory: {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  },
   auditEntries: [],
   sessionTimer: null,
 };
@@ -77,6 +84,13 @@ function clearSession(message = '') {
   state.user = null;
   state.expiresAt = null;
   state.currentDriver = null;
+  state.driverDirectory = {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  };
   state.auditEntries = [];
   adminView.hidden = true;
   authView.hidden = false;
@@ -118,7 +132,8 @@ function updateSessionClock() {
   if (!state.expiresAt) return;
   const seconds = secondsUntil(state.expiresAt);
   const label = formatSessionRemaining(seconds);
-  byId('session-time').textContent = label;
+  const sessionTime = byId('session-time');
+  if (sessionTime != null) sessionTime.textContent = label;
   byId('sidebar-session-time').textContent = label;
   byId('overview-expiry').textContent = formatDateTime(state.expiresAt);
 
@@ -142,7 +157,6 @@ function renderIdentity() {
   byId('operator-initials').textContent = initials(user.name);
   byId('overview-user').textContent = user.name;
   byId('overview-email').textContent = user.email;
-  byId('scope-count').textContent = String(user.scopes?.length ?? 0);
 
   const scopeList = byId('scope-list');
   scopeList.replaceChildren();
@@ -196,6 +210,9 @@ function activateView(viewName) {
   if (view === 'audit') {
     void loadAudit({ announce: false });
   }
+  if (view === 'drivers' && hasScope('drivers:auth:read')) {
+    void loadDriverDirectory({ reset: true, announce: false });
+  }
 }
 
 async function openSession(payload) {
@@ -218,6 +235,13 @@ async function openSession(payload) {
   renderIdentity();
   activateView('overview');
   startSessionTimer();
+
+  if (hasScope('drivers:auth:read')) {
+    await loadDriverDirectory({ reset: true, announce: false });
+  } else {
+    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
+    renderDriverDirectory();
+  }
 
   if (hasScope('audit:read')) {
     await loadAudit({ announce: false });
@@ -358,6 +382,140 @@ function renderDriverNotFound(driverId) {
   target.append(strong, copy);
 }
 
+function renderDriverSummary(summary) {
+  const normalized = {
+    total: Number(summary?.total ?? 0),
+    active: Number(summary?.active ?? 0),
+    suspended: Number(summary?.suspended ?? 0),
+  };
+  state.driverDirectory.summary = normalized;
+  byId('drivers-total').textContent = String(normalized.total);
+  byId('drivers-active').textContent = String(normalized.active);
+  byId('drivers-suspended').textContent = String(normalized.suspended);
+  byId('driver-directory-summary').textContent =
+    `${normalized.total} motorista(s)`;
+}
+
+function renderDriverDirectory() {
+  const body = byId('driver-directory-body');
+  const empty = byId('driver-directory-empty');
+  const more = byId('driver-directory-more');
+  const count = byId('driver-directory-count');
+  body.replaceChildren();
+
+  const items = state.driverDirectory.items;
+  for (const driver of items) {
+    const row = document.createElement('tr');
+
+    const identity = document.createElement('td');
+    const driverId = document.createElement('strong');
+    driverId.textContent = driver.driverId;
+    identity.append(driverId);
+
+    const phone = document.createElement('td');
+    phone.textContent = driver.phoneE164 ?? '—';
+
+    const status = document.createElement('td');
+    const presentation = statusPresentation(driver.status);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    status.append(pill);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(driver.updatedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir';
+    open.addEventListener('click', () => {
+      byId('driver-search-id').value = driver.driverId;
+      void lookupDriver(driver.driverId).then(() => {
+        byId('driver-result').scrollIntoView({ block: 'center' });
+      });
+    });
+    actions.append(open);
+
+    row.append(identity, phone, status, updated, actions);
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.driverDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent =
+    `${items.length} carregado(s) · ` +
+    `${state.driverDirectory.summary.total} total`;
+}
+
+async function loadDriverDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('drivers:auth:read')) {
+    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
+    state.driverDirectory.items = [];
+    state.driverDirectory.nextCursor = null;
+    renderDriverDirectory();
+    return;
+  }
+
+  const more = byId('driver-directory-more');
+  if (reset) {
+    state.driverDirectory.query =
+      byId('driver-directory-query').value.trim();
+    state.driverDirectory.status =
+      byId('driver-directory-status').value;
+    state.driverDirectory.items = [];
+    state.driverDirectory.nextCursor = null;
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.drivers(state.token, {
+      query: state.driverDirectory.query,
+      status: state.driverDirectory.status,
+      limit: 25,
+      cursor: reset ? null : state.driverDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.driverDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.driverDirectory.items.map((item) => item.driverId),
+      );
+      state.driverDirectory.items.push(
+        ...incoming.filter((item) => !known.has(item.driverId)),
+      );
+    }
+    state.driverDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+    renderDriverSummary(payload?.summary);
+    renderDriverDirectory();
+
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de motoristas atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
 async function lookupDriver(driverId) {
   if (!state.token) return;
   try {
@@ -417,6 +575,9 @@ async function handleDriverProvision(event) {
     );
     event.currentTarget.reset();
     byId('provision-status').value = 'suspended';
+    if (hasScope('drivers:auth:read')) {
+      await loadDriverDirectory({ reset: true, announce: false });
+    }
     if (hasScope('audit:read')) void loadAudit({ announce: false });
   } catch (error) {
     handleAuthenticatedError(error);
@@ -444,6 +605,9 @@ async function changeDriverStatus(driverId, status, button) {
         : `Motorista suspenso. ${result.revokedSessions ?? 0} sessão(ões) revogada(s).`,
       'success',
     );
+    if (hasScope('drivers:auth:read')) {
+      await loadDriverDirectory({ reset: true, announce: false });
+    }
     if (hasScope('audit:read')) void loadAudit({ announce: false });
   } catch (error) {
     handleAuthenticatedError(error);
@@ -531,6 +695,13 @@ loginForm.addEventListener('submit', (event) => {
 });
 byId('logout-button').addEventListener('click', () => {
   void handleLogout();
+});
+byId('driver-directory-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  void loadDriverDirectory({ reset: true });
+});
+byId('driver-directory-more').addEventListener('click', () => {
+  void loadDriverDirectory({ reset: false, announce: false });
 });
 byId('driver-search-form').addEventListener('submit', (event) => {
   void handleDriverSearch(event);

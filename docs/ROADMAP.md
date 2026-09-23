@@ -140,6 +140,7 @@
 - [x] login humano base com senha + TOTP + sessão curta + anti-bruteforce
 - [x] conectar sessão humana às operações administrativas do painel
 - [x] frontend/login do painel
+- [x] diretório paginado de acesso de motoristas + indicadores reais
 - [x] ambiente same-origin de teste para Admin + Core
 - [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [ ] dashboard
