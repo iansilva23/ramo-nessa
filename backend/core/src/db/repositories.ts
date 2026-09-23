@@ -24,6 +24,7 @@ import { createPostgresPool } from './postgres.js';
 export interface RepositoryBundle {
   authSessionRepository: AuthSessionRepository;
   authOtpRepository: AuthOtpRepository;
+  authOtpRepository: AuthOtpRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
@@ -43,6 +44,7 @@ export function createRepositories(): RepositoryBundle {
 
     return {
       authSessionRepository: new PostgresAuthSessionRepository(pool),
+      authOtpRepository: new PostgresAuthOtpRepository(pool),
       authOtpRepository: new PostgresAuthOtpRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
@@ -65,6 +67,7 @@ export function createRepositories(): RepositoryBundle {
 
   return {
     authSessionRepository: new InMemoryAuthSessionRepository(),
+    authOtpRepository: new InMemoryAuthOtpRepository(),
     authOtpRepository: new InMemoryAuthOtpRepository(),
     rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
