@@ -118,6 +118,33 @@ test('distância de coleta enviada pelo cliente é ignorada', async () => {
   assert.equal(ride.quote.totalAmountCents, 12000);
 });
 
+test('preparação ignora período do cliente e usa horário local do Core', async () => {
+  const ctx = await setup();
+
+  const ride = await prepareRideForPayment({
+    repository: ctx.preparation,
+    drivers: ctx.drivers,
+    routing: new FakeRouting(2),
+    passengerId: 'passenger-period-spoof',
+    quoteRequest: {
+      origin: { zoneId: 'prea' },
+      destination: { zoneId: 'jijoca' },
+      category: 'car',
+      // Cliente tenta forçar tarifa diurna.
+      period: 'day',
+    },
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
+    // 01:00Z = 22:00 do dia anterior em Fortaleza (UTC-3).
+    now: new Date('2026-09-24T01:00:00.000Z'),
+  });
+
+  assert.equal(ride.period, 'after_22');
+  assert.equal(ride.quote.baseAmountCents, 14000);
+  assert.equal(ride.quote.platformCommissionCents, 1400);
+  assert.equal(ride.quote.driverNetCents, 12600);
+});
+
 test('motorista já reservado não é usado em outra preparação ativa', async () => {
   const ctx = await setup();
   const request = {
