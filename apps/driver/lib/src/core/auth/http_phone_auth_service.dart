@@ -23,21 +23,30 @@ class HttpPhoneAuthService implements PhoneAuthService {
   HttpPhoneAuthService({
     required Uri baseUrl,
     required String subjectType,
+    String? clientInstanceId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
         _subjectType = subjectType,
+        _clientInstanceId = clientInstanceId?.trim(),
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _subjectType;
+  final String? _clientInstanceId;
   final http.Client _client;
+
+  Map<String, String> get _otpHeaders => {
+        'content-type': 'application/json',
+        if (_clientInstanceId != null && _clientInstanceId!.isNotEmpty)
+          'x-client-instance-id': _clientInstanceId!,
+      };
 
   @override
   Future<RequestedOtp> requestOtp(String phone) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/auth/otp/request'),
-          headers: const {'content-type': 'application/json'},
+          headers: _otpHeaders,
           body: jsonEncode({
             'subjectType': _subjectType,
             'phone': phone,
@@ -72,7 +81,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/auth/otp/verify'),
-          headers: const {'content-type': 'application/json'},
+          headers: _otpHeaders,
           body: jsonEncode({
             'challengeId': challengeId,
             'code': code,

@@ -8,11 +8,23 @@ Future<void> main() async {
 
   final tokenStore = SecureAuthTokenStore();
   String? accessToken;
+  String? clientInstanceId;
   try {
     accessToken = await tokenStore.readAccessToken();
   } catch (_) {
     // Falha no Keystore não pode impedir o app de abrir.
   }
 
-  runApp(RamoNessaDriverApp(accessToken: accessToken));
+  try {
+    clientInstanceId = await tokenStore.getOrCreateClientInstanceId();
+  } catch (_) {
+    // O rate-limit por IP/telefone continua ativo se o storage indisponível.
+  }
+
+  runApp(
+    RamoNessaDriverApp(
+      accessToken: accessToken,
+      clientInstanceId: clientInstanceId,
+    ),
+  );
 }

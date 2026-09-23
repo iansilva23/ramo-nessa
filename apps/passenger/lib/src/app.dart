@@ -20,6 +20,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   const RamoNessaPassengerApp({
     super.key,
     this.accessToken,
+    this.clientInstanceId,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -32,6 +33,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   });
 
   final String? accessToken;
+  final String? clientInstanceId;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
@@ -80,6 +82,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         service: HttpPhoneAuthService(
           baseUrl: coreUri,
           subjectType: 'passenger',
+          clientInstanceId: clientInstanceId,
         ),
         tokenStore: SecureAuthTokenStore(),
         initialAccessToken: initialToken,

@@ -16,6 +16,7 @@ class RamoNessaDriverApp extends StatelessWidget {
   const RamoNessaDriverApp({
     super.key,
     this.accessToken,
+    this.clientInstanceId,
     this.api,
     this.locationService,
     this.navigationService,
@@ -23,6 +24,7 @@ class RamoNessaDriverApp extends StatelessWidget {
   });
 
   final String? accessToken;
+  final String? clientInstanceId;
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
@@ -61,6 +63,7 @@ class RamoNessaDriverApp extends StatelessWidget {
         service: HttpPhoneAuthService(
           baseUrl: coreUri,
           subjectType: 'driver',
+          clientInstanceId: clientInstanceId,
         ),
         tokenStore: SecureAuthTokenStore(),
         initialAccessToken: initialToken,
