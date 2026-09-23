@@ -1063,6 +1063,19 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      const escrowAccount = `ride:${input.rideId}:escrow`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [escrowAccount],
+      );
+      const escrowBalance = await accountBalanceCents(client, escrowAccount);
+      if (escrowBalance < input.totalAmountCents) {
+        throw new PaymentDomainError(
+          'INSUFFICIENT_RIDE_ESCROW',
+          'Escrow da corrida não possui saldo suficiente para liquidação.',
+        );
+      }
+
       const ledger = rideSettlementLedger({
         rideId: input.rideId,
         paymentId: input.paymentId,
