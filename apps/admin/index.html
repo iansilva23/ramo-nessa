@@ -586,6 +586,70 @@
                 </div>
               </div>
             </article>
+
+            <article class="panel-card driver-documents-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DOCUMENTOS</span>
+                  <h2>CNH e CRLV</h2>
+                  <p class="muted-copy">
+                    O navegador recebe somente metadados sanitizados. Referência privada e hash do arquivo não são expostos.
+                  </p>
+                </div>
+                <span id="driver-documents-overall" class="pill">Não carregado</span>
+              </div>
+
+              <div class="document-privacy-note">
+                <strong>Revisão segura</strong>
+                <span>
+                  A aprovação deve ocorrer somente após a inspeção do arquivo no fluxo privado autorizado. A visualização do arquivo ainda não é feita neste painel.
+                </span>
+              </div>
+
+              <div id="driver-documents-result" class="driver-documents-result empty-state">
+                Abra um motorista para consultar o status documental.
+              </div>
+
+              <div id="driver-document-review-panel" class="driver-document-review-panel" hidden>
+                <div>
+                  <span class="eyebrow eyebrow--dark">DECISÃO HUMANA</span>
+                  <h3>Revisar documento pendente</h3>
+                  <p class="muted-copy">
+                    Esta ação registra somente a decisão administrativa e fica na trilha de auditoria.
+                  </p>
+                </div>
+
+                <form id="driver-document-review-form" class="document-review-form">
+                  <label class="field">
+                    <span>Documento</span>
+                    <select id="driver-document-review-type"></select>
+                  </label>
+                  <label class="field">
+                    <span>Decisão</span>
+                    <select id="driver-document-review-status">
+                      <option value="approved">Aprovar</option>
+                      <option value="rejected">Rejeitar</option>
+                    </select>
+                  </label>
+                  <label class="field document-review-reason">
+                    <span>Motivo da rejeição</span>
+                    <textarea
+                      id="driver-document-rejection-reason"
+                      maxlength="240"
+                      rows="3"
+                      placeholder="Obrigatório apenas ao rejeitar"
+                    ></textarea>
+                  </label>
+                  <button
+                    id="driver-document-review-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Registrar decisão
+                  </button>
+                </form>
+              </div>
+            </article>
           </section>
 
           <section id="view-passengers" class="view-panel" hidden>
