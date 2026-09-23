@@ -243,3 +243,50 @@ test('falha de entrega invalida desafio e permite tentar novamente', async () =>
   assert.ok(retry.challengeId.length > 20);
   assert.equal(delivery.sent.length, 1);
 });
+
+
+test('novo OTP após cooldown invalida o desafio anterior', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const sessions = new InMemoryAuthSessionRepository();
+  const firstDelivery = new RecordingDelivery();
+  const secondDelivery = new RecordingDelivery();
+
+  const first = await requestPhoneOtp({
+    repository,
+    delivery: firstDelivery,
+    subjectType: 'passenger',
+    phone: '88999991239',
+    now: new Date('2026-09-23T10:50:00.000Z'),
+  });
+
+  const second = await requestPhoneOtp({
+    repository,
+    delivery: secondDelivery,
+    subjectType: 'passenger',
+    phone: '88999991239',
+    now: new Date('2026-09-23T10:51:01.000Z'),
+  });
+
+  await assert.rejects(
+    () =>
+      verifyPhoneOtp({
+        repository,
+        sessions,
+        challengeId: first.challengeId,
+        code: firstDelivery.sent[0]!.code,
+        now: new Date('2026-09-23T10:51:10.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof PhoneOtpError &&
+      error.code === 'OTP_INVALID_OR_EXPIRED',
+  );
+
+  const verified = await verifyPhoneOtp({
+    repository,
+    sessions,
+    challengeId: second.challengeId,
+    code: secondDelivery.sent[0]!.code,
+    now: new Date('2026-09-23T10:51:10.000Z'),
+  });
+  assert.equal(verified.subjectType, 'passenger');
+});
