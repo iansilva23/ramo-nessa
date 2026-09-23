@@ -38,7 +38,7 @@ function cleanStorageKey(value: unknown): string {
   if (
     normalized.length < 8 ||
     normalized.length > 512 ||
-    /^[A-Za-z][A-Za-z0-9+.-]*:///.test(normalized) ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(normalized) ||
     normalized.startsWith('/') ||
     normalized.includes('..') ||
     /[\u0000-\u001f\u007f]/.test(normalized)
