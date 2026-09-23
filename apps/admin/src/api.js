@@ -246,6 +246,32 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    getDriverDocuments(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${driverId}/documents`,
+        { token },
+      );
+    },
+
+    reviewDriverDocument(
+      token,
+      { driverId, documentType, status, rejectionReason },
+    ) {
+      return request(
+        `/v1/admin/drivers/${driverId}/documents/${documentType}/review`,
+        {
+          method: 'PATCH',
+          token,
+          body: {
+            status,
+            ...(rejectionReason
+              ? { rejectionReason }
+              : {}),
+          },
+        },
+      );
+    },
+
     audit(token, limit = 50) {
       const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
       return request(`/v1/admin/audit?limit=${safeLimit}`, { token });
