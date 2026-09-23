@@ -143,6 +143,7 @@
 - [x] diretório paginado de acesso de motoristas + indicadores reais
 - [x] backend cadastral de motorista + veículo separado do matching
 - [x] frontend Admin para editar e aprovar perfil + veículo
+- [x] frontend Admin para status/revisão de metadados de CNH/CRLV sem expor storage
 - [x] diretório read-only de passageiros com busca/filtro/paginação
 - [x] backend do dashboard operacional com métricas reais de corridas
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
@@ -153,7 +154,7 @@
 - [x] dashboard
 - [ ] passageiros
 - [ ] motoristas
-- [ ] aprovação de documentos
+- [ ] aprovação de documentos com inspeção segura do arquivo privado
 - [x] viagens em andamento
 - [ ] histórico
 - [ ] cancelamentos
