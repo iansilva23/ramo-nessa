@@ -87,6 +87,31 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets(
+    'cadastro aprovado sem supply inicializa offline usando GPS real',
+    (tester) async {
+      final api = _FakeDriverApi(missingSupplyOnFirstLoad: true);
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(api.getSupplyCalls, 1);
+      expect(api.lastSyncedPosition?.latitude, -2.82017);
+      expect(api.lastSyncedPosition?.longitude, -40.41467);
+      expect(find.text('Offline'), findsOneWidget);
+      expect(find.text('Você está offline'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('corrida ativa é recuperada ao reabrir o app', (tester) async {
     final api = _FakeDriverApi(
       initialOnline: true,
@@ -297,6 +322,7 @@ class _FakeDriverApi implements DriverApi {
     bool initialOnline = false,
     bool initialBusy = false,
     this.failFirstPayoutUnexpectedly = false,
+    this.missingSupplyOnFirstLoad = false,
   })  : _supply = DriverSupplySnapshot(
           driverId: 'driver-test',
           vehicleId: 'SW4 TESTE',
@@ -327,7 +353,9 @@ class _FakeDriverApi implements DriverApi {
             : null;
 
   final bool failFirstPayoutUnexpectedly;
+  final bool missingSupplyOnFirstLoad;
   DriverSupplySnapshot _supply;
+  int getSupplyCalls = 0;
   bool _offerAvailable = true;
   String? acceptedOfferId;
   String? rejectedOfferId;
@@ -357,7 +385,17 @@ class _FakeDriverApi implements DriverApi {
       );
 
   @override
-  Future<DriverSupplySnapshot> getSupply() async => _supply;
+  Future<DriverSupplySnapshot> getSupply() async {
+    getSupplyCalls++;
+    if (missingSupplyOnFirstLoad && getSupplyCalls == 1) {
+      throw const DriverApiException(
+        'Cadastro aprovado. Ative a localização para concluir a configuração operacional.',
+        code: 'DRIVER_SUPPLY_NOT_INITIALIZED',
+        statusCode: 409,
+      );
+    }
+    return _supply;
+  }
 
   @override
   Future<DriverSupplySnapshot> updateSupply({
