@@ -1,5 +1,5 @@
 name: One-time Generate Driver Native Icons
-# retry-direct-valid-png-v3
+# retry-validated-png-v4
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - feature/zone-aware-pricing
     paths:
       - .github/workflows/one-time-generate-driver-icons.yml
+      - apps/driver/assets/brand/driver/app_icon_source.png
 
 permissions:
   contents: write
