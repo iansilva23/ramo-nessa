@@ -350,9 +350,22 @@ export class PostgresFinanceRepository implements FinanceRepository {
       }
 
       if (code === '23505') {
+        const existing = await this.findPaymentByIdempotencyKey(
+          payment.idempotencyKey,
+        );
+        if (
+          existing != null &&
+          existing.rideId === payment.rideId &&
+          existing.method === payment.method &&
+          existing.processor === payment.processor &&
+          existing.amountCents === payment.amountCents
+        ) {
+          return existing;
+        }
+
         throw new PaymentDomainError(
           'IDEMPOTENCY_CONFLICT',
-          'Chave de idempotência já utilizada.',
+          'Chave de idempotência já utilizada em outro pagamento.',
         );
       }
       throw error;
@@ -571,9 +584,22 @@ export class PostgresFinanceRepository implements FinanceRepository {
           : '';
 
       if (code === '23505') {
+        const existing = await this.findWalletTopupByIdempotencyKey(
+          topup.idempotencyKey,
+        );
+        if (
+          existing != null &&
+          existing.passengerId === topup.passengerId &&
+          existing.method === topup.method &&
+          existing.processor === topup.processor &&
+          existing.amountCents === topup.amountCents
+        ) {
+          return existing;
+        }
+
         throw new WalletDomainError(
           'WALLET_IDEMPOTENCY_CONFLICT',
-          'Chave de idempotência da recarga já utilizada.',
+          'Chave de idempotência da recarga já utilizada em outra intenção.',
         );
       }
       throw error;
@@ -711,6 +737,11 @@ export class PostgresFinanceRepository implements FinanceRepository {
 
     try {
       await client.query('BEGIN');
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-payment-idempotency:${input.payment.idempotencyKey}`],
+      );
 
       const existingResult = await client.query<PaymentRow>(
         `SELECT ${PAYMENT_COLUMNS}
