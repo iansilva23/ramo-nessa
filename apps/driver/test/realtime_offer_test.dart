@@ -1,0 +1,126 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ramo_nessa_driver/src/app.dart';
+import 'package:ramo_nessa_driver/src/core/location/driver_location_service.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/driver_realtime_service.dart';
+import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
+
+void main() {
+  testWidgets('oferta realtime aparece sem esperar polling', (tester) async {
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: _NoOfferDriverApi(),
+        locationService: const _NoopLocationService(),
+        realtimeService: realtime,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(find.text('Procurando corridas por perto'), findsOneWidget);
+
+    realtime.add(
+      DriverRealtimeUpdate(
+        offer: DriverOffer(
+          id: 'offer-live',
+          rideId: 'ride-live',
+          expiresAt: DateTime.now().add(const Duration(minutes: 1)),
+          approximatePickupDistanceKm: 1.4,
+          category: 'car',
+          passengers: 2,
+          origin: const DriverLocationRef(zoneId: 'prea'),
+          destination: const DriverLocationRef(zoneId: 'jijoca'),
+          driverEarningsCents: 10800,
+          pickupCompensationCents: 0,
+        ),
+        offerUpdated: true,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(find.text('Nova corrida'), findsOneWidget);
+    expect(find.text('R\$ 108,00'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await realtime.close();
+  });
+}
+
+class _FakeRealtimeService implements DriverRealtimeService {
+  final _controller = StreamController<DriverRealtimeUpdate>.broadcast();
+
+  void add(DriverRealtimeUpdate update) => _controller.add(update);
+
+  Future<void> close() => _controller.close();
+
+  @override
+  Stream<DriverRealtimeUpdate> watch() => _controller.stream;
+}
+
+class _NoopLocationService implements DriverLocationService {
+  const _NoopLocationService();
+
+  @override
+  Future<DriverPosition> currentPosition() async =>
+      const DriverPosition(latitude: -2.82, longitude: -40.41);
+
+  @override
+  Stream<DriverPosition> positionStream() => const Stream.empty();
+}
+
+class _NoOfferDriverApi implements DriverApi {
+  final _supply = DriverSupplySnapshot(
+    driverId: 'driver-live',
+    vehicleId: 'vehicle-live',
+    categories: const ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.82,
+    longitude: -40.41,
+    locationUpdatedAt: DateTime(2026, 9, 23),
+  );
+
+  @override
+  Future<DriverSupplySnapshot> getSupply() async => _supply;
+
+  @override
+  Future<DriverSupplySnapshot> updateSupply({
+    bool? online,
+    DriverPosition? position,
+  }) async => _supply;
+
+  @override
+  Future<DriverOffer?> currentOffer() async => null;
+
+  @override
+  Future<AcceptedDriverRide?> currentRide() async => null;
+
+  @override
+  Future<AcceptedDriverRide> acceptOffer(String offerId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> rejectOffer(String offerId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AcceptedDriverRide> markArrived(String rideId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AcceptedDriverRide> startRide(String rideId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<DriverRideCompletion> completeRide(String rideId) =>
+      throw UnimplementedError();
+}

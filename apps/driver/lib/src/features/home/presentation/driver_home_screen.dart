@@ -9,7 +9,9 @@ import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../data/driver_api.dart';
+import '../data/driver_realtime_service.dart';
 import '../data/http_driver_api.dart';
+import '../data/io_driver_realtime_service.dart';
 import '../domain/driver_models.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -18,11 +20,13 @@ class DriverHomeScreen extends StatefulWidget {
     this.api,
     this.locationService,
     this.navigationService,
+    this.realtimeService,
   });
 
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
+  final DriverRealtimeService? realtimeService;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -43,6 +47,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   late final DriverNavigationService _navigation =
       widget.navigationService ?? ExternalDriverNavigationService();
 
+  late final DriverRealtimeService? _realtimeService =
+      widget.realtimeService ??
+          (DriverCoreConfig.enabled
+              ? IoDriverRealtimeService(
+                  baseUrl: Uri.parse(DriverCoreConfig.baseUrl),
+                  driverId: DriverCoreConfig.devDriverId,
+                )
+              : null);
+
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
@@ -54,6 +67,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Timer? _pollTimer;
   Timer? _ticker;
   StreamSubscription<DriverPosition>? _locationSubscription;
+  StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
 
   @override
@@ -67,6 +81,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _pollTimer?.cancel();
     _ticker?.cancel();
     _locationSubscription?.cancel();
+    _realtimeSubscription?.cancel();
     super.dispose();
   }
 
@@ -93,6 +108,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       if (supply.online) {
         _startLocationTracking();
+        _startRealtime();
       }
 
       if (supply.busy) {
@@ -170,6 +186,47 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  void _startRealtime() {
+    final service = _realtimeService;
+    if (service == null || _realtimeSubscription != null) return;
+
+    _realtimeSubscription = service.watch().listen(
+      (update) {
+        if (!mounted) return;
+        setState(() {
+          if (update.offerUpdated) {
+            _offer = update.offer;
+          }
+          if (update.rideUpdated) {
+            _activeRide = update.ride;
+          }
+        });
+
+        if (update.ride != null) {
+          _stopPolling();
+        } else if (
+          update.rideUpdated &&
+          _supply?.online == true &&
+          _supply?.busy == false
+        ) {
+          _startPolling();
+        }
+      },
+      onError: (_) {
+        // O polling HTTP continua ativo como fallback.
+      },
+      onDone: () {
+        _realtimeSubscription = null;
+      },
+    );
+  }
+
+  Future<void> _stopRealtime() async {
+    final subscription = _realtimeSubscription;
+    _realtimeSubscription = null;
+    await subscription?.cancel();
+  }
+
   void _startPolling() {
     _pollTimer?.cancel();
     _ticker?.cancel();
@@ -245,8 +302,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       if (updated.online) {
         _startLocationTracking();
+        _startRealtime();
       } else {
         await _stopLocationTracking();
+        await _stopRealtime();
       }
 
       if (updated.online && !updated.busy) {

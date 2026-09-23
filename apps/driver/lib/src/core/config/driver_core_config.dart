@@ -10,7 +10,7 @@ abstract final class DriverCoreConfig {
   );
 
   static const requestTimeout = Duration(seconds: 10);
-  static const offerPollingInterval = Duration(seconds: 3);
+  static const offerPollingInterval = Duration(seconds: 10);
 
   static bool get enabled =>
       baseUrl.trim().isNotEmpty && devDriverId.trim().length >= 3;
