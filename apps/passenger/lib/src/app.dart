@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import 'core/auth/http_phone_auth_service.dart';
+import 'core/auth/mobile_auth_gate.dart';
+import 'core/auth/secure_auth_token_store.dart';
+import 'core/config/ramo_core_config.dart';
 import 'core/location/location_service.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/payments/data/passenger_payment_service.dart';
@@ -39,24 +43,56 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coreUri = RamoCoreConfig.baseUri;
+    final restoredToken = accessToken?.trim();
+    final configuredToken = RamoCoreConfig.authToken.trim();
+    final initialToken =
+        restoredToken != null && restoredToken.length >= 20
+            ? restoredToken
+            : configuredToken.length >= 20
+                ? configuredToken
+                : null;
+
+    Widget home(String? token) => PassengerHomeScreen(
+          accessToken: token,
+          locationService: locationService,
+          routeService: routeService,
+          placeSearchService: placeSearchService,
+          pricingQuoteService: pricingQuoteService,
+          ridePreparationService: ridePreparationService,
+          paymentService: paymentService,
+          rideTrackingService: rideTrackingService,
+          rideRealtimeService: rideRealtimeService,
+          networkTilesEnabled: networkTilesEnabled,
+        );
+
+    final Widget homeWidget;
+    if (coreUri == null) {
+      homeWidget = home(initialToken);
+    } else {
+      homeWidget = MobileAuthGate(
+        subjectType: 'passenger',
+        service: HttpPhoneAuthService(
+          baseUrl: coreUri,
+          subjectType: 'passenger',
+        ),
+        tokenStore: SecureAuthTokenStore(),
+        initialAccessToken: initialToken,
+        devBypass: RamoCoreConfig.devPassengerIdentityEnabled,
+        loginTitle: 'Entre no Ramo Nessa',
+        loginSubtitle:
+            'Informe seu celular. Vamos enviar um código para confirmar sua conta.',
+        authenticatedBuilder: home,
+      );
+    }
+
     return MaterialApp(
       title: 'Ramo Nessa',
       debugShowCheckedModeBanner: false,
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
-      home: PassengerHomeScreen(
-        accessToken: accessToken,
-        locationService: locationService,
-        routeService: routeService,
-        placeSearchService: placeSearchService,
-        pricingQuoteService: pricingQuoteService,
-        ridePreparationService: ridePreparationService,
-        paymentService: paymentService,
-        rideTrackingService: rideTrackingService,
-        rideRealtimeService: rideRealtimeService,
-        networkTilesEnabled: networkTilesEnabled,
-      ),
+      home: homeWidget,
     );
   }
 }
