@@ -63,6 +63,18 @@ export interface PayRideFromWalletResult {
   duplicatePayment: boolean;
 }
 
+export interface RefundWalletRideInput {
+  paymentId: string;
+  passengerId: string;
+  refundedAt?: Date;
+}
+
+export interface RefundWalletRideResult {
+  payment: PaymentRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateRefund: boolean;
+}
+
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
   findPaidPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
@@ -80,6 +92,9 @@ export interface FinanceRepository {
   payRideFromWallet(
     input: PayRideFromWalletInput,
   ): Promise<PayRideFromWalletResult>;
+  refundWalletRide(
+    input: RefundWalletRideInput,
+  ): Promise<RefundWalletRideResult>;
 
   settleRide(input: SettleRideInput): Promise<SettleRideResult>;
   reserveDriverPayout(
