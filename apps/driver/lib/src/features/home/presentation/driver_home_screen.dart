@@ -486,7 +486,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final api = _api;
     if (api == null || _financeLoading) return;
 
-    _financeLoading = true;
+    if (mounted) {
+      setState(() => _financeLoading = true);
+    } else {
+      _financeLoading = true;
+    }
+
     try {
       final finance = await api.financeSummary();
       if (!mounted) return;
@@ -495,7 +500,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted || !showError) return;
       setState(() => _message = error.message);
     } finally {
-      _financeLoading = false;
+      if (mounted) {
+        setState(() => _financeLoading = false);
+      } else {
+        _financeLoading = false;
+      }
     }
   }
 

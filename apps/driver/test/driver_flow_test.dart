@@ -31,7 +31,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(find.text('Nova corrida'), findsOneWidget);
-    expect(find.text('R\$ 110,00'), findsOneWidget);
+    expect(find.text('R\$ 110,00'), findsNWidgets(2));
     expect(find.text('Preá → Jijoca'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Aceitar'));
