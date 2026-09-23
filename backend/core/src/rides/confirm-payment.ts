@@ -1,6 +1,21 @@
 import type { PaymentRecord } from '../payments/payment.js';
 import type { RideRepository } from './ride-repository.js';
 import { markRidePaid } from './ride-state.js';
+import type { RideRecord } from './ride.js';
+
+const CONFIRMED_PAYMENT_RIDE_STATES: ReadonlySet<RideRecord['state']> =
+  new Set([
+    'PAID',
+    'SEARCHING_DRIVER',
+    'DRIVER_ASSIGNED',
+    'DRIVER_ARRIVING',
+    'DRIVER_ARRIVED',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'NO_DRIVER_FOUND',
+    'REFUND_PENDING',
+    'REFUNDED',
+  ]);
 
 export class RidePaymentConfirmationError extends Error {
   constructor(
@@ -46,7 +61,10 @@ export async function confirmRidePayment(
     );
   }
 
-  if (ride.state === 'PAID' && ride.paymentStatus === input.payment.status) {
+  if (
+    ride.paymentStatus === input.payment.status &&
+    CONFIRMED_PAYMENT_RIDE_STATES.has(ride.state)
+  ) {
     return ride;
   }
 
