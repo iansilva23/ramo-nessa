@@ -21,6 +21,10 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - máquina de estados da corrida com bloqueio de matching antes do pagamento;
 - validação runtime do contrato de cotação;
 - endpoint inicial `POST /v1/pricing/quote`;
+- endpoint de desenvolvimento `POST /v1/rides` protegido por identidade dev;
+- criação de corrida somente com cotação exata;
+- snapshot de preço/comissão por corrida;
+- migration PostgreSQL inicial;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
 - testes do domínio.
@@ -38,7 +42,7 @@ npm start
 ## Ainda pendente
 
 - autenticação/autorização;
-- persistência/Postgres;
+- adapter/runtime PostgreSQL;
 - resolver coordenadas -> localidade;
 - matching;
 - localização em tempo real;

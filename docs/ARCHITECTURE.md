@@ -23,6 +23,9 @@ A primeira camada implementada é deliberadamente independente de banco/gateway 
 - política de meios de pagamento;
 - máquina de estados de pagamento;
 - máquina de estados inicial da corrida;
+- criação de corrida a partir de cotação exata;
+- snapshot imutável de preço/comissão por corrida;
+- schema PostgreSQL inicial para persistência;
 - bloqueio de matching sem pagamento autorizado/pago.
 
 Essa camada pura pode ser testada sem infraestrutura externa e depois conectada a persistência, autenticação, pagamentos, matching e tempo real.

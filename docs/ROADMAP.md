@@ -39,7 +39,7 @@
 - [ ] tela/fluxo cartão
 - [ ] Carteira Ramo Nessa
 - [ ] confirmação de pagamento antes do despacho
-- [ ] solicitar serviço no backend
+- [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [ ] matching real
 - [ ] acompanhamento em tempo real
 - [ ] chat
@@ -78,7 +78,8 @@
 - [x] testes e CI do domínio comercial
 - [x] validação runtime das requisições de cotação
 - [ ] autenticação e autorização
-- [ ] persistência/Postgres
+- [ ] adapter PostgreSQL em runtime
+- [x] schema/migration inicial PostgreSQL para corridas
 - [ ] matching
 - [ ] localização em tempo real
 - [x] máquina de estados inicial de corrida/pagamento
