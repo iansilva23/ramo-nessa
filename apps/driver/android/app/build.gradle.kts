@@ -23,7 +23,8 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // Nunca assinar release com a chave debug. A assinatura oficial
+            // será injetada fora do repositório na etapa de publicação.
         }
     }
 }
