@@ -1,4 +1,5 @@
 name: One-time Generate Driver Native Icons
+# retry-valid-source-v2
 
 on:
   push:
@@ -33,13 +34,17 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
+          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
-          source = Image.open(
-              root / "assets/brand/driver/app_icon_source.png"
-          ).convert("RGB")
+          source_path = root / "assets/brand/driver/app_icon_source.png"
+          encoded = (
+              root / "assets/brand/driver/app_icon_source.b64"
+          ).read_text(encoding="ascii").strip()
+          source_path.write_bytes(b64decode(encoded, validate=True))
+          source = Image.open(source_path).convert("RGB")
           
           android = {
               "mipmap-mdpi": 48,
@@ -120,13 +125,17 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
+          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
-          source = Image.open(
-              root / "assets/brand/driver/app_icon_source.png"
-          ).convert("RGB")
+          source_path = root / "assets/brand/driver/app_icon_source.png"
+          encoded = (
+              root / "assets/brand/driver/app_icon_source.b64"
+          ).read_text(encoding="ascii").strip()
+          source_path.write_bytes(b64decode(encoded, validate=True))
+          source = Image.open(source_path).convert("RGB")
           
           android = {
               "mipmap-mdpi": 48,
@@ -204,13 +213,17 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
+          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
-          source = Image.open(
-              root / "assets/brand/driver/app_icon_source.png"
-          ).convert("RGB")
+          source_path = root / "assets/brand/driver/app_icon_source.png"
+          encoded = (
+              root / "assets/brand/driver/app_icon_source.b64"
+          ).read_text(encoding="ascii").strip()
+          source_path.write_bytes(b64decode(encoded, validate=True))
+          source = Image.open(source_path).convert("RGB")
           
           android = {
               "mipmap-mdpi": 48,
@@ -271,7 +284,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/driver/android/app/src/main/res apps/driver/ios/Runner/Assets.xcassets/AppIcon.appiconset
+          git add apps/driver/assets/brand/driver/app_icon_source.png apps/driver/android/app/src/main/res apps/driver/ios/Runner/Assets.xcassets/AppIcon.appiconset
           if git diff --cached --quiet; then
             echo "No icon changes to commit."
             exit 0
