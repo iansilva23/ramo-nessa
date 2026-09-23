@@ -168,6 +168,21 @@ export class PostgresRideMatchingRepository
     return result.rows[0] == null ? null : mapOffer(result.rows[0]);
   }
 
+  async findLatestOfferedForDriver(
+    driverId: string,
+  ): Promise<RideOfferRecord | null> {
+    const result = await this.pool.query<RideOfferRow>(
+      `SELECT ${OFFER_COLUMNS}
+       FROM ride_offers
+       WHERE driver_id = $1
+         AND status = 'OFFERED'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [driverId],
+    );
+    return result.rows[0] == null ? null : mapOffer(result.rows[0]);
+  }
+
   async listOffersForRide(rideId: string): Promise<RideOfferRecord[]> {
     const result = await this.pool.query<RideOfferRow>(
       `SELECT ${OFFER_COLUMNS}
@@ -350,6 +365,18 @@ export class PostgresRideMatchingRepository
         [offer.driver_id, offer.ride_id, input.rejectedAt],
       );
 
+      await client.query(
+        `
+        UPDATE rides
+        SET reserved_driver_id = NULL,
+            driver_hold_expires_at = NULL,
+            updated_at = $3
+        WHERE id = $1
+          AND reserved_driver_id = $2
+        `,
+        [offer.ride_id, offer.driver_id, input.rejectedAt],
+      );
+
       await client.query('COMMIT');
       if (expired) {
         throw new RideOfferError('OFFER_EXPIRED', 'Oferta expirou.');
@@ -422,6 +449,18 @@ export class PostgresRideMatchingRepository
           AND reserved_ride_id = $2
         `,
         [offer.driver_id, offer.ride_id, input.expiredAt],
+      );
+
+      await client.query(
+        `
+        UPDATE rides
+        SET reserved_driver_id = NULL,
+            driver_hold_expires_at = NULL,
+            updated_at = $3
+        WHERE id = $1
+          AND reserved_driver_id = $2
+        `,
+        [offer.ride_id, offer.driver_id, input.expiredAt],
       );
 
       await client.query('COMMIT');
@@ -605,6 +644,8 @@ export class PostgresRideMatchingRepository
         SET
           state = 'DRIVER_ASSIGNED',
           driver_id = $2,
+          reserved_driver_id = NULL,
+          driver_hold_expires_at = NULL,
           updated_at = $3
         WHERE id = $1
         RETURNING ${RIDE_COLUMNS}

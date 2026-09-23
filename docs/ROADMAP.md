@@ -63,11 +63,14 @@
 - [x] capacidade/elegibilidade no Core de matching
 - [x] elegibilidade 4x4/rotas no Core
 - [x] projeção online/offline no Core
+- [x] API Core para online/offline/localização
 - [ ] controle online/offline no app
 - [ ] GPS em background
 - [x] domínio persistente de ofertas no Core
+- [x] API Core para consultar oferta ativa
 - [ ] recebimento de ofertas no app
 - [x] aceite atômico no Core
+- [x] API Core para aceitar/recusar
 - [ ] aceitar/recusar no app
 - [ ] navegação/coleta
 - [ ] início e finalização

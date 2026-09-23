@@ -25,7 +25,24 @@ import {
   InvalidWalletRequestError,
   parseCreateWalletTopupRequest,
 } from './payments/wallet-validation.js';
-import { resolvePassengerId, IdentityUnavailableError } from './auth/dev-identity.js';
+import {
+  resolveDriverId,
+  resolvePassengerId,
+  IdentityUnavailableError,
+} from './auth/dev-identity.js';
+import {
+  acceptOfferFromDriverApp,
+  currentDriverOffer,
+  DriverAppError,
+  rejectOfferFromDriverApp,
+  updateDriverSupplyFromApp,
+} from './drivers/driver-app-service.js';
+import {
+  InvalidDriverRequestError,
+  parseUpdateDriverSupplyRequest,
+} from './drivers/driver-validation.js';
+import { DriverSupplyError } from './drivers/driver-supply.js';
+import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { createRepositories } from './db/repositories.js';
 import {
@@ -74,6 +91,78 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     if (request.method === 'GET' && request.url === '/health') {
       json(response, 200, { ok: true, service: 'ramo-nessa-core', storageMode });
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/driver/me/supply'
+    ) {
+      const driverId = resolveDriverId(request);
+      const body = parseUpdateDriverSupplyRequest(await readJson(request));
+      const supply = await updateDriverSupplyFromApp({
+        drivers: driverSupplyRepository,
+        driverId,
+        ...body,
+      });
+
+      json(response, 200, {
+        driverId: supply.driverId,
+        vehicleId: supply.vehicleId,
+        categories: supply.categories,
+        fourByFour: supply.fourByFour,
+        seatCapacity: supply.seatCapacity,
+        online: supply.online,
+        busy: supply.busy,
+        latitude: supply.latitude,
+        longitude: supply.longitude,
+        locationUpdatedAt: supply.locationUpdatedAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/offer'
+    ) {
+      const driverId = resolveDriverId(request);
+      const offer = await currentDriverOffer({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        matching: rideMatchingRepository,
+        driverId,
+      });
+      json(response, 200, { offer });
+      return;
+    }
+
+    const driverOfferAction = requestUrl.pathname.match(
+      /^\/v1\/driver\/me\/offers\/([0-9a-fA-F-]+)\/(accept|reject)$/,
+    );
+    if (request.method === 'POST' && driverOfferAction != null) {
+      const driverId = resolveDriverId(request);
+      const offerId = driverOfferAction[1]!;
+      const action = driverOfferAction[2]!;
+
+      if (action === 'accept') {
+        const result = await acceptOfferFromDriverApp({
+          rides: rideRepository,
+          matching: rideMatchingRepository,
+          offerId,
+          driverId,
+        });
+        json(response, 200, result);
+        return;
+      }
+
+      const result = await rejectOfferFromDriverApp({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        matching: rideMatchingRepository,
+        offerId,
+        driverId,
+      });
+      json(response, 200, result);
       return;
     }
 
@@ -282,7 +371,8 @@ const server = createServer(async (request, response) => {
       error instanceof InvalidQuoteRequestError ||
       error instanceof InvalidRideRequestError ||
       error instanceof InvalidPaymentRequestError ||
-      error instanceof InvalidWalletRequestError
+      error instanceof InvalidWalletRequestError ||
+      error instanceof InvalidDriverRequestError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
       return;
@@ -301,6 +391,30 @@ const server = createServer(async (request, response) => {
         error: 'PAYMENT_PROCESSOR_NOT_CONFIGURED',
         message: error.message,
       });
+      return;
+    }
+
+    if (error instanceof DriverAppError) {
+      const status =
+        error.code === 'DRIVER_NOT_REGISTERED' ||
+        error.code === 'RIDE_NOT_FOUND'
+          ? 404
+          : 422;
+      json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof DriverSupplyError) {
+      json(response, 422, {
+        error: 'INVALID_DRIVER_SUPPLY',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof RideOfferError) {
+      const status = error.code === 'OFFER_NOT_FOUND' ? 404 : 409;
+      json(response, status, { error: error.code, message: error.message });
       return;
     }
 

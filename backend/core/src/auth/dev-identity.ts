@@ -32,3 +32,29 @@ export function resolvePassengerId(request: IncomingMessage): string {
 
   return passengerId.trim();
 }
+
+
+export function resolveDriverId(request: IncomingMessage): string {
+  if (process.env.NODE_ENV === 'production') {
+    throw new IdentityUnavailableError(
+      'Autenticação do motorista ainda não está configurada para produção.',
+    );
+  }
+
+  if (process.env.ALLOW_DEV_IDENTITY !== 'true') {
+    throw new IdentityUnavailableError(
+      'Identidade de desenvolvimento está desativada.',
+    );
+  }
+
+  const value = request.headers['x-dev-driver-id'];
+  const driverId = Array.isArray(value) ? value[0] : value;
+
+  if (driverId == null || driverId.trim().length < 3) {
+    throw new IdentityUnavailableError(
+      'Envie x-dev-driver-id apenas no ambiente de desenvolvimento.',
+    );
+  }
+
+  return driverId.trim();
+}

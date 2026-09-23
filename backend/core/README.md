@@ -92,6 +92,10 @@ npm start
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
 - trocar roteamento de desenvolvimento por provedor comercial de produção;
+- endpoints do Motorista para disponibilidade, localização e oferta ativa;
+- aceite/recusa do Motorista reutilizam o matching transacional;
+- app não pode autodeclarar categoria, 4x4, capacidade ou veículo;
+- recusa limpa a reserva e tenta o próximo motorista;
 - entrega realtime das ofertas de matching;
 - localização em tempo real;
 - máquina de estados;

@@ -47,5 +47,8 @@ export interface RideMatchingRepository {
   expireOffer(input: ExpireRideOfferInput): Promise<RideOfferRecord>;
   markNoDriverFound(input: MarkNoDriverFoundInput): Promise<RideRecord>;
   findOfferById(id: string): Promise<RideOfferRecord | null>;
+  findLatestOfferedForDriver(
+    driverId: string,
+  ): Promise<RideOfferRecord | null>;
   listOffersForRide(rideId: string): Promise<RideOfferRecord[]>;
 }

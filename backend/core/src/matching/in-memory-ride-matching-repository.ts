@@ -31,6 +31,20 @@ export class InMemoryRideMatchingRepository
     return offer == null ? null : structuredClone(offer);
   }
 
+  async findLatestOfferedForDriver(
+    driverId: string,
+  ): Promise<RideOfferRecord | null> {
+    const offers = [...this.offers.values()]
+      .filter(
+        (offer) =>
+          offer.driverId === driverId &&
+          offer.status === 'OFFERED',
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    return offers[0] == null ? null : structuredClone(offers[0]);
+  }
+
   async listOffersForRide(rideId: string): Promise<RideOfferRecord[]> {
     return [...this.offers.values()]
       .filter((offer) => offer.rideId === rideId)
@@ -145,6 +159,19 @@ export class InMemoryRideMatchingRepository
     };
     this.offers.set(offer.id, structuredClone(rejected));
 
+    const ride = await this.rides.findById(offer.rideId);
+    if (ride?.reservedDriverId === offer.driverId) {
+      const {
+        reservedDriverId: _reservedDriverId,
+        driverHoldExpiresAt: _driverHoldExpiresAt,
+        ...rideWithoutHold
+      } = ride;
+      await this.rides.save({
+        ...rideWithoutHold,
+        updatedAt: input.rejectedAt,
+      });
+    }
+
     const driver = await this.drivers.findByDriverId(offer.driverId);
     if (driver?.reservedRideId === offer.rideId) {
       const {
@@ -188,6 +215,19 @@ export class InMemoryRideMatchingRepository
       updatedAt: input.expiredAt,
     };
     this.offers.set(offer.id, structuredClone(expired));
+
+    const ride = await this.rides.findById(offer.rideId);
+    if (ride?.reservedDriverId === offer.driverId) {
+      const {
+        reservedDriverId: _reservedDriverId,
+        driverHoldExpiresAt: _driverHoldExpiresAt,
+        ...rideWithoutHold
+      } = ride;
+      await this.rides.save({
+        ...rideWithoutHold,
+        updatedAt: input.expiredAt,
+      });
+    }
 
     const driver = await this.drivers.findByDriverId(offer.driverId);
     if (driver?.reservedRideId === offer.rideId) {
@@ -318,8 +358,13 @@ export class InMemoryRideMatchingRepository
       status: 'ACCEPTED',
       updatedAt: input.acceptedAt,
     };
+    const {
+      reservedDriverId: _reservedDriverId,
+      driverHoldExpiresAt: _driverHoldExpiresAt,
+      ...rideWithoutHold
+    } = ride;
     const assigned = await this.rides.save({
-      ...ride,
+      ...rideWithoutHold,
       state: transitionRide(ride.state, 'DRIVER_ASSIGNED'),
       driverId: input.driverId,
       updatedAt: input.acceptedAt,
