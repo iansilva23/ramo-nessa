@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 
 import { quoteFare } from './pricing/quote-engine.js';
 import { PricingError } from './pricing/types.js';
@@ -78,8 +78,13 @@ import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
+import { resolveCorePort } from './config/runtime-config.js';
+import {
+  HttpRequestBodyError,
+  readJsonBody as readJson,
+} from './http/request-body.js';
 
-const port = Number(process.env.PORT ?? 8080);
+const port = resolveCorePort();
 const {
   rideRepository,
   financeRepository,
@@ -94,15 +99,6 @@ const realtimeHub = new RealtimeHub();
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
   response.end(JSON.stringify(body));
-}
-
-async function readJson(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const raw = Buffer.concat(chunks).toString('utf8');
-  return raw.length === 0 ? {} : JSON.parse(raw);
 }
 
 const server = createServer(async (request, response) => {
@@ -714,11 +710,20 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof HttpRequestBodyError) {
+      json(response, 413, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof SyntaxError) {
       json(response, 400, { error: 'INVALID_JSON' });
       return;
     }
 
+    console.error('Unhandled Core request error.', error);
     json(response, 500, { error: 'INTERNAL_ERROR' });
   }
 });
