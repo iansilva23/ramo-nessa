@@ -17,7 +17,9 @@ import {
   parseUpsertDriverRegistryRequest,
 } from '../src/drivers/driver-registry-validation.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
+import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { PostgresDriverRegistryRepository } from '../src/drivers/repositories/postgres-driver-registry-repository.js';
+import { PostgresDriverSupplyRepository } from '../src/drivers/repositories/postgres-driver-supply-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 
 const actor = {
@@ -55,6 +57,7 @@ test('placa brasileira é normalizada sem alterar formato válido', () => {
 test('cadastro motorista + veículo nasce pendente e aprovação é explícita', async () => {
   const identities = new InMemoryAuthOtpRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
   const now = '2026-09-23T23:20:00.000Z';
 
@@ -71,6 +74,7 @@ test('cadastro motorista + veículo nasce pendente e aprovação é explícita',
   const created = await upsertDriverRegistryFromAdmin({
     identities,
     registry,
+    drivers,
     admin,
     actor,
     driverId: 'driver-registry-one',
@@ -85,6 +89,7 @@ test('cadastro motorista + veículo nasce pendente e aprovação é explícita',
   const updated = await upsertDriverRegistryFromAdmin({
     identities,
     registry,
+    drivers,
     admin,
     actor,
     driverId: 'driver-registry-one',
@@ -104,6 +109,7 @@ test('cadastro motorista + veículo nasce pendente e aprovação é explícita',
 
   const approved = await setDriverRegistryStatusFromAdmin({
     registry,
+    drivers,
     admin,
     actor,
     driverId: 'driver-registry-one',
@@ -134,9 +140,79 @@ test('cadastro motorista + veículo nasce pendente e aprovação é explícita',
   );
 });
 
+test('suspender cadastro tira motorista da operação sem apagar a corrida/supply', async () => {
+  const identities = new InMemoryAuthOtpRepository();
+  const registry = new InMemoryDriverRegistryRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
+  const admin = new InMemoryAdminRepository();
+  const driverId = 'driver-registry-operational';
+  const now = '2026-09-23T23:25:00.000Z';
+
+  await identities.createIdentity({
+    id: '11111111-1111-4111-8111-111111111192',
+    subjectId: driverId,
+    subjectType: 'driver',
+    phoneE164: '+5588999991295',
+    status: 'active',
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const created = await upsertDriverRegistryFromAdmin({
+    identities,
+    registry,
+    drivers,
+    admin,
+    actor,
+    driverId,
+    data: registryRequest('OPS1A23'),
+    now: new Date(now),
+  });
+  await setDriverRegistryStatusFromAdmin({
+    registry,
+    drivers,
+    admin,
+    actor,
+    driverId,
+    profileStatus: 'approved',
+    vehicleStatus: 'approved',
+    now: new Date('2026-09-23T23:26:00.000Z'),
+  });
+
+  await drivers.upsert({
+    driverId,
+    vehicleId: created.vehicle.id,
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.82017,
+    longitude: -40.41467,
+    locationUpdatedAt: '2026-09-23T23:26:30.000Z',
+    updatedAt: '2026-09-23T23:26:30.000Z',
+  });
+
+  const suspended = await setDriverRegistryStatusFromAdmin({
+    registry,
+    drivers,
+    admin,
+    actor,
+    driverId,
+    vehicleStatus: 'suspended',
+    now: new Date('2026-09-23T23:27:00.000Z'),
+  });
+
+  assert.equal(suspended.registryApproved, false);
+  const supply = await drivers.findByDriverId(driverId);
+  assert.equal(supply?.online, false);
+  assert.equal(supply?.driverId, driverId);
+});
+
 test('uma placa não pode ser vinculada a dois motoristas', async () => {
   const identities = new InMemoryAuthOtpRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
 
   for (const [id, driverId, phone] of [
@@ -157,6 +233,7 @@ test('uma placa não pode ser vinculada a dois motoristas', async () => {
   await upsertDriverRegistryFromAdmin({
     identities,
     registry,
+    drivers,
     admin,
     actor,
     driverId: 'driver-plate-a',
@@ -182,6 +259,7 @@ test('uma placa não pode ser vinculada a dois motoristas', async () => {
 test('cadastro exige identidade de motorista previamente provisionada', async () => {
   const identities = new InMemoryAuthOtpRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
   const admin = new InMemoryAdminRepository();
 
   await assert.rejects(
@@ -209,6 +287,7 @@ test(
     const pool = createPostgresPool(databaseUrl!);
     const identities = new PostgresAuthOtpRepository(pool);
     const registry = new PostgresDriverRegistryRepository(pool);
+    const drivers = new PostgresDriverSupplyRepository(pool);
     const admin = new PostgresAdminRepository(pool);
     const driverId = 'driver-registry-postgres';
     const identityId = '33333333-3333-4333-8333-333333333391';
