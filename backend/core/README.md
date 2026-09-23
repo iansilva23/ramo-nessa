@@ -15,7 +15,8 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - Comfort/Black + R$ 50 sobre Carro no Preá quando permitido;
 - bloqueio comercial de Carro comum nas rotas 4x4 de Jeri;
 - compensação de combustível para coleta distante;
-- comissão Ramo Nessa de 10%;
+- comissão Ramo Nessa de 10% sobre a tarifa-base;
+- compensação de coleta distante é integral do motorista e isenta de comissão;
 - política de pagamento digital (Pix/cartão/carteira; dinheiro desligado);
 - máquina de estados de pagamento;
 - máquina de estados da corrida com bloqueio de matching antes do pagamento;

@@ -81,7 +81,7 @@
 - [x] compensação de coleta distante
 - [x] Comfort/Black + R$ 50 quando aplicável
 - [x] bloqueio comercial de Carro comum em rotas 4x4 de Jeri
-- [x] comissão de 10%
+- [x] comissão de 10% sobre tarifa-base; compensação de coleta isenta
 - [x] política de pagamento v1 (Pix/cartão/carteira; dinheiro desligado)
 - [x] endpoint de cotação
 - [x] testes e CI do domínio comercial

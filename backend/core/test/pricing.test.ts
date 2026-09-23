@@ -211,7 +211,7 @@ test('coleta distante cobra só combustível excedente aos 3 km', () => {
   assert.equal(pickupCompensationCents('moto', 3), 0);
 });
 
-test('comissão de 10% incide sobre o total inclusive adicional', () => {
+test('compensação de coleta é 100% do motorista e não sofre comissão', () => {
   const quote = quoteFare({
     origin: zone('jijoca', 'jijoca'),
     destination: zone('jijoca', 'mangue-seco'),
@@ -225,8 +225,8 @@ test('comissão de 10% incide sobre o total inclusive adicional', () => {
     assert.equal(quote.baseAmountCents, 6000);
     assert.equal(quote.pickupCompensationCents, 700);
     assert.equal(quote.totalAmountCents, 6700);
-    assert.equal(quote.platformCommissionCents, 670);
-    assert.equal(quote.driverNetCents, 6030);
+    assert.equal(quote.platformCommissionCents, 600);
+    assert.equal(quote.driverNetCents, 6100);
   }
 });
 

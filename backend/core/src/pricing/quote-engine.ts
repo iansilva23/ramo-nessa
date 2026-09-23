@@ -75,7 +75,7 @@ function exactQuote(
     request.driverPickupDistanceKm,
   );
   const total = baseAmountCents + pickup;
-  const split = splitCommission(total);
+  const baseSplit = splitCommission(baseAmountCents);
 
   return {
     kind: 'exact',
@@ -83,8 +83,8 @@ function exactQuote(
     baseAmountCents,
     pickupCompensationCents: pickup,
     totalAmountCents: total,
-    platformCommissionCents: split.platformCommissionCents,
-    driverNetCents: split.driverNetCents,
+    platformCommissionCents: baseSplit.platformCommissionCents,
+    driverNetCents: baseSplit.driverNetCents + pickup,
   };
 }
 
@@ -99,8 +99,8 @@ function rangeQuote(
   );
   const minTotal = value.minCents + pickup;
   const maxTotal = value.maxCents + pickup;
-  const minSplit = splitCommission(minTotal);
-  const maxSplit = splitCommission(maxTotal);
+  const minBaseSplit = splitCommission(value.minCents);
+  const maxBaseSplit = splitCommission(value.maxCents);
 
   return {
     kind: 'range',
@@ -110,10 +110,12 @@ function rangeQuote(
     pickupCompensationCents: pickup,
     minTotalAmountCents: minTotal,
     maxTotalAmountCents: maxTotal,
-    minPlatformCommissionCents: minSplit.platformCommissionCents,
-    maxPlatformCommissionCents: maxSplit.platformCommissionCents,
-    minDriverNetCents: minSplit.driverNetCents,
-    maxDriverNetCents: maxSplit.driverNetCents,
+    minPlatformCommissionCents:
+      minBaseSplit.platformCommissionCents,
+    maxPlatformCommissionCents:
+      maxBaseSplit.platformCommissionCents,
+    minDriverNetCents: minBaseSplit.driverNetCents + pickup,
+    maxDriverNetCents: maxBaseSplit.driverNetCents + pickup,
     requiresExactResolution: true,
   };
 }
