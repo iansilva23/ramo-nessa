@@ -135,6 +135,9 @@ export class InMemoryRideMatchingRepository
         'Oferta pertence a outro motorista.',
       );
     }
+    if (offer.status === 'REJECTED') {
+      return structuredClone(offer);
+    }
     if (offer.status !== 'OFFERED') {
       throw new RideOfferError(
         'OFFER_NOT_ACTIVE',
@@ -316,6 +319,15 @@ export class InMemoryRideMatchingRepository
       );
     }
 
+    if (offer.status === 'ACCEPTED') {
+      const acceptedRide = await this.rides.findById(offer.rideId);
+      if (acceptedRide?.driverId === input.driverId) {
+        return {
+          ride: structuredClone(acceptedRide),
+          offer: structuredClone(offer),
+        };
+      }
+    }
     if (offer.status !== 'OFFERED') {
       throw new RideOfferError(
         'OFFER_NOT_ACTIVE',
