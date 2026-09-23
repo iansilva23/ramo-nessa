@@ -34,7 +34,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 3. **Preço v1 existe, mas a operação ainda precisa de infraestrutura**
    - o Core já contém a regra comercial;
    - o Passageiro consulta o Core quando `RAMO_CORE_BASE_URL` está configurado;
-   - ainda faltam deploy, Admin, persistência/versionamento e resolução robusta de todas as localidades externas;
+   - o Admin já consulta o catálogo v1 em modo read-only; ainda faltam edição segura, persistência/versionamento/vigência e resolução robusta de todas as localidades externas;
    - faixas comerciais que ainda não possuem valor único não podem virar cobrança exata automaticamente.
 
 4. **Gateway financeiro real ainda não foi integrado**
