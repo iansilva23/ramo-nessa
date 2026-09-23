@@ -50,10 +50,17 @@ function payment(): PaymentRecord {
 async function repositoryWithDriverBalance() {
   const repository = new InMemoryFinanceRepository();
   const paid = payment();
-  await repository.createPayment(paid);
+  await repository.createPayment({
+    ...paid,
+    status: 'pending',
+  });
+  const capture = await repository.capturePayment({
+    paymentId: paid.id,
+    processorEventId: 'driver-payout-seed-capture',
+  });
   await settleCompletedRide(repository, {
     ride: ride(),
-    payment: paid,
+    payment: capture.payment,
   });
   return repository;
 }
