@@ -118,6 +118,31 @@ test('distância de coleta enviada pelo cliente é ignorada', async () => {
   assert.equal(ride.quote.totalAmountCents, 12000);
 });
 
+test('preparação rejeita zona declarada que não confere com o GPS', async () => {
+  const ctx = await setup();
+
+  await assert.rejects(
+    () =>
+      prepareRideForPayment({
+        repository: ctx.preparation,
+        drivers: ctx.drivers,
+        routing: new FakeRouting(2),
+        passengerId: 'passenger-zone-spoof',
+        quoteRequest: {
+          // GPS é Preá, mas o cliente tenta declarar Jijoca.
+          origin: { zoneId: 'jijoca' },
+          destination: { zoneId: 'prea' },
+          category: 'car',
+          period: 'day',
+        },
+        pickup: { latitude: -2.82017, longitude: -40.41467 },
+        dropoff: { latitude: -2.89860, longitude: -40.45060 },
+        now,
+      }),
+    /não confere com as coordenadas/i,
+  );
+});
+
 test('entrega em Jeri ignora distância enviada pelo cliente', async () => {
   const ctx = await setup();
 
