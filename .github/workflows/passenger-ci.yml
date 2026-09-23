@@ -54,6 +54,13 @@ jobs:
         working-directory: apps/passenger
         run: flutter pub get
 
+      - name: Upload generated passenger lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: passenger-pubspec-lock
+          path: apps/passenger/pubspec.lock
+          retention-days: 1
+
       - name: Analyze passenger
         working-directory: apps/passenger
         run: flutter analyze
