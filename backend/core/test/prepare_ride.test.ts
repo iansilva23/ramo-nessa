@@ -29,7 +29,7 @@ async function setup() {
   await drivers.upsert({
     driverId: 'driver-prepare-near',
     vehicleId: 'vehicle-prepare-near',
-    categories: ['car'],
+    categories: ['car', 'delivery'],
     fourByFour: false,
     seatCapacity: 4,
     online: true,
@@ -42,7 +42,7 @@ async function setup() {
   await drivers.upsert({
     driverId: 'driver-prepare-next',
     vehicleId: 'vehicle-prepare-next',
-    categories: ['car'],
+    categories: ['car', 'delivery'],
     fourByFour: false,
     seatCapacity: 4,
     online: true,
@@ -116,6 +116,32 @@ test('distância de coleta enviada pelo cliente é ignorada', async () => {
   assert.equal(ride.driverPickupDistanceKm, 2);
   assert.equal(ride.quote.pickupCompensationCents, 0);
   assert.equal(ride.quote.totalAmountCents, 12000);
+});
+
+test('entrega em Jeri ignora distância enviada pelo cliente', async () => {
+  const ctx = await setup();
+
+  const ride = await prepareRideForPayment({
+    repository: ctx.preparation,
+    drivers: ctx.drivers,
+    routing: new FakeRouting(1.5),
+    passengerId: 'passenger-distance-spoof',
+    quoteRequest: {
+      origin: { zoneId: 'jericoacoara' },
+      destination: { zoneId: 'jericoacoara' },
+      category: 'delivery',
+      period: 'day',
+      // Cliente tenta forçar a faixa de até 700 m.
+      tripDistanceKm: 0.1,
+    },
+    pickup: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.8050, longitude: -40.5050 },
+    now,
+  });
+
+  assert.equal(ride.tripDistanceKm, 1.5);
+  assert.equal(ride.quote.baseAmountCents, 800);
+  assert.equal(ride.quote.totalAmountCents, 800);
 });
 
 test('preparação ignora período do cliente e usa horário local do Core', async () => {
