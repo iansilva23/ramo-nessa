@@ -43,6 +43,18 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return found == null ? null : structuredClone(found);
   }
 
+  async findIdentityBySubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+  ): Promise<AuthIdentityRecord | null> {
+    const found = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === subjectType &&
+        candidate.subjectId === subjectId,
+    );
+    return found == null ? null : structuredClone(found);
+  }
+
   async createChallenge(
     challenge: OtpChallengeRecord,
   ): Promise<OtpChallengeRecord> {
