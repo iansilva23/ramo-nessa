@@ -9,25 +9,33 @@ class HttpPassengerRideTrackingService
     implements PassengerRideTrackingService {
   HttpPassengerRideTrackingService({
     required Uri baseUrl,
-    required String passengerId,
+    String? accessToken,
+    String? passengerId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _passengerId = passengerId,
+        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _passengerId;
   final http.Client _client;
+
+  Map<String, String> get _identityHeaders => {
+        'content-type': 'application/json',
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_passengerId.trim().isNotEmpty)
+          'x-dev-passenger-id': _passengerId.trim(),
+      };
 
   @override
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
     final response = await _client
         .get(
           _baseUrl.resolve('/v1/rides/$rideId/tracking'),
-          headers: {
-            'content-type': 'application/json',
-            'x-dev-passenger-id': _passengerId,
-          },
+          headers: _identityHeaders,
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
