@@ -176,6 +176,47 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets(
+    'retry de saque após falha de transporte reutiliza a mesma chave',
+    (tester) async {
+      final api = _FakeDriverApi(failFirstPayoutUnexpectedly: true);
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      await tester.ensureVisible(find.text('Solicitar saque'));
+      await tester.tap(find.text('Solicitar saque'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(
+        find.textContaining('não criaremos uma solicitação duplicada'),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(find.text('Solicitar saque'));
+      await tester.tap(find.text('Solicitar saque'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(api.payoutIdempotencyKeys, hasLength(2));
+      expect(
+        api.payoutIdempotencyKeys[1],
+        api.payoutIdempotencyKeys[0],
+      );
+      expect(find.text('Em processamento: R\$ 110,00'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('motorista pode recusar oferta', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
 
@@ -253,6 +294,7 @@ class _FakeDriverApi implements DriverApi {
   _FakeDriverApi({
     bool initialOnline = false,
     bool initialBusy = false,
+    this.failFirstPayoutUnexpectedly = false,
   })  : _supply = DriverSupplySnapshot(
           driverId: 'driver-test',
           vehicleId: 'SW4 TESTE',
@@ -282,6 +324,7 @@ class _FakeDriverApi implements DriverApi {
               )
             : null;
 
+  final bool failFirstPayoutUnexpectedly;
   DriverSupplySnapshot _supply;
   bool _offerAvailable = true;
   String? acceptedOfferId;
@@ -291,6 +334,8 @@ class _FakeDriverApi implements DriverApi {
   AcceptedDriverRide? _currentRide;
   int currentRideCalls = 0;
   int? lastPayoutAmountCents;
+  int payoutAttempts = 0;
+  final List<String> payoutIdempotencyKeys = [];
   DriverFinanceSummary _finance = const DriverFinanceSummary(
     availableBalanceCents: 11000,
     payoutPendingCents: 0,
@@ -468,6 +513,12 @@ class _FakeDriverApi implements DriverApi {
     required String idempotencyKey,
   }) async {
     lastPayoutAmountCents = amountCents;
+    payoutAttempts++;
+    payoutIdempotencyKeys.add(idempotencyKey);
+    if (failFirstPayoutUnexpectedly && payoutAttempts == 1) {
+      throw StateError('simulated transport failure');
+    }
+
     _finance = DriverFinanceSummary(
       availableBalanceCents:
           _finance.availableBalanceCents - amountCents,
