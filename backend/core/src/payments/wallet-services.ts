@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   isDriverPaymentHoldExpired,
+  isRidePreparedForPayment,
   type RideRecord,
 } from '../rides/ride.js';
 import type { FinanceRepository } from './finance-repository.js';
@@ -100,6 +101,13 @@ export async function payRideWithWallet(
     throw new WalletDomainError(
       'RIDE_NOT_AWAITING_WALLET_PAYMENT',
       'A corrida não está aguardando pagamento.',
+    );
+  }
+
+  if (!isRidePreparedForPayment(input.ride)) {
+    throw new WalletDomainError(
+      'RIDE_NOT_PREPARED',
+      'Prepare a corrida e reserve um motorista antes do pagamento.',
     );
   }
 
