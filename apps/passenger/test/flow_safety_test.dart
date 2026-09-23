@@ -11,6 +11,8 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
   testWidgets('digitar destino não faz autocomplete no Nominatim', (tester) async {
@@ -34,7 +36,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Jericoacoara'), findsOneWidget);
   });
 
-  testWidgets('rota usa cotação do Core e matching fake continua bloqueado',
+  testWidgets('rota prepara preço final e abre pagamento sem matching fake',
       (tester) async {
     final search = _FakePlaceSearchService();
 
@@ -44,6 +46,7 @@ void main() {
         routeService: _FakeRouteService(),
         placeSearchService: search,
         pricingQuoteService: _FakePricingQuoteService(),
+        ridePreparationService: _FakeRidePreparationService(),
         networkTilesEnabled: false,
       ),
     );
@@ -82,12 +85,14 @@ void main() {
     expect(find.text('R\$ 44,00'), findsOneWidget);
 
     await tester.tap(find.text('Solicitar'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('matching real será ativado'),
-      findsOneWidget,
-    );
+    expect(find.text('Pagamento'), findsOneWidget);
+    expect(find.text('Preço final'), findsOneWidget);
+    expect(find.text('R\$ 45,00'), findsOneWidget);
+    expect(find.text('Pix'), findsOneWidget);
+    expect(find.text('Cartão'), findsOneWidget);
+    expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
     expect(find.textContaining('Procurando buggy'), findsNothing);
   });
 
@@ -194,5 +199,29 @@ class _FakePlaceSearchService implements PlaceSearchService {
         position: LatLng(-2.7956, -40.5142),
       ),
     ];
+  }
+}
+
+
+class _FakeRidePreparationService implements RidePreparationService {
+  @override
+  Future<PreparedRide> prepare({
+    required ServiceType service,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required String originZoneId,
+    required String destinationZoneId,
+    required RouteInfo route,
+    int passengers = 1,
+    DateTime? now,
+  }) async {
+    return PreparedRide(
+      id: 'ride-test',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4400,
+      pickupCompensationCents: 100,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
   }
 }

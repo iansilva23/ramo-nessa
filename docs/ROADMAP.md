@@ -35,14 +35,16 @@
 - [x] busca controlada dos destinos longos aprovados na tabela comercial
 - [ ] splash/onboarding final
 - [ ] autenticação
-- [ ] tela/fluxo Pix
+- [x] tela base de pagamento com preço final
+- [ ] cobrança Pix real
 - [x] endpoint de desenvolvimento para criar registro de pagamento
-- [ ] tela/fluxo cartão
+- [ ] cobrança cartão real
 - [ ] interface da Carteira Ramo Nessa no app
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [x] preparação de preço final com reserva curta e coleta roteada
+- [x] Passageiro conectado ao endpoint /v1/rides/prepare
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
 - [ ] entrega realtime da oferta ao app

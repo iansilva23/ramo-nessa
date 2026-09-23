@@ -15,10 +15,12 @@ import '../../map/domain/route_info.dart';
 import '../../pricing/data/http_pricing_quote_service.dart';
 import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/domain/pricing_quote.dart';
+import '../../rides/data/http_ride_preparation_service.dart';
+import '../../rides/data/ride_preparation_service.dart';
+import '../../payments/presentation/ride_payment_screen.dart';
 import '../../service_area/domain/service_area_policy.dart';
 import '../domain/service_type.dart';
 import 'destination_search_screen.dart';
-import 'finding_driver_screen.dart';
 import 'widgets/ramo_live_map.dart';
 import 'widgets/ride_bottom_sheet.dart';
 
@@ -29,6 +31,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.routeService,
     this.placeSearchService,
     this.pricingQuoteService,
+    this.ridePreparationService,
     this.networkTilesEnabled = true,
   });
 
@@ -36,6 +39,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
   final PricingQuoteService? pricingQuoteService;
+  final RidePreparationService? ridePreparationService;
   final bool networkTilesEnabled;
 
   @override
@@ -59,6 +63,15 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 )
               : null);
 
+  late final RidePreparationService? _ridePreparationService =
+      widget.ridePreparationService ??
+          (RamoCoreConfig.devPassengerIdentityEnabled
+              ? HttpRidePreparationService(
+                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  passengerId: RamoCoreConfig.devPassengerId,
+                )
+              : null);
+
   ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
@@ -71,6 +84,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _locating = false;
   bool _routeLoading = false;
   bool _pricingLoading = false;
+  bool _preparingRide = false;
   int _routeRequestId = 0;
   int _pricingRequestId = 0;
   int _passengerCount = 1;
@@ -537,7 +551,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     );
   }
 
-  void _requestRide() {
+  Future<void> _requestRide() async {
     final origin = _origin;
     final destination = _destination;
 
@@ -572,22 +586,46 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    if (!RamoMapConfig.matchingEnabled) {
+    final preparation = _ridePreparationService;
+    if (preparation == null) {
       _showMessage(
-        'Rota e preço do Core já estão conectados. O matching real será '
-        'ativado junto do fluxo de pagamento confirmado.',
+        'Prepare RAMO_CORE_BASE_URL e RAMO_DEV_PASSENGER_ID para testar '
+        'a criação real da corrida. Em produção isso será substituído '
+        'pela autenticação do passageiro.',
       );
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => FindingDriverScreen(
-          service: _service,
-          destination: destination.displayName,
+    if (_preparingRide) return;
+
+    setState(() => _preparingRide = true);
+    try {
+      final prepared = await preparation.prepare(
+        service: _service,
+        origin: origin,
+        destination: destination,
+        originZoneId: coverage.originZone!.id,
+        destinationZoneId: coverage.destinationZone!.id,
+        route: _route!,
+        passengers: _passengerCount,
+      );
+
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RidePaymentScreen(ride: prepared),
         ),
-      ),
-    );
+      );
+    } on RidePreparationException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Não conseguimos preparar essa corrida agora.');
+      }
+    } finally {
+      if (mounted) setState(() => _preparingRide = false);
+    }
   }
 
   void _showMessage(String message) {
