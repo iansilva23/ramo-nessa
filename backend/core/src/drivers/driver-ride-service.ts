@@ -88,7 +88,7 @@ export async function performDriverRideAction(input: {
       return { ride: driverRideView(stored) };
     }
 
-    let next = stored.state;
+    let next: RideRecord['state'] = stored.state;
     if (next === 'DRIVER_ASSIGNED') {
       next = transitionRide(next, 'DRIVER_ARRIVING');
     }
