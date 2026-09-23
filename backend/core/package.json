@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/**/*.test.ts",
     "start": "tsx src/server.ts",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "auth:provision-driver": "tsx scripts/provision-driver-auth.ts"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
