@@ -15,12 +15,36 @@ concurrency:
   group: core-ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   core:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: "false"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ramonessa -d ramonessa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     defaults:
       run:
         working-directory: backend/core
+
     steps:
       - uses: actions/checkout@v4
 
@@ -38,3 +62,9 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+
+      - name: Verify migrations are idempotent
+        run: npm run db:migrate
