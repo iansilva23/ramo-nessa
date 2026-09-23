@@ -1,4 +1,7 @@
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import { InMemoryDriverSupplyRepository } from '../drivers/repositories/in-memory-driver-supply-repository.js';
+import { PostgresDriverSupplyRepository } from '../drivers/repositories/postgres-driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import { InMemoryFinanceRepository } from '../payments/repositories/in-memory-finance-repository.js';
 import { PostgresFinanceRepository } from '../payments/repositories/postgres-finance-repository.js';
@@ -9,6 +12,7 @@ import { createPostgresPool } from './postgres.js';
 export interface RepositoryBundle {
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
+  driverSupplyRepository: DriverSupplyRepository;
   storageMode: 'postgres' | 'memory';
 }
 
@@ -20,6 +24,7 @@ export function createRepositories(): RepositoryBundle {
     return {
       rideRepository: new PostgresRideRepository(pool),
       financeRepository: new PostgresFinanceRepository(pool),
+      driverSupplyRepository: new PostgresDriverSupplyRepository(pool),
       storageMode: 'postgres',
     };
   }
@@ -33,6 +38,7 @@ export function createRepositories(): RepositoryBundle {
   return {
     rideRepository: new InMemoryRideRepository(),
     financeRepository: new InMemoryFinanceRepository(),
+    driverSupplyRepository: new InMemoryDriverSupplyRepository(),
     storageMode: 'memory',
   };
 }

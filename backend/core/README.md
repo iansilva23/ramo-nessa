@@ -48,6 +48,11 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - proteção contra saldo negativo e pagamentos duplicados;
 - pagamento confirmado atualiza a corrida para PAID;
 - matching permanece bloqueado até a corrida estar financeiramente pronta;
+- projeção persistente de motoristas online;
+- filtro por categoria, capacidade e localização recente;
+- exigência de 4x4 nas rotas aplicáveis de Jericoacoara;
+- ranking por proximidade aproximada;
+- despacho do domínio só inicia com corrida PAID;
 - endpoints dev de saldo/recarga da Carteira;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
@@ -69,7 +74,7 @@ npm start
 - autenticação/autorização;
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
-- matching;
+- despacho/oferta/aceite real do matching;
 - localização em tempo real;
 - máquina de estados;
 - integração real com gateway Pix/cartão;

@@ -38,11 +38,12 @@
 - [ ] tela/fluxo Pix
 - [x] endpoint de desenvolvimento para criar registro de pagamento
 - [ ] tela/fluxo cartão
-- [ ] interface da Carteira Ramo Nessa no app no app
+- [ ] interface da Carteira Ramo Nessa no app
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
-- [ ] matching real
+- [x] motor de elegibilidade e ranking de matching no Core
+- [ ] despacho/oferta real de matching
 - [ ] acompanhamento em tempo real
 - [ ] chat
 - [ ] histórico
@@ -52,9 +53,11 @@
 
 - [ ] onboarding
 - [ ] documentos
-- [ ] veículo e capacidade
-- [ ] elegibilidade 4x4/rotas
-- [ ] online/offline
+- [ ] cadastro completo de veículo
+- [x] capacidade/elegibilidade no Core de matching
+- [x] elegibilidade 4x4/rotas no Core
+- [x] projeção online/offline no Core
+- [ ] controle online/offline no app
 - [ ] GPS em background
 - [ ] recebimento de ofertas
 - [ ] aceitar/recusar
@@ -83,7 +86,8 @@
 - [ ] autenticação e autorização
 - [x] adapter PostgreSQL em runtime
 - [x] schema/migration inicial PostgreSQL para corridas
-- [ ] matching
+- [x] elegibilidade/ranking de matching
+- [ ] despacho/oferta/aceite do matching
 - [ ] localização em tempo real
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
