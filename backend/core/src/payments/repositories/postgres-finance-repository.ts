@@ -334,6 +334,21 @@ export class PostgresFinanceRepository implements FinanceRepository {
           ? String((error as { code?: unknown }).code ?? '')
           : '';
 
+      const constraint =
+        typeof error === 'object' && error != null && 'constraint' in error
+          ? String((error as { constraint?: unknown }).constraint ?? '')
+          : '';
+
+      if (
+        code === '23505' &&
+        constraint === 'payments_one_paid_per_ride_idx'
+      ) {
+        throw new PaymentDomainError(
+          'RIDE_ALREADY_PAID',
+          'Esta corrida já possui outro pagamento confirmado.',
+        );
+      }
+
       if (code === '23505') {
         throw new PaymentDomainError(
           'IDEMPOTENCY_CONFLICT',
