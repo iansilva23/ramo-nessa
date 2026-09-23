@@ -42,7 +42,7 @@ A versão inicial implementa:
 - módulo Viagens com filtros, busca, paginação e detalhe read-only;
 - tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
-- backend cadastral de perfil + veículo com aprovação explícita (UI ainda pendente);
+- cadastro de perfil + veículo com edição e aprovação explícita no painel;
 - provisionamento seguro (suspenso por padrão);
 - aprovação e suspensão;
 - leitura da trilha de auditoria;
