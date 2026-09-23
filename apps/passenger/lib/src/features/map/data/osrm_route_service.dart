@@ -47,7 +47,12 @@ class OsrmRouteService implements RouteService {
       );
     }
 
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      throw const FormatException('Resposta de rota inválida.');
+    }
     if (decoded is! Map<String, dynamic> || decoded['code'] != 'Ok') {
       throw StateError('Não encontramos uma rota para esse destino.');
     }
@@ -70,7 +75,12 @@ class OsrmRouteService implements RouteService {
 
     final points = coordinatesJson
         .whereType<List>()
-        .where((coordinate) => coordinate.length >= 2)
+        .where(
+          (coordinate) =>
+              coordinate.length >= 2 &&
+              coordinate[0] is num &&
+              coordinate[1] is num,
+        )
         .map(
           (coordinate) => LatLng(
             (coordinate[1] as num).toDouble(),
