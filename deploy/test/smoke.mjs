@@ -201,6 +201,46 @@ try {
     throw new Error('Sessão Admin não foi validada por /me.');
   }
 
+  const passengerOtp = await jsonRequest(
+    '/v1/auth/otp/request',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-client-instance-id': 'ci-smoke-passenger',
+      },
+      body: JSON.stringify({
+        subjectType: 'passenger',
+        phone: '88999991278',
+      }),
+    },
+  );
+  if (passengerOtp.response.status !== 202) {
+    throw new Error(
+      `Criação OTP do passageiro falhou: HTTP ${passengerOtp.response.status}.`,
+    );
+  }
+
+  const passengerDirectory = await jsonRequest(
+    '/v1/admin/passengers?limit=20&query=91278',
+    { headers: authHeaders },
+  );
+  if (
+    passengerDirectory.response.status !== 200 ||
+    !Array.isArray(passengerDirectory.payload?.items) ||
+    !passengerDirectory.payload.items.some(
+      (item) =>
+        item.phoneE164 === '+5588999991278' &&
+        item.status === 'active',
+    ) ||
+    Number(passengerDirectory.payload?.summary?.total ?? 0) < 1 ||
+    Number(passengerDirectory.payload?.summary?.active ?? 0) < 1
+  ) {
+    throw new Error(
+      'Diretório administrativo de passageiros não foi confirmado.',
+    );
+  }
+
   const driverId = 'driver-smoke-admin-001';
   const provision = await jsonRequest(
     `/v1/admin/drivers/${driverId}/auth`,
@@ -314,7 +354,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, diretório de motoristas, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios de passageiros/motoristas, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

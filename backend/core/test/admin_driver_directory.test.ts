@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  encodeAdminDriverDirectoryCursor,
-  parseAdminDriverDirectoryQuery,
+  encodeAdminIdentityDirectoryCursor,
+  parseAdminIdentityDirectoryQuery,
 } from '../src/admin/admin-validation.js';
 import type {
   AuthIdentityRecord,
@@ -124,12 +124,75 @@ test('diretório de motoristas ordena, pagina, busca e conta estados', async () 
   );
 });
 
+test('diretório de passageiros isola identidades e respeita status', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  await repository.createIdentity(
+    identity({
+      id: '55555555-5555-4555-8555-555555555551',
+      subjectId: 'passenger-alpha',
+      phone: '+5588999991301',
+      status: 'active',
+      updatedAt: '2026-09-23T18:00:00.000Z',
+      subjectType: 'passenger',
+    }),
+  );
+  await repository.createIdentity(
+    identity({
+      id: '55555555-5555-4555-8555-555555555552',
+      subjectId: 'passenger-beta',
+      phone: '+5588999991302',
+      status: 'suspended',
+      updatedAt: '2026-09-23T18:01:00.000Z',
+      subjectType: 'passenger',
+    }),
+  );
+  await repository.createIdentity(
+    identity({
+      id: '55555555-5555-4555-8555-555555555553',
+      subjectId: 'driver-ignore-passenger-view',
+      phone: '+5588999991303',
+      status: 'active',
+      updatedAt: '2026-09-23T18:02:00.000Z',
+      subjectType: 'driver',
+    }),
+  );
+
+  const page = await repository.listIdentities({
+    subjectType: 'passenger',
+    limit: 20,
+  });
+  assert.deepEqual(
+    page.identities.map((item) => item.subjectId),
+    ['passenger-beta', 'passenger-alpha'],
+  );
+
+  const active = await repository.listIdentities({
+    subjectType: 'passenger',
+    status: 'active',
+    search: 'ALPHA',
+    limit: 20,
+  });
+  assert.deepEqual(
+    active.identities.map((item) => item.subjectId),
+    ['passenger-alpha'],
+  );
+
+  assert.deepEqual(
+    await repository.countIdentitiesByStatus('passenger'),
+    {
+      total: 2,
+      active: 1,
+      suspended: 1,
+    },
+  );
+});
+
 test('query administrativa valida filtro, limite e cursor opaco', () => {
-  const cursor = encodeAdminDriverDirectoryCursor({
+  const cursor = encodeAdminIdentityDirectoryCursor({
     updatedAt: '2026-09-23T17:00:00.000Z',
     id: '33333333-3333-4333-8333-333333333333',
   });
-  const parsed = parseAdminDriverDirectoryQuery(
+  const parsed = parseAdminIdentityDirectoryQuery(
     new URLSearchParams({
       status: 'active',
       query: 'driver',
@@ -150,14 +213,14 @@ test('query administrativa valida filtro, limite e cursor opaco', () => {
 
   assert.throws(
     () =>
-      parseAdminDriverDirectoryQuery(
+      parseAdminIdentityDirectoryQuery(
         new URLSearchParams({ status: 'pending' }),
       ),
     /status deve ser active ou suspended/,
   );
   assert.throws(
     () =>
-      parseAdminDriverDirectoryQuery(
+      parseAdminIdentityDirectoryQuery(
         new URLSearchParams({ cursor: 'not-valid!' }),
       ),
     /cursor é inválido/,
@@ -245,6 +308,21 @@ test(
       assert.ok(counts.total >= 3);
       assert.ok(counts.active >= 2);
       assert.ok(counts.suspended >= 1);
+
+      const passengers = await repository.listIdentities({
+        subjectType: 'passenger',
+        search: 'passenger-directory-ignore',
+        limit: 20,
+      });
+      assert.ok(
+        passengers.identities.some(
+          (item) => item.subjectId === 'passenger-directory-ignore',
+        ),
+      );
+      const passengerCounts =
+        await repository.countIdentitiesByStatus('passenger');
+      assert.ok(passengerCounts.total >= 1);
+      assert.ok(passengerCounts.active >= 1);
     } finally {
       await pool.query(
         'DELETE FROM auth_identities WHERE id = ANY($1::uuid[])',

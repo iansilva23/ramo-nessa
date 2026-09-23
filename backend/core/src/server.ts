@@ -85,9 +85,9 @@ import {
 } from './admin/admin-driver-auth-service.js';
 import {
   InvalidAdminRequestError,
-  encodeAdminDriverDirectoryCursor,
+  encodeAdminIdentityDirectoryCursor,
   parseAdminAuditLimit,
-  parseAdminDriverDirectoryQuery,
+  parseAdminIdentityDirectoryQuery,
   parseAdminDriverProvisionRequest,
   parseAdminDriverStatusRequest,
 } from './admin/admin-validation.js';
@@ -590,6 +590,50 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/passengers'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'passengers:auth:read',
+      });
+      const query = parseAdminIdentityDirectoryQuery(
+        requestUrl.searchParams,
+      );
+      const [page, summary] = await Promise.all([
+        authOtpRepository.listIdentities({
+          subjectType: 'passenger',
+          ...query,
+        }),
+        authOtpRepository.countIdentitiesByStatus('passenger'),
+      ]);
+      const lastIdentity =
+        page.identities[page.identities.length - 1];
+      const nextCursor =
+        page.hasMore && lastIdentity != null
+          ? encodeAdminIdentityDirectoryCursor({
+              updatedAt: lastIdentity.updatedAt,
+              id: lastIdentity.id,
+            })
+          : null;
+
+      json(response, 200, {
+        items: page.identities.map((identity) => ({
+          passengerId: identity.subjectId,
+          phoneE164: identity.phoneE164,
+          status: identity.status,
+          createdAt: identity.createdAt,
+          updatedAt: identity.updatedAt,
+        })),
+        summary,
+        nextCursor,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/drivers'
     ) {
       await authenticateAdminPrincipal({
@@ -598,7 +642,7 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'drivers:auth:read',
       });
-      const query = parseAdminDriverDirectoryQuery(
+      const query = parseAdminIdentityDirectoryQuery(
         requestUrl.searchParams,
       );
       const [page, summary] = await Promise.all([
@@ -612,7 +656,7 @@ const server = createServer(async (request, response) => {
         page.identities[page.identities.length - 1];
       const nextCursor =
         page.hasMore && lastIdentity != null
-          ? encodeAdminDriverDirectoryCursor({
+          ? encodeAdminIdentityDirectoryCursor({
               updatedAt: lastIdentity.updatedAt,
               id: lastIdentity.id,
             })

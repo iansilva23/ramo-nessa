@@ -67,22 +67,22 @@ export function parseAdminAuditLimit(value: string | null): number {
 }
 
 
-export interface AdminDriverDirectoryCursor {
+export interface AdminIdentityDirectoryCursor {
   updatedAt: string;
   id: string;
 }
 
-export interface AdminDriverDirectoryQuery {
+export interface AdminIdentityDirectoryQuery {
   status?: AuthIdentityStatus | undefined;
   search?: string | undefined;
   limit: number;
-  cursor?: AdminDriverDirectoryCursor | undefined;
+  cursor?: AdminIdentityDirectoryCursor | undefined;
 }
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function encodeAdminDriverDirectoryCursor(input: {
+export function encodeAdminIdentityDirectoryCursor(input: {
   updatedAt: string;
   id: string;
 }): string {
@@ -96,9 +96,9 @@ export function encodeAdminDriverDirectoryCursor(input: {
   ).toString('base64url');
 }
 
-function decodeAdminDriverDirectoryCursor(
+function decodeAdminIdentityDirectoryCursor(
   value: string,
-): AdminDriverDirectoryCursor {
+): AdminIdentityDirectoryCursor {
   if (
     value.length < 8 ||
     value.length > 512 ||
@@ -132,9 +132,9 @@ function decodeAdminDriverDirectoryCursor(
   }
 }
 
-export function parseAdminDriverDirectoryQuery(
+export function parseAdminIdentityDirectoryQuery(
   searchParams: URLSearchParams,
-): AdminDriverDirectoryQuery {
+): AdminIdentityDirectoryQuery {
   const rawStatus = searchParams.get('status')?.trim() ?? '';
   let status: AuthIdentityStatus | undefined;
   if (rawStatus) {
@@ -179,7 +179,7 @@ export function parseAdminDriverDirectoryQuery(
     ...(rawSearch ? { search: rawSearch } : {}),
     limit,
     ...(rawCursor
-      ? { cursor: decodeAdminDriverDirectoryCursor(rawCursor) }
+      ? { cursor: decodeAdminIdentityDirectoryCursor(rawCursor) }
       : {}),
   };
 }

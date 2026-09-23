@@ -87,6 +87,33 @@ test('chave admin persiste somente hash, respeita escopo e revogação', async (
   );
 });
 
+test('escopo de passageiros é independente do escopo de motoristas', async () => {
+  const repository = new InMemoryAdminRepository();
+  const issued = await issueAdminApiKey({
+    repository,
+    name: 'Consulta Passageiros',
+    scopes: ['passengers:auth:read'],
+  });
+
+  await authenticateAdminBearer({
+    repository,
+    headers: { authorization: `Bearer ${issued.token}` },
+    requiredScope: 'passengers:auth:read',
+  });
+
+  await assert.rejects(
+    () =>
+      authenticateAdminBearer({
+        repository,
+        headers: { authorization: `Bearer ${issued.token}` },
+        requiredScope: 'drivers:auth:read',
+      }),
+    (error: unknown) =>
+      error instanceof AdminAuthenticationError &&
+      error.code === 'ADMIN_SCOPE_REQUIRED',
+  );
+});
+
 test('chave admin expirada é recusada mesmo sem revogação', async () => {
   const repository = new InMemoryAdminRepository();
   const issued = await issueAdminApiKey({
