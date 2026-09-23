@@ -191,6 +191,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
 
       await tester.ensureVisible(find.text('Solicitar saque'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Solicitar saque'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
@@ -201,6 +202,7 @@ void main() {
       );
 
       await tester.ensureVisible(find.text('Solicitar saque'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Solicitar saque'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
