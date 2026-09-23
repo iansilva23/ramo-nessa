@@ -14,15 +14,26 @@ import 'ride_preparation_service.dart';
 class HttpRidePreparationService implements RidePreparationService {
   HttpRidePreparationService({
     required Uri baseUrl,
-    required String passengerId,
+    String? accessToken,
+    String? passengerId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _passengerId = passengerId,
+        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _passengerId;
   final http.Client _client;
+
+  Map<String, String> get _identityHeaders => {
+        'content-type': 'application/json',
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_passengerId.trim().isNotEmpty)
+          'x-dev-passenger-id': _passengerId.trim(),
+      };
 
   @override
   Future<PreparedRide> prepare({
@@ -50,10 +61,7 @@ class HttpRidePreparationService implements RidePreparationService {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/prepare'),
-          headers: {
-            'content-type': 'application/json',
-            'x-dev-passenger-id': _passengerId,
-          },
+          headers: _identityHeaders,
           body: jsonEncode({
             'quoteRequest': {
               'origin': originRef.toJson(),
