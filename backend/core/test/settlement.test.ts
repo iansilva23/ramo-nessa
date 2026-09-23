@@ -45,10 +45,18 @@ function paidPayment(): PaymentRecord {
   };
 }
 
+async function seedPaidPayment(
+  repository: InMemoryFinanceRepository,
+): Promise<PaymentRecord> {
+  const payment = paidPayment();
+  await repository.createPayment(payment);
+  return payment;
+}
+
 test('liquidação separa 10% da plataforma e 90% do motorista', async () => {
   const repository = new InMemoryFinanceRepository();
   const ride = completedRide();
-  const payment = paidPayment();
+  const payment = await seedPaidPayment(repository);
 
   const result = await settleCompletedRide(repository, {
     ride,
@@ -58,14 +66,6 @@ test('liquidação separa 10% da plataforma e 90% do motorista', async () => {
 
   assert.equal(result.duplicateSettlement, false);
   assert.equal(result.ledgerTransaction.kind, 'RIDE_SETTLED');
-
-  const escrow = await repository.getAccountBalanceCents(
-    `ride:${ride.id}:escrow`,
-  );
-  // Neste teste o capture não foi lançado; por isso a liquidação isolada
-  // deixa -15000. O teste de integração abaixo cobre escrow zerando após capture.
-  assert.equal(escrow, -15000);
-
   assert.equal(
     await repository.getAccountBalanceCents('platform:revenue'),
     1500,
@@ -79,17 +79,14 @@ test('liquidação separa 10% da plataforma e 90% do motorista', async () => {
 test('liquidação é idempotente', async () => {
   const repository = new InMemoryFinanceRepository();
   const ride = completedRide();
-  const payment = paidPayment();
+  const payment = await seedPaidPayment(repository);
 
   const first = await settleCompletedRide(repository, { ride, payment });
   const second = await settleCompletedRide(repository, { ride, payment });
 
   assert.equal(first.duplicateSettlement, false);
   assert.equal(second.duplicateSettlement, true);
-  assert.equal(
-    first.ledgerTransaction.id,
-    second.ledgerTransaction.id,
-  );
+  assert.equal(first.ledgerTransaction.id, second.ledgerTransaction.id);
   assert.equal(
     await repository.getAccountBalanceCents('platform:revenue'),
     1500,
@@ -98,17 +95,27 @@ test('liquidação é idempotente', async () => {
 
 test('corrida não concluída não pode liquidar', async () => {
   const repository = new InMemoryFinanceRepository();
+  const payment = await seedPaidPayment(repository);
   const ride = { ...completedRide(), state: 'IN_PROGRESS' as const };
+
+  await assert.rejects(
+    () => settleCompletedRide(repository, { ride, payment }),
+    (error: unknown) =>
+      error instanceof SettlementError &&
+      error.code === 'RIDE_NOT_COMPLETED',
+  );
+});
+
+test('pagamento ausente no repositório não gera saldo', async () => {
+  const repository = new InMemoryFinanceRepository();
 
   await assert.rejects(
     () =>
       settleCompletedRide(repository, {
-        ride,
+        ride: completedRide(),
         payment: paidPayment(),
       }),
-    (error: unknown) =>
-      error instanceof SettlementError &&
-      error.code === 'RIDE_NOT_COMPLETED',
+    /Pagamento não está pronto para liquidação/,
   );
 });
 
