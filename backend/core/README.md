@@ -57,6 +57,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - apenas uma oferta ativa por vez por corrida;
 - aceite atômico vincula motorista e muda corrida para DRIVER_ASSIGNED;
 - motorista aceitando fica marcado como ocupado;
+- recusa e expiração liberam retentativa para o próximo elegível;
+- motorista já tentado não é repetido na mesma rodada;
+- ausência de candidatos encerra busca em NO_DRIVER_FOUND;
 - endpoints dev de saldo/recarga da Carteira;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
@@ -84,7 +87,7 @@ npm start
 - autenticação/autorização;
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
-- entrega realtime e retentativa das ofertas de matching;
+- entrega realtime das ofertas de matching;
 - localização em tempo real;
 - máquina de estados;
 - integração real com gateway Pix/cartão;

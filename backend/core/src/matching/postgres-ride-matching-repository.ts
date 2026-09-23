@@ -6,6 +6,9 @@ import type { RideRecord } from '../rides/ride.js';
 import type {
   AcceptRideOfferInput,
   CreateRideOfferInput,
+  ExpireRideOfferInput,
+  MarkNoDriverFoundInput,
+  RejectRideOfferInput,
   RideMatchingRepository,
   RideOfferMutationResult,
 } from './ride-matching-repository.js';
@@ -147,6 +150,17 @@ export class PostgresRideMatchingRepository
     return result.rows[0] == null ? null : mapOffer(result.rows[0]);
   }
 
+  async listOffersForRide(rideId: string): Promise<RideOfferRecord[]> {
+    const result = await this.pool.query<RideOfferRow>(
+      `SELECT ${OFFER_COLUMNS}
+       FROM ride_offers
+       WHERE ride_id = $1
+       ORDER BY created_at ASC`,
+      [rideId],
+    );
+    return result.rows.map(mapOffer);
+  }
+
   async createOffer(
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult> {
@@ -241,6 +255,185 @@ export class PostgresRideMatchingRepository
         ride: mapRide(rideRow),
         offer: mapOffer(offerResult.rows[0]!),
       };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async rejectOffer(
+    input: RejectRideOfferInput,
+  ): Promise<RideOfferRecord> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<RideOfferRow>(
+        `SELECT ${OFFER_COLUMNS}
+         FROM ride_offers
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.offerId],
+      );
+      const offer = result.rows[0];
+
+      if (offer == null) {
+        throw new RideOfferError(
+          'OFFER_NOT_FOUND',
+          'Oferta não encontrada.',
+        );
+      }
+      if (offer.driver_id !== input.driverId) {
+        throw new RideOfferError(
+          'OFFER_DRIVER_MISMATCH',
+          'Oferta pertence a outro motorista.',
+        );
+      }
+      if (offer.status !== 'OFFERED') {
+        throw new RideOfferError(
+          'OFFER_NOT_ACTIVE',
+          'Oferta não está mais ativa.',
+        );
+      }
+
+      const expired =
+        offer.expires_at.getTime() <= Date.parse(input.rejectedAt);
+      const nextStatus = expired ? 'EXPIRED' : 'REJECTED';
+      const updated = await client.query<RideOfferRow>(
+        `UPDATE ride_offers
+         SET status = $2, updated_at = $3
+         WHERE id = $1
+         RETURNING ${OFFER_COLUMNS}`,
+        [offer.id, nextStatus, input.rejectedAt],
+      );
+
+      await client.query('COMMIT');
+      if (expired) {
+        throw new RideOfferError('OFFER_EXPIRED', 'Oferta expirou.');
+      }
+
+      return mapOffer(updated.rows[0]!);
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async expireOffer(
+    input: ExpireRideOfferInput,
+  ): Promise<RideOfferRecord> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<RideOfferRow>(
+        `SELECT ${OFFER_COLUMNS}
+         FROM ride_offers
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.offerId],
+      );
+      const offer = result.rows[0];
+
+      if (offer == null) {
+        throw new RideOfferError(
+          'OFFER_NOT_FOUND',
+          'Oferta não encontrada.',
+        );
+      }
+      if (offer.status === 'EXPIRED') {
+        await client.query('COMMIT');
+        return mapOffer(offer);
+      }
+      if (offer.status !== 'OFFERED') {
+        throw new RideOfferError(
+          'OFFER_NOT_ACTIVE',
+          'Oferta não está mais ativa.',
+        );
+      }
+      if (offer.expires_at.getTime() > Date.parse(input.expiredAt)) {
+        throw new RideOfferError(
+          'OFFER_NOT_EXPIRED',
+          'Oferta ainda não expirou.',
+        );
+      }
+
+      const updated = await client.query<RideOfferRow>(
+        `UPDATE ride_offers
+         SET status = 'EXPIRED', updated_at = $2
+         WHERE id = $1
+         RETURNING ${OFFER_COLUMNS}`,
+        [offer.id, input.expiredAt],
+      );
+      await client.query('COMMIT');
+      return mapOffer(updated.rows[0]!);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markNoDriverFound(
+    input: MarkNoDriverFoundInput,
+  ): Promise<RideRecord> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const ride = await lockRide(client, input.rideId);
+      if (
+        ride == null ||
+        (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER')
+      ) {
+        throw new RideOfferError(
+          'RIDE_NOT_READY',
+          'Corrida não está em busca de motorista.',
+        );
+      }
+
+      await client.query(
+        `UPDATE ride_offers
+         SET status = 'EXPIRED', updated_at = $2
+         WHERE ride_id = $1
+           AND status = 'OFFERED'
+           AND expires_at <= $2`,
+        [input.rideId, input.at],
+      );
+
+      const active = await client.query<{ id: string }>(
+        `SELECT id
+         FROM ride_offers
+         WHERE ride_id = $1
+           AND status = 'OFFERED'
+           AND expires_at > $2
+         LIMIT 1`,
+        [input.rideId, input.at],
+      );
+      if ((active.rowCount ?? 0) > 0) {
+        throw new RideOfferError(
+          'ACTIVE_OFFER_EXISTS',
+          'Ainda existe uma oferta ativa para esta corrida.',
+        );
+      }
+
+      const updated = await client.query<RideRow>(
+        `UPDATE rides
+         SET state = 'NO_DRIVER_FOUND', updated_at = $2
+         WHERE id = $1
+         RETURNING ${RIDE_COLUMNS}`,
+        [input.rideId, input.at],
+      );
+
+      await client.query('COMMIT');
+      return mapRide(updated.rows[0]!);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

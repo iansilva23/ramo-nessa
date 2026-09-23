@@ -6,6 +6,9 @@ import { transitionRide } from '../rides/ride-state.js';
 import type {
   AcceptRideOfferInput,
   CreateRideOfferInput,
+  ExpireRideOfferInput,
+  MarkNoDriverFoundInput,
+  RejectRideOfferInput,
   RideMatchingRepository,
   RideOfferMutationResult,
 } from './ride-matching-repository.js';
@@ -26,6 +29,13 @@ export class InMemoryRideMatchingRepository
   async findOfferById(id: string): Promise<RideOfferRecord | null> {
     const offer = this.offers.get(id);
     return offer == null ? null : structuredClone(offer);
+  }
+
+  async listOffersForRide(rideId: string): Promise<RideOfferRecord[]> {
+    return [...this.offers.values()]
+      .filter((offer) => offer.rideId === rideId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((offer) => structuredClone(offer));
   }
 
   async createOffer(
@@ -86,6 +96,114 @@ export class InMemoryRideMatchingRepository
       ride: structuredClone(updatedRide),
       offer: structuredClone(offer),
     };
+  }
+
+  async rejectOffer(
+    input: RejectRideOfferInput,
+  ): Promise<RideOfferRecord> {
+    const offer = this.offers.get(input.offerId);
+    if (offer == null) {
+      throw new RideOfferError('OFFER_NOT_FOUND', 'Oferta não encontrada.');
+    }
+    if (offer.driverId !== input.driverId) {
+      throw new RideOfferError(
+        'OFFER_DRIVER_MISMATCH',
+        'Oferta pertence a outro motorista.',
+      );
+    }
+    if (offer.status !== 'OFFERED') {
+      throw new RideOfferError(
+        'OFFER_NOT_ACTIVE',
+        'Oferta não está mais ativa.',
+      );
+    }
+
+    if (Date.parse(offer.expiresAt) <= Date.parse(input.rejectedAt)) {
+      const expired: RideOfferRecord = {
+        ...offer,
+        status: 'EXPIRED',
+        updatedAt: input.rejectedAt,
+      };
+      this.offers.set(offer.id, structuredClone(expired));
+      throw new RideOfferError('OFFER_EXPIRED', 'Oferta expirou.');
+    }
+
+    const rejected: RideOfferRecord = {
+      ...offer,
+      status: 'REJECTED',
+      updatedAt: input.rejectedAt,
+    };
+    this.offers.set(offer.id, structuredClone(rejected));
+    return structuredClone(rejected);
+  }
+
+  async expireOffer(
+    input: ExpireRideOfferInput,
+  ): Promise<RideOfferRecord> {
+    const offer = this.offers.get(input.offerId);
+    if (offer == null) {
+      throw new RideOfferError('OFFER_NOT_FOUND', 'Oferta não encontrada.');
+    }
+    if (offer.status === 'EXPIRED') return structuredClone(offer);
+    if (offer.status !== 'OFFERED') {
+      throw new RideOfferError(
+        'OFFER_NOT_ACTIVE',
+        'Oferta não está mais ativa.',
+      );
+    }
+    if (Date.parse(offer.expiresAt) > Date.parse(input.expiredAt)) {
+      throw new RideOfferError(
+        'OFFER_NOT_EXPIRED',
+        'Oferta ainda não expirou.',
+      );
+    }
+
+    const expired: RideOfferRecord = {
+      ...offer,
+      status: 'EXPIRED',
+      updatedAt: input.expiredAt,
+    };
+    this.offers.set(offer.id, structuredClone(expired));
+    return structuredClone(expired);
+  }
+
+  async markNoDriverFound(
+    input: MarkNoDriverFoundInput,
+  ): Promise<import('../rides/ride.js').RideRecord> {
+    const ride = await this.rides.findById(input.rideId);
+    if (
+      ride == null ||
+      (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER')
+    ) {
+      throw new RideOfferError(
+        'RIDE_NOT_READY',
+        'Corrida não está em busca de motorista.',
+      );
+    }
+
+    const atMs = Date.parse(input.at);
+    for (const offer of this.offers.values()) {
+      if (
+        offer.rideId === ride.id &&
+        offer.status === 'OFFERED' &&
+        Date.parse(offer.expiresAt) > atMs
+      ) {
+        throw new RideOfferError(
+          'ACTIVE_OFFER_EXISTS',
+          'Ainda existe uma oferta ativa para esta corrida.',
+        );
+      }
+    }
+
+    const searching =
+      ride.state === 'PAID'
+        ? transitionRide(ride.state, 'SEARCHING_DRIVER')
+        : ride.state;
+    return this.rides.save({
+      ...ride,
+      state: transitionRide(searching, 'NO_DRIVER_FOUND'),
+      updatedAt: input.at,
+    });
   }
 
   async acceptOffer(

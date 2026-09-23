@@ -25,6 +25,7 @@ export class RideOfferError extends Error {
       | 'OFFER_DRIVER_MISMATCH'
       | 'OFFER_NOT_ACTIVE'
       | 'OFFER_EXPIRED'
+      | 'OFFER_NOT_EXPIRED'
       | 'DRIVER_NOT_AVAILABLE',
     message: string,
   ) {

@@ -15,6 +15,22 @@ export interface AcceptRideOfferInput {
   acceptedAt: string;
 }
 
+export interface RejectRideOfferInput {
+  offerId: string;
+  driverId: string;
+  rejectedAt: string;
+}
+
+export interface ExpireRideOfferInput {
+  offerId: string;
+  expiredAt: string;
+}
+
+export interface MarkNoDriverFoundInput {
+  rideId: string;
+  at: string;
+}
+
 export interface RideOfferMutationResult {
   ride: RideRecord;
   offer: RideOfferRecord;
@@ -27,5 +43,9 @@ export interface RideMatchingRepository {
   acceptOffer(
     input: AcceptRideOfferInput,
   ): Promise<RideOfferMutationResult>;
+  rejectOffer(input: RejectRideOfferInput): Promise<RideOfferRecord>;
+  expireOffer(input: ExpireRideOfferInput): Promise<RideOfferRecord>;
+  markNoDriverFound(input: MarkNoDriverFoundInput): Promise<RideRecord>;
   findOfferById(id: string): Promise<RideOfferRecord | null>;
+  listOffersForRide(rideId: string): Promise<RideOfferRecord[]>;
 }

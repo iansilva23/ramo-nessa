@@ -32,6 +32,19 @@ export function createDriverOffer(input: {
   });
 }
 
+export function rejectDriverOffer(input: {
+  repository: RideMatchingRepository;
+  offerId: string;
+  driverId: string;
+  now?: Date;
+}) {
+  return input.repository.rejectOffer({
+    offerId: input.offerId,
+    driverId: input.driverId,
+    rejectedAt: (input.now ?? new Date()).toISOString(),
+  });
+}
+
 export function acceptDriverOffer(input: {
   repository: RideMatchingRepository;
   offerId: string;

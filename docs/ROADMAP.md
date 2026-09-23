@@ -91,7 +91,8 @@
 - [x] schema/migration inicial PostgreSQL para corridas
 - [x] elegibilidade/ranking de matching
 - [x] oferta/aceite transacional do matching
-- [ ] realtime e retentativa de despacho
+- [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
+- [ ] entrega realtime das ofertas
 - [ ] localização em tempo real
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
