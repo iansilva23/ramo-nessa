@@ -16,6 +16,12 @@ function ride(amountCents = 6000): RideRecord {
     passengerId: 'passenger-wallet',
     state: 'AWAITING_PAYMENT',
     paymentStatus: 'created',
+    reservedDriverId: 'driver-wallet-fixture',
+    driverHoldExpiresAt: '2027-01-01T00:00:00.000Z',
+    pickupLatitude: -2.89860,
+    pickupLongitude: -40.45060,
+    dropoffLatitude: -2.88000,
+    dropoffLongitude: -40.47000,
     origin: { zoneId: 'jijoca', localityId: 'jijoca' },
     destination: { zoneId: 'jijoca', localityId: 'mangue-seco' },
     category: 'moto',
@@ -111,6 +117,37 @@ test('carteira paga corrida e move saldo para escrow', async () => {
       'ride:66666666-6666-4666-8666-666666666666:escrow',
     ),
     6000,
+  );
+});
+
+test('carteira não debita corrida não preparada', async () => {
+  const repository = await walletWithBalance();
+  const prepared = ride(6000);
+  const {
+    reservedDriverId: _reservedDriverId,
+    driverHoldExpiresAt: _driverHoldExpiresAt,
+    pickupLatitude: _pickupLatitude,
+    pickupLongitude: _pickupLongitude,
+    dropoffLatitude: _dropoffLatitude,
+    dropoffLongitude: _dropoffLongitude,
+    ...unprepared
+  } = prepared;
+
+  await assert.rejects(
+    () =>
+      payRideWithWallet(repository, {
+        ride: unprepared,
+        passengerId: 'passenger-wallet',
+        idempotencyKey: 'wallet-unprepared-001',
+      }),
+    (error: unknown) =>
+      error instanceof WalletDomainError &&
+      error.code === 'RIDE_NOT_PREPARED',
+  );
+
+  assert.equal(
+    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
+    10000,
   );
 });
 
