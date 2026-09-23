@@ -42,6 +42,7 @@ import {
 } from './auth/dev-identity.js';
 import {
   AuthenticationError,
+  authenticateBearer,
   issueAuthSession,
 } from './auth/auth-service.js';
 import {
@@ -126,6 +127,42 @@ const server = createServer(async (request, response) => {
         service: 'ramo-nessa-core',
         ...(process.env.NODE_ENV === 'production' ? {} : { storageMode }),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/auth/me'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        headers: request.headers,
+      });
+      json(response, 200, {
+        subjectId: session.subjectId,
+        subjectType: session.subjectType,
+        expiresAt: session.expiresAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'DELETE' &&
+      requestUrl.pathname === '/v1/auth/session'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        headers: request.headers,
+      });
+      await authSessionRepository.revoke(
+        session.id,
+        new Date().toISOString(),
+      );
+      response.writeHead(204, {
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end();
       return;
     }
 
