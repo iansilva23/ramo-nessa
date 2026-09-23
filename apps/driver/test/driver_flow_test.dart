@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/app.dart';
@@ -66,6 +68,39 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets(
+    'motorista online sincroniza atualizações contínuas de localização',
+    (tester) async {
+      final api = _FakeDriverApi(initialOnline: true);
+      final location = _StreamingFakeLocationService();
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: location,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      location.add(
+        const DriverPosition(
+          latitude: -2.90001,
+          longitude: -40.50001,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(api.lastSyncedPosition?.latitude, -2.90001);
+      expect(api.lastSyncedPosition?.longitude, -40.50001);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await location.close();
+    },
+  );
+
   testWidgets('motorista pode recusar oferta', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
 
@@ -103,6 +138,28 @@ class _FakeLocationService implements DriverLocationService {
       longitude: -40.41467,
     );
   }
+
+  @override
+  Stream<DriverPosition> positionStream() => const Stream.empty();
+}
+
+class _StreamingFakeLocationService implements DriverLocationService {
+  final _controller = StreamController<DriverPosition>();
+
+  void add(DriverPosition position) => _controller.add(position);
+
+  Future<void> close() => _controller.close();
+
+  @override
+  Future<DriverPosition> currentPosition() async {
+    return const DriverPosition(
+      latitude: -2.82017,
+      longitude: -40.41467,
+    );
+  }
+
+  @override
+  Stream<DriverPosition> positionStream() => _controller.stream;
 }
 
 class _FakeDriverApi implements DriverApi {
@@ -125,6 +182,7 @@ class _FakeDriverApi implements DriverApi {
   String? acceptedOfferId;
   String? rejectedOfferId;
   String? completedRideId;
+  DriverPosition? lastSyncedPosition;
   AcceptedDriverRide? _currentRide;
 
   DriverOffer get _offer => DriverOffer(
@@ -148,6 +206,9 @@ class _FakeDriverApi implements DriverApi {
     bool? online,
     DriverPosition? position,
   }) async {
+    if (position != null) {
+      lastSyncedPosition = position;
+    }
     _supply = DriverSupplySnapshot(
       driverId: _supply.driverId,
       vehicleId: _supply.vehicleId,

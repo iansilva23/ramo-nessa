@@ -3,8 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'driver_location_service.dart';
 
 class DeviceDriverLocationService implements DriverLocationService {
-  @override
-  Future<DriverPosition> currentPosition() async {
+  Future<void> _ensureReady() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
       throw const DriverLocationException(
@@ -25,6 +24,11 @@ class DeviceDriverLocationService implements DriverLocationService {
         'Permissão de localização é necessária para receber corridas.',
       );
     }
+  }
+
+  @override
+  Future<DriverPosition> currentPosition() async {
+    await _ensureReady();
 
     final position = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
@@ -36,6 +40,38 @@ class DeviceDriverLocationService implements DriverLocationService {
     return DriverPosition(
       latitude: position.latitude,
       longitude: position.longitude,
+    );
+  }
+
+  @override
+  Stream<DriverPosition> positionStream() async* {
+    await _ensureReady();
+
+    final settings = AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 20,
+      intervalDuration: const Duration(seconds: 10),
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationTitle: 'Ramo Nessa Motorista online',
+        notificationText:
+            'Sua localização está sendo atualizada para receber corridas.',
+        notificationChannelName: 'Localização do motorista',
+        notificationIcon: AndroidResource(
+          name: 'ic_launcher',
+          defType: 'drawable',
+        ),
+        enableWakeLock: true,
+        setOngoing: true,
+      ),
+    );
+
+    yield* Geolocator.getPositionStream(
+      locationSettings: settings,
+    ).map(
+      (position) => DriverPosition(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      ),
     );
   }
 }

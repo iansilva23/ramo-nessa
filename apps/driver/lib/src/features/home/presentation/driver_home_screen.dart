@@ -46,6 +46,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   String? _message;
   Timer? _pollTimer;
   Timer? _ticker;
+  StreamSubscription<DriverPosition>? _locationSubscription;
+  bool _locationSyncInFlight = false;
 
   @override
   void initState() {
@@ -57,6 +59,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _ticker?.cancel();
+    _locationSubscription?.cancel();
     super.dispose();
   }
 
@@ -81,6 +84,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
 
+      if (supply.online) {
+        _startLocationTracking();
+      }
+
       if (supply.busy) {
         final ride = await api.currentRide();
         if (!mounted) return;
@@ -101,6 +108,58 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _loading = false;
         _message = 'Não conseguimos carregar o perfil do motorista.';
       });
+    }
+  }
+
+  void _startLocationTracking() {
+    if (_locationSubscription != null) return;
+
+    _locationSubscription = _location.positionStream().listen(
+      (position) => unawaited(_syncTrackedPosition(position)),
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(() {
+          _message = error is DriverLocationException
+              ? error.message
+              : 'A localização automática foi interrompida.';
+        });
+      },
+      onDone: () {
+        _locationSubscription = null;
+      },
+    );
+  }
+
+  Future<void> _stopLocationTracking() async {
+    final subscription = _locationSubscription;
+    _locationSubscription = null;
+    await subscription?.cancel();
+  }
+
+  Future<void> _syncTrackedPosition(DriverPosition position) async {
+    final api = _api;
+    final supply = _supply;
+    if (
+      api == null ||
+      supply == null ||
+      !supply.online ||
+      _locationSyncInFlight
+    ) {
+      return;
+    }
+
+    _locationSyncInFlight = true;
+    try {
+      final updated = await api.updateSupply(position: position);
+      if (!mounted) return;
+      setState(() => _supply = updated);
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _message = 'Localização automática: ${error.message}';
+      });
+    } finally {
+      _locationSyncInFlight = false;
     }
   }
 
@@ -176,6 +235,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _changingStatus = false;
         if (!online) _offer = null;
       });
+
+      if (updated.online) {
+        _startLocationTracking();
+      } else {
+        await _stopLocationTracking();
+      }
 
       if (updated.online && !updated.busy) {
         _startPolling();
@@ -538,6 +603,26 @@ class _DriverStatusCard extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
+          const SizedBox(height: RamoSpacing.md),
+          if (supply.online) ...[
+            const SizedBox(height: RamoSpacing.sm),
+            const Row(
+              children: [
+                Icon(
+                  Icons.location_searching_rounded,
+                  size: 18,
+                  color: RamoColors.success,
+                ),
+                SizedBox(width: RamoSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Localização automática ativa enquanto você estiver online.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: RamoSpacing.md),
           OutlinedButton.icon(
             onPressed: supply.online && !changing ? onUpdateLocation : null,

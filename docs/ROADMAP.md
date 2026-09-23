@@ -65,7 +65,8 @@
 - [x] projeção online/offline no Core
 - [x] API Core para online/offline/localização
 - [x] controle online/offline no app
-- [ ] GPS em background
+- [x] tracking Android em background via foreground service (implementado)
+- [ ] validar tracking Android em background em celular real
 - [x] domínio persistente de ofertas no Core
 - [x] API Core para consultar oferta ativa
 - [x] recebimento de ofertas no app via polling temporário
@@ -104,7 +105,8 @@
 - [x] despacho inicial automático após pagamento confirmado
 - [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
 - [ ] entrega realtime das ofertas
-- [ ] localização em tempo real
+- [x] sincronização contínua de localização motorista -> Core
+- [ ] websocket/realtime bidirecional para acompanhamento da corrida
 - [x] distância roteada motorista→passageiro para preço final
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão

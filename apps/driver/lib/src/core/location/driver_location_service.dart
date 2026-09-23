@@ -10,6 +10,7 @@ class DriverPosition {
 
 abstract interface class DriverLocationService {
   Future<DriverPosition> currentPosition();
+  Stream<DriverPosition> positionStream();
 }
 
 class DriverLocationException implements Exception {

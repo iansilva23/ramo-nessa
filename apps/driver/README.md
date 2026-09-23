@@ -7,7 +7,9 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - identidade visual compartilhada Ramo Nessa;
 - leitura do cadastro operacional aprovado;
 - online/offline;
-- atualização de localização em foreground;
+- atualização manual de localização em foreground;
+- tracking contínuo Android enquanto online via foreground service;
+- notificação persistente de localização durante o tracking;
 - polling temporário de ofertas;
 - oferta mostra ganho, rota, passageiros e coleta aproximada;
 - aceitar/recusar integrado ao Core;
@@ -33,7 +35,7 @@ A identidade de desenvolvimento é recusada pelo Core em produção.
 - autenticação real;
 - onboarding/documentos;
 - realtime/push;
-- GPS em background;
+- validar tracking em background em celular Android real;
 - navegação;
 - ganhos, saque, histórico e avaliações;
 - iOS e assinatura de release.
