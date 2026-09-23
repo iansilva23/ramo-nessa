@@ -59,6 +59,18 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return found == null ? null : structuredClone(found);
   }
 
+  async cancelChallenge(
+    challengeId: string,
+    canceledAt: string,
+  ): Promise<void> {
+    const challenge = this.challenges.get(challengeId);
+    if (challenge == null || challenge.consumedAt != null) return;
+    this.challenges.set(challengeId, {
+      ...challenge,
+      consumedAt: canceledAt,
+    });
+  }
+
   async attemptChallenge(input: {
     challengeId: string;
     codeDigest: string;
