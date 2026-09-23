@@ -4,6 +4,7 @@ class WalletRidePaymentResult {
     required this.walletBalanceCents,
     required this.duplicatePayment,
     required this.paymentConfirmed,
+    this.paymentRefunded = false,
     this.dispatchStatus,
   });
 
@@ -23,6 +24,7 @@ class WalletRidePaymentResult {
       walletBalanceCents: (json['walletBalanceCents'] as num).toInt(),
       duplicatePayment: json['duplicatePayment'] as bool? ?? false,
       paymentConfirmed: paymentStatus == 'paid',
+      paymentRefunded: paymentStatus == 'refunded',
       dispatchStatus: json['dispatchStatus'] as String?,
     );
   }
@@ -31,5 +33,6 @@ class WalletRidePaymentResult {
   final int walletBalanceCents;
   final bool duplicatePayment;
   final bool paymentConfirmed;
+  final bool paymentRefunded;
   final String? dispatchStatus;
 }
