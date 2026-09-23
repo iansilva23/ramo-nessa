@@ -1,6 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 
 import type { AuthSessionRepository } from './auth-session-repository.js';
+import type { AuthOtpRepository } from './auth-otp-repository.js';
 import {
   authenticateBearer,
   AuthenticationError,
@@ -44,12 +45,14 @@ function devIdentityHeader(
 export async function resolvePassengerId(input: {
   request: IncomingMessage;
   sessions: AuthSessionRepository;
+  identities: AuthOtpRepository;
 }): Promise<string> {
   if (input.request.headers.authorization != null) {
     const session = await authenticateBearer({
       repository: input.sessions,
       headers: input.request.headers,
       requiredType: 'passenger',
+      identities: input.identities,
     });
     return session.subjectId;
   }
@@ -60,12 +63,14 @@ export async function resolvePassengerId(input: {
 export async function resolveDriverId(input: {
   request: IncomingMessage;
   sessions: AuthSessionRepository;
+  identities: AuthOtpRepository;
 }): Promise<string> {
   if (input.request.headers.authorization != null) {
     const session = await authenticateBearer({
       repository: input.sessions,
       headers: input.request.headers,
       requiredType: 'driver',
+      identities: input.identities,
     });
     return session.subjectId;
   }
