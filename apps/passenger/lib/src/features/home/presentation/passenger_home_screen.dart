@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/config/ramo_core_config.dart';
-import '../../../core/config/ramo_map_config.dart';
 import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
 import '../../map/data/nominatim_place_search_service.dart';
