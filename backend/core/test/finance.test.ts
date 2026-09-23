@@ -12,6 +12,12 @@ function ride(): RideRecord {
     passengerId: 'passenger-1',
     state: 'AWAITING_PAYMENT',
     paymentStatus: 'created',
+    reservedDriverId: 'driver-payment-fixture',
+    driverHoldExpiresAt: '2026-09-23T02:00:00.000Z',
+    pickupLatitude: -2.82017,
+    pickupLongitude: -40.41467,
+    dropoffLatitude: -2.80023,
+    dropoffLongitude: -40.51638,
     origin: { zoneId: 'prea' },
     destination: { zoneId: 'jericoacoara' },
     category: 'comfort_black',
@@ -44,6 +50,34 @@ test('criação de pagamento usa exatamente o total congelado da corrida', async
   assert.equal(payment.amountCents, 15000);
   assert.equal(payment.status, 'created');
   assert.equal(payment.method, 'pix');
+});
+
+test('corrida não preparada não pode iniciar pagamento', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const prepared = ride();
+  const {
+    reservedDriverId: _reservedDriverId,
+    driverHoldExpiresAt: _driverHoldExpiresAt,
+    pickupLatitude: _pickupLatitude,
+    pickupLongitude: _pickupLongitude,
+    dropoffLatitude: _dropoffLatitude,
+    dropoffLongitude: _dropoffLongitude,
+    ...unprepared
+  } = prepared;
+
+  await assert.rejects(
+    () =>
+      createPaymentForRide(repository, {
+        ride: unprepared,
+        method: 'pix',
+        processor: 'test-gateway',
+        idempotencyKey: 'unprepared-payment-001',
+        now: new Date('2026-09-23T01:00:00.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof PaymentDomainError &&
+      error.code === 'RIDE_NOT_PREPARED',
+  );
 });
 
 test('mesma chave de idempotência retorna o mesmo pagamento', async () => {
