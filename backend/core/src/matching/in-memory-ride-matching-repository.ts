@@ -297,8 +297,13 @@ export class InMemoryRideMatchingRepository
       ride.state === 'PAID'
         ? transitionRide(ride.state, 'SEARCHING_DRIVER')
         : ride.state;
+    const {
+      reservedDriverId: _reservedDriverId,
+      driverHoldExpiresAt: _driverHoldExpiresAt,
+      ...rideWithoutHold
+    } = ride;
     return this.rides.save({
-      ...ride,
+      ...rideWithoutHold,
       state: transitionRide(searching, 'NO_DRIVER_FOUND'),
       updatedAt: input.at,
     });
