@@ -171,6 +171,8 @@ Nunca colocar no Flutter:
 Credenciais devem permanecer no backend/secret manager. O Admin separa chaves
 operacionais server-to-server de usuários humanos. Usuários humanos usam senha
 scrypt + TOTP cifrado + sessão curta; API keys não devem entrar no bundle web.
+As operações administrativas aceitam ambos os tipos de principal pelos mesmos
+escopos e a trilha de auditoria distingue `user` de `api_key`.
 
 ## Estrutura do monorepo
 

@@ -49,11 +49,21 @@ A revogação é persistente e a credencial deixa de autenticar imediatamente.
 
 ## API
 
-Todas as rotas abaixo exigem:
+As rotas operacionais abaixo aceitam uma das duas credenciais, sempre respeitando
+o mesmo escopo da operação:
 
 ```http
 Authorization: Bearer rn_admin_<token>
 ```
+
+ou, para o painel humano autenticado com senha + TOTP:
+
+```http
+Authorization: Bearer rn_admin_session_<token>
+```
+
+O Core identifica primeiro o prefixo da sessão humana para que ela nunca seja
+interpretada como API key.
 
 ### Consultar autenticação de motorista
 
@@ -103,8 +113,9 @@ fluxo de negócio.
 
 Escopo: `audit:read`. O limite permitido é 1–100.
 
-A auditoria registra operador, ação, motorista, data e metadados operacionais. Não
-registra o token administrativo nem o telefone do motorista nos metadados.
+A auditoria registra o tipo de ator (`api_key` ou `user`), operador, ação,
+motorista, data e metadados operacionais. Não registra o token administrativo nem
+o telefone do motorista nos metadados.
 
 ## Painel web futuro
 

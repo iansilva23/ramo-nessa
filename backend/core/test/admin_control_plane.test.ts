@@ -21,6 +21,14 @@ import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-aut
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 
+function apiKeyActor(key: { id: string; name: string }) {
+  return {
+    kind: 'api_key' as const,
+    id: key.id,
+    name: key.name,
+  };
+}
+
 test('chave admin persiste somente hash, respeita escopo e revogação', async () => {
   const repository = new InMemoryAdminRepository();
   const issued = await issueAdminApiKey({
@@ -119,7 +127,7 @@ test('provisionamento sem status nasce suspenso por padrão', async () => {
     identities,
     sessions,
     admin,
-    actor,
+    actor: apiKeyActor(actor),
     driverId: 'driver-default-suspended',
     phone: '88999991259',
   });
@@ -143,7 +151,7 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
     identities,
     sessions,
     admin,
-    actor: issuedAdmin.key,
+    actor: apiKeyActor(issuedAdmin.key),
     driverId: 'driver-admin-test-001',
     phone: '88 99999-1250',
     status: 'active',
@@ -165,7 +173,7 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
     identities,
     sessions,
     admin,
-    actor: issuedAdmin.key,
+    actor: apiKeyActor(issuedAdmin.key),
     driverId: 'driver-admin-test-001',
     status: 'suspended',
     now: new Date('2026-09-23T15:13:00.000Z'),
@@ -205,7 +213,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
     identities,
     sessions,
     admin,
-    actor,
+    actor: apiKeyActor(actor),
     driverId: 'driver-conflict-a',
     phone: '88999991251',
   });
@@ -216,7 +224,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
         identities,
         sessions,
         admin,
-        actor,
+        actor: apiKeyActor(actor),
         driverId: 'driver-conflict-b',
         phone: '88999991251',
       }),
@@ -231,7 +239,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
         identities,
         sessions,
         admin,
-        actor,
+        actor: apiKeyActor(actor),
         driverId: 'driver-conflict-a',
         phone: '88999991252',
       }),
@@ -285,7 +293,7 @@ test(
         identities,
         sessions,
         admin,
-        actor: issuedAdmin.key,
+        actor: apiKeyActor(issuedAdmin.key),
         driverId,
         phone,
         status: 'active',
@@ -304,7 +312,7 @@ test(
         identities,
         sessions,
         admin,
-        actor: issuedAdmin.key,
+        actor: apiKeyActor(issuedAdmin.key),
         driverId,
         status: 'suspended',
         now: new Date('2026-09-23T16:03:00.000Z'),

@@ -7,7 +7,7 @@ import type {
 } from '../auth/auth-otp-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
 import { normalizeBrazilMobilePhone } from '../auth/phone-otp-service.js';
-import type { AdminApiKeyRecord, AdminRepository } from './admin-repository.js';
+import type { AdminActor, AdminRepository } from './admin-repository.js';
 
 export class AdminDriverAuthError extends Error {
   constructor(
@@ -51,7 +51,7 @@ function normalizeStatus(value: string): AuthIdentityStatus {
 
 async function audit(input: {
   repository: AdminRepository;
-  actor: AdminApiKeyRecord;
+  actor: AdminActor;
   action: string;
   driverId: string;
   metadata: Record<string, unknown>;
@@ -59,8 +59,7 @@ async function audit(input: {
 }): Promise<void> {
   await input.repository.appendAudit({
     id: randomUUID(),
-    actorKeyId: input.actor.id,
-    actorName: input.actor.name,
+    actor: input.actor,
     action: input.action,
     targetType: 'driver',
     targetId: input.driverId,
@@ -91,7 +90,7 @@ export async function provisionDriverAuthFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
   admin: AdminRepository;
-  actor: AdminApiKeyRecord;
+  actor: AdminActor;
   driverId: string;
   phone: string;
   status?: AuthIdentityStatus;
@@ -200,7 +199,7 @@ export async function setDriverAuthStatusFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
   admin: AdminRepository;
-  actor: AdminApiKeyRecord;
+  actor: AdminActor;
   driverId: string;
   status: AuthIdentityStatus;
   now?: Date;

@@ -20,7 +20,8 @@ interface AdminKeyRow {
 
 interface AdminAuditRow {
   id: string;
-  actor_key_id: string;
+  actor_key_id: string | null;
+  actor_user_id: string | null;
   actor_name: string;
   action: string;
   target_type: string;
@@ -49,8 +50,22 @@ function mapKey(row: AdminKeyRow): AdminApiKeyRecord {
 function mapAudit(row: AdminAuditRow): AdminAuditRecord {
   return {
     id: row.id,
-    actorKeyId: row.actor_key_id,
-    actorName: row.actor_name,
+    actor:
+      row.actor_user_id != null
+        ? {
+            kind: 'user',
+            id: row.actor_user_id,
+            name: row.actor_name,
+          }
+        : row.actor_key_id != null
+          ? {
+              kind: 'api_key',
+              id: row.actor_key_id,
+              name: row.actor_name,
+            }
+          : (() => {
+              throw new Error('Auditoria administrativa sem ator.');
+            })(),
     action: row.action,
     targetType: row.target_type,
     targetId: row.target_id,
@@ -121,15 +136,16 @@ export class PostgresAdminRepository implements AdminRepository {
     const result = await this.pool.query<AdminAuditRow>(
       `
       INSERT INTO admin_audit_log (
-        id, actor_key_id, actor_name, action,
+        id, actor_key_id, actor_user_id, actor_name, action,
         target_type, target_id, metadata, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
       RETURNING *
       `,
       [
         record.id,
-        record.actorKeyId,
-        record.actorName,
+        record.actor.kind === 'api_key' ? record.actor.id : null,
+        record.actor.kind === 'user' ? record.actor.id : null,
+        record.actor.name,
         record.action,
         record.targetType,
         record.targetId,

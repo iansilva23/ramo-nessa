@@ -17,10 +17,15 @@ export interface AdminApiKeyRecord {
   lastUsedAt?: string;
 }
 
+export interface AdminActor {
+  kind: 'api_key' | 'user';
+  id: string;
+  name: string;
+}
+
 export interface AdminAuditRecord {
   id: string;
-  actorKeyId: string;
-  actorName: string;
+  actor: AdminActor;
   action: string;
   targetType: string;
   targetId: string;

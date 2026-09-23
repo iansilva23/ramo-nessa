@@ -138,7 +138,7 @@
 - [x] plano de controle por API/CLI com chave hash, escopos e expiração
 - [x] provisionamento/aprovação/suspensão de motorista com auditoria
 - [x] login humano base com senha + TOTP + sessão curta + anti-bruteforce
-- [ ] conectar sessão humana às operações administrativas do painel
+- [x] conectar sessão humana às operações administrativas do painel
 - [ ] frontend/login do painel
 - [ ] dashboard
 - [ ] passageiros

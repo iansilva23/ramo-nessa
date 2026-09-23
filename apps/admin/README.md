@@ -21,7 +21,9 @@ qualquer bundle entregue ao navegador**.
 
 As chaves `rn_admin_` continuam destinadas a operação server-to-server/CLI.
 O futuro frontend deve autenticar com a sessão humana `rn_admin_session_` e nunca
-embutir uma API key administrativa no bundle.
+embutir uma API key administrativa no bundle. As rotas operacionais já aceitam essa
+sessão humana pelos mesmos escopos, mantendo a auditoria separada entre usuário e
+API key.
 
 Consulte `../../docs/ADMIN_CONTROL_PLANE.md` para o procedimento operacional.
 

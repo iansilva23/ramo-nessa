@@ -63,8 +63,10 @@ import {
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   AdminAuthenticationError,
-  authenticateAdminBearer,
 } from './admin/admin-auth.js';
+import {
+  authenticateAdminPrincipal,
+} from './admin/admin-authorization.js';
 import {
   AdminHumanAuthenticationError,
   authenticateAdminHumanSession,
@@ -482,8 +484,9 @@ const server = createServer(async (request, response) => {
       request.method === 'PATCH' &&
       adminDriverAuthStatusMatch != null
     ) {
-      const actor = await authenticateAdminBearer({
-        repository: adminRepository,
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
         headers: request.headers,
         requiredScope: 'drivers:auth:write',
       });
@@ -590,8 +593,9 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       adminDriverAuthMatch != null
     ) {
-      await authenticateAdminBearer({
-        repository: adminRepository,
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
         headers: request.headers,
         requiredScope: 'drivers:auth:read',
       });
@@ -613,8 +617,9 @@ const server = createServer(async (request, response) => {
       request.method === 'PUT' &&
       adminDriverAuthMatch != null
     ) {
-      const actor = await authenticateAdminBearer({
-        repository: adminRepository,
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
         headers: request.headers,
         requiredScope: 'drivers:auth:write',
       });
@@ -645,8 +650,9 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/audit'
     ) {
-      await authenticateAdminBearer({
-        repository: adminRepository,
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
         headers: request.headers,
         requiredScope: 'audit:read',
       });
