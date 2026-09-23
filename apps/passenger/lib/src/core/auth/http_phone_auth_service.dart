@@ -35,11 +35,14 @@ class HttpPhoneAuthService implements PhoneAuthService {
   final String? _clientInstanceId;
   final http.Client _client;
 
-  Map<String, String> get _otpHeaders => {
-        'content-type': 'application/json',
-        if (_clientInstanceId != null && _clientInstanceId!.isNotEmpty)
-          'x-client-instance-id': _clientInstanceId!,
-      };
+  Map<String, String> get _otpHeaders {
+    final clientInstanceId = _clientInstanceId;
+    return {
+      'content-type': 'application/json',
+      if (clientInstanceId != null && clientInstanceId.isNotEmpty)
+        'x-client-instance-id': clientInstanceId,
+    };
+  }
 
   @override
   Future<RequestedOtp> requestOtp(String phone) async {

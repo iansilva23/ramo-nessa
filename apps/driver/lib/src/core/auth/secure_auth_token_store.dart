@@ -15,34 +15,9 @@ class SecureAuthTokenStore implements AuthTokenStore {
 
   Future<String> getOrCreateClientInstanceId() async {
     final existing = (await _storage.read(key: _clientInstanceIdKey))?.trim();
-    if (
-      existing != null &&
-      existing.length >= 32 &&
-      RegExp(r'^[a-f0-9]+
-
-  @override
-  Future<String?> readAccessToken() async {
-    final value = await _storage.read(key: _accessTokenKey);
-    final normalized = value?.trim();
-    if (normalized == null || normalized.length < 20) return null;
-    return normalized;
-  }
-
-  @override
-  Future<void> saveAccessToken(String token) async {
-    final normalized = token.trim();
-    if (normalized.length < 20) {
-      throw ArgumentError.value(token, 'token', 'Bearer token inválido.');
-    }
-    await _storage.write(key: _accessTokenKey, value: normalized);
-  }
-
-  @override
-  Future<void> clearAccessToken() =>
-      _storage.delete(key: _accessTokenKey);
-}
-).hasMatch(existing)
-    ) {
+    if (existing != null &&
+        existing.length >= 32 &&
+        RegExp(r'^[a-f0-9]+$').hasMatch(existing)) {
       return existing;
     }
 
