@@ -194,3 +194,38 @@ test('mesmo evento do gateway não pode capturar recargas diferentes', async () 
     5000,
   );
 });
+
+
+test('carteira não debita a mesma corrida duas vezes com chaves diferentes', async () => {
+  const repository = await walletWithBalance(20000);
+  const currentRide = ride(6000);
+
+  await payRideWithWallet(repository, {
+    ride: currentRide,
+    passengerId: 'passenger-wallet',
+    idempotencyKey: 'wallet-one-paid-ride-a',
+  });
+
+  await assert.rejects(
+    () =>
+      payRideWithWallet(repository, {
+        ride: currentRide,
+        passengerId: 'passenger-wallet',
+        idempotencyKey: 'wallet-one-paid-ride-b',
+      }),
+    (error: unknown) =>
+      error instanceof WalletDomainError &&
+      error.code === 'RIDE_ALREADY_PAID',
+  );
+
+  assert.equal(
+    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
+    14000,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'ride:66666666-6666-4666-8666-666666666666:escrow',
+    ),
+    6000,
+  );
+});
