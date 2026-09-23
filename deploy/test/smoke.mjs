@@ -313,6 +313,26 @@ try {
     );
   }
 
+  const dashboard = await jsonRequest(
+    '/v1/admin/dashboard',
+    { headers: authHeaders },
+  );
+  if (
+    dashboard.response.status !== 200 ||
+    typeof dashboard.payload?.rides?.active !== 'number' ||
+    typeof dashboard.payload?.rides?.searchingDriver !== 'number' ||
+    typeof dashboard.payload?.rides?.driverOnTheWay !== 'number' ||
+    typeof dashboard.payload?.rides?.inProgress !== 'number' ||
+    typeof dashboard.payload?.rides?.completedLast24h !== 'number' ||
+    typeof dashboard.payload?.rides?.cancelledLast24h !== 'number' ||
+    !Array.isArray(dashboard.payload?.activeRides) ||
+    dashboard.payload?.window?.kind !== 'last_24h'
+  ) {
+    throw new Error(
+      'Dashboard operacional administrativo não foi confirmado.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
@@ -354,7 +374,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios de passageiros/motoristas, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios, dashboard operacional, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

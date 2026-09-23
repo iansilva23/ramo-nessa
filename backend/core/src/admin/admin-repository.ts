@@ -2,6 +2,7 @@ export const ADMIN_SCOPES = [
   'drivers:auth:read',
   'drivers:auth:write',
   'passengers:auth:read',
+  'rides:read',
   'audit:read',
 ] as const;
 

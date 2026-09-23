@@ -1,7 +1,10 @@
 import type { Pool } from 'pg';
 
 import type { RideRecord } from '../ride.js';
-import type { RideRepository } from '../ride-repository.js';
+import type {
+  AdminRideOperationalSummary,
+  RideRepository,
+} from '../ride-repository.js';
 
 interface RideRow {
   id: string;
@@ -197,6 +200,83 @@ export class PostgresRideRepository implements RideRepository {
       [driverId],
     );
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
+  }
+
+  async listAdminActive(limit: number): Promise<RideRecord[]> {
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE state IN (
+        'PAID',
+        'SEARCHING_DRIVER',
+        'DRIVER_ASSIGNED',
+        'DRIVER_ARRIVING',
+        'DRIVER_ARRIVED',
+        'IN_PROGRESS'
+      )
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $1
+      `,
+      [limit],
+    );
+    return result.rows.map(mapRow);
+  }
+
+  async getAdminOperationalSummary(
+    since: string,
+  ): Promise<AdminRideOperationalSummary> {
+    const result = await this.pool.query<AdminRideOperationalSummary>(
+      `
+      SELECT
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'PAID',
+            'SEARCHING_DRIVER',
+            'DRIVER_ASSIGNED',
+            'DRIVER_ARRIVING',
+            'DRIVER_ARRIVED',
+            'IN_PROGRESS'
+          )
+        )::int AS active,
+        COUNT(*) FILTER (
+          WHERE state IN ('PAID', 'SEARCHING_DRIVER')
+        )::int AS "searchingDriver",
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'DRIVER_ASSIGNED',
+            'DRIVER_ARRIVING',
+            'DRIVER_ARRIVED'
+          )
+        )::int AS "driverOnTheWay",
+        COUNT(*) FILTER (
+          WHERE state = 'IN_PROGRESS'
+        )::int AS "inProgress",
+        COUNT(*) FILTER (
+          WHERE state = 'COMPLETED'
+            AND updated_at >= $1::timestamptz
+        )::int AS "completedLast24h",
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'CANCELLED_BY_PASSENGER',
+            'CANCELLED_BY_DRIVER',
+            'CANCELLED_BY_ADMIN'
+          )
+            AND updated_at >= $1::timestamptz
+        )::int AS "cancelledLast24h"
+      FROM rides
+      `,
+      [since],
+    );
+
+    return result.rows[0] ?? {
+      active: 0,
+      searchingDriver: 0,
+      driverOnTheWay: 0,
+      inProgress: 0,
+      completedLast24h: 0,
+      cancelledLast24h: 0,
+    };
   }
 
   async save(ride: RideRecord): Promise<RideRecord> {

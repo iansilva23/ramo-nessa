@@ -590,6 +590,52 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/dashboard'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+
+      const generatedAt = new Date();
+      const since = new Date(
+        generatedAt.getTime() - 24 * 60 * 60 * 1000,
+      ).toISOString();
+
+      const [summary, activeRides] = await Promise.all([
+        rideRepository.getAdminOperationalSummary(since),
+        rideRepository.listAdminActive(20),
+      ]);
+
+      json(response, 200, {
+        generatedAt: generatedAt.toISOString(),
+        window: {
+          kind: 'last_24h',
+          since,
+        },
+        rides: summary,
+        activeRides: activeRides.map((ride) => ({
+          id: ride.id,
+          state: ride.state,
+          paymentStatus: ride.paymentStatus,
+          passengerId: ride.passengerId,
+          driverId: ride.driverId ?? null,
+          reservedDriverId: ride.reservedDriverId ?? null,
+          category: ride.category,
+          origin: ride.origin,
+          destination: ride.destination,
+          totalAmountCents: ride.quote.totalAmountCents,
+          createdAt: ride.createdAt,
+          updatedAt: ride.updatedAt,
+        })),
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/passengers'
     ) {
       await authenticateAdminPrincipal({

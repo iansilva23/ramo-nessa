@@ -38,6 +38,7 @@ Escopos atuais:
 - `drivers:auth:read`
 - `drivers:auth:write`
 - `passengers:auth:read`
+- `rides:read`
 - `audit:read`
 
 ### Revogar uma chave
@@ -65,6 +66,14 @@ Authorization: Bearer rn_admin_session_<token>
 
 O Core identifica primeiro o prefixo da sessão humana para que ela nunca seja
 interpretada como API key.
+
+### Dashboard operacional
+
+`GET /v1/admin/dashboard`
+
+Escopo: `rides:read`. Retorna contagens reais de corridas ativas, em busca de
+motorista, com motorista a caminho/chegou, em viagem, concluídas nas últimas 24h e
+canceladas nas últimas 24h, além das corridas ativas mais recentes.
 
 ### Diretório de passageiros
 
