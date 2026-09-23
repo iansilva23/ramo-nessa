@@ -27,6 +27,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - migration PostgreSQL inicial;
 - adapter PostgreSQL real para corridas;
 - runner de migrations;
+- pagamentos persistentes com idempotência;
+- ledger financeiro de dupla entrada;
+- pagamento capturado entra em escrow da corrida;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;

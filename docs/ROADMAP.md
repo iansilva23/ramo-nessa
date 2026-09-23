@@ -83,8 +83,9 @@
 - [ ] matching
 - [ ] localização em tempo real
 - [x] máquina de estados inicial de corrida/pagamento
-- [ ] integração real Pix/cartão
-- [ ] ledger/carteira do passageiro
+- [ ] adapter de gateway Pix/cartão
+- [x] ledger financeiro base e escrow de pagamento
+- [ ] Carteira do passageiro
 - [ ] saldo/repasse do motorista
 - [ ] notificações
 - [ ] chat
