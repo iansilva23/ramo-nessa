@@ -123,6 +123,19 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       };
     }
 
+    const paidForRide = [...this.payments.values()].find(
+      (candidate) =>
+        candidate.rideId === payment.rideId &&
+        candidate.status === 'paid' &&
+        candidate.id !== payment.id,
+    );
+    if (paidForRide != null) {
+      throw new PaymentDomainError(
+        'RIDE_ALREADY_PAID',
+        'Esta corrida já possui outro pagamento confirmado.',
+      );
+    }
+
     let nextStatus: PaymentRecord['status'];
     try {
       nextStatus = payment.status === 'authorized'
@@ -317,6 +330,18 @@ export class InMemoryFinanceRepository implements FinanceRepository {
         ledgerTransaction: structuredClone(ledger),
         duplicatePayment: true,
       };
+    }
+
+    const paidForRide = [...this.payments.values()].find(
+      (candidate) =>
+        candidate.rideId === input.payment.rideId &&
+        candidate.status === 'paid',
+    );
+    if (paidForRide != null) {
+      throw new WalletDomainError(
+        'RIDE_ALREADY_PAID',
+        'Esta corrida já possui pagamento confirmado.',
+      );
     }
 
     const accountKey = `passenger:${input.passengerId}:wallet`;
