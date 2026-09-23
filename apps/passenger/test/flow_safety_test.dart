@@ -136,6 +136,11 @@ void main() {
       expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
       await tester.tap(find.text('Carteira Ramo Nessa'));
       await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(ListView),
+        const Offset(0, -320),
+      );
+      await tester.pumpAndSettle();
 
       expect(
         find.textContaining('O valor voltou integralmente'),
