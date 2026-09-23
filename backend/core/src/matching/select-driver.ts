@@ -138,6 +138,13 @@ export function selectDriverForDispatch(input: {
     amountCents: input.ride.quote.totalAmountCents,
   });
 
+  if (nextRideState !== 'SEARCHING_DRIVER') {
+    throw new MatchingError(
+      'RIDE_NOT_READY',
+      'Máquina de estados não entrou em SEARCHING_DRIVER.',
+    );
+  }
+
   return {
     nextRideState,
     driver,
