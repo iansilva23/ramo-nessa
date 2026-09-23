@@ -10,6 +10,7 @@ import {
   type RoutingDistanceProvider,
 } from '../routing/distance-provider.js';
 import { transitionRide } from './ride-state.js';
+import { assertPricingLocationMatchesPoint } from './pricing-location-validation.js';
 import { snapshotExactFare, type RideRecord } from './ride.js';
 import {
   RidePreparationRepositoryError,
@@ -103,6 +104,17 @@ export async function prepareRideForPayment(input: {
       ? { tripDistanceKm: authoritativeTripDistanceKm }
       : {}),
   };
+
+  assertPricingLocationMatchesPoint({
+    ref: trustedQuoteRequest.origin,
+    point: input.pickup,
+    field: 'origin',
+  });
+  assertPricingLocationMatchesPoint({
+    ref: trustedQuoteRequest.destination,
+    point: input.dropoff,
+    field: 'destination',
+  });
 
   const baseFare = quoteFare(trustedQuoteRequest);
   if (baseFare.kind !== 'exact') {
