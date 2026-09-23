@@ -78,8 +78,14 @@ export function resolveOtpDeliveryProviderFromEnv(
     configured === '' ||
     configured === 'dev'
   ) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error(
+        'OTP_PROVIDER=webhook é obrigatório em produção.',
+      );
+    }
+
     if (
-      env.NODE_ENV !== 'production' &&
+      env.ALLOW_DEV_OTP === 'true' ||
       env.ALLOW_DEV_IDENTITY === 'true'
     ) {
       return new DevOtpDeliveryProvider();
