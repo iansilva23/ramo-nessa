@@ -85,7 +85,9 @@ import {
 } from './admin/admin-driver-auth-service.js';
 import {
   InvalidAdminRequestError,
+  encodeAdminDriverDirectoryCursor,
   parseAdminAuditLimit,
+  parseAdminDriverDirectoryQuery,
   parseAdminDriverProvisionRequest,
   parseAdminDriverStatusRequest,
 } from './admin/admin-validation.js';
@@ -583,6 +585,50 @@ const server = createServer(async (request, response) => {
         'cache-control': 'no-store',
       });
       response.end();
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/drivers'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:auth:read',
+      });
+      const query = parseAdminDriverDirectoryQuery(
+        requestUrl.searchParams,
+      );
+      const [page, summary] = await Promise.all([
+        authOtpRepository.listIdentities({
+          subjectType: 'driver',
+          ...query,
+        }),
+        authOtpRepository.countIdentitiesByStatus('driver'),
+      ]);
+      const lastIdentity =
+        page.identities[page.identities.length - 1];
+      const nextCursor =
+        page.hasMore && lastIdentity != null
+          ? encodeAdminDriverDirectoryCursor({
+              updatedAt: lastIdentity.updatedAt,
+              id: lastIdentity.id,
+            })
+          : null;
+
+      json(response, 200, {
+        items: page.identities.map((identity) => ({
+          driverId: identity.subjectId,
+          phoneE164: identity.phoneE164,
+          status: identity.status,
+          createdAt: identity.createdAt,
+          updatedAt: identity.updatedAt,
+        })),
+        summary,
+        nextCursor,
+      });
       return;
     }
 

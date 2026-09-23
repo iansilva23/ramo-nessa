@@ -1,8 +1,11 @@
 import type { Pool } from 'pg';
 
 import type {
+  AuthIdentityListInput,
+  AuthIdentityListPage,
   AuthIdentityRecord,
   AuthIdentityStatus,
+  AuthIdentityStatusCounts,
   AuthOtpRepository,
   AuthRateLimitResult,
   OtpAttemptResult,
@@ -186,6 +189,73 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       ],
     );
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async listIdentities(
+    input: AuthIdentityListInput,
+  ): Promise<AuthIdentityListPage> {
+    const result = await this.pool.query<IdentityRow>(
+      `
+      SELECT *
+      FROM auth_identities
+      WHERE subject_type = $1
+        AND ($2::text IS NULL OR status = $2)
+        AND (
+          $3::text IS NULL
+          OR strpos(lower(subject_id), lower($3)) > 0
+          OR strpos(phone_e164, $3) > 0
+        )
+        AND (
+          $4::timestamptz IS NULL
+          OR updated_at < $4::timestamptz
+          OR (
+            updated_at = $4::timestamptz
+            AND id < $5::uuid
+          )
+        )
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $6
+      `,
+      [
+        input.subjectType,
+        input.status ?? null,
+        input.search?.trim() || null,
+        input.cursor?.updatedAt ?? null,
+        input.cursor?.id ?? null,
+        input.limit + 1,
+      ],
+    );
+
+    const hasMore = result.rows.length > input.limit;
+    return {
+      identities: result.rows.slice(0, input.limit).map(mapIdentity),
+      hasMore,
+    };
+  }
+
+  async countIdentitiesByStatus(
+    subjectType: AuthSubjectType,
+  ): Promise<AuthIdentityStatusCounts> {
+    const result = await this.pool.query<{
+      total: number;
+      active: number;
+      suspended: number;
+    }>(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+        COUNT(*) FILTER (WHERE status = 'suspended')::int AS suspended
+      FROM auth_identities
+      WHERE subject_type = $1
+      `,
+      [subjectType],
+    );
+    return result.rows[0] ?? {
+      total: 0,
+      active: 0,
+      suspended: 0,
+    };
   }
 
   async consumeRateLimits(input: {

@@ -253,6 +253,26 @@ try {
     throw new Error('Consulta Admin do motorista falhou.');
   }
 
+  const directory = await jsonRequest(
+    '/v1/admin/drivers?limit=20&query=driver-smoke',
+    { headers: authHeaders },
+  );
+  if (
+    directory.response.status !== 200 ||
+    !Array.isArray(directory.payload?.items) ||
+    !directory.payload.items.some(
+      (item) =>
+        item.driverId === driverId &&
+        item.status === 'active',
+    ) ||
+    Number(directory.payload?.summary?.total ?? 0) < 1 ||
+    Number(directory.payload?.summary?.active ?? 0) < 1
+  ) {
+    throw new Error(
+      'Diretório administrativo de motoristas não foi confirmado.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
@@ -294,7 +314,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, motorista, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, diretório de motoristas, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

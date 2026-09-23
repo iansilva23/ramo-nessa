@@ -12,6 +12,30 @@ export interface AuthIdentityRecord {
   updatedAt: string;
 }
 
+export interface AuthIdentityCursor {
+  updatedAt: string;
+  id: string;
+}
+
+export interface AuthIdentityListInput {
+  subjectType: AuthSubjectType;
+  status?: AuthIdentityStatus | undefined;
+  search?: string | undefined;
+  limit: number;
+  cursor?: AuthIdentityCursor | undefined;
+}
+
+export interface AuthIdentityListPage {
+  identities: AuthIdentityRecord[];
+  hasMore: boolean;
+}
+
+export interface AuthIdentityStatusCounts {
+  total: number;
+  active: number;
+  suspended: number;
+}
+
 export interface OtpChallengeRecord {
   id: string;
   identityId: string;
@@ -62,6 +86,12 @@ export interface AuthOtpRepository {
     status: AuthIdentityStatus;
     updatedAt: string;
   }): Promise<AuthIdentityRecord | null>;
+  listIdentities(
+    input: AuthIdentityListInput,
+  ): Promise<AuthIdentityListPage>;
+  countIdentitiesByStatus(
+    subjectType: AuthSubjectType,
+  ): Promise<AuthIdentityStatusCounts>;
   consumeRateLimits(input: {
     rules: AuthRateLimitRule[];
     now: string;

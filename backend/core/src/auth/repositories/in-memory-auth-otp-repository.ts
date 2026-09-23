@@ -1,6 +1,9 @@
 import type {
+  AuthIdentityListInput,
+  AuthIdentityListPage,
   AuthIdentityRecord,
   AuthIdentityStatus,
+  AuthIdentityStatusCounts,
   AuthOtpRepository,
   AuthRateLimitResult,
   OtpAttemptResult,
@@ -101,6 +104,67 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     };
     this.identities.set(updated.id, updated);
     return structuredClone(updated);
+  }
+
+  async listIdentities(
+    input: AuthIdentityListInput,
+  ): Promise<AuthIdentityListPage> {
+    const search = input.search?.trim().toLowerCase();
+    const cursorTime =
+      input.cursor == null ? null : Date.parse(input.cursor.updatedAt);
+
+    const filtered = [...this.identities.values()]
+      .filter((identity) => identity.subjectType === input.subjectType)
+      .filter(
+        (identity) =>
+          input.status == null || identity.status === input.status,
+      )
+      .filter((identity) => {
+        if (!search) return true;
+        return (
+          identity.subjectId.toLowerCase().includes(search) ||
+          identity.phoneE164.toLowerCase().includes(search)
+        );
+      })
+      .filter((identity) => {
+        if (input.cursor == null || cursorTime == null) return true;
+        const time = Date.parse(identity.updatedAt);
+        return (
+          time < cursorTime ||
+          (time === cursorTime && identity.id < input.cursor.id)
+        );
+      })
+      .sort((a, b) => {
+        const timeDiff = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+        if (timeDiff !== 0) return timeDiff;
+        return b.id.localeCompare(a.id);
+      });
+
+    const rows = filtered.slice(0, input.limit + 1);
+    const hasMore = rows.length > input.limit;
+    const identities = rows.slice(0, input.limit).map((identity) =>
+      structuredClone(identity),
+    );
+    return { identities, hasMore };
+  }
+
+  async countIdentitiesByStatus(
+    subjectType: AuthSubjectType,
+  ): Promise<AuthIdentityStatusCounts> {
+    const identities = [...this.identities.values()].filter(
+      (identity) => identity.subjectType === subjectType,
+    );
+    const active = identities.filter(
+      (identity) => identity.status === 'active',
+    ).length;
+    const suspended = identities.filter(
+      (identity) => identity.status === 'suspended',
+    ).length;
+    return {
+      total: identities.length,
+      active,
+      suspended,
+    };
   }
 
   async consumeRateLimits(input: {

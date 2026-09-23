@@ -65,3 +65,121 @@ export function parseAdminAuditLimit(value: string | null): number {
   }
   return limit;
 }
+
+
+export interface AdminDriverDirectoryCursor {
+  updatedAt: string;
+  id: string;
+}
+
+export interface AdminDriverDirectoryQuery {
+  status?: AuthIdentityStatus | undefined;
+  search?: string | undefined;
+  limit: number;
+  cursor?: AdminDriverDirectoryCursor | undefined;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function encodeAdminDriverDirectoryCursor(input: {
+  updatedAt: string;
+  id: string;
+}): string {
+  return Buffer.from(
+    JSON.stringify({
+      v: 1,
+      u: input.updatedAt,
+      i: input.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAdminDriverDirectoryCursor(
+  value: string,
+): AdminDriverDirectoryCursor {
+  if (
+    value.length < 8 ||
+    value.length > 512 ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new InvalidAdminRequestError('cursor é inválido.');
+  }
+
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as {
+      v?: unknown;
+      u?: unknown;
+      i?: unknown;
+    };
+    const updatedAt =
+      typeof decoded.u === 'string' ? decoded.u : '';
+    const id =
+      typeof decoded.i === 'string' ? decoded.i : '';
+    if (
+      decoded.v !== 1 ||
+      !Number.isFinite(Date.parse(updatedAt)) ||
+      !UUID_PATTERN.test(id)
+    ) {
+      throw new Error('invalid');
+    }
+    return { updatedAt, id };
+  } catch {
+    throw new InvalidAdminRequestError('cursor é inválido.');
+  }
+}
+
+export function parseAdminDriverDirectoryQuery(
+  searchParams: URLSearchParams,
+): AdminDriverDirectoryQuery {
+  const rawStatus = searchParams.get('status')?.trim() ?? '';
+  let status: AuthIdentityStatus | undefined;
+  if (rawStatus) {
+    if (rawStatus !== 'active' && rawStatus !== 'suspended') {
+      throw new InvalidAdminRequestError(
+        'status deve ser active ou suspended.',
+      );
+    }
+    status = rawStatus;
+  }
+
+  const rawSearch = searchParams.get('query')?.trim() ?? '';
+  if (
+    rawSearch.length > 80 ||
+    /[\u0000-\u001f\u007f]/.test(rawSearch)
+  ) {
+    throw new InvalidAdminRequestError(
+      'query deve ter no máximo 80 caracteres válidos.',
+    );
+  }
+
+  const rawLimit = searchParams.get('limit')?.trim() ?? '';
+  let limit = 25;
+  if (rawLimit) {
+    if (!/^\d{1,3}$/.test(rawLimit)) {
+      throw new InvalidAdminRequestError(
+        'limit deve ser inteiro entre 1 e 100.',
+      );
+    }
+    limit = Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new InvalidAdminRequestError(
+        'limit deve ser inteiro entre 1 e 100.',
+      );
+    }
+  }
+
+  const rawCursor = searchParams.get('cursor')?.trim() ?? '';
+
+  return {
+    ...(status == null ? {} : { status }),
+    ...(rawSearch ? { search: rawSearch } : {}),
+    limit,
+    ...(rawCursor
+      ? { cursor: decodeAdminDriverDirectoryCursor(rawCursor) }
+      : {}),
+  };
+}
