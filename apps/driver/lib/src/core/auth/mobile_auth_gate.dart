@@ -88,9 +88,15 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
 
     try {
       await widget.service.logout(token);
-      await widget.tokenStore.clearAccessToken();
     } catch (_) {
       return false;
+    }
+
+    try {
+      await widget.tokenStore.clearAccessToken();
+    } catch (_) {
+      // A sessão já foi revogada no Core. Um token local residual será
+      // rejeitado no próximo bootstrap e não deve manter a UI autenticada.
     }
 
     if (!mounted) return true;
