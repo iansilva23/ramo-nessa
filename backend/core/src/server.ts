@@ -33,6 +33,7 @@ import {
 import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
+  getDriverSupplyForApp,
   DriverAppError,
   rejectOfferFromDriverApp,
   updateDriverSupplyFromApp,
@@ -91,6 +92,19 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     if (request.method === 'GET' && request.url === '/health') {
       json(response, 200, { ok: true, service: 'ramo-nessa-core', storageMode });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/supply'
+    ) {
+      const driverId = resolveDriverId(request);
+      const supply = await getDriverSupplyForApp({
+        drivers: driverSupplyRepository,
+        driverId,
+      });
+      json(response, 200, supply);
       return;
     }
 
