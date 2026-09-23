@@ -124,6 +124,19 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       );
 
       if (!mounted) return;
+      if (result.paymentRefunded) {
+        setState(() {
+          _payingWallet = false;
+          _walletBalanceCents = result.walletBalanceCents;
+          _walletMessage = result.dispatchStatus == 'NO_DRIVER_FOUND'
+              ? 'Não encontramos motorista disponível. '
+                  'O valor voltou integralmente para sua Carteira Ramo Nessa.'
+              : 'A corrida não pôde ser liberada e o valor voltou '
+                  'integralmente para sua Carteira Ramo Nessa.';
+        });
+        return;
+      }
+
       if (!result.paymentConfirmed) {
         setState(() {
           _payingWallet = false;
