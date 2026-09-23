@@ -44,6 +44,6 @@ abstract interface class PhoneAuthService {
     required String challengeId,
     required String code,
   });
-  Future<AuthSessionInfo> currentSession(String accessToken);
+  Future<AuthSessionInfo?> currentSession(String accessToken);
   Future<void> logout(String accessToken);
 }
