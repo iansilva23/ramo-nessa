@@ -34,6 +34,10 @@ export interface AuthOtpRepository {
     phoneE164: string,
   ): Promise<AuthIdentityRecord | null>;
   findIdentityById(id: string): Promise<AuthIdentityRecord | null>;
+  findIdentityBySubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+  ): Promise<AuthIdentityRecord | null>;
   createChallenge(
     challenge: OtpChallengeRecord,
   ): Promise<OtpChallengeRecord>;
