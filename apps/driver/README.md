@@ -17,6 +17,8 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - corrida ativa é recuperada após reabrir o app;
 - Cheguei / Iniciar / Finalizar integrados ao Core;
 - finalização exibe saldo disponível do motorista;
+- painel de ganhos mostra saldo disponível e saque em processamento;
+- solicitação de saque integrada ao Core com reserva idempotente;
 - embarque e destino exatos ficam disponíveis para o fluxo de navegação;
 - botão abre navegação externa para embarque antes da corrida;
 - após iniciar, botão abre navegação externa para o destino exato;

@@ -214,3 +214,52 @@ class DriverRideCompletion {
   final int driverBalanceCents;
   final bool duplicateSettlement;
 }
+
+
+class DriverFinanceSummary {
+  const DriverFinanceSummary({
+    required this.availableBalanceCents,
+    required this.payoutPendingCents,
+  });
+
+  factory DriverFinanceSummary.fromJson(Map<String, dynamic> json) {
+    return DriverFinanceSummary(
+      availableBalanceCents:
+          (json['availableBalanceCents'] as num).toInt(),
+      payoutPendingCents:
+          (json['payoutPendingCents'] as num).toInt(),
+    );
+  }
+
+  final int availableBalanceCents;
+  final int payoutPendingCents;
+}
+
+class DriverPayoutReservation {
+  const DriverPayoutReservation({
+    required this.id,
+    required this.amountCents,
+    required this.status,
+    required this.finance,
+    required this.duplicateRequest,
+  });
+
+  factory DriverPayoutReservation.fromJson(Map<String, dynamic> json) {
+    final payout = json['payout'] as Map<String, dynamic>;
+    return DriverPayoutReservation(
+      id: payout['id'] as String,
+      amountCents: (payout['amountCents'] as num).toInt(),
+      status: payout['status'] as String,
+      finance: DriverFinanceSummary.fromJson(
+        json['finance'] as Map<String, dynamic>,
+      ),
+      duplicateRequest: json['duplicateRequest'] as bool? ?? false,
+    );
+  }
+
+  final String id;
+  final int amountCents;
+  final String status;
+  final DriverFinanceSummary finance;
+  final bool duplicateRequest;
+}

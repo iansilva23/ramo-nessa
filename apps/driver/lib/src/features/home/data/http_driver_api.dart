@@ -159,6 +159,41 @@ class HttpDriverApi implements DriverApi {
     );
   }
 
+  @override
+  Future<DriverFinanceSummary> financeSummary() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/finance'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverFinanceSummary.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
+  Future<DriverPayoutReservation> requestPayout({
+    required int amountCents,
+    required String idempotencyKey,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/payouts'),
+          headers: {
+            ..._headers,
+            'idempotency-key': idempotencyKey,
+          },
+          body: jsonEncode({'amountCents': amountCents}),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverPayoutReservation.fromJson(
+      _expectObject(response, expectedStatus: 201),
+    );
+  }
+
   Map<String, dynamic> _expectObject(
     http.Response response, {
     required int expectedStatus,

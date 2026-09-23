@@ -50,9 +50,9 @@
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
 - [x] Core WebSocket para entrega realtime da oferta
-- [ ] app Motorista conectado ao WebSocket
+- [x] app Motorista conectado ao WebSocket com fallback HTTP
 - [x] acompanhamento do motorista via polling temporário
-- [ ] acompanhamento realtime via WebSocket
+- [x] acompanhamento realtime via WebSocket com fallback HTTP
 - [ ] chat
 - [ ] histórico
 - [ ] avaliação
@@ -71,7 +71,7 @@
 - [ ] validar tracking Android em background em celular real
 - [x] domínio persistente de ofertas no Core
 - [x] API Core para consultar oferta ativa
-- [x] recebimento de ofertas no app via polling temporário
+- [x] recebimento de ofertas via WebSocket com polling fallback
 - [x] aceite atômico no Core
 - [x] API Core para aceitar/recusar
 - [x] aceitar/recusar no app
@@ -81,7 +81,7 @@
 - [x] Cheguei / Iniciar / Finalizar com liquidação
 - [x] ganho líquido por corrida exibido
 - [ ] painel completo de ganhos bruto/líquido
-- [ ] carteira/repasse no app do motorista
+- [x] saldo e solicitação de saque no app do motorista
 - [x] saldo e reserva de saque no Core
 - [ ] histórico e avaliações
 
@@ -107,12 +107,12 @@
 - [x] oferta/aceite transacional do matching
 - [x] despacho inicial automático após pagamento confirmado
 - [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
-- [ ] entrega realtime das ofertas
+- [x] entrega realtime das ofertas
 - [x] sincronização contínua de localização motorista -> Core
 - [x] endpoint seguro de tracking do passageiro
 - [x] polling temporário passageiro <- localização do motorista
 - [x] Core WebSocket para tracking da corrida
-- [ ] apps conectados ao WebSocket com fallback HTTP
+- [x] apps conectados ao WebSocket com fallback HTTP
 - [x] distância roteada motorista→passageiro para preço final
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão

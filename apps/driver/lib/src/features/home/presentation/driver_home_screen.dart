@@ -59,10 +59,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
+  DriverFinanceSummary? _finance;
   bool _loading = true;
   bool _changingStatus = false;
   bool _offerAction = false;
   bool _rideAction = false;
+  bool _financeLoading = false;
+  bool _payoutAction = false;
   String? _message;
   Timer? _pollTimer;
   Timer? _ticker;
@@ -105,6 +108,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _loading = false;
         _message = null;
       });
+
+      await _refreshFinance(showError: false);
 
       if (supply.online) {
         _startLocationTracking();
@@ -477,6 +482,72 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _refreshFinance({bool showError = true}) async {
+    final api = _api;
+    if (api == null || _financeLoading) return;
+
+    _financeLoading = true;
+    try {
+      final finance = await api.financeSummary();
+      if (!mounted) return;
+      setState(() => _finance = finance);
+    } on DriverApiException catch (error) {
+      if (!mounted || !showError) return;
+      setState(() => _message = error.message);
+    } finally {
+      _financeLoading = false;
+    }
+  }
+
+  Future<void> _requestPayout() async {
+    final api = _api;
+    final finance = _finance;
+    if (
+      api == null ||
+      finance == null ||
+      finance.availableBalanceCents <= 0 ||
+      _payoutAction
+    ) {
+      return;
+    }
+
+    final amount = finance.availableBalanceCents;
+    final key =
+        'driver-payout-${DateTime.now().microsecondsSinceEpoch}';
+
+    setState(() => _payoutAction = true);
+    try {
+      final result = await api.requestPayout(
+        amountCents: amount,
+        idempotencyKey: key,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _finance = result.finance;
+        _payoutAction = false;
+        _message = null;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Saque solicitado: ${formatCents(result.amountCents)}. '
+              'O valor ficou reservado para repasse.',
+            ),
+          ),
+        );
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _payoutAction = false;
+        _message = error.message;
+      });
+    }
+  }
+
   Future<void> _completeRide() async {
     final api = _api;
     final ride = _activeRide;
@@ -505,6 +576,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
           ),
         );
+
+      await _refreshFinance(showError: false);
 
       if (supply.online && !supply.busy) {
         _startPolling();
@@ -592,6 +665,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         changing: _changingStatus,
                         onToggle: _setOnline,
                         onUpdateLocation: _updateLocation,
+                      ),
+                      const SizedBox(height: RamoSpacing.md),
+                      _DriverFinanceCard(
+                        finance: _finance,
+                        loading: _financeLoading,
+                        requesting: _payoutAction,
+                        onRefresh: _refreshFinance,
+                        onRequestPayout: _requestPayout,
                       ),
                       const SizedBox(height: RamoSpacing.lg),
                       if (_activeRide != null)
@@ -745,6 +826,114 @@ class _DriverStatusCard extends StatelessWidget {
         'delivery' => 'Entrega',
         _ => value,
       };
+}
+
+class _DriverFinanceCard extends StatelessWidget {
+  const _DriverFinanceCard({
+    required this.finance,
+    required this.loading,
+    required this.requesting,
+    required this.onRefresh,
+    required this.onRequestPayout,
+  });
+
+  final DriverFinanceSummary? finance;
+  final bool loading;
+  final bool requesting;
+  final VoidCallback onRefresh;
+  final VoidCallback onRequestPayout;
+
+  @override
+  Widget build(BuildContext context) {
+    final available = finance?.availableBalanceCents ?? 0;
+    final pending = finance?.payoutPendingCents ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.lg),
+      decoration: BoxDecoration(
+        color: RamoColors.brandBlack,
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.account_balance_wallet_rounded,
+                color: RamoColors.brandYellow,
+              ),
+              SizedBox(width: RamoSpacing.xs),
+              Text(
+                'Ganhos',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: RamoSpacing.md),
+          Text(
+            loading && finance == null
+                ? 'Carregando…'
+                : formatCents(available),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const Text(
+            'Disponível para saque',
+            style: TextStyle(color: Colors.white70),
+          ),
+          const SizedBox(height: RamoSpacing.sm),
+          Text(
+            'Em processamento: ${formatCents(pending)}',
+            style: const TextStyle(
+              color: RamoColors.brandYellow,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: RamoSpacing.sm),
+          const Text(
+            'O saque já pode ser reservado no app. O envio Pix real '
+            'será ativado quando o provedor de repasses estiver conectado.',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: RamoSpacing.md),
+          Row(
+            children: [
+              IconButton(
+                onPressed: loading ? null : onRefresh,
+                color: Colors.white,
+                tooltip: 'Atualizar saldo',
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+              const SizedBox(width: RamoSpacing.xs),
+              Expanded(
+                child: FilledButton(
+                  onPressed:
+                      available > 0 && !requesting ? onRequestPayout : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: RamoColors.brandYellow,
+                    foregroundColor: RamoColors.brandBlack,
+                  ),
+                  child: requesting
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Solicitar saque'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OfferCard extends StatelessWidget {

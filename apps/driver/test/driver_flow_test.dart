@@ -119,6 +119,39 @@ void main() {
     },
   );
 
+  testWidgets('motorista vê saldo e reserva saque', (tester) async {
+    final api = _FakeDriverApi();
+
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(find.text('Ganhos'), findsOneWidget);
+    expect(find.text('R\$ 110,00'), findsOneWidget);
+    expect(find.text('Em processamento: R\$ 0,00'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Solicitar saque'));
+    await tester.pump();
+    await tester.tap(find.text('Solicitar saque'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(api.lastPayoutAmountCents, 11000);
+    expect(find.text('Em processamento: R\$ 110,00'), findsOneWidget);
+    expect(
+      find.textContaining('Saque solicitado: R\$ 110,00'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets('motorista pode recusar oferta', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
 
@@ -214,6 +247,11 @@ class _FakeDriverApi implements DriverApi {
   String? completedRideId;
   DriverPosition? lastSyncedPosition;
   AcceptedDriverRide? _currentRide;
+  int? lastPayoutAmountCents;
+  DriverFinanceSummary _finance = const DriverFinanceSummary(
+    availableBalanceCents: 11000,
+    payoutPendingCents: 0,
+  );
 
   DriverOffer get _offer => DriverOffer(
         id: 'offer-1',
@@ -372,6 +410,30 @@ class _FakeDriverApi implements DriverApi {
       ride: completed,
       driverBalanceCents: 11000,
       duplicateSettlement: false,
+    );
+  }
+
+  @override
+  Future<DriverFinanceSummary> financeSummary() async => _finance;
+
+  @override
+  Future<DriverPayoutReservation> requestPayout({
+    required int amountCents,
+    required String idempotencyKey,
+  }) async {
+    lastPayoutAmountCents = amountCents;
+    _finance = DriverFinanceSummary(
+      availableBalanceCents:
+          _finance.availableBalanceCents - amountCents,
+      payoutPendingCents:
+          _finance.payoutPendingCents + amountCents,
+    );
+    return DriverPayoutReservation(
+      id: 'payout-test',
+      amountCents: amountCents,
+      status: 'requested',
+      finance: _finance,
+      duplicateRequest: false,
     );
   }
 

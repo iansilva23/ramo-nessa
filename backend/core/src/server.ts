@@ -21,6 +21,15 @@ import {
   payRideWithWallet,
 } from './payments/wallet-services.js';
 import { WalletDomainError } from './payments/wallet.js';
+import { PayoutDomainError } from './payments/payout.js';
+import {
+  driverFinanceSummary,
+  requestDriverPayoutFromApp,
+} from './drivers/driver-finance-service.js';
+import {
+  InvalidDriverFinanceRequestError,
+  parseDriverPayoutRequest,
+} from './drivers/driver-finance-validation.js';
 import {
   InvalidWalletRequestError,
   parseCreateWalletTopupRequest,
@@ -101,6 +110,49 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     if (request.method === 'GET' && request.url === '/health') {
       json(response, 200, { ok: true, service: 'ramo-nessa-core', storageMode });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/finance'
+    ) {
+      const driverId = resolveDriverId(request);
+      const finance = await driverFinanceSummary(
+        financeRepository,
+        driverId,
+      );
+      json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/driver/me/payouts'
+    ) {
+      const driverId = resolveDriverId(request);
+      const body = parseDriverPayoutRequest(await readJson(request));
+      const result = await requestDriverPayoutFromApp({
+        repository: financeRepository,
+        driverId,
+        amountCents: body.amountCents,
+        idempotencyKey: readIdempotencyKey(request.headers),
+      });
+
+      json(response, 201, {
+        payout: {
+          id: result.payout.id,
+          amountCents: result.payout.amountCents,
+          status: result.payout.status,
+          createdAt: result.payout.createdAt,
+        },
+        duplicateRequest: result.duplicateRequest,
+        finance: result.finance,
+        actionable: false,
+        message:
+          'Saque reservado. O repasse Pix real será executado quando ' +
+          'o provedor de repasses estiver conectado.',
+      });
       return;
     }
 
@@ -571,7 +623,8 @@ const server = createServer(async (request, response) => {
       error instanceof InvalidRideRequestError ||
       error instanceof InvalidPaymentRequestError ||
       error instanceof InvalidWalletRequestError ||
-      error instanceof InvalidDriverRequestError
+      error instanceof InvalidDriverRequestError ||
+      error instanceof InvalidDriverFinanceRequestError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
       return;
@@ -617,6 +670,11 @@ const server = createServer(async (request, response) => {
     if (error instanceof RideOfferError) {
       const status = error.code === 'OFFER_NOT_FOUND' ? 404 : 409;
       json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof PayoutDomainError) {
+      json(response, 422, { error: error.code, message: error.message });
       return;
     }
 

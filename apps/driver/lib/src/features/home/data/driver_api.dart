@@ -22,6 +22,13 @@ abstract interface class DriverApi {
   Future<AcceptedDriverRide> startRide(String rideId);
 
   Future<DriverRideCompletion> completeRide(String rideId);
+
+  Future<DriverFinanceSummary> financeSummary();
+
+  Future<DriverPayoutReservation> requestPayout({
+    required int amountCents,
+    required String idempotencyKey,
+  });
 }
 
 class DriverApiException implements Exception {
