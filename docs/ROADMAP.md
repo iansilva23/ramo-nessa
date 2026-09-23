@@ -69,6 +69,7 @@
 - [x] controle online/offline no app
 - [x] tracking Android em background via foreground service (implementado)
 - [ ] validar tracking Android em background em celular real
+- [ ] criar e validar estrutura iOS do app Motorista
 - [x] domínio persistente de ofertas no Core
 - [x] API Core para consultar oferta ativa
 - [x] recebimento de ofertas via WebSocket com polling fallback
@@ -114,10 +115,14 @@
 - [x] Core WebSocket para tracking da corrida
 - [x] apps conectados ao WebSocket com fallback HTTP
 - [x] distância roteada motorista→passageiro para preço final
+- [x] período tarifário calculado pelo Core em America/Fortaleza
+- [x] distância de entrega em Jeri calculada pelo Core
+- [x] validação de zona local declarada contra GPS
+- [ ] catálogo geoespacial autoritativo por localidade/destino externo
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
 - [x] ledger financeiro base e escrow de pagamento
-- [x] liquidação 10% plataforma / 90% motorista após corrida concluída
+- [x] liquidação 10%/90% sobre tarifa-base + compensação de coleta 100% para motorista
 - [x] Carteira do passageiro no Core
 - [x] saldo contábil do motorista por ledger
 - [x] solicitação e reserva idempotente de saque
