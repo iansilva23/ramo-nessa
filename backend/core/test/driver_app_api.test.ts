@@ -187,16 +187,21 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
   const ctx = await setup();
   const finance = new InMemoryFinanceRepository();
 
-  await finance.createPayment({
+  const pendingPayment = await finance.createPayment({
     id: 'payment-driver-flow',
     rideId: ctx.currentRide.id,
-    method: 'wallet',
-    processor: 'internal-wallet',
-    status: 'paid',
+    method: 'pix',
+    processor: 'test-gateway',
+    status: 'pending',
     amountCents: 12200,
     idempotencyKey: 'driver-flow-payment',
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
+  });
+  await finance.capturePayment({
+    paymentId: pendingPayment.id,
+    processorEventId: 'driver-flow-capture-001',
+    capturedAt: now,
   });
 
   await acceptOfferFromDriverApp({
