@@ -10,19 +10,25 @@ import 'driver_api.dart';
 class HttpDriverApi implements DriverApi {
   HttpDriverApi({
     required Uri baseUrl,
-    required String driverId,
+    String? accessToken,
+    String? driverId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _driverId = driverId,
+        _accessToken = accessToken ?? DriverCoreConfig.authToken,
+        _driverId = driverId ?? DriverCoreConfig.devDriverId,
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _driverId;
   final http.Client _client;
 
   Map<String, String> get _headers => {
         'content-type': 'application/json',
-        'x-dev-driver-id': _driverId,
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_driverId.trim().isNotEmpty)
+          'x-dev-driver-id': _driverId.trim(),
       };
 
   @override
