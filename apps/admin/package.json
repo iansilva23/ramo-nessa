@@ -1,0 +1,9 @@
+{
+  "name": "@ramo-nessa/admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/security.js && node --check src/api.js && node --check src/app.js",
+    "test": "node --test test/*.test.js"
+  }
+}

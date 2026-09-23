@@ -1,7 +1,8 @@
 # Ramo Nessa Admin
 
-O frontend do painel web ainda será construído, mas o **Core administrativo** já
-possui plano de controle e autenticação humana segura:
+O painel web administrativo já possui uma primeira superfície funcional, sem
+dependências de frontend de terceiros. O **Core administrativo** e o painel usam
+autenticação humana segura:
 
 - credenciais administrativas separadas das sessões de Passageiro/Motorista;
 - chaves de alta entropia com somente SHA-256 persistido;
@@ -27,13 +28,33 @@ API key.
 
 Consulte `../../docs/ADMIN_CONTROL_PLANE.md` para o procedimento operacional.
 
-## Escopo futuro do painel
+## Primeira superfície web
 
-- dashboard;
-- usuários;
-- motoristas e documentos;
-- viagens;
-- preços e zonas;
-- pagamentos e comissões;
-- bloqueios;
-- auditoria.
+A versão inicial implementa:
+
+- login humano com e-mail + senha + TOTP;
+- sessão mantida somente em memória;
+- visão dos escopos e expiração da sessão;
+- consulta de identidade de motorista;
+- provisionamento seguro (suspenso por padrão);
+- aprovação e suspensão;
+- leitura da trilha de auditoria;
+- layout responsivo seguindo a identidade amarelo/preto oficial;
+- CSP restritiva e ausência de `localStorage`/`sessionStorage`.
+
+### Publicação
+
+O painel deve ser servido em **mesma origem** que o Core por um reverse proxy
+confiável. O navegador usa apenas caminhos `/v1/admin/**`, e a CSP mantém
+`connect-src 'self'`. Isso evita liberar CORS administrativo de forma ampla.
+
+Arquivos estáticos de entrada:
+
+```text
+apps/admin/index.html
+apps/admin/styles.css
+apps/admin/src/
+```
+
+A próxima evolução visual/funcional inclui dashboard operacional, documentos,
+viagens, preços/zonas, pagamentos, bloqueios e demais módulos.

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
+    <meta name="theme-color" content="#0D0D0D">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    >
+    <meta name="referrer" content="no-referrer">
+    <title>Ramo Nessa — Admin</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="src/app.js"></script>
+  </head>
+  <body>
+    <div id="auth-view" class="auth-layout">
+      <section class="auth-brand-panel" aria-label="Ramo Nessa Admin">
+        <div class="brand-lockup brand-lockup--light">
+          <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+            <path
+              d="M24 45C20 35 8 29 8 18C8 8.5 14.5 3 24 3S40 8.5 40 18C40 29 28 35 24 45Z"
+              fill="currentColor"
+            />
+            <circle cx="24" cy="18" r="6.5" fill="#FAD50E"/>
+            <path
+              d="M8 35C17 29 27 29 40 35"
+              fill="none"
+              stroke="#FAD50E"
+              stroke-width="4"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span>RAMO NESSA</span>
+        </div>
+
+        <div class="auth-brand-copy">
+          <span class="eyebrow">CENTRAL DE OPERAÇÕES</span>
+          <h1>Controle seguro da operação local.</h1>
+          <p>
+            Acesso administrativo protegido por senha, MFA e sessão de curta
+            duração. Nenhuma API key fica exposta no navegador.
+          </p>
+        </div>
+
+        <div class="security-strip" aria-label="Proteções do acesso">
+          <span>Senha scrypt</span>
+          <span>MFA TOTP</span>
+          <span>Sessão 2h</span>
+          <span>Auditoria</span>
+        </div>
+      </section>
+
+      <main class="auth-form-panel">
+        <div class="login-card">
+          <div class="mobile-brand">
+            <div class="brand-lockup">
+              <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+                <path
+                  d="M24 45C20 35 8 29 8 18C8 8.5 14.5 3 24 3S40 8.5 40 18C40 29 28 35 24 45Z"
+                  fill="currentColor"
+                />
+                <circle cx="24" cy="18" r="6.5" fill="#FAD50E"/>
+                <path
+                  d="M8 35C17 29 27 29 40 35"
+                  fill="none"
+                  stroke="#FAD50E"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <span>RAMO NESSA</span>
+            </div>
+          </div>
+
+          <div class="login-heading">
+            <span class="eyebrow eyebrow--dark">ACESSO RESTRITO</span>
+            <h2>Entrar no Admin</h2>
+            <p>Use sua conta administrativa e o código do autenticador.</p>
+          </div>
+
+          <form id="login-form" novalidate>
+            <label class="field">
+              <span>E-mail</span>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                inputmode="email"
+                autocomplete="username"
+                maxlength="254"
+                required
+                placeholder="voce@ramonessa.com.br"
+              >
+            </label>
+
+            <label class="field">
+              <span>Senha</span>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                minlength="12"
+                maxlength="256"
+                required
+                placeholder="Sua senha administrativa"
+              >
+            </label>
+
+            <label class="field">
+              <span>Código MFA</span>
+              <input
+                id="login-totp"
+                name="totpCode"
+                type="text"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                required
+                placeholder="000000"
+              >
+            </label>
+
+            <div id="login-message" class="form-message" aria-live="polite"></div>
+
+            <button id="login-button" class="button button--primary button--full" type="submit">
+              Entrar com segurança
+            </button>
+          </form>
+
+          <p class="login-footnote">
+            A sessão fica somente na memória desta aba e é apagada ao sair ou
+            recarregar a página.
+          </p>
+        </div>
+      </main>
+    </div>
+
+    <div id="admin-view" class="admin-shell" hidden>
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-lockup brand-lockup--light">
+            <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+              <path
+                d="M24 45C20 35 8 29 8 18C8 8.5 14.5 3 24 3S40 8.5 40 18C40 29 28 35 24 45Z"
+                fill="currentColor"
+              />
+              <circle cx="24" cy="18" r="6.5" fill="#FAD50E"/>
+              <path
+                d="M8 35C17 29 27 29 40 35"
+                fill="none"
+                stroke="#FAD50E"
+                stroke-width="4"
+                stroke-linecap="round"
+              />
+            </svg>
+            <span>RAMO NESSA</span>
+          </div>
+          <small>ADMIN</small>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Navegação administrativa">
+          <button class="nav-item is-active" type="button" data-view="overview">
+            <span class="nav-icon">◫</span>
+            Visão geral
+          </button>
+          <button class="nav-item" type="button" data-view="drivers">
+            <span class="nav-icon">●</span>
+            Motoristas
+          </button>
+          <button class="nav-item" type="button" data-view="audit">
+            <span class="nav-icon">≡</span>
+            Auditoria
+          </button>
+        </nav>
+
+        <div class="sidebar-security">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Sessão protegida</strong>
+            <small id="sidebar-session-time">—</small>
+          </div>
+        </div>
+      </aside>
+
+      <div class="admin-main">
+        <header class="topbar">
+          <button id="mobile-menu-button" class="icon-button mobile-menu-button" type="button" aria-label="Abrir menu">
+            ☰
+          </button>
+          <div>
+            <span class="topbar-kicker">RAMO NESSA</span>
+            <strong id="page-title">Visão geral</strong>
+          </div>
+          <div class="topbar-actions">
+            <div class="operator-chip">
+              <span id="operator-initials" class="operator-avatar">RN</span>
+              <div>
+                <strong id="operator-name">Operador</strong>
+                <small id="operator-email">—</small>
+              </div>
+            </div>
+            <button id="logout-button" class="button button--ghost" type="button">
+              Sair
+            </button>
+          </div>
+        </header>
+
+        <main class="content">
+          <div id="global-message" class="global-message" aria-live="polite"></div>
+
+          <section id="view-overview" class="view-panel">
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow eyebrow--dark">OPERAÇÃO</span>
+                <h1>Visão geral</h1>
+                <p>Estado real da sua sessão administrativa e acesso disponível.</p>
+              </div>
+            </div>
+
+            <div class="overview-grid">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Core</span>
+                <strong id="core-status">Conectado</strong>
+                <small>Sessão validada pelo backend</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Sessão</span>
+                <strong id="session-time">—</strong>
+                <small>Expiração automática</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Escopos</span>
+                <strong id="scope-count">0</strong>
+                <small>Permissões concedidas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Auditoria carregada</span>
+                <strong id="audit-count">0</strong>
+                <small>Últimos eventos visíveis</small>
+              </article>
+            </div>
+
+            <div class="overview-columns">
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">SEGURANÇA</span>
+                    <h2>Sessão administrativa</h2>
+                  </div>
+                  <span class="pill pill--success">MFA validado</span>
+                </div>
+                <dl class="details-list">
+                  <div><dt>Operador</dt><dd id="overview-user">—</dd></div>
+                  <div><dt>E-mail</dt><dd id="overview-email">—</dd></div>
+                  <div><dt>Expira em</dt><dd id="overview-expiry">—</dd></div>
+                </dl>
+              </article>
+
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">PERMISSÕES</span>
+                    <h2>Escopos ativos</h2>
+                  </div>
+                </div>
+                <div id="scope-list" class="scope-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section id="view-drivers" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">MOTORISTAS</span>
+                <h1>Acesso e aprovação</h1>
+                <p>Consulte, provisione, aprove ou suspenda o acesso de um motorista.</p>
+              </div>
+            </div>
+
+            <div class="driver-layout">
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONSULTA</span>
+                    <h2>Buscar motorista</h2>
+                  </div>
+                </div>
+                <form id="driver-search-form" class="inline-form">
+                  <label class="field field--grow">
+                    <span>ID do motorista</span>
+                    <input id="driver-search-id" required maxlength="120" placeholder="driver-001">
+                  </label>
+                  <button class="button button--dark" type="submit">Consultar</button>
+                </form>
+                <div id="driver-result" class="driver-result empty-state">
+                  Informe o ID para consultar o cadastro de autenticação.
+                </div>
+              </article>
+
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">NOVO ACESSO</span>
+                    <h2>Provisionar motorista</h2>
+                  </div>
+                  <span class="pill">Seguro por padrão</span>
+                </div>
+                <form id="driver-provision-form" class="stack-form">
+                  <label class="field">
+                    <span>ID do motorista</span>
+                    <input id="provision-driver-id" required maxlength="120" placeholder="driver-001">
+                  </label>
+                  <label class="field">
+                    <span>Telefone</span>
+                    <input id="provision-phone" required inputmode="tel" maxlength="24" placeholder="(88) 99999-9999">
+                  </label>
+                  <label class="field">
+                    <span>Status inicial</span>
+                    <select id="provision-status">
+                      <option value="suspended" selected>Suspenso — aprovar depois</option>
+                      <option value="active">Aprovado — liberar OTP</option>
+                    </select>
+                  </label>
+                  <button class="button button--primary" type="submit">
+                    Criar acesso
+                  </button>
+                </form>
+              </article>
+            </div>
+          </section>
+
+          <section id="view-audit" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">AUDITORIA</span>
+                <h1>Trilha administrativa</h1>
+                <p>Ações realizadas por usuários humanos e integrações autorizadas.</p>
+              </div>
+              <button id="refresh-audit-button" class="button button--ghost-dark" type="button">
+                Atualizar
+              </button>
+            </div>
+
+            <article class="panel-card panel-card--table">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Quando</th>
+                      <th>Operador</th>
+                      <th>Ação</th>
+                      <th>Alvo</th>
+                      <th>Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-table-body"></tbody>
+                </table>
+              </div>
+              <div id="audit-empty" class="empty-state" hidden>
+                Nenhum evento de auditoria encontrado.
+              </div>
+            </article>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

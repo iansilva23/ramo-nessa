@@ -9,6 +9,7 @@ on:
       - "backend/core/**"
       - "apps/passenger/**"
       - "apps/driver/**"
+      - "apps/admin/**"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
@@ -18,6 +19,7 @@ on:
       - "backend/core/**"
       - "apps/passenger/**"
       - "apps/driver/**"
+      - "apps/admin/**"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
@@ -86,6 +88,14 @@ jobs:
       - name: Build Core production output
         working-directory: backend/core
         run: npm run build
+
+      - name: Check Admin web syntax
+        working-directory: apps/admin
+        run: npm run check
+
+      - name: Test Admin web
+        working-directory: apps/admin
+        run: npm test
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0

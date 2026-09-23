@@ -139,7 +139,7 @@
 - [x] provisionamento/aprovação/suspensão de motorista com auditoria
 - [x] login humano base com senha + TOTP + sessão curta + anti-bruteforce
 - [x] conectar sessão humana às operações administrativas do painel
-- [ ] frontend/login do painel
+- [x] frontend/login do painel
 - [ ] dashboard
 - [ ] passageiros
 - [ ] motoristas
