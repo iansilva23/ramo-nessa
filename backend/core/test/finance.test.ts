@@ -197,3 +197,57 @@ test('mesmo evento do gateway não pode capturar pagamentos diferentes', async (
     'pending',
   );
 });
+
+
+test('corrida não aceita dois pagamentos capturados diferentes', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const base = ride();
+
+  await repository.createPayment({
+    id: 'payment-one-paid-ride-a',
+    rideId: base.id,
+    method: 'pix',
+    processor: 'test-gateway',
+    status: 'pending',
+    amountCents: base.quote.totalAmountCents,
+    idempotencyKey: 'one-paid-ride-a',
+    createdAt: base.createdAt,
+    updatedAt: base.updatedAt,
+  });
+  await repository.createPayment({
+    id: 'payment-one-paid-ride-b',
+    rideId: base.id,
+    method: 'card',
+    processor: 'test-gateway',
+    status: 'pending',
+    amountCents: base.quote.totalAmountCents,
+    idempotencyKey: 'one-paid-ride-b',
+    createdAt: base.createdAt,
+    updatedAt: base.updatedAt,
+  });
+
+  await repository.capturePayment({
+    paymentId: 'payment-one-paid-ride-a',
+    processorEventId: 'evt-one-paid-a',
+  });
+
+  await assert.rejects(
+    () =>
+      repository.capturePayment({
+        paymentId: 'payment-one-paid-ride-b',
+        processorEventId: 'evt-one-paid-b',
+      }),
+    (error: unknown) =>
+      error instanceof PaymentDomainError &&
+      error.code === 'RIDE_ALREADY_PAID',
+  );
+
+  assert.equal(
+    (await repository.findPaymentById('payment-one-paid-ride-b'))?.status,
+    'pending',
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(`ride:${base.id}:escrow`),
+    base.quote.totalAmountCents,
+  );
+});
