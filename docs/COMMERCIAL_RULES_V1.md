@@ -7,9 +7,9 @@ Este documento é a fonte comercial de verdade da v1. Os valores abaixo são ser
 
 ## Regras globais
 
-- Comissão Ramo Nessa: 10% do valor final cobrado no app.
-- Repasse ao motorista/prestador: 90%.
-- A comissão de 10% também incide sobre adicionais cobrados pelo app.
+- Comissão Ramo Nessa: 10% sobre a tarifa-base da corrida.
+- Repasse ao motorista/prestador: 90% da tarifa-base.
+- A compensação de coleta distante é repassada integralmente ao motorista e não sofre comissão.
 - Pagamento no lançamento: somente Pix, cartão e Carteira Ramo Nessa.
 - Dinheiro: desativado no lançamento.
 - Pix direto para o motorista: desativado.
@@ -35,7 +35,7 @@ km_excedente = max(0, distancia_motorista_passageiro_km - 3)
 adicional = ceil(km_excedente * preco_combustivel / consumo_km_l)
 ```
 
-O valor deve ser mostrado ao passageiro antes da confirmação. O adicional integra o valor final e, pela regra comercial aprovada, também sofre a comissão padrão de 10%.
+O valor deve ser mostrado ao passageiro antes da confirmação. O adicional integra o total cobrado do passageiro, mas é repassado integralmente ao motorista e não entra na base da comissão de 10%.
 
 ## Jericoacoara
 
