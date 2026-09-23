@@ -18,6 +18,9 @@ import type { RideMatchingRepository } from '../matching/ride-matching-repositor
 import { InMemoryRideMatchingRepository } from '../matching/in-memory-ride-matching-repository.js';
 import { PostgresRideMatchingRepository } from '../matching/postgres-ride-matching-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import type { DriverDocumentRepository } from '../drivers/driver-document-repository.js';
+import { InMemoryDriverDocumentRepository } from '../drivers/repositories/in-memory-driver-document-repository.js';
+import { PostgresDriverDocumentRepository } from '../drivers/repositories/postgres-driver-document-repository.js';
 import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import { InMemoryDriverRegistryRepository } from '../drivers/repositories/in-memory-driver-registry-repository.js';
 import { PostgresDriverRegistryRepository } from '../drivers/repositories/postgres-driver-registry-repository.js';
@@ -39,6 +42,7 @@ export interface RepositoryBundle {
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
+  driverDocumentRepository: DriverDocumentRepository;
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
   storageMode: 'postgres' | 'memory';
@@ -66,6 +70,8 @@ export function createRepositories(): RepositoryBundle {
       driverSupplyRepository,
       driverRegistryRepository:
         new PostgresDriverRegistryRepository(pool),
+      driverDocumentRepository:
+        new PostgresDriverDocumentRepository(pool),
       rideMatchingRepository: new PostgresRideMatchingRepository(pool),
       ridePreparationRepository:
         new PostgresRidePreparationRepository(pool),
@@ -99,6 +105,8 @@ export function createRepositories(): RepositoryBundle {
     driverSupplyRepository,
     driverRegistryRepository:
       new InMemoryDriverRegistryRepository(),
+    driverDocumentRepository:
+      new InMemoryDriverDocumentRepository(),
     rideMatchingRepository: new InMemoryRideMatchingRepository(
       rideRepository,
       driverSupplyRepository,

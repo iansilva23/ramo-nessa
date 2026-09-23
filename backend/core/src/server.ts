@@ -63,6 +63,7 @@ import {
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   AdminAuthenticationError,
+  authenticateAdminBearer,
 } from './admin/admin-auth.js';
 import {
   authenticateAdminPrincipal,
@@ -107,6 +108,20 @@ import {
   parseUpdateDriverSupplyRequest,
 } from './drivers/driver-validation.js';
 import { DriverSupplyError } from './drivers/driver-supply.js';
+import {
+  DriverDocumentError,
+  getDriverDocumentsForAdmin,
+  reviewDriverDocumentFromAdmin,
+  submitDriverDocumentFromAdmin,
+} from './drivers/driver-document-service.js';
+import {
+  InvalidDriverDocumentRequestError,
+  parseReviewDriverDocumentRequest,
+  parseSubmitDriverDocumentRequest,
+} from './drivers/driver-document-validation.js';
+import type {
+  DriverDocumentType,
+} from './drivers/driver-document-repository.js';
 import {
   DriverRegistryError,
   getDriverRegistryForAdmin,
@@ -174,6 +189,7 @@ const {
   financeRepository,
   driverSupplyRepository,
   driverRegistryRepository,
+  driverDocumentRepository,
   ridePreparationRepository,
   rideMatchingRepository,
   storageMode,
@@ -833,6 +849,91 @@ const server = createServer(async (request, response) => {
         summary,
         nextCursor,
       });
+      return;
+    }
+
+    const adminDriverDocumentReviewMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents\/(driver_license|vehicle_registration)\/review$/,
+      );
+    if (
+      request.method === 'PATCH' &&
+      adminDriverDocumentReviewMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:write',
+      });
+      const review = parseReviewDriverDocumentRequest(
+        await readJson(request),
+      );
+      const result = await reviewDriverDocumentFromAdmin({
+        documents: driverDocumentRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverDocumentReviewMatch[1]!,
+        documentType:
+          adminDriverDocumentReviewMatch[2]! as DriverDocumentType,
+        review,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    const adminDriverDocumentMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents\/(driver_license|vehicle_registration)$/,
+    );
+    if (
+      request.method === 'PUT' &&
+      adminDriverDocumentMatch != null
+    ) {
+      const key = await authenticateAdminBearer({
+        repository: adminRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:write',
+      });
+      const data = parseSubmitDriverDocumentRequest(
+        await readJson(request),
+      );
+      const result = await submitDriverDocumentFromAdmin({
+        registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
+        admin: adminRepository,
+        actor: {
+          kind: 'api_key',
+          id: key.id,
+          name: key.name,
+        },
+        driverId: adminDriverDocumentMatch[1]!,
+        documentType:
+          adminDriverDocumentMatch[2]! as DriverDocumentType,
+        data,
+      });
+      json(response, 201, result);
+      return;
+    }
+
+    const adminDriverDocumentsMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminDriverDocumentsMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:read',
+      });
+      const result = await getDriverDocumentsForAdmin({
+        registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
+        driverId: adminDriverDocumentsMatch[1]!,
+      });
+      json(response, 200, result);
       return;
     }
 
@@ -1644,6 +1745,14 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof InvalidDriverDocumentRequestError) {
+      json(response, 400, {
+        error: 'INVALID_DRIVER_DOCUMENT_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof InvalidDriverRegistryRequestError) {
       json(response, 400, {
         error: 'INVALID_DRIVER_REGISTRY_REQUEST',
@@ -1691,6 +1800,21 @@ const server = createServer(async (request, response) => {
     if (error instanceof AdminAuthenticationError) {
       const status =
         error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof DriverDocumentError) {
+      const status =
+        error.code === 'DOCUMENT_REVIEW_CONFLICT'
+          ? 409
+          : error.code === 'DOCUMENT_STORAGE_REFERENCE_INVALID' ||
+              error.code === 'DOCUMENT_ALREADY_EXPIRED'
+            ? 422
+            : 404;
       json(response, status, {
         error: error.code,
         message: error.message,

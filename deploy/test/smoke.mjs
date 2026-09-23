@@ -191,6 +191,41 @@ try {
     authorization: `Bearer ${token}`,
   };
 
+  const createStorageKey = compose([
+    'exec',
+    '-T',
+    'core',
+    'node',
+    'dist/scripts/create-admin-api-key.js',
+    '--name=CI Document Storage',
+    '--scopes=drivers:documents:write',
+    '--days=1',
+  ]);
+  requireOk(
+    createStorageKey,
+    'bootstrap da API key de documentos',
+  );
+  let documentApiKey;
+  try {
+    documentApiKey = JSON.parse(createStorageKey.stdout).token;
+  } catch {
+    throw new Error(
+      'Bootstrap da API key de documentos não retornou JSON válido.',
+    );
+  }
+  if (
+    typeof documentApiKey !== 'string' ||
+    !documentApiKey.startsWith('rn_admin_')
+  ) {
+    throw new Error(
+      'Bootstrap da API key de documentos não retornou token válido.',
+    );
+  }
+  const documentStorageHeaders = {
+    authorization: `Bearer ${documentApiKey}`,
+  };
+
+
   const me = await jsonRequest('/v1/admin/auth/me', {
     headers: authHeaders,
   });
@@ -338,6 +373,88 @@ try {
     );
   }
 
+  for (const document of [
+    {
+      type: 'driver_license',
+      storageKey: `drivers/${driverId}/documents/cnh-smoke.pdf`,
+      sha: 'd'.repeat(64),
+    },
+    {
+      type: 'vehicle_registration',
+      storageKey: `drivers/${driverId}/documents/crlv-smoke.pdf`,
+      sha: 'e'.repeat(64),
+    },
+  ]) {
+    const submittedDocument = await jsonRequest(
+      `/v1/admin/drivers/${driverId}/documents/${document.type}`,
+      {
+        method: 'PUT',
+        headers: {
+          ...documentStorageHeaders,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          storageKey: document.storageKey,
+          contentSha256: document.sha,
+          mimeType: 'application/pdf',
+          sizeBytes: 125000,
+          expiresOn: '2027-12-31',
+        }),
+      },
+    );
+    if (
+      submittedDocument.response.status !== 201 ||
+      submittedDocument.payload?.status !== 'pending' ||
+      'storageKey' in (submittedDocument.payload ?? {}) ||
+      'contentSha256' in (submittedDocument.payload ?? {})
+    ) {
+      throw new Error(
+        `Submissão segura de ${document.type} não foi confirmada.`,
+      );
+    }
+
+    const reviewedDocument = await jsonRequest(
+      `/v1/admin/drivers/${driverId}/documents/${document.type}/review`,
+      {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'approved' }),
+      },
+    );
+    if (
+      reviewedDocument.response.status !== 200 ||
+      reviewedDocument.payload?.status !== 'approved'
+    ) {
+      throw new Error(
+        `Aprovação de ${document.type} não foi confirmada.`,
+      );
+    }
+  }
+
+  const documents = await jsonRequest(
+    `/v1/admin/drivers/${driverId}/documents`,
+    { headers: authHeaders },
+  );
+  if (
+    documents.response.status !== 200 ||
+    documents.payload?.documentsApproved !== true ||
+    !Array.isArray(documents.payload?.items) ||
+    documents.payload.items.length !== 2 ||
+    documents.payload.items.some(
+      (item) =>
+        'storageKey' in item ||
+        'contentSha256' in item ||
+        item.effectiveStatus !== 'approved',
+    )
+  ) {
+    throw new Error(
+      'Consulta segura dos documentos do motorista falhou.',
+    );
+  }
+
   const approve = await jsonRequest(
     `/v1/admin/drivers/${driverId}/auth/status`,
     {
@@ -478,7 +595,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, diretórios, viagens, dashboard operacional, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard operacional, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

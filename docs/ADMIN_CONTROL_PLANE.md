@@ -39,6 +39,8 @@ Escopos atuais:
 - `drivers:auth:write`
 - `drivers:profile:read`
 - `drivers:profile:write`
+- `drivers:documents:read`
+- `drivers:documents:write`
 - `passengers:auth:read`
 - `rides:read`
 - `audit:read`
@@ -148,6 +150,41 @@ O cadastro contém placa normalizada, marca, modelo, ano, cor, categorias,
 capacidade e flag 4x4. Ele é **separado** de `driver_supply`, que continua sendo
 apenas a projeção operacional usada pelo matching. Documentos sensíveis ainda não
 fazem parte desta superfície.
+
+### Documentos do motorista
+
+Tipos iniciais:
+
+- `driver_license` — CNH;
+- `vehicle_registration` — CRLV.
+
+O Core não armazena o arquivo no PostgreSQL. Ele guarda apenas referência privada
+opaca, SHA-256, MIME, tamanho, validade, versão atual e estado de revisão. A API de
+consulta nunca devolve `storage_key` nem o checksum ao navegador.
+
+`GET /v1/admin/drivers/:driverId/documents`
+
+Escopo: `drivers:documents:read`.
+
+`PUT /v1/admin/drivers/:driverId/documents/:documentType`
+
+Escopo: `drivers:documents:write` e **somente API key server-to-server**. Essa
+rota é destinada ao futuro serviço de storage depois de um upload privado concluído.
+A sessão humana não pode fabricar uma referência de arquivo.
+
+`PATCH /v1/admin/drivers/:driverId/documents/:documentType/review`
+
+Escopo: `drivers:documents:write`. Transições permitidas:
+
+- `pending → approved`;
+- `pending → rejected` com motivo;
+- `approved → expired`.
+
+Uma nova submissão preserva o histórico e vira a única versão atual. Documento
+vencido não pode ser aprovado.
+
+Ainda faltam o provider de storage privado, upload real, validação do objeto e URL
+assinada de curta duração para visualização.
 
 ### Auditoria
 
