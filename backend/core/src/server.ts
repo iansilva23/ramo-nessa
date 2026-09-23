@@ -975,21 +975,26 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof PhoneOtpError) {
-      const status = switch (error.code) {
+      let status: number;
+      switch (error.code) {
         case 'INVALID_PHONE':
-          422;
+          status = 422;
+          break;
         case 'DRIVER_NOT_REGISTERED':
-          403;
         case 'AUTH_IDENTITY_SUSPENDED':
-          403;
+          status = 403;
+          break;
         case 'OTP_RATE_LIMITED':
-          429;
+          status = 429;
+          break;
         case 'OTP_INVALID_OR_EXPIRED':
-          401;
+          status = 401;
+          break;
         case 'OTP_DELIVERY_NOT_CONFIGURED':
         case 'OTP_DELIVERY_FAILED':
-          503;
-      };
+          status = 503;
+          break;
+      }
       json(response, status, {
         error: error.code,
         message: error.message,
