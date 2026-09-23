@@ -156,7 +156,7 @@ class _FakeDriverApi implements DriverApi {
       locationUpdatedAt: _supply.locationUpdatedAt,
     );
 
-    return AcceptedDriverRide(
+    return const AcceptedDriverRide(
       id: 'ride-1',
       state: 'DRIVER_ASSIGNED',
       category: 'car',
