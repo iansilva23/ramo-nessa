@@ -43,6 +43,7 @@ Escopos atuais:
 - `drivers:documents:write`
 - `passengers:auth:read`
 - `rides:read`
+- `pricing:read`
 - `audit:read`
 
 ### Revogar uma chave
@@ -78,6 +79,19 @@ interpretada como API key.
 Escopo: `rides:read`. Retorna contagens reais de corridas ativas, em busca de
 motorista, com motorista a caminho/chegou, em viagem, concluídas nas últimas 24h e
 canceladas nas últimas 24h, além das corridas ativas mais recentes.
+
+### Catálogo de preços e zonas
+
+`GET /v1/admin/pricing/catalog`
+
+Escopo: `pricing:read`. Retorna o catálogo comercial v1 autoritativo do Core em
+modo **somente leitura**: versão, categorias, períodos, zonas, comissão,
+política de coleta, adicionais, localidades de Preá/Jijoca e rotas fixas.
+
+A resposta informa `editable: false`. A edição administrativa permanece
+bloqueada até existir persistência, versionamento, vigência e auditoria próprias
+para regras comerciais. O painel não recalcula tarifa nem substitui o
+`quote-engine`.
 
 ### Diretório de passageiros
 
