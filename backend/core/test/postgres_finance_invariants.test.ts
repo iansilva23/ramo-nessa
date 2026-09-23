@@ -216,3 +216,138 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL estorna pagamento da carteira sem duplicar saldo',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const topupId = randomUUID();
+    const paymentId = randomUUID();
+    const passengerId = 'postgres-refund-passenger';
+    const now = '2026-09-23T20:30:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, $2, 'AWAITING_PAYMENT', 'created',
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $3, $3
+        )
+        `,
+        [rideId, passengerId, now],
+      );
+
+      await repository.createWalletTopup({
+        id: topupId,
+        passengerId,
+        method: 'pix',
+        processor: 'audit-gateway',
+        status: 'pending',
+        amountCents: 15000,
+        idempotencyKey: `audit-refund-topup-${topupId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await repository.captureWalletTopup({
+        walletTopupId: topupId,
+        processorEventId: `audit-refund-topup-event-${topupId}`,
+        capturedAt: new Date(now),
+      });
+
+      await repository.payRideFromWallet({
+        passengerId,
+        payment: {
+          id: paymentId,
+          rideId,
+          method: 'wallet',
+          processor: 'internal-wallet',
+          status: 'paid',
+          amountCents: 12000,
+          idempotencyKey: `audit-refund-payment-${paymentId}`,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `passenger:${passengerId}:wallet`,
+        ),
+        3000,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(`ride:${rideId}:escrow`),
+        12000,
+      );
+
+      const first = await repository.refundWalletRide({
+        paymentId,
+        passengerId,
+        refundedAt: new Date('2026-09-23T20:31:00.000Z'),
+      });
+      assert.equal(first.payment.status, 'refunded');
+      assert.equal(first.duplicateRefund, false);
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `passenger:${passengerId}:wallet`,
+        ),
+        15000,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(`ride:${rideId}:escrow`),
+        0,
+      );
+
+      const duplicate = await repository.refundWalletRide({
+        paymentId,
+        passengerId,
+        refundedAt: new Date('2026-09-23T20:32:00.000Z'),
+      });
+      assert.equal(duplicate.duplicateRefund, true);
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `passenger:${passengerId}:wallet`,
+        ),
+        15000,
+      );
+    } finally {
+      await pool.query(
+        `
+        DELETE FROM ledger_entries
+        WHERE transaction_id IN (
+          SELECT id
+          FROM ledger_transactions
+          WHERE ride_id = $1 OR wallet_topup_id = $2
+        )
+        `,
+        [rideId, topupId],
+      );
+      await pool.query(
+        'DELETE FROM ledger_transactions WHERE ride_id = $1 OR wallet_topup_id = $2',
+        [rideId, topupId],
+      );
+      await pool.query(
+        'DELETE FROM wallet_topup_events WHERE wallet_topup_id = $1',
+        [topupId],
+      );
+      await pool.query('DELETE FROM wallet_topups WHERE id = $1', [topupId]);
+      await pool.query('DELETE FROM payments WHERE ride_id = $1', [rideId]);
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
