@@ -37,13 +37,18 @@ class IoPassengerRideRealtimeService
 
         await for (final message in socket) {
           if (message is! String) continue;
-          final decoded = jsonDecode(message);
-          if (decoded is! Map<String, dynamic>) continue;
-          if (decoded['type'] != 'passenger.ride.tracking') continue;
 
-          final tracking = decoded['tracking'];
-          if (tracking is Map<String, dynamic>) {
-            yield PassengerRideTrackingSnapshot.fromJson(tracking);
+          try {
+            final decoded = jsonDecode(message);
+            if (decoded is! Map<String, dynamic>) continue;
+            if (decoded['type'] != 'passenger.ride.tracking') continue;
+
+            final tracking = decoded['tracking'];
+            if (tracking is Map<String, dynamic>) {
+              yield PassengerRideTrackingSnapshot.fromJson(tracking);
+            }
+          } catch (_) {
+            // Ignora somente a mensagem inválida; não derruba o WebSocket.
           }
         }
       } catch (_) {
