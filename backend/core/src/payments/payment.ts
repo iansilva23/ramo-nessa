@@ -23,6 +23,7 @@ export class PaymentDomainError extends Error {
       | 'INVALID_PAYMENT_AMOUNT'
       | 'IDEMPOTENCY_CONFLICT'
       | 'PAYMENT_NOT_FOUND'
+      | 'RIDE_ALREADY_PAID'
       | 'INVALID_PAYMENT_TRANSITION',
     message: string,
   ) {
