@@ -1441,3 +1441,162 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+
+.driver-registry-card {
+  margin-top: 18px;
+}
+
+.driver-registry-result {
+  margin-bottom: 18px;
+}
+
+.driver-registry-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.driver-registry-summary > div {
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--raised);
+}
+
+.driver-registry-summary span,
+.driver-registry-summary strong {
+  display: block;
+}
+
+.driver-registry-summary span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.driver-registry-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.driver-registry-write-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 330px);
+  gap: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.registry-form {
+  display: grid;
+  gap: 16px;
+}
+
+.registry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.registry-span-2 {
+  grid-column: span 2;
+}
+
+.registry-check {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 2px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.registry-check input,
+.registry-categories input {
+  width: 16px;
+  height: 16px;
+}
+
+.registry-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+.registry-categories legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.registry-categories label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: var(--raised);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.registry-status-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--raised);
+}
+
+.registry-status-panel h3 {
+  margin: 5px 0 4px;
+  font-size: 16px;
+}
+
+.driver-registry-write-controls[hidden] {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .driver-registry-write-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-registry-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .registry-grid,
+  .driver-registry-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .registry-span-2 {
+    grid-column: span 1;
+  }
+
+  .registry-categories {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
