@@ -9,12 +9,16 @@ import {
 } from './admin-repository.js';
 
 const ADMIN_TOKEN_PREFIX = 'rn_admin_';
+const DEFAULT_ADMIN_KEY_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const MIN_ADMIN_KEY_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_ADMIN_KEY_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 export class AdminAuthenticationError extends Error {
   constructor(
     public readonly code:
       | 'ADMIN_AUTH_REQUIRED'
       | 'ADMIN_AUTH_INVALID'
+      | 'ADMIN_AUTH_EXPIRED'
       | 'ADMIN_SCOPE_REQUIRED'
       | 'ADMIN_KEY_INVALID',
     message: string,
@@ -64,11 +68,24 @@ export async function issueAdminApiKey(input: {
   name: string;
   scopes?: readonly AdminScope[];
   now?: Date;
+  ttlMs?: number;
 }): Promise<{ token: string; key: AdminApiKeyRecord }> {
   const name = validateKeyName(input.name);
   const scopes = normalizeScopes(
     input.scopes ?? ADMIN_SCOPES,
   );
+  const ttlMs = input.ttlMs ?? DEFAULT_ADMIN_KEY_TTL_MS;
+  if (
+    !Number.isFinite(ttlMs) ||
+    ttlMs < MIN_ADMIN_KEY_TTL_MS ||
+    ttlMs > MAX_ADMIN_KEY_TTL_MS
+  ) {
+    throw new AdminAuthenticationError(
+      'ADMIN_KEY_INVALID',
+      'Validade da chave administrativa deve ficar entre 1 e 365 dias.',
+    );
+  }
+
   const token =
     ADMIN_TOKEN_PREFIX + randomBytes(32).toString('base64url');
   const now = input.now ?? new Date();
@@ -78,6 +95,7 @@ export async function issueAdminApiKey(input: {
     name,
     tokenHash: hashAdminApiToken(token),
     scopes,
+    expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
     createdAt: now.toISOString(),
   };
   await input.repository.createApiKey(key);
@@ -118,6 +136,14 @@ export async function authenticateAdminBearer(input: {
       'Credencial administrativa inválida ou revogada.',
     );
   }
+  const now = input.now ?? new Date();
+  if (Date.parse(key.expiresAt) <= now.getTime()) {
+    throw new AdminAuthenticationError(
+      'ADMIN_AUTH_EXPIRED',
+      'Credencial administrativa expirada.',
+    );
+  }
+
   if (!key.scopes.includes(input.requiredScope)) {
     throw new AdminAuthenticationError(
       'ADMIN_SCOPE_REQUIRED',
@@ -125,7 +151,7 @@ export async function authenticateAdminBearer(input: {
     );
   }
 
-  const usedAt = (input.now ?? new Date()).toISOString();
+  const usedAt = now.toISOString();
   await input.repository.touchApiKeyLastUsed(key.id, usedAt);
   return { ...key, lastUsedAt: usedAt };
 }

@@ -18,7 +18,8 @@ function requiredArg(name: string): string {
   if (!value) {
     console.error(
       'Uso: npm run admin:create-key -- --name=<nome> ' +
-        '[--scopes=drivers:auth:read,drivers:auth:write,audit:read]',
+        '[--scopes=drivers:auth:read,drivers:auth:write,audit:read] ' +
+        '[--days=90]',
     );
     process.exit(2);
   }
@@ -33,6 +34,11 @@ if (!databaseUrl) {
 
 const name = requiredArg('name');
 const rawScopes = optionalArg('scopes');
+const rawDays = Number(optionalArg('days') ?? '90');
+if (!Number.isInteger(rawDays) || rawDays < 1 || rawDays > 365) {
+  console.error('--days deve ser inteiro entre 1 e 365.');
+  process.exit(2);
+}
 const scopes: AdminScope[] =
   rawScopes == null
     ? [...ADMIN_SCOPES]
@@ -49,6 +55,7 @@ try {
     repository,
     name,
     scopes,
+    ttlMs: rawDays * 24 * 60 * 60 * 1000,
   });
 
   console.log(
@@ -59,6 +66,7 @@ try {
         scopes: issued.key.scopes,
         token: issued.token,
         createdAt: issued.key.createdAt,
+        expiresAt: issued.key.expiresAt,
         warning:
           'Copie o token agora. O Core persiste somente o hash e não poderá exibi-lo novamente.',
       },

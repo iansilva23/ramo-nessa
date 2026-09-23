@@ -12,6 +12,7 @@ interface AdminKeyRow {
   name: string;
   token_hash: string;
   scopes: AdminScope[];
+  expires_at: Date;
   created_at: Date;
   revoked_at: Date | null;
   last_used_at: Date | null;
@@ -34,6 +35,7 @@ function mapKey(row: AdminKeyRow): AdminApiKeyRecord {
     name: row.name,
     tokenHash: row.token_hash,
     scopes: [...row.scopes],
+    expiresAt: row.expires_at.toISOString(),
     createdAt: row.created_at.toISOString(),
     ...(row.revoked_at != null
       ? { revokedAt: row.revoked_at.toISOString() }
@@ -65,8 +67,8 @@ export class PostgresAdminRepository implements AdminRepository {
       `
       INSERT INTO admin_api_keys (
         id, name, token_hash, scopes,
-        created_at, revoked_at, last_used_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        expires_at, created_at, revoked_at, last_used_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
       [
@@ -74,6 +76,7 @@ export class PostgresAdminRepository implements AdminRepository {
         record.name,
         record.tokenHash,
         record.scopes,
+        record.expiresAt,
         record.createdAt,
         record.revokedAt ?? null,
         record.lastUsedAt ?? null,

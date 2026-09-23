@@ -22,7 +22,7 @@ export function parseAdminDriverProvisionRequest(body: unknown): {
   const phone =
     typeof value.phone === 'string' ? value.phone.trim() : '';
   const rawStatus =
-    value.status == null ? 'active' : String(value.status);
+    value.status == null ? 'suspended' : String(value.status);
 
   if (!phone) {
     throw new InvalidAdminRequestError('phone é obrigatório.');

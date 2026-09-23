@@ -9,7 +9,8 @@ com rastreabilidade, sem expor uma senha mestra no código ou no navegador.
 ## Credenciais
 
 As chaves têm prefixo `rn_admin_`, alta entropia e são exibidas em claro **uma
-única vez** no momento da criação. O banco persiste somente SHA-256.
+única vez** no momento da criação. O banco persiste somente SHA-256. Cada chave
+também possui expiração obrigatória; o padrão é 90 dias.
 
 Nunca:
 
@@ -23,7 +24,7 @@ Nunca:
 No ambiente seguro que possui `DATABASE_URL`:
 
 ```bash
-npm run admin:create-key -- --name="Operacao Jeri"
+npm run admin:create-key -- --name="Operacao Jeri" --days=90
 ```
 
 Por padrão a chave recebe todos os escopos administrativos atuais. Para restringir:
@@ -75,8 +76,9 @@ Corpo:
 }
 ```
 
-O mesmo telefone não pode pertencer a dois motoristas e o mesmo motorista não pode
-ser silenciosamente remapeado para outro telefone.
+Se `status` for omitido, o motorista nasce como `suspended` e precisa ser
+aprovado explicitamente. O mesmo telefone não pode pertencer a dois motoristas e o
+mesmo motorista não pode ser silenciosamente remapeado para outro telefone.
 
 ### Alterar status
 

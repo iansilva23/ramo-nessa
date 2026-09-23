@@ -33,6 +33,10 @@ test('chave admin persiste somente hash, respeita escopo e revogação', async (
   assert.ok(issued.token.startsWith('rn_admin_'));
   assert.equal(issued.key.tokenHash, hashAdminApiToken(issued.token));
   assert.notEqual(issued.key.tokenHash, issued.token);
+  assert.equal(
+    issued.key.expiresAt,
+    '2026-12-22T15:00:00.000Z',
+  );
 
   const authenticated = await authenticateAdminBearer({
     repository,
@@ -73,6 +77,54 @@ test('chave admin persiste somente hash, respeita escopo e revogação', async (
       error instanceof AdminAuthenticationError &&
       error.code === 'ADMIN_AUTH_INVALID',
   );
+});
+
+test('chave admin expirada é recusada mesmo sem revogação', async () => {
+  const repository = new InMemoryAdminRepository();
+  const issued = await issueAdminApiKey({
+    repository,
+    name: 'Expiracao Admin',
+    scopes: ['audit:read'],
+    now: new Date('2026-09-23T15:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000,
+  });
+
+  await assert.rejects(
+    () =>
+      authenticateAdminBearer({
+        repository,
+        headers: { authorization: `Bearer ${issued.token}` },
+        requiredScope: 'audit:read',
+        now: new Date('2026-09-24T15:00:00.001Z'),
+      }),
+    (error: unknown) =>
+      error instanceof AdminAuthenticationError &&
+      error.code === 'ADMIN_AUTH_EXPIRED',
+  );
+});
+
+test('provisionamento sem status nasce suspenso por padrão', async () => {
+  const admin = new InMemoryAdminRepository();
+  const identities = new InMemoryAuthOtpRepository();
+  const sessions = new InMemoryAuthSessionRepository();
+  const actor = (
+    await issueAdminApiKey({
+      repository: admin,
+      name: 'Provisionamento Seguro',
+      scopes: ['drivers:auth:write'],
+    })
+  ).key;
+
+  const result = await provisionDriverAuthFromAdmin({
+    identities,
+    sessions,
+    admin,
+    actor,
+    driverId: 'driver-default-suspended',
+    phone: '88999991259',
+  });
+
+  assert.equal(result.identity.status, 'suspended');
 });
 
 test('admin provisiona e suspende motorista, revogando sessões e auditando', async () => {
@@ -212,8 +264,11 @@ test(
       });
       adminKeyId = issuedAdmin.key.id;
 
-      const keyRow = await pool.query<{ token_hash: string }>(
-        'SELECT token_hash FROM admin_api_keys WHERE id = $1',
+      const keyRow = await pool.query<{
+        token_hash: string;
+        expires_at: Date;
+      }>(
+        'SELECT token_hash, expires_at FROM admin_api_keys WHERE id = $1',
         [adminKeyId],
       );
       assert.equal(
@@ -221,6 +276,10 @@ test(
         hashAdminApiToken(issuedAdmin.token),
       );
       assert.notEqual(keyRow.rows[0]?.token_hash, issuedAdmin.token);
+      assert.equal(
+        keyRow.rows[0]?.expires_at.toISOString(),
+        issuedAdmin.key.expiresAt,
+      );
 
       await provisionDriverAuthFromAdmin({
         identities,

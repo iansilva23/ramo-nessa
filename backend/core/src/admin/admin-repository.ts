@@ -11,6 +11,7 @@ export interface AdminApiKeyRecord {
   name: string;
   tokenHash: string;
   scopes: AdminScope[];
+  expiresAt: string;
   createdAt: string;
   revokedAt?: string;
   lastUsedAt?: string;

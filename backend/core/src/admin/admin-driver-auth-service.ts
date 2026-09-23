@@ -99,7 +99,7 @@ export async function provisionDriverAuthFromAdmin(input: {
 }): Promise<{ created: boolean; identity: AuthIdentityRecord }> {
   const driverId = normalizeDriverId(input.driverId);
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
-  const status = normalizeStatus(input.status ?? 'active');
+  const status = normalizeStatus(input.status ?? 'suspended');
   const now = (input.now ?? new Date()).toISOString();
 
   let [byPhone, bySubject] = await Promise.all([

@@ -6,8 +6,8 @@ já possui uma base segura para operação de motoristas:
 - credenciais administrativas separadas das sessões de Passageiro/Motorista;
 - chaves de alta entropia com somente SHA-256 persistido;
 - escopos por operação;
-- revogação de credenciais;
-- provisionamento/aprovação e suspensão de motorista;
+- expiração automática e revogação de credenciais;
+- provisionamento seguro com motorista suspenso por padrão, aprovação e suspensão;
 - revogação imediata das sessões do motorista suspenso;
 - trilha de auditoria administrativa.
 
