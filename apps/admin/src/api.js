@@ -98,6 +98,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    dashboard(token) {
+      return request('/v1/admin/dashboard', { token });
+    },
+
     passengers(
       token,
       { query = '', status = '', limit = 25, cursor = null } = {},

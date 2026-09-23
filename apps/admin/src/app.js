@@ -2,9 +2,13 @@ import { AdminApiError, createAdminApi } from './api.js';
 import {
   actionLabel,
   actorLabel,
+  formatCurrencyCents,
   formatDateTime,
   formatSessionRemaining,
+  locationLabel,
+  rideStatePresentation,
   secondsUntil,
+  serviceCategoryLabel,
   statusPresentation,
   validateDriverId,
   validateDriverStatus,
@@ -18,6 +22,18 @@ const state = {
   user: null,
   expiresAt: null,
   currentDriver: null,
+  dashboard: {
+    generatedAt: null,
+    rides: {
+      active: 0,
+      searchingDriver: 0,
+      driverOnTheWay: 0,
+      inProgress: 0,
+      completedLast24h: 0,
+      cancelledLast24h: 0,
+    },
+    activeRides: [],
+  },
   driverDirectory: {
     items: [],
     nextCursor: null,
@@ -51,6 +67,7 @@ const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
   ['drivers:auth:write', 'Aprovar e suspender motoristas'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
+  ['rides:read', 'Consultar operação de corridas'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -92,6 +109,18 @@ function clearSession(message = '') {
   state.user = null;
   state.expiresAt = null;
   state.currentDriver = null;
+  state.dashboard = {
+    generatedAt: null,
+    rides: {
+      active: 0,
+      searchingDriver: 0,
+      driverOnTheWay: 0,
+      inProgress: 0,
+      completedLast24h: 0,
+      cancelledLast24h: 0,
+    },
+    activeRides: [],
+  };
   state.driverDirectory = {
     items: [],
     nextCursor: null,
@@ -223,6 +252,9 @@ function activateView(viewName) {
   byId('page-title').textContent = titles[view];
   document.body.classList.remove('nav-open');
 
+  if (view === 'overview') {
+    void loadDashboard({ announce: false });
+  }
   if (view === 'audit') {
     void loadAudit({ announce: false });
   }
@@ -409,6 +441,144 @@ function renderDriverNotFound(driverId) {
   copy.textContent =
     `Nenhuma identidade de autenticação foi encontrada para ${driverId}.`;
   target.append(strong, copy);
+}
+
+function numericMetric(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0
+    ? Math.trunc(number)
+    : 0;
+}
+
+function renderDashboard(payload = null) {
+  const rides = payload?.rides ?? {};
+  const summary = {
+    active: numericMetric(rides.active),
+    searchingDriver: numericMetric(rides.searchingDriver),
+    driverOnTheWay: numericMetric(rides.driverOnTheWay),
+    inProgress: numericMetric(rides.inProgress),
+    completedLast24h: numericMetric(rides.completedLast24h),
+    cancelledLast24h: numericMetric(rides.cancelledLast24h),
+  };
+  const activeRides = Array.isArray(payload?.activeRides)
+    ? payload.activeRides
+    : [];
+
+  state.dashboard = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    rides: summary,
+    activeRides,
+  };
+
+  byId('dashboard-active').textContent = String(summary.active);
+  byId('dashboard-searching').textContent = String(
+    summary.searchingDriver,
+  );
+  byId('dashboard-on-way').textContent = String(
+    summary.driverOnTheWay,
+  );
+  byId('dashboard-in-progress').textContent = String(
+    summary.inProgress,
+  );
+  byId('dashboard-completed-24h').textContent = String(
+    summary.completedLast24h,
+  );
+  byId('dashboard-cancelled-24h').textContent = String(
+    summary.cancelledLast24h,
+  );
+  byId('dashboard-active-count').textContent =
+    `${activeRides.length} corrida(s)`;
+  byId('dashboard-updated-at').textContent =
+    state.dashboard.generatedAt == null
+      ? hasScope('rides:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão rides:read'
+      : `Atualizado em ${formatDateTime(state.dashboard.generatedAt)}`;
+
+  const body = byId('dashboard-rides-body');
+  const empty = byId('dashboard-rides-empty');
+  body.replaceChildren();
+
+  for (const ride of activeRides) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const statePill = document.createElement('span');
+    statePill.className = `pill pill--${stateInfo.tone}`;
+    statePill.textContent = stateInfo.label;
+    stateCell.append(statePill);
+
+    const route = document.createElement('td');
+    const routeStrong = document.createElement('strong');
+    routeStrong.textContent =
+      `${locationLabel(ride.origin)} → ` +
+      locationLabel(ride.destination);
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = String(ride.id ?? '—');
+    route.append(routeStrong, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const passenger = document.createElement('td');
+    passenger.textContent = String(ride.passengerId ?? '—');
+
+    const driver = document.createElement('td');
+    driver.textContent = String(
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando',
+    );
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(
+      ride.totalAmountCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    row.append(
+      stateCell,
+      route,
+      category,
+      passenger,
+      driver,
+      amount,
+      updated,
+    );
+    body.append(row);
+  }
+
+  empty.hidden = activeRides.length !== 0;
+}
+
+async function loadDashboard({ announce = true } = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    renderDashboard();
+    return;
+  }
+
+  const refreshButton = byId('refresh-dashboard-button');
+  refreshButton.disabled = true;
+  try {
+    const payload = await api.dashboard(state.token);
+    renderDashboard(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Dashboard operacional atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    refreshButton.disabled = false;
+  }
 }
 
 function renderDriverSummary(summary) {
@@ -870,6 +1040,9 @@ byId('passenger-directory-form').addEventListener('submit', (event) => {
 });
 byId('passenger-directory-more').addEventListener('click', () => {
   void loadPassengerDirectory({ reset: false, announce: false });
+});
+byId('refresh-dashboard-button').addEventListener('click', () => {
+  void loadDashboard();
 });
 byId('driver-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();

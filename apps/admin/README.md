@@ -38,6 +38,8 @@ A versão inicial implementa:
 - diretório paginado de motoristas com busca e filtro por status;
 - diretório paginado somente leitura de passageiros;
 - indicadores reais de total/aprovados/suspensos;
+- dashboard operacional de corridas com estados reais e janela móvel de 24h;
+- tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
 - provisionamento seguro (suspenso por padrão);
 - aprovação e suspensão;

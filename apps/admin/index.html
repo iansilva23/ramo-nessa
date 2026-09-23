@@ -220,11 +220,90 @@
           <div id="global-message" class="global-message" aria-live="polite"></div>
 
           <section id="view-overview" class="view-panel">
-            <div class="page-heading">
+            <div class="page-heading page-heading--split">
               <div>
                 <span class="eyebrow eyebrow--dark">OPERAÇÃO</span>
                 <h1>Visão geral</h1>
-                <p>Estado real da sua sessão administrativa e acesso disponível.</p>
+                <p>Corridas ativas e indicadores calculados diretamente pelo Core.</p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="dashboard-updated-at">Ainda não atualizado</small>
+                <button
+                  id="refresh-dashboard-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar operação
+                </button>
+              </div>
+            </div>
+
+            <div class="dashboard-grid" aria-label="Resumo operacional de corridas">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Corridas ativas</span>
+                <strong id="dashboard-active">0</strong>
+                <small>Em busca, deslocamento ou viagem</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Buscando motorista</span>
+                <strong id="dashboard-searching">0</strong>
+                <small>Aguardando aceite</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Motorista a caminho</span>
+                <strong id="dashboard-on-way">0</strong>
+                <small>Atribuído, chegando ou no embarque</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Em andamento</span>
+                <strong id="dashboard-in-progress">0</strong>
+                <small>Passageiro já em viagem</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Concluídas · 24h</span>
+                <strong id="dashboard-completed-24h">0</strong>
+                <small>Janela móvel das últimas 24 horas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Canceladas · 24h</span>
+                <strong id="dashboard-cancelled-24h">0</strong>
+                <small>Todos os tipos de cancelamento</small>
+              </article>
+            </div>
+
+            <article class="panel-card panel-card--table dashboard-rides-card">
+              <div class="panel-card__header dashboard-table-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">EM TEMPO REAL</span>
+                  <h2>Corridas ativas</h2>
+                </div>
+                <span id="dashboard-active-count" class="pill">0 corridas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="dashboard-rides-table">
+                  <thead>
+                    <tr>
+                      <th>Estado</th>
+                      <th>Rota</th>
+                      <th>Categoria</th>
+                      <th>Passageiro</th>
+                      <th>Motorista</th>
+                      <th>Valor</th>
+                      <th>Atualizada</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-rides-body"></tbody>
+                </table>
+              </div>
+              <div id="dashboard-rides-empty" class="empty-state" hidden>
+                Nenhuma corrida ativa neste momento.
+              </div>
+            </article>
+
+            <div class="section-heading-inline">
+              <div>
+                <span class="eyebrow eyebrow--dark">ACESSO</span>
+                <h2>Motoristas e auditoria</h2>
               </div>
             </div>
 

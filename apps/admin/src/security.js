@@ -87,3 +87,64 @@ export function actorLabel(actor) {
     ? actor.name || 'Usuário Admin'
     : actor.name || 'Integração Admin';
 }
+
+
+export function formatCurrencyCents(
+  value,
+  locale = 'pt-BR',
+  currency = 'BRL',
+) {
+  const cents = Number(value);
+  if (!Number.isFinite(cents)) return '—';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+  }).format(cents / 100);
+}
+
+export function rideStatePresentation(state) {
+  const map = {
+    CREATED: { label: 'Criada', tone: 'neutral' },
+    AWAITING_PAYMENT: { label: 'Aguardando pagamento', tone: 'warning' },
+    PAID: { label: 'Paga', tone: 'info' },
+    SEARCHING_DRIVER: { label: 'Buscando motorista', tone: 'warning' },
+    DRIVER_ASSIGNED: { label: 'Motorista definido', tone: 'info' },
+    DRIVER_ARRIVING: { label: 'Motorista a caminho', tone: 'info' },
+    DRIVER_ARRIVED: { label: 'Motorista chegou', tone: 'info' },
+    IN_PROGRESS: { label: 'Em andamento', tone: 'success' },
+    COMPLETED: { label: 'Concluída', tone: 'success' },
+    PAYMENT_FAILED: { label: 'Pagamento falhou', tone: 'danger' },
+    NO_DRIVER_FOUND: { label: 'Sem motorista', tone: 'danger' },
+    CANCELLED_BY_PASSENGER: { label: 'Cancelada pelo passageiro', tone: 'danger' },
+    CANCELLED_BY_DRIVER: { label: 'Cancelada pelo motorista', tone: 'danger' },
+    CANCELLED_BY_ADMIN: { label: 'Cancelada pelo Admin', tone: 'danger' },
+    REFUND_PENDING: { label: 'Reembolso pendente', tone: 'warning' },
+    REFUNDED: { label: 'Reembolsada', tone: 'neutral' },
+  };
+  return map[state] ?? { label: String(state ?? 'Desconhecido'), tone: 'neutral' };
+}
+
+export function serviceCategoryLabel(category) {
+  const labels = {
+    moto: 'Moto',
+    delivery: 'Entrega',
+    car: 'Carro',
+    comfort_black: 'Comfort/Black',
+    buggy: 'Buggy',
+  };
+  return labels[category] ?? String(category ?? '—');
+}
+
+export function locationLabel(location) {
+  if (!location || typeof location !== 'object') return '—';
+  if (typeof location.localityId === 'string' && location.localityId.trim()) {
+    return location.localityId.trim();
+  }
+  const zones = {
+    jericoacoara: 'Jericoacoara',
+    jijoca: 'Jijoca',
+    prea: 'Preá',
+    external: 'Destino externo',
+  };
+  return zones[location.zoneId] ?? String(location.zoneId ?? '—');
+}
