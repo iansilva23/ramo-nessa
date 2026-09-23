@@ -28,7 +28,19 @@ A primeira camada implementada é deliberadamente independente de banco/gateway 
 - schema PostgreSQL inicial para persistência;
 - bloqueio de matching sem pagamento autorizado/pago.
 
-Essa camada pura continua testável sem infraestrutura externa e já foi conectada a PostgreSQL, matching, ledger/carteira e WebSocket. Autenticação real, gateway Pix/cartão, repasses e deploy de produção continuam pendentes.
+Essa camada pura continua testável sem infraestrutura externa e já foi conectada a PostgreSQL, matching, ledger/carteira, WebSocket e autenticação por telefone/OTP com sessão Bearer. Ainda faltam provider SMS de produção, gateway Pix/cartão, repasses e deploy de produção.
+
+### Autenticação
+
+- telefone brasileiro normalizado em E.164;
+- Passageiro pode criar identidade após verificar OTP;
+- Motorista só autentica se a identidade já tiver sido provisionada/aprovada;
+- OTP expira em 5 minutos, possui cooldown e limite de tentativas;
+- somente HMAC do código é persistido;
+- sessão usa token opaco aleatório; somente SHA-256 do Bearer é persistido;
+- token mobile fica no Keychain/Keystore e não é embutido no build;
+- logout revoga a sessão no Core antes de apagar o token local;
+- provider dev é proibido em produção; produção usa adapter de entrega HTTPS.
 
 ## Autoridade
 
