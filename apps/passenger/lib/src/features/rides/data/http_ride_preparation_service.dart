@@ -18,7 +18,7 @@ class HttpRidePreparationService implements RidePreparationService {
     String? passengerId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _accessToken = accessToken ?? '',
         _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
         _client = client ?? http.Client();
 
