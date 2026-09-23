@@ -1797,7 +1797,7 @@ td strong {
   gap: 12px;
 }
 
-.driver-document-card {
+.driver-document-item {
   display: grid;
   gap: 12px;
   padding: 15px;
@@ -1806,14 +1806,14 @@ td strong {
   background: var(--raised);
 }
 
-.driver-document-card__header {
+.driver-document-item__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.driver-document-card__header h3 {
+.driver-document-item__header h3 {
   margin: 4px 0 0;
   font-size: 16px;
 }
