@@ -226,6 +226,8 @@ class HttpDriverApi implements DriverApi {
       throw DriverApiException(
         decoded['message'] as String? ??
             'Não foi possível concluir esta ação agora.',
+        code: decoded['error'] as String?,
+        statusCode: response.statusCode,
       );
     }
 
