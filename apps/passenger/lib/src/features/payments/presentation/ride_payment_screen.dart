@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
+import '../../rides/presentation/ride_tracking_screen.dart';
 import '../data/passenger_payment_service.dart';
 
 class RidePaymentScreen extends StatefulWidget {
@@ -11,10 +13,14 @@ class RidePaymentScreen extends StatefulWidget {
     super.key,
     required this.ride,
     this.paymentService,
+    this.rideTrackingService,
+    this.networkTilesEnabled = true,
   });
 
   final PreparedRide ride;
   final PassengerPaymentService? paymentService;
+  final PassengerRideTrackingService? rideTrackingService;
+  final bool networkTilesEnabled;
 
   @override
   State<RidePaymentScreen> createState() => _RidePaymentScreenState();
@@ -125,12 +131,21 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         return;
       }
 
+      final tracking = widget.rideTrackingService;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => _PaymentConfirmedScreen(
-            remainingWalletCents: result.walletBalanceCents,
-            dispatchStatus: result.dispatchStatus,
-          ),
+          builder: (_) => tracking == null
+              ? _PaymentConfirmedScreen(
+                  remainingWalletCents: result.walletBalanceCents,
+                  dispatchStatus: result.dispatchStatus,
+                )
+              : RideTrackingScreen(
+                  rideId: widget.ride.id,
+                  remainingWalletCents: result.walletBalanceCents,
+                  trackingService: tracking,
+                  initialDispatchStatus: result.dispatchStatus,
+                  networkTilesEnabled: widget.networkTilesEnabled,
+                ),
         ),
       );
     } on PassengerPaymentException catch (error) {

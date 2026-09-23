@@ -14,6 +14,8 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_pa
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
@@ -137,6 +139,48 @@ void main() {
 
     expect(find.text('Preá'), findsOneWidget);
   });
+  testWidgets('após pagamento mostra motorista no acompanhamento da corrida',
+      (tester) async {
+    final search = _FakePlaceSearchService();
+
+    await tester.pumpWidget(
+      RamoNessaPassengerApp(
+        locationService: _FakeLocationService(),
+        routeService: _FakeRouteService(),
+        placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
+        ridePreparationService: _FakeRidePreparationService(),
+        paymentService: _FakePassengerPaymentService(),
+        rideTrackingService: _FakeRideTrackingService(),
+        networkTilesEnabled: false,
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Pra onde vamos?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Jericoacoara'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -260));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Solicitar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carteira Ramo Nessa'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Sua corrida'), findsOneWidget);
+    expect(find.text('Seu motorista está a caminho'), findsOneWidget);
+    expect(find.byIcon(Icons.directions_car_filled_rounded), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
 }
 
 class _FakeLocationService implements LocationService {
@@ -252,6 +296,28 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
       duplicatePayment: false,
       paymentConfirmed: true,
       dispatchStatus: 'SEARCHING_DRIVER',
+    );
+  }
+}
+
+
+class _FakeRideTrackingService implements PassengerRideTrackingService {
+  @override
+  Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
+    return PassengerRideTrackingSnapshot(
+      rideId: rideId,
+      state: 'DRIVER_ARRIVING',
+      category: 'buggy',
+      pickupLatitude: -2.7956,
+      pickupLongitude: -40.5142,
+      dropoffLatitude: -2.82017,
+      dropoffLongitude: -40.41467,
+      driverLocation: PassengerDriverLocation(
+        latitude: -2.8001,
+        longitude: -40.5001,
+        updatedAt: DateTime.now(),
+        stale: false,
+      ),
     );
   }
 }

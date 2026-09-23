@@ -65,6 +65,7 @@ import {
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
 import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
+import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const {
@@ -275,6 +276,27 @@ const server = createServer(async (request, response) => {
         quoteRequest: body.quoteRequest,
       });
       json(response, 201, ride);
+      return;
+    }
+
+    const rideTrackingMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/tracking$/,
+    );
+    if (request.method === 'GET' && rideTrackingMatch != null) {
+      const passengerId = resolvePassengerId(request);
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        rideId: rideTrackingMatch[1]!,
+        passengerId,
+      });
+
+      if (tracking == null) {
+        json(response, 404, { error: 'RIDE_NOT_FOUND' });
+        return;
+      }
+
+      json(response, 200, tracking);
       return;
     }
 

@@ -50,7 +50,8 @@
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
 - [ ] entrega realtime da oferta ao app
-- [ ] acompanhamento em tempo real
+- [x] acompanhamento do motorista via polling temporário
+- [ ] acompanhamento realtime via WebSocket
 - [ ] chat
 - [ ] histórico
 - [ ] avaliação
@@ -107,6 +108,8 @@
 - [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
 - [ ] entrega realtime das ofertas
 - [x] sincronização contínua de localização motorista -> Core
+- [x] endpoint seguro de tracking do passageiro
+- [x] polling temporário passageiro <- localização do motorista
 - [ ] websocket/realtime bidirecional para acompanhamento da corrida
 - [x] distância roteada motorista→passageiro para preço final
 - [x] máquina de estados inicial de corrida/pagamento
