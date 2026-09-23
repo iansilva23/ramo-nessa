@@ -24,6 +24,7 @@ export class WalletDomainError extends Error {
       | 'WALLET_TOPUP_NOT_FOUND'
       | 'INVALID_TOPUP_TRANSITION'
       | 'INSUFFICIENT_WALLET_BALANCE'
+      | 'RIDE_ALREADY_PAID'
       | 'RIDE_PASSENGER_MISMATCH'
       | 'RIDE_NOT_AWAITING_WALLET_PAYMENT',
     message: string,
