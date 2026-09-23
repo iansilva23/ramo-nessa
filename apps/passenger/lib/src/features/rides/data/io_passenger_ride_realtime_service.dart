@@ -9,12 +9,22 @@ class IoPassengerRideRealtimeService
     implements PassengerRideRealtimeService {
   IoPassengerRideRealtimeService({
     required Uri baseUrl,
-    required String passengerId,
+    String? accessToken,
+    String? passengerId,
   })  : _baseUrl = baseUrl,
-        _passengerId = passengerId;
+        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId;
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _passengerId;
+
+  Map<String, dynamic> get _identityHeaders => {
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_passengerId.trim().isNotEmpty)
+          'x-dev-passenger-id': _passengerId.trim(),
+      };
 
   Uri _socketUri(String rideId) {
     final scheme = _baseUrl.scheme == 'https' ? 'wss' : 'ws';
@@ -32,7 +42,7 @@ class IoPassengerRideRealtimeService
       try {
         socket = await WebSocket.connect(
           _socketUri(rideId).toString(),
-          headers: {'x-dev-passenger-id': _passengerId},
+          headers: _identityHeaders,
         ).timeout(RamoCoreConfig.requestTimeout);
 
         await for (final message in socket) {
