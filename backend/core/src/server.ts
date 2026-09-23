@@ -855,6 +855,7 @@ const server = createServer(async (request, response) => {
       );
       const result = await setDriverRegistryStatusFromAdmin({
         registry: driverRegistryRepository,
+        drivers: driverSupplyRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverRegistryStatusMatch[1]!,
@@ -902,6 +903,7 @@ const server = createServer(async (request, response) => {
       const result = await upsertDriverRegistryFromAdmin({
         identities: authOtpRepository,
         registry: driverRegistryRepository,
+        drivers: driverSupplyRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverRegistryMatch[1]!,
@@ -1051,6 +1053,7 @@ const server = createServer(async (request, response) => {
       });
       const supply = await getDriverSupplyForApp({
         drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
         driverId,
       });
       json(response, 200, supply);
@@ -1069,6 +1072,7 @@ const server = createServer(async (request, response) => {
       const body = parseUpdateDriverSupplyRequest(await readJson(request));
       const supply = await updateDriverSupplyFromApp({
         drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
         driverId,
         ...body,
       });
@@ -1187,6 +1191,7 @@ const server = createServer(async (request, response) => {
       const offer = await currentDriverOffer({
         rides: rideRepository,
         drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
         matching: rideMatchingRepository,
         driverId,
       });
@@ -1209,6 +1214,7 @@ const server = createServer(async (request, response) => {
       if (action === 'accept') {
         const result = await acceptOfferFromDriverApp({
           rides: rideRepository,
+          registry: driverRegistryRepository,
           matching: rideMatchingRepository,
           offerId,
           driverId,
@@ -1776,10 +1782,13 @@ const server = createServer(async (request, response) => {
         error.code === 'DRIVER_NOT_REGISTERED' ||
         error.code === 'RIDE_NOT_FOUND'
           ? 404
-          : error.code === 'RIDE_NOT_ASSIGNED_TO_DRIVER' ||
-              error.code === 'INVALID_RIDE_ACTION'
-            ? 409
-            : 422;
+          : error.code === 'DRIVER_REGISTRY_NOT_APPROVED'
+            ? 403
+            : error.code === 'DRIVER_SUPPLY_NOT_INITIALIZED' ||
+                error.code === 'RIDE_NOT_ASSIGNED_TO_DRIVER' ||
+                error.code === 'INVALID_RIDE_ACTION'
+              ? 409
+              : 422;
       json(response, status, { error: error.code, message: error.message });
       return;
     }
