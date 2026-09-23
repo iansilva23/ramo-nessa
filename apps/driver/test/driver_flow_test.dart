@@ -87,6 +87,30 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('corrida ativa é recuperada ao reabrir o app', (tester) async {
+    final api = _FakeDriverApi(
+      initialOnline: true,
+      initialBusy: true,
+    );
+
+    await tester.pumpWidget(
+      RamoNessaDriverApp(
+        api: api,
+        locationService: const _FakeLocationService(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(api.currentRideCalls, 1);
+    expect(find.text('A caminho do embarque'), findsOneWidget);
+    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Nova corrida'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets(
     'motorista online sincroniza atualizações contínuas de localização',
     (tester) async {
@@ -226,19 +250,37 @@ class _StreamingFakeLocationService implements DriverLocationService {
 }
 
 class _FakeDriverApi implements DriverApi {
-  _FakeDriverApi({bool initialOnline = false})
-      : _supply = DriverSupplySnapshot(
+  _FakeDriverApi({
+    bool initialOnline = false,
+    bool initialBusy = false,
+  })  : _supply = DriverSupplySnapshot(
           driverId: 'driver-test',
           vehicleId: 'SW4 TESTE',
           categories: const ['car'],
           fourByFour: true,
           seatCapacity: 6,
           online: initialOnline,
-          busy: false,
+          busy: initialBusy,
           latitude: -2.82,
           longitude: -40.41,
           locationUpdatedAt: DateTime(2026, 9, 23, 17),
-        );
+        ),
+        _currentRide = initialBusy
+            ? const AcceptedDriverRide(
+                id: 'ride-restored',
+                state: 'DRIVER_ARRIVING',
+                category: 'car',
+                passengers: 2,
+                origin: DriverLocationRef(zoneId: 'prea'),
+                destination: DriverLocationRef(zoneId: 'jijoca'),
+                driverEarningsCents: 11000,
+                pickupCompensationCents: 200,
+                pickupLatitude: -2.82017,
+                pickupLongitude: -40.41467,
+                dropoffLatitude: -2.7956,
+                dropoffLongitude: -40.5142,
+              )
+            : null;
 
   DriverSupplySnapshot _supply;
   bool _offerAvailable = true;
@@ -247,6 +289,7 @@ class _FakeDriverApi implements DriverApi {
   String? completedRideId;
   DriverPosition? lastSyncedPosition;
   AcceptedDriverRide? _currentRide;
+  int currentRideCalls = 0;
   int? lastPayoutAmountCents;
   DriverFinanceSummary _finance = const DriverFinanceSummary(
     availableBalanceCents: 11000,
@@ -333,7 +376,10 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
-  Future<AcceptedDriverRide?> currentRide() async => _currentRide;
+  Future<AcceptedDriverRide?> currentRide() async {
+    currentRideCalls++;
+    return _currentRide;
+  }
 
   @override
   Future<AcceptedDriverRide> markArrived(String rideId) async {
