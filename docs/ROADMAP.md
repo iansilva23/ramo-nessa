@@ -34,7 +34,7 @@
 - [x] CI, testes e build Android de validação
 - [x] busca controlada dos destinos longos aprovados na tabela comercial
 - [ ] splash/onboarding final
-- [ ] autenticação
+- [x] autenticação por telefone/OTP + sessão Bearer + armazenamento seguro
 - [x] tela base de pagamento com preço final
 - [ ] cobrança Pix real
 - [x] endpoint de desenvolvimento para criar registro de pagamento
@@ -43,7 +43,7 @@
 - [x] consulta de saldo e pagamento da corrida com Carteira
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [x] Core confirma pagamento antes de liberar corrida para despacho
-- [x] criação inicial de corrida no backend (dev identity; aguardando auth)
+- [x] criação inicial de corrida no backend com identidade Bearer; fallback dev apenas fora de produção
 - [x] preparação de preço final com reserva curta e coleta roteada
 - [x] Passageiro conectado ao endpoint /v1/rides/prepare
 - [x] pagamento confirmado dispara matching automaticamente
@@ -61,6 +61,7 @@
 
 - [ ] onboarding
 - [ ] documentos
+- [x] login OTP somente para motorista previamente provisionado/aprovado
 - [ ] cadastro completo de veículo
 - [x] capacidade/elegibilidade no Core de matching
 - [x] elegibilidade 4x4/rotas no Core
@@ -101,7 +102,7 @@
 - [x] endpoint de cotação
 - [x] testes e CI do domínio comercial
 - [x] validação runtime das requisições de cotação
-- [ ] autenticação e autorização
+- [x] autenticação/autorização por sessão Bearer com role passenger/driver
 - [x] adapter PostgreSQL em runtime
 - [x] schema/migration inicial PostgreSQL para corridas
 - [x] elegibilidade/ranking de matching
@@ -149,6 +150,9 @@
 - [ ] logs administrativos
 
 ## Etapa 5 — Produção
+
+- [ ] configurar provider SMS OTP de produção (webhook HTTPS + segredo)
+- [ ] criar fluxo administrativo de provisionamento/aprovação de motorista
 
 - [x] compilação Android debug validada em CI
 - [x] compilação Android release validada tecnicamente em CI
