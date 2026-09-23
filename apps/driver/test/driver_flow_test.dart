@@ -104,8 +104,8 @@ class _FakeDriverApi implements DriverApi {
         approximatePickupDistanceKm: 1.1,
         category: 'car',
         passengers: 2,
-        origin: const DriverLocationRef(zoneId: 'prea'),
-        destination: const DriverLocationRef(zoneId: 'jijoca'),
+        origin: DriverLocationRef(zoneId: 'prea'),
+        destination: DriverLocationRef(zoneId: 'jijoca'),
         driverEarningsCents: 11000,
         pickupCompensationCents: 200,
       );
