@@ -108,6 +108,17 @@ import {
 } from './drivers/driver-validation.js';
 import { DriverSupplyError } from './drivers/driver-supply.js';
 import {
+  DriverRegistryError,
+  getDriverRegistryForAdmin,
+  setDriverRegistryStatusFromAdmin,
+  upsertDriverRegistryFromAdmin,
+} from './drivers/driver-registry-service.js';
+import {
+  InvalidDriverRegistryRequestError,
+  parseUpdateDriverRegistryStatusRequest,
+  parseUpsertDriverRegistryRequest,
+} from './drivers/driver-registry-validation.js';
+import {
   currentDriverRide,
   performDriverRideAction,
 } from './drivers/driver-ride-service.js';
@@ -162,6 +173,7 @@ const {
   rideRepository,
   financeRepository,
   driverSupplyRepository,
+  driverRegistryRepository,
   ridePreparationRepository,
   rideMatchingRepository,
   storageMode,
@@ -821,6 +833,81 @@ const server = createServer(async (request, response) => {
         summary,
         nextCursor,
       });
+      return;
+    }
+
+    const adminDriverRegistryStatusMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/registry\/status$/,
+      );
+    if (
+      request.method === 'PATCH' &&
+      adminDriverRegistryStatusMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:profile:write',
+      });
+      const body = parseUpdateDriverRegistryStatusRequest(
+        await readJson(request),
+      );
+      const result = await setDriverRegistryStatusFromAdmin({
+        registry: driverRegistryRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverRegistryStatusMatch[1]!,
+        ...body,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    const adminDriverRegistryMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/registry$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminDriverRegistryMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:profile:read',
+      });
+      const result = await getDriverRegistryForAdmin({
+        identities: authOtpRepository,
+        registry: driverRegistryRepository,
+        driverId: adminDriverRegistryMatch[1]!,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      adminDriverRegistryMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:profile:write',
+      });
+      const data = parseUpsertDriverRegistryRequest(
+        await readJson(request),
+      );
+      const result = await upsertDriverRegistryFromAdmin({
+        identities: authOtpRepository,
+        registry: driverRegistryRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverRegistryMatch[1]!,
+        data,
+      });
+      json(response, 200, result);
       return;
     }
 
@@ -1551,6 +1638,14 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof InvalidDriverRegistryRequestError) {
+      json(response, 400, {
+        error: 'INVALID_DRIVER_REGISTRY_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof InvalidAdminRequestError) {
       json(response, 400, {
         error: 'INVALID_ADMIN_REQUEST',
@@ -1590,6 +1685,18 @@ const server = createServer(async (request, response) => {
     if (error instanceof AdminAuthenticationError) {
       const status =
         error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof DriverRegistryError) {
+      const status =
+        error.code === 'VEHICLE_PLATE_CONFLICT'
+          ? 409
+          : 404;
       json(response, status, {
         error: error.code,
         message: error.message,

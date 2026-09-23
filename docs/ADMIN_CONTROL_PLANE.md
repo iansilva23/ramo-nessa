@@ -37,6 +37,8 @@ Escopos atuais:
 
 - `drivers:auth:read`
 - `drivers:auth:write`
+- `drivers:profile:read`
+- `drivers:profile:write`
 - `passengers:auth:read`
 - `rides:read`
 - `audit:read`
@@ -123,6 +125,29 @@ Corpo:
 
 Ao suspender, todas as sessões ainda ativas do motorista são revogadas no mesmo
 fluxo de negócio.
+
+### Cadastro de motorista e veículo
+
+`GET /v1/admin/drivers/:driverId/registry`
+
+Escopo: `drivers:profile:read`.
+
+`PUT /v1/admin/drivers/:driverId/registry`
+
+Escopo: `drivers:profile:write`. Cria/atualiza nome e veículo, mas preserva os
+status cadastrais existentes. Um novo cadastro nasce `pending`; edição de dados
+nunca aprova silenciosamente o motorista ou o veículo.
+
+`PATCH /v1/admin/drivers/:driverId/registry/status`
+
+Escopo: `drivers:profile:write`. Permite alterar explicitamente
+`profileStatus` e/ou `vehicleStatus` entre `pending`, `approved` e
+`suspended`.
+
+O cadastro contém placa normalizada, marca, modelo, ano, cor, categorias,
+capacidade e flag 4x4. Ele é **separado** de `driver_supply`, que continua sendo
+apenas a projeção operacional usada pelo matching. Documentos sensíveis ainda não
+fazem parte desta superfície.
 
 ### Auditoria
 

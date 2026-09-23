@@ -264,6 +264,80 @@ try {
     throw new Error('Provisionamento Admin do motorista falhou.');
   }
 
+  const registryCreate = await jsonRequest(
+    `/v1/admin/drivers/${driverId}/registry`,
+    {
+      method: 'PUT',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        fullName: 'Motorista Smoke Ramo Nessa',
+        preferredName: 'Motorista Smoke',
+        vehicle: {
+          plate: 'SMK1A23',
+          make: 'Toyota',
+          model: 'Hilux',
+          modelYear: 2024,
+          color: 'Branca',
+          categories: ['car', 'comfort_black'],
+          fourByFour: true,
+          seatCapacity: 4,
+        },
+      }),
+    },
+  );
+  if (
+    registryCreate.response.status !== 200 ||
+    registryCreate.payload?.profile?.status !== 'pending' ||
+    registryCreate.payload?.vehicle?.status !== 'pending' ||
+    registryCreate.payload?.registryApproved !== false
+  ) {
+    throw new Error(
+      'Cadastro administrativo de perfil/veículo não foi confirmado.',
+    );
+  }
+
+  const registryApprove = await jsonRequest(
+    `/v1/admin/drivers/${driverId}/registry/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        profileStatus: 'approved',
+        vehicleStatus: 'approved',
+      }),
+    },
+  );
+  if (
+    registryApprove.response.status !== 200 ||
+    registryApprove.payload?.registryApproved !== true
+  ) {
+    throw new Error(
+      'Aprovação administrativa de perfil/veículo falhou.',
+    );
+  }
+
+  const registryRead = await jsonRequest(
+    `/v1/admin/drivers/${driverId}/registry`,
+    { headers: authHeaders },
+  );
+  if (
+    registryRead.response.status !== 200 ||
+    registryRead.payload?.profile?.fullName !==
+      'Motorista Smoke Ramo Nessa' ||
+    registryRead.payload?.vehicle?.plateNormalized !== 'SMK1A23' ||
+    registryRead.payload?.registryApproved !== true
+  ) {
+    throw new Error(
+      'Consulta administrativa de perfil/veículo falhou.',
+    );
+  }
+
   const approve = await jsonRequest(
     `/v1/admin/drivers/${driverId}/auth/status`,
     {
@@ -404,7 +478,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios, viagens, dashboard operacional, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, diretórios, viagens, dashboard operacional, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

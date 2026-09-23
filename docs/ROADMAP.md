@@ -141,6 +141,7 @@
 - [x] conectar sessão humana às operações administrativas do painel
 - [x] frontend/login do painel
 - [x] diretório paginado de acesso de motoristas + indicadores reais
+- [x] backend cadastral de motorista + veículo separado do matching
 - [x] diretório read-only de passageiros com busca/filtro/paginação
 - [x] backend do dashboard operacional com métricas reais de corridas
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
