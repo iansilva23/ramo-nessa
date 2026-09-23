@@ -86,8 +86,10 @@ import {
 import {
   InvalidAdminRequestError,
   encodeAdminIdentityDirectoryCursor,
+  encodeAdminRideDirectoryCursor,
   parseAdminAuditLimit,
   parseAdminIdentityDirectoryQuery,
+  parseAdminRideDirectoryQuery,
   parseAdminDriverProvisionRequest,
   parseAdminDriverStatusRequest,
 } from './admin/admin-validation.js';
@@ -630,6 +632,106 @@ const server = createServer(async (request, response) => {
           createdAt: ride.createdAt,
           updatedAt: ride.updatedAt,
         })),
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/rides'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+
+      const query = parseAdminRideDirectoryQuery(
+        requestUrl.searchParams,
+      );
+      const page = await rideRepository.listAdmin(query);
+      const lastRide = page.rides[page.rides.length - 1];
+      const nextCursor =
+        page.hasMore && lastRide != null
+          ? encodeAdminRideDirectoryCursor({
+              updatedAt: lastRide.updatedAt,
+              id: lastRide.id,
+            })
+          : null;
+
+      json(response, 200, {
+        items: page.rides.map((ride) => ({
+          id: ride.id,
+          state: ride.state,
+          paymentStatus: ride.paymentStatus,
+          passengerId: ride.passengerId,
+          driverId: ride.driverId ?? null,
+          reservedDriverId: ride.reservedDriverId ?? null,
+          category: ride.category,
+          origin: ride.origin,
+          destination: ride.destination,
+          totalAmountCents: ride.quote.totalAmountCents,
+          createdAt: ride.createdAt,
+          updatedAt: ride.updatedAt,
+        })),
+        nextCursor,
+      });
+      return;
+    }
+
+    const adminRideMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/rides\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminRideMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+
+      const ride = await rideRepository.findById(
+        adminRideMatch[1]!,
+      );
+      if (ride == null) {
+        json(response, 404, {
+          error: 'RIDE_NOT_FOUND',
+          message: 'Corrida não encontrada.',
+        });
+        return;
+      }
+
+      json(response, 200, {
+        id: ride.id,
+        state: ride.state,
+        paymentStatus: ride.paymentStatus,
+        passengerId: ride.passengerId,
+        driverId: ride.driverId ?? null,
+        reservedDriverId: ride.reservedDriverId ?? null,
+        category: ride.category,
+        period: ride.period,
+        passengers: ride.passengers,
+        origin: ride.origin,
+        destination: ride.destination,
+        tripDistanceKm: ride.tripDistanceKm ?? null,
+        driverPickupDistanceKm:
+          ride.driverPickupDistanceKm ?? null,
+        quote: {
+          ruleId: ride.quote.ruleId,
+          baseAmountCents: ride.quote.baseAmountCents,
+          pickupCompensationCents:
+            ride.quote.pickupCompensationCents,
+          totalAmountCents: ride.quote.totalAmountCents,
+          platformCommissionCents:
+            ride.quote.platformCommissionCents,
+          driverNetCents: ride.quote.driverNetCents,
+        },
+        createdAt: ride.createdAt,
+        updatedAt: ride.updatedAt,
       });
       return;
     }

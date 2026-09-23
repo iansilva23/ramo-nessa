@@ -1,5 +1,7 @@
 import type { RideRecord } from '../ride.js';
 import type {
+  AdminRideListInput,
+  AdminRideListPage,
   AdminRideOperationalSummary,
   RideRepository,
 } from '../ride-repository.js';
@@ -61,6 +63,57 @@ export class InMemoryRideRepository implements RideRepository {
       })
       .slice(0, limit)
       .map((ride) => structuredClone(ride));
+  }
+
+  async listAdmin(
+    input: AdminRideListInput,
+  ): Promise<AdminRideListPage> {
+    const stateSet =
+      input.states == null
+        ? null
+        : new Set<RideRecord['state']>(input.states);
+    const search = input.search?.trim().toLowerCase();
+    const cursorTime =
+      input.cursor == null ? null : Date.parse(input.cursor.updatedAt);
+
+    const filtered = [...this.rides.values()]
+      .filter(
+        (ride) => stateSet == null || stateSet.has(ride.state),
+      )
+      .filter((ride) => {
+        if (!search) return true;
+        return [
+          ride.id,
+          ride.passengerId,
+          ride.driverId,
+          ride.reservedDriverId,
+        ].some((value) =>
+          value?.toLowerCase().includes(search),
+        );
+      })
+      .filter((ride) => {
+        if (input.cursor == null || cursorTime == null) return true;
+        const time = Date.parse(ride.updatedAt);
+        return (
+          time < cursorTime ||
+          (time === cursorTime && ride.id < input.cursor.id)
+        );
+      })
+      .sort((a, b) => {
+        const updatedDiff =
+          Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+        if (updatedDiff !== 0) return updatedDiff;
+        return b.id.localeCompare(a.id);
+      });
+
+    const rows = filtered.slice(0, input.limit + 1);
+    const hasMore = rows.length > input.limit;
+    return {
+      rides: rows
+        .slice(0, input.limit)
+        .map((ride) => structuredClone(ride)),
+      hasMore,
+    };
   }
 
   async getAdminOperationalSummary(

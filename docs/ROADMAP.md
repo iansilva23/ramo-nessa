@@ -144,6 +144,7 @@
 - [x] diretório read-only de passageiros com busca/filtro/paginação
 - [x] backend do dashboard operacional com métricas reais de corridas
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
+- [x] backend do diretório administrativo de viagens + detalhe read-only
 - [x] ambiente same-origin de teste para Admin + Core
 - [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [x] dashboard

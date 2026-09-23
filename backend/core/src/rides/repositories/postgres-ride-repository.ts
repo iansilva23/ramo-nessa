@@ -2,6 +2,8 @@ import type { Pool } from 'pg';
 
 import type { RideRecord } from '../ride.js';
 import type {
+  AdminRideListInput,
+  AdminRideListPage,
   AdminRideOperationalSummary,
   RideRepository,
 } from '../ride-repository.js';
@@ -221,6 +223,57 @@ export class PostgresRideRepository implements RideRepository {
       [limit],
     );
     return result.rows.map(mapRow);
+  }
+
+  async listAdmin(
+    input: AdminRideListInput,
+  ): Promise<AdminRideListPage> {
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE
+        (
+          $1::text[] IS NULL
+          OR state = ANY($1::text[])
+        )
+        AND (
+          $2::text IS NULL
+          OR strpos(lower(id::text), lower($2)) > 0
+          OR strpos(lower(passenger_id), lower($2)) > 0
+          OR strpos(lower(COALESCE(driver_id, '')), lower($2)) > 0
+          OR strpos(
+            lower(COALESCE(reserved_driver_id, '')),
+            lower($2)
+          ) > 0
+        )
+        AND (
+          $3::timestamptz IS NULL
+          OR updated_at < $3::timestamptz
+          OR (
+            updated_at = $3::timestamptz
+            AND id < $4::uuid
+          )
+        )
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $5
+      `,
+      [
+        input.states ?? null,
+        input.search?.trim() || null,
+        input.cursor?.updatedAt ?? null,
+        input.cursor?.id ?? null,
+        input.limit + 1,
+      ],
+    );
+
+    const hasMore = result.rows.length > input.limit;
+    return {
+      rides: result.rows
+        .slice(0, input.limit)
+        .map(mapRow),
+      hasMore,
+    };
   }
 
   async getAdminOperationalSummary(

@@ -313,6 +313,36 @@ try {
     );
   }
 
+  const ridesDirectory = await jsonRequest(
+    '/v1/admin/rides?scope=active&limit=20',
+    { headers: authHeaders },
+  );
+  if (
+    ridesDirectory.response.status !== 200 ||
+    !Array.isArray(ridesDirectory.payload?.items) ||
+    !(
+      ridesDirectory.payload?.nextCursor == null ||
+      typeof ridesDirectory.payload.nextCursor === 'string'
+    )
+  ) {
+    throw new Error(
+      'Diretório administrativo de viagens não foi confirmado.',
+    );
+  }
+
+  const missingRide = await jsonRequest(
+    '/v1/admin/rides/99999999-9999-4999-8999-999999999999',
+    { headers: authHeaders },
+  );
+  if (
+    missingRide.response.status !== 404 ||
+    missingRide.payload?.error !== 'RIDE_NOT_FOUND'
+  ) {
+    throw new Error(
+      'Detalhe administrativo de viagem não tratou 404 corretamente.',
+    );
+  }
+
   const dashboard = await jsonRequest(
     '/v1/admin/dashboard',
     { headers: authHeaders },
@@ -374,7 +404,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios, dashboard operacional, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, diretórios, viagens, dashboard operacional, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

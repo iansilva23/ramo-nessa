@@ -189,3 +189,41 @@ O bootstrap mostra uma senha inicial e o segredo/URI TOTP uma única vez.
 
 O token de sessão humana pode ser mantido apenas em memória pelo frontend enquanto
 o painel estiver aberto. Não usar `localStorage` para a sessão Admin.
+
+
+## Diretório administrativo de viagens
+
+O escopo `rides:read` também protege a navegação read-only de corridas.
+
+### Listagem
+
+```http
+GET /v1/admin/rides?scope=active&limit=25
+Authorization: Bearer rn_admin_session_<token>
+```
+
+Parâmetros:
+
+- `scope=active|all` — `active` é o padrão;
+- `state=<RideState>` — quando informado, filtra um estado exato;
+- `query=<texto>` — busca por ID da corrida, passageiro, motorista ou motorista reservado;
+- `limit=1..100`;
+- `cursor=<opaco>` — paginação estável por `updated_at + id`.
+
+A resposta contém `items` e `nextCursor`. O cursor deve ser tratado como opaco pelo cliente.
+
+### Detalhe
+
+```http
+GET /v1/admin/rides/<uuid>
+Authorization: Bearer rn_admin_session_<token>
+```
+
+O detalhe retorna estado, pagamento, participantes, rota comercial, categoria,
+período tarifário, quantidade de passageiros, distâncias conhecidas, snapshot da
+tarifa e timestamps. Coordenadas exatas não são expostas nesta primeira superfície
+administrativa.
+
+Esta fase é **somente leitura**. Cancelamento administrativo não foi adicionado
+porque precisa respeitar, numa única operação transacional, estado da corrida,
+reembolso e ledger financeiro.
