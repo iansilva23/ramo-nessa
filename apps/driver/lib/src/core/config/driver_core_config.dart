@@ -6,6 +6,11 @@ abstract final class DriverCoreConfig {
     defaultValue: '',
   );
 
+  static const authToken = String.fromEnvironment(
+    'RAMO_AUTH_TOKEN',
+    defaultValue: '',
+  );
+
   static const devDriverId = String.fromEnvironment(
     'RAMO_DEV_DRIVER_ID',
     defaultValue: '',
@@ -30,6 +35,15 @@ abstract final class DriverCoreConfig {
     return uri;
   }
 
+  static bool get bearerIdentityEnabled =>
+      baseUri != null && authToken.trim().length >= 20;
+
+  static bool get devDriverIdentityEnabled =>
+      !kReleaseMode &&
+      baseUri != null &&
+      devDriverId.trim().length >= 3;
+
   static bool get enabled =>
-      baseUri != null && devDriverId.trim().length >= 3;
+      baseUri != null &&
+      (bearerIdentityEnabled || devDriverIdentityEnabled);
 }
