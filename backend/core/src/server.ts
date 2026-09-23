@@ -77,6 +77,10 @@ import {
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
 import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
+import {
+  refundWalletRideAfterNoDriver,
+  RideRefundError,
+} from './rides/refund-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
@@ -541,53 +545,120 @@ const server = createServer(async (request, response) => {
           passengerId,
           idempotencyKey,
         });
-        const paidRide = await confirmRidePayment(rideRepository, {
-          rideId: ride.id,
-          payment: result.payment,
-        });
 
+        let currentRide = ride;
+        let responsePayment = result.payment;
+        let duplicateRefund = false;
         let dispatchStatus:
           | 'SEARCHING_DRIVER'
           | 'NO_DRIVER_FOUND'
           | 'NOT_PREPARED'
           | 'PENDING_RETRY' = 'PENDING_RETRY';
 
-        try {
-          const dispatch = await dispatchRideAfterPayment({
-            ride: paidRide,
+        if (result.payment.status === 'refunded') {
+          const refund = await refundWalletRideAfterNoDriver({
             rides: rideRepository,
-            drivers: driverSupplyRepository,
-            matching: rideMatchingRepository,
+            finance: financeRepository,
+            rideId: ride.id,
+            paymentId: result.payment.id,
+            passengerId,
           });
-          dispatchStatus =
-            dispatch.kind === 'OFFER_CREATED' ||
-            dispatch.kind === 'OFFER_ACTIVE'
-              ? 'SEARCHING_DRIVER'
-              : dispatch.kind;
+          currentRide = refund.ride;
+          responsePayment = refund.payment;
+          duplicateRefund = refund.duplicateRefund;
+          dispatchStatus = 'NO_DRIVER_FOUND';
+        } else {
+          currentRide = await confirmRidePayment(rideRepository, {
+            rideId: ride.id,
+            payment: result.payment,
+          });
 
           if (
-            dispatch.kind === 'OFFER_CREATED' ||
-            dispatch.kind === 'OFFER_ACTIVE'
+            currentRide.state === 'NO_DRIVER_FOUND' ||
+            currentRide.state === 'REFUND_PENDING'
           ) {
-            const offerRide =
-              await rideRepository.findById(dispatch.offer.rideId);
-            if (offerRide != null) {
-              realtimeHub.publishDriver(dispatch.offer.driverId, {
-                type: 'driver.offer.updated',
-                offer: driverOfferView(dispatch.offer, offerRide),
-                serverTime: new Date().toISOString(),
+            const refund = await refundWalletRideAfterNoDriver({
+              rides: rideRepository,
+              finance: financeRepository,
+              rideId: ride.id,
+              paymentId: result.payment.id,
+              passengerId,
+            });
+            currentRide = refund.ride;
+            responsePayment = refund.payment;
+            duplicateRefund = refund.duplicateRefund;
+            dispatchStatus = 'NO_DRIVER_FOUND';
+          } else if (
+            currentRide.state === 'DRIVER_ASSIGNED' ||
+            currentRide.state === 'DRIVER_ARRIVING' ||
+            currentRide.state === 'DRIVER_ARRIVED' ||
+            currentRide.state === 'IN_PROGRESS' ||
+            currentRide.state === 'COMPLETED'
+          ) {
+            // Replay do mesmo pagamento depois que a corrida já avançou.
+            dispatchStatus = 'SEARCHING_DRIVER';
+          } else {
+            let dispatch:
+              | Awaited<ReturnType<typeof dispatchRideAfterPayment>>
+              | undefined;
+            try {
+              dispatch = await dispatchRideAfterPayment({
+                ride: currentRide,
+                rides: rideRepository,
+                drivers: driverSupplyRepository,
+                matching: rideMatchingRepository,
               });
+            } catch (dispatchError) {
+              console.error(
+                'Pagamento confirmado, mas despacho automático falhou.',
+                dispatchError,
+              );
+            }
+
+            if (dispatch != null) {
+              dispatchStatus =
+                dispatch.kind === 'OFFER_CREATED' ||
+                dispatch.kind === 'OFFER_ACTIVE'
+                  ? 'SEARCHING_DRIVER'
+                  : dispatch.kind;
+
+              if (
+                dispatch.kind === 'OFFER_CREATED' ||
+                dispatch.kind === 'OFFER_ACTIVE'
+              ) {
+                const offerRide =
+                  await rideRepository.findById(dispatch.offer.rideId);
+                if (offerRide != null) {
+                  realtimeHub.publishDriver(dispatch.offer.driverId, {
+                    type: 'driver.offer.updated',
+                    offer: driverOfferView(dispatch.offer, offerRide),
+                    serverTime: new Date().toISOString(),
+                  });
+                }
+              } else if (
+                dispatch.kind === 'NO_DRIVER_FOUND' ||
+                dispatch.kind === 'NOT_PREPARED'
+              ) {
+                const refund = await refundWalletRideAfterNoDriver({
+                  rides: rideRepository,
+                  finance: financeRepository,
+                  rideId: ride.id,
+                  paymentId: result.payment.id,
+                  passengerId,
+                });
+                currentRide = refund.ride;
+                responsePayment = refund.payment;
+                duplicateRefund = refund.duplicateRefund;
+                if (dispatch.kind === 'NOT_PREPARED') {
+                  dispatchStatus = 'NOT_PREPARED';
+                }
+              }
             }
           }
-        } catch (dispatchError) {
-          console.error(
-            'Pagamento confirmado, mas despacho automático falhou.',
-            dispatchError,
-          );
         }
 
         const latestRide =
-          (await rideRepository.findById(ride.id)) ?? paidRide;
+          (await rideRepository.findById(ride.id)) ?? currentRide;
         const {
           reservedDriverId: _internalReservedDriverId,
           ...publicRide
@@ -599,11 +670,12 @@ const server = createServer(async (request, response) => {
         );
 
         json(response, 201, {
-          payment: result.payment,
+          payment: responsePayment,
           ride: publicRide,
           dispatchStatus,
           walletBalanceCents,
           duplicatePayment: result.duplicatePayment,
+          duplicateRefund,
         });
         return;
       }
@@ -707,6 +779,20 @@ const server = createServer(async (request, response) => {
     if (error instanceof PricingLocationMismatchError) {
       json(response, 422, {
         error: 'PRICING_LOCATION_MISMATCH',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof RideRefundError) {
+      const status =
+        error.code === 'RIDE_NOT_FOUND' || error.code === 'PAYMENT_NOT_FOUND'
+          ? 404
+          : error.code === 'REFUND_NOT_ALLOWED'
+            ? 409
+            : 422;
+      json(response, status, {
+        error: error.code,
         message: error.message,
       });
       return;
