@@ -543,7 +543,10 @@ export class PostgresRideMatchingRepository
 
       const updated = await client.query<RideRow>(
         `UPDATE rides
-         SET state = 'NO_DRIVER_FOUND', updated_at = $2
+         SET state = 'NO_DRIVER_FOUND',
+             reserved_driver_id = NULL,
+             driver_hold_expires_at = NULL,
+             updated_at = $2
          WHERE id = $1
          RETURNING ${RIDE_COLUMNS}`,
         [input.rideId, input.at],
