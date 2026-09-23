@@ -4,23 +4,23 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   driverPayoutReserveLedger,
-  passengerWalletCreditLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
+  walletTopupCaptureLedger,
   type LedgerTransaction,
 } from '../ledger.js';
 import {
   type CapturePaymentInput,
   type CapturePaymentResult,
-  type CreditPassengerWalletInput,
+  type CaptureWalletTopupInput,
+  type CaptureWalletTopupResult,
   type FinanceRepository,
-  type PayRideWithWalletInput,
+  type PayRideFromWalletInput,
+  type PayRideFromWalletResult,
   type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
-  type WalletCreditResult,
-  type WalletPaymentResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
@@ -29,8 +29,8 @@ import {
   type DriverPayoutRecord,
 } from '../payout.js';
 import {
-  passengerWalletAccountKey,
   WalletDomainError,
+  type WalletTopupRecord,
 } from '../wallet.js';
 
 interface PaymentRow {
@@ -40,6 +40,19 @@ interface PaymentRow {
   processor: string;
   processor_payment_id: string | null;
   status: PaymentRecord['status'];
+  amount_cents: number;
+  idempotency_key: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface WalletTopupRow {
+  id: string;
+  passenger_id: string;
+  method: WalletTopupRecord['method'];
+  processor: string;
+  processor_topup_id: string | null;
+  status: WalletTopupRecord['status'];
   amount_cents: number;
   idempotency_key: string;
   created_at: Date;
@@ -64,6 +77,7 @@ interface LedgerTransactionRow {
   ride_id: string | null;
   payment_id: string | null;
   payout_id: string | null;
+  wallet_topup_id: string | null;
   reference_key: string;
   created_at: Date;
 }
@@ -82,6 +96,23 @@ function mapPayment(row: PaymentRow): PaymentRecord {
     processor: row.processor,
     ...(row.processor_payment_id != null
       ? { processorPaymentId: row.processor_payment_id }
+      : {}),
+    status: row.status,
+    amountCents: row.amount_cents,
+    idempotencyKey: row.idempotency_key,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapTopup(row: WalletTopupRow): WalletTopupRecord {
+  return {
+    id: row.id,
+    passengerId: row.passenger_id,
+    method: row.method,
+    processor: row.processor,
+    ...(row.processor_topup_id != null
+      ? { processorTopupId: row.processor_topup_id }
       : {}),
     status: row.status,
     amountCents: row.amount_cents,
@@ -112,6 +143,11 @@ const PAYMENT_COLUMNS = `
   amount_cents, idempotency_key, created_at, updated_at
 `;
 
+const TOPUP_COLUMNS = `
+  id, passenger_id, method, processor, processor_topup_id, status,
+  amount_cents, idempotency_key, created_at, updated_at
+`;
+
 const PAYOUT_COLUMNS = `
   id, driver_id, amount_cents, status, idempotency_key,
   processor, processor_payout_id, created_at, updated_at
@@ -124,8 +160,9 @@ async function insertLedger(
   await client.query(
     `
     INSERT INTO ledger_transactions (
-      id, kind, ride_id, payment_id, payout_id, reference_key, created_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+      id, kind, ride_id, payment_id, payout_id, wallet_topup_id,
+      reference_key, created_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
     `,
     [
       transaction.id,
@@ -133,6 +170,7 @@ async function insertLedger(
       transaction.rideId ?? null,
       transaction.paymentId ?? null,
       transaction.payoutId ?? null,
+      transaction.walletTopupId ?? null,
       transaction.referenceKey,
       transaction.createdAt,
     ],
@@ -164,7 +202,8 @@ async function loadLedgerByReference(
   const transactionResult = await client.query<LedgerTransactionRow>(
     `
     SELECT
-      id, kind, ride_id, payment_id, payout_id, reference_key, created_at
+      id, kind, ride_id, payment_id, payout_id, wallet_topup_id,
+      reference_key, created_at
     FROM ledger_transactions
     WHERE reference_key = $1
     LIMIT 1
@@ -191,6 +230,9 @@ async function loadLedgerByReference(
     ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
     ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
     ...(row.payout_id != null ? { payoutId: row.payout_id } : {}),
+    ...(row.wallet_topup_id != null
+      ? { walletTopupId: row.wallet_topup_id }
+      : {}),
     referenceKey: row.reference_key,
     entries: entriesResult.rows.map((entry) => ({
       accountKey: entry.account_key,
@@ -397,6 +439,301 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async findWalletTopupByIdempotencyKey(
+    key: string,
+  ): Promise<WalletTopupRecord | null> {
+    const result = await this.pool.query<WalletTopupRow>(
+      `SELECT ${TOPUP_COLUMNS}
+       FROM wallet_topups WHERE idempotency_key = $1 LIMIT 1`,
+      [key],
+    );
+    return result.rows[0] == null ? null : mapTopup(result.rows[0]);
+  }
+
+  async createWalletTopup(
+    topup: WalletTopupRecord,
+  ): Promise<WalletTopupRecord> {
+    try {
+      const result = await this.pool.query<WalletTopupRow>(
+        `
+        INSERT INTO wallet_topups (
+          id, passenger_id, method, processor, processor_topup_id, status,
+          amount_cents, idempotency_key, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING ${TOPUP_COLUMNS}
+        `,
+        [
+          topup.id,
+          topup.passengerId,
+          topup.method,
+          topup.processor,
+          topup.processorTopupId ?? null,
+          topup.status,
+          topup.amountCents,
+          topup.idempotencyKey,
+          topup.createdAt,
+          topup.updatedAt,
+        ],
+      );
+
+      const row = result.rows[0];
+      if (row == null) throw new Error('PostgreSQL não retornou a recarga.');
+      return mapTopup(row);
+    } catch (error) {
+      const code =
+        typeof error === 'object' && error != null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+
+      if (code === '23505') {
+        throw new WalletDomainError(
+          'WALLET_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência da recarga já utilizada.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async captureWalletTopup(
+    input: CaptureWalletTopupInput,
+  ): Promise<CaptureWalletTopupResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const topupResult = await client.query<WalletTopupRow>(
+        `
+        SELECT ${TOPUP_COLUMNS}
+        FROM wallet_topups
+        WHERE id = $1
+        FOR UPDATE
+        `,
+        [input.walletTopupId],
+      );
+      const row = topupResult.rows[0];
+      if (row == null) {
+        throw new WalletDomainError(
+          'WALLET_TOPUP_NOT_FOUND',
+          'Recarga não encontrada.',
+        );
+      }
+
+      const topup = mapTopup(row);
+      const referenceKey =
+        `wallet-topup-capture:${topup.processor}:${input.processorEventId}`;
+      const existingLedger = await loadLedgerByReference(
+        client,
+        referenceKey,
+      );
+
+      if (existingLedger != null) {
+        await client.query('COMMIT');
+        return {
+          topup,
+          ledgerTransaction: existingLedger,
+          duplicateEvent: true,
+        };
+      }
+
+      let nextStatus: WalletTopupRecord['status'];
+      try {
+        nextStatus = topup.status === 'authorized'
+          ? transitionPayment('authorized', 'paid')
+          : transitionPayment(topup.status, 'paid');
+      } catch {
+        throw new WalletDomainError(
+          'INVALID_TOPUP_TRANSITION',
+          `Recarga em estado ${topup.status} não pode ser capturada.`,
+        );
+      }
+
+      const capturedAt = (input.capturedAt ?? new Date()).toISOString();
+
+      await client.query(
+        `
+        INSERT INTO wallet_topup_events (
+          id, processor, processor_event_id, wallet_topup_id,
+          payload, created_at
+        ) VALUES ($1,$2,$3,$4,$5::jsonb,$6)
+        `,
+        [
+          randomUUID(),
+          topup.processor,
+          input.processorEventId,
+          topup.id,
+          JSON.stringify(input.payload ?? {}),
+          capturedAt,
+        ],
+      );
+
+      const updatedResult = await client.query<WalletTopupRow>(
+        `
+        UPDATE wallet_topups
+        SET status = $2,
+            processor_topup_id = COALESCE($3, processor_topup_id),
+            updated_at = $4
+        WHERE id = $1
+        RETURNING ${TOPUP_COLUMNS}
+        `,
+        [
+          topup.id,
+          nextStatus,
+          input.processorTopupId ?? null,
+          capturedAt,
+        ],
+      );
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) throw new Error('Falha ao atualizar recarga.');
+
+      const ledger = walletTopupCaptureLedger({
+        walletTopupId: topup.id,
+        passengerId: topup.passengerId,
+        processor: topup.processor,
+        processorEventId: input.processorEventId,
+        amountCents: topup.amountCents,
+        createdAt: capturedAt,
+      });
+
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      return {
+        topup: mapTopup(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateEvent: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async payRideFromWallet(
+    input: PayRideFromWalletInput,
+  ): Promise<PayRideFromWalletResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const existingResult = await client.query<PaymentRow>(
+        `SELECT ${PAYMENT_COLUMNS}
+         FROM payments WHERE idempotency_key = $1 LIMIT 1`,
+        [input.payment.idempotencyKey],
+      );
+      const existingRow = existingResult.rows[0];
+
+      if (existingRow != null) {
+        const existing = mapPayment(existingRow);
+        if (
+          existing.rideId !== input.payment.rideId ||
+          existing.amountCents !== input.payment.amountCents ||
+          existing.method !== 'wallet'
+        ) {
+          throw new WalletDomainError(
+            'WALLET_IDEMPOTENCY_CONFLICT',
+            'Chave de idempotência já usada em outro pagamento.',
+          );
+        }
+
+        const ledger = await loadLedgerByReference(
+          client,
+          `wallet-ride-payment:${existing.id}`,
+        );
+        if (ledger == null) {
+          throw new Error('Pagamento de carteira sem lançamento no ledger.');
+        }
+
+        await client.query('COMMIT');
+        return {
+          payment: existing,
+          ledgerTransaction: ledger,
+          duplicatePayment: true,
+        };
+      }
+
+      const accountKey = `passenger:${input.passengerId}:wallet`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [accountKey],
+      );
+
+      const available = await accountBalanceCents(client, accountKey);
+      if (input.payment.amountCents > available) {
+        throw new WalletDomainError(
+          'INSUFFICIENT_WALLET_BALANCE',
+          'Saldo da Carteira Ramo Nessa insuficiente.',
+        );
+      }
+
+      const paymentResult = await client.query<PaymentRow>(
+        `
+        INSERT INTO payments (
+          id, ride_id, method, processor, processor_payment_id, status,
+          amount_cents, idempotency_key, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING ${PAYMENT_COLUMNS}
+        `,
+        [
+          input.payment.id,
+          input.payment.rideId,
+          'wallet',
+          'internal-wallet',
+          null,
+          'paid',
+          input.payment.amountCents,
+          input.payment.idempotencyKey,
+          input.payment.createdAt,
+          input.payment.updatedAt,
+        ],
+      );
+
+      const ledger = walletRidePaymentLedger({
+        rideId: input.payment.rideId,
+        paymentId: input.payment.id,
+        passengerId: input.passengerId,
+        amountCents: input.payment.amountCents,
+        createdAt: input.payment.createdAt,
+      });
+
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      const row = paymentResult.rows[0];
+      if (row == null) {
+        throw new Error('PostgreSQL não retornou pagamento da carteira.');
+      }
+
+      return {
+        payment: mapPayment(row),
+        ledgerTransaction: ledger,
+        duplicatePayment: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+
+      const code =
+        typeof error === 'object' && error != null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+
+      if (code === '23505') {
+        throw new WalletDomainError(
+          'WALLET_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência da carteira já utilizada.',
+        );
+      }
+
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
     const client = await this.pool.connect();
     const referenceKey = `ride-settlement:${input.rideId}`;
@@ -508,7 +845,6 @@ export class PostgresFinanceRepository implements FinanceRepository {
       }
 
       const accountKey = `driver:${payout.driverId}:payable`;
-
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [accountKey],
@@ -578,182 +914,6 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async creditPassengerWallet(
-    input: CreditPassengerWalletInput,
-  ): Promise<WalletCreditResult> {
-    const client = await this.pool.connect();
-    const accountKey = passengerWalletAccountKey(input.passengerId);
-    const referenceKey =
-      `wallet-credit:${input.processor}:${input.processorEventId}`;
-
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-        [accountKey],
-      );
-
-      const existing = await loadLedgerByReference(client, referenceKey);
-      if (existing != null) {
-        const expectedCredit = existing.entries.find(
-          (entry) =>
-            entry.accountKey === accountKey &&
-            entry.direction === 'credit',
-        );
-
-        if (expectedCredit?.amountCents !== input.amountCents) {
-          throw new WalletDomainError(
-            'WALLET_IDEMPOTENCY_CONFLICT',
-            'Evento de recarga já foi usado com outro valor ou passageiro.',
-          );
-        }
-
-        const balanceCents = await accountBalanceCents(client, accountKey);
-        await client.query('COMMIT');
-        return {
-          ledgerTransaction: existing,
-          duplicateCredit: true,
-          balanceCents,
-        };
-      }
-
-      const ledger = passengerWalletCreditLedger({
-        passengerId: input.passengerId,
-        processor: input.processor,
-        processorEventId: input.processorEventId,
-        amountCents: input.amountCents,
-        createdAt: (input.creditedAt ?? new Date()).toISOString(),
-      });
-
-      await insertLedger(client, ledger);
-      const balanceCents = await accountBalanceCents(client, accountKey);
-      await client.query('COMMIT');
-
-      return {
-        ledgerTransaction: ledger,
-        duplicateCredit: false,
-        balanceCents,
-      };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  async payRideWithWallet(
-    input: PayRideWithWalletInput,
-  ): Promise<WalletPaymentResult> {
-    const client = await this.pool.connect();
-    const accountKey = passengerWalletAccountKey(input.passengerId);
-    const referenceKey = `wallet-payment:${input.paymentId}`;
-
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-        [accountKey],
-      );
-
-      const paymentResult = await client.query<PaymentRow>(
-        `SELECT ${PAYMENT_COLUMNS}
-         FROM payments WHERE id = $1 FOR UPDATE`,
-        [input.paymentId],
-      );
-      const row = paymentResult.rows[0];
-
-      if (
-        row == null ||
-        row.method !== 'wallet' ||
-        row.ride_id !== input.rideId ||
-        row.amount_cents !== input.amountCents
-      ) {
-        throw new WalletDomainError(
-          'WALLET_PAYMENT_INVALID',
-          'Pagamento da carteira não confere com a corrida.',
-        );
-      }
-
-      const existing = await loadLedgerByReference(client, referenceKey);
-      if (existing != null) {
-        const stored = mapPayment(row);
-        if (stored.status !== 'paid') {
-          throw new Error(
-            'Pagamento idempotente da carteira está inconsistente.',
-          );
-        }
-
-        const balanceCents = await accountBalanceCents(client, accountKey);
-        await client.query('COMMIT');
-        return {
-          payment: stored,
-          ledgerTransaction: existing,
-          duplicatePayment: true,
-          balanceCents,
-        };
-      }
-
-      const payment = mapPayment(row);
-      if (payment.status !== 'created') {
-        throw new WalletDomainError(
-          'WALLET_PAYMENT_INVALID',
-          `Pagamento da carteira está em estado ${payment.status}.`,
-        );
-      }
-
-      const available = await accountBalanceCents(client, accountKey);
-      if (input.amountCents > available) {
-        throw new WalletDomainError(
-          'INSUFFICIENT_WALLET_BALANCE',
-          'Saldo insuficiente na Carteira Ramo Nessa.',
-        );
-      }
-
-      const pending = transitionPayment('created', 'pending');
-      const paid = transitionPayment(pending, 'paid');
-      const paidAt = (input.paidAt ?? new Date()).toISOString();
-
-      const updatedResult = await client.query<PaymentRow>(
-        `
-        UPDATE payments
-        SET status = $2, updated_at = $3
-        WHERE id = $1
-        RETURNING ${PAYMENT_COLUMNS}
-        `,
-        [payment.id, paid, paidAt],
-      );
-      const updatedRow = updatedResult.rows[0];
-      if (updatedRow == null) {
-        throw new Error('Falha ao concluir pagamento da carteira.');
-      }
-
-      const ledger = walletRidePaymentLedger({
-        passengerId: input.passengerId,
-        rideId: input.rideId,
-        paymentId: input.paymentId,
-        amountCents: input.amountCents,
-        createdAt: paidAt,
-      });
-
-      await insertLedger(client, ledger);
-      const balanceCents = await accountBalanceCents(client, accountKey);
-      await client.query('COMMIT');
-
-      return {
-        payment: mapPayment(updatedRow),
-        ledgerTransaction: ledger,
-        duplicatePayment: false,
-        balanceCents,
-      };
-    } catch (error) {
-      await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();

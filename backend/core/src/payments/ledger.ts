@@ -14,6 +14,7 @@ export interface LedgerTransaction {
   rideId?: string;
   paymentId?: string;
   payoutId?: string;
+  walletTopupId?: string;
   referenceKey: string;
   entries: LedgerEntry[];
   createdAt: string;
@@ -83,6 +84,73 @@ export function paymentCaptureLedger(input: {
     paymentId: input.paymentId,
     referenceKey:
       `payment-capture:${input.processor}:${input.processorEventId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function walletTopupCaptureLedger(input: {
+  walletTopupId: string;
+  passengerId: string;
+  processor: string;
+  processorEventId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `processor:${input.processor}:clearing`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `passenger:${input.passengerId}:wallet`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'WALLET_TOPUP_CAPTURED',
+    walletTopupId: input.walletTopupId,
+    referenceKey:
+      `wallet-topup-capture:${input.processor}:${input.processorEventId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function walletRidePaymentLedger(input: {
+  rideId: string;
+  paymentId: string;
+  passengerId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `passenger:${input.passengerId}:wallet`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `ride:${input.rideId}:escrow`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'WALLET_RIDE_PAYMENT',
+    rideId: input.rideId,
+    paymentId: input.paymentId,
+    referenceKey: `wallet-ride-payment:${input.paymentId}`,
     entries,
     createdAt: input.createdAt,
   };
@@ -163,71 +231,6 @@ export function driverPayoutReserveLedger(input: {
     kind: 'DRIVER_PAYOUT_RESERVED',
     payoutId: input.payoutId,
     referenceKey: `driver-payout-reserve:${input.payoutId}`,
-    entries,
-    createdAt: input.createdAt,
-  };
-}
-
-export function passengerWalletCreditLedger(input: {
-  passengerId: string;
-  processor: string;
-  processorEventId: string;
-  amountCents: number;
-  createdAt: string;
-}): LedgerTransaction {
-  const entries: LedgerEntry[] = [
-    {
-      accountKey: `processor:${input.processor}:clearing`,
-      direction: 'debit',
-      amountCents: input.amountCents,
-    },
-    {
-      accountKey: `passenger:${input.passengerId}:wallet`,
-      direction: 'credit',
-      amountCents: input.amountCents,
-    },
-  ];
-
-  assertBalanced(entries);
-
-  return {
-    id: randomUUID(),
-    kind: 'PASSENGER_WALLET_CREDITED',
-    referenceKey:
-      `wallet-credit:${input.processor}:${input.processorEventId}`,
-    entries,
-    createdAt: input.createdAt,
-  };
-}
-
-export function walletRidePaymentLedger(input: {
-  passengerId: string;
-  rideId: string;
-  paymentId: string;
-  amountCents: number;
-  createdAt: string;
-}): LedgerTransaction {
-  const entries: LedgerEntry[] = [
-    {
-      accountKey: `passenger:${input.passengerId}:wallet`,
-      direction: 'debit',
-      amountCents: input.amountCents,
-    },
-    {
-      accountKey: `ride:${input.rideId}:escrow`,
-      direction: 'credit',
-      amountCents: input.amountCents,
-    },
-  ];
-
-  assertBalanced(entries);
-
-  return {
-    id: randomUUID(),
-    kind: 'RIDE_PAID_WITH_WALLET',
-    rideId: input.rideId,
-    paymentId: input.paymentId,
-    referenceKey: `wallet-payment:${input.paymentId}`,
     entries,
     createdAt: input.createdAt,
   };
