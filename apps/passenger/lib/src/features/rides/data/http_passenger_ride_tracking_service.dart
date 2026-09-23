@@ -1,8 +1,7 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
 
@@ -32,16 +31,22 @@ class HttpPassengerRideTrackingService
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
-    final decoded = jsonDecode(response.body);
-    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
-      return PassengerRideTrackingSnapshot.fromJson(decoded);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerRideTrackingSnapshot.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerRideTrackingException(
+          'O servidor retornou um rastreamento inválido.',
+        );
+      }
     }
 
     throw PassengerRideTrackingException(
-      decoded is Map<String, dynamic>
-          ? decoded['message'] as String? ??
-              'Não conseguimos atualizar sua corrida agora.'
-          : 'Não conseguimos atualizar sua corrida agora.',
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos atualizar sua corrida agora.',
+      ),
     );
   }
 }
