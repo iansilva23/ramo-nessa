@@ -14,6 +14,7 @@ import 'features/rides/data/passenger_ride_realtime_service.dart';
 class RamoNessaPassengerApp extends StatelessWidget {
   const RamoNessaPassengerApp({
     super.key,
+    this.accessToken,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -25,6 +26,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.networkTilesEnabled = true,
   });
 
+  final String? accessToken;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
@@ -44,6 +46,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
       home: PassengerHomeScreen(
+        accessToken: accessToken,
         locationService: locationService,
         routeService: routeService,
         placeSearchService: placeSearchService,
