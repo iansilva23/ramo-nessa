@@ -11,6 +11,7 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
@@ -107,6 +108,43 @@ void main() {
     expect(find.text('Pagamento confirmado'), findsOneWidget);
     expect(find.text('Saldo restante: R\$ 55,00'), findsOneWidget);
   });
+
+  testWidgets(
+    'sem motorista o valor volta para a carteira e a tela explica o estorno',
+    (tester) async {
+      final ride = PreparedRide(
+        id: 'ride-refunded',
+        state: 'AWAITING_PAYMENT',
+        baseAmountCents: 4500,
+        pickupCompensationCents: 0,
+        totalAmountCents: 4500,
+        holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RidePaymentScreen(
+            ride: ride,
+            paymentService: _FakeRefundedPassengerPaymentService(),
+            networkTilesEnabled: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+      await tester.tap(find.text('Carteira Ramo Nessa'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('O valor voltou integralmente'),
+        findsOneWidget,
+      );
+      expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+      expect(find.text('Pagamento confirmado'), findsNothing);
+    },
+  );
 
   testWidgets('passageiro consegue trocar a origem manualmente', (tester) async {
     final search = _FakePlaceSearchService();
@@ -319,6 +357,28 @@ class _FakeRideTrackingService implements PassengerRideTrackingService {
         updatedAt: DateTime.now(),
         stale: false,
       ),
+    );
+  }
+}
+
+
+class _FakeRefundedPassengerPaymentService
+    implements PassengerPaymentService {
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const WalletRidePaymentResult(
+      rideState: 'REFUNDED',
+      walletBalanceCents: 10000,
+      duplicatePayment: false,
+      paymentConfirmed: false,
+      paymentRefunded: true,
+      dispatchStatus: 'NO_DRIVER_FOUND',
     );
   }
 }
