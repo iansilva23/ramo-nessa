@@ -5,6 +5,7 @@ import test from 'node:test';
 import { createPostgresPool } from '../src/db/postgres.js';
 import { PaymentDomainError } from '../src/payments/payment.js';
 import { PostgresFinanceRepository } from '../src/payments/repositories/postgres-finance-repository.js';
+import { requestDriverPayout } from '../src/payments/request-payout.js';
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 
@@ -346,6 +347,128 @@ test(
       );
       await pool.query('DELETE FROM wallet_topups WHERE id = $1', [topupId]);
       await pool.query('DELETE FROM payments WHERE ride_id = $1', [rideId]);
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
+
+
+test(
+  'PostgreSQL serializa dois saques simultâneos com a mesma chave',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const paymentId = randomUUID();
+    const driverId = `postgres-payout-driver-${randomUUID()}`;
+    const key = `postgres-payout-key-${randomUUID()}`;
+    const now = '2026-09-23T20:40:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status, driver_id,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'postgres-payout-passenger', 'COMPLETED', 'paid', $2,
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $3, $3
+        )
+        `,
+        [rideId, driverId, now],
+      );
+
+      await repository.createPayment({
+        id: paymentId,
+        rideId,
+        method: 'pix',
+        processor: 'audit-gateway',
+        status: 'pending',
+        amountCents: 12000,
+        idempotencyKey: `postgres-payout-payment-${paymentId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const capture = await repository.capturePayment({
+        paymentId,
+        processorEventId: `postgres-payout-capture-${paymentId}`,
+        capturedAt: new Date(now),
+      });
+
+      await repository.settleRide({
+        rideId,
+        paymentId: capture.payment.id,
+        driverId,
+        totalAmountCents: 12000,
+        platformCommissionCents: 1200,
+        driverNetCents: 10800,
+        settledAt: new Date(now),
+      });
+
+      const input = {
+        driverId,
+        amountCents: 5000,
+        idempotencyKey: key,
+        now: new Date('2026-09-23T20:41:00.000Z'),
+      };
+      const [first, second] = await Promise.all([
+        requestDriverPayout(repository, input),
+        requestDriverPayout(repository, input),
+      ]);
+
+      assert.equal(first.payout.id, second.payout.id);
+      assert.equal(
+        [first.duplicateRequest, second.duplicateRequest].filter(Boolean).length,
+        1,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `driver:${driverId}:payable`,
+        ),
+        5800,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `driver:${driverId}:payout_pending`,
+        ),
+        5000,
+      );
+    } finally {
+      await pool.query(
+        `
+        DELETE FROM ledger_entries
+        WHERE transaction_id IN (
+          SELECT id FROM ledger_transactions WHERE ride_id = $1
+        )
+        OR account_key IN ($2, $3)
+        `,
+        [
+          rideId,
+          `driver:${driverId}:payable`,
+          `driver:${driverId}:payout_pending`,
+        ],
+      );
+      await pool.query(
+        'DELETE FROM ledger_transactions WHERE ride_id = $1 OR payout_id IN (SELECT id FROM driver_payouts WHERE driver_id = $2)',
+        [rideId, driverId],
+      );
+      await pool.query('DELETE FROM driver_payouts WHERE driver_id = $1', [
+        driverId,
+      ]);
+      await pool.query(
+        'DELETE FROM payment_events WHERE payment_id = $1',
+        [paymentId],
+      );
+      await pool.query('DELETE FROM payments WHERE id = $1', [paymentId]);
       await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
       await pool.end();
     }
