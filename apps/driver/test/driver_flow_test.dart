@@ -97,7 +97,6 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
-      await location.close();
     },
   );
 
@@ -147,8 +146,6 @@ class _StreamingFakeLocationService implements DriverLocationService {
   final _controller = StreamController<DriverPosition>();
 
   void add(DriverPosition position) => _controller.add(position);
-
-  Future<void> close() => _controller.close();
 
   @override
   Future<DriverPosition> currentPosition() async {
