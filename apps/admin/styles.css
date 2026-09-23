@@ -1158,3 +1158,42 @@ td strong {
     width: 100%;
   }
 }
+
+
+.passenger-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.passenger-summary-grid > div {
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--raised);
+}
+
+.passenger-summary-grid span,
+.passenger-summary-grid strong {
+  display: block;
+}
+
+.passenger-summary-grid span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.passenger-summary-grid strong {
+  font-size: 22px;
+  letter-spacing: -0.7px;
+}
+
+@media (max-width: 620px) {
+  .passenger-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

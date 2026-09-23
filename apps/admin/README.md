@@ -36,6 +36,7 @@ A versão inicial implementa:
 - sessão mantida somente em memória;
 - visão dos escopos e expiração da sessão;
 - diretório paginado de motoristas com busca e filtro por status;
+- diretório paginado somente leitura de passageiros;
 - indicadores reais de total/aprovados/suspensos;
 - consulta de identidade de motorista;
 - provisionamento seguro (suspenso por padrão);

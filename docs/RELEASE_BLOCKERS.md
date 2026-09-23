@@ -65,7 +65,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - falta provider SMS real e credenciais de produção;
    - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
    - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano com senha + TOTP + sessão curta conectado às operações administrativas;
-   - o frontend inicial cobre login, diretório paginado de acesso de motoristas, indicadores de aprovação/suspensão e auditoria, e já possui stack same-origin de teste;
+   - o frontend inicial cobre login, diretórios paginados de acesso de motoristas e passageiros, indicadores de aprovação/suspensão e auditoria, e já possui stack same-origin de teste;
    - ainda faltam os módulos administrativos completos e a implantação operacional de produção;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 

@@ -51,6 +51,44 @@ test('apresentação de status e expiração não inventa estado operacional', (
   assert.equal(formatSessionRemaining(61), '2min restantes');
 });
 
+test('cliente Admin consulta passageiros em modo somente leitura sem vazar token', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      items: [],
+      summary: { total: 0, active: 0, suspended: 0 },
+      nextCursor: null,
+    });
+  };
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_passenger-directory-test';
+
+  await api.passengers(token, {
+    query: '91278',
+    status: 'active',
+    limit: 25,
+    cursor: 'opaque_passenger_cursor',
+  });
+
+  assert.equal(calls.length, 1);
+  const requestUrl = new URL(calls[0].url, 'https://admin.local');
+  assert.equal(requestUrl.pathname, '/v1/admin/passengers');
+  assert.equal(requestUrl.searchParams.get('query'), '91278');
+  assert.equal(requestUrl.searchParams.get('status'), 'active');
+  assert.equal(requestUrl.searchParams.get('limit'), '25');
+  assert.equal(
+    requestUrl.searchParams.get('cursor'),
+    'opaque_passenger_cursor',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+  assert.equal(calls[0].options.method, 'GET');
+});
+
 test('cliente Admin monta diretório com filtros e cursor sem vazar token', async () => {
   const calls = [];
   const fakeFetch = async (url, options) => {
@@ -193,4 +231,9 @@ test('frontend não persiste sessão e evita sinks HTML inseguros', () => {
   assert.match(html, /id="drivers-total"/);
   assert.match(html, /id="drivers-active"/);
   assert.match(html, /id="drivers-suspended"/);
+  assert.match(html, /id="view-passengers"/);
+  assert.match(html, /id="passenger-directory-body"/);
+  assert.match(html, /id="passengers-total"/);
+  assert.match(html, /id="passengers-active"/);
+  assert.match(html, /id="passengers-suspended"/);
 });

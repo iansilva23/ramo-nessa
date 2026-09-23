@@ -174,6 +174,10 @@
             <span class="nav-icon">●</span>
             Motoristas
           </button>
+          <button class="nav-item" type="button" data-view="passengers">
+            <span class="nav-icon">◉</span>
+            Passageiros
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <span class="nav-icon">≡</span>
             Auditoria
@@ -397,6 +401,95 @@
                 </form>
               </article>
             </div>
+          </section>
+
+          <section id="view-passengers" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">PASSAGEIROS</span>
+                <h1>Diretório de passageiros</h1>
+                <p>Consulta somente leitura das identidades de acesso do app Passageiro.</p>
+              </div>
+              <span class="pill">Somente leitura</span>
+            </div>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Passageiros cadastrados</h2>
+                </div>
+                <span id="passenger-directory-summary" class="pill">0 passageiros</span>
+              </div>
+
+              <form id="passenger-directory-form" class="directory-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="passenger-directory-query"
+                    maxlength="80"
+                    placeholder="ID ou telefone"
+                  >
+                </label>
+                <label class="field directory-status">
+                  <span>Status</span>
+                  <select id="passenger-directory-status">
+                    <option value="">Todos</option>
+                    <option value="active">Ativos</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="passenger-summary-grid" aria-label="Resumo de passageiros">
+                <div>
+                  <span>Total</span>
+                  <strong id="passengers-total">0</strong>
+                </div>
+                <div>
+                  <span>Ativos</span>
+                  <strong id="passengers-active">0</strong>
+                </div>
+                <div>
+                  <span>Suspensos</span>
+                  <strong id="passengers-suspended">0</strong>
+                </div>
+              </div>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table">
+                  <thead>
+                    <tr>
+                      <th>Passageiro</th>
+                      <th>Telefone</th>
+                      <th>Status</th>
+                      <th>Criado</th>
+                      <th>Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="passenger-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="passenger-directory-empty" class="empty-state" hidden>
+                Nenhum passageiro corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="passenger-directory-count">0 carregados</span>
+                <button
+                  id="passenger-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
           </section>
 
           <section id="view-audit" class="view-panel" hidden>

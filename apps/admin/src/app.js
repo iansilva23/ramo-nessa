@@ -25,6 +25,13 @@ const state = {
     query: '',
     status: '',
   },
+  passengerDirectory: {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  },
   auditEntries: [],
   sessionTimer: null,
 };
@@ -43,6 +50,7 @@ const globalMessage = byId('global-message');
 const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
   ['drivers:auth:write', 'Aprovar e suspender motoristas'],
+  ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -85,6 +93,13 @@ function clearSession(message = '') {
   state.expiresAt = null;
   state.currentDriver = null;
   state.driverDirectory = {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  };
+  state.passengerDirectory = {
     items: [],
     nextCursor: null,
     summary: { total: 0, active: 0, suspended: 0 },
@@ -187,7 +202,7 @@ function renderIdentity() {
 }
 
 function activateView(viewName) {
-  const known = new Set(['overview', 'drivers', 'audit']);
+  const known = new Set(['overview', 'drivers', 'passengers', 'audit']);
   const view = known.has(viewName) ? viewName : 'overview';
 
   document.querySelectorAll('.view-panel').forEach((panel) => {
@@ -202,6 +217,7 @@ function activateView(viewName) {
   const titles = {
     overview: 'Visão geral',
     drivers: 'Motoristas',
+    passengers: 'Passageiros',
     audit: 'Auditoria',
   };
   byId('page-title').textContent = titles[view];
@@ -212,6 +228,12 @@ function activateView(viewName) {
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
+  }
+  if (
+    view === 'passengers' &&
+    hasScope('passengers:auth:read')
+  ) {
+    void loadPassengerDirectory({ reset: true, announce: false });
   }
 }
 
@@ -241,6 +263,13 @@ async function openSession(payload) {
   } else {
     renderDriverSummary({ total: 0, active: 0, suspended: 0 });
     renderDriverDirectory();
+  }
+
+  if (hasScope('passengers:auth:read')) {
+    await loadPassengerDirectory({ reset: true, announce: false });
+  } else {
+    renderPassengerSummary({ total: 0, active: 0, suspended: 0 });
+    renderPassengerDirectory();
   }
 
   if (hasScope('audit:read')) {
@@ -516,6 +545,145 @@ async function loadDriverDirectory({
   }
 }
 
+function passengerStatusPresentation(status) {
+  if (status === 'active') {
+    return { label: 'Ativo', tone: 'success' };
+  }
+  if (status === 'suspended') {
+    return { label: 'Suspenso', tone: 'danger' };
+  }
+  return { label: 'Desconhecido', tone: 'neutral' };
+}
+
+function renderPassengerSummary(summary) {
+  const normalized = {
+    total: Number(summary?.total ?? 0),
+    active: Number(summary?.active ?? 0),
+    suspended: Number(summary?.suspended ?? 0),
+  };
+  state.passengerDirectory.summary = normalized;
+  byId('passengers-total').textContent = String(normalized.total);
+  byId('passengers-active').textContent = String(normalized.active);
+  byId('passengers-suspended').textContent = String(normalized.suspended);
+  byId('passenger-directory-summary').textContent =
+    `${normalized.total} passageiro(s)`;
+}
+
+function renderPassengerDirectory() {
+  const body = byId('passenger-directory-body');
+  const empty = byId('passenger-directory-empty');
+  const more = byId('passenger-directory-more');
+  const count = byId('passenger-directory-count');
+  body.replaceChildren();
+
+  const items = state.passengerDirectory.items;
+  for (const passenger of items) {
+    const row = document.createElement('tr');
+
+    const identity = document.createElement('td');
+    const passengerId = document.createElement('strong');
+    passengerId.textContent = passenger.passengerId;
+    identity.append(passengerId);
+
+    const phone = document.createElement('td');
+    phone.textContent = passenger.phoneE164 ?? '—';
+
+    const status = document.createElement('td');
+    const presentation = passengerStatusPresentation(passenger.status);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    status.append(pill);
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(passenger.createdAt);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(passenger.updatedAt);
+
+    row.append(identity, phone, status, created, updated);
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.passengerDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent =
+    `${items.length} carregado(s) · ` +
+    `${state.passengerDirectory.summary.total} total`;
+}
+
+async function loadPassengerDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('passengers:auth:read')) {
+    renderPassengerSummary({ total: 0, active: 0, suspended: 0 });
+    state.passengerDirectory.items = [];
+    state.passengerDirectory.nextCursor = null;
+    renderPassengerDirectory();
+    return;
+  }
+
+  const more = byId('passenger-directory-more');
+  if (reset) {
+    state.passengerDirectory.query =
+      byId('passenger-directory-query').value.trim();
+    state.passengerDirectory.status =
+      byId('passenger-directory-status').value;
+    state.passengerDirectory.items = [];
+    state.passengerDirectory.nextCursor = null;
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.passengers(state.token, {
+      query: state.passengerDirectory.query,
+      status: state.passengerDirectory.status,
+      limit: 25,
+      cursor: reset ? null : state.passengerDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.passengerDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.passengerDirectory.items.map(
+          (item) => item.passengerId,
+        ),
+      );
+      state.passengerDirectory.items.push(
+        ...incoming.filter(
+          (item) => !known.has(item.passengerId),
+        ),
+      );
+    }
+
+    state.passengerDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderPassengerSummary(payload?.summary);
+    renderPassengerDirectory();
+
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de passageiros atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
 async function lookupDriver(driverId) {
   if (!state.token) return;
   try {
@@ -695,6 +863,13 @@ loginForm.addEventListener('submit', (event) => {
 });
 byId('logout-button').addEventListener('click', () => {
   void handleLogout();
+});
+byId('passenger-directory-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  void loadPassengerDirectory({ reset: true });
+});
+byId('passenger-directory-more').addEventListener('click', () => {
+  void loadPassengerDirectory({ reset: false, announce: false });
 });
 byId('driver-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();

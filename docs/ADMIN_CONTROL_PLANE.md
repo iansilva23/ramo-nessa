@@ -37,6 +37,7 @@ Escopos atuais:
 
 - `drivers:auth:read`
 - `drivers:auth:write`
+- `passengers:auth:read`
 - `audit:read`
 
 ### Revogar uma chave
@@ -64,6 +65,13 @@ Authorization: Bearer rn_admin_session_<token>
 
 O Core identifica primeiro o prefixo da sessão humana para que ela nunca seja
 interpretada como API key.
+
+### Diretório de passageiros
+
+`GET /v1/admin/passengers?limit=25&query=&status=&cursor=`
+
+Escopo: `passengers:auth:read`. A operação é somente leitura e retorna identidades
+de acesso do app Passageiro com resumo real de `total`, `active` e `suspended`.
 
 ### Consultar autenticação de motorista
 
@@ -117,11 +125,11 @@ A auditoria registra o tipo de ator (`api_key` ou `user`), operador, ação,
 motorista, data e metadados operacionais. Não registra o token administrativo nem
 o telefone do motorista nos metadados.
 
-## Painel web futuro
+## Painel web
 
-O painel web não deve consumir esses endpoints colocando uma API key no browser.
-Ele deve ganhar autenticação humana própria e uma sessão administrativa de curta
-duração, com MFA quando o produto entrar em operação real.
+O painel web consome as rotas administrativas com sessão humana de curta duração e
+MFA. API keys `rn_admin_` permanecem restritas a CLI/integrações server-to-server
+e nunca devem ser colocadas no browser.
 
 ## Produção
 
