@@ -70,6 +70,6 @@ export async function settleCompletedRide(
     totalAmountCents: input.ride.quote.totalAmountCents,
     platformCommissionCents: input.ride.quote.platformCommissionCents,
     driverNetCents: input.ride.quote.driverNetCents,
-    settledAt: input.settledAt,
+    ...(input.settledAt != null ? { settledAt: input.settledAt } : {}),
   });
 }
