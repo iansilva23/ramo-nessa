@@ -737,6 +737,11 @@ const server = createServer(async (request, response) => {
   }
 });
 
+server.headersTimeout = 10_000;
+server.requestTimeout = 35_000;
+server.keepAliveTimeout = 5_000;
+server.maxHeadersCount = 64;
+
 attachRealtimeServer({
   server,
   hub: realtimeHub,
