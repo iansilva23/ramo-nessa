@@ -25,6 +25,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - criação de corrida somente com cotação exata;
 - snapshot de preço/comissão por corrida;
 - migration PostgreSQL inicial;
+- adapter PostgreSQL real para corridas;
+- runner de migrations;
+- fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
 - testes do domínio.
@@ -42,7 +45,7 @@ npm start
 ## Ainda pendente
 
 - autenticação/autorização;
-- adapter/runtime PostgreSQL;
+- autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
 - matching;
 - localização em tempo real;

@@ -6,11 +6,11 @@ import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validatio
 import { PAYMENT_POLICY_V1 } from './payments/payment-policy.js';
 import { resolvePassengerId, IdentityUnavailableError } from './auth/dev-identity.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
-import { InMemoryRideRepository } from './rides/repositories/in-memory-ride-repository.js';
+import { createRepositories } from './db/repositories.js';
 import { InvalidRideRequestError, parseCreateRideRequest } from './rides/validation.js';
 
 const port = Number(process.env.PORT ?? 8080);
-const rideRepository = new InMemoryRideRepository();
+const { rideRepository, storageMode } = createRepositories();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -29,7 +29,7 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
 const server = createServer(async (request, response) => {
   try {
     if (request.method === 'GET' && request.url === '/health') {
-      json(response, 200, { ok: true, service: 'ramo-nessa-core' });
+      json(response, 200, { ok: true, service: 'ramo-nessa-core', storageMode });
       return;
     }
 

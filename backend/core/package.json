@@ -6,11 +6,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/**/*.test.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "db:migrate": "tsx scripts/migrate.ts"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "@types/pg": "^8.15.5"
+  },
+  "dependencies": {
+    "pg": "^8.16.0"
   }
 }

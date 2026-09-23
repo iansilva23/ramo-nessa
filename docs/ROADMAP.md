@@ -12,7 +12,7 @@
 - [x] regras comerciais e preços v1 aprovados
 - [x] política de pagamentos e comissão v1 aprovada
 - [x] stack inicial do Core definida: Node.js + TypeScript
-- [ ] persistência e infraestrutura final do backend
+- [ ] infraestrutura/deploy final do backend
 
 ## Etapa 1 — Passageiro
 
@@ -78,7 +78,7 @@
 - [x] testes e CI do domínio comercial
 - [x] validação runtime das requisições de cotação
 - [ ] autenticação e autorização
-- [ ] adapter PostgreSQL em runtime
+- [x] adapter PostgreSQL em runtime
 - [x] schema/migration inicial PostgreSQL para corridas
 - [ ] matching
 - [ ] localização em tempo real
