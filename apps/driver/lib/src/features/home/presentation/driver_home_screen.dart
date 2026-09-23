@@ -675,14 +675,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         onToggle: _setOnline,
                         onUpdateLocation: _updateLocation,
                       ),
-                      const SizedBox(height: RamoSpacing.md),
-                      _DriverFinanceCard(
-                        finance: _finance,
-                        loading: _financeLoading,
-                        requesting: _payoutAction,
-                        onRefresh: _refreshFinance,
-                        onRequestPayout: _requestPayout,
-                      ),
                       const SizedBox(height: RamoSpacing.lg),
                       if (_activeRide != null)
                         _ActiveRideCard(
@@ -721,6 +713,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           subtitle:
                               'Mantenha o app aberto nesta primeira versão de testes.',
                         ),
+                      const SizedBox(height: RamoSpacing.lg),
+                      _DriverFinanceCard(
+                        finance: _finance,
+                        loading: _financeLoading,
+                        requesting: _payoutAction,
+                        onRefresh: _refreshFinance,
+                        onRequestPayout: _requestPayout,
+                      ),
                     ],
                   ],
                 ),
