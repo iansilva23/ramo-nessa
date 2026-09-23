@@ -18,6 +18,7 @@ class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({
     super.key,
     this.accessToken,
+    this.onLogout,
     this.api,
     this.locationService,
     this.navigationService,
@@ -25,6 +26,7 @@ class DriverHomeScreen extends StatefulWidget {
   });
 
   final String? accessToken;
+  final Future<bool> Function()? onLogout;
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
@@ -709,6 +711,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _logout() async {
+    final logout = widget.onLogout;
+    if (logout == null) return;
+
+    final success = await logout();
+    if (!mounted || success) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Não foi possível encerrar a sessão agora. Tente novamente.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final supply = _supply;
@@ -740,6 +758,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
           ],
         ),
+        actions: [
+          if (widget.onLogout != null)
+            PopupMenuButton<String>(
+              tooltip: 'Conta',
+              onSelected: (value) {
+                if (value == 'logout') {
+                  _logout();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout_rounded),
+                      SizedBox(width: 10),
+                      Text('Sair da conta'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: SafeArea(
         child: _loading
