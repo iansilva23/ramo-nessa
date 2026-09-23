@@ -22,6 +22,8 @@ export interface RideRecord {
   state: RideState;
   paymentStatus: PaymentStatus;
   driverId?: string;
+  reservedDriverId?: string;
+  driverHoldExpiresAt?: string;
 
   origin: LocationRef;
   destination: LocationRef;

@@ -15,6 +15,8 @@ interface DriverSupplyRow {
   seat_capacity: number;
   online: boolean;
   busy: boolean;
+  reserved_ride_id: string | null;
+  reserved_until: Date | null;
   latitude: string;
   longitude: string;
   location_updated_at: Date;
@@ -23,7 +25,8 @@ interface DriverSupplyRow {
 
 const COLUMNS = `
   driver_id, vehicle_id, categories, four_by_four, seat_capacity,
-  online, busy, latitude, longitude, location_updated_at, updated_at
+  online, busy, reserved_ride_id, reserved_until,
+  latitude, longitude, location_updated_at, updated_at
 `;
 
 function mapRow(row: DriverSupplyRow): DriverSupplyRecord {
@@ -35,6 +38,12 @@ function mapRow(row: DriverSupplyRow): DriverSupplyRecord {
     seatCapacity: row.seat_capacity,
     online: row.online,
     busy: row.busy,
+    ...(row.reserved_ride_id != null
+      ? { reservedRideId: row.reserved_ride_id }
+      : {}),
+    ...(row.reserved_until != null
+      ? { reservedUntil: row.reserved_until.toISOString() }
+      : {}),
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     locationUpdatedAt: row.location_updated_at.toISOString(),
@@ -53,8 +62,9 @@ export class PostgresDriverSupplyRepository
       `
       INSERT INTO driver_supply (
         driver_id, vehicle_id, categories, four_by_four, seat_capacity,
-        online, busy, latitude, longitude, location_updated_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        online, busy, reserved_ride_id, reserved_until,
+        latitude, longitude, location_updated_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       ON CONFLICT (driver_id)
       DO UPDATE SET
         vehicle_id = EXCLUDED.vehicle_id,
@@ -63,6 +73,8 @@ export class PostgresDriverSupplyRepository
         seat_capacity = EXCLUDED.seat_capacity,
         online = EXCLUDED.online,
         busy = EXCLUDED.busy,
+        reserved_ride_id = EXCLUDED.reserved_ride_id,
+        reserved_until = EXCLUDED.reserved_until,
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
         location_updated_at = EXCLUDED.location_updated_at,
@@ -77,6 +89,8 @@ export class PostgresDriverSupplyRepository
         supply.seatCapacity,
         supply.online,
         supply.busy,
+        supply.reservedRideId ?? null,
+        supply.reservedUntil ?? null,
         supply.latitude,
         supply.longitude,
         supply.locationUpdatedAt,

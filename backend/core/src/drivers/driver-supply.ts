@@ -8,6 +8,8 @@ export interface DriverSupplyRecord {
   seatCapacity: number;
   online: boolean;
   busy: boolean;
+  reservedRideId?: string;
+  reservedUntil?: string;
   latitude: number;
   longitude: number;
   locationUpdatedAt: string;
@@ -45,6 +47,19 @@ export function validateDriverSupply(
     supply.longitude > 180
   ) {
     throw new DriverSupplyError('Localização do motorista inválida.');
+  }
+  const hasReservedRide = supply.reservedRideId != null;
+  const hasReservedUntil = supply.reservedUntil != null;
+  if (hasReservedRide !== hasReservedUntil) {
+    throw new DriverSupplyError(
+      'reservedRideId e reservedUntil devem existir juntos.',
+    );
+  }
+  if (
+    supply.reservedUntil != null &&
+    Number.isNaN(Date.parse(supply.reservedUntil))
+  ) {
+    throw new DriverSupplyError('reservedUntil inválido.');
   }
   if (Number.isNaN(Date.parse(supply.locationUpdatedAt))) {
     throw new DriverSupplyError('locationUpdatedAt inválido.');
