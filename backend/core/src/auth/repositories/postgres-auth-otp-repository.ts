@@ -150,6 +150,20 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
   }
 
+  async cancelChallenge(
+    challengeId: string,
+    canceledAt: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE auth_otp_challenges
+      SET consumed_at = COALESCE(consumed_at, $2::timestamptz)
+      WHERE id = $1
+      `,
+      [challengeId, canceledAt],
+    );
+  }
+
   async attemptChallenge(input: {
     challengeId: string;
     codeDigest: string;
