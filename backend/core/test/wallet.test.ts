@@ -153,3 +153,44 @@ test('carteira nunca permite saldo negativo', async () => {
     5000,
   );
 });
+
+
+test('mesmo evento do gateway não pode capturar recargas diferentes', async () => {
+  const repository = new InMemoryFinanceRepository();
+
+  const first = await createWalletTopup(repository, {
+    passengerId: 'passenger-wallet',
+    method: 'pix',
+    processor: 'test-gateway',
+    amountCents: 5000,
+    idempotencyKey: 'wallet-cross-event-001',
+  });
+  const second = await createWalletTopup(repository, {
+    passengerId: 'passenger-wallet',
+    method: 'pix',
+    processor: 'test-gateway',
+    amountCents: 7000,
+    idempotencyKey: 'wallet-cross-event-002',
+  });
+
+  await repository.captureWalletTopup({
+    walletTopupId: first.id,
+    processorEventId: 'wallet-event-shared',
+  });
+
+  await assert.rejects(
+    () =>
+      repository.captureWalletTopup({
+        walletTopupId: second.id,
+        processorEventId: 'wallet-event-shared',
+      }),
+    (error: unknown) =>
+      error instanceof WalletDomainError &&
+      error.code === 'WALLET_IDEMPOTENCY_CONFLICT',
+  );
+
+  assert.equal(
+    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
+    5000,
+  );
+});
