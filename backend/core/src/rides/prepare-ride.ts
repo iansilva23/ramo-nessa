@@ -64,16 +64,44 @@ export async function prepareRideForPayment(input: {
 
   const now = input.now ?? new Date();
 
-  // Nunca confiar em horário ou distância motorista->passageiro enviados
-  // pelo cliente. Ambos alteram dinheiro e são autoridade do Core.
+  // Nunca confiar em horário, distância da viagem ou distância de coleta
+  // enviados pelo cliente quando qualquer um deles altera dinheiro.
   const {
     driverPickupDistanceKm: _ignoredClientPickupDistance,
+    tripDistanceKm: _ignoredClientTripDistance,
     period: _ignoredClientPeriod,
     ...clientQuoteRequest
   } = input.quoteRequest;
+
+  const needsTripDistance =
+    clientQuoteRequest.category === 'delivery' &&
+    clientQuoteRequest.origin.zoneId === 'jericoacoara' &&
+    clientQuoteRequest.destination.zoneId === 'jericoacoara';
+
+  let authoritativeTripDistanceKm: number | undefined;
+  if (needsTripDistance) {
+    try {
+      authoritativeTripDistanceKm = await input.routing.routeDistanceKm({
+        from: input.pickup,
+        to: input.dropoff,
+      });
+    } catch (error) {
+      if (error instanceof RoutingDistanceError) {
+        throw new RidePreparationError(
+          'ROUTING_UNAVAILABLE',
+          'Não foi possível calcular a distância segura da viagem.',
+        );
+      }
+      throw error;
+    }
+  }
+
   const trustedQuoteRequest: QuoteRequest = {
     ...clientQuoteRequest,
     period: pricingPeriodAt(now),
+    ...(authoritativeTripDistanceKm != null
+      ? { tripDistanceKm: authoritativeTripDistanceKm }
+      : {}),
   };
 
   const baseFare = quoteFare(trustedQuoteRequest);
