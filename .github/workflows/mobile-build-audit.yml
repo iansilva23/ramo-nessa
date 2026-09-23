@@ -44,6 +44,40 @@ jobs:
         working-directory: apps/passenger
         run: flutter build apk --release
 
+  driver-android-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve design system dependencies
+        working-directory: packages/design_system
+        run: flutter pub get
+
+      - name: Resolve driver dependencies
+        working-directory: apps/driver
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: apps/driver
+        run: flutter analyze
+
+      - name: Test
+        working-directory: apps/driver
+        run: flutter test
+
+      - name: Build Android release
+        working-directory: apps/driver
+        run: flutter build apk --release
+
   ios-simulator:
     runs-on: macos-latest
     timeout-minutes: 30
