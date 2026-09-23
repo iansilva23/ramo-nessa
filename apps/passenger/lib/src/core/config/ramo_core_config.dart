@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 abstract final class RamoCoreConfig {
   static const baseUrl = String.fromEnvironment(
     'RAMO_CORE_BASE_URL',
@@ -12,7 +14,23 @@ abstract final class RamoCoreConfig {
     defaultValue: '',
   );
 
-  static bool get enabled => baseUrl.trim().isNotEmpty;
+  static Uri? get baseUri {
+    final uri = Uri.tryParse(baseUrl.trim());
+    if (
+      uri == null ||
+      !uri.hasScheme ||
+      uri.host.isEmpty ||
+      (uri.scheme != 'http' && uri.scheme != 'https')
+    ) {
+      return null;
+    }
+
+    // Release nunca deve apontar o Core para HTTP sem TLS.
+    if (kReleaseMode && uri.scheme != 'https') return null;
+    return uri;
+  }
+
+  static bool get enabled => baseUri != null;
 
   static bool get devPassengerIdentityEnabled =>
       enabled && devPassengerId.trim().length >= 3;
