@@ -150,6 +150,7 @@ import {
   prepareRideForPayment,
   RidePreparationError,
 } from './rides/prepare-ride.js';
+import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
 import {
   confirmRidePayment,
@@ -661,6 +662,20 @@ const server = createServer(async (request, response) => {
           updatedAt: ride.updatedAt,
         })),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/pricing/catalog'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:read',
+      });
+      json(response, 200, adminPricingCatalogView());
       return;
     }
 
