@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import 'passenger_payment_service.dart';
 
@@ -33,16 +34,21 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
-    final decoded = jsonDecode(response.body);
-    if (response.statusCode == 200 && decoded is Map<String, dynamic>) {
-      return (decoded['balanceCents'] as num).toInt();
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final balance = decoded['balanceCents'];
+      if (balance is num) return balance.toInt();
+
+      throw const PassengerPaymentException(
+        'O servidor retornou um saldo de carteira inválido.',
+      );
     }
 
     throw PassengerPaymentException(
-      decoded is Map<String, dynamic>
-          ? decoded['message'] as String? ??
-              'Não conseguimos consultar a carteira agora.'
-          : 'Não conseguimos consultar a carteira agora.',
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos consultar a carteira agora.',
+      ),
     );
   }
 
@@ -62,16 +68,22 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
-    final decoded = jsonDecode(response.body);
-    if (response.statusCode == 201 && decoded is Map<String, dynamic>) {
-      return WalletRidePaymentResult.fromJson(decoded);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return WalletRidePaymentResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou um pagamento inválido.',
+        );
+      }
     }
 
     throw PassengerPaymentException(
-      decoded is Map<String, dynamic>
-          ? decoded['message'] as String? ??
-              'Não conseguimos pagar com a carteira agora.'
-          : 'Não conseguimos pagar com a carteira agora.',
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos pagar com a carteira agora.',
+      ),
     );
   }
 }
