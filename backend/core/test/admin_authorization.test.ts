@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -152,8 +153,10 @@ test(
     const humanAuth = new PostgresAdminHumanAuthRepository(pool);
     const identities = new PostgresAuthOtpRepository(pool);
     const sessions = new PostgresAuthSessionRepository(pool);
-    const email = 'principal-human-ci@example.com';
-    const driverId = 'driver-human-principal-ci';
+    const nonce = randomInt(10_000_000, 99_999_999);
+    const email = `principal-human-ci-${process.pid}-${nonce}@example.com`;
+    const driverId = `driver-human-principal-ci-${process.pid}-${nonce}`;
+    const phone = `889${nonce}`;
     let userId = '';
 
     try {
@@ -193,7 +196,7 @@ test(
         admin: apiKeys,
         actor,
         driverId,
-        phone: '88999991272',
+        phone,
         now: new Date('2026-09-23T23:03:00.000Z'),
       });
 
