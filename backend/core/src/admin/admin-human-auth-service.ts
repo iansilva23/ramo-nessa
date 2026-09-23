@@ -295,7 +295,7 @@ export async function authenticateAdminHumanSession(input: {
   repository: AdminHumanAuthRepository;
   headers: IncomingHttpHeaders;
   requiredScope?: AdminScope | undefined;
-  now?: Date;
+  now?: Date | undefined;
 }): Promise<{
   session: AdminHumanSessionRecord;
   user: AdminHumanUserRecord;
