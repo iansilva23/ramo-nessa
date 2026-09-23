@@ -140,3 +140,60 @@ test('chave de idempotência não pode ser reutilizada em outra intenção', asy
       error.code === 'IDEMPOTENCY_CONFLICT',
   );
 });
+
+
+test('mesmo evento do gateway não pode capturar pagamentos diferentes', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const base = ride();
+
+  const firstPayment = await createPaymentForRide(repository, {
+    ride: base,
+    method: 'pix',
+    processor: 'test-gateway',
+    idempotencyKey: 'cross-event-payment-001',
+  });
+
+  const secondRide: RideRecord = {
+    ...base,
+    id: '11111111-1111-4111-8111-222222222222',
+    createdAt: '2026-09-23T00:01:00.000Z',
+    updatedAt: '2026-09-23T00:01:00.000Z',
+  };
+  const secondPayment = await createPaymentForRide(repository, {
+    ride: secondRide,
+    method: 'pix',
+    processor: 'test-gateway',
+    idempotencyKey: 'cross-event-payment-002',
+  });
+
+  const pendingRepository = new InMemoryFinanceRepository();
+  await pendingRepository.createPayment({
+    ...firstPayment,
+    status: 'pending',
+  });
+  await pendingRepository.createPayment({
+    ...secondPayment,
+    status: 'pending',
+  });
+
+  await pendingRepository.capturePayment({
+    paymentId: firstPayment.id,
+    processorEventId: 'evt-shared-across-payments',
+  });
+
+  await assert.rejects(
+    () =>
+      pendingRepository.capturePayment({
+        paymentId: secondPayment.id,
+        processorEventId: 'evt-shared-across-payments',
+      }),
+    (error: unknown) =>
+      error instanceof PaymentDomainError &&
+      error.code === 'IDEMPOTENCY_CONFLICT',
+  );
+
+  assert.equal(
+    (await pendingRepository.findPaymentById(secondPayment.id))?.status,
+    'pending',
+  );
+});
