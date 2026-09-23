@@ -183,3 +183,26 @@ String formatCents(int cents) {
   final centavos = (cents % 100).toString().padLeft(2, '0');
   return 'R\$ $reais,$centavos';
 }
+
+
+class DriverRideCompletion {
+  const DriverRideCompletion({
+    required this.ride,
+    required this.driverBalanceCents,
+    required this.duplicateSettlement,
+  });
+
+  factory DriverRideCompletion.fromJson(Map<String, dynamic> json) {
+    return DriverRideCompletion(
+      ride: AcceptedDriverRide.fromJson(
+        json['ride'] as Map<String, dynamic>,
+      ),
+      driverBalanceCents: (json['driverBalanceCents'] as num).toInt(),
+      duplicateSettlement: json['duplicateSettlement'] as bool? ?? false,
+    );
+  }
+
+  final AcceptedDriverRide ride;
+  final int driverBalanceCents;
+  final bool duplicateSettlement;
+}

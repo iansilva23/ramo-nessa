@@ -65,6 +65,10 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - motorista já tentado não é repetido na mesma rodada;
 - ausência de candidatos encerra busca em NO_DRIVER_FOUND;
 - endpoints dev de saldo/recarga da Carteira;
+- recuperação da corrida ativa do motorista;
+- ciclo Cheguei / Iniciar / Finalizar;
+- finalização liquida o escrow no ledger e libera o motorista;
+- repetição da finalização não duplica o saldo do motorista;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
@@ -92,7 +96,9 @@ npm start
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
 - trocar roteamento de desenvolvimento por provedor comercial de produção;
-- endpoints do Motorista para disponibilidade, localização e oferta ativa;
+- app Motorista Android integrado ao Core;
+- online/offline, localização foreground, oferta ativa e aceitar/recusar;
+- APK debug do Motorista validado e publicado como artefato de CI;
 - aceite/recusa do Motorista reutilizam o matching transacional;
 - app não pode autodeclarar categoria, 4x4, capacidade ou veículo;
 - motorista recupera a corrida ativa após reabrir o app;
@@ -101,7 +107,7 @@ npm start
 - recusa limpa a reserva e tenta o próximo motorista;
 - entrega realtime das ofertas de matching;
 - localização em tempo real;
-- máquina de estados;
+- GPS em background do Motorista;
 - integração real com gateway Pix/cartão;
 - interface da carteira no Passageiro;
 - repasses;

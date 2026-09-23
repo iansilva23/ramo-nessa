@@ -78,6 +78,21 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<AcceptedDriverRide?> currentRide() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/ride'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    final decoded = _expectObject(response, expectedStatus: 200);
+    final ride = decoded['ride'];
+    if (ride == null) return null;
+    return AcceptedDriverRide.fromJson(ride as Map<String, dynamic>);
+  }
+
+  @override
   Future<AcceptedDriverRide> acceptOffer(String offerId) async {
     final response = await _client
         .post(
@@ -103,6 +118,45 @@ class HttpDriverApi implements DriverApi {
 
     final decoded = _expectObject(response, expectedStatus: 200);
     return decoded['retryStatus'] as String;
+  }
+
+  Future<AcceptedDriverRide> _rideAction(
+    String rideId,
+    String action,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/$action'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    final decoded = _expectObject(response, expectedStatus: 200);
+    return AcceptedDriverRide.fromJson(
+      decoded['ride'] as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<AcceptedDriverRide> markArrived(String rideId) =>
+      _rideAction(rideId, 'arrived');
+
+  @override
+  Future<AcceptedDriverRide> startRide(String rideId) =>
+      _rideAction(rideId, 'start');
+
+  @override
+  Future<DriverRideCompletion> completeRide(String rideId) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/complete'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverRideCompletion.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
   }
 
   Map<String, dynamic> _expectObject(

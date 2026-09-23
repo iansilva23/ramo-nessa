@@ -11,9 +11,17 @@ abstract interface class DriverApi {
 
   Future<DriverOffer?> currentOffer();
 
+  Future<AcceptedDriverRide?> currentRide();
+
   Future<AcceptedDriverRide> acceptOffer(String offerId);
 
   Future<String> rejectOffer(String offerId);
+
+  Future<AcceptedDriverRide> markArrived(String rideId);
+
+  Future<AcceptedDriverRide> startRide(String rideId);
+
+  Future<DriverRideCompletion> completeRide(String rideId);
 }
 
 class DriverApiException implements Exception {

@@ -35,8 +35,28 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Corrida aceita'), findsOneWidget);
+    expect(find.text('A caminho do embarque'), findsOneWidget);
+    expect(find.text('Cheguei'), findsOneWidget);
     expect(api.acceptedOfferId, 'offer-1');
+
+    await tester.ensureVisible(find.text('Cheguei'));
+    await tester.pump();
+    await tester.tap(find.text('Cheguei'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(find.text('Iniciar corrida'), findsOneWidget);
+
+    await tester.tap(find.text('Iniciar corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(find.text('Finalizar corrida'), findsOneWidget);
+
+    await tester.tap(find.text('Finalizar corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
+    expect(api.completedRideId, 'ride-1');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -100,6 +120,8 @@ class _FakeDriverApi implements DriverApi {
   bool _offerAvailable = true;
   String? acceptedOfferId;
   String? rejectedOfferId;
+  String? completedRideId;
+  AcceptedDriverRide? _currentRide;
 
   DriverOffer get _offer => DriverOffer(
         id: 'offer-1',
@@ -160,9 +182,9 @@ class _FakeDriverApi implements DriverApi {
       locationUpdatedAt: _supply.locationUpdatedAt,
     );
 
-    return const AcceptedDriverRide(
+    _currentRide = const AcceptedDriverRide(
       id: 'ride-1',
-      state: 'DRIVER_ASSIGNED',
+      state: 'DRIVER_ARRIVING',
       category: 'car',
       passengers: 2,
       origin: DriverLocationRef(zoneId: 'prea'),
@@ -171,6 +193,82 @@ class _FakeDriverApi implements DriverApi {
       pickupCompensationCents: 200,
       pickupLatitude: -2.82017,
       pickupLongitude: -40.41467,
+    );
+    return _currentRide!;
+  }
+
+  @override
+  Future<AcceptedDriverRide?> currentRide() async => _currentRide;
+
+  @override
+  Future<AcceptedDriverRide> markArrived(String rideId) async {
+    final ride = _currentRide!;
+    _currentRide = AcceptedDriverRide(
+      id: ride.id,
+      state: 'DRIVER_ARRIVED',
+      category: ride.category,
+      passengers: ride.passengers,
+      origin: ride.origin,
+      destination: ride.destination,
+      driverEarningsCents: ride.driverEarningsCents,
+      pickupCompensationCents: ride.pickupCompensationCents,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+    );
+    return _currentRide!;
+  }
+
+  @override
+  Future<AcceptedDriverRide> startRide(String rideId) async {
+    final ride = _currentRide!;
+    _currentRide = AcceptedDriverRide(
+      id: ride.id,
+      state: 'IN_PROGRESS',
+      category: ride.category,
+      passengers: ride.passengers,
+      origin: ride.origin,
+      destination: ride.destination,
+      driverEarningsCents: ride.driverEarningsCents,
+      pickupCompensationCents: ride.pickupCompensationCents,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+    );
+    return _currentRide!;
+  }
+
+  @override
+  Future<DriverRideCompletion> completeRide(String rideId) async {
+    completedRideId = rideId;
+    final ride = _currentRide!;
+    final completed = AcceptedDriverRide(
+      id: ride.id,
+      state: 'COMPLETED',
+      category: ride.category,
+      passengers: ride.passengers,
+      origin: ride.origin,
+      destination: ride.destination,
+      driverEarningsCents: ride.driverEarningsCents,
+      pickupCompensationCents: ride.pickupCompensationCents,
+      pickupLatitude: ride.pickupLatitude,
+      pickupLongitude: ride.pickupLongitude,
+    );
+    _currentRide = null;
+    _supply = DriverSupplySnapshot(
+      driverId: _supply.driverId,
+      vehicleId: _supply.vehicleId,
+      categories: _supply.categories,
+      fourByFour: _supply.fourByFour,
+      seatCapacity: _supply.seatCapacity,
+      online: true,
+      busy: false,
+      latitude: _supply.latitude,
+      longitude: _supply.longitude,
+      locationUpdatedAt: _supply.locationUpdatedAt,
+    );
+    return DriverRideCompletion(
+      ride: completed,
+      driverBalanceCents: 11000,
+      duplicateSettlement: false,
     );
   }
 

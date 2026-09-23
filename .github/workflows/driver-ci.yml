@@ -65,3 +65,10 @@ jobs:
       - name: Build Android debug APK
         working-directory: apps/driver
         run: flutter build apk --debug
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-nessa-driver-debug
+          path: apps/driver/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7

@@ -42,6 +42,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _loading = true;
   bool _changingStatus = false;
   bool _offerAction = false;
+  bool _rideAction = false;
   String? _message;
   Timer? _pollTimer;
   Timer? _ticker;
@@ -80,7 +81,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
 
-      if (supply.online && !supply.busy) {
+      if (supply.busy) {
+        final ride = await api.currentRide();
+        if (!mounted) return;
+        setState(() => _activeRide = ride);
+      } else if (supply.online) {
         _startPolling();
         await _refreshOffer();
       }
@@ -259,6 +264,94 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _markArrived() async {
+    final api = _api;
+    final ride = _activeRide;
+    if (api == null || ride == null || _rideAction) return;
+
+    setState(() => _rideAction = true);
+    try {
+      final updated = await api.markArrived(ride.id);
+      if (!mounted) return;
+      setState(() {
+        _activeRide = updated;
+        _rideAction = false;
+        _message = null;
+      });
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = error.message;
+      });
+    }
+  }
+
+  Future<void> _startRide() async {
+    final api = _api;
+    final ride = _activeRide;
+    if (api == null || ride == null || _rideAction) return;
+
+    setState(() => _rideAction = true);
+    try {
+      final updated = await api.startRide(ride.id);
+      if (!mounted) return;
+      setState(() {
+        _activeRide = updated;
+        _rideAction = false;
+        _message = null;
+      });
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = error.message;
+      });
+    }
+  }
+
+  Future<void> _completeRide() async {
+    final api = _api;
+    final ride = _activeRide;
+    if (api == null || ride == null || _rideAction) return;
+
+    setState(() => _rideAction = true);
+    try {
+      final result = await api.completeRide(ride.id);
+      final supply = await api.getSupply();
+      if (!mounted) return;
+
+      setState(() {
+        _activeRide = null;
+        _supply = supply;
+        _rideAction = false;
+        _message = null;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Corrida finalizada. Saldo disponível: '
+              '${formatCents(result.driverBalanceCents)}',
+            ),
+          ),
+        );
+
+      if (supply.online && !supply.busy) {
+        _startPolling();
+        await _refreshOffer();
+      }
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = error.message;
+      });
+    }
+  }
+
   Future<void> _rejectOffer() async {
     final api = _api;
     final offer = _offer;
@@ -335,7 +428,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       ),
                       const SizedBox(height: RamoSpacing.lg),
                       if (_activeRide != null)
-                        _ActiveRideCard(ride: _activeRide!)
+                        _ActiveRideCard(
+                          ride: _activeRide!,
+                          busy: _rideAction,
+                          onArrived: _markArrived,
+                          onStart: _startRide,
+                          onComplete: _completeRide,
+                        )
                       else if (!supply.online)
                         const _WaitingCard(
                           icon: Icons.power_settings_new_rounded,
@@ -596,9 +695,41 @@ class _OfferCard extends StatelessWidget {
 }
 
 class _ActiveRideCard extends StatelessWidget {
-  const _ActiveRideCard({required this.ride});
+  const _ActiveRideCard({
+    required this.ride,
+    required this.busy,
+    required this.onArrived,
+    required this.onStart,
+    required this.onComplete,
+  });
 
   final AcceptedDriverRide ride;
+  final bool busy;
+  final VoidCallback onArrived;
+  final VoidCallback onStart;
+  final VoidCallback onComplete;
+
+  String get _title => switch (ride.state) {
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
+        'DRIVER_ARRIVED' => 'Você chegou',
+        'IN_PROGRESS' => 'Corrida em andamento',
+        'COMPLETED' => 'Corrida finalizada',
+        _ => 'Corrida ativa',
+      };
+
+  String? get _actionLabel => switch (ride.state) {
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Cheguei',
+        'DRIVER_ARRIVED' => 'Iniciar corrida',
+        'IN_PROGRESS' => 'Finalizar corrida',
+        _ => null,
+      };
+
+  VoidCallback? get _action => switch (ride.state) {
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => onArrived,
+        'DRIVER_ARRIVED' => onStart,
+        'IN_PROGRESS' => onComplete,
+        _ => null,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -617,8 +748,11 @@ class _ActiveRideCard extends StatelessWidget {
               Icon(Icons.check_circle_rounded, color: RamoColors.success),
               SizedBox(width: RamoSpacing.sm),
               Text(
-                'Corrida aceita',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                _title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
               ),
             ],
           ),
@@ -640,10 +774,21 @@ class _ActiveRideCard extends StatelessWidget {
                 '${ride.pickupLongitude!.toStringAsFixed(5)}',
               ),
             ),
-          const SizedBox(height: RamoSpacing.md),
-          const Text(
-            'Navegação e estados Cheguei/Iniciar/Finalizar entram na próxima etapa.',
-          ),
+          if (_actionLabel != null) ...[
+            const SizedBox(height: RamoSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: busy ? null : _action,
+                child: busy
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(_actionLabel!),
+              ),
+            ),
+          ],
         ],
       ),
     );
