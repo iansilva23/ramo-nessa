@@ -3,6 +3,8 @@ class WalletRidePaymentResult {
     required this.rideState,
     required this.walletBalanceCents,
     required this.duplicatePayment,
+    required this.paymentConfirmed,
+    this.dispatchStatus,
   });
 
   factory WalletRidePaymentResult.fromJson(Map<String, dynamic> json) {
@@ -11,14 +13,23 @@ class WalletRidePaymentResult {
       throw const FormatException('Resposta da corrida inválida.');
     }
 
+    final payment = json['payment'];
+    final paymentStatus = payment is Map<String, dynamic>
+        ? payment['status'] as String?
+        : null;
+
     return WalletRidePaymentResult(
       rideState: ride['state'] as String,
       walletBalanceCents: (json['walletBalanceCents'] as num).toInt(),
       duplicatePayment: json['duplicatePayment'] as bool? ?? false,
+      paymentConfirmed: paymentStatus == 'paid',
+      dispatchStatus: json['dispatchStatus'] as String?,
     );
   }
 
   final String rideState;
   final int walletBalanceCents;
   final bool duplicatePayment;
+  final bool paymentConfirmed;
+  final String? dispatchStatus;
 }

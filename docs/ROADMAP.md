@@ -46,6 +46,7 @@
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [x] preparação de preço final com reserva curta e coleta roteada
 - [x] Passageiro conectado ao endpoint /v1/rides/prepare
+- [x] pagamento confirmado dispara matching automaticamente
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
 - [ ] entrega realtime da oferta ao app
@@ -95,6 +96,7 @@
 - [x] schema/migration inicial PostgreSQL para corridas
 - [x] elegibilidade/ranking de matching
 - [x] oferta/aceite transacional do matching
+- [x] despacho inicial automático após pagamento confirmado
 - [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
 - [ ] entrega realtime das ofertas
 - [ ] localização em tempo real

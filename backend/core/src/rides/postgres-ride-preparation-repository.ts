@@ -68,6 +68,7 @@ export class PostgresRidePreparationRepository
         INSERT INTO rides (
           id, passenger_id, state, payment_status, driver_id,
           reserved_driver_id, driver_hold_expires_at,
+          pickup_latitude, pickup_longitude,
           origin_zone_id, origin_locality_id,
           destination_zone_id, destination_locality_id,
           category, price_period, passengers,
@@ -77,7 +78,7 @@ export class PostgresRidePreparationRepository
           created_at, updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26
         )
         `,
         [
@@ -88,6 +89,8 @@ export class PostgresRidePreparationRepository
           ride.driverId ?? null,
           driverId,
           holdExpiresAt,
+          ride.pickupLatitude ?? null,
+          ride.pickupLongitude ?? null,
           ride.origin.zoneId,
           ride.origin.localityId ?? null,
           ride.destination.zoneId,

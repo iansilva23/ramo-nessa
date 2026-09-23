@@ -48,6 +48,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - pagamento de corrida pela carteira com débito atômico;
 - proteção contra saldo negativo e pagamentos duplicados;
 - pagamento confirmado atualiza a corrida para PAID;
+- ponto de embarque da preparação é persistido no Core;
+- pagamento confirmado dispara automaticamente a primeira oferta de matching;
+- falha transitória de despacho não transforma pagamento confirmado em falha;
 - matching permanece bloqueado até a corrida estar financeiramente pronta;
 - projeção persistente de motoristas online;
 - filtro por categoria, capacidade e localização recente;

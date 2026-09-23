@@ -11,6 +11,8 @@ interface RideRow {
   driver_id: string | null;
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
+  pickup_latitude: string | null;
+  pickup_longitude: string | null;
   origin_zone_id: RideRecord['origin']['zoneId'];
   origin_locality_id: string | null;
   destination_zone_id: RideRecord['destination']['zoneId'];
@@ -42,6 +44,12 @@ function mapRow(row: RideRow): RideRecord {
       : {}),
     ...(row.driver_hold_expires_at != null
       ? { driverHoldExpiresAt: row.driver_hold_expires_at.toISOString() }
+      : {}),
+    ...(row.pickup_latitude != null
+      ? { pickupLatitude: Number(row.pickup_latitude) }
+      : {}),
+    ...(row.pickup_longitude != null
+      ? { pickupLongitude: Number(row.pickup_longitude) }
       : {}),
     origin: {
       zoneId: row.origin_zone_id,
@@ -80,6 +88,7 @@ function mapRow(row: RideRow): RideRecord {
 const RETURNING = `
   id, passenger_id, state, payment_status, driver_id,
   reserved_driver_id, driver_hold_expires_at,
+  pickup_latitude, pickup_longitude,
   origin_zone_id, origin_locality_id,
   destination_zone_id, destination_locality_id,
   category, price_period, passengers,
@@ -98,6 +107,7 @@ export class PostgresRideRepository implements RideRepository {
       INSERT INTO rides (
         id, passenger_id, state, payment_status, driver_id,
         reserved_driver_id, driver_hold_expires_at,
+        pickup_latitude, pickup_longitude,
         origin_zone_id, origin_locality_id,
         destination_zone_id, destination_locality_id,
         category, price_period, passengers,
@@ -107,7 +117,7 @@ export class PostgresRideRepository implements RideRepository {
         created_at, updated_at
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26
       )
       RETURNING ${RETURNING}
       `,
@@ -119,6 +129,8 @@ export class PostgresRideRepository implements RideRepository {
         ride.driverId ?? null,
         ride.reservedDriverId ?? null,
         ride.driverHoldExpiresAt ?? null,
+        ride.pickupLatitude ?? null,
+        ride.pickupLongitude ?? null,
         ride.origin.zoneId,
         ride.origin.localityId ?? null,
         ride.destination.zoneId,
@@ -162,12 +174,14 @@ export class PostgresRideRepository implements RideRepository {
         driver_id = $4,
         reserved_driver_id = $5,
         driver_hold_expires_at = $6,
-        driver_pickup_distance_km = $7,
-        pickup_compensation_cents = $8,
-        total_amount_cents = $9,
-        platform_commission_cents = $10,
-        driver_net_cents = $11,
-        updated_at = $12
+        pickup_latitude = $7,
+        pickup_longitude = $8,
+        driver_pickup_distance_km = $9,
+        pickup_compensation_cents = $10,
+        total_amount_cents = $11,
+        platform_commission_cents = $12,
+        driver_net_cents = $13,
+        updated_at = $14
       WHERE id = $1
       RETURNING ${RETURNING}
       `,
@@ -178,6 +192,8 @@ export class PostgresRideRepository implements RideRepository {
         ride.driverId ?? null,
         ride.reservedDriverId ?? null,
         ride.driverHoldExpiresAt ?? null,
+        ride.pickupLatitude ?? null,
+        ride.pickupLongitude ?? null,
         ride.driverPickupDistanceKm ?? null,
         ride.quote.pickupCompensationCents,
         ride.quote.totalAmountCents,

@@ -115,12 +115,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       );
 
       if (!mounted) return;
-      if (result.rideState != 'PAID') {
+      if (!result.paymentConfirmed) {
         setState(() {
           _payingWallet = false;
           _walletBalanceCents = result.walletBalanceCents;
           _walletMessage =
-              'O pagamento foi processado, mas a corrida ainda não está liberada.';
+              'O Core ainda não confirmou o pagamento da corrida.';
         });
         return;
       }
@@ -129,6 +129,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         MaterialPageRoute(
           builder: (_) => _PaymentConfirmedScreen(
             remainingWalletCents: result.walletBalanceCents,
+            dispatchStatus: result.dispatchStatus,
           ),
         ),
       );
@@ -297,9 +298,21 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 class _PaymentConfirmedScreen extends StatelessWidget {
   const _PaymentConfirmedScreen({
     required this.remainingWalletCents,
+    this.dispatchStatus,
   });
 
   final int remainingWalletCents;
+  final String? dispatchStatus;
+
+  String get _dispatchMessage => switch (dispatchStatus) {
+        'SEARCHING_DRIVER' =>
+          'Pagamento confirmado. A corrida já foi enviada ao motorista.',
+        'NO_DRIVER_FOUND' =>
+          'Pagamento confirmado. Não encontramos motorista nesta rodada.',
+        'PENDING_RETRY' =>
+          'Pagamento confirmado. O Core vai repetir a tentativa de despacho.',
+        _ => 'Pagamento confirmado e corrida liberada para o matching.',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +338,7 @@ class _PaymentConfirmedScreen extends StatelessWidget {
               ),
               const SizedBox(height: RamoSpacing.sm),
               Text(
-                'A corrida está paga e liberada para o matching.',
+                _dispatchMessage,
                 style: Theme.of(context).textTheme.bodyLarge,
                 textAlign: TextAlign.center,
               ),

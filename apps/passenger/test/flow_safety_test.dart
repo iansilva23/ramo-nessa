@@ -247,9 +247,11 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
     required String idempotencyKey,
   }) async {
     return const WalletRidePaymentResult(
-      rideState: 'PAID',
+      rideState: 'SEARCHING_DRIVER',
       walletBalanceCents: 5500,
       duplicatePayment: false,
+      paymentConfirmed: true,
+      dispatchStatus: 'SEARCHING_DRIVER',
     );
   }
 }

@@ -82,6 +82,8 @@ export async function prepareRideForPayment(input: {
     passengerId,
     state: transitionRide('CREATED', 'AWAITING_PAYMENT'),
     paymentStatus: 'created',
+    pickupLatitude: input.pickup.latitude,
+    pickupLongitude: input.pickup.longitude,
     origin: trustedQuoteRequest.origin,
     destination: trustedQuoteRequest.destination,
     category: trustedQuoteRequest.category,

@@ -42,6 +42,7 @@ import {
   confirmRidePayment,
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
+import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const {
@@ -49,6 +50,7 @@ const {
   financeRepository,
   driverSupplyRepository,
   ridePreparationRepository,
+  rideMatchingRepository,
   storageMode,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
@@ -204,10 +206,43 @@ const server = createServer(async (request, response) => {
           passengerId,
           idempotencyKey,
         });
-        const updatedRide = await confirmRidePayment(rideRepository, {
+        const paidRide = await confirmRidePayment(rideRepository, {
           rideId: ride.id,
           payment: result.payment,
         });
+
+        let dispatchStatus:
+          | 'SEARCHING_DRIVER'
+          | 'NO_DRIVER_FOUND'
+          | 'NOT_PREPARED'
+          | 'PENDING_RETRY' = 'PENDING_RETRY';
+
+        try {
+          const dispatch = await dispatchRideAfterPayment({
+            ride: paidRide,
+            rides: rideRepository,
+            drivers: driverSupplyRepository,
+            matching: rideMatchingRepository,
+          });
+          dispatchStatus =
+            dispatch.kind === 'OFFER_CREATED' ||
+            dispatch.kind === 'OFFER_ACTIVE'
+              ? 'SEARCHING_DRIVER'
+              : dispatch.kind;
+        } catch (dispatchError) {
+          console.error(
+            'Pagamento confirmado, mas despacho automático falhou.',
+            dispatchError,
+          );
+        }
+
+        const latestRide =
+          (await rideRepository.findById(ride.id)) ?? paidRide;
+        const {
+          reservedDriverId: _internalReservedDriverId,
+          ...publicRide
+        } = latestRide;
+
         const walletBalanceCents = await passengerWalletBalanceCents(
           financeRepository,
           passengerId,
@@ -215,7 +250,8 @@ const server = createServer(async (request, response) => {
 
         json(response, 201, {
           payment: result.payment,
-          ride: updatedRide,
+          ride: publicRide,
+          dispatchStatus,
           walletBalanceCents,
           duplicatePayment: result.duplicatePayment,
         });
