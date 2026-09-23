@@ -8,6 +8,11 @@ import {
   rejectOfferFromDriverApp,
   updateDriverSupplyFromApp,
 } from '../src/drivers/driver-app-service.js';
+import {
+  currentDriverRide,
+  performDriverRideAction,
+} from '../src/drivers/driver-ride-service.js';
+import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryRideMatchingRepository } from '../src/matching/in-memory-ride-matching-repository.js';
 import { createDriverOffer } from '../src/matching/offer-service.js';
 import type { RankedDriver } from '../src/matching/select-driver.js';
@@ -175,4 +180,121 @@ test('recusa limpa hold e envia corrida ao próximo motorista', async () => {
   const offers = await ctx.matching.listOffersForRide(ctx.currentRide.id);
   assert.equal(offers.length, 2);
   assert.equal(offers[1]?.driverId, 'driver-two');
+});
+
+
+test('corrida ativa sobrevive a reabertura e completa liquidação uma única vez', async () => {
+  const ctx = await setup();
+  const finance = new InMemoryFinanceRepository();
+
+  await finance.createPayment({
+    id: 'payment-driver-flow',
+    rideId: ctx.currentRide.id,
+    method: 'wallet',
+    processor: 'internal-wallet',
+    status: 'paid',
+    amountCents: 12200,
+    idempotencyKey: 'driver-flow-payment',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  await acceptOfferFromDriverApp({
+    rides: ctx.rides,
+    matching: ctx.matching,
+    offerId: ctx.offer.id,
+    driverId: 'driver-one',
+    now: new Date('2026-09-23T17:00:04.000Z'),
+  });
+
+  const recovered = await currentDriverRide({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    driverId: 'driver-one',
+  });
+  assert.equal(recovered?.state, 'DRIVER_ASSIGNED');
+
+  const arrived = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance,
+    driverId: 'driver-one',
+    rideId: ctx.currentRide.id,
+    action: 'arrive',
+    now: new Date('2026-09-23T17:05:00.000Z'),
+  });
+  assert.equal(arrived.ride.state, 'DRIVER_ARRIVED');
+
+  const started = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance,
+    driverId: 'driver-one',
+    rideId: ctx.currentRide.id,
+    action: 'start',
+    now: new Date('2026-09-23T17:06:00.000Z'),
+  });
+  assert.equal(started.ride.state, 'IN_PROGRESS');
+
+  const completed = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance,
+    driverId: 'driver-one',
+    rideId: ctx.currentRide.id,
+    action: 'complete',
+    now: new Date('2026-09-23T17:30:00.000Z'),
+  });
+  assert.equal(completed.ride.state, 'COMPLETED');
+  assert.equal(completed.settlement?.duplicate, false);
+  assert.equal(completed.settlement?.driverBalanceCents, 11000);
+  assert.equal(
+    (await ctx.drivers.findByDriverId('driver-one'))?.busy,
+    false,
+  );
+
+  const repeated = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance,
+    driverId: 'driver-one',
+    rideId: ctx.currentRide.id,
+    action: 'complete',
+    now: new Date('2026-09-23T17:30:05.000Z'),
+  });
+  assert.equal(repeated.settlement?.duplicate, true);
+  assert.equal(repeated.settlement?.driverBalanceCents, 11000);
+
+  const afterCompletion = await currentDriverRide({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    driverId: 'driver-one',
+  });
+  assert.equal(afterCompletion, null);
+});
+
+test('motorista não pode iniciar corrida antes de marcar chegada', async () => {
+  const ctx = await setup();
+  const finance = new InMemoryFinanceRepository();
+
+  await acceptOfferFromDriverApp({
+    rides: ctx.rides,
+    matching: ctx.matching,
+    offerId: ctx.offer.id,
+    driverId: 'driver-one',
+    now: new Date('2026-09-23T17:00:04.000Z'),
+  });
+
+  await assert.rejects(
+    performDriverRideAction({
+      rides: ctx.rides,
+      drivers: ctx.drivers,
+      finance,
+      driverId: 'driver-one',
+      rideId: ctx.currentRide.id,
+      action: 'start',
+      now: new Date('2026-09-23T17:01:00.000Z'),
+    }),
+    /Ação start inválida/,
+  );
 });

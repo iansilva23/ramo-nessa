@@ -14,7 +14,10 @@ export class DriverAppError extends Error {
       | 'DRIVER_NOT_REGISTERED'
       | 'DRIVER_BUSY'
       | 'RIDE_NOT_FOUND'
-      | 'RIDE_NOT_PREPARED',
+      | 'RIDE_NOT_PREPARED'
+      | 'RIDE_NOT_ASSIGNED_TO_DRIVER'
+      | 'INVALID_RIDE_ACTION'
+      | 'PAID_PAYMENT_NOT_FOUND',
     message: string,
   ) {
     super(message);
@@ -86,7 +89,7 @@ export async function updateDriverSupplyFromApp(input: {
   });
 }
 
-function driverOfferView(offer: {
+export function driverOfferView(offer: {
   id: string;
   rideId: string;
   approximatePickupDistanceKm: number;

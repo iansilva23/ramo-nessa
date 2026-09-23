@@ -150,3 +150,13 @@
 - [ ] políticas de privacidade/termos
 - [ ] beta
 - [ ] publicação
+
+
+### Fluxo operacional do Motorista
+- [x] corrida ativa recuperável após reinício do app
+- [x] Core: Cheguei -> DRIVER_ARRIVED
+- [x] Core: Iniciar -> IN_PROGRESS
+- [x] Core: Finalizar -> COMPLETED
+- [x] liquidação idempotente na conclusão
+- [x] motorista só é liberado após liquidação
+- [ ] ligar esses estados à interface Flutter do Motorista

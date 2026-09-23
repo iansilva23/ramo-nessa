@@ -95,6 +95,9 @@ npm start
 - endpoints do Motorista para disponibilidade, localização e oferta ativa;
 - aceite/recusa do Motorista reutilizam o matching transacional;
 - app não pode autodeclarar categoria, 4x4, capacidade ou veículo;
+- motorista recupera a corrida ativa após reabrir o app;
+- ciclo operacional protegido: Cheguei -> Iniciar -> Finalizar;
+- Finalizar liquida a corrida de forma idempotente e só então libera o motorista;
 - recusa limpa a reserva e tenta o próximo motorista;
 - entrega realtime das ofertas de matching;
 - localização em tempo real;

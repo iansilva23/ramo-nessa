@@ -164,6 +164,29 @@ export class PostgresRideRepository implements RideRepository {
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
   }
 
+  async findActiveByDriverId(
+    driverId: string,
+  ): Promise<RideRecord | null> {
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE driver_id = $1
+        AND state IN (
+          'DRIVER_ASSIGNED',
+          'DRIVER_ARRIVING',
+          'DRIVER_ARRIVED',
+          'IN_PROGRESS',
+          'COMPLETED'
+        )
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [driverId],
+    );
+    return result.rows[0] == null ? null : mapRow(result.rows[0]);
+  }
+
   async save(ride: RideRecord): Promise<RideRecord> {
     const result = await this.pool.query<RideRow>(
       `

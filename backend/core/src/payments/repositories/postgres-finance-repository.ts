@@ -275,6 +275,21 @@ export class PostgresFinanceRepository implements FinanceRepository {
     return result.rows[0] == null ? null : mapPayment(result.rows[0]);
   }
 
+  async findPaidPaymentByRideId(
+    rideId: string,
+  ): Promise<PaymentRecord | null> {
+    const result = await this.pool.query<PaymentRow>(
+      `SELECT ${PAYMENT_COLUMNS}
+       FROM payments
+       WHERE ride_id = $1
+         AND status = 'paid'
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [rideId],
+    );
+    return result.rows[0] == null ? null : mapPayment(result.rows[0]);
+  }
+
   async findPaymentByIdempotencyKey(
     key: string,
   ): Promise<PaymentRecord | null> {

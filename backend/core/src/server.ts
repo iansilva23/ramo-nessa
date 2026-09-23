@@ -43,6 +43,10 @@ import {
   parseUpdateDriverSupplyRequest,
 } from './drivers/driver-validation.js';
 import { DriverSupplyError } from './drivers/driver-supply.js';
+import {
+  currentDriverRide,
+  performDriverRideAction,
+} from './drivers/driver-ride-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { createRepositories } from './db/repositories.js';
@@ -132,6 +136,43 @@ const server = createServer(async (request, response) => {
         longitude: supply.longitude,
         locationUpdatedAt: supply.locationUpdatedAt,
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/ride'
+    ) {
+      const driverId = resolveDriverId(request);
+      const ride = await currentDriverRide({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        driverId,
+      });
+      json(response, 200, { ride });
+      return;
+    }
+
+    const driverRideAction = requestUrl.pathname.match(
+      /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/(arrive|start|complete)$/,
+    );
+    if (request.method === 'POST' && driverRideAction != null) {
+      const driverId = resolveDriverId(request);
+      const rideId = driverRideAction[1]!;
+      const action = driverRideAction[2] as
+        | 'arrive'
+        | 'start'
+        | 'complete';
+
+      const result = await performDriverRideAction({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        finance: financeRepository,
+        driverId,
+        rideId,
+        action,
+      });
+      json(response, 200, result);
       return;
     }
 
@@ -413,7 +454,10 @@ const server = createServer(async (request, response) => {
         error.code === 'DRIVER_NOT_REGISTERED' ||
         error.code === 'RIDE_NOT_FOUND'
           ? 404
-          : 422;
+          : error.code === 'RIDE_NOT_ASSIGNED_TO_DRIVER' ||
+              error.code === 'INVALID_RIDE_ACTION'
+            ? 409
+            : 422;
       json(response, status, { error: error.code, message: error.message });
       return;
     }

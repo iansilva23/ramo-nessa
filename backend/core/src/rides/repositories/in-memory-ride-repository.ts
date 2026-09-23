@@ -18,6 +18,27 @@ export class InMemoryRideRepository implements RideRepository {
     return ride == null ? null : structuredClone(ride);
   }
 
+  async findActiveByDriverId(
+    driverId: string,
+  ): Promise<RideRecord | null> {
+    const activeStates = new Set<RideRecord['state']>([
+      'DRIVER_ASSIGNED',
+      'DRIVER_ARRIVING',
+      'DRIVER_ARRIVED',
+      'IN_PROGRESS',
+      'COMPLETED',
+    ]);
+
+    const rides = [...this.rides.values()]
+      .filter(
+        (ride) =>
+          ride.driverId === driverId && activeStates.has(ride.state),
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    return rides[0] == null ? null : structuredClone(rides[0]);
+  }
+
   async save(ride: RideRecord): Promise<RideRecord> {
     if (!this.rides.has(ride.id)) {
       throw new Error('Ride not found.');

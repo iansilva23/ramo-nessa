@@ -65,6 +65,7 @@ export interface PayRideFromWalletResult {
 
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
+  findPaidPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
