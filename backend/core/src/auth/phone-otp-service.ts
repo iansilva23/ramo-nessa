@@ -161,6 +161,13 @@ export async function requestPhoneOtp(input: {
     );
   }
 
+  if (latest != null && latest.consumedAt == null) {
+    await input.repository.cancelChallenge(
+      latest.id,
+      now.toISOString(),
+    );
+  }
+
   const challengeId = randomUUID();
   const code = randomInt(100000, 1000000).toString();
   const challenge: OtpChallengeRecord = {
@@ -178,6 +185,7 @@ export async function requestPhoneOtp(input: {
       phoneE164,
       code,
       challengeId,
+      expiresInSeconds: Math.ceil(OTP_TTL_MS / 1000),
     });
   } catch {
     await input.repository.cancelChallenge(
@@ -194,7 +202,10 @@ export async function requestPhoneOtp(input: {
     challengeId,
     expiresAt: challenge.expiresAt,
     retryAfterSeconds: Math.ceil(OTP_COOLDOWN_MS / 1000),
-    ...(process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+    ...(input.delivery.exposesCodeForDevelopment === true &&
+    process.env.NODE_ENV !== 'production'
+      ? { devCode: code }
+      : {}),
   };
 }
 
