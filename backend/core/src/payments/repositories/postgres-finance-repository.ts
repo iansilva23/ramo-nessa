@@ -7,6 +7,7 @@ import {
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
+  walletRideRefundLedger,
   walletTopupCaptureLedger,
   type LedgerTransaction,
 } from '../ledger.js';
@@ -18,6 +19,8 @@ import {
   type FinanceRepository,
   type PayRideFromWalletInput,
   type PayRideFromWalletResult,
+  type RefundWalletRideInput,
+  type RefundWalletRideResult,
   type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
@@ -887,6 +890,135 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async refundWalletRide(
+    input: RefundWalletRideInput,
+  ): Promise<RefundWalletRideResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`wallet-ride-refund:${input.paymentId}`],
+      );
+
+      const paymentResult = await client.query<PaymentRow>(
+        `SELECT ${PAYMENT_COLUMNS}
+         FROM payments
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.paymentId],
+      );
+      const row = paymentResult.rows[0];
+      if (row == null) {
+        throw new WalletDomainError(
+          'WALLET_REFUND_NOT_ALLOWED',
+          'Pagamento de carteira não encontrado para estorno.',
+        );
+      }
+
+      const payment = mapPayment(row);
+      if (payment.method !== 'wallet') {
+        throw new WalletDomainError(
+          'WALLET_REFUND_NOT_ALLOWED',
+          'Somente pagamento interno da carteira pode usar este estorno.',
+        );
+      }
+
+      const rideResult = await client.query<{ passenger_id: string }>(
+        `SELECT passenger_id
+         FROM rides
+         WHERE id = $1
+         FOR UPDATE`,
+        [payment.rideId],
+      );
+      const passengerId = rideResult.rows[0]?.passenger_id;
+      if (passengerId == null || passengerId !== input.passengerId) {
+        throw new WalletDomainError(
+          'RIDE_PASSENGER_MISMATCH',
+          'Pagamento não pertence à carteira deste passageiro.',
+        );
+      }
+
+      const referenceKey = `wallet-ride-refund:${payment.id}`;
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        if (existing.paymentId !== payment.id || payment.status !== 'refunded') {
+          throw new Error(
+            'Estado inconsistente entre estorno da carteira e pagamento.',
+          );
+        }
+
+        await client.query('COMMIT');
+        return {
+          payment,
+          ledgerTransaction: existing,
+          duplicateRefund: true,
+        };
+      }
+
+      if (payment.status !== 'paid') {
+        throw new WalletDomainError(
+          'WALLET_REFUND_NOT_ALLOWED',
+          `Pagamento em estado ${payment.status} não pode ser estornado.`,
+        );
+      }
+
+      const escrowAccount = `ride:${payment.rideId}:escrow`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [escrowAccount],
+      );
+
+      const escrowBalance = await accountBalanceCents(client, escrowAccount);
+      if (escrowBalance < payment.amountCents) {
+        throw new WalletDomainError(
+          'INSUFFICIENT_RIDE_ESCROW',
+          'Escrow da corrida não possui saldo suficiente para o estorno.',
+        );
+      }
+
+      const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+      const nextStatus = transitionPayment(payment.status, 'refunded');
+      const updatedResult = await client.query<PaymentRow>(
+        `
+        UPDATE payments
+        SET status = $2, updated_at = $3
+        WHERE id = $1
+        RETURNING ${PAYMENT_COLUMNS}
+        `,
+        [payment.id, nextStatus, refundedAt],
+      );
+
+      const ledger = walletRideRefundLedger({
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        passengerId: input.passengerId,
+        amountCents: payment.amountCents,
+        createdAt: refundedAt,
+      });
+      await insertLedger(client, ledger);
+
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou pagamento estornado.');
+      }
+
+      await client.query('COMMIT');
+      return {
+        payment: mapPayment(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateRefund: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
