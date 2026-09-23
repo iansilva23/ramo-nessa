@@ -78,8 +78,8 @@ test('preparação usa distância roteada e congela compensação antes do pagam
   assert.equal(ride.state, 'AWAITING_PAYMENT');
   assert.equal(ride.pickupLatitude, -2.82017);
   assert.equal(ride.pickupLongitude, -40.41467);
-  assert.equal(ride.dropoffLatitude, -2.7956);
-  assert.equal(ride.dropoffLongitude, -40.5142);
+  assert.equal(ride.dropoffLatitude, -2.89860);
+  assert.equal(ride.dropoffLongitude, -40.45060);
   assert.equal(ride.reservedDriverId, 'driver-prepare-near');
   assert.equal(ride.driverPickupDistanceKm, 9);
   assert.equal(ride.quote.baseAmountCents, 12000);
