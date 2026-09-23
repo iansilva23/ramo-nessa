@@ -1,4 +1,8 @@
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
+import type {
+  DriverRegistryRepository,
+  DriverVehicleRecord,
+} from './driver-registry-repository.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import {
   acceptDriverOffer,
@@ -12,6 +16,8 @@ export class DriverAppError extends Error {
   constructor(
     public readonly code:
       | 'DRIVER_NOT_REGISTERED'
+      | 'DRIVER_REGISTRY_NOT_APPROVED'
+      | 'DRIVER_SUPPLY_NOT_INITIALIZED'
       | 'DRIVER_BUSY'
       | 'RIDE_NOT_FOUND'
       | 'RIDE_NOT_PREPARED'
@@ -25,18 +31,34 @@ export class DriverAppError extends Error {
   }
 }
 
-export async function getDriverSupplyForApp(input: {
-  drivers: DriverSupplyRepository;
+async function requireApprovedDriverRegistry(input: {
+  registry: DriverRegistryRepository;
   driverId: string;
-}) {
-  const supply = await input.drivers.findByDriverId(input.driverId);
-  if (supply == null) {
+}): Promise<DriverVehicleRecord> {
+  const [profile, vehicle] = await Promise.all([
+    input.registry.findProfile(input.driverId),
+    input.registry.findVehicleByDriverId(input.driverId),
+  ]);
+
+  if (
+    profile == null ||
+    vehicle == null ||
+    profile.status !== 'approved' ||
+    vehicle.status !== 'approved'
+  ) {
     throw new DriverAppError(
-      'DRIVER_NOT_REGISTERED',
-      'Motorista ainda não possui cadastro aprovado.',
+      'DRIVER_REGISTRY_NOT_APPROVED',
+      'Seu perfil e veículo ainda precisam ser aprovados antes de você ficar online.',
     );
   }
 
+  return vehicle;
+}
+
+function supplyView(
+  supply: Awaited<ReturnType<DriverSupplyRepository['findByDriverId']>>,
+) {
+  if (supply == null) return null;
   return {
     driverId: supply.driverId,
     vehicleId: supply.vehicleId,
@@ -51,23 +73,48 @@ export async function getDriverSupplyForApp(input: {
   };
 }
 
+export async function getDriverSupplyForApp(input: {
+  drivers: DriverSupplyRepository;
+  registry: DriverRegistryRepository;
+  driverId: string;
+}) {
+  const vehicle = await requireApprovedDriverRegistry({
+    registry: input.registry,
+    driverId: input.driverId,
+  });
+  const supply = await input.drivers.findByDriverId(input.driverId);
+  if (supply == null) {
+    throw new DriverAppError(
+      'DRIVER_SUPPLY_NOT_INITIALIZED',
+      'Cadastro aprovado. Ative a localização para concluir a configuração operacional.',
+    );
+  }
+
+  return supplyView({
+    ...supply,
+    vehicleId: vehicle.id,
+    categories: vehicle.categories,
+    fourByFour: vehicle.fourByFour,
+    seatCapacity: vehicle.seatCapacity,
+  });
+}
+
 export async function updateDriverSupplyFromApp(input: {
   drivers: DriverSupplyRepository;
+  registry: DriverRegistryRepository;
   driverId: string;
   online?: boolean;
   latitude?: number;
   longitude?: number;
   now?: Date;
 }) {
+  const vehicle = await requireApprovedDriverRegistry({
+    registry: input.registry,
+    driverId: input.driverId,
+  });
   const current = await input.drivers.findByDriverId(input.driverId);
-  if (current == null) {
-    throw new DriverAppError(
-      'DRIVER_NOT_REGISTERED',
-      'Motorista ainda não possui cadastro aprovado.',
-    );
-  }
 
-  if (current.busy && input.online === false) {
+  if (current?.busy && input.online === false) {
     throw new DriverAppError(
       'DRIVER_BUSY',
       'Não é possível ficar offline durante uma corrida ativa.',
@@ -75,8 +122,36 @@ export async function updateDriverSupplyFromApp(input: {
   }
 
   const instant = (input.now ?? new Date()).toISOString();
+
+  if (current == null) {
+    if (input.latitude == null || input.longitude == null) {
+      throw new DriverAppError(
+        'DRIVER_SUPPLY_NOT_INITIALIZED',
+        'A localização atual é necessária para concluir a configuração operacional.',
+      );
+    }
+
+    return input.drivers.upsert({
+      driverId: input.driverId,
+      vehicleId: vehicle.id,
+      categories: vehicle.categories,
+      fourByFour: vehicle.fourByFour,
+      seatCapacity: vehicle.seatCapacity,
+      online: input.online ?? false,
+      busy: false,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      locationUpdatedAt: instant,
+      updatedAt: instant,
+    });
+  }
+
   return input.drivers.upsert({
     ...current,
+    vehicleId: vehicle.id,
+    categories: vehicle.categories,
+    fourByFour: vehicle.fourByFour,
+    seatCapacity: vehicle.seatCapacity,
     ...(input.online != null ? { online: input.online } : {}),
     ...(input.latitude != null && input.longitude != null
       ? {
@@ -112,10 +187,15 @@ export function driverOfferView(offer: {
 export async function currentDriverOffer(input: {
   rides: RideRepository;
   drivers: DriverSupplyRepository;
+  registry: DriverRegistryRepository;
   matching: RideMatchingRepository;
   driverId: string;
   now?: Date;
 }) {
+  await requireApprovedDriverRegistry({
+    registry: input.registry,
+    driverId: input.driverId,
+  });
   const now = input.now ?? new Date();
   const offer = await input.matching.findLatestOfferedForDriver(
     input.driverId,
@@ -162,11 +242,16 @@ export async function currentDriverOffer(input: {
 
 export async function acceptOfferFromDriverApp(input: {
   rides: RideRepository;
+  registry: DriverRegistryRepository;
   matching: RideMatchingRepository;
   offerId: string;
   driverId: string;
   now?: Date;
 }) {
+  await requireApprovedDriverRegistry({
+    registry: input.registry,
+    driverId: input.driverId,
+  });
   const result = await acceptDriverOffer({
     repository: input.matching,
     offerId: input.offerId,
