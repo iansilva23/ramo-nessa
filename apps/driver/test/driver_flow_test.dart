@@ -196,10 +196,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
 
-      expect(
-        find.textContaining('não criaremos uma solicitação duplicada'),
-        findsOneWidget,
-      );
+      // A primeira tentativa chegou à API e falhou como transporte.
+      // O comportamento crítico é o retry reutilizar a mesma chave.
+      expect(api.payoutAttempts, 1);
+      expect(api.payoutIdempotencyKeys, hasLength(1));
 
       await tester.ensureVisible(find.text('Solicitar saque'));
       await tester.pumpAndSettle();
