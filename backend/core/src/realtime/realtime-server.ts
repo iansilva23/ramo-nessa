@@ -7,6 +7,7 @@ import {
   resolvePassengerId,
 } from '../auth/dev-identity.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
+import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
 import {
   currentDriverRide,
   driverRideView,
@@ -28,6 +29,7 @@ interface AttachRealtimeServerInput {
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
   sessions: AuthSessionRepository;
+  identities: AuthOtpRepository;
 }
 
 function rejectUpgrade(
@@ -102,6 +104,7 @@ export function attachRealtimeServer(
         const driverId = await resolveDriverId({
           request,
           sessions: input.sessions,
+          identities: input.identities,
         });
         await getDriverSupplyForApp({
           drivers: input.drivers,
@@ -155,6 +158,7 @@ export function attachRealtimeServer(
         const passengerId = await resolvePassengerId({
           request,
           sessions: input.sessions,
+          identities: input.identities,
         });
         const rideId = requestUrl.searchParams.get('rideId')?.trim();
         if (rideId == null || rideId.length < 3) {
