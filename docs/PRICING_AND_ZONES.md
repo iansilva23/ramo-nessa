@@ -73,21 +73,19 @@ Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são reto
 
 Preço não equivale a autorização operacional.
 
-O app já oculta categorias comercialmente incompatíveis com a rota. O backend ainda deverá validar o veículo e o motorista concretos antes do matching, especialmente nas rotas que exigem 4x4 em Jericoacoara.
+O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou ainda validação entre zona local declarada e coordenadas antes de congelar a tarifa. A validação geográfica exata de cada localidade específica continua dependendo de um catálogo geoespacial autoritativo.
 
 ## Próximas implementações
 
 Ainda faltam:
 
-- persistência/versionamento de tabelas e cotações;
+- persistência/versionamento das tabelas comerciais e sua vigência;
 - Admin para alterar preços e vigência;
-- validação robusta de schema da API;
-- autenticação/autorização;
-- disponibilidade e matching real;
-- integração de Pix/cartão/carteira;
-- ledger, estornos, repasses e conciliação;
-- resolução de motorista distante antes da cobrança final;
-- deploy seguro do Core;
+- catálogo geoespacial autoritativo para todas as localidades específicas e destinos externos;
+- autenticação/autorização real;
+- gateway Pix/cartão e confirmação real de recargas;
+- estornos/chargebacks, repasse Pix e conciliação com provedor;
+- deploy seguro e observabilidade do Core;
 - provedor comercial de mapas/geocoding/rotas.
 
 O preço, a comissão e a elegibilidade final devem continuar sob autoridade do Core.
