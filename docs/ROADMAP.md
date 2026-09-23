@@ -149,6 +149,7 @@
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
 - [x] backend do diretório administrativo de viagens + detalhe read-only
 - [x] frontend de viagens com filtros, paginação e detalhe read-only
+- [x] catálogo Admin read-only de preços, localidades, categorias e rotas fixas
 - [x] ambiente same-origin de teste para Admin + Core
 - [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [x] dashboard
@@ -158,7 +159,7 @@
 - [x] viagens em andamento
 - [ ] histórico
 - [ ] cancelamentos
-- [ ] preços, localidades, zonas e vigência
+- [ ] edição/versionamento de preços, localidades, zonas e vigência
 - [ ] categorias e elegibilidade
 - [ ] pagamentos/comissões
 - [ ] habilitar/desabilitar dinheiro futuramente
