@@ -14,7 +14,7 @@ class HttpDriverApi implements DriverApi {
     String? driverId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? DriverCoreConfig.authToken,
+        _accessToken = accessToken ?? '',
         _driverId = driverId ?? DriverCoreConfig.devDriverId,
         _client = client ?? http.Client();
 
