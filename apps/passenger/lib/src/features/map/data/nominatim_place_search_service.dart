@@ -12,6 +12,8 @@ class NominatimPlaceSearchService implements PlaceSearchService {
   NominatimPlaceSearchService({http.Client? client})
       : _client = client ?? http.Client();
 
+  static const _maxCacheEntries = 50;
+
   final http.Client _client;
   final Map<String, List<RamoPlace>> _cache = {};
   DateTime? _nextAllowedRequestAt;
@@ -55,6 +57,11 @@ class NominatimPlaceSearchService implements PlaceSearchService {
             )
             .toList(growable: false);
 
+    if (!_cache.containsKey(cacheKey) &&
+        _cache.length >= _maxCacheEntries &&
+        _cache.isNotEmpty) {
+      _cache.remove(_cache.keys.first);
+    }
     _cache[cacheKey] = safeResults;
     return safeResults;
   }
@@ -99,7 +106,12 @@ class NominatimPlaceSearchService implements PlaceSearchService {
       );
     }
 
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      throw const FormatException('Resposta de busca inválida.');
+    }
     if (decoded is! List) {
       throw const FormatException('Resposta de busca inválida.');
     }
