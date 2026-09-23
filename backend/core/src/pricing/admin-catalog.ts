@@ -110,3 +110,7 @@ export function adminPricingCatalogView() {
     })),
   };
 }
+
+
+export type PricingCatalogSnapshot =
+  ReturnType<typeof adminPricingCatalogView>;
