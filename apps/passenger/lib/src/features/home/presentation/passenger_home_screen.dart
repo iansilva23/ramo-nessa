@@ -32,6 +32,7 @@ import 'widgets/ride_bottom_sheet.dart';
 class PassengerHomeScreen extends StatefulWidget {
   const PassengerHomeScreen({
     super.key,
+    this.accessToken,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -43,6 +44,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.networkTilesEnabled = true,
   });
 
+  final String? accessToken;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
@@ -60,6 +62,16 @@ class PassengerHomeScreen extends StatefulWidget {
 class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   final MapController _mapController = MapController();
 
+  late final String _accessToken = () {
+    final restored = widget.accessToken?.trim();
+    if (restored != null && restored.length >= 20) return restored;
+    return RamoCoreConfig.authToken.trim();
+  }();
+  late final bool _authenticated =
+      RamoCoreConfig.enabled &&
+      (_accessToken.length >= 20 ||
+          RamoCoreConfig.devPassengerIdentityEnabled);
+
   late final LocationService _locationService =
       widget.locationService ?? GeolocatorLocationService();
   late final RouteService _routeService =
@@ -76,40 +88,40 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   late final RidePreparationService? _ridePreparationService =
       widget.ridePreparationService ??
-          (RamoCoreConfig.authenticated
+          (_authenticated
               ? HttpRidePreparationService(
                   baseUrl: RamoCoreConfig.baseUri!,
-                  accessToken: RamoCoreConfig.authToken,
+                  accessToken: _accessToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerPaymentService? _paymentService =
       widget.paymentService ??
-          (RamoCoreConfig.authenticated
+          (_authenticated
               ? HttpPassengerPaymentService(
                   baseUrl: RamoCoreConfig.baseUri!,
-                  accessToken: RamoCoreConfig.authToken,
+                  accessToken: _accessToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerRideTrackingService? _rideTrackingService =
       widget.rideTrackingService ??
-          (RamoCoreConfig.authenticated
+          (_authenticated
               ? HttpPassengerRideTrackingService(
                   baseUrl: RamoCoreConfig.baseUri!,
-                  accessToken: RamoCoreConfig.authToken,
+                  accessToken: _accessToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerRideRealtimeService? _rideRealtimeService =
       widget.rideRealtimeService ??
-          (RamoCoreConfig.authenticated
+          (_authenticated
               ? IoPassengerRideRealtimeService(
                   baseUrl: RamoCoreConfig.baseUri!,
-                  accessToken: RamoCoreConfig.authToken,
+                  accessToken: _accessToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
