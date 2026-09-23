@@ -66,6 +66,50 @@ export function registryStatusPresentation(status) {
   };
 }
 
+export function driverDocumentTypeLabel(type) {
+  const labels = {
+    driver_license: 'CNH',
+    vehicle_registration: 'CRLV',
+  };
+  return labels[type] ?? String(type ?? 'Documento');
+}
+
+export function driverDocumentStatusPresentation(status) {
+  if (status === 'approved') {
+    return {
+      label: 'Aprovado',
+      tone: 'success',
+      detail: 'Documento aprovado e dentro da validade informada.',
+    };
+  }
+  if (status === 'pending') {
+    return {
+      label: 'Pendente',
+      tone: 'warning',
+      detail: 'Documento aguardando revisão humana.',
+    };
+  }
+  if (status === 'rejected') {
+    return {
+      label: 'Rejeitado',
+      tone: 'danger',
+      detail: 'Documento precisa ser reenviado antes da aprovação.',
+    };
+  }
+  if (status === 'expired') {
+    return {
+      label: 'Vencido',
+      tone: 'danger',
+      detail: 'Documento fora da validade e não aceito para operação.',
+    };
+  }
+  return {
+    label: 'Não enviado',
+    tone: 'neutral',
+    detail: 'Nenhum documento atual foi encontrado.',
+  };
+}
+
 export function statusPresentation(status) {
   if (status === 'active') {
     return {
@@ -119,6 +163,8 @@ export function actionLabel(action) {
     'driver.auth.status_changed': 'Status de acesso alterado',
     'driver.registry.upserted': 'Cadastro do motorista atualizado',
     'driver.registry.status_changed': 'Status cadastral alterado',
+    'driver.document.submitted': 'Documento recebido',
+    'driver.document.reviewed': 'Documento revisado',
   };
   return labels[action] ?? action;
 }
