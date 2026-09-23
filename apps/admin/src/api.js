@@ -207,6 +207,45 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    getDriverRegistry(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${driverId}/registry`,
+        { token },
+      );
+    },
+
+    upsertDriverRegistry(
+      token,
+      { driverId, fullName, preferredName, vehicle },
+    ) {
+      return request(
+        `/v1/admin/drivers/${driverId}/registry`,
+        {
+          method: 'PUT',
+          token,
+          body: {
+            fullName,
+            ...(preferredName ? { preferredName } : {}),
+            vehicle,
+          },
+        },
+      );
+    },
+
+    setDriverRegistryStatus(
+      token,
+      { driverId, profileStatus, vehicleStatus },
+    ) {
+      return request(
+        `/v1/admin/drivers/${driverId}/registry/status`,
+        {
+          method: 'PATCH',
+          token,
+          body: { profileStatus, vehicleStatus },
+        },
+      );
+    },
+
     audit(token, limit = 50) {
       const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
       return request(`/v1/admin/audit?limit=${safeLimit}`, { token });
