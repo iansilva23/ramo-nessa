@@ -26,6 +26,46 @@ export function validateDriverStatus(value) {
   return value;
 }
 
+export function validateDriverRegistryStatus(value) {
+  if (
+    value !== 'pending' &&
+    value !== 'approved' &&
+    value !== 'suspended'
+  ) {
+    throw new Error('Status cadastral inválido.');
+  }
+  return value;
+}
+
+export function registryStatusPresentation(status) {
+  if (status === 'approved') {
+    return {
+      label: 'Aprovado',
+      tone: 'success',
+      detail: 'Cadastro validado administrativamente.',
+    };
+  }
+  if (status === 'pending') {
+    return {
+      label: 'Pendente',
+      tone: 'warning',
+      detail: 'Aguardando validação administrativa.',
+    };
+  }
+  if (status === 'suspended') {
+    return {
+      label: 'Suspenso',
+      tone: 'danger',
+      detail: 'Cadastro bloqueado administrativamente.',
+    };
+  }
+  return {
+    label: 'Não cadastrado',
+    tone: 'neutral',
+    detail: 'Nenhum estado cadastral foi retornado.',
+  };
+}
+
 export function statusPresentation(status) {
   if (status === 'active') {
     return {
@@ -76,7 +116,9 @@ export function actionLabel(action) {
   const labels = {
     'driver.auth.provisioned': 'Motorista provisionado',
     'driver.auth.provision_confirmed': 'Cadastro confirmado',
-    'driver.auth.status_changed': 'Status alterado',
+    'driver.auth.status_changed': 'Status de acesso alterado',
+    'driver.registry.upserted': 'Cadastro do motorista atualizado',
+    'driver.registry.status_changed': 'Status cadastral alterado',
   };
   return labels[action] ?? action;
 }
