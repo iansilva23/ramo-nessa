@@ -6,6 +6,7 @@ import { InMemoryRideMatchingRepository } from '../src/matching/in-memory-ride-m
 import {
   acceptDriverOffer,
   createDriverOffer,
+  rejectDriverOffer,
 } from '../src/matching/offer-service.js';
 import { RideOfferError } from '../src/matching/ride-offer.js';
 import type { RankedDriver } from '../src/matching/select-driver.js';
@@ -107,6 +108,35 @@ test('aceite vincula motorista, atribui corrida e marca motorista ocupado', asyn
   assert.equal((await rides.findById(ride().id))?.driverId, 'driver-offer-1');
 });
 
+test('retry do mesmo aceite devolve a corrida já atribuída', async () => {
+  const { matching, ranked } = await setup();
+  const offered = await createDriverOffer({
+    repository: matching,
+    rideId: ride().id,
+    driver: ranked,
+    now,
+    ttlSeconds: 20,
+  });
+
+  const first = await acceptDriverOffer({
+    repository: matching,
+    offerId: offered.offer.id,
+    driverId: ranked.supply.driverId,
+    now: new Date('2026-09-23T12:00:05.000Z'),
+  });
+  const retry = await acceptDriverOffer({
+    repository: matching,
+    offerId: offered.offer.id,
+    driverId: ranked.supply.driverId,
+    now: new Date('2026-09-23T12:00:07.000Z'),
+  });
+
+  assert.equal(first.offer.status, 'ACCEPTED');
+  assert.equal(retry.offer.status, 'ACCEPTED');
+  assert.equal(retry.ride.id, first.ride.id);
+  assert.equal(retry.ride.driverId, ranked.supply.driverId);
+});
+
 test('oferta expirada não pode ser aceita', async () => {
   const { matching, ranked } = await setup();
   const offered = await createDriverOffer({
@@ -152,6 +182,34 @@ test('motorista diferente não consegue aceitar oferta', async () => {
       error instanceof RideOfferError &&
       error.code === 'OFFER_DRIVER_MISMATCH',
   );
+});
+
+test('retry da mesma recusa é idempotente', async () => {
+  const { matching, ranked } = await setup();
+  const offered = await createDriverOffer({
+    repository: matching,
+    rideId: ride().id,
+    driver: ranked,
+    now,
+    ttlSeconds: 20,
+  });
+
+  const first = await rejectDriverOffer({
+    repository: matching,
+    offerId: offered.offer.id,
+    driverId: ranked.supply.driverId,
+    now: new Date('2026-09-23T12:00:05.000Z'),
+  });
+  const retry = await rejectDriverOffer({
+    repository: matching,
+    offerId: offered.offer.id,
+    driverId: ranked.supply.driverId,
+    now: new Date('2026-09-23T12:00:07.000Z'),
+  });
+
+  assert.equal(first.status, 'REJECTED');
+  assert.equal(retry.status, 'REJECTED');
+  assert.equal(retry.id, first.id);
 });
 
 test('não cria segunda oferta ativa para a mesma corrida', async () => {
