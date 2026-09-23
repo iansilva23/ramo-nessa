@@ -18,15 +18,16 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 ## Bloqueios obrigatórios
 
 1. **Core ainda não está pronto para produção**
-   - PostgreSQL, máquina de estados, matching, ledger/carteira e realtime já existem;
-   - falta autenticação/autorização real;
-   - falta gateway real, estornos/conciliação e repasse Pix;
+   - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
+   - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
+   - falta gateway real, conciliação e repasse Pix;
    - falta observabilidade, hardening de deploy e infraestrutura de produção.
 
-2. **Fluxo Passageiro ↔ Motorista existe, mas ainda usa identidade de desenvolvimento**
-   - o protótipo fake de "motorista encontrado" foi removido;
-   - pagamento por carteira já aciona matching/despacho e tracking reais do Core;
-   - antes de beta público, substituir headers de identidade dev por autenticação real e validar o fluxo em dois aparelhos físicos.
+2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
+   - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;
+   - headers `x-dev-*` permanecem apenas como fallback explícito fora de produção;
+   - motorista não é criado automaticamente: precisa ser provisionado/aprovado antes do OTP;
+   - antes do beta público, validar login, corrida e realtime em dois aparelhos físicos.
 
 3. **Preço v1 existe, mas a operação ainda precisa de infraestrutura**
    - o Core já contém a regra comercial;
@@ -56,12 +57,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - OSRM demo server;
    - antes do lançamento é necessário provedor/infraestrutura adequada ao uso comercial.
 
-8. **Autenticação, privacidade e LGPD**
-   - conta do usuário;
-   - consentimentos;
-   - política de privacidade;
-   - termos;
-   - retenção e exclusão de dados.
+8. **Privacidade, LGPD e operação da autenticação**
+   - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem;
+   - código OTP fica armazenado somente como HMAC no Core e tem expiração/limite de tentativas;
+   - falta provider SMS real e credenciais de produção;
+   - falta painel/processo administrativo para aprovar motorista;
+   - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**
    - Android físico;
