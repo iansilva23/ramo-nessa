@@ -867,6 +867,7 @@ function syncDocumentReviewForm(payload) {
 
   byId('driver-document-review-status').value = 'approved';
   byId('driver-document-rejection-reason').value = '';
+  syncDocumentRejectionRequirement();
   byId('driver-document-review-button').disabled =
     pending.length === 0 || !hasScope('drivers:documents:write');
 }
@@ -1121,7 +1122,15 @@ async function handleDriverDocumentReview(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = false;
+    const pending = Array.isArray(
+      state.currentDriverDocuments?.items,
+    )
+      ? state.currentDriverDocuments.items.some(
+          (item) => item?.status === 'pending',
+        )
+      : false;
+    button.disabled =
+      !pending || !hasScope('drivers:documents:write');
   }
 }
 
