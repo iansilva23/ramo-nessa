@@ -1,4 +1,7 @@
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { RidePreparationRepository } from '../rides/ride-preparation-repository.js';
+import { InMemoryRidePreparationRepository } from '../rides/in-memory-ride-preparation-repository.js';
+import { PostgresRidePreparationRepository } from '../rides/postgres-ride-preparation-repository.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import { InMemoryRideMatchingRepository } from '../matching/in-memory-ride-matching-repository.js';
 import { PostgresRideMatchingRepository } from '../matching/postgres-ride-matching-repository.js';
@@ -17,6 +20,7 @@ export interface RepositoryBundle {
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
   rideMatchingRepository: RideMatchingRepository;
+  ridePreparationRepository: RidePreparationRepository;
   storageMode: 'postgres' | 'memory';
 }
 
@@ -34,6 +38,8 @@ export function createRepositories(): RepositoryBundle {
       financeRepository: new PostgresFinanceRepository(pool),
       driverSupplyRepository,
       rideMatchingRepository: new PostgresRideMatchingRepository(pool),
+      ridePreparationRepository:
+        new PostgresRidePreparationRepository(pool),
       storageMode: 'postgres',
     };
   }
@@ -52,6 +58,10 @@ export function createRepositories(): RepositoryBundle {
     financeRepository: new InMemoryFinanceRepository(),
     driverSupplyRepository,
     rideMatchingRepository: new InMemoryRideMatchingRepository(
+      rideRepository,
+      driverSupplyRepository,
+    ),
+    ridePreparationRepository: new InMemoryRidePreparationRepository(
       rideRepository,
       driverSupplyRepository,
     ),

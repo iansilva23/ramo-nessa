@@ -28,14 +28,30 @@ import {
 import { resolvePassengerId, IdentityUnavailableError } from './auth/dev-identity.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { createRepositories } from './db/repositories.js';
-import { InvalidRideRequestError, parseCreateRideRequest } from './rides/validation.js';
+import {
+  InvalidRideRequestError,
+  parseCreateRideRequest,
+  parsePrepareRideRequest,
+} from './rides/validation.js';
+import {
+  prepareRideForPayment,
+  RidePreparationError,
+} from './rides/prepare-ride.js';
+import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
 import {
   confirmRidePayment,
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
 
 const port = Number(process.env.PORT ?? 8080);
-const { rideRepository, financeRepository, storageMode } = createRepositories();
+const {
+  rideRepository,
+  financeRepository,
+  driverSupplyRepository,
+  ridePreparationRepository,
+  storageMode,
+} = createRepositories();
+const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
@@ -68,6 +84,39 @@ const server = createServer(async (request, response) => {
       const body = parseQuoteRequest(await readJson(request));
       const quote = quoteFare(body);
       json(response, 200, quote);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/rides/prepare'
+    ) {
+      const passengerId = resolvePassengerId(request);
+      if (routingDistanceProvider == null) {
+        json(response, 503, {
+          error: 'ROUTING_NOT_CONFIGURED',
+          message:
+            'ROUTING_BASE_URL é obrigatório para preparar preço final de coleta.',
+        });
+        return;
+      }
+
+      const body = parsePrepareRideRequest(await readJson(request));
+      const ride = await prepareRideForPayment({
+        repository: ridePreparationRepository,
+        drivers: driverSupplyRepository,
+        routing: routingDistanceProvider,
+        passengerId,
+        quoteRequest: body.quoteRequest,
+        pickup: body.pickup,
+      });
+
+      const { reservedDriverId: _internalReservedDriverId, ...publicRide } = ride;
+      json(response, 201, {
+        ride: publicRide,
+        priceFinal: true,
+        holdExpiresAt: ride.driverHoldExpiresAt,
+      });
       return;
     }
 
@@ -232,6 +281,16 @@ const server = createServer(async (request, response) => {
 
     if (error instanceof PaymentDomainError) {
       json(response, 422, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof RidePreparationError) {
+      const status =
+        error.code === 'ROUTING_UNAVAILABLE' ? 503 : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 

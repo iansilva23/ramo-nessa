@@ -88,6 +88,7 @@ npm start
 - autenticação/autorização;
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
+- trocar roteamento de desenvolvimento por provedor comercial de produção;
 - entrega realtime das ofertas de matching;
 - localização em tempo real;
 - máquina de estados;

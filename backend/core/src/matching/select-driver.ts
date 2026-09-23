@@ -85,6 +85,18 @@ export function rankEligibleDrivers(input: {
   return input.candidates
     .filter((candidate) => {
       if (!candidate.online || candidate.busy) return false;
+
+      const reservedUntilMs =
+        candidate.reservedUntil == null
+          ? Number.NaN
+          : Date.parse(candidate.reservedUntil);
+      const heldByAnotherRide =
+        candidate.reservedRideId != null &&
+        Number.isFinite(reservedUntilMs) &&
+        reservedUntilMs > now.getTime() &&
+        candidate.reservedRideId !== input.ride.id;
+      if (heldByAnotherRide) return false;
+
       if (!candidate.categories.includes(input.ride.category)) return false;
       if (candidate.seatCapacity < input.ride.passengers) return false;
       if (requiresFourByFour && !candidate.fourByFour) return false;

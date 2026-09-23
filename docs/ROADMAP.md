@@ -42,6 +42,7 @@
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
+- [x] preparação de preço final com reserva curta e coleta roteada
 - [x] motor de elegibilidade e ranking de matching no Core
 - [x] criação e aceite persistentes de oferta
 - [ ] entrega realtime da oferta ao app
@@ -94,6 +95,7 @@
 - [x] retentativa por recusa/expiração e NO_DRIVER_FOUND
 - [ ] entrega realtime das ofertas
 - [ ] localização em tempo real
+- [x] distância roteada motorista→passageiro para preço final
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
 - [x] ledger financeiro base e escrow de pagamento
