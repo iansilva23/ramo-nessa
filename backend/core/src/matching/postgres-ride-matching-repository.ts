@@ -399,7 +399,9 @@ export class PostgresRideMatchingRepository
     } catch (error) {
       try {
         await client.query('ROLLBACK');
-      } catch {}
+      } catch {
+        // O caminho de oferta expirada pode já ter finalizado a transação.
+      }
       throw error;
     } finally {
       client.release();
