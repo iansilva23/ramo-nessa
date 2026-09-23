@@ -5,11 +5,13 @@ import {
   parseIntegerSetting,
   resolveCorePort,
   resolveDbPoolMax,
+  resolveRoutingTimeoutMs,
 } from '../src/config/runtime-config.js';
 
 test('config numérica usa defaults seguros', () => {
   assert.equal(resolveCorePort({}), 8080);
   assert.equal(resolveDbPoolMax({}), 10);
+  assert.equal(resolveRoutingTimeoutMs({}), 5000);
 });
 
 test('config numérica aceita inteiros dentro dos limites', () => {
@@ -31,5 +33,9 @@ test('porta e pool rejeitam valores inválidos', () => {
   assert.throws(
     () => resolveDbPoolMax({ DB_POOL_MAX: '101' }),
     /DB_POOL_MAX deve ser/,
+  );
+  assert.throws(
+    () => resolveRoutingTimeoutMs({ ROUTING_TIMEOUT_MS: '100' }),
+    /ROUTING_TIMEOUT_MS deve ser/,
   );
 });
