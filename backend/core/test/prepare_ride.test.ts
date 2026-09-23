@@ -21,7 +21,7 @@ class FakeRouting implements RoutingDistanceProvider {
   }
 }
 
-async function setup() {
+async function setup(at: Date = now) {
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const preparation = new InMemoryRidePreparationRepository(rides, drivers);
@@ -36,8 +36,8 @@ async function setup() {
     busy: false,
     latitude: -2.8205,
     longitude: -40.4145,
-    locationUpdatedAt: now.toISOString(),
-    updatedAt: now.toISOString(),
+    locationUpdatedAt: at.toISOString(),
+    updatedAt: at.toISOString(),
   });
   await drivers.upsert({
     driverId: 'driver-prepare-next',
@@ -49,8 +49,8 @@ async function setup() {
     busy: false,
     latitude: -2.84,
     longitude: -40.43,
-    locationUpdatedAt: now.toISOString(),
-    updatedAt: now.toISOString(),
+    locationUpdatedAt: at.toISOString(),
+    updatedAt: at.toISOString(),
   });
 
   return { rides, drivers, preparation };
@@ -71,7 +71,7 @@ test('preparação usa distância roteada e congela compensação antes do pagam
       period: 'day',
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
-    dropoff: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
     now,
   });
 
@@ -109,7 +109,7 @@ test('distância de coleta enviada pelo cliente é ignorada', async () => {
       driverPickupDistanceKm: 99,
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
-    dropoff: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
     now,
   });
 
@@ -170,7 +170,8 @@ test('entrega em Jeri ignora distância enviada pelo cliente', async () => {
 });
 
 test('preparação ignora período do cliente e usa horário local do Core', async () => {
-  const ctx = await setup();
+  const periodNow = new Date('2026-09-24T01:00:00.000Z');
+  const ctx = await setup(periodNow);
 
   const ride = await prepareRideForPayment({
     repository: ctx.preparation,
@@ -187,7 +188,7 @@ test('preparação ignora período do cliente e usa horário local do Core', asy
     pickup: { latitude: -2.82017, longitude: -40.41467 },
     dropoff: { latitude: -2.89860, longitude: -40.45060 },
     // 01:00Z = 22:00 do dia anterior em Fortaleza (UTC-3).
-    now: new Date('2026-09-24T01:00:00.000Z'),
+    now: periodNow,
   });
 
   assert.equal(ride.period, 'after_22');
@@ -212,7 +213,7 @@ test('motorista já reservado não é usado em outra preparação ativa', async 
     passengerId: 'passenger-first',
     quoteRequest: request,
     pickup: { latitude: -2.82017, longitude: -40.41467 },
-    dropoff: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
     now,
   });
 
@@ -223,7 +224,7 @@ test('motorista já reservado não é usado em outra preparação ativa', async 
     passengerId: 'passenger-second',
     quoteRequest: request,
     pickup: { latitude: -2.82017, longitude: -40.41467 },
-    dropoff: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
     now: new Date('2026-09-23T14:00:01.000Z'),
   });
 
@@ -245,7 +246,7 @@ test('pagamento não inicia depois que a reserva preparada expirou', async () =>
       period: 'day',
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
-    dropoff: { latitude: -2.7956, longitude: -40.5142 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
     now,
     holdSeconds: 30,
   });
