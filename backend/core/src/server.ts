@@ -3,6 +3,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { quoteFare } from './pricing/quote-engine.js';
 import { PricingError } from './pricing/types.js';
 import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validation.js';
+import { pricingPeriodAt } from './pricing/period.js';
 import { PAYMENT_POLICY_V1 } from './payments/payment-policy.js';
 import { createPaymentForRide } from './payments/create-payment.js';
 import { PaymentDomainError } from './payments/payment.js';
@@ -59,6 +60,7 @@ import {
 } from './drivers/driver-ride-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
+import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
 import { createRepositories } from './db/repositories.js';
 import {
   InvalidRideRequestError,
@@ -699,6 +701,14 @@ const server = createServer(async (request, response) => {
 
     if (error instanceof PaymentDomainError) {
       json(response, 422, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof PricingLocationMismatchError) {
+      json(response, 422, {
+        error: 'PRICING_LOCATION_MISMATCH',
+        message: error.message,
+      });
       return;
     }
 
