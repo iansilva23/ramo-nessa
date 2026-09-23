@@ -43,7 +43,8 @@ abstract final class DriverCoreConfig {
       baseUri != null &&
       devDriverId.trim().length >= 3;
 
-  static bool get enabled =>
-      baseUri != null &&
-      (bearerIdentityEnabled || devDriverIdentityEnabled);
+  static bool get enabled => baseUri != null;
+
+  static bool get authenticated =>
+      bearerIdentityEnabled || devDriverIdentityEnabled;
 }
