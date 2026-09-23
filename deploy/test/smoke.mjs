@@ -560,13 +560,34 @@ try {
   const matchingAudit = audit.payload?.entries?.filter(
     (entry) => entry.targetId === driverId,
   );
+  const documentSubmissionAudit = matchingAudit?.filter(
+    (entry) => entry.action === 'driver.document.submitted',
+  );
+  const documentReviewAudit = matchingAudit?.filter(
+    (entry) => entry.action === 'driver.document.reviewed',
+  );
+  const humanOperationalAudit = matchingAudit?.filter(
+    (entry) => entry.action !== 'driver.document.submitted',
+  );
   if (
     audit.response.status !== 200 ||
     !Array.isArray(matchingAudit) ||
-    matchingAudit.length < 2 ||
-    matchingAudit.some((entry) => entry.actor?.kind !== 'user')
+    matchingAudit.length < 8 ||
+    documentSubmissionAudit?.length !== 2 ||
+    documentSubmissionAudit.some(
+      (entry) => entry.actor?.kind !== 'api_key',
+    ) ||
+    documentReviewAudit?.length !== 2 ||
+    documentReviewAudit.some(
+      (entry) => entry.actor?.kind !== 'user',
+    ) ||
+    humanOperationalAudit?.some(
+      (entry) => entry.actor?.kind !== 'user',
+    )
   ) {
-    throw new Error('Auditoria humana do Admin não foi confirmada.');
+    throw new Error(
+      'Auditoria Admin não preservou atores humanos e de storage.',
+    );
   }
 
   const logout = await fetch(
