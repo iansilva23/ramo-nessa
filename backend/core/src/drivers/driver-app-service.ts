@@ -22,6 +22,32 @@ export class DriverAppError extends Error {
   }
 }
 
+export async function getDriverSupplyForApp(input: {
+  drivers: DriverSupplyRepository;
+  driverId: string;
+}) {
+  const supply = await input.drivers.findByDriverId(input.driverId);
+  if (supply == null) {
+    throw new DriverAppError(
+      'DRIVER_NOT_REGISTERED',
+      'Motorista ainda não possui cadastro aprovado.',
+    );
+  }
+
+  return {
+    driverId: supply.driverId,
+    vehicleId: supply.vehicleId,
+    categories: supply.categories,
+    fourByFour: supply.fourByFour,
+    seatCapacity: supply.seatCapacity,
+    online: supply.online,
+    busy: supply.busy,
+    latitude: supply.latitude,
+    longitude: supply.longitude,
+    locationUpdatedAt: supply.locationUpdatedAt,
+  };
+}
+
 export async function updateDriverSupplyFromApp(input: {
   drivers: DriverSupplyRepository;
   driverId: string;
