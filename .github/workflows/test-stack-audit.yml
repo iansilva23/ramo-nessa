@@ -1,0 +1,31 @@
+name: Test Stack Audit
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: test-stack-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: "22"
+
+      - name: Verify Docker Compose
+        run: docker compose version
+
+      - name: Run same-origin Admin smoke
+        run: node deploy/test/smoke.mjs

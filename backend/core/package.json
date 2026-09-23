@@ -15,7 +15,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start:prod": "node dist/src/server.js",
     "db:migrate:prod": "node dist/scripts/migrate.js",
-    "admin:create-user": "tsx scripts/create-admin-user.ts"
+    "admin:create-user": "tsx scripts/create-admin-user.ts",
+    "admin:create-user:prod": "node dist/scripts/create-admin-user.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

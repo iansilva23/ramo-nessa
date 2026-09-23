@@ -21,8 +21,8 @@ A chave administrativa **não deve ser embutida em JavaScript, HTML, Flutter Web
 qualquer bundle entregue ao navegador**.
 
 As chaves `rn_admin_` continuam destinadas a operação server-to-server/CLI.
-O futuro frontend deve autenticar com a sessão humana `rn_admin_session_` e nunca
-embutir uma API key administrativa no bundle. As rotas operacionais já aceitam essa
+O frontend autentica com a sessão humana `rn_admin_session_` e nunca
+embute uma API key administrativa no bundle. As rotas operacionais já aceitam essa
 sessão humana pelos mesmos escopos, mantendo a auditoria separada entre usuário e
 API key.
 
@@ -47,6 +47,9 @@ A versão inicial implementa:
 O painel deve ser servido em **mesma origem** que o Core por um reverse proxy
 confiável. O navegador usa apenas caminhos `/v1/admin/**`, e a CSP mantém
 `connect-src 'self'`. Isso evita liberar CORS administrativo de forma ampla.
+
+O stack de teste same-origin fica em `../../deploy/test/`. Ele publica somente o
+gateway, mantém o Core privado na rede Docker e encaminha `/v1/**` para o backend.
 
 Arquivos estáticos de entrada:
 

@@ -10,6 +10,8 @@ on:
       - "apps/passenger/**"
       - "apps/driver/**"
       - "apps/admin/**"
+      - "deploy/test/**"
+      - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
@@ -20,6 +22,8 @@ on:
       - "apps/passenger/**"
       - "apps/driver/**"
       - "apps/admin/**"
+      - "deploy/test/**"
+      - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
@@ -96,6 +100,24 @@ jobs:
       - name: Test Admin web
         working-directory: apps/admin
         run: npm test
+
+      - name: Check test-stack scripts
+        run: |
+          node --check deploy/test/env.mjs
+          node --check deploy/test/generate-env.mjs
+          node --check deploy/test/start.mjs
+          node --check deploy/test/create-admin.mjs
+          node --check deploy/test/smoke.mjs
+
+      - name: Validate test-stack Compose
+        env:
+          POSTGRES_PASSWORD: ci-compose-only
+          DATABASE_URL: postgresql://ramonessa:ci-compose-only@postgres:5432/ramonessa
+          OTP_HASH_SECRET: 1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET: 2222222222222222222222222222222222222222222222222222222222222222
+          ADMIN_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET: 3333333333333333333333333333333333333333333333333333333333333333
+        run: docker compose -f deploy/test/compose.yml config > /dev/null
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0

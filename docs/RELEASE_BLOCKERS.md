@@ -21,7 +21,9 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
    - falta gateway real, conciliação e repasse Pix;
-   - readiness, logs estruturados, shutdown gracioso e container de produção já existem; faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy.
+   - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
+   - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
+   - ainda faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy de produção.
 
 2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
    - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;
@@ -62,7 +64,9 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - código OTP fica armazenado somente como HMAC no Core, tem expiração/limite de tentativas e desafios antigos são removidos automaticamente;
    - falta provider SMS real e credenciais de produção;
    - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
-   - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano com senha + TOTP + sessão curta conectado às operações administrativas; o frontend inicial já cobre login, motoristas e auditoria, mas ainda faltam os módulos administrativos completos e a implantação operacional;
+   - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano com senha + TOTP + sessão curta conectado às operações administrativas;
+   - o frontend inicial cobre login, motoristas e auditoria e já possui stack same-origin de teste;
+   - ainda faltam os módulos administrativos completos e a implantação operacional de produção;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**

@@ -140,6 +140,8 @@
 - [x] login humano base com senha + TOTP + sessão curta + anti-bruteforce
 - [x] conectar sessão humana às operações administrativas do painel
 - [x] frontend/login do painel
+- [x] ambiente same-origin de teste para Admin + Core
+- [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [ ] dashboard
 - [ ] passageiros
 - [ ] motoristas
@@ -162,6 +164,7 @@
 - [x] compilação Android debug validada em CI
 - [x] compilação Android release validada tecnicamente em CI
 - [x] compilação iOS Simulator validada em CI
+- [x] stack Docker de teste com gateway same-origin e Core privado
 - [ ] deploy seguro do Core
 - [ ] provedor comercial de mapas/geocoding/rotas
 - [ ] testes reais com dois celulares
