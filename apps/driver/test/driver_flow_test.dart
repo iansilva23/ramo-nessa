@@ -46,11 +46,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Iniciar corrida'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Iniciar corrida'));
+    await tester.pump();
     await tester.tap(find.text('Iniciar corrida'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Finalizar corrida'));
+    await tester.pump();
     await tester.tap(find.text('Finalizar corrida'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));

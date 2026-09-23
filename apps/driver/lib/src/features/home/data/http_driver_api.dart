@@ -139,7 +139,7 @@ class HttpDriverApi implements DriverApi {
 
   @override
   Future<AcceptedDriverRide> markArrived(String rideId) =>
-      _rideAction(rideId, 'arrived');
+      _rideAction(rideId, 'arrive');
 
   @override
   Future<AcceptedDriverRide> startRide(String rideId) =>

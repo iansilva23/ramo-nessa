@@ -160,4 +160,4 @@
 - [x] Core: Finalizar -> COMPLETED
 - [x] liquidação idempotente na conclusão
 - [x] motorista só é liberado após liquidação
-- [ ] ligar esses estados à interface Flutter do Motorista
+- [x] ligar esses estados à interface Flutter do Motorista

@@ -32,14 +32,10 @@ import {
 } from './auth/dev-identity.js';
 import {
   acceptOfferFromDriverApp,
-  completeDriverRide,
   currentDriverOffer,
-  currentDriverRide,
   getDriverSupplyForApp,
   DriverAppError,
-  markDriverArrived,
   rejectOfferFromDriverApp,
-  startDriverRide,
   updateDriverSupplyFromApp,
 } from './drivers/driver-app-service.js';
 import {
@@ -52,7 +48,6 @@ import {
   performDriverRideAction,
 } from './drivers/driver-ride-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
-import { SettlementError } from './payments/settlement.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { createRepositories } from './db/repositories.js';
 import {
@@ -183,20 +178,6 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
-      requestUrl.pathname === '/v1/driver/me/ride'
-    ) {
-      const driverId = resolveDriverId(request);
-      const ride = await currentDriverRide({
-        rides: rideRepository,
-        drivers: driverSupplyRepository,
-        driverId,
-      });
-      json(response, 200, { ride });
-      return;
-    }
-
-    if (
-      request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/offer'
     ) {
       const driverId = resolveDriverId(request);
@@ -234,45 +215,6 @@ const server = createServer(async (request, response) => {
         drivers: driverSupplyRepository,
         matching: rideMatchingRepository,
         offerId,
-        driverId,
-      });
-      json(response, 200, result);
-      return;
-    }
-
-    const driverRideAction = requestUrl.pathname.match(
-      /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/(arrived|start|complete)$/,
-    );
-    if (request.method === 'POST' && driverRideAction != null) {
-      const driverId = resolveDriverId(request);
-      const rideId = driverRideAction[1]!;
-      const action = driverRideAction[2]!;
-
-      if (action === 'arrived') {
-        const ride = await markDriverArrived({
-          rides: rideRepository,
-          rideId,
-          driverId,
-        });
-        json(response, 200, { ride });
-        return;
-      }
-
-      if (action === 'start') {
-        const ride = await startDriverRide({
-          rides: rideRepository,
-          rideId,
-          driverId,
-        });
-        json(response, 200, { ride });
-        return;
-      }
-
-      const result = await completeDriverRide({
-        rides: rideRepository,
-        drivers: driverSupplyRepository,
-        finance: financeRepository,
-        rideId,
         driverId,
       });
       json(response, 200, result);
@@ -531,11 +473,6 @@ const server = createServer(async (request, response) => {
     if (error instanceof RideOfferError) {
       const status = error.code === 'OFFER_NOT_FOUND' ? 404 : 409;
       json(response, status, { error: error.code, message: error.message });
-      return;
-    }
-
-    if (error instanceof SettlementError) {
-      json(response, 422, { error: error.code, message: error.message });
       return;
     }
 

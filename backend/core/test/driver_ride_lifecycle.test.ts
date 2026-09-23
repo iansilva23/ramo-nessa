@@ -3,11 +3,9 @@ import test from 'node:test';
 
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import {
-  completeDriverRide,
   currentDriverRide,
-  markDriverArrived,
-  startDriverRide,
-} from '../src/drivers/driver-app-service.js';
+  performDriverRideAction,
+} from '../src/drivers/driver-ride-service.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
@@ -92,34 +90,41 @@ test('corrida ativa é recuperada após reabrir o app', async () => {
 test('Cheguei, Iniciar e Finalizar respeitam a máquina de estados', async () => {
   const ctx = await setup();
 
-  const arrived = await markDriverArrived({
-    rides: ctx.rides,
-    rideId: ctx.ride.id,
-    driverId: 'driver-lifecycle',
-    now: new Date('2026-09-23T18:01:00.000Z'),
-  });
-  assert.equal(arrived.state, 'DRIVER_ARRIVED');
-
-  const started = await startDriverRide({
-    rides: ctx.rides,
-    rideId: ctx.ride.id,
-    driverId: 'driver-lifecycle',
-    now: new Date('2026-09-23T18:02:00.000Z'),
-  });
-  assert.equal(started.state, 'IN_PROGRESS');
-
-  const completed = await completeDriverRide({
+  const arrived = await performDriverRideAction({
     rides: ctx.rides,
     drivers: ctx.drivers,
     finance: ctx.finance,
     rideId: ctx.ride.id,
     driverId: 'driver-lifecycle',
+    action: 'arrive',
+    now: new Date('2026-09-23T18:01:00.000Z'),
+  });
+  assert.equal(arrived.ride.state, 'DRIVER_ARRIVED');
+
+  const started = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance: ctx.finance,
+    rideId: ctx.ride.id,
+    driverId: 'driver-lifecycle',
+    action: 'start',
+    now: new Date('2026-09-23T18:02:00.000Z'),
+  });
+  assert.equal(started.ride.state, 'IN_PROGRESS');
+
+  const completed = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance: ctx.finance,
+    rideId: ctx.ride.id,
+    driverId: 'driver-lifecycle',
+    action: 'complete',
     now: new Date('2026-09-23T18:10:00.000Z'),
   });
 
   assert.equal(completed.ride.state, 'COMPLETED');
-  assert.equal(completed.driverBalanceCents, 11000);
-  assert.equal(completed.duplicateSettlement, false);
+  assert.equal(completed.settlement?.driverBalanceCents, 11000);
+  assert.equal(completed.settlement?.duplicate, false);
   assert.equal(
     (await ctx.drivers.findByDriverId('driver-lifecycle'))?.busy,
     false,
@@ -129,33 +134,41 @@ test('Cheguei, Iniciar e Finalizar respeitam a máquina de estados', async () =>
 test('repetir finalização não duplica saldo do motorista', async () => {
   const ctx = await setup();
 
-  await markDriverArrived({
-    rides: ctx.rides,
-    rideId: ctx.ride.id,
-    driverId: 'driver-lifecycle',
-  });
-  await startDriverRide({
-    rides: ctx.rides,
-    rideId: ctx.ride.id,
-    driverId: 'driver-lifecycle',
-  });
-
-  const first = await completeDriverRide({
+  await performDriverRideAction({
     rides: ctx.rides,
     drivers: ctx.drivers,
     finance: ctx.finance,
     rideId: ctx.ride.id,
     driverId: 'driver-lifecycle',
+    action: 'arrive',
   });
-  const second = await completeDriverRide({
+  await performDriverRideAction({
     rides: ctx.rides,
     drivers: ctx.drivers,
     finance: ctx.finance,
     rideId: ctx.ride.id,
     driverId: 'driver-lifecycle',
+    action: 'start',
   });
 
-  assert.equal(first.driverBalanceCents, 11000);
-  assert.equal(second.driverBalanceCents, 11000);
-  assert.equal(second.duplicateSettlement, true);
+  const first = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance: ctx.finance,
+    rideId: ctx.ride.id,
+    driverId: 'driver-lifecycle',
+    action: 'complete',
+  });
+  const second = await performDriverRideAction({
+    rides: ctx.rides,
+    drivers: ctx.drivers,
+    finance: ctx.finance,
+    rideId: ctx.ride.id,
+    driverId: 'driver-lifecycle',
+    action: 'complete',
+  });
+
+  assert.equal(first.settlement?.driverBalanceCents, 11000);
+  assert.equal(second.settlement?.driverBalanceCents, 11000);
+  assert.equal(second.settlement?.duplicate, true);
 });

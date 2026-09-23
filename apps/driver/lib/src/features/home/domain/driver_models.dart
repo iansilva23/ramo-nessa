@@ -193,12 +193,14 @@ class DriverRideCompletion {
   });
 
   factory DriverRideCompletion.fromJson(Map<String, dynamic> json) {
+    final settlement = json['settlement'] as Map<String, dynamic>;
     return DriverRideCompletion(
       ride: AcceptedDriverRide.fromJson(
         json['ride'] as Map<String, dynamic>,
       ),
-      driverBalanceCents: (json['driverBalanceCents'] as num).toInt(),
-      duplicateSettlement: json['duplicateSettlement'] as bool? ?? false,
+      driverBalanceCents:
+          (settlement['driverBalanceCents'] as num).toInt(),
+      duplicateSettlement: settlement['duplicate'] as bool? ?? false,
     );
   }
 

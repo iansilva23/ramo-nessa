@@ -721,13 +721,14 @@ class _ActiveRideCard extends StatelessWidget {
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Cheguei',
         'DRIVER_ARRIVED' => 'Iniciar corrida',
         'IN_PROGRESS' => 'Finalizar corrida',
+        'COMPLETED' => 'Concluir repasse',
         _ => null,
       };
 
   VoidCallback? get _action => switch (ride.state) {
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => onArrived,
         'DRIVER_ARRIVED' => onStart,
-        'IN_PROGRESS' => onComplete,
+        'IN_PROGRESS' || 'COMPLETED' => onComplete,
         _ => null,
       };
 
@@ -743,10 +744,13 @@ class _ActiveRideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: RamoColors.success),
-              SizedBox(width: RamoSpacing.sm),
+              const Icon(
+                Icons.check_circle_rounded,
+                color: RamoColors.success,
+              ),
+              const SizedBox(width: RamoSpacing.sm),
               Text(
                 _title,
                 style: const TextStyle(

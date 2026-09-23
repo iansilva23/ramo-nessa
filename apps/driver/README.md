@@ -11,7 +11,11 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - polling temporário de ofertas;
 - oferta mostra ganho, rota, passageiros e coleta aproximada;
 - aceitar/recusar integrado ao Core;
-- aceite mostra ponto de embarque e deixa motorista ocupado.
+- aceite mostra ponto de embarque e deixa motorista ocupado;
+- corrida ativa é recuperada após reabrir o app;
+- Cheguei / Iniciar / Finalizar integrados ao Core;
+- finalização exibe saldo disponível do motorista;
+- APK debug publicado como artefato do Driver CI.
 
 ## Segurança
 O app não pode alterar categoria, 4x4, capacidade ou veículo. Esses dados
@@ -30,6 +34,5 @@ A identidade de desenvolvimento é recusada pelo Core em produção.
 - realtime/push;
 - GPS em background;
 - navegação;
-- estados Cheguei / Iniciar / Finalizar;
 - ganhos, saque, histórico e avaliações;
 - iOS e assinatura de release.

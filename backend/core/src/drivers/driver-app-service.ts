@@ -1,7 +1,4 @@
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
-import type { FinanceRepository } from '../payments/finance-repository.js';
-import { settleCompletedRide } from '../payments/settlement.js';
-import { transitionRide } from '../rides/ride-state.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import {
   acceptDriverOffer,
@@ -92,50 +89,7 @@ export async function updateDriverSupplyFromApp(input: {
   });
 }
 
-export function driverRideView(ride: RideRecord) {
-  return {
-    id: ride.id,
-    state: ride.state,
-    category: ride.category,
-    passengers: ride.passengers,
-    origin: ride.origin,
-    destination: ride.destination,
-    pickupLatitude: ride.pickupLatitude,
-    pickupLongitude: ride.pickupLongitude,
-    driverEarningsCents: ride.quote.driverNetCents,
-    pickupCompensationCents: ride.quote.pickupCompensationCents,
-  };
-}
-
-function assertRideOwnedByDriver(
-  ride: RideRecord,
-  driverId: string,
-): void {
-  if (ride.driverId !== driverId) {
-    throw new DriverAppError(
-      'RIDE_NOT_OWNED',
-      'Esta corrida pertence a outro motorista.',
-    );
-  }
-}
-
-async function loadOwnedRide(input: {
-  rides: RideRepository;
-  rideId: string;
-  driverId: string;
-}): Promise<RideRecord> {
-  const ride = await input.rides.findById(input.rideId);
-  if (ride == null) {
-    throw new DriverAppError(
-      'RIDE_NOT_FOUND',
-      'Corrida não encontrada.',
-    );
-  }
-  assertRideOwnedByDriver(ride, input.driverId);
-  return ride;
-}
-
-function driverOfferView(offer: {
+export function driverOfferView(offer: {
   id: string;
   rideId: string;
   approximatePickupDistanceKm: number;
@@ -220,15 +174,21 @@ export async function acceptOfferFromDriverApp(input: {
     ...(input.now != null ? { now: input.now } : {}),
   });
 
-  const arriving = await input.rides.save({
-    ...result.ride,
-    state: transitionRide(result.ride.state, 'DRIVER_ARRIVING'),
-    updatedAt: (input.now ?? new Date()).toISOString(),
-  });
-
   return {
     offerId: result.offer.id,
-    ride: driverRideView(arriving),
+    ride: {
+      id: result.ride.id,
+      state: result.ride.state,
+      category: result.ride.category,
+      passengers: result.ride.passengers,
+      origin: result.ride.origin,
+      destination: result.ride.destination,
+      pickupLatitude: result.ride.pickupLatitude,
+      pickupLongitude: result.ride.pickupLongitude,
+      driverEarningsCents: result.ride.quote.driverNetCents,
+      pickupCompensationCents:
+        result.ride.quote.pickupCompensationCents,
+    },
   };
 }
 
@@ -285,163 +245,5 @@ export async function rejectOfferFromDriverApp(input: {
       dispatch.kind === 'OFFER_ACTIVE'
         ? 'SEARCHING_DRIVER'
         : dispatch.kind,
-  };
-}
-
-
-export async function currentDriverRide(input: {
-  rides: RideRepository;
-  drivers: DriverSupplyRepository;
-  driverId: string;
-}) {
-  const supply = await input.drivers.findByDriverId(input.driverId);
-  if (supply == null) {
-    throw new DriverAppError(
-      'DRIVER_NOT_REGISTERED',
-      'Motorista ainda não possui cadastro aprovado.',
-    );
-  }
-
-  if (!supply.busy) return null;
-
-  const ride = await input.rides.findCurrentByDriverId(input.driverId);
-  if (ride == null) {
-    throw new DriverAppError(
-      'RIDE_NOT_FOUND',
-      'Motorista está ocupado, mas a corrida ativa não foi encontrada.',
-    );
-  }
-
-  return driverRideView(ride);
-}
-
-export async function markDriverArrived(input: {
-  rides: RideRepository;
-  rideId: string;
-  driverId: string;
-  now?: Date;
-}) {
-  const ride = await loadOwnedRide(input);
-
-  if (ride.state === 'DRIVER_ARRIVED') {
-    return driverRideView(ride);
-  }
-
-  let nextState = ride.state;
-  if (nextState === 'DRIVER_ASSIGNED') {
-    nextState = transitionRide(nextState, 'DRIVER_ARRIVING');
-  }
-
-  if (nextState !== 'DRIVER_ARRIVING') {
-    throw new DriverAppError(
-      'RIDE_ACTION_INVALID',
-      `Não é possível marcar chegada no estado ${ride.state}.`,
-    );
-  }
-
-  const updated = await input.rides.save({
-    ...ride,
-    state: transitionRide(nextState, 'DRIVER_ARRIVED'),
-    updatedAt: (input.now ?? new Date()).toISOString(),
-  });
-
-  return driverRideView(updated);
-}
-
-export async function startDriverRide(input: {
-  rides: RideRepository;
-  rideId: string;
-  driverId: string;
-  now?: Date;
-}) {
-  const ride = await loadOwnedRide(input);
-
-  if (ride.state === 'IN_PROGRESS') {
-    return driverRideView(ride);
-  }
-
-  if (ride.state !== 'DRIVER_ARRIVED') {
-    throw new DriverAppError(
-      'RIDE_ACTION_INVALID',
-      `Não é possível iniciar a corrida no estado ${ride.state}.`,
-    );
-  }
-
-  const updated = await input.rides.save({
-    ...ride,
-    state: transitionRide(ride.state, 'IN_PROGRESS'),
-    updatedAt: (input.now ?? new Date()).toISOString(),
-  });
-
-  return driverRideView(updated);
-}
-
-export async function completeDriverRide(input: {
-  rides: RideRepository;
-  drivers: DriverSupplyRepository;
-  finance: FinanceRepository;
-  rideId: string;
-  driverId: string;
-  now?: Date;
-}) {
-  const now = input.now ?? new Date();
-  const ride = await loadOwnedRide(input);
-
-  let completed = ride;
-  if (ride.state === 'IN_PROGRESS') {
-    completed = await input.rides.save({
-      ...ride,
-      state: transitionRide(ride.state, 'COMPLETED'),
-      updatedAt: now.toISOString(),
-    });
-  } else if (ride.state !== 'COMPLETED') {
-    throw new DriverAppError(
-      'RIDE_ACTION_INVALID',
-      `Não é possível finalizar a corrida no estado ${ride.state}.`,
-    );
-  }
-
-  const payment = await input.finance.findPaidPaymentByRideId(completed.id);
-  if (payment == null) {
-    throw new DriverAppError(
-      'PAYMENT_NOT_FOUND',
-      'Pagamento confirmado da corrida não foi encontrado.',
-    );
-  }
-
-  const settlement = await settleCompletedRide(input.finance, {
-    ride: completed,
-    payment,
-    settledAt: now,
-  });
-
-  const supply = await input.drivers.findByDriverId(input.driverId);
-  if (supply == null) {
-    throw new DriverAppError(
-      'DRIVER_NOT_REGISTERED',
-      'Motorista não encontrado ao liberar a corrida.',
-    );
-  }
-
-  const {
-    reservedRideId: _reservedRideId,
-    reservedUntil: _reservedUntil,
-    ...supplyWithoutReservation
-  } = supply;
-
-  await input.drivers.upsert({
-    ...supplyWithoutReservation,
-    busy: false,
-    updatedAt: now.toISOString(),
-  });
-
-  const driverBalanceCents = await input.finance.getAccountBalanceCents(
-    `driver:${input.driverId}:payable`,
-  );
-
-  return {
-    ride: driverRideView(completed),
-    driverBalanceCents,
-    duplicateSettlement: settlement.duplicateSettlement,
   };
 }
