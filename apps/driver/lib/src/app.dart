@@ -10,12 +10,14 @@ import 'features/home/presentation/driver_home_screen.dart';
 class RamoNessaDriverApp extends StatelessWidget {
   const RamoNessaDriverApp({
     super.key,
+    this.accessToken,
     this.api,
     this.locationService,
     this.navigationService,
     this.realtimeService,
   });
 
+  final String? accessToken;
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
@@ -30,6 +32,7 @@ class RamoNessaDriverApp extends StatelessWidget {
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
       home: DriverHomeScreen(
+        accessToken: accessToken,
         api: api,
         locationService: locationService,
         navigationService: navigationService,
