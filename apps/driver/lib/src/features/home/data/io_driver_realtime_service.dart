@@ -8,12 +8,22 @@ import 'driver_realtime_service.dart';
 class IoDriverRealtimeService implements DriverRealtimeService {
   IoDriverRealtimeService({
     required Uri baseUrl,
-    required String driverId,
+    String? accessToken,
+    String? driverId,
   })  : _baseUrl = baseUrl,
-        _driverId = driverId;
+        _accessToken = accessToken ?? DriverCoreConfig.authToken,
+        _driverId = driverId ?? DriverCoreConfig.devDriverId;
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _driverId;
+
+  Map<String, dynamic> get _identityHeaders => {
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_driverId.trim().isNotEmpty)
+          'x-dev-driver-id': _driverId.trim(),
+      };
 
   Uri get _socketUri {
     final scheme = _baseUrl.scheme == 'https' ? 'wss' : 'ws';
@@ -31,7 +41,7 @@ class IoDriverRealtimeService implements DriverRealtimeService {
       try {
         socket = await WebSocket.connect(
           _socketUri.toString(),
-          headers: {'x-dev-driver-id': _driverId},
+          headers: _identityHeaders,
         ).timeout(DriverCoreConfig.requestTimeout);
 
         await for (final message in socket) {
