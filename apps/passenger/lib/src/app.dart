@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -69,7 +70,9 @@ class RamoNessaPassengerApp extends StatelessWidget {
         );
 
     final Widget homeWidget;
-    if (coreUri == null) {
+    if (coreUri == null && kReleaseMode) {
+      homeWidget = const _CoreConfigurationError();
+    } else if (coreUri == null) {
       homeWidget = home(initialToken);
     } else {
       homeWidget = MobileAuthGate(
@@ -95,6 +98,44 @@ class RamoNessaPassengerApp extends StatelessWidget {
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
       home: homeWidget,
+    );
+  }
+}
+
+
+class _CoreConfigurationError extends StatelessWidget {
+  const _CoreConfigurationError();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.cloud_off_rounded, size: 48),
+                SizedBox(height: 16),
+                Text(
+                  'Aplicativo ainda não está conectado ao servidor.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Instalação de produção sem configuração segura do Core.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
