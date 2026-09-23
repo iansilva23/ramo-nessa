@@ -15,10 +15,24 @@ import {
   PaymentProcessorUnavailableError,
   resolvePaymentProcessor,
 } from './payments/dev-processor.js';
+import {
+  createWalletTopup,
+  passengerWalletBalanceCents,
+  payRideWithWallet,
+} from './payments/wallet-services.js';
+import { WalletDomainError } from './payments/wallet.js';
+import {
+  InvalidWalletRequestError,
+  parseCreateWalletTopupRequest,
+} from './payments/wallet-validation.js';
 import { resolvePassengerId, IdentityUnavailableError } from './auth/dev-identity.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { createRepositories } from './db/repositories.js';
 import { InvalidRideRequestError, parseCreateRideRequest } from './rides/validation.js';
+import {
+  confirmRidePayment,
+  RidePaymentConfirmationError,
+} from './rides/confirm-payment.js';
 
 const port = Number(process.env.PORT ?? 8080);
 const { rideRepository, financeRepository, storageMode } = createRepositories();
@@ -84,6 +98,42 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/wallet') {
+      const passengerId = resolvePassengerId(request);
+      const balanceCents = await passengerWalletBalanceCents(
+        financeRepository,
+        passengerId,
+      );
+
+      json(response, 200, { balanceCents });
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/wallet/topups'
+    ) {
+      const passengerId = resolvePassengerId(request);
+      const body = parseCreateWalletTopupRequest(await readJson(request));
+      const topup = await createWalletTopup(financeRepository, {
+        passengerId,
+        method: body.method,
+        processor: resolvePaymentProcessor(body.method),
+        amountCents: body.amountCents,
+        idempotencyKey: readIdempotencyKey(request.headers),
+      });
+
+      json(response, 201, {
+        ...topup,
+        simulated: true,
+        actionable: false,
+        message:
+          'Intenção de recarga criada. O saldo só será creditado ' +
+          'quando um gateway real confirmar o pagamento.',
+      });
+      return;
+    }
+
     const paymentMatch = requestUrl.pathname.match(
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/payments$/,
     );
@@ -97,11 +147,37 @@ const server = createServer(async (request, response) => {
       }
 
       const body = parseCreatePaymentRequest(await readJson(request));
+      const idempotencyKey = readIdempotencyKey(request.headers);
+
+      if (body.method === 'wallet') {
+        const result = await payRideWithWallet(financeRepository, {
+          ride,
+          passengerId,
+          idempotencyKey,
+        });
+        const updatedRide = await confirmRidePayment(rideRepository, {
+          rideId: ride.id,
+          payment: result.payment,
+        });
+        const walletBalanceCents = await passengerWalletBalanceCents(
+          financeRepository,
+          passengerId,
+        );
+
+        json(response, 201, {
+          payment: result.payment,
+          ride: updatedRide,
+          walletBalanceCents,
+          duplicatePayment: result.duplicatePayment,
+        });
+        return;
+      }
+
       const payment = await createPaymentForRide(financeRepository, {
         ride,
         method: body.method,
         processor: resolvePaymentProcessor(body.method),
-        idempotencyKey: readIdempotencyKey(request.headers),
+        idempotencyKey,
       });
 
       json(response, 201, {
@@ -120,7 +196,8 @@ const server = createServer(async (request, response) => {
     if (
       error instanceof InvalidQuoteRequestError ||
       error instanceof InvalidRideRequestError ||
-      error instanceof InvalidPaymentRequestError
+      error instanceof InvalidPaymentRequestError ||
+      error instanceof InvalidWalletRequestError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
       return;
@@ -139,6 +216,17 @@ const server = createServer(async (request, response) => {
         error: 'PAYMENT_PROCESSOR_NOT_CONFIGURED',
         message: error.message,
       });
+      return;
+    }
+
+    if (error instanceof WalletDomainError) {
+      json(response, 422, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof RidePaymentConfirmationError) {
+      const status = error.code === 'RIDE_NOT_FOUND' ? 404 : 422;
+      json(response, status, { error: error.code, message: error.message });
       return;
     }
 

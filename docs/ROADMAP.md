@@ -40,7 +40,7 @@
 - [ ] tela/fluxo cartão
 - [ ] interface da Carteira Ramo Nessa no app no app
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
-- [ ] confirmação de pagamento antes do despacho
+- [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [ ] matching real
 - [ ] acompanhamento em tempo real

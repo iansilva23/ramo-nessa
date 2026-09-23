@@ -46,6 +46,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - recarga só creditada após captura confirmada;
 - pagamento de corrida pela carteira com débito atômico;
 - proteção contra saldo negativo e pagamentos duplicados;
+- pagamento confirmado atualiza a corrida para PAID;
+- matching permanece bloqueado até a corrida estar financeiramente pronta;
+- endpoints dev de saldo/recarga da Carteira;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
