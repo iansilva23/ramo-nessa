@@ -54,6 +54,13 @@ jobs:
         working-directory: apps/driver
         run: flutter pub get
 
+      - name: Upload generated driver lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: driver-pubspec-lock
+          path: apps/driver/pubspec.lock
+          retention-days: 1
+
       - name: Analyze driver
         working-directory: apps/driver
         run: flutter analyze
