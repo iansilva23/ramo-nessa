@@ -1,5 +1,9 @@
 # Ramo Nessa
 
+> **Proprietary software — Copyright © 2026 Ian Silva. All rights reserved.**
+> Public visibility does not make this project open source. See [LICENSE](LICENSE)
+> and [NOTICE.md](NOTICE.md).
+
 Plataforma de mobilidade local com apps Flutter para passageiro/motorista e um Core seguro responsável pelas regras críticas.
 
 ## Estrutura
@@ -61,3 +65,16 @@ Consulte `docs/RELEASE_BLOCKERS.md` antes de tratar qualquer build como pronto p
 - rastreamento em tempo real;
 - operação preparada para Carro, Moto, Entrega, Comfort/Black e Buggy;
 - localização e pagamentos adaptados ao Brasil.
+
+## Propriedade intelectual
+
+Este projeto **não é open source**. Nenhuma licença de uso comercial, redistribuição,
+white-label, derivação de código protegido ou uso da marca Ramo Nessa é concedida
+pela disponibilização deste repositório.
+
+Consulte:
+
+- [LICENSE](LICENSE) — termos proprietários completos;
+- [NOTICE.md](NOTICE.md) — aviso resumido de titularidade;
+- [docs/IP_AND_BRAND_POLICY.md](docs/IP_AND_BRAND_POLICY.md) — política de propriedade intelectual e marca;
+- [CONTRIBUTING.md](CONTRIBUTING.md) — regras para contribuições externas.
