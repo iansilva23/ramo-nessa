@@ -66,6 +66,10 @@ class HttpRidePreparationService implements RidePreparationService {
               'latitude': origin.position.latitude,
               'longitude': origin.position.longitude,
             },
+            'dropoff': {
+              'latitude': destination.position.latitude,
+              'longitude': destination.position.longitude,
+            },
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);

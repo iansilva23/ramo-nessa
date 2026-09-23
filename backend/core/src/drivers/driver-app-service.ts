@@ -185,6 +185,8 @@ export async function acceptOfferFromDriverApp(input: {
       destination: result.ride.destination,
       pickupLatitude: result.ride.pickupLatitude,
       pickupLongitude: result.ride.pickupLongitude,
+      dropoffLatitude: result.ride.dropoffLatitude,
+      dropoffLongitude: result.ride.dropoffLongitude,
       driverEarningsCents: result.ride.quote.driverNetCents,
       pickupCompensationCents:
         result.ride.quote.pickupCompensationCents,

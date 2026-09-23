@@ -144,6 +144,8 @@ class AcceptedDriverRide {
     required this.pickupCompensationCents,
     this.pickupLatitude,
     this.pickupLongitude,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
   });
 
   factory AcceptedDriverRide.fromJson(Map<String, dynamic> json) {
@@ -163,6 +165,8 @@ class AcceptedDriverRide {
           (json['pickupCompensationCents'] as num).toInt(),
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
       pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble(),
+      dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble(),
+      dropoffLongitude: (json['dropoffLongitude'] as num?)?.toDouble(),
     );
   }
 
@@ -176,6 +180,8 @@ class AcceptedDriverRide {
   final int pickupCompensationCents;
   final double? pickupLatitude;
   final double? pickupLongitude;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
 }
 
 String formatCents(int cents) {

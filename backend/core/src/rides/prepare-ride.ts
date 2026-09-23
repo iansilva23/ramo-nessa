@@ -38,6 +38,7 @@ export async function prepareRideForPayment(input: {
   passengerId: string;
   quoteRequest: QuoteRequest;
   pickup: GeoPoint;
+  dropoff: GeoPoint;
   now?: Date;
   holdSeconds?: number;
   maxCandidates?: number;
@@ -84,6 +85,8 @@ export async function prepareRideForPayment(input: {
     paymentStatus: 'created',
     pickupLatitude: input.pickup.latitude,
     pickupLongitude: input.pickup.longitude,
+    dropoffLatitude: input.dropoff.latitude,
+    dropoffLongitude: input.dropoff.longitude,
     origin: trustedQuoteRequest.origin,
     destination: trustedQuoteRequest.destination,
     category: trustedQuoteRequest.category,

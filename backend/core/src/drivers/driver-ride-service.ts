@@ -18,6 +18,8 @@ export function driverRideView(ride: RideRecord) {
     destination: ride.destination,
     pickupLatitude: ride.pickupLatitude,
     pickupLongitude: ride.pickupLongitude,
+    dropoffLatitude: ride.dropoffLatitude,
+    dropoffLongitude: ride.dropoffLongitude,
     driverEarningsCents: ride.quote.driverNetCents,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
   };

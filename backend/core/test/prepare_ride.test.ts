@@ -71,10 +71,15 @@ test('preparação usa distância roteada e congela compensação antes do pagam
       period: 'day',
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.7956, longitude: -40.5142 },
     now,
   });
 
   assert.equal(ride.state, 'AWAITING_PAYMENT');
+  assert.equal(ride.pickupLatitude, -2.82017);
+  assert.equal(ride.pickupLongitude, -40.41467);
+  assert.equal(ride.dropoffLatitude, -2.7956);
+  assert.equal(ride.dropoffLongitude, -40.5142);
   assert.equal(ride.reservedDriverId, 'driver-prepare-near');
   assert.equal(ride.driverPickupDistanceKm, 9);
   assert.equal(ride.quote.baseAmountCents, 12000);
@@ -104,6 +109,7 @@ test('distância de coleta enviada pelo cliente é ignorada', async () => {
       driverPickupDistanceKm: 99,
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.7956, longitude: -40.5142 },
     now,
   });
 
@@ -128,6 +134,7 @@ test('motorista já reservado não é usado em outra preparação ativa', async 
     passengerId: 'passenger-first',
     quoteRequest: request,
     pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.7956, longitude: -40.5142 },
     now,
   });
 
@@ -138,6 +145,7 @@ test('motorista já reservado não é usado em outra preparação ativa', async 
     passengerId: 'passenger-second',
     quoteRequest: request,
     pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.7956, longitude: -40.5142 },
     now: new Date('2026-09-23T14:00:01.000Z'),
   });
 
@@ -159,6 +167,7 @@ test('pagamento não inicia depois que a reserva preparada expirou', async () =>
       period: 'day',
     },
     pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.7956, longitude: -40.5142 },
     now,
     holdSeconds: 30,
   });

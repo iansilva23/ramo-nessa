@@ -255,6 +255,7 @@ const server = createServer(async (request, response) => {
         passengerId,
         quoteRequest: body.quoteRequest,
         pickup: body.pickup,
+        dropoff: body.dropoff,
       });
 
       const { reservedDriverId: _internalReservedDriverId, ...publicRide } = ride;

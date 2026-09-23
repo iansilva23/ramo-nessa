@@ -26,6 +26,8 @@ export interface RideRecord {
   driverHoldExpiresAt?: string;
   pickupLatitude?: number;
   pickupLongitude?: number;
+  dropoffLatitude?: number;
+  dropoffLongitude?: number;
 
   origin: LocationRef;
   destination: LocationRef;

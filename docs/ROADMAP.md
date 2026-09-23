@@ -73,6 +73,7 @@
 - [x] API Core para aceitar/recusar
 - [x] aceitar/recusar no app
 - [ ] navegação/coleta
+- [x] coordenadas exatas de embarque e destino persistidas no Core
 - [x] Cheguei / Iniciar / Finalizar com liquidação
 - [x] ganho líquido por corrida exibido
 - [ ] painel completo de ganhos bruto/líquido

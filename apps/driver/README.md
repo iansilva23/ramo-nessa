@@ -15,6 +15,7 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - corrida ativa é recuperada após reabrir o app;
 - Cheguei / Iniciar / Finalizar integrados ao Core;
 - finalização exibe saldo disponível do motorista;
+- embarque e destino exatos ficam disponíveis para o fluxo de navegação;
 - APK debug publicado como artefato do Driver CI.
 
 ## Segurança
