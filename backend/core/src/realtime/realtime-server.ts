@@ -58,6 +58,36 @@ export function attachRealtimeServer(
     maxPayload: 16 * 1024,
     perMessageDeflate: false,
   });
+  const heartbeatState = new Map<WebSocket, boolean>();
+
+  const registerHeartbeat = (ws: WebSocket) => {
+    heartbeatState.set(ws, true);
+    ws.on('pong', () => heartbeatState.set(ws, true));
+    const cleanupHeartbeat = () => heartbeatState.delete(ws);
+    ws.once('close', cleanupHeartbeat);
+    ws.once('error', cleanupHeartbeat);
+  };
+
+  const heartbeatTimer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (heartbeatState.get(ws) === false) {
+        ws.terminate();
+        heartbeatState.delete(ws);
+        continue;
+      }
+      if (ws.readyState === ws.OPEN) {
+        heartbeatState.set(ws, false);
+        ws.ping();
+      }
+    }
+  }, 30_000);
+  heartbeatTimer.unref();
+
+  input.server.once('close', () => {
+    clearInterval(heartbeatTimer);
+    heartbeatState.clear();
+    wss.close();
+  });
 
   input.server.on('upgrade', async (request, socket, head) => {
     const requestUrl = new URL(
@@ -74,6 +104,7 @@ export function attachRealtimeServer(
         });
 
         wss.handleUpgrade(request, socket, head, (ws) => {
+          registerHeartbeat(ws);
           const unsubscribe = input.hub.subscribeDriver(driverId, ws);
           const cleanup = () => unsubscribe();
           ws.once('close', cleanup);
@@ -130,6 +161,7 @@ export function attachRealtimeServer(
         }
 
         wss.handleUpgrade(request, socket, head, (ws) => {
+          registerHeartbeat(ws);
           const unsubscribe =
             input.hub.subscribePassengerRide(rideId, ws);
           const cleanup = () => unsubscribe();
