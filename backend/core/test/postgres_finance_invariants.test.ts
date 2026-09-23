@@ -109,3 +109,110 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL reaproveita pagamento concorrente com a mesma chave',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const key = `audit-concurrent-payment-${randomUUID()}`;
+    const now = '2026-09-23T20:10:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'postgres-idempotency-passenger', 'AWAITING_PAYMENT', 'pending',
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $2, $2
+        )
+        `,
+        [rideId, now],
+      );
+
+      const makePayment = (id: string) =>
+        repository.createPayment({
+          id,
+          rideId,
+          method: 'pix',
+          processor: 'audit-gateway',
+          status: 'pending',
+          amountCents: 12000,
+          idempotencyKey: key,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+      const [first, second] = await Promise.all([
+        makePayment(randomUUID()),
+        makePayment(randomUUID()),
+      ]);
+
+      assert.equal(first.id, second.id);
+      const count = await pool.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM payments WHERE idempotency_key = $1',
+        [key],
+      );
+      assert.equal(count.rows[0]?.count, '1');
+    } finally {
+      await pool.query('DELETE FROM payments WHERE ride_id = $1', [rideId]);
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
+
+test(
+  'PostgreSQL reaproveita recarga concorrente com a mesma chave',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const key = `audit-concurrent-topup-${randomUUID()}`;
+    const now = '2026-09-23T20:20:00.000Z';
+
+    try {
+      const makeTopup = (id: string) =>
+        repository.createWalletTopup({
+          id,
+          passengerId: 'postgres-topup-passenger',
+          method: 'pix',
+          processor: 'audit-gateway',
+          status: 'pending',
+          amountCents: 5000,
+          idempotencyKey: key,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+      const [first, second] = await Promise.all([
+        makeTopup(randomUUID()),
+        makeTopup(randomUUID()),
+      ]);
+
+      assert.equal(first.id, second.id);
+      const count = await pool.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM wallet_topups WHERE idempotency_key = $1',
+        [key],
+      );
+      assert.equal(count.rows[0]?.count, '1');
+    } finally {
+      await pool.query('DELETE FROM wallet_topups WHERE idempotency_key = $1', [
+        key,
+      ]);
+      await pool.end();
+    }
+  },
+);
