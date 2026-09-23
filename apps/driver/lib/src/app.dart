@@ -39,8 +39,13 @@ class RamoNessaDriverApp extends StatelessWidget {
                 ? configuredToken
                 : null;
 
-    Widget home(String? token) => DriverHomeScreen(
+    Widget home(
+      String? token, [
+      Future<bool> Function()? logout,
+    ]) =>
+        DriverHomeScreen(
           accessToken: token,
+          onLogout: logout,
           api: api,
           locationService: locationService,
           navigationService: navigationService,
@@ -63,7 +68,7 @@ class RamoNessaDriverApp extends StatelessWidget {
         loginTitle: 'Ramo Nessa Motorista',
         loginSubtitle:
             'Entre com o celular aprovado no seu cadastro de motorista.',
-        authenticatedBuilder: home,
+        authenticatedBuilder: (token, logout) => home(token, logout),
       );
     }
 
