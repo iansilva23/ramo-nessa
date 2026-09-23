@@ -44,7 +44,7 @@ export function normalizeBrazilMobilePhone(value: string): string {
       ? digits.slice(2)
       : digits;
 
-  if (!/^\d{11}$/.test(national)) {
+  if (!/^[1-9]\d9\d{8}$/.test(national)) {
     throw new PhoneOtpError(
       'INVALID_PHONE',
       'Informe um celular brasileiro válido com DDD.',
@@ -192,7 +192,7 @@ export async function requestPhoneOtp(input: {
   } catch {
     await input.repository.cancelChallenge(
       challenge.id,
-      new Date().toISOString(),
+      now.toISOString(),
     );
     throw new PhoneOtpError(
       'OTP_DELIVERY_FAILED',
