@@ -37,11 +37,7 @@ class DriverHomeScreen extends StatefulWidget {
 }
 
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  late final String _accessToken = () {
-    final restored = widget.accessToken?.trim();
-    if (restored != null && restored.length >= 20) return restored;
-    return DriverCoreConfig.authToken.trim();
-  }();
+  late final String _accessToken = widget.accessToken?.trim() ?? '';
   late final bool _authenticated =
       DriverCoreConfig.enabled &&
       (_accessToken.length >= 20 ||
