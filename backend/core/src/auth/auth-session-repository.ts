@@ -14,4 +14,9 @@ export interface AuthSessionRepository {
   create(session: AuthSessionRecord): Promise<AuthSessionRecord>;
   findByTokenHash(tokenHash: string): Promise<AuthSessionRecord | null>;
   revoke(id: string, revokedAt: string): Promise<void>;
+  revokeAllForSubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+    revokedAt: string,
+  ): Promise<number>;
 }

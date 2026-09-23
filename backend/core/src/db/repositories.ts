@@ -1,6 +1,9 @@
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
 import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
+import type { AdminRepository } from '../admin/admin-repository.js';
+import { InMemoryAdminRepository } from '../admin/repositories/in-memory-admin-repository.js';
+import { PostgresAdminRepository } from '../admin/repositories/postgres-admin-repository.js';
 import { InMemoryAuthSessionRepository } from '../auth/repositories/in-memory-auth-session-repository.js';
 import { PostgresAuthSessionRepository } from '../auth/repositories/postgres-auth-session-repository.js';
 import { InMemoryAuthOtpRepository } from '../auth/repositories/in-memory-auth-otp-repository.js';
@@ -24,6 +27,7 @@ import { createPostgresPool } from './postgres.js';
 export interface RepositoryBundle {
   authSessionRepository: AuthSessionRepository;
   authOtpRepository: AuthOtpRepository;
+  adminRepository: AdminRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
@@ -44,6 +48,7 @@ export function createRepositories(): RepositoryBundle {
     return {
       authSessionRepository: new PostgresAuthSessionRepository(pool),
       authOtpRepository: new PostgresAuthOtpRepository(pool),
+      adminRepository: new PostgresAdminRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
       driverSupplyRepository,
@@ -66,6 +71,7 @@ export function createRepositories(): RepositoryBundle {
   return {
     authSessionRepository: new InMemoryAuthSessionRepository(),
     authOtpRepository: new InMemoryAuthOtpRepository(),
+    adminRepository: new InMemoryAdminRepository(),
     rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
     driverSupplyRepository,

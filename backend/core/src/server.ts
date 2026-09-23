@@ -62,6 +62,22 @@ import {
 } from './auth/phone-otp-service.js';
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
+  AdminAuthenticationError,
+  authenticateAdminBearer,
+} from './admin/admin-auth.js';
+import {
+  AdminDriverAuthError,
+  getDriverAuthForAdmin,
+  provisionDriverAuthFromAdmin,
+  setDriverAuthStatusFromAdmin,
+} from './admin/admin-driver-auth-service.js';
+import {
+  InvalidAdminRequestError,
+  parseAdminAuditLimit,
+  parseAdminDriverProvisionRequest,
+  parseAdminDriverStatusRequest,
+} from './admin/admin-validation.js';
+import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
   driverOfferView,
@@ -115,6 +131,7 @@ const port = resolveCorePort();
 const {
   authSessionRepository,
   authOtpRepository,
+  adminRepository,
   rideRepository,
   financeRepository,
   driverSupplyRepository,
@@ -373,6 +390,114 @@ const server = createServer(async (request, response) => {
         subjectId: issued.session.subjectId,
         subjectType: issued.session.subjectType,
       });
+      return;
+    }
+
+    const adminDriverAuthStatusMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/auth\/status$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminDriverAuthStatusMatch != null
+    ) {
+      const actor = await authenticateAdminBearer({
+        repository: adminRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:auth:write',
+      });
+      const body = parseAdminDriverStatusRequest(
+        await readJson(request),
+      );
+      const result = await setDriverAuthStatusFromAdmin({
+        identities: authOtpRepository,
+        sessions: authSessionRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverAuthStatusMatch[1]!,
+        status: body.status,
+      });
+      json(response, 200, {
+        driverId: result.identity.subjectId,
+        phoneE164: result.identity.phoneE164,
+        status: result.identity.status,
+        updatedAt: result.identity.updatedAt,
+        revokedSessions: result.revokedSessions,
+      });
+      return;
+    }
+
+    const adminDriverAuthMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/auth$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminDriverAuthMatch != null
+    ) {
+      await authenticateAdminBearer({
+        repository: adminRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:auth:read',
+      });
+      const identity = await getDriverAuthForAdmin({
+        identities: authOtpRepository,
+        driverId: adminDriverAuthMatch[1]!,
+      });
+      json(response, 200, {
+        driverId: identity.subjectId,
+        phoneE164: identity.phoneE164,
+        status: identity.status,
+        createdAt: identity.createdAt,
+        updatedAt: identity.updatedAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      adminDriverAuthMatch != null
+    ) {
+      const actor = await authenticateAdminBearer({
+        repository: adminRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:auth:write',
+      });
+      const body = parseAdminDriverProvisionRequest(
+        await readJson(request),
+      );
+      const result = await provisionDriverAuthFromAdmin({
+        identities: authOtpRepository,
+        sessions: authSessionRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverAuthMatch[1]!,
+        phone: body.phone,
+        status: body.status,
+      });
+      json(response, result.created ? 201 : 200, {
+        created: result.created,
+        driverId: result.identity.subjectId,
+        phoneE164: result.identity.phoneE164,
+        status: result.identity.status,
+        createdAt: result.identity.createdAt,
+        updatedAt: result.identity.updatedAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/audit'
+    ) {
+      await authenticateAdminBearer({
+        repository: adminRepository,
+        headers: request.headers,
+        requiredScope: 'audit:read',
+      });
+      const limit = parseAdminAuditLimit(
+        requestUrl.searchParams.get('limit'),
+      );
+      const entries = await adminRepository.listAudit(limit);
+      json(response, 200, { entries });
       return;
     }
 
@@ -1021,6 +1146,39 @@ const server = createServer(async (request, response) => {
       error instanceof InvalidDriverFinanceRequestError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
+      return;
+    }
+
+    if (error instanceof InvalidAdminRequestError) {
+      json(response, 400, {
+        error: 'INVALID_ADMIN_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminAuthenticationError) {
+      const status =
+        error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminDriverAuthError) {
+      const status =
+        error.code === 'DRIVER_AUTH_NOT_FOUND'
+          ? 404
+          : error.code === 'DRIVER_PHONE_CONFLICT' ||
+              error.code === 'DRIVER_ID_CONFLICT'
+            ? 409
+            : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 

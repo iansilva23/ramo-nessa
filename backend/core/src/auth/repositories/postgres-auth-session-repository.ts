@@ -94,4 +94,23 @@ export class PostgresAuthSessionRepository
       [id, revokedAt],
     );
   }
+
+  async revokeAllForSubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+    revokedAt: string,
+  ): Promise<number> {
+    const result = await this.pool.query(
+      `
+      UPDATE auth_sessions
+      SET revoked_at = $3
+      WHERE
+        subject_type = $1
+        AND subject_id = $2
+        AND revoked_at IS NULL
+      `,
+      [subjectType, subjectId, revokedAt],
+    );
+    return result.rowCount ?? 0;
+  }
 }
