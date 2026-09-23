@@ -123,4 +123,18 @@ class _NoOfferDriverApi implements DriverApi {
   @override
   Future<DriverRideCompletion> completeRide(String rideId) =>
       throw UnimplementedError();
+
+  @override
+  Future<DriverFinanceSummary> financeSummary() async =>
+      const DriverFinanceSummary(
+        availableBalanceCents: 0,
+        payoutPendingCents: 0,
+      );
+
+  @override
+  Future<DriverPayoutReservation> requestPayout({
+    required int amountCents,
+    required String idempotencyKey,
+  }) =>
+      throw UnimplementedError();
 }
