@@ -27,7 +27,9 @@ export class WalletDomainError extends Error {
       | 'RIDE_ALREADY_PAID'
       | 'RIDE_PASSENGER_MISMATCH'
       | 'RIDE_NOT_AWAITING_WALLET_PAYMENT'
-      | 'RIDE_NOT_PREPARED',
+      | 'RIDE_NOT_PREPARED'
+      | 'WALLET_REFUND_NOT_ALLOWED'
+      | 'INSUFFICIENT_RIDE_ESCROW',
     message: string,
   ) {
     super(message);
