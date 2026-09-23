@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { quoteFare } from '../pricing/quote-engine.js';
+import { pricingPeriodAt } from '../pricing/period.js';
 import type { QuoteRequest } from '../pricing/types.js';
 import { transitionRide } from './ride-state.js';
 import { snapshotExactFare, type RideRecord } from './ride.js';
@@ -34,7 +35,13 @@ export async function createRide(
     );
   }
 
-  const fare = quoteFare(input.quoteRequest);
+  const now = input.now ?? new Date();
+  const authoritativeQuoteRequest: QuoteRequest = {
+    ...input.quoteRequest,
+    period: pricingPeriodAt(now),
+  };
+
+  const fare = quoteFare(authoritativeQuoteRequest);
   if (fare.kind !== 'exact') {
     throw new RideCreationError(
       'QUOTE_NOT_EXACT',
@@ -42,7 +49,7 @@ export async function createRide(
     );
   }
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const instant = now.toISOString();
 
   const ride: RideRecord = {
     id: randomUUID(),
@@ -50,16 +57,19 @@ export async function createRide(
     state: transitionRide('CREATED', 'AWAITING_PAYMENT'),
     paymentStatus: 'created',
 
-    origin: input.quoteRequest.origin,
-    destination: input.quoteRequest.destination,
-    category: input.quoteRequest.category,
-    period: input.quoteRequest.period,
-    passengers: input.quoteRequest.passengers ?? 1,
-    ...(input.quoteRequest.tripDistanceKm != null
-      ? { tripDistanceKm: input.quoteRequest.tripDistanceKm }
+    origin: authoritativeQuoteRequest.origin,
+    destination: authoritativeQuoteRequest.destination,
+    category: authoritativeQuoteRequest.category,
+    period: authoritativeQuoteRequest.period,
+    passengers: authoritativeQuoteRequest.passengers ?? 1,
+    ...(authoritativeQuoteRequest.tripDistanceKm != null
+      ? { tripDistanceKm: authoritativeQuoteRequest.tripDistanceKm }
       : {}),
-    ...(input.quoteRequest.driverPickupDistanceKm != null
-      ? { driverPickupDistanceKm: input.quoteRequest.driverPickupDistanceKm }
+    ...(authoritativeQuoteRequest.driverPickupDistanceKm != null
+      ? {
+          driverPickupDistanceKm:
+            authoritativeQuoteRequest.driverPickupDistanceKm,
+        }
       : {}),
 
     quote: snapshotExactFare(fare),
