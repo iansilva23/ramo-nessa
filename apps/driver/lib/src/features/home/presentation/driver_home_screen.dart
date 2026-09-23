@@ -102,6 +102,33 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     super.dispose();
   }
 
+  Future<void> _applyLoadedSupply(
+    DriverSupplySnapshot supply,
+  ) async {
+    if (!mounted) return;
+    setState(() {
+      _supply = supply;
+      _loading = false;
+      _message = null;
+    });
+
+    await _refreshFinance(showError: false);
+
+    if (supply.online) {
+      _startLocationTracking();
+      _startRealtime();
+    }
+
+    if (supply.busy) {
+      final ride = await _api?.currentRide();
+      if (!mounted) return;
+      setState(() => _activeRide = ride);
+    } else if (supply.online) {
+      _startPolling();
+      await _refreshOffer();
+    }
+  }
+
   Future<void> _load() async {
     final api = _api;
     if (api == null) {
@@ -116,29 +143,34 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     try {
       final supply = await api.getSupply();
-      if (!mounted) return;
-      setState(() {
-        _supply = supply;
-        _loading = false;
-        _message = null;
-      });
-
-      await _refreshFinance(showError: false);
-
-      if (supply.online) {
-        _startLocationTracking();
-        _startRealtime();
-      }
-
-      if (supply.busy) {
-        final ride = await api.currentRide();
-        if (!mounted) return;
-        setState(() => _activeRide = ride);
-      } else if (supply.online) {
-        _startPolling();
-        await _refreshOffer();
-      }
+      await _applyLoadedSupply(supply);
     } on DriverApiException catch (error) {
+      if (error.code == 'DRIVER_SUPPLY_NOT_INITIALIZED') {
+        try {
+          final position = await _location.currentPosition();
+          final initialized = await api.updateSupply(
+            online: false,
+            position: position,
+          );
+          await _applyLoadedSupply(initialized);
+          return;
+        } on DriverLocationException catch (locationError) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _message = locationError.message;
+          });
+          return;
+        } on DriverApiException catch (initializationError) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _message = initializationError.message;
+          });
+          return;
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _loading = false;
