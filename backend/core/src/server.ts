@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 
 import { quoteFare } from './pricing/quote-engine.js';
@@ -45,6 +46,13 @@ import {
   authenticateBearer,
   issueAuthSession,
 } from './auth/auth-service.js';
+import {
+  normalizeBrazilMobilePhone,
+  PhoneOtpError,
+  requestPhoneOtp,
+  verifyPhoneOtp,
+} from './auth/phone-otp-service.js';
+import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
@@ -98,6 +106,7 @@ import {
 const port = resolveCorePort();
 const {
   authSessionRepository,
+  authOtpRepository,
   rideRepository,
   financeRepository,
   driverSupplyRepository,
@@ -107,6 +116,7 @@ const {
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
+const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, {
@@ -127,6 +137,122 @@ const server = createServer(async (request, response) => {
         service: 'ramo-nessa-core',
         ...(process.env.NODE_ENV === 'production' ? {} : { storageMode }),
       });
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/otp/request'
+    ) {
+      const body = await readJson(request);
+      const subjectType =
+        body != null && typeof body === 'object' && 'subjectType' in body
+          ? String((body as { subjectType?: unknown }).subjectType ?? '')
+          : '';
+      const phone =
+        body != null && typeof body === 'object' && 'phone' in body
+          ? String((body as { phone?: unknown }).phone ?? '')
+          : '';
+
+      if (subjectType !== 'passenger' && subjectType !== 'driver') {
+        json(response, 422, {
+          error: 'INVALID_AUTH_SUBJECT_TYPE',
+          message: 'Tipo de conta inválido.',
+        });
+        return;
+      }
+
+      const requested = await requestPhoneOtp({
+        repository: authOtpRepository,
+        delivery: otpDeliveryProvider,
+        subjectType,
+        phone,
+      });
+      json(response, 202, requested);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/otp/verify'
+    ) {
+      const body = await readJson(request);
+      const challengeId =
+        body != null && typeof body === 'object' && 'challengeId' in body
+          ? String((body as { challengeId?: unknown }).challengeId ?? '')
+          : '';
+      const code =
+        body != null && typeof body === 'object' && 'code' in body
+          ? String((body as { code?: unknown }).code ?? '')
+          : '';
+
+      const verified = await verifyPhoneOtp({
+        repository: authOtpRepository,
+        sessions: authSessionRepository,
+        challengeId,
+        code,
+      });
+      json(response, 201, verified);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/dev/driver-identity'
+    ) {
+      if (
+        process.env.NODE_ENV === 'production' ||
+        process.env.ALLOW_DEV_IDENTITY !== 'true'
+      ) {
+        json(response, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+
+      const body = await readJson(request);
+      const driverId =
+        body != null && typeof body === 'object' && 'driverId' in body
+          ? String((body as { driverId?: unknown }).driverId ?? '').trim()
+          : '';
+      const rawPhone =
+        body != null && typeof body === 'object' && 'phone' in body
+          ? String((body as { phone?: unknown }).phone ?? '')
+          : '';
+      if (driverId.length < 3) {
+        json(response, 422, {
+          error: 'INVALID_DRIVER_ID',
+          message: 'driverId é obrigatório.',
+        });
+        return;
+      }
+
+      const phoneE164 = normalizeBrazilMobilePhone(rawPhone);
+      const existing = await authOtpRepository.findIdentityByPhone(
+        'driver',
+        phoneE164,
+      );
+      if (existing != null) {
+        if (existing.subjectId !== driverId) {
+          json(response, 409, {
+            error: 'PHONE_ALREADY_REGISTERED',
+            message: 'Telefone já associado a outro motorista.',
+          });
+          return;
+        }
+        json(response, 200, existing);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const identity = await authOtpRepository.createIdentity({
+        id: randomUUID(),
+        subjectId: driverId,
+        subjectType: 'driver',
+        phoneE164,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+      json(response, 201, identity);
       return;
     }
 
@@ -845,6 +971,29 @@ const server = createServer(async (request, response) => {
       error instanceof InvalidDriverFinanceRequestError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
+      return;
+    }
+
+    if (error instanceof PhoneOtpError) {
+      const status = switch (error.code) {
+        case 'INVALID_PHONE':
+          422;
+        case 'DRIVER_NOT_REGISTERED':
+          403;
+        case 'AUTH_IDENTITY_SUSPENDED':
+          403;
+        case 'OTP_RATE_LIMITED':
+          429;
+        case 'OTP_INVALID_OR_EXPIRED':
+          401;
+        case 'OTP_DELIVERY_NOT_CONFIGURED':
+        case 'OTP_DELIVERY_FAILED':
+          503;
+      };
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
