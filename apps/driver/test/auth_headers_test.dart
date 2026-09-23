@@ -1,0 +1,34 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/http_driver_api.dart';
+
+void main() {
+  test('Bearer tem prioridade sobre identidade dev no Motorista', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        '{"driverId":"driver-1","vehicleId":"vehicle-1",'
+        '"categories":["car"],"fourByFour":false,"seatCapacity":4,'
+        '"online":false,"busy":false}',
+        200,
+      );
+    });
+
+    final api = HttpDriverApi(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'abcdefghijklmnopqrstuvwxyz123456',
+      driverId: 'driver-dev',
+      client: client,
+    );
+
+    await api.getSupply();
+
+    expect(
+      captured.headers['authorization'],
+      'Bearer abcdefghijklmnopqrstuvwxyz123456',
+    );
+    expect(captured.headers.containsKey('x-dev-driver-id'), isFalse);
+  });
+}
