@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
+  DriverAppError,
   rejectOfferFromDriverApp,
   updateDriverSupplyFromApp,
 } from '../src/drivers/driver-app-service.js';
@@ -52,8 +54,45 @@ function ride(): RideRecord {
 async function setup() {
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
   const matching = new InMemoryRideMatchingRepository(rides, drivers);
   const currentRide = await rides.create(ride());
+
+  for (const driver of [
+    {
+      driverId: 'driver-one',
+      vehicleId: 'vehicle-one',
+      plate: 'ABC1D23',
+    },
+    {
+      driverId: 'driver-two',
+      vehicleId: 'vehicle-two',
+      plate: 'DEF2E34',
+    },
+  ]) {
+    await registry.upsertProfile({
+      driverId: driver.driverId,
+      fullName: `Motorista ${driver.driverId}`,
+      status: 'approved',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
+    await registry.upsertVehicle({
+      id: driver.vehicleId,
+      driverId: driver.driverId,
+      plateNormalized: driver.plate,
+      make: 'Toyota',
+      model: 'Teste',
+      modelYear: 2024,
+      color: 'Branca',
+      categories: ['car'],
+      fourByFour: false,
+      seatCapacity: 4,
+      status: 'approved',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
+  }
 
   await drivers.upsert({
     driverId: 'driver-one',
@@ -100,7 +139,14 @@ async function setup() {
     ttlSeconds: 20,
   });
 
-  return { rides, drivers, matching, currentRide, offer: offer.offer };
+  return {
+    rides,
+    drivers,
+    registry,
+    matching,
+    currentRide,
+    offer: offer.offer,
+  };
 }
 
 test('app só altera online/localização e preserva regras aprovadas', async () => {
@@ -108,6 +154,7 @@ test('app só altera online/localização e preserva regras aprovadas', async ()
 
   const updated = await updateDriverSupplyFromApp({
     drivers: ctx.drivers,
+    registry: ctx.registry,
     driverId: 'driver-one',
     online: true,
     latitude: -2.822,
@@ -122,12 +169,131 @@ test('app só altera online/localização e preserva regras aprovadas', async ()
   assert.equal(updated.latitude, -2.822);
 });
 
+test('cadastro aprovado inicializa supply somente com GPS real e regras do veículo', async () => {
+  const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
+  const driverId = 'driver-first-location';
+
+  await registry.upsertProfile({
+    driverId,
+    fullName: 'Motorista Primeiro GPS',
+    status: 'approved',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await registry.upsertVehicle({
+    id: 'vehicle-first-location',
+    driverId,
+    plateNormalized: 'GPS1A23',
+    make: 'Toyota',
+    model: 'Hilux',
+    modelYear: 2025,
+    color: 'Prata',
+    categories: ['car', 'comfort_black'],
+    fourByFour: true,
+    seatCapacity: 5,
+    status: 'approved',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  const initialized = await updateDriverSupplyFromApp({
+    drivers,
+    registry,
+    driverId,
+    online: false,
+    latitude: -2.82017,
+    longitude: -40.41467,
+    now,
+  });
+
+  assert.equal(initialized.vehicleId, 'vehicle-first-location');
+  assert.deepEqual(initialized.categories, ['car', 'comfort_black']);
+  assert.equal(initialized.fourByFour, true);
+  assert.equal(initialized.seatCapacity, 5);
+  assert.equal(initialized.online, false);
+  assert.equal(initialized.latitude, -2.82017);
+  assert.equal(initialized.longitude, -40.41467);
+});
+
+test('cadastro pendente impede inicialização operacional', async () => {
+  const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
+  const driverId = 'driver-pending-registry';
+
+  await registry.upsertProfile({
+    driverId,
+    fullName: 'Motorista Pendente',
+    status: 'pending',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await registry.upsertVehicle({
+    id: 'vehicle-pending-registry',
+    driverId,
+    plateNormalized: 'PEN1A23',
+    make: 'Toyota',
+    model: 'Corolla',
+    modelYear: 2024,
+    color: 'Preta',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    status: 'pending',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  await assert.rejects(
+    () =>
+      updateDriverSupplyFromApp({
+        drivers,
+        registry,
+        driverId,
+        online: true,
+        latitude: -2.82017,
+        longitude: -40.41467,
+        now,
+      }),
+    (error: unknown) =>
+      error instanceof DriverAppError &&
+      error.code === 'DRIVER_REGISTRY_NOT_APPROVED',
+  );
+  assert.equal(await drivers.findByDriverId(driverId), null);
+});
+
+test('oferta não pode ser aceita depois que o cadastro perde aprovação', async () => {
+  const ctx = await setup();
+
+  await ctx.registry.setVehicleStatus({
+    driverId: 'driver-one',
+    status: 'suspended',
+    updatedAt: '2026-09-23T17:00:03.000Z',
+  });
+
+  await assert.rejects(
+    () =>
+      acceptOfferFromDriverApp({
+        rides: ctx.rides,
+        registry: ctx.registry,
+        matching: ctx.matching,
+        offerId: ctx.offer.id,
+        driverId: 'driver-one',
+        now: new Date('2026-09-23T17:00:04.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof DriverAppError &&
+      error.code === 'DRIVER_REGISTRY_NOT_APPROVED',
+  );
+});
+
 test('motorista recebe somente a própria oferta ativa', async () => {
   const ctx = await setup();
 
   const offer = await currentDriverOffer({
     rides: ctx.rides,
     drivers: ctx.drivers,
+    registry: ctx.registry,
     matching: ctx.matching,
     driverId: 'driver-one',
     now: new Date('2026-09-23T17:00:03.000Z'),
@@ -143,6 +309,7 @@ test('aceite limpa hold, atribui corrida e deixa motorista ocupado', async () =>
 
   const accepted = await acceptOfferFromDriverApp({
     rides: ctx.rides,
+    registry: ctx.registry,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
@@ -206,6 +373,7 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
 
   await acceptOfferFromDriverApp({
     rides: ctx.rides,
+    registry: ctx.registry,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
@@ -284,6 +452,7 @@ test('motorista não pode iniciar corrida antes de marcar chegada', async () => 
 
   await acceptOfferFromDriverApp({
     rides: ctx.rides,
+    registry: ctx.registry,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
