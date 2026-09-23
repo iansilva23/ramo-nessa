@@ -3,11 +3,14 @@ name: Passenger CI
 on:
   workflow_dispatch:
   push:
+    branches: [main, "feature/**"]
     paths:
       - "apps/passenger/**"
       - "packages/design_system/**"
       - ".github/workflows/passenger-ci.yml"
   pull_request:
+    branches: [main]
+    types: [ready_for_review, reopened]
     paths:
       - "apps/passenger/**"
       - "packages/design_system/**"
@@ -22,11 +25,11 @@ permissions:
 
 jobs:
   flutter:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -53,13 +56,6 @@ jobs:
       - name: Get passenger dependencies
         working-directory: apps/passenger
         run: flutter pub get
-
-      - name: Upload generated passenger lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: passenger-pubspec-lock
-          path: apps/passenger/pubspec.lock
-          retention-days: 1
 
       - name: Analyze passenger
         working-directory: apps/passenger
