@@ -55,16 +55,18 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
     try {
       final session = await widget.service.currentSession(token);
       if (
+        session == null ||
         session.subjectType != widget.subjectType ||
         session.expiresAt.isBefore(DateTime.now())
       ) {
-        throw StateError('Sessão incompatível.');
+        try {
+          await widget.tokenStore.clearAccessToken();
+        } catch (_) {}
+        _accessToken = null;
       }
     } catch (_) {
-      try {
-        await widget.tokenStore.clearAccessToken();
-      } catch (_) {}
-      _accessToken = null;
+      // Falha de rede/Core não remove uma sessão que ainda pode ser válida.
+      // As chamadas protegidas continuarão dependendo da validação do servidor.
     }
 
     if (!mounted) return;
