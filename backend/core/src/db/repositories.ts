@@ -1,10 +1,14 @@
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
+import { InMemoryFinanceRepository } from '../payments/repositories/in-memory-finance-repository.js';
+import { PostgresFinanceRepository } from '../payments/repositories/postgres-finance-repository.js';
 import { InMemoryRideRepository } from '../rides/repositories/in-memory-ride-repository.js';
 import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
   rideRepository: RideRepository;
+  financeRepository: FinanceRepository;
   storageMode: 'postgres' | 'memory';
 }
 
@@ -12,10 +16,10 @@ export function createRepositories(): RepositoryBundle {
   const databaseUrl = process.env.DATABASE_URL?.trim();
 
   if (databaseUrl) {
+    const pool = createPostgresPool(databaseUrl);
     return {
-      rideRepository: new PostgresRideRepository(
-        createPostgresPool(databaseUrl),
-      ),
+      rideRepository: new PostgresRideRepository(pool),
+      financeRepository: new PostgresFinanceRepository(pool),
       storageMode: 'postgres',
     };
   }
@@ -28,6 +32,7 @@ export function createRepositories(): RepositoryBundle {
 
   return {
     rideRepository: new InMemoryRideRepository(),
+    financeRepository: new InMemoryFinanceRepository(),
     storageMode: 'memory',
   };
 }

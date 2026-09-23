@@ -36,6 +36,7 @@
 - [ ] splash/onboarding final
 - [ ] autenticação
 - [ ] tela/fluxo Pix
+- [x] endpoint de desenvolvimento para criar registro de pagamento
 - [ ] tela/fluxo cartão
 - [ ] Carteira Ramo Nessa
 - [ ] confirmação de pagamento antes do despacho
