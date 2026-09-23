@@ -345,6 +345,10 @@ export class PostgresRideMatchingRepository
           'Oferta pertence a outro motorista.',
         );
       }
+      if (offer.status === 'REJECTED') {
+        await client.query('COMMIT');
+        return mapOffer(offer);
+      }
       if (offer.status !== 'OFFERED') {
         throw new RideOfferError(
           'OFFER_NOT_ACTIVE',
@@ -583,6 +587,16 @@ export class PostgresRideMatchingRepository
           'OFFER_DRIVER_MISMATCH',
           'Oferta pertence a outro motorista.',
         );
+      }
+      if (offer.status === 'ACCEPTED') {
+        const acceptedRide = await lockRide(client, offer.ride_id);
+        if (acceptedRide?.driver_id === input.driverId) {
+          await client.query('COMMIT');
+          return {
+            ride: mapRide(acceptedRide),
+            offer: mapOffer(offer),
+          };
+        }
       }
       if (offer.status !== 'OFFERED') {
         throw new RideOfferError(
