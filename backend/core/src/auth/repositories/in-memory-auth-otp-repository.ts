@@ -1,5 +1,6 @@
 import type {
   AuthIdentityRecord,
+  AuthIdentityStatus,
   AuthOtpRepository,
   OtpAttemptResult,
   OtpChallengeRecord,
@@ -53,6 +54,28 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
         candidate.subjectId === subjectId,
     );
     return found == null ? null : structuredClone(found);
+  }
+
+  async setIdentityStatus(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    status: AuthIdentityStatus;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const identity = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === input.subjectType &&
+        candidate.subjectId === input.subjectId,
+    );
+    if (identity == null) return null;
+
+    const updated = {
+      ...identity,
+      status: input.status,
+      updatedAt: input.updatedAt,
+    };
+    this.identities.set(updated.id, updated);
+    return structuredClone(updated);
   }
 
   async createChallenge(
