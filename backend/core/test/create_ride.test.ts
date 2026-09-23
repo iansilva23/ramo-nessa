@@ -56,6 +56,8 @@ test('snapshot da corrida não muda quando objeto externo é alterado', async ()
 
   const ride = await createRide(repository, {
     passengerId: 'passenger-test-3',
+    // 01:00Z = 22:00 em Fortaleza (UTC-3).
+    now: new Date('2026-09-24T01:00:00.000Z'),
     quoteRequest: {
       origin: { zoneId: 'jijoca' },
       destination: { zoneId: 'jericoacoara' },
