@@ -1,0 +1,23 @@
+name: ramo_nessa_driver
+description: Aplicativo Flutter do motorista Ramo Nessa.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  geolocator: ^14.0.3
+  http: ^1.6.0
+  ramo_design_system:
+    path: ../../packages/design_system
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
