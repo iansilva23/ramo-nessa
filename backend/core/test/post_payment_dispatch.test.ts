@@ -81,13 +81,16 @@ test('corrida antiga sem pickup persistido não inventa coordenadas', async () =
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const matching = new InMemoryRideMatchingRepository(rides, drivers);
-  const ride = {
-    ...paidPreparedRide(),
+  const {
+    pickupLatitude: _pickupLatitude,
+    pickupLongitude: _pickupLongitude,
+    reservedDriverId: _reservedDriverId,
+    driverHoldExpiresAt: _driverHoldExpiresAt,
+    ...baseRide
+  } = paidPreparedRide();
+  const ride: RideRecord = {
+    ...baseRide,
     id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-    pickupLatitude: undefined,
-    pickupLongitude: undefined,
-    reservedDriverId: undefined,
-    driverHoldExpiresAt: undefined,
   };
 
   await rides.create(ride);
