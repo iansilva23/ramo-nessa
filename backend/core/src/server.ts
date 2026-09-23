@@ -66,6 +66,16 @@ import {
   authenticateAdminBearer,
 } from './admin/admin-auth.js';
 import {
+  AdminHumanAuthenticationError,
+  authenticateAdminHumanSession,
+  loginAdminHuman,
+  resolveAdminLoginRateLimitSecret,
+  revokeAdminHumanSession,
+} from './admin/admin-human-auth-service.js';
+import {
+  resolveAdminMfaEncryptionKey,
+} from './admin/admin-human-crypto.js';
+import {
   AdminDriverAuthError,
   getDriverAuthForAdmin,
   provisionDriverAuthFromAdmin,
@@ -142,6 +152,7 @@ const {
   authSessionRepository,
   authOtpRepository,
   adminRepository,
+  adminHumanAuthRepository,
   rideRepository,
   financeRepository,
   driverSupplyRepository,
@@ -156,6 +167,8 @@ const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 resolveOtpHashSecret();
 resolveOtpRateLimitSecret();
+const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
+const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 
 function headerValue(
   request: IncomingMessage,
@@ -492,6 +505,81 @@ const server = createServer(async (request, response) => {
         updatedAt: result.identity.updatedAt,
         revokedSessions: result.revokedSessions,
       });
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/auth/login'
+    ) {
+      const body = await readJson(request);
+      if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+        throw new InvalidAdminRequestError(
+          'Corpo da requisição é inválido.',
+        );
+      }
+      const value = body as Record<string, unknown>;
+      const email =
+        typeof value.email === 'string' ? value.email : '';
+      const password =
+        typeof value.password === 'string' ? value.password : '';
+      const totpCode =
+        typeof value.totpCode === 'string' ? value.totpCode : '';
+
+      const logged = await loginAdminHuman({
+        repository: adminHumanAuthRepository,
+        email,
+        password,
+        totpCode,
+        clientIp: requestClientIp(request),
+        encryptionKey: adminMfaEncryptionKey,
+        rateLimitSecret: adminLoginRateLimitSecret,
+      });
+      json(response, 200, {
+        accessToken: logged.accessToken,
+        expiresAt: logged.session.expiresAt,
+        user: {
+          id: logged.user.id,
+          name: logged.user.name,
+          email: logged.user.emailNormalized,
+          scopes: logged.user.scopes,
+        },
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/auth/me'
+    ) {
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      json(response, 200, {
+        user: {
+          id: authenticated.user.id,
+          name: authenticated.user.name,
+          email: authenticated.user.emailNormalized,
+          scopes: authenticated.user.scopes,
+        },
+        expiresAt: authenticated.session.expiresAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'DELETE' &&
+      requestUrl.pathname === '/v1/admin/auth/session'
+    ) {
+      await revokeAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      response.writeHead(204, {
+        'cache-control': 'no-store',
+      });
+      response.end();
       return;
     }
 
@@ -1223,6 +1311,34 @@ const server = createServer(async (request, response) => {
       json(response, 400, {
         error: 'INVALID_ADMIN_REQUEST',
         message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminHumanAuthenticationError) {
+      const status =
+        error.code === 'ADMIN_LOGIN_RATE_LIMITED'
+          ? 429
+          : error.code === 'ADMIN_SCOPE_REQUIRED'
+            ? 403
+            : error.code === 'ADMIN_USER_EXISTS'
+              ? 409
+              : 401;
+      if (
+        error.code === 'ADMIN_LOGIN_RATE_LIMITED' &&
+        error.retryAfterSeconds != null
+      ) {
+        response.setHeader(
+          'retry-after',
+          String(error.retryAfterSeconds),
+        );
+      }
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+        ...(error.retryAfterSeconds != null
+          ? { retryAfterSeconds: error.retryAfterSeconds }
+          : {}),
       });
       return;
     }

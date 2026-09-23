@@ -5,7 +5,7 @@
 O ecossistema é dividido em quatro superfícies principais:
 
 1. **Ramo Nessa Passageiro** — Flutter para Android/iOS.
-2. **Ramo Nessa Motorista** — Flutter para Android atualmente; estrutura iOS ainda precisa ser criada e validada.
+2. **Ramo Nessa Motorista** — Flutter para Android/iOS; ambos os hosts foram validados tecnicamente em CI.
 3. **Ramo Nessa Admin** — painel web administrativo.
 4. **Ramo Nessa Core** — backend seguro responsável pelas regras críticas.
 
@@ -155,7 +155,6 @@ A persistência transacional PostgreSQL já existe para corridas, ofertas, dispo
 
 - catálogo geográfico autoritativo para validar todas as localidades específicas;
 - histórico/consultas administrativas completos;
-- trilha de auditoria administrativa persistente;
 - versionamento persistente e vigência das regras de preço;
 - estratégia de cache/índice geográfico para escala.
 
@@ -169,7 +168,9 @@ Nunca colocar no Flutter:
 - regras críticas de comissão/preço;
 - autorização administrativa baseada apenas em interface.
 
-Credenciais devem permanecer no backend/secret manager.
+Credenciais devem permanecer no backend/secret manager. O Admin separa chaves
+operacionais server-to-server de usuários humanos. Usuários humanos usam senha
+scrypt + TOTP cifrado + sessão curta; API keys não devem entrar no bundle web.
 
 ## Estrutura do monorepo
 

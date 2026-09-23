@@ -2,6 +2,9 @@ import type { RideRepository } from '../rides/ride-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
 import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
 import type { AdminRepository } from '../admin/admin-repository.js';
+import type { AdminHumanAuthRepository } from '../admin/admin-human-auth-repository.js';
+import { InMemoryAdminHumanAuthRepository } from '../admin/repositories/in-memory-admin-human-auth-repository.js';
+import { PostgresAdminHumanAuthRepository } from '../admin/repositories/postgres-admin-human-auth-repository.js';
 import { InMemoryAdminRepository } from '../admin/repositories/in-memory-admin-repository.js';
 import { PostgresAdminRepository } from '../admin/repositories/postgres-admin-repository.js';
 import { InMemoryAuthSessionRepository } from '../auth/repositories/in-memory-auth-session-repository.js';
@@ -28,6 +31,7 @@ export interface RepositoryBundle {
   authSessionRepository: AuthSessionRepository;
   authOtpRepository: AuthOtpRepository;
   adminRepository: AdminRepository;
+  adminHumanAuthRepository: AdminHumanAuthRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
@@ -51,6 +55,8 @@ export function createRepositories(): RepositoryBundle {
       authSessionRepository: new PostgresAuthSessionRepository(pool),
       authOtpRepository: new PostgresAuthOtpRepository(pool),
       adminRepository: new PostgresAdminRepository(pool),
+      adminHumanAuthRepository:
+        new PostgresAdminHumanAuthRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
       driverSupplyRepository,
@@ -80,6 +86,8 @@ export function createRepositories(): RepositoryBundle {
     authSessionRepository: new InMemoryAuthSessionRepository(),
     authOtpRepository: new InMemoryAuthOtpRepository(),
     adminRepository: new InMemoryAdminRepository(),
+    adminHumanAuthRepository:
+      new InMemoryAdminHumanAuthRepository(),
     rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
     driverSupplyRepository,

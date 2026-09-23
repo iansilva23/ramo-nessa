@@ -62,7 +62,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - código OTP fica armazenado somente como HMAC no Core, tem expiração/limite de tentativas e desafios antigos são removidos automaticamente;
    - falta provider SMS real e credenciais de produção;
    - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
-   - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria para provisionar/aprovar/suspender motorista; falta o painel web com login humano próprio e implantação operacional;
+   - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano base com senha + TOTP + sessão curta; falta conectar a sessão humana às operações do painel, construir o frontend e concluir a implantação operacional;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**

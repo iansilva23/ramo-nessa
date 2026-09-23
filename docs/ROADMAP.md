@@ -70,7 +70,7 @@
 - [x] controle online/offline no app
 - [x] tracking Android em background via foreground service (implementado)
 - [ ] validar tracking Android em background em celular real
-- [ ] criar e validar estrutura iOS do app Motorista
+- [x] criar e validar estrutura iOS do app Motorista
 - [x] domínio persistente de ofertas no Core
 - [x] API Core para consultar oferta ativa
 - [x] recebimento de ofertas via WebSocket com polling fallback
@@ -135,6 +135,11 @@
 
 ## Etapa 4 — Admin
 
+- [x] plano de controle por API/CLI com chave hash, escopos e expiração
+- [x] provisionamento/aprovação/suspensão de motorista com auditoria
+- [x] login humano base com senha + TOTP + sessão curta + anti-bruteforce
+- [ ] conectar sessão humana às operações administrativas do painel
+- [ ] frontend/login do painel
 - [ ] dashboard
 - [ ] passageiros
 - [ ] motoristas
@@ -152,7 +157,7 @@
 ## Etapa 5 — Produção
 
 - [ ] configurar provider SMS OTP de produção (webhook HTTPS + segredo)
-- [ ] criar fluxo administrativo de provisionamento/aprovação de motorista
+- [x] criar fluxo administrativo de provisionamento/aprovação de motorista
 
 - [x] compilação Android debug validada em CI
 - [x] compilação Android release validada tecnicamente em CI
