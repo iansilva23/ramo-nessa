@@ -97,7 +97,12 @@ const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
 
 function json(response: ServerResponse, status: number, body: unknown): void {
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+  response.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+  });
   response.end(JSON.stringify(body));
 }
 
@@ -105,7 +110,11 @@ const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     if (request.method === 'GET' && request.url === '/health') {
-      json(response, 200, { ok: true, service: 'ramo-nessa-core', storageMode });
+      json(response, 200, {
+        ok: true,
+        service: 'ramo-nessa-core',
+        ...(process.env.NODE_ENV === 'production' ? {} : { storageMode }),
+      });
       return;
     }
 
