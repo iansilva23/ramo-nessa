@@ -392,7 +392,10 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'POST' && request.url === '/v1/pricing/quote') {
       const body = parseQuoteRequest(await readJson(request));
-      const quote = quoteFare(body);
+      const quote = quoteFare({
+        ...body,
+        period: pricingPeriodAt(),
+      });
       json(response, 200, quote);
       return;
     }
