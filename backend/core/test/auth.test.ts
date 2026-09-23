@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
+import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
 import {
   authenticateBearer,
   AuthenticationError,
@@ -127,5 +128,44 @@ test('header ausente não autentica', async () => {
     (error: unknown) =>
       error instanceof AuthenticationError &&
       error.code === 'AUTH_REQUIRED',
+  );
+});
+
+
+test('sessão ainda válida é recusada quando a identidade está suspensa', async () => {
+  const sessions = new InMemoryAuthSessionRepository();
+  const identities = new InMemoryAuthOtpRepository();
+  const now = new Date('2026-09-23T11:20:00.000Z');
+
+  await identities.createIdentity({
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    subjectId: 'driver-suspended-session',
+    subjectType: 'driver',
+    phoneE164: '+5588999991240',
+    status: 'suspended',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  const issued = await issueAuthSession({
+    repository: sessions,
+    subjectId: 'driver-suspended-session',
+    subjectType: 'driver',
+    now,
+    ttlMs: 120_000,
+  });
+
+  await assert.rejects(
+    () =>
+      authenticateBearer({
+        repository: sessions,
+        identities,
+        headers: { authorization: `Bearer ${issued.token}` },
+        requiredType: 'driver',
+        now: new Date('2026-09-23T11:20:30.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof AuthenticationError &&
+      error.code === 'AUTH_IDENTITY_DISABLED',
   );
 });
