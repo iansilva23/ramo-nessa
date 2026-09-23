@@ -142,7 +142,7 @@ test('sessão ainda válida é recusada quando a identidade está suspensa', asy
     subjectId: 'driver-suspended-session',
     subjectType: 'driver',
     phoneE164: '+5588999991240',
-    status: 'suspended',
+    status: 'active',
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   });
@@ -154,6 +154,23 @@ test('sessão ainda válida é recusada quando a identidade está suspensa', asy
     now,
     ttlMs: 120_000,
   });
+
+  const beforeSuspension = await authenticateBearer({
+    repository: sessions,
+    identities,
+    headers: { authorization: `Bearer ${issued.token}` },
+    requiredType: 'driver',
+    now: new Date('2026-09-23T11:20:10.000Z'),
+  });
+  assert.equal(beforeSuspension.subjectId, 'driver-suspended-session');
+
+  const suspended = await identities.setIdentityStatus({
+    subjectType: 'driver',
+    subjectId: 'driver-suspended-session',
+    status: 'suspended',
+    updatedAt: '2026-09-23T11:20:20.000Z',
+  });
+  assert.equal(suspended?.status, 'suspended');
 
   await assert.rejects(
     () =>
