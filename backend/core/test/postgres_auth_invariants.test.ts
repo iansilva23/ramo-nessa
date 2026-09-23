@@ -270,3 +270,131 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL limpa artefatos antigos de autenticação sem apagar dados ativos',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const sessions = new PostgresAuthSessionRepository(pool);
+    const otp = new PostgresAuthOtpRepository(pool);
+    const phone = '+5588944441299';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO auth_sessions (
+          id, subject_id, subject_type, token_hash,
+          expires_at, revoked_at, created_at
+        ) VALUES (
+          '99999999-9999-4999-8999-999999999991',
+          'retention-old-session',
+          'passenger',
+          'retention-old-session-hash',
+          '2026-07-01T12:01:00.000Z',
+          NULL,
+          '2026-07-01T12:00:00.000Z'
+        )
+        `,
+      );
+
+      const active = await issueAuthSession({
+        repository: sessions,
+        subjectId: 'retention-active-session',
+        subjectType: 'passenger',
+        now: new Date('2026-09-23T14:00:00.000Z'),
+        ttlMs: 120_000,
+      });
+
+      const oldCount = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM auth_sessions
+         WHERE subject_id = 'retention-old-session'`,
+      );
+      assert.equal(oldCount.rows[0]?.count, '0');
+
+      const activeCount = await pool.query<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM auth_sessions WHERE id = $1',
+        [active.session.id],
+      );
+      assert.equal(activeCount.rows[0]?.count, '1');
+
+      const now = '2026-09-23T14:10:00.000Z';
+      const identity = await otp.createIdentity({
+        id: '99999999-9999-4999-8999-999999999992',
+        subjectId: 'retention-otp-passenger',
+        subjectType: 'passenger',
+        phoneE164: phone,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await pool.query(
+        `
+        INSERT INTO auth_otp_challenges (
+          id, identity_id, code_digest, expires_at,
+          attempt_count, consumed_at, created_at
+        ) VALUES (
+          '99999999-9999-4999-8999-999999999993',
+          $1,
+          'old-digest',
+          '2026-09-20T12:05:00.000Z',
+          1,
+          '2026-09-20T12:01:00.000Z',
+          '2026-09-20T12:00:00.000Z'
+        )
+        `,
+        [identity.id],
+      );
+
+      await otp.createChallengeWithCooldown({
+        challenge: {
+          id: '99999999-9999-4999-8999-999999999994',
+          identityId: identity.id,
+          codeDigest: 'new-digest',
+          expiresAt: '2026-09-23T14:15:00.000Z',
+          attemptCount: 0,
+          createdAt: now,
+        },
+        now,
+        cooldownMs: 60_000,
+      });
+
+      const oldChallengeCount = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM auth_otp_challenges
+         WHERE id = '99999999-9999-4999-8999-999999999993'`,
+      );
+      assert.equal(oldChallengeCount.rows[0]?.count, '0');
+
+      const newChallengeCount = await pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count
+         FROM auth_otp_challenges
+         WHERE id = '99999999-9999-4999-8999-999999999994'`,
+      );
+      assert.equal(newChallengeCount.rows[0]?.count, '1');
+    } finally {
+      await pool.query(
+        `DELETE FROM auth_sessions
+         WHERE subject_id IN ('retention-old-session', 'retention-active-session')`,
+      );
+      const identities = await pool.query<{ id: string }>(
+        'SELECT id FROM auth_identities WHERE phone_e164 = $1',
+        [phone],
+      );
+      for (const identity of identities.rows) {
+        await pool.query(
+          'DELETE FROM auth_otp_challenges WHERE identity_id = $1',
+          [identity.id],
+        );
+      }
+      await pool.query(
+        'DELETE FROM auth_identities WHERE phone_e164 = $1',
+        [phone],
+      );
+      await pool.end();
+    }
+  },
+);

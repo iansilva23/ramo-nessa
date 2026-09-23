@@ -58,8 +58,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - antes do lançamento é necessário provedor/infraestrutura adequada ao uso comercial.
 
 8. **Privacidade, LGPD e operação da autenticação**
-   - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem;
-   - código OTP fica armazenado somente como HMAC no Core e tem expiração/limite de tentativas;
+   - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem; sessões expiradas/revogadas fora da retenção são limpas automaticamente;
+   - código OTP fica armazenado somente como HMAC no Core, tem expiração/limite de tentativas e desafios antigos são removidos automaticamente;
    - falta provider SMS real e credenciais de produção;
    - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
    - falta painel/processo administrativo para aprovar/suspender motorista;

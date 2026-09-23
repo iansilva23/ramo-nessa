@@ -35,6 +35,17 @@ export class PostgresAuthSessionRepository
   constructor(private readonly pool: Pool) {}
 
   async create(session: AuthSessionRecord): Promise<AuthSessionRecord> {
+    await this.pool.query(
+      `
+      DELETE FROM auth_sessions
+      WHERE
+        (revoked_at IS NOT NULL
+          AND revoked_at < $1::timestamptz - INTERVAL '30 days')
+        OR expires_at < $1::timestamptz - INTERVAL '30 days'
+      `,
+      [session.createdAt],
+    );
+
     const result = await this.pool.query<AuthSessionRow>(
       `
       INSERT INTO auth_sessions (

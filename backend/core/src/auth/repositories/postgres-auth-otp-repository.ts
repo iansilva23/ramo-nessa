@@ -286,6 +286,17 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query(
+        `
+        DELETE FROM auth_otp_challenges
+        WHERE
+          (consumed_at IS NOT NULL
+            AND consumed_at < $1::timestamptz - INTERVAL '24 hours')
+          OR expires_at < $1::timestamptz - INTERVAL '24 hours'
+        `,
+        [input.now],
+      );
+
       const lockedIdentity = await client.query<{ id: string }>(
         'SELECT id FROM auth_identities WHERE id = $1 FOR UPDATE',
         [input.challenge.identityId],

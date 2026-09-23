@@ -158,6 +158,15 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     now: string;
     cooldownMs: number;
   }): Promise<OtpChallengeCreationResult> {
+    const nowMs = Date.parse(input.now);
+    const retentionMs = 24 * 60 * 60 * 1000;
+    for (const [id, candidate] of this.challenges) {
+      const reference = candidate.consumedAt ?? candidate.expiresAt;
+      if (Date.parse(reference) < nowMs - retentionMs) {
+        this.challenges.delete(id);
+      }
+    }
+
     const latest = [...this.challenges.values()]
       .filter((candidate) => candidate.identityId === input.challenge.identityId)
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];

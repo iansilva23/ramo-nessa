@@ -8,6 +8,15 @@ export class InMemoryAuthSessionRepository
   private readonly sessions = new Map<string, AuthSessionRecord>();
 
   async create(session: AuthSessionRecord): Promise<AuthSessionRecord> {
+    const nowMs = Date.parse(session.createdAt);
+    const retentionMs = 30 * 24 * 60 * 60 * 1000;
+    for (const [id, candidate] of this.sessions) {
+      const reference = candidate.revokedAt ?? candidate.expiresAt;
+      if (Date.parse(reference) < nowMs - retentionMs) {
+        this.sessions.delete(id);
+      }
+    }
+
     const duplicate = [...this.sessions.values()].find(
       (candidate) => candidate.tokenHash === session.tokenHash,
     );

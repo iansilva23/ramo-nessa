@@ -242,3 +242,39 @@ test('logout revoga token mesmo depois de a identidade ser suspensa', async () =
       error.code === 'AUTH_INVALID',
   );
 });
+
+
+test('nova sessão remove sessão expirada fora da retenção sem afetar sessão recente', async () => {
+  const repository = new InMemoryAuthSessionRepository();
+
+  const old = await issueAuthSession({
+    repository,
+    subjectId: 'passenger-retention-old',
+    subjectType: 'passenger',
+    now: new Date('2026-07-01T12:00:00.000Z'),
+    ttlMs: 60_000,
+  });
+  const recent = await issueAuthSession({
+    repository,
+    subjectId: 'passenger-retention-recent',
+    subjectType: 'passenger',
+    now: new Date('2026-09-20T12:00:00.000Z'),
+    ttlMs: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  await issueAuthSession({
+    repository,
+    subjectId: 'passenger-retention-trigger',
+    subjectType: 'passenger',
+    now: new Date('2026-09-23T12:00:00.000Z'),
+    ttlMs: 60_000,
+  });
+
+  assert.equal(
+    await repository.findByTokenHash(hashBearerToken(old.token)),
+    null,
+  );
+  assert.ok(
+    await repository.findByTokenHash(hashBearerToken(recent.token)),
+  );
+});
