@@ -115,7 +115,12 @@ void main() {
       '123456',
     );
     await tester.tap(find.byKey(const Key('auth-primary-button')));
-    await tester.pumpAndSettle();
+    // The successful login intentionally leaves the button spinner active until
+    // the parent auth gate replaces this screen. This isolated widget test does
+    // not replace the screen, so pumpAndSettle would wait forever. Pump a fixed
+    // number of frames to flush the async verify + secure-store callback instead.
+    await tester.pump();
+    await tester.pump();
 
     expect(store.token, 'abcdefghijklmnopqrstuvwxyz123456');
     expect(authenticatedToken, 'abcdefghijklmnopqrstuvwxyz123456');
