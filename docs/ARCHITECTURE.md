@@ -5,7 +5,7 @@
 O ecossistema é dividido em quatro superfícies principais:
 
 1. **Ramo Nessa Passageiro** — Flutter para Android/iOS.
-2. **Ramo Nessa Motorista** — Flutter para Android/iOS.
+2. **Ramo Nessa Motorista** — Flutter para Android atualmente; estrutura iOS ainda precisa ser criada e validada.
 3. **Ramo Nessa Admin** — painel web administrativo.
 4. **Ramo Nessa Core** — backend seguro responsável pelas regras críticas.
 
@@ -28,7 +28,7 @@ A primeira camada implementada é deliberadamente independente de banco/gateway 
 - schema PostgreSQL inicial para persistência;
 - bloqueio de matching sem pagamento autorizado/pago.
 
-Essa camada pura pode ser testada sem infraestrutura externa e depois conectada a persistência, autenticação, pagamentos, matching e tempo real.
+Essa camada pura continua testável sem infraestrutura externa e já foi conectada a PostgreSQL, matching, ledger/carteira e WebSocket. Autenticação real, gateway Pix/cartão, repasses e deploy de produção continuam pendentes.
 
 ## Autoridade
 
@@ -137,15 +137,13 @@ O sistema deverá suportar:
 
 ## Dados
 
-A persistência ainda será implementada. Ela deverá oferecer:
+A persistência transacional PostgreSQL já existe para corridas, ofertas, disponibilidade do motorista, pagamentos, carteira, ledger e saques. Ainda faltam:
 
-- dados transacionais consistentes;
-- consultas geográficas;
-- histórico de viagens;
-- ledger financeiro imutável/auditável;
-- cache rápido para posições de motoristas;
-- trilha de auditoria administrativa;
-- versionamento das regras de preço usadas em cada cotação.
+- catálogo geográfico autoritativo para validar todas as localidades específicas;
+- histórico/consultas administrativas completos;
+- trilha de auditoria administrativa persistente;
+- versionamento persistente e vigência das regras de preço;
+- estratégia de cache/índice geográfico para escala.
 
 ## Segurança
 
