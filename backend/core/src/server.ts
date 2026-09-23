@@ -41,6 +41,10 @@ import {
   IdentityUnavailableError,
 } from './auth/dev-identity.js';
 import {
+  AuthenticationError,
+  issueAuthSession,
+} from './auth/auth-service.js';
+import {
   acceptOfferFromDriverApp,
   currentDriverOffer,
   driverOfferView,
@@ -92,6 +96,7 @@ import {
 
 const port = resolveCorePort();
 const {
+  authSessionRepository,
   rideRepository,
   financeRepository,
   driverSupplyRepository,
@@ -125,10 +130,62 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/dev/session'
+    ) {
+      if (
+        process.env.NODE_ENV === 'production' ||
+        process.env.ALLOW_DEV_IDENTITY !== 'true'
+      ) {
+        json(response, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+
+      const body = await readJson(request);
+      const subjectType =
+        body != null && typeof body === 'object' && 'subjectType' in body
+          ? String((body as { subjectType?: unknown }).subjectType ?? '')
+          : '';
+      const subjectId =
+        body != null && typeof body === 'object' && 'subjectId' in body
+          ? String((body as { subjectId?: unknown }).subjectId ?? '')
+          : '';
+
+      if (
+        (subjectType !== 'passenger' && subjectType !== 'driver') ||
+        subjectId.trim().length < 3
+      ) {
+        json(response, 422, {
+          error: 'INVALID_AUTH_SESSION_REQUEST',
+          message: 'subjectType e subjectId são obrigatórios.',
+        });
+        return;
+      }
+
+      const issued = await issueAuthSession({
+        repository: authSessionRepository,
+        subjectId,
+        subjectType,
+      });
+
+      json(response, 201, {
+        accessToken: issued.token,
+        tokenType: 'Bearer',
+        expiresAt: issued.session.expiresAt,
+        subjectId: issued.session.subjectId,
+        subjectType: issued.session.subjectType,
+      });
+      return;
+    }
+
+    if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/finance'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const finance = await driverFinanceSummary(
         financeRepository,
         driverId,
@@ -141,7 +198,10 @@ const server = createServer(async (request, response) => {
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/driver/me/payouts'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const body = parseDriverPayoutRequest(await readJson(request));
       const result = await requestDriverPayoutFromApp({
         repository: financeRepository,
@@ -171,7 +231,10 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/supply'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const supply = await getDriverSupplyForApp({
         drivers: driverSupplyRepository,
         driverId,
@@ -184,7 +247,10 @@ const server = createServer(async (request, response) => {
       request.method === 'PATCH' &&
       requestUrl.pathname === '/v1/driver/me/supply'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const body = parseUpdateDriverSupplyRequest(await readJson(request));
       const supply = await updateDriverSupplyFromApp({
         drivers: driverSupplyRepository,
@@ -229,7 +295,10 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/ride'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const ride = await currentDriverRide({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -243,7 +312,10 @@ const server = createServer(async (request, response) => {
       /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/(arrive|start|complete)$/,
     );
     if (request.method === 'POST' && driverRideAction != null) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const rideId = driverRideAction[1]!;
       const action = driverRideAction[2] as
         | 'arrive'
@@ -290,7 +362,10 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/offer'
     ) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const offer = await currentDriverOffer({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -305,7 +380,10 @@ const server = createServer(async (request, response) => {
       /^\/v1\/driver\/me\/offers\/([0-9a-fA-F-]+)\/(accept|reject)$/,
     );
     if (request.method === 'POST' && driverOfferAction != null) {
-      const driverId = resolveDriverId(request);
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+      });
       const offerId = driverOfferAction[1]!;
       const action = driverOfferAction[2]!;
 
@@ -410,7 +488,10 @@ const server = createServer(async (request, response) => {
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/rides/prepare'
     ) {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       if (routingDistanceProvider == null) {
         json(response, 503, {
           error: 'ROUTING_NOT_CONFIGURED',
@@ -441,7 +522,10 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/rides') {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const body = parseCreateRideRequest(await readJson(request));
       const ride = await createRide(rideRepository, {
         passengerId,
@@ -455,7 +539,10 @@ const server = createServer(async (request, response) => {
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/tracking$/,
     );
     if (request.method === 'GET' && rideTrackingMatch != null) {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const tracking = await passengerRideTracking({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -476,7 +563,10 @@ const server = createServer(async (request, response) => {
       /^\/v1\/rides\/([0-9a-fA-F-]+)$/,
     );
     if (request.method === 'GET' && rideMatch != null) {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const ride = await rideRepository.findById(rideMatch[1]!);
 
       if (ride == null || ride.passengerId !== passengerId) {
@@ -489,7 +579,10 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && requestUrl.pathname === '/v1/wallet') {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const balanceCents = await passengerWalletBalanceCents(
         financeRepository,
         passengerId,
@@ -503,7 +596,10 @@ const server = createServer(async (request, response) => {
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/wallet/topups'
     ) {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const body = parseCreateWalletTopupRequest(await readJson(request));
       const topup = await createWalletTopup(financeRepository, {
         passengerId,
@@ -528,7 +624,10 @@ const server = createServer(async (request, response) => {
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/payments$/,
     );
     if (request.method === 'POST' && paymentMatch != null) {
-      const passengerId = resolvePassengerId(request);
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+      });
       const ride = await rideRepository.findById(paymentMatch[1]!);
 
       if (ride == null || ride.passengerId !== passengerId) {
@@ -712,6 +811,14 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof AuthenticationError) {
+      json(response, 401, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof IdentityUnavailableError) {
       json(response, 503, {
         error: 'AUTH_NOT_CONFIGURED',
@@ -847,6 +954,7 @@ attachRealtimeServer({
   rides: rideRepository,
   drivers: driverSupplyRepository,
   matching: rideMatchingRepository,
+  sessions: authSessionRepository,
 });
 
 server.listen(port, '0.0.0.0', () => {
