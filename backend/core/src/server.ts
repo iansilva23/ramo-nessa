@@ -264,6 +264,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
+        identities: authOtpRepository,
         headers: request.headers,
       });
       json(response, 200, {
@@ -280,6 +281,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
+        identities: authOtpRepository,
         headers: request.headers,
       });
       await authSessionRepository.revoke(
@@ -350,6 +352,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const finance = await driverFinanceSummary(
         financeRepository,
@@ -366,6 +369,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const body = parseDriverPayoutRequest(await readJson(request));
       const result = await requestDriverPayoutFromApp({
@@ -399,6 +403,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const supply = await getDriverSupplyForApp({
         drivers: driverSupplyRepository,
@@ -415,6 +420,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const body = parseUpdateDriverSupplyRequest(await readJson(request));
       const supply = await updateDriverSupplyFromApp({
@@ -463,6 +469,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const ride = await currentDriverRide({
         rides: rideRepository,
@@ -480,6 +487,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const rideId = driverRideAction[1]!;
       const action = driverRideAction[2] as
@@ -530,6 +538,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const offer = await currentDriverOffer({
         rides: rideRepository,
@@ -548,6 +557,7 @@ const server = createServer(async (request, response) => {
       const driverId = await resolveDriverId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const offerId = driverOfferAction[1]!;
       const action = driverOfferAction[2]!;
@@ -656,6 +666,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       if (routingDistanceProvider == null) {
         json(response, 503, {
@@ -690,6 +701,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const body = parseCreateRideRequest(await readJson(request));
       const ride = await createRide(rideRepository, {
@@ -707,6 +719,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const tracking = await passengerRideTracking({
         rides: rideRepository,
@@ -731,6 +744,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const ride = await rideRepository.findById(rideMatch[1]!);
 
@@ -747,6 +761,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const balanceCents = await passengerWalletBalanceCents(
         financeRepository,
@@ -764,6 +779,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const body = parseCreateWalletTopupRequest(await readJson(request));
       const topup = await createWalletTopup(financeRepository, {
@@ -792,6 +808,7 @@ const server = createServer(async (request, response) => {
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
+        identities: authOtpRepository,
       });
       const ride = await rideRepository.findById(paymentMatch[1]!);
 
@@ -1148,6 +1165,7 @@ attachRealtimeServer({
   drivers: driverSupplyRepository,
   matching: rideMatchingRepository,
   sessions: authSessionRepository,
+  identities: authOtpRepository,
 });
 
 server.listen(port, '0.0.0.0', () => {
