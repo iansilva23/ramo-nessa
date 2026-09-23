@@ -36,6 +36,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - liquidação idempotente da corrida concluída;
 - 10% creditado em receita da plataforma;
 - 90% creditado no saldo contábil do motorista;
+- solicitação de saque idempotente;
+- reserva atômica do saldo para impedir saque duplicado;
+- saldo reservado separado em payout_pending;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;

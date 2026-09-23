@@ -60,7 +60,8 @@
 - [ ] navegação/coleta
 - [ ] início e finalização
 - [ ] ganhos bruto/líquido
-- [ ] carteira/repasse
+- [ ] carteira/repasse no app do motorista
+- [x] saldo e reserva de saque no Core
 - [ ] histórico e avaliações
 
 ## Etapa 3 — Core
@@ -89,7 +90,8 @@
 - [x] liquidação 10% plataforma / 90% motorista após corrida concluída
 - [ ] Carteira do passageiro
 - [x] saldo contábil do motorista por ledger
-- [ ] saque/repasse real ao motorista
+- [x] solicitação e reserva idempotente de saque
+- [ ] repasse Pix real ao motorista
 - [ ] notificações
 - [ ] chat
 - [ ] auditoria persistente

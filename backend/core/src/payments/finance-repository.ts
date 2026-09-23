@@ -1,5 +1,6 @@
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
+import type { DriverPayoutRecord } from './payout.js';
 
 export interface CapturePaymentInput {
   paymentId: string;
@@ -30,11 +31,20 @@ export interface SettleRideResult {
   duplicateSettlement: boolean;
 }
 
+export interface ReserveDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateRequest: boolean;
+}
+
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
   settleRide(input: SettleRideInput): Promise<SettleRideResult>;
+  reserveDriverPayout(
+    payout: DriverPayoutRecord,
+  ): Promise<ReserveDriverPayoutResult>;
   getAccountBalanceCents(accountKey: string): Promise<number>;
 }

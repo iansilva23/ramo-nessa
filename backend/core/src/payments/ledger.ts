@@ -13,6 +13,7 @@ export interface LedgerTransaction {
   kind: string;
   rideId?: string;
   paymentId?: string;
+  payoutId?: string;
   referenceKey: string;
   entries: LedgerEntry[];
   createdAt: string;
@@ -87,7 +88,6 @@ export function paymentCaptureLedger(input: {
   };
 }
 
-
 export function rideSettlementLedger(input: {
   rideId: string;
   paymentId: string;
@@ -132,6 +132,37 @@ export function rideSettlementLedger(input: {
     rideId: input.rideId,
     paymentId: input.paymentId,
     referenceKey: `ride-settlement:${input.rideId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function driverPayoutReserveLedger(input: {
+  payoutId: string;
+  driverId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payable`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_RESERVED',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-reserve:${input.payoutId}`,
     entries,
     createdAt: input.createdAt,
   };

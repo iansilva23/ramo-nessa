@@ -1,4 +1,5 @@
 import {
+  driverPayoutReserveLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   type LedgerTransaction,
@@ -7,15 +8,22 @@ import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type FinanceRepository,
+  type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
+import {
+  PayoutDomainError,
+  type DriverPayoutRecord,
+} from '../payout.js';
 
 export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly payments = new Map<string, PaymentRecord>();
   private readonly idempotencyIndex = new Map<string, string>();
+  private readonly payouts = new Map<string, DriverPayoutRecord>();
+  private readonly payoutIdempotencyIndex = new Map<string, string>();
   private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
     string,
@@ -169,6 +177,75 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     return {
       ledgerTransaction: structuredClone(ledger),
       duplicateSettlement: false,
+    };
+  }
+
+  async reserveDriverPayout(
+    payout: DriverPayoutRecord,
+  ): Promise<ReserveDriverPayoutResult> {
+    const existingId = this.payoutIdempotencyIndex.get(
+      payout.idempotencyKey,
+    );
+
+    if (existingId != null) {
+      const existing = this.payouts.get(existingId);
+      if (existing == null) {
+        throw new Error('Índice de saque aponta para registro inexistente.');
+      }
+
+      if (
+        existing.driverId !== payout.driverId ||
+        existing.amountCents !== payout.amountCents
+      ) {
+        throw new PayoutDomainError(
+          'PAYOUT_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência já utilizada em outro saque.',
+        );
+      }
+
+      const ledger = this.ledgerByReference.get(
+        `driver-payout-reserve:${existing.id}`,
+      );
+      if (ledger == null) {
+        throw new Error('Saque idempotente sem lançamento no ledger.');
+      }
+
+      return {
+        payout: structuredClone(existing),
+        ledgerTransaction: structuredClone(ledger),
+        duplicateRequest: true,
+      };
+    }
+
+    const available = await this.getAccountBalanceCents(
+      `driver:${payout.driverId}:payable`,
+    );
+
+    if (payout.amountCents > available) {
+      throw new PayoutDomainError(
+        'INSUFFICIENT_DRIVER_BALANCE',
+        'Saldo disponível insuficiente para o saque.',
+      );
+    }
+
+    const ledger = driverPayoutReserveLedger({
+      payoutId: payout.id,
+      driverId: payout.driverId,
+      amountCents: payout.amountCents,
+      createdAt: payout.createdAt,
+    });
+
+    this.payouts.set(payout.id, structuredClone(payout));
+    this.payoutIdempotencyIndex.set(payout.idempotencyKey, payout.id);
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
+
+    return {
+      payout: structuredClone(payout),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateRequest: false,
     };
   }
 

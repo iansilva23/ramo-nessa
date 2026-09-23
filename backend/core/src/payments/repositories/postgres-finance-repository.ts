@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import {
+  driverPayoutReserveLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   type LedgerTransaction,
@@ -11,11 +12,16 @@ import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type FinanceRepository,
+  type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
+import {
+  PayoutDomainError,
+  type DriverPayoutRecord,
+} from '../payout.js';
 
 interface PaymentRow {
   id: string;
@@ -30,11 +36,24 @@ interface PaymentRow {
   updated_at: Date;
 }
 
+interface DriverPayoutRow {
+  id: string;
+  driver_id: string;
+  amount_cents: number;
+  status: DriverPayoutRecord['status'];
+  idempotency_key: string;
+  processor: string | null;
+  processor_payout_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 interface LedgerTransactionRow {
   id: string;
   kind: string;
   ride_id: string | null;
   payment_id: string | null;
+  payout_id: string | null;
   reference_key: string;
   created_at: Date;
 }
@@ -62,9 +81,30 @@ function mapPayment(row: PaymentRow): PaymentRecord {
   };
 }
 
+function mapPayout(row: DriverPayoutRow): DriverPayoutRecord {
+  return {
+    id: row.id,
+    driverId: row.driver_id,
+    amountCents: row.amount_cents,
+    status: row.status,
+    idempotencyKey: row.idempotency_key,
+    ...(row.processor != null ? { processor: row.processor } : {}),
+    ...(row.processor_payout_id != null
+      ? { processorPayoutId: row.processor_payout_id }
+      : {}),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 const PAYMENT_COLUMNS = `
   id, ride_id, method, processor, processor_payment_id, status,
   amount_cents, idempotency_key, created_at, updated_at
+`;
+
+const PAYOUT_COLUMNS = `
+  id, driver_id, amount_cents, status, idempotency_key,
+  processor, processor_payout_id, created_at, updated_at
 `;
 
 async function insertLedger(
@@ -74,14 +114,15 @@ async function insertLedger(
   await client.query(
     `
     INSERT INTO ledger_transactions (
-      id, kind, ride_id, payment_id, reference_key, created_at
-    ) VALUES ($1,$2,$3,$4,$5,$6)
+      id, kind, ride_id, payment_id, payout_id, reference_key, created_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
     `,
     [
       transaction.id,
       transaction.kind,
       transaction.rideId ?? null,
       transaction.paymentId ?? null,
+      transaction.payoutId ?? null,
       transaction.referenceKey,
       transaction.createdAt,
     ],
@@ -112,7 +153,8 @@ async function loadLedgerByReference(
 ): Promise<LedgerTransaction | null> {
   const transactionResult = await client.query<LedgerTransactionRow>(
     `
-    SELECT id, kind, ride_id, payment_id, reference_key, created_at
+    SELECT
+      id, kind, ride_id, payment_id, payout_id, reference_key, created_at
     FROM ledger_transactions
     WHERE reference_key = $1
     LIMIT 1
@@ -138,6 +180,7 @@ async function loadLedgerByReference(
     kind: row.kind,
     ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
     ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
+    ...(row.payout_id != null ? { payoutId: row.payout_id } : {}),
     referenceKey: row.reference_key,
     entries: entriesResult.rows.map((entry) => ({
       accountKey: entry.account_key,
@@ -146,6 +189,27 @@ async function loadLedgerByReference(
     })),
     createdAt: row.created_at.toISOString(),
   };
+}
+
+async function accountBalanceCents(
+  client: PoolClient,
+  accountKey: string,
+): Promise<number> {
+  const result = await client.query<{ balance_cents: string }>(
+    `
+    SELECT COALESCE(SUM(
+      CASE
+        WHEN direction = 'credit' THEN amount_cents
+        ELSE -amount_cents
+      END
+    ), 0)::text AS balance_cents
+    FROM ledger_entries
+    WHERE account_key = $1
+    `,
+    [accountKey],
+  );
+
+  return Number(result.rows[0]?.balance_cents ?? '0');
 }
 
 export class PostgresFinanceRepository implements FinanceRepository {
@@ -235,7 +299,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
       }
 
       const payment = mapPayment(row);
-      const eventKey = `payment-capture:${payment.processor}:${input.processorEventId}`;
+      const eventKey =
+        `payment-capture:${payment.processor}:${input.processorEventId}`;
       const existingLedger = await loadLedgerByReference(client, eventKey);
 
       if (existingLedger != null) {
@@ -379,6 +444,132 @@ export class PostgresFinanceRepository implements FinanceRepository {
       };
     } catch (error) {
       await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async reserveDriverPayout(
+    payout: DriverPayoutRecord,
+  ): Promise<ReserveDriverPayoutResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const existingResult = await client.query<DriverPayoutRow>(
+        `
+        SELECT ${PAYOUT_COLUMNS}
+        FROM driver_payouts
+        WHERE idempotency_key = $1
+        LIMIT 1
+        `,
+        [payout.idempotencyKey],
+      );
+      const existingRow = existingResult.rows[0];
+
+      if (existingRow != null) {
+        const existing = mapPayout(existingRow);
+        if (
+          existing.driverId !== payout.driverId ||
+          existing.amountCents !== payout.amountCents
+        ) {
+          throw new PayoutDomainError(
+            'PAYOUT_IDEMPOTENCY_CONFLICT',
+            'Chave de idempotência já utilizada em outro saque.',
+          );
+        }
+
+        const ledger = await loadLedgerByReference(
+          client,
+          `driver-payout-reserve:${existing.id}`,
+        );
+        if (ledger == null) {
+          throw new Error('Saque idempotente sem lançamento no ledger.');
+        }
+
+        await client.query('COMMIT');
+        return {
+          payout: existing,
+          ledgerTransaction: ledger,
+          duplicateRequest: true,
+        };
+      }
+
+      const accountKey = `driver:${payout.driverId}:payable`;
+
+      // Serializa pedidos de saque do mesmo motorista para impedir
+      // duas requisições concorrentes de consumirem o mesmo saldo.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [accountKey],
+      );
+
+      const available = await accountBalanceCents(client, accountKey);
+      if (payout.amountCents > available) {
+        throw new PayoutDomainError(
+          'INSUFFICIENT_DRIVER_BALANCE',
+          'Saldo disponível insuficiente para o saque.',
+        );
+      }
+
+      const inserted = await client.query<DriverPayoutRow>(
+        `
+        INSERT INTO driver_payouts (
+          id, driver_id, amount_cents, status, idempotency_key,
+          processor, processor_payout_id, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        RETURNING ${PAYOUT_COLUMNS}
+        `,
+        [
+          payout.id,
+          payout.driverId,
+          payout.amountCents,
+          payout.status,
+          payout.idempotencyKey,
+          payout.processor ?? null,
+          payout.processorPayoutId ?? null,
+          payout.createdAt,
+          payout.updatedAt,
+        ],
+      );
+
+      const ledger = driverPayoutReserveLedger({
+        payoutId: payout.id,
+        driverId: payout.driverId,
+        amountCents: payout.amountCents,
+        createdAt: payout.createdAt,
+      });
+
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      const row = inserted.rows[0];
+      if (row == null) {
+        throw new Error('PostgreSQL não retornou o saque criado.');
+      }
+
+      return {
+        payout: mapPayout(row),
+        ledgerTransaction: ledger,
+        duplicateRequest: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+
+      const code =
+        typeof error === 'object' && error != null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+
+      if (code === '23505') {
+        throw new PayoutDomainError(
+          'PAYOUT_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência do saque já utilizada.',
+        );
+      }
+
       throw error;
     } finally {
       client.release();
