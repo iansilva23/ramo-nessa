@@ -554,6 +554,32 @@ try {
     );
   }
 
+  const pricingCatalog = await jsonRequest(
+    '/v1/admin/pricing/catalog',
+    { headers: authHeaders },
+  );
+  if (
+    pricingCatalog.response.status !== 200 ||
+    pricingCatalog.payload?.catalogVersion !== 'v1' ||
+    pricingCatalog.payload?.authority !== 'core' ||
+    pricingCatalog.payload?.mode !== 'static' ||
+    pricingCatalog.payload?.editable !== false ||
+    pricingCatalog.payload?.commissionBps !== 1000 ||
+    !Array.isArray(pricingCatalog.payload?.localities?.prea) ||
+    !Array.isArray(pricingCatalog.payload?.localities?.jijoca) ||
+    !Array.isArray(pricingCatalog.payload?.fixedRoutes) ||
+    !pricingCatalog.payload.fixedRoutes.some(
+      (route) =>
+        route.id === 'prea-jijoca-car' &&
+        route.dayCents === 12000 &&
+        route.after22Cents === 14000,
+    )
+  ) {
+    throw new Error(
+      'Catálogo administrativo read-only de preços não foi confirmado.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
@@ -616,7 +642,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard operacional, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard operacional, preços read-only, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
