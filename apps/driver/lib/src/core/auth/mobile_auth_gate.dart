@@ -24,7 +24,10 @@ class MobileAuthGate extends StatefulWidget {
   final bool devBypass;
   final String loginTitle;
   final String loginSubtitle;
-  final Widget Function(String? accessToken) authenticatedBuilder;
+  final Widget Function(
+    String? accessToken,
+    Future<bool> Function() logout,
+  ) authenticatedBuilder;
 
   @override
   State<MobileAuthGate> createState() => _MobileAuthGateState();
@@ -75,6 +78,27 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
     });
   }
 
+  Future<bool> _logout() async {
+    final token = _accessToken;
+    if (token == null || token.length < 20) {
+      return false;
+    }
+
+    try {
+      await widget.service.logout(token);
+      await widget.tokenStore.clearAccessToken();
+    } catch (_) {
+      return false;
+    }
+
+    if (!mounted) return true;
+    setState(() {
+      _accessToken = null;
+      _checking = false;
+    });
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_checking) {
@@ -85,7 +109,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
 
     final token = _accessToken;
     if ((token != null && token.length >= 20) || widget.devBypass) {
-      return widget.authenticatedBuilder(token);
+      return widget.authenticatedBuilder(token, _logout);
     }
 
     return PhoneLoginScreen(
