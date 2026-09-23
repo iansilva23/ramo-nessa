@@ -20,16 +20,22 @@ O serviço só pode entrar em matching/despacho quando o pagamento estiver confi
 
 ## Comissão
 
-- Ramo Nessa: 10% do valor final.
-- Motorista/prestador: 90% do valor final.
-- A comissão se aplica a Moto, Entrega, Carro, Buggy, Comfort/Black, transfers e adicionais cobrados pelo app.
+- Ramo Nessa: 10% da tarifa-base.
+- Motorista/prestador: 90% da tarifa-base.
+- A compensação de coleta distante é adicional ao total do passageiro, mas vai 100% para o motorista e não sofre comissão.
+- A regra de 10%/90% sobre a tarifa-base se aplica a Moto, Entrega, Carro, Buggy, Comfort/Black e transfers.
 
 Exemplo:
 
 ```text
-valor final: R$ 150
-Ramo Nessa (10%): R$ 15
-motorista (90%): R$ 135
+tarifa-base: R$ 150
+Ramo Nessa (10% da base): R$ 15
+motorista (90% da base): R$ 135
+
+Se houver R$ 7 de compensação de coleta:
+total do passageiro: R$ 157
+Ramo Nessa: R$ 15
+motorista: R$ 142
 ```
 
 ## Carteira do Passageiro
