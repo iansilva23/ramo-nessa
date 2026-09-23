@@ -33,6 +33,7 @@ class PassengerHomeScreen extends StatefulWidget {
   const PassengerHomeScreen({
     super.key,
     this.accessToken,
+    this.onLogout,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -45,6 +46,7 @@ class PassengerHomeScreen extends StatefulWidget {
   });
 
   final String? accessToken;
+  final Future<bool> Function()? onLogout;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
@@ -696,6 +698,49 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       );
   }
 
+  Future<void> _openProfileMenu() async {
+    final logout = widget.onLogout;
+    if (logout == null) return;
+
+    final shouldLogout = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: RamoSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                leading: Icon(Icons.person_rounded),
+                title: Text('Conta Ramo Nessa'),
+                subtitle: Text('Sessão protegida neste aparelho'),
+              ),
+              ListTile(
+                key: const Key('passenger-logout'),
+                leading: const Icon(Icons.logout_rounded),
+                title: const Text('Sair da conta'),
+                onTap: () => Navigator.of(context).pop(true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (shouldLogout != true) return;
+    final success = await logout();
+    if (!mounted || success) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Não foi possível encerrar a sessão agora. Tente novamente.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final coverage = _origin != null && _destination != null
@@ -769,7 +814,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   const SizedBox(width: RamoSpacing.xs),
                   IconButton.filled(
                     tooltip: 'Perfil',
-                    onPressed: () {},
+                    onPressed: _openProfileMenu,
                     icon: const Icon(Icons.person_rounded),
                   ),
                 ],
