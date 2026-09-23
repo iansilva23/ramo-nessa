@@ -13,7 +13,7 @@ function ride(): RideRecord {
     state: 'AWAITING_PAYMENT',
     paymentStatus: 'created',
     reservedDriverId: 'driver-payment-fixture',
-    driverHoldExpiresAt: '2026-09-23T02:00:00.000Z',
+    driverHoldExpiresAt: '2027-01-01T00:00:00.000Z',
     pickupLatitude: -2.82017,
     pickupLongitude: -40.41467,
     dropoffLatitude: -2.80023,
