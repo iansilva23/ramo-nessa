@@ -4,17 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/app.dart';
 import 'package:ramo_nessa_driver/src/core/location/driver_location_service.dart';
+import 'package:ramo_nessa_driver/src/core/navigation/driver_navigation_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
 
 void main() {
   testWidgets('motorista fica online, recebe oferta e aceita', (tester) async {
     final api = _FakeDriverApi();
+    final navigation = _FakeNavigationService();
 
     await tester.pumpWidget(
       RamoNessaDriverApp(
         api: api,
         locationService: const _FakeLocationService(),
+        navigationService: navigation,
       ),
     );
     await tester.pump();
@@ -39,7 +42,15 @@ void main() {
 
     expect(find.text('A caminho do embarque'), findsOneWidget);
     expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Navegar até o embarque'), findsOneWidget);
     expect(api.acceptedOfferId, 'offer-1');
+
+    await tester.ensureVisible(find.text('Navegar até o embarque'));
+    await tester.pump();
+    await tester.tap(find.text('Navegar até o embarque'));
+    await tester.pump();
+    expect(navigation.lastLatitude, -2.82017);
+    expect(navigation.lastLongitude, -40.41467);
 
     await tester.ensureVisible(find.text('Cheguei'));
     await tester.pump();
@@ -54,6 +65,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
+    expect(find.text('Navegar até o destino'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Navegar até o destino'));
+    await tester.pump();
+    await tester.tap(find.text('Navegar até o destino'));
+    await tester.pump();
+    expect(navigation.lastLatitude, -2.7956);
+    expect(navigation.lastLongitude, -40.5142);
 
     await tester.ensureVisible(find.text('Finalizar corrida'));
     await tester.pump();
@@ -125,6 +144,20 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+}
+
+class _FakeNavigationService implements DriverNavigationService {
+  double? lastLatitude;
+  double? lastLongitude;
+
+  @override
+  Future<void> openNavigation({
+    required double latitude,
+    required double longitude,
+  }) async {
+    lastLatitude = latitude;
+    lastLongitude = longitude;
+  }
 }
 
 class _FakeLocationService implements DriverLocationService {
@@ -255,6 +288,8 @@ class _FakeDriverApi implements DriverApi {
       pickupCompensationCents: 200,
       pickupLatitude: -2.82017,
       pickupLongitude: -40.41467,
+      dropoffLatitude: -2.7956,
+      dropoffLongitude: -40.5142,
     );
     return _currentRide!;
   }
@@ -276,6 +311,8 @@ class _FakeDriverApi implements DriverApi {
       pickupCompensationCents: ride.pickupCompensationCents,
       pickupLatitude: ride.pickupLatitude,
       pickupLongitude: ride.pickupLongitude,
+      dropoffLatitude: ride.dropoffLatitude,
+      dropoffLongitude: ride.dropoffLongitude,
     );
     return _currentRide!;
   }
@@ -294,6 +331,8 @@ class _FakeDriverApi implements DriverApi {
       pickupCompensationCents: ride.pickupCompensationCents,
       pickupLatitude: ride.pickupLatitude,
       pickupLongitude: ride.pickupLongitude,
+      dropoffLatitude: ride.dropoffLatitude,
+      dropoffLongitude: ride.dropoffLongitude,
     );
     return _currentRide!;
   }
@@ -313,6 +352,8 @@ class _FakeDriverApi implements DriverApi {
       pickupCompensationCents: ride.pickupCompensationCents,
       pickupLatitude: ride.pickupLatitude,
       pickupLongitude: ride.pickupLongitude,
+      dropoffLatitude: ride.dropoffLatitude,
+      dropoffLongitude: ride.dropoffLongitude,
     );
     _currentRide = null;
     _supply = DriverSupplySnapshot(

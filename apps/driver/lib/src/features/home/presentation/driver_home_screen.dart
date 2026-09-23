@@ -6,6 +6,8 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../../../core/config/driver_core_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
+import '../../../core/navigation/driver_navigation_service.dart';
+import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../data/driver_api.dart';
 import '../data/http_driver_api.dart';
 import '../domain/driver_models.dart';
@@ -15,10 +17,12 @@ class DriverHomeScreen extends StatefulWidget {
     super.key,
     this.api,
     this.locationService,
+    this.navigationService,
   });
 
   final DriverApi? api;
   final DriverLocationService? locationService;
+  final DriverNavigationService? navigationService;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -35,6 +39,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   late final DriverLocationService _location =
       widget.locationService ?? DeviceDriverLocationService();
+
+  late final DriverNavigationService _navigation =
+      widget.navigationService ?? ExternalDriverNavigationService();
 
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
@@ -329,6 +336,42 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _navigateActiveRide() async {
+    final ride = _activeRide;
+    if (ride == null) return;
+
+    final useDropoff = ride.state === 'IN_PROGRESS';
+    final latitude =
+        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude =
+        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+
+    if (latitude == null || longitude == null) {
+      if (!mounted) return;
+      setState(() {
+        _message = useDropoff
+            ? 'O destino exato desta corrida não está disponível.'
+            : 'O ponto de embarque desta corrida não está disponível.';
+      });
+      return;
+    }
+
+    try {
+      await _navigation.openNavigation(
+        latitude: latitude,
+        longitude: longitude,
+      );
+    } on DriverNavigationException catch (error) {
+      if (!mounted) return;
+      setState(() => _message = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _message = 'Não foi possível abrir a navegação agora.';
+      });
+    }
+  }
+
   Future<void> _markArrived() async {
     final api = _api;
     final ride = _activeRide;
@@ -496,6 +539,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         _ActiveRideCard(
                           ride: _activeRide!,
                           busy: _rideAction,
+                          onNavigate: _navigateActiveRide,
                           onArrived: _markArrived,
                           onStart: _startRide,
                           onComplete: _completeRide,
@@ -783,6 +827,7 @@ class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
     required this.ride,
     required this.busy,
+    required this.onNavigate,
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
@@ -790,6 +835,7 @@ class _ActiveRideCard extends StatelessWidget {
 
   final AcceptedDriverRide ride;
   final bool busy;
+  final VoidCallback onNavigate;
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
@@ -863,8 +909,38 @@ class _ActiveRideCard extends StatelessWidget {
                 '${ride.pickupLongitude!.toStringAsFixed(5)}',
               ),
             ),
-          if (_actionLabel != null) ...[
+          if (
+            (ride.state == 'DRIVER_ASSIGNED' ||
+                ride.state == 'DRIVER_ARRIVING') &&
+            ride.pickupLatitude != null &&
+            ride.pickupLongitude != null
+          ) ...[
             const SizedBox(height: RamoSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onNavigate,
+                icon: const Icon(Icons.navigation_rounded),
+                label: const Text('Navegar até o embarque'),
+              ),
+            ),
+          ] else if (
+            ride.state == 'IN_PROGRESS' &&
+            ride.dropoffLatitude != null &&
+            ride.dropoffLongitude != null
+          ) ...[
+            const SizedBox(height: RamoSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onNavigate,
+                icon: const Icon(Icons.navigation_rounded),
+                label: const Text('Navegar até o destino'),
+              ),
+            ),
+          ],
+          if (_actionLabel != null) ...[
+            const SizedBox(height: RamoSpacing.md),
             SizedBox(
               width: double.infinity,
               child: FilledButton(

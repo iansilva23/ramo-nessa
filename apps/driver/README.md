@@ -18,6 +18,8 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - Cheguei / Iniciar / Finalizar integrados ao Core;
 - finalização exibe saldo disponível do motorista;
 - embarque e destino exatos ficam disponíveis para o fluxo de navegação;
+- botão abre navegação externa para embarque antes da corrida;
+- após iniciar, botão abre navegação externa para o destino exato;
 - APK debug publicado como artefato do Driver CI.
 
 ## Segurança
@@ -36,6 +38,6 @@ A identidade de desenvolvimento é recusada pelo Core em produção.
 - onboarding/documentos;
 - realtime/push;
 - validar tracking em background em celular Android real;
-- navegação;
+- navegação interna/turn-by-turn própria;
 - ganhos, saque, histórico e avaliações;
 - iOS e assinatura de release.

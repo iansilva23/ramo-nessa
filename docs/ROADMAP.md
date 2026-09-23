@@ -73,7 +73,8 @@
 - [x] aceite atômico no Core
 - [x] API Core para aceitar/recusar
 - [x] aceitar/recusar no app
-- [ ] navegação/coleta
+- [x] navegação externa para coleta e destino
+- [ ] navegação interna/turn-by-turn própria
 - [x] coordenadas exatas de embarque e destino persistidas no Core
 - [x] Cheguei / Iniciar / Finalizar com liquidação
 - [x] ganho líquido por corrida exibido
