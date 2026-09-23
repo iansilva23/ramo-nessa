@@ -40,6 +40,7 @@ A versão inicial implementa:
 - indicadores reais de total/aprovados/suspensos;
 - dashboard operacional de corridas com estados reais e janela móvel de 24h;
 - módulo Viagens com filtros, busca, paginação e detalhe read-only;
+- catálogo read-only de preços/zonas com localidades e rotas fixas do Core;
 - tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
 - cadastro de perfil + veículo com edição e aprovação explícita no painel;
@@ -69,6 +70,6 @@ apps/admin/src/
 ```
 
 A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
-privado, preços/zonas, pagamentos, bloqueios e demais módulos. O painel atual
+privado, edição/versionamento de preços e vigência, pagamentos, bloqueios e demais módulos. O painel atual
 registra a decisão humana, mas não substitui a inspeção do arquivo no storage
 privado autorizado.
