@@ -12,7 +12,7 @@ class IoPassengerRideRealtimeService
     String? accessToken,
     String? passengerId,
   })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _accessToken = accessToken ?? '',
         _passengerId = passengerId ?? RamoCoreConfig.devPassengerId;
 
   final Uri _baseUrl;
