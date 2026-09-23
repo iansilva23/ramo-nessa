@@ -1,4 +1,7 @@
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
+import { InMemoryAuthSessionRepository } from '../auth/repositories/in-memory-auth-session-repository.js';
+import { PostgresAuthSessionRepository } from '../auth/repositories/postgres-auth-session-repository.js';
 import type { RidePreparationRepository } from '../rides/ride-preparation-repository.js';
 import { InMemoryRidePreparationRepository } from '../rides/in-memory-ride-preparation-repository.js';
 import { PostgresRidePreparationRepository } from '../rides/postgres-ride-preparation-repository.js';
@@ -16,6 +19,7 @@ import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repo
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
+  authSessionRepository: AuthSessionRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
@@ -34,6 +38,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      authSessionRepository: new PostgresAuthSessionRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
       driverSupplyRepository,
@@ -54,6 +59,7 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    authSessionRepository: new InMemoryAuthSessionRepository(),
     rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
     driverSupplyRepository,
