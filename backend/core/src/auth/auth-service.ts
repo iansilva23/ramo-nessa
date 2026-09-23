@@ -6,6 +6,7 @@ import type {
   AuthSessionRecord,
   AuthSubjectType,
 } from './auth-session-repository.js';
+import type { AuthOtpRepository } from './auth-otp-repository.js';
 
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -15,7 +16,8 @@ export class AuthenticationError extends Error {
       | 'AUTH_REQUIRED'
       | 'AUTH_INVALID'
       | 'AUTH_EXPIRED'
-      | 'AUTH_ROLE_MISMATCH',
+      | 'AUTH_ROLE_MISMATCH'
+      | 'AUTH_IDENTITY_DISABLED',
     message: string,
   ) {
     super(message);
@@ -82,6 +84,7 @@ export async function authenticateBearer(input: {
   repository: AuthSessionRepository;
   headers: IncomingHttpHeaders;
   requiredType?: AuthSubjectType;
+  identities?: AuthOtpRepository;
   now?: Date;
 }): Promise<AuthSessionRecord> {
   const token = bearerToken(input.headers);
@@ -118,6 +121,23 @@ export async function authenticateBearer(input: {
       'AUTH_ROLE_MISMATCH',
       'Esta sessão não possui acesso a este recurso.',
     );
+  }
+
+  if (input.identities != null) {
+    const identity = await input.identities.findIdentityBySubject(
+      session.subjectType,
+      session.subjectId,
+    );
+
+    if (
+      identity?.status === 'suspended' ||
+      (identity == null && process.env.NODE_ENV === 'production')
+    ) {
+      throw new AuthenticationError(
+        'AUTH_IDENTITY_DISABLED',
+        'Esta conta não está disponível.',
+      );
+    }
   }
 
   return session;
