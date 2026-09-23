@@ -10,6 +10,11 @@ export interface GeoPoint {
 export interface RankedDriver {
   supply: DriverSupplyRecord;
   approximatePickupDistanceKm: number;
+  /**
+   * A distância em linha reta é apenas para ranking.
+   * A cotação final de coleta distante exige distância roteada.
+   */
+  routeDistanceRequiredForFinalFare: true;
 }
 
 export class MatchingError extends Error {
@@ -57,10 +62,12 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
 }
 
 export function rideRequiresFourByFour(ride: RideRecord): boolean {
+  const originIsJeri = ride.origin.zoneId === 'jericoacoara';
+  const destinationIsJeri = ride.destination.zoneId === 'jericoacoara';
+
   return (
     ride.category === 'comfort_black' &&
-    (ride.origin.zoneId === 'jericoacoara' ||
-      ride.destination.zoneId === 'jericoacoara')
+    originIsJeri !== destinationIsJeri
   );
 }
 
@@ -98,6 +105,7 @@ export function rankEligibleDrivers(input: {
         },
         input.pickup,
       ),
+      routeDistanceRequiredForFinalFare: true as const,
     }))
     .sort(
       (a, b) =>

@@ -57,9 +57,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
-- base de disponibilidade do motorista;
+- driver-supply como fonte única de disponibilidade do motorista;
 - filtro por categoria e capacidade real do veículo;
-- filtro 4x4 para rotas de Jeri;
+- filtro 4x4 para corredores de Jeri;
 - ranking de candidatos por proximidade;
 - localização vencida excluída do matching;
 - distância reta usada só para ranking, nunca para preço;
