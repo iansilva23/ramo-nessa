@@ -10,7 +10,7 @@ on:
       - apps/driver/pubspec.yaml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   refresh-lockfiles:
@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          ref: feature/zone-aware-pricing
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0
@@ -35,12 +37,15 @@ jobs:
         working-directory: apps/driver
         run: flutter pub get
 
-      - name: Upload lockfiles
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: refreshed-flutter-lockfiles
-          path: |
-            apps/passenger/pubspec.lock
-            apps/driver/pubspec.lock
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit generated lockfiles
+        shell: bash
+        run: |
+          if git diff --quiet -- apps/passenger/pubspec.lock apps/driver/pubspec.lock; then
+            echo "Lockfiles already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/passenger/pubspec.lock apps/driver/pubspec.lock
+          git commit -m "chore(flutter): refresh dependency lockfiles"
+          git push origin HEAD:feature/zone-aware-pricing
