@@ -131,6 +131,19 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   }
 
   async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
+    const payment = this.payments.get(input.paymentId);
+    if (
+      payment == null ||
+      payment.rideId !== input.rideId ||
+      payment.status !== 'paid' ||
+      payment.amountCents !== input.totalAmountCents
+    ) {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        'Pagamento não está pronto para liquidação.',
+      );
+    }
+
     const referenceKey = `ride-settlement:${input.rideId}`;
     const existing = this.ledgerByReference.get(referenceKey);
     if (existing != null) {
