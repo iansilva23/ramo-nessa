@@ -32,9 +32,15 @@ abstract interface class DriverApi {
 }
 
 class DriverApiException implements Exception {
-  const DriverApiException(this.message);
+  const DriverApiException(
+    this.message, {
+    this.code,
+    this.statusCode,
+  });
 
   final String message;
+  final String? code;
+  final int? statusCode;
 
   @override
   String toString() => message;
