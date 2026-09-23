@@ -3,6 +3,7 @@ import {
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
+  walletRideRefundLedger,
   walletTopupCaptureLedger,
   type LedgerTransaction,
 } from '../ledger.js';
@@ -14,6 +15,8 @@ import {
   type FinanceRepository,
   type PayRideFromWalletInput,
   type PayRideFromWalletResult,
+  type RefundWalletRideInput,
+  type RefundWalletRideResult,
   type ReserveDriverPayoutResult,
   type SettleRideInput,
   type SettleRideResult,
@@ -373,6 +376,75 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       payment: structuredClone(input.payment),
       ledgerTransaction: structuredClone(ledger),
       duplicatePayment: false,
+    };
+  }
+
+  async refundWalletRide(
+    input: RefundWalletRideInput,
+  ): Promise<RefundWalletRideResult> {
+    const payment = this.payments.get(input.paymentId);
+    if (
+      payment == null ||
+      payment.method !== 'wallet'
+    ) {
+      throw new WalletDomainError(
+        'WALLET_REFUND_NOT_ALLOWED',
+        'Pagamento de carteira não encontrado para estorno.',
+      );
+    }
+
+    const referenceKey = `wallet-ride-refund:${payment.id}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      const stored = this.payments.get(payment.id);
+      if (stored?.status !== 'refunded') {
+        throw new Error('Estorno no ledger sem pagamento marcado como refunded.');
+      }
+
+      return {
+        payment: structuredClone(stored),
+        ledgerTransaction: structuredClone(existing),
+        duplicateRefund: true,
+      };
+    }
+
+    if (payment.status !== 'paid') {
+      throw new WalletDomainError(
+        'WALLET_REFUND_NOT_ALLOWED',
+        `Pagamento em estado ${payment.status} não pode ser estornado.`,
+      );
+    }
+
+    const escrowAccount = `ride:${payment.rideId}:escrow`;
+    const escrowBalance = await this.getAccountBalanceCents(escrowAccount);
+    if (escrowBalance < payment.amountCents) {
+      throw new WalletDomainError(
+        'INSUFFICIENT_RIDE_ESCROW',
+        'Escrow da corrida não possui saldo suficiente para o estorno.',
+      );
+    }
+
+    const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+    const updated: PaymentRecord = {
+      ...payment,
+      status: transitionPayment(payment.status, 'refunded'),
+      updatedAt: refundedAt,
+    };
+    const ledger = walletRideRefundLedger({
+      rideId: payment.rideId,
+      paymentId: payment.id,
+      passengerId: input.passengerId,
+      amountCents: payment.amountCents,
+      createdAt: refundedAt,
+    });
+
+    this.payments.set(payment.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      payment: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateRefund: false,
     };
   }
 
