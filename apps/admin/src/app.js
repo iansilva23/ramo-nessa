@@ -30,6 +30,7 @@ const state = {
   currentDriver: null,
   currentDriverRegistry: null,
   currentDriverDocuments: null,
+  pricingCatalog: null,
   dashboard: {
     generatedAt: null,
     rides: {
@@ -88,6 +89,7 @@ const scopeLabels = new Map([
   ['drivers:documents:write', 'Revisar documentos de motoristas'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
+  ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -131,6 +133,7 @@ function clearSession(message = '') {
   state.currentDriver = null;
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
+  state.pricingCatalog = null;
   state.dashboard = {
     generatedAt: null,
     rides: {
@@ -266,6 +269,7 @@ function activateView(viewName) {
     'rides',
     'drivers',
     'passengers',
+    'pricing',
     'audit',
   ]);
   const view = known.has(viewName) ? viewName : 'overview';
@@ -284,6 +288,7 @@ function activateView(viewName) {
     rides: 'Viagens',
     drivers: 'Motoristas',
     passengers: 'Passageiros',
+    pricing: 'Preços',
     audit: 'Auditoria',
   };
   byId('page-title').textContent = titles[view];
@@ -294,6 +299,9 @@ function activateView(viewName) {
   }
   if (view === 'audit') {
     void loadAudit({ announce: false });
+  }
+  if (view === 'pricing') {
+    void loadPricingCatalog({ announce: false });
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
@@ -1346,6 +1354,167 @@ async function loadDashboard({ announce = true } = {}) {
   }
 }
 
+function pricingValueLabel(value) {
+  if (value == null || typeof value !== 'object') return '—';
+  if (value.kind === 'exact') {
+    return formatCurrencyCents(value.amountCents);
+  }
+  if (value.kind === 'range') {
+    return (
+      `${formatCurrencyCents(value.minCents)} – ` +
+      formatCurrencyCents(value.maxCents)
+    );
+  }
+  return '—';
+}
+
+function pricingIdentifierLabel(value) {
+  return String(value ?? '—')
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) =>
+      part.length <= 3
+        ? part.toUpperCase()
+        : part[0].toUpperCase() + part.slice(1),
+    )
+    .join(' ');
+}
+
+function renderPricingCatalog(payload = null) {
+  state.pricingCatalog = payload;
+
+  const prea = Array.isArray(payload?.localities?.prea)
+    ? payload.localities.prea
+    : [];
+  const jijoca = Array.isArray(payload?.localities?.jijoca)
+    ? payload.localities.jijoca
+    : [];
+  const localities = [
+    ...prea.map((item) => ({ base: 'Preá', item })),
+    ...jijoca.map((item) => ({ base: 'Jijoca', item })),
+  ];
+  const fixedRoutes = Array.isArray(payload?.fixedRoutes)
+    ? payload.fixedRoutes
+    : [];
+
+  byId('pricing-version').textContent =
+    payload?.catalogVersion ?? '—';
+
+  const commissionBps = Number(payload?.commissionBps);
+  byId('pricing-commission').textContent =
+    Number.isFinite(commissionBps)
+      ? `${(commissionBps / 100).toLocaleString('pt-BR')}%`
+      : '—';
+
+  byId('pricing-localities').textContent =
+    String(localities.length);
+  byId('pricing-fixed-routes').textContent =
+    String(fixedRoutes.length);
+  byId('pricing-locality-count').textContent =
+    `${localities.length} localidade(s)`;
+  byId('pricing-route-count').textContent =
+    `${fixedRoutes.length} rota(s)`;
+
+  const mode = byId('pricing-mode');
+  if (payload == null) {
+    mode.textContent = hasScope('pricing:read')
+      ? 'Aguardando catálogo'
+      : 'Sem permissão pricing:read';
+  } else {
+    mode.textContent =
+      `Catálogo ${payload.catalogVersion ?? '—'} · ` +
+      'estático · somente leitura';
+  }
+
+  const localityBody = byId('pricing-localities-body');
+  localityBody.replaceChildren();
+  for (const entry of localities) {
+    const row = document.createElement('tr');
+
+    const base = document.createElement('td');
+    base.textContent = entry.base;
+
+    const locality = document.createElement('td');
+    const localityName = document.createElement('strong');
+    localityName.textContent = pricingIdentifierLabel(
+      entry.item.localityId,
+    );
+    const localityId = document.createElement('small');
+    localityId.className = 'table-subtext';
+    localityId.textContent = entry.item.localityId;
+    locality.append(localityName, localityId);
+
+    const moto = document.createElement('td');
+    moto.textContent = pricingValueLabel(entry.item.prices?.moto);
+
+    const delivery = document.createElement('td');
+    delivery.textContent = pricingValueLabel(
+      entry.item.prices?.delivery,
+    );
+
+    const car = document.createElement('td');
+    car.textContent = pricingValueLabel(entry.item.prices?.car);
+
+    row.append(base, locality, moto, delivery, car);
+    localityBody.append(row);
+  }
+  byId('pricing-localities-empty').hidden =
+    localities.length !== 0;
+
+  const routeBody = byId('pricing-routes-body');
+  routeBody.replaceChildren();
+  for (const route of fixedRoutes) {
+    const row = document.createElement('tr');
+
+    const pair = document.createElement('td');
+    pair.textContent =
+      `${pricingIdentifierLabel(route.a)} → ` +
+      pricingIdentifierLabel(route.b);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(route.category);
+
+    const day = document.createElement('td');
+    day.textContent = formatCurrencyCents(route.dayCents);
+
+    const night = document.createElement('td');
+    night.textContent = formatCurrencyCents(route.after22Cents);
+
+    const rule = document.createElement('td');
+    rule.textContent = route.id;
+
+    row.append(pair, category, day, night, rule);
+    routeBody.append(row);
+  }
+  byId('pricing-routes-empty').hidden =
+    fixedRoutes.length !== 0;
+}
+
+async function loadPricingCatalog({ announce = true } = {}) {
+  if (!state.token || !hasScope('pricing:read')) {
+    renderPricingCatalog();
+    return;
+  }
+
+  const button = byId('refresh-pricing-button');
+  button.disabled = true;
+  try {
+    const payload = await api.pricingCatalog(state.token);
+    renderPricingCatalog(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Catálogo de preços atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderDriverSummary(summary) {
   const normalized = {
     total: Number(summary?.total ?? 0),
@@ -2122,6 +2291,9 @@ byId('passenger-directory-more').addEventListener('click', () => {
 byId('refresh-dashboard-button').addEventListener('click', () => {
   void loadDashboard();
 });
+byId('refresh-pricing-button').addEventListener('click', () => {
+  void loadPricingCatalog();
+});
 byId('driver-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();
   void loadDriverDirectory({ reset: true });
@@ -2174,4 +2346,5 @@ setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
+renderPricingCatalog();
 syncDocumentRejectionRequirement();
