@@ -2030,6 +2030,7 @@ const realtimeServer = attachRealtimeServer({
   hub: realtimeHub,
   rides: rideRepository,
   drivers: driverSupplyRepository,
+  registry: driverRegistryRepository,
   matching: rideMatchingRepository,
   sessions: authSessionRepository,
   identities: authOtpRepository,
