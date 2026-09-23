@@ -66,6 +66,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _rideAction = false;
   bool _financeLoading = false;
   bool _payoutAction = false;
+  String? _pendingPayoutIdempotencyKey;
+  int? _pendingPayoutAmountCents;
   String? _message;
   Timer? _pollTimer;
   Timer? _ticker;
@@ -186,6 +188,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       setState(() {
         _message = 'Localização automática: ${error.message}';
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _message =
+            'Localização automática: não conseguimos sincronizar agora.';
+      });
     } finally {
       _locationSyncInFlight = false;
     }
@@ -274,6 +282,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() => _message = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _message = 'Não conseguimos atualizar as ofertas agora.');
     }
   }
 
@@ -370,6 +381,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _changingStatus = false;
         _message = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _changingStatus = false;
+        _message = 'Não conseguimos atualizar sua localização agora.';
+      });
     }
   }
 
@@ -396,6 +413,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       setState(() {
         _offerAction = false;
         _message = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _offerAction = false;
+        _message = 'Não conseguimos aceitar a corrida agora.';
       });
     }
   }
@@ -456,6 +479,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _rideAction = false;
         _message = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = 'Não conseguimos marcar sua chegada agora.';
+      });
     }
   }
 
@@ -479,6 +508,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _rideAction = false;
         _message = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = 'Não conseguimos iniciar a corrida agora.';
+      });
     }
   }
 
@@ -499,6 +534,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } on DriverApiException catch (error) {
       if (!mounted || !showError) return;
       setState(() => _message = error.message);
+    } catch (_) {
+      if (!mounted || !showError) return;
+      setState(() => _message = 'Não conseguimos atualizar seus ganhos agora.');
     } finally {
       if (mounted) {
         setState(() => _financeLoading = false);
@@ -520,9 +558,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       return;
     }
 
-    final amount = finance.availableBalanceCents;
-    final key =
+    final amount = _pendingPayoutAmountCents ?? finance.availableBalanceCents;
+    final key = _pendingPayoutIdempotencyKey ??=
         'driver-payout-${DateTime.now().microsecondsSinceEpoch}';
+    _pendingPayoutAmountCents ??= amount;
 
     setState(() => _payoutAction = true);
     try {
@@ -534,7 +573,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       setState(() {
         _finance = result.finance;
-        _payoutAction = false;
+        _pendingPayoutIdempotencyKey = null;
+        _pendingPayoutAmountCents = null;
         _message = null;
       });
 
@@ -551,9 +591,27 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
-        _payoutAction = false;
+        // O servidor respondeu de forma definitiva. Uma nova tentativa pode
+        // representar uma nova solicitação.
+        _pendingPayoutIdempotencyKey = null;
+        _pendingPayoutAmountCents = null;
         _message = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        // Em falha de transporte o servidor pode ter processado a solicitação.
+        // Mantemos a mesma chave/valor para o retry ser realmente idempotente.
+        _message =
+            'Não foi possível confirmar o saque. Tente novamente; '
+            'não criaremos uma solicitação duplicada.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _payoutAction = false);
+      } else {
+        _payoutAction = false;
+      }
     }
   }
 
@@ -598,6 +656,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _rideAction = false;
         _message = error.message;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message =
+            'Não conseguimos confirmar a finalização agora. '
+            'Tente novamente com segurança.';
+      });
     }
   }
 
@@ -619,6 +685,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       setState(() {
         _offerAction = false;
         _message = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _offerAction = false;
+        _message = 'Não conseguimos recusar a corrida agora.';
       });
     }
   }
