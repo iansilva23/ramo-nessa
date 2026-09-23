@@ -11,7 +11,7 @@ class IoDriverRealtimeService implements DriverRealtimeService {
     String? accessToken,
     String? driverId,
   })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? DriverCoreConfig.authToken,
+        _accessToken = accessToken ?? '',
         _driverId = driverId ?? DriverCoreConfig.devDriverId;
 
   final Uri _baseUrl;
