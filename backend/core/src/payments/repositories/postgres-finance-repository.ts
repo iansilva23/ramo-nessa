@@ -368,6 +368,16 @@ export class PostgresFinanceRepository implements FinanceRepository {
       const payment = mapPayment(row);
       const eventKey =
         `payment-capture:${payment.processor}:${input.processorEventId}`;
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [eventKey],
+      );
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`payment-ride:${payment.rideId}`],
+      );
+
       const existingLedger = await loadLedgerByReference(client, eventKey);
 
       if (existingLedger != null) {
@@ -384,6 +394,24 @@ export class PostgresFinanceRepository implements FinanceRepository {
           ledgerTransaction: existingLedger,
           duplicateEvent: true,
         };
+      }
+
+      const alreadyPaid = await client.query<{ id: string }>(
+        `
+        SELECT id
+        FROM payments
+        WHERE ride_id = $1
+          AND status = 'paid'
+          AND id <> $2
+        LIMIT 1
+        `,
+        [payment.rideId, payment.id],
+      );
+      if (alreadyPaid.rows[0] != null) {
+        throw new PaymentDomainError(
+          'RIDE_ALREADY_PAID',
+          'Esta corrida já possui outro pagamento confirmado.',
+        );
       }
 
       let nextStatus: PaymentRecord['status'];
@@ -455,6 +483,26 @@ export class PostgresFinanceRepository implements FinanceRepository {
       };
     } catch (error) {
       await client.query('ROLLBACK');
+
+      const code =
+        typeof error === 'object' && error != null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      const constraint =
+        typeof error === 'object' && error != null && 'constraint' in error
+          ? String((error as { constraint?: unknown }).constraint ?? '')
+          : '';
+
+      if (
+        code === '23505' &&
+        constraint === 'payments_one_paid_per_ride_idx'
+      ) {
+        throw new PaymentDomainError(
+          'RIDE_ALREADY_PAID',
+          'Esta corrida já possui outro pagamento confirmado.',
+        );
+      }
+
       throw error;
     } finally {
       client.release();
@@ -690,6 +738,27 @@ export class PostgresFinanceRepository implements FinanceRepository {
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [accountKey],
       );
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`payment-ride:${input.payment.rideId}`],
+      );
+
+      const alreadyPaid = await client.query<{ id: string }>(
+        `
+        SELECT id
+        FROM payments
+        WHERE ride_id = $1
+          AND status = 'paid'
+        LIMIT 1
+        `,
+        [input.payment.rideId],
+      );
+      if (alreadyPaid.rows[0] != null) {
+        throw new WalletDomainError(
+          'RIDE_ALREADY_PAID',
+          'Esta corrida já possui pagamento confirmado.',
+        );
+      }
 
       const available = await accountBalanceCents(client, accountKey);
       if (input.payment.amountCents > available) {
@@ -749,6 +818,21 @@ export class PostgresFinanceRepository implements FinanceRepository {
         typeof error === 'object' && error != null && 'code' in error
           ? String((error as { code?: unknown }).code ?? '')
           : '';
+
+      const constraint =
+        typeof error === 'object' && error != null && 'constraint' in error
+          ? String((error as { constraint?: unknown }).constraint ?? '')
+          : '';
+
+      if (
+        code === '23505' &&
+        constraint === 'payments_one_paid_per_ride_idx'
+      ) {
+        throw new WalletDomainError(
+          'RIDE_ALREADY_PAID',
+          'Esta corrida já possui pagamento confirmado.',
+        );
+      }
 
       if (code === '23505') {
         throw new WalletDomainError(
