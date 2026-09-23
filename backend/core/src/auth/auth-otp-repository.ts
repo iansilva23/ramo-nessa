@@ -40,6 +40,7 @@ export interface AuthOtpRepository {
   findLatestChallengeByIdentityId(
     identityId: string,
   ): Promise<OtpChallengeRecord | null>;
+  cancelChallenge(challengeId: string, canceledAt: string): Promise<void>;
   attemptChallenge(input: {
     challengeId: string;
     codeDigest: string;
