@@ -37,6 +37,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       (DriverCoreConfig.enabled
           ? HttpDriverApi(
               baseUrl: DriverCoreConfig.baseUri!,
+              accessToken: DriverCoreConfig.authToken,
               driverId: DriverCoreConfig.devDriverId,
             )
           : null);
@@ -52,6 +53,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           (DriverCoreConfig.enabled
               ? IoDriverRealtimeService(
                   baseUrl: DriverCoreConfig.baseUri!,
+                  accessToken: DriverCoreConfig.authToken,
                   driverId: DriverCoreConfig.devDriverId,
                 )
               : null);
