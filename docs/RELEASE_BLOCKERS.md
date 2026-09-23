@@ -68,7 +68,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o frontend inicial cobre login, diretórios paginados de acesso de motoristas e passageiros, indicadores de aprovação/suspensão e auditoria, e já possui stack same-origin de teste;
    - o Core e o Admin já possuem cadastro separado de perfil do motorista + veículo, com aprovação explícita e auditoria;
    - o Core já possui metadados/revisão de CNH e CRLV com histórico de versões e sem expor referência privada ao browser;
-   - ainda faltam storage privado, upload real, validação do arquivo/URL assinada e integração completa dessa aprovação com o onboarding final;
+   - o Admin já consulta somente metadados sanitizados e registra a decisão humana de aprovação/rejeição, sem receber storageKey ou hash do arquivo;
+   - ainda faltam storage privado, upload real, acesso/preview seguro do arquivo, validação do conteúdo e integração completa dessa aprovação com o onboarding final;
    - ainda faltam os módulos administrativos completos e a implantação operacional de produção;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
