@@ -36,7 +36,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   late final DriverApi? _api = widget.api ??
       (DriverCoreConfig.enabled
           ? HttpDriverApi(
-              baseUrl: Uri.parse(DriverCoreConfig.baseUrl),
+              baseUrl: DriverCoreConfig.baseUri!,
               driverId: DriverCoreConfig.devDriverId,
             )
           : null);
@@ -51,7 +51,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       widget.realtimeService ??
           (DriverCoreConfig.enabled
               ? IoDriverRealtimeService(
-                  baseUrl: Uri.parse(DriverCoreConfig.baseUrl),
+                  baseUrl: DriverCoreConfig.baseUri!,
                   driverId: DriverCoreConfig.devDriverId,
                 )
               : null);
