@@ -1,79 +1,82 @@
 # CI runbook — Ramo Nessa
 
-Este documento define como interpretar GitHub Actions antes de qualquer alteração de código.
+Este documento define a política de CI antes de qualquer correção de código.
 
 ## Regra de ouro
 
 Uma execução vermelha só é tratada como falha de código quando existe um step executado e um log que identifica a falha.
 
-Nunca alterar código de produção apenas porque um workflow terminou como failure.
+Nunca alterar código de produção apenas porque um workflow terminou como `failure`.
 
 ## Classificação
 
-### 1. INFRA/RUNNER/BILLING
+### INFRA/RUNNER/BILLING
 
-Classificar como infraestrutura quando todos os sinais abaixo ocorrerem:
+Classificar como infraestrutura quando:
 
 - o job foi criado;
-- `steps` está `null` ou a lista de steps está vazia;
+- `steps` está `null` ou vazio;
 - não existe step nomeado com `conclusion: failure`;
-- os logs do job não existem ou o endpoint de logs retorna 404/BlobNotFound.
+- os logs não existem ou retornam 404/BlobNotFound.
 
-Ação:
+Ação: não alterar código. Verificar runner, GitHub Actions, quota/orçamento e repetir somente quando houver capacidade de execução.
 
-1. não alterar código;
-2. verificar status público do GitHub Actions;
-3. verificar quota, orçamento e método de pagamento do GitHub Actions;
-4. repetir o job somente depois que o runner puder iniciar.
-
-### 2. CODE/DEPENDENCY
+### CODE/DEPENDENCY
 
 Classificar como falha real quando:
 
 - a lista de steps existe;
 - pelo menos um step iniciou;
-- existe um step específico com `conclusion: failure`;
-- existe log do step/job mostrando erro de analyze, test, build, migration ou dependência.
+- existe step específico com `conclusion: failure`;
+- o log demonstra erro de typecheck, migration, test, analyze, build ou dependência.
 
-Ação:
+Ação: corrigir somente o erro demonstrado pelo log.
 
-1. corrigir somente o erro demonstrado pelo log;
-2. executar novamente o workflow relevante;
-3. não usar falhas de outros workflows sem steps como evidência adicional.
+### CANCELLED / SKIPPED
 
-### 3. CANCELLED
+`cancelled` por concurrency e `skipped` não são falhas de código.
 
-Se `conclusion: cancelled` e existe um run mais novo do mesmo grupo de concurrency, tratar como substituição de execução, não como erro.
+## Política definitiva de disparo
 
-### 4. SKIPPED
+- branches `feature/**`: sem CI em evento `push`;
+- alterações da feature são validadas pelo evento do Pull Request;
+- `main`: Preflight executa em `push`;
+- PR #1 permanece Draft até revisão final;
+- não fazer merge na `main` durante esta fase;
+- `concurrency` cancela execuções obsoletas do mesmo PR/ref.
 
-`skipped` não é falha.
+## Preflight único
 
-## Política de disparo
+O arquivo `.github/workflows/preflight.yml` é a única implementação automática das verificações.
 
-Durante desenvolvimento em `feature/**`:
+Ordem:
 
-- Core CI roda somente quando arquivos de `backend/core/**` ou o próprio workflow mudam;
-- Passenger CI roda somente quando Passenger/design system ou o próprio workflow mudam;
-- Driver CI roda somente quando Driver/design system ou o próprio workflow mudam;
-- o Mobile Build Audit completo não roda automaticamente em feature branches;
-- Android release + iOS simulator completos são executados manualmente com `workflow_dispatch`.
+1. Core: `npm ci` usando `backend/core/package-lock.json`;
+2. Core typecheck;
+3. migrations PostgreSQL;
+4. segunda execução das migrations para provar idempotência;
+5. testes do Core;
+6. Design System: resolve/analyze/test;
+7. Passenger: dependências com lockfile, analyze e test;
+8. Driver: dependências com lockfile, analyze e test.
 
-No PR:
+Android/iOS não devem iniciar antes de o Preflight terminar com sucesso.
 
-- enquanto o PR estiver Draft, sincronizações não disparam a bateria inteira novamente;
-- ao marcar o PR como ready for review, os CIs relevantes executam uma validação completa;
-- o Mobile Build Audit também executa nessa transição.
+## Builds
 
-Na `main`:
+`Mobile Build Audit` é manual durante a fase Draft. Ele chama o mesmo Preflight reutilizável e só depois executa builds Android/iOS.
 
-- os workflows relevantes continuam habilitados para push;
-- este projeto não deve fazer merge na `main` antes da revisão final.
+Isso evita gastar runners macOS ou builds pesados quando typecheck, migration, testes ou analyze já falhariam antes.
 
-## Estado conhecido em 2026-09-23
+## Dependências
 
-No HEAD `4d30721224d003efb58165b73ea14871914fba99`, Core CI, Passenger CI, Driver CI e Mobile Build Audit criaram jobs sem steps e sem logs. Esse estado é classificado como INFRA/RUNNER/BILLING e não prova regressão no código.
+- Flutter fixado em 3.47.5;
+- Passenger e Driver mantêm `pubspec.lock` versionado;
+- CI usa `flutter pub get --enforce-lockfile` nos apps;
+- Core mantém `package-lock.json` versionado;
+- CI usa `npm ci`, nunca `npm install`;
+- Actions usam versões explícitas.
 
-## Observação sobre consumo
+## Estado observado em 2026-09-23
 
-O repositório é privado. Evitar a combinação `push feature + pull_request synchronize` para a mesma alteração e evitar macOS em cada commit, porque isso duplica ou multiplica consumo de GitHub Actions sem aumentar a cobertura útil.
+Os runs anteriores de Core, Passenger, Driver e Mobile Build Audit que terminaram com `steps: null`/sem logs são classificados como INFRA/RUNNER/BILLING. Eles não provam regressão de código.

@@ -2,21 +2,6 @@ name: Mobile Build Audit
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "apps/passenger/**"
-      - "apps/driver/**"
-      - "packages/design_system/**"
-      - ".github/workflows/mobile-build-audit.yml"
-  pull_request:
-    branches: [main]
-    types: [ready_for_review]
-    paths:
-      - "apps/passenger/**"
-      - "apps/driver/**"
-      - "packages/design_system/**"
-      - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
   group: mobile-build-audit-${{ github.ref }}
@@ -26,96 +11,88 @@ permissions:
   contents: read
 
 jobs:
-  android-release:
+  preflight:
+    uses: ./.github/workflows/preflight.yml
+
+  passenger-android-release:
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/passenger
-        run: flutter analyze
-
-      - name: Test
-        working-directory: apps/passenger
-        run: flutter test
-
-      - name: Build Android release
+      - name: Build Passenger Android release
         working-directory: apps/passenger
         run: flutter build apk --release
+
+      - name: Upload Passenger APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-passenger-release
+          path: apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
   driver-android-release:
+    needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve design system dependencies
-        working-directory: packages/design_system
-        run: flutter pub get
-
-      - name: Resolve driver dependencies
+      - name: Resolve Driver dependencies from lockfile
         working-directory: apps/driver
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/driver
-        run: flutter analyze
-
-      - name: Test
-        working-directory: apps/driver
-        run: flutter test
-
-      - name: Build Android release
+      - name: Build Driver Android release
         working-directory: apps/driver
         run: flutter build apk --release
 
-  ios-simulator:
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-driver-release
+          path: apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  passenger-ios-simulator:
+    needs: preflight
     runs-on: macos-15
     timeout-minutes: 30
-
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/passenger
-        run: flutter analyze
-
-      - name: Test
-        working-directory: apps/passenger
-        run: flutter test
-
-      - name: Build iOS simulator
+      - name: Build Passenger iOS simulator
         working-directory: apps/passenger
         run: flutter build ios --simulator --debug
