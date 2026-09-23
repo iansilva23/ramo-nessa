@@ -1,4 +1,7 @@
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
+import { InMemoryRideMatchingRepository } from '../matching/in-memory-ride-matching-repository.js';
+import { PostgresRideMatchingRepository } from '../matching/postgres-ride-matching-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import { InMemoryDriverSupplyRepository } from '../drivers/repositories/in-memory-driver-supply-repository.js';
 import { PostgresDriverSupplyRepository } from '../drivers/repositories/postgres-driver-supply-repository.js';
@@ -13,6 +16,7 @@ export interface RepositoryBundle {
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   driverSupplyRepository: DriverSupplyRepository;
+  rideMatchingRepository: RideMatchingRepository;
   storageMode: 'postgres' | 'memory';
 }
 
@@ -21,10 +25,15 @@ export function createRepositories(): RepositoryBundle {
 
   if (databaseUrl) {
     const pool = createPostgresPool(databaseUrl);
+    const rideRepository = new PostgresRideRepository(pool);
+    const driverSupplyRepository =
+      new PostgresDriverSupplyRepository(pool);
+
     return {
-      rideRepository: new PostgresRideRepository(pool),
+      rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
-      driverSupplyRepository: new PostgresDriverSupplyRepository(pool),
+      driverSupplyRepository,
+      rideMatchingRepository: new PostgresRideMatchingRepository(pool),
       storageMode: 'postgres',
     };
   }
@@ -35,10 +44,17 @@ export function createRepositories(): RepositoryBundle {
     );
   }
 
+  const rideRepository = new InMemoryRideRepository();
+  const driverSupplyRepository = new InMemoryDriverSupplyRepository();
+
   return {
-    rideRepository: new InMemoryRideRepository(),
+    rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
-    driverSupplyRepository: new InMemoryDriverSupplyRepository(),
+    driverSupplyRepository,
+    rideMatchingRepository: new InMemoryRideMatchingRepository(
+      rideRepository,
+      driverSupplyRepository,
+    ),
     storageMode: 'memory',
   };
 }

@@ -84,7 +84,7 @@ export function rankEligibleDrivers(input: {
 
   return input.candidates
     .filter((candidate) => {
-      if (!candidate.online) return false;
+      if (!candidate.online || candidate.busy) return false;
       if (!candidate.categories.includes(input.ride.category)) return false;
       if (candidate.seatCapacity < input.ride.passengers) return false;
       if (requiresFourByFour && !candidate.fourByFour) return false;

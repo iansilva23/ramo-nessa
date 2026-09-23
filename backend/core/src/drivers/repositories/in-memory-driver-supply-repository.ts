@@ -23,7 +23,7 @@ export class InMemoryDriverSupplyRepository
 
   async listOnline(): Promise<DriverSupplyRecord[]> {
     return [...this.supplies.values()]
-      .filter((supply) => supply.online)
+      .filter((supply) => supply.online && !supply.busy)
       .map((supply) => structuredClone(supply));
   }
 }

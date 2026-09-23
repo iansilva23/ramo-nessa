@@ -53,6 +53,10 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - exigência de 4x4 nas rotas aplicáveis de Jericoacoara;
 - ranking por proximidade aproximada;
 - despacho do domínio só inicia com corrida PAID;
+- ofertas de corrida persistentes com expiração;
+- apenas uma oferta ativa por vez por corrida;
+- aceite atômico vincula motorista e muda corrida para DRIVER_ASSIGNED;
+- motorista aceitando fica marcado como ocupado;
 - endpoints dev de saldo/recarga da Carteira;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
@@ -80,7 +84,7 @@ npm start
 - autenticação/autorização;
 - autenticação/autorização integrada ao endpoint de corrida;
 - resolver coordenadas -> localidade;
-- despacho/oferta/aceite real do matching;
+- entrega realtime e retentativa das ofertas de matching;
 - localização em tempo real;
 - máquina de estados;
 - integração real com gateway Pix/cartão;

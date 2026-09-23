@@ -7,6 +7,7 @@ export interface DriverSupplyRecord {
   fourByFour: boolean;
   seatCapacity: number;
   online: boolean;
+  busy: boolean;
   latitude: number;
   longitude: number;
   locationUpdatedAt: string;

@@ -48,6 +48,7 @@ function supply(
     fourByFour: false,
     seatCapacity: 4,
     online: true,
+    busy: false,
     latitude: -2.821,
     longitude: -40.414,
     locationUpdatedAt: now.toISOString(),

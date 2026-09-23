@@ -43,7 +43,8 @@
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [x] motor de elegibilidade e ranking de matching no Core
-- [ ] despacho/oferta real de matching
+- [x] criação e aceite persistentes de oferta
+- [ ] entrega realtime da oferta ao app
 - [ ] acompanhamento em tempo real
 - [ ] chat
 - [ ] histórico
@@ -59,8 +60,10 @@
 - [x] projeção online/offline no Core
 - [ ] controle online/offline no app
 - [ ] GPS em background
-- [ ] recebimento de ofertas
-- [ ] aceitar/recusar
+- [x] domínio persistente de ofertas no Core
+- [ ] recebimento de ofertas no app
+- [x] aceite atômico no Core
+- [ ] aceitar/recusar no app
 - [ ] navegação/coleta
 - [ ] início e finalização
 - [ ] ganhos bruto/líquido
@@ -87,7 +90,8 @@
 - [x] adapter PostgreSQL em runtime
 - [x] schema/migration inicial PostgreSQL para corridas
 - [x] elegibilidade/ranking de matching
-- [ ] despacho/oferta/aceite do matching
+- [x] oferta/aceite transacional do matching
+- [ ] realtime e retentativa de despacho
 - [ ] localização em tempo real
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
