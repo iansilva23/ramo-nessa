@@ -158,23 +158,64 @@ test('OTP respeita cooldown e limite de tentativas', async () => {
   );
 });
 
-test('motorista não cadastrado não recebe desafio OTP', async () => {
+test('motorista não cadastrado recebe resposta opaca sem SMS', async () => {
   const repository = new InMemoryAuthOtpRepository();
+  const sessions = new InMemoryAuthSessionRepository();
   const delivery = new RecordingDelivery();
+  const now = new Date('2026-09-23T10:25:00.000Z');
+
+  const requested = await requestPhoneOtp({
+    repository,
+    delivery,
+    subjectType: 'driver',
+    phone: '88999991236',
+    now,
+  });
+
+  assert.ok(requested.challengeId.length > 20);
+  assert.equal(requested.retryAfterSeconds, 60);
+  assert.equal(delivery.sent.length, 0);
 
   await assert.rejects(
     () =>
-      requestPhoneOtp({
+      verifyPhoneOtp({
         repository,
-        delivery,
-        subjectType: 'driver',
-        phone: '88999991236',
+        sessions,
+        challengeId: requested.challengeId,
+        code: '123456',
+        now: new Date('2026-09-23T10:25:10.000Z'),
       }),
     (error: unknown) =>
       error instanceof PhoneOtpError &&
-      error.code === 'DRIVER_NOT_REGISTERED',
+      error.code === 'OTP_INVALID_OR_EXPIRED',
   );
+});
 
+test('motorista suspenso também recebe resposta opaca sem SMS', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const delivery = new RecordingDelivery();
+  const now = new Date('2026-09-23T10:26:00.000Z');
+
+  await repository.createIdentity({
+    id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    subjectId: 'driver-suspended-otp',
+    subjectType: 'driver',
+    phoneE164: '+5588999991243',
+    status: 'suspended',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  const requested = await requestPhoneOtp({
+    repository,
+    delivery,
+    subjectType: 'driver',
+    phone: '88999991243',
+    now,
+  });
+
+  assert.ok(requested.challengeId.length > 20);
+  assert.equal(requested.retryAfterSeconds, 60);
   assert.equal(delivery.sent.length, 0);
 });
 

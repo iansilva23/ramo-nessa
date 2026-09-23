@@ -48,7 +48,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 6. **Cobertura iOS é parcial**
    - Passageiro foi validado em Simulator;
-   - Motorista possui host iOS com Keychain e localização em segundo plano configurados; o build em Simulator deve ser validado pelo CI;
+   - Motorista possui host iOS com Keychain e localização em segundo plano configurados e foi validado em Simulator pelo CI;
    - falta Apple Developer Team, assinatura de distribuição e aparelho físico para os dois apps.
 
 7. **Mapas/rotas ainda usam infraestrutura pública de desenvolvimento**
@@ -61,7 +61,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem;
    - código OTP fica armazenado somente como HMAC no Core e tem expiração/limite de tentativas;
    - falta provider SMS real e credenciais de produção;
-   - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP; o provider/edge de produção deve manter proteção adicional contra abuso;
+   - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
    - falta painel/processo administrativo para aprovar/suspender motorista;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 

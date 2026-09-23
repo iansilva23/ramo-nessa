@@ -201,6 +201,14 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       await client.query('BEGIN');
       const nowMs = Date.parse(input.now);
 
+      await client.query(
+        `
+        DELETE FROM auth_otp_rate_limits
+        WHERE updated_at < $1::timestamptz - INTERVAL '48 hours'
+        `,
+        [input.now],
+      );
+
       for (const rule of input.rules) {
         await client.query(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',

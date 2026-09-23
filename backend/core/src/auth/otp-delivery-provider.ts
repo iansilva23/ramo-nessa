@@ -50,6 +50,8 @@ export class WebhookOtpDeliveryProvider implements OtpDeliveryProvider {
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${this.token}`,
+          'idempotency-key': input.challengeId,
+          'x-ramo-nessa-webhook-version': '1',
         },
         body: JSON.stringify(input),
         signal: controller.signal,

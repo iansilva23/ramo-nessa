@@ -108,6 +108,13 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     now: string;
   }): Promise<AuthRateLimitResult> {
     const nowMs = Date.parse(input.now);
+    const retentionMs = 48 * 60 * 60 * 1000;
+    for (const [key, value] of this.rateLimits) {
+      if (nowMs - Date.parse(value.windowStartedAt) >= retentionMs) {
+        this.rateLimits.delete(key);
+      }
+    }
+
     const staged = new Map<string, MemoryRateLimit>();
 
     for (const rule of input.rules) {

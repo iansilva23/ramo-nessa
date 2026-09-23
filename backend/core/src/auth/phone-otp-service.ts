@@ -208,26 +208,21 @@ async function resolveIdentity(input: {
   subjectType: AuthSubjectType;
   phoneE164: string;
   now: Date;
-}): Promise<AuthIdentityRecord> {
+}): Promise<AuthIdentityRecord | null> {
   const existing = await input.repository.findIdentityByPhone(
     input.subjectType,
     input.phoneE164,
   );
   if (existing != null) {
-    if (existing.status !== 'active') {
-      throw new PhoneOtpError(
-        'AUTH_IDENTITY_SUSPENDED',
-        'Esta conta está temporariamente indisponível.',
-      );
-    }
-    return existing;
+    // Não revelar por resposta HTTP se uma identidade existe ou está suspensa.
+    // A conta só recebe SMS quando está ativa.
+    return existing.status === 'active' ? existing : null;
   }
 
   if (input.subjectType === 'driver') {
-    throw new PhoneOtpError(
-      'DRIVER_NOT_REGISTERED',
-      'Motorista não encontrado ou ainda não aprovado.',
-    );
+    // Motorista é pré-provisionado. Retornamos um desafio opaco abaixo, mas
+    // não persistimos nem enviamos SMS, evitando enumeração de cadastros.
+    return null;
   }
 
   const id = randomUUID();
@@ -281,6 +276,14 @@ export async function requestPhoneOtp(input: {
     phoneE164,
     now,
   });
+
+  if (identity == null) {
+    return {
+      challengeId: randomUUID(),
+      expiresAt: new Date(now.getTime() + OTP_TTL_MS).toISOString(),
+      retryAfterSeconds: Math.ceil(OTP_COOLDOWN_MS / 1000),
+    };
+  }
 
   const challengeId = randomUUID();
   const code = randomInt(100000, 1000000).toString();
