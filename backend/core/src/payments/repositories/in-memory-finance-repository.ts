@@ -471,6 +471,16 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       };
     }
 
+    const escrowBalance = await this.getAccountBalanceCents(
+      `ride:${input.rideId}:escrow`,
+    );
+    if (escrowBalance < input.totalAmountCents) {
+      throw new PaymentDomainError(
+        'INSUFFICIENT_RIDE_ESCROW',
+        'Escrow da corrida não possui saldo suficiente para liquidação.',
+      );
+    }
+
     const createdAt = (input.settledAt ?? new Date()).toISOString();
     const ledger = rideSettlementLedger({
       rideId: input.rideId,
