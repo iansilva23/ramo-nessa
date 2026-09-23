@@ -27,11 +27,13 @@ class _MemoryTokenStore implements AuthTokenStore {
 class _FakeAuthService implements PhoneAuthService {
   _FakeAuthService({
     required this.subjectType,
-    this.failCurrentSession = false,
+    this.invalidCurrentSession = false,
+    this.throwCurrentSession = false,
   });
 
   final String subjectType;
-  final bool failCurrentSession;
+  final bool invalidCurrentSession;
+  final bool throwCurrentSession;
   String? requestedPhone;
   int logoutCalls = 0;
 
@@ -62,10 +64,11 @@ class _FakeAuthService implements PhoneAuthService {
   }
 
   @override
-  Future<AuthSessionInfo> currentSession(String accessToken) async {
-    if (failCurrentSession) {
-      throw StateError('invalid session');
+  Future<AuthSessionInfo?> currentSession(String accessToken) async {
+    if (throwCurrentSession) {
+      throw StateError('core offline');
     }
+    if (invalidCurrentSession) return null;
     return AuthSessionInfo(
       expiresAt: DateTime.now().add(const Duration(days: 1)),
       subjectId: 'subject-auth-test',
@@ -123,7 +126,7 @@ void main() {
       ..token = 'abcdefghijklmnopqrstuvwxyz123456';
     final service = _FakeAuthService(
       subjectType: 'passenger',
-      failCurrentSession: true,
+      invalidCurrentSession: true,
     );
 
     await tester.pumpWidget(
@@ -147,6 +150,40 @@ void main() {
     expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
     expect(find.text('HOME AUTH'), findsNothing);
   });
+
+  testWidgets(
+    'falha temporária do Core não apaga sessão salva',
+    (tester) async {
+      final store = _MemoryTokenStore()
+        ..token = 'abcdefghijklmnopqrstuvwxyz123456';
+      final service = _FakeAuthService(
+        subjectType: 'passenger',
+        throwCurrentSession: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MobileAuthGate(
+            subjectType: 'passenger',
+            service: service,
+            tokenStore: store,
+            initialAccessToken: store.token,
+            devBypass: false,
+            loginTitle: 'Entrar',
+            loginSubtitle: 'Use seu celular',
+            authenticatedBuilder: (token, logout) =>
+                const Text('HOME OFFLINE'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(store.cleared, isFalse);
+      expect(store.token, 'abcdefghijklmnopqrstuvwxyz123456');
+      expect(find.text('HOME OFFLINE'), findsOneWidget);
+      expect(find.byKey(const Key('auth-phone-field')), findsNothing);
+    },
+  );
 
   testWidgets('logout revoga servidor antes de apagar sessão', (tester) async {
     final store = _MemoryTokenStore()
