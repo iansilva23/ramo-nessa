@@ -198,8 +198,16 @@ class HttpDriverApi implements DriverApi {
     http.Response response, {
     required int expectedStatus,
   }) {
-    final dynamic decoded =
-        response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
+    } catch (_) {
+      throw const DriverApiException(
+        'O servidor retornou uma resposta inválida. Tente novamente.',
+      );
+    }
 
     if (
       response.statusCode == expectedStatus &&
