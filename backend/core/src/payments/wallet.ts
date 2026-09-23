@@ -26,7 +26,8 @@ export class WalletDomainError extends Error {
       | 'INSUFFICIENT_WALLET_BALANCE'
       | 'RIDE_ALREADY_PAID'
       | 'RIDE_PASSENGER_MISMATCH'
-      | 'RIDE_NOT_AWAITING_WALLET_PAYMENT',
+      | 'RIDE_NOT_AWAITING_WALLET_PAYMENT'
+      | 'RIDE_NOT_PREPARED',
     message: string,
   ) {
     super(message);
