@@ -104,6 +104,13 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const eventKey = `${payment.processor}:${input.processorEventId}`;
     const existingEvent = this.processedEvents.get(eventKey);
     if (existingEvent != null) {
+      if (existingEvent.paymentId !== input.paymentId) {
+        throw new PaymentDomainError(
+          'IDEMPOTENCY_CONFLICT',
+          'Evento do processador já foi usado em outro pagamento.',
+        );
+      }
+
       const stored = this.payments.get(existingEvent.paymentId);
       if (stored == null) {
         throw new Error('Evento aponta para pagamento inexistente.');
@@ -210,6 +217,13 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const eventKey = `${topup.processor}:${input.processorEventId}`;
     const existing = this.processedTopupEvents.get(eventKey);
     if (existing != null) {
+      if (existing.topupId !== input.walletTopupId) {
+        throw new WalletDomainError(
+          'WALLET_IDEMPOTENCY_CONFLICT',
+          'Evento do processador já foi usado em outra recarga.',
+        );
+      }
+
       const stored = this.walletTopups.get(existing.topupId);
       if (stored == null) {
         throw new Error('Evento de recarga aponta para registro inexistente.');
