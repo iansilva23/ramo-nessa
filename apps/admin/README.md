@@ -43,6 +43,8 @@ A versão inicial implementa:
 - tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
 - cadastro de perfil + veículo com edição e aprovação explícita no painel;
+- consulta sanitizada de CNH/CRLV e revisão humana de documentos pendentes;
+- nenhuma referência privada de storage ou hash documental é entregue ao navegador;
 - provisionamento seguro (suspenso por padrão);
 - aprovação e suspensão;
 - leitura da trilha de auditoria;
@@ -66,5 +68,7 @@ apps/admin/styles.css
 apps/admin/src/
 ```
 
-A próxima evolução visual/funcional inclui dashboard operacional, documentos,
-viagens, preços/zonas, pagamentos, bloqueios e demais módulos.
+A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
+privado, preços/zonas, pagamentos, bloqueios e demais módulos. O painel atual
+registra a decisão humana, mas não substitui a inspeção do arquivo no storage
+privado autorizado.
