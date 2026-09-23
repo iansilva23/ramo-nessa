@@ -36,4 +36,4 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/brand/passenger/app_icon_source.png"
   remove_alpha_ios: true
-  min_sdk_android: 21
+  min_sdk_android: 24
