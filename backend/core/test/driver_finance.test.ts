@@ -13,21 +13,26 @@ const now = new Date('2026-09-23T19:00:00.000Z');
 async function fundedFinance() {
   const finance = new InMemoryFinanceRepository();
 
-  await finance.createPayment({
+  const payment = await finance.createPayment({
     id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
     rideId: 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     method: 'wallet',
     processor: 'internal-wallet',
-    status: 'paid',
+    status: 'pending',
     amountCents: 10000,
     idempotencyKey: 'finance-seed-payment',
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   });
+  const capture = await finance.capturePayment({
+    paymentId: payment.id,
+    processorEventId: 'finance-seed-capture',
+    capturedAt: now,
+  });
 
   await finance.settleRide({
     rideId: 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-    paymentId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+    paymentId: capture.payment.id,
     driverId: 'driver-finance',
     totalAmountCents: 10000,
     platformCommissionCents: 1000,
