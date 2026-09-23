@@ -60,11 +60,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Tests
-        run: npm test
-
       - name: Apply PostgreSQL migrations
         run: npm run db:migrate
 
       - name: Verify migrations are idempotent
         run: npm run db:migrate
+
+      - name: Tests
+        run: npm test
