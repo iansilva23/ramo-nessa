@@ -96,3 +96,27 @@ jobs:
       - name: Build Passenger iOS simulator
         working-directory: apps/passenger
         run: flutter build ios --simulator --debug
+
+
+  driver-ios-simulator:
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Driver iOS simulator
+        working-directory: apps/driver
+        run: flutter build ios --simulator --debug

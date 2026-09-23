@@ -48,8 +48,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 6. **Cobertura iOS é parcial**
    - Passageiro foi validado em Simulator;
-   - falta Apple Developer Team, assinatura de distribuição e aparelho físico;
-   - o app Motorista ainda não possui estrutura iOS no repositório.
+   - Motorista possui host iOS com Keychain e localização em segundo plano configurados; o build em Simulator deve ser validado pelo CI;
+   - falta Apple Developer Team, assinatura de distribuição e aparelho físico para os dois apps.
 
 7. **Mapas/rotas ainda usam infraestrutura pública de desenvolvimento**
    - OpenStreetMap tiles;
