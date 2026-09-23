@@ -141,11 +141,17 @@ class HttpPhoneAuthService implements PhoneAuthService {
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 204) {
-      final json = _decodeObject(response);
-      _throwIfError(response, json);
-      throw const FormatException('Resposta de logout inválida.');
+    if (
+      response.statusCode == 204 ||
+      response.statusCode == 401 ||
+      response.statusCode == 403
+    ) {
+      return;
     }
+
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+    throw const FormatException('Resposta de logout inválida.');
   }
 
   Map<String, dynamic> _decodeObject(http.Response response) {
