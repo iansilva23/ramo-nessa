@@ -85,6 +85,7 @@ export async function refundWalletRideAfterNoDriver(input: {
   }
 
   if (
+    ride.state !== 'PAID' &&
     ride.state !== 'NO_DRIVER_FOUND' &&
     ride.state !== 'REFUND_PENDING'
   ) {
@@ -96,7 +97,7 @@ export async function refundWalletRideAfterNoDriver(input: {
 
   const instant = (input.now ?? new Date()).toISOString();
 
-  if (ride.state === 'NO_DRIVER_FOUND') {
+  if (ride.state === 'PAID' || ride.state === 'NO_DRIVER_FOUND') {
     const {
       reservedDriverId: _reservedDriverId,
       driverHoldExpiresAt: _driverHoldExpiresAt,
