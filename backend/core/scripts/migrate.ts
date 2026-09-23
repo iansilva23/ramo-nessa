@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,7 +13,23 @@ if (!databaseUrl) {
 const pool = createPostgresPool(databaseUrl);
 const client = await pool.connect();
 const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(here, '..', 'migrations');
+const migrationCandidates = [
+  join(here, '..', 'migrations'),
+  join(here, '..', '..', 'migrations'),
+];
+
+let migrationsDir: string | undefined;
+for (const candidate of migrationCandidates) {
+  try {
+    await access(candidate);
+    migrationsDir = candidate;
+    break;
+  } catch {}
+}
+if (migrationsDir == null) {
+  throw new Error('Diretório de migrations não foi encontrado.');
+}
+
 const migrationLockKey = 'ramo-nessa-schema-migrations';
 
 function checksum(sql: string): string {

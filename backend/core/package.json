@@ -11,7 +11,10 @@
     "auth:provision-driver": "tsx scripts/provision-driver-auth.ts",
     "auth:set-driver-status": "tsx scripts/set-driver-auth-status.ts",
     "admin:create-key": "tsx scripts/create-admin-api-key.ts",
-    "admin:revoke-key": "tsx scripts/revoke-admin-api-key.ts"
+    "admin:revoke-key": "tsx scripts/revoke-admin-api-key.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start:prod": "node dist/src/server.js",
+    "db:migrate:prod": "node dist/scripts/migrate.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

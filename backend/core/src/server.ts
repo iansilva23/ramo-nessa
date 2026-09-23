@@ -121,7 +121,17 @@ import {
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
-import { resolveCorePort } from './config/runtime-config.js';
+import {
+  resolveCorePort,
+  resolveShutdownTimeoutMs,
+} from './config/runtime-config.js';
+import {
+  errorFields,
+  logError,
+  logInfo,
+  logWarn,
+  resolveRequestId,
+} from './observability/logger.js';
 import {
   HttpRequestBodyError,
   readJsonBody as readJson,
@@ -138,6 +148,8 @@ const {
   ridePreparationRepository,
   rideMatchingRepository,
   storageMode,
+  readinessCheck,
+  close: closeRepositories,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
@@ -179,15 +191,72 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(JSON.stringify(body));
 }
 
+let shuttingDown = false;
+const shutdownTimeoutMs = resolveShutdownTimeoutMs();
+
 const server = createServer(async (request, response) => {
+  const requestId = resolveRequestId(
+    headerValue(request, 'x-request-id'),
+  );
+  const startedAt = Date.now();
+  let requestPath = '/';
+
+  response.setHeader('x-request-id', requestId);
+  response.once('finish', () => {
+    logInfo('http.request.completed', {
+      requestId,
+      method: request.method ?? 'UNKNOWN',
+      path: requestPath,
+      statusCode: response.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
-    if (request.method === 'GET' && request.url === '/health') {
+    requestPath = requestUrl.pathname;
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/health'
+    ) {
       json(response, 200, {
         ok: true,
         service: 'ramo-nessa-core',
-        ...(process.env.NODE_ENV === 'production' ? {} : { storageMode }),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/ready'
+    ) {
+      if (shuttingDown) {
+        json(response, 503, {
+          ok: false,
+          service: 'ramo-nessa-core',
+          reason: 'SHUTTING_DOWN',
+        });
+        return;
+      }
+
+      try {
+        await readinessCheck();
+        json(response, 200, {
+          ok: true,
+          service: 'ramo-nessa-core',
+          ...(process.env.NODE_ENV === 'production' ? {} : { storageMode }),
+        });
+      } catch (readinessError) {
+        logWarn('core.readiness.failed', {
+          requestId,
+          ...errorFields(readinessError),
+        });
+        json(response, 503, {
+          ok: false,
+          service: 'ramo-nessa-core',
+          reason: 'DEPENDENCY_UNAVAILABLE',
+        });
+      }
       return;
     }
 
@@ -1046,10 +1115,11 @@ const server = createServer(async (request, response) => {
                 matching: rideMatchingRepository,
               });
             } catch (dispatchError) {
-              console.error(
-                'Pagamento confirmado, mas despacho automático falhou.',
-                dispatchError,
-              );
+              logError('ride.dispatch.failed', {
+                requestId,
+                rideId: currentRide.id,
+                ...errorFields(dispatchError),
+              });
             }
 
             if (dispatch != null) {
@@ -1337,8 +1407,16 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    console.error('Unhandled Core request error.', error);
-    json(response, 500, { error: 'INTERNAL_ERROR' });
+    logError('http.request.unhandled_error', {
+      requestId,
+      method: request.method ?? 'UNKNOWN',
+      path: requestPath,
+      ...errorFields(error),
+    });
+    json(response, 500, {
+      error: 'INTERNAL_ERROR',
+      requestId,
+    });
   }
 });
 
@@ -1347,7 +1425,7 @@ server.requestTimeout = 35_000;
 server.keepAliveTimeout = 5_000;
 server.maxHeadersCount = 64;
 
-attachRealtimeServer({
+const realtimeServer = attachRealtimeServer({
   server,
   hub: realtimeHub,
   rides: rideRepository,
@@ -1357,6 +1435,72 @@ attachRealtimeServer({
   identities: authOtpRepository,
 });
 
+let shutdownPromise: Promise<void> | null = null;
+
+function closeHttpServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error != null) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+    server.closeIdleConnections();
+  });
+}
+
+function shutdown(signal: string): Promise<void> {
+  if (shutdownPromise != null) return shutdownPromise;
+
+  shutdownPromise = (async () => {
+    shuttingDown = true;
+    logInfo('core.shutdown.started', { signal });
+
+    const forceTimer = setTimeout(() => {
+      logError('core.shutdown.timeout', {
+        signal,
+        timeoutMs: shutdownTimeoutMs,
+      });
+      server.closeAllConnections();
+      process.exitCode = 1;
+    }, shutdownTimeoutMs);
+    forceTimer.unref();
+
+    realtimeServer.close();
+
+    try {
+      await closeHttpServer();
+    } finally {
+      try {
+        await closeRepositories();
+      } finally {
+        clearTimeout(forceTimer);
+      }
+    }
+
+    logInfo('core.shutdown.completed', { signal });
+  })();
+
+  return shutdownPromise;
+}
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).catch((error) => {
+      logError('core.shutdown.failed', {
+        signal,
+        ...errorFields(error),
+      });
+      process.exitCode = 1;
+    });
+  });
+}
+
 server.listen(port, '0.0.0.0', () => {
-  console.log(`Ramo Nessa Core listening on :${port}`);
+  logInfo('core.started', {
+    port,
+    storageMode,
+    nodeEnv: process.env.NODE_ENV ?? 'development',
+  });
 });

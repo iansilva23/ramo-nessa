@@ -22,6 +22,10 @@ import type { RideRepository } from '../rides/ride-repository.js';
 import { passengerRideTracking } from '../rides/passenger-ride-tracking.js';
 import { RealtimeHub } from './realtime-hub.js';
 
+export interface RealtimeServerHandle {
+  close(): void;
+}
+
 interface AttachRealtimeServerInput {
   server: Server;
   hub: RealtimeHub;
@@ -39,7 +43,13 @@ function rejectUpgrade(
 ): void {
   const body = JSON.stringify({ error: message });
   socket.write(
-    `HTTP/1.1 ${status} ${status === 401 ? 'Unauthorized' : 'Bad Request'}\r\n` +
+    `HTTP/1.1 ${status} ${
+      status === 401
+        ? 'Unauthorized'
+        : status === 503
+          ? 'Service Unavailable'
+          : 'Bad Request'
+    }\r\n` +
       'Content-Type: application/json\r\n' +
       `Content-Length: ${Buffer.byteLength(body)}\r\n` +
       'Connection: close\r\n\r\n' +
@@ -56,13 +66,14 @@ function sendJson(socket: WebSocket, payload: unknown): void {
 
 export function attachRealtimeServer(
   input: AttachRealtimeServerInput,
-): void {
+): RealtimeServerHandle {
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: 16 * 1024,
     perMessageDeflate: false,
   });
   const heartbeatState = new Map<WebSocket, boolean>();
+  let closed = false;
 
   const registerHeartbeat = (ws: WebSocket) => {
     heartbeatState.set(ws, true);
@@ -87,13 +98,30 @@ export function attachRealtimeServer(
   }, 30_000);
   heartbeatTimer.unref();
 
-  input.server.once('close', () => {
+  const closeRealtime = () => {
+    if (closed) return;
+    closed = true;
     clearInterval(heartbeatTimer);
     heartbeatState.clear();
+
+    for (const ws of wss.clients) {
+      if (ws.readyState === ws.OPEN) {
+        ws.close(1001, 'server_shutdown');
+      } else {
+        ws.terminate();
+      }
+    }
     wss.close();
-  });
+  };
+
+  input.server.once('close', closeRealtime);
 
   input.server.on('upgrade', async (request, socket, head) => {
+    if (closed) {
+      rejectUpgrade(socket, 503, 'server_shutting_down');
+      return;
+    }
+
     const requestUrl = new URL(
       request.url ?? '/',
       'http://ramo-nossa.local',
@@ -209,4 +237,6 @@ export function attachRealtimeServer(
       rejectUpgrade(socket, 401, 'realtime_auth_failed');
     }
   });
+
+  return { close: closeRealtime };
 }

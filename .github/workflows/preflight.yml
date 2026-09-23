@@ -83,6 +83,10 @@ jobs:
         working-directory: backend/core
         run: npm test
 
+      - name: Build Core production output
+        working-directory: backend/core
+        run: npm run build
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0
         with:

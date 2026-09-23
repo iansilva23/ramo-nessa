@@ -21,7 +21,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
    - falta gateway real, conciliação e repasse Pix;
-   - falta observabilidade, hardening de deploy e infraestrutura de produção.
+   - readiness, logs estruturados, shutdown gracioso e container de produção já existem; faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy.
 
 2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
    - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;

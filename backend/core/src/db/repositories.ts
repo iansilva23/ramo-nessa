@@ -34,6 +34,8 @@ export interface RepositoryBundle {
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
   storageMode: 'postgres' | 'memory';
+  readinessCheck(): Promise<void>;
+  close(): Promise<void>;
 }
 
 export function createRepositories(): RepositoryBundle {
@@ -56,6 +58,12 @@ export function createRepositories(): RepositoryBundle {
       ridePreparationRepository:
         new PostgresRidePreparationRepository(pool),
       storageMode: 'postgres',
+      async readinessCheck(): Promise<void> {
+        await pool.query('SELECT 1');
+      },
+      async close(): Promise<void> {
+        await pool.end();
+      },
     };
   }
 
@@ -84,5 +92,7 @@ export function createRepositories(): RepositoryBundle {
       driverSupplyRepository,
     ),
     storageMode: 'memory',
+    async readinessCheck(): Promise<void> {},
+    async close(): Promise<void> {},
   };
 }

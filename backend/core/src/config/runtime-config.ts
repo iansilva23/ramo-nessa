@@ -59,3 +59,16 @@ export function resolveRoutingTimeoutMs(
     max: 30000,
   });
 }
+
+
+export function resolveShutdownTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return parseIntegerSetting({
+    name: 'SHUTDOWN_TIMEOUT_MS',
+    value: env.SHUTDOWN_TIMEOUT_MS,
+    defaultValue: 10_000,
+    min: 1_000,
+    max: 60_000,
+  });
+}

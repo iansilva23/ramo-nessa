@@ -68,6 +68,11 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
+- endpoint `GET /ready` com readiness do PostgreSQL;
+- logs HTTP estruturados em JSON com request ID;
+- shutdown gracioso de realtime, HTTP e pool PostgreSQL;
+- build TypeScript de produção para `dist/`;
+- container Node 22 multi-stage executado sem root;
 - driver-supply como fonte única de disponibilidade do motorista;
 - filtro por categoria e capacidade real do veículo;
 - filtro 4x4 para corredores de Jeri;
@@ -107,7 +112,7 @@ npm start
 - repasses;
 - notificações;
 - chat;
-- auditoria e observabilidade.
+- observabilidade externa (coleta/alertas/APM) e infraestrutura de produção.
 
 A autoridade de preço deve permanecer no Core. O Flutter nunca deve decidir sozinho preço final, comissão ou elegibilidade de veículo.
 
