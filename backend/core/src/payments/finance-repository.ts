@@ -15,9 +15,26 @@ export interface CapturePaymentResult {
   duplicateEvent: boolean;
 }
 
+export interface SettleRideInput {
+  rideId: string;
+  paymentId: string;
+  driverId: string;
+  totalAmountCents: number;
+  platformCommissionCents: number;
+  driverNetCents: number;
+  settledAt?: Date;
+}
+
+export interface SettleRideResult {
+  ledgerTransaction: LedgerTransaction;
+  duplicateSettlement: boolean;
+}
+
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
+  settleRide(input: SettleRideInput): Promise<SettleRideResult>;
+  getAccountBalanceCents(accountKey: string): Promise<number>;
 }

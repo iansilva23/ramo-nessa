@@ -33,6 +33,9 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - simulador financeiro explicitamente bloqueado em produção;
 - ledger financeiro de dupla entrada;
 - pagamento capturado entra em escrow da corrida;
+- liquidação idempotente da corrida concluída;
+- 10% creditado em receita da plataforma;
+- 90% creditado no saldo contábil do motorista;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;

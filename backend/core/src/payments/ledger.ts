@@ -86,3 +86,53 @@ export function paymentCaptureLedger(input: {
     createdAt: input.createdAt,
   };
 }
+
+
+export function rideSettlementLedger(input: {
+  rideId: string;
+  paymentId: string;
+  driverId: string;
+  totalAmountCents: number;
+  platformCommissionCents: number;
+  driverNetCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (
+    input.platformCommissionCents + input.driverNetCents !==
+    input.totalAmountCents
+  ) {
+    throw new LedgerError(
+      'Liquidação não fecha com o valor total da corrida.',
+    );
+  }
+
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `ride:${input.rideId}:escrow`,
+      direction: 'debit',
+      amountCents: input.totalAmountCents,
+    },
+    {
+      accountKey: 'platform:revenue',
+      direction: 'credit',
+      amountCents: input.platformCommissionCents,
+    },
+    {
+      accountKey: `driver:${input.driverId}:payable`,
+      direction: 'credit',
+      amountCents: input.driverNetCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'RIDE_SETTLED',
+    rideId: input.rideId,
+    paymentId: input.paymentId,
+    referenceKey: `ride-settlement:${input.rideId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}

@@ -1,8 +1,14 @@
-import { paymentCaptureLedger } from '../ledger.js';
+import {
+  paymentCaptureLedger,
+  rideSettlementLedger,
+  type LedgerTransaction,
+} from '../ledger.js';
 import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type FinanceRepository,
+  type SettleRideInput,
+  type SettleRideResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
@@ -10,6 +16,7 @@ import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly payments = new Map<string, PaymentRecord>();
   private readonly idempotencyIndex = new Map<string, string>();
+  private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
     string,
     { paymentId: string; ledger: ReturnType<typeof paymentCaptureLedger> }
@@ -111,11 +118,59 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       paymentId: payment.id,
       ledger: structuredClone(ledger),
     });
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
 
     return {
       payment: structuredClone(updated),
       ledgerTransaction: structuredClone(ledger),
       duplicateEvent: false,
     };
+  }
+
+  async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
+    const referenceKey = `ride-settlement:${input.rideId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicateSettlement: true,
+      };
+    }
+
+    const createdAt = (input.settledAt ?? new Date()).toISOString();
+    const ledger = rideSettlementLedger({
+      rideId: input.rideId,
+      paymentId: input.paymentId,
+      driverId: input.driverId,
+      totalAmountCents: input.totalAmountCents,
+      platformCommissionCents: input.platformCommissionCents,
+      driverNetCents: input.driverNetCents,
+      createdAt,
+    });
+
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicateSettlement: false,
+    };
+  }
+
+  async getAccountBalanceCents(accountKey: string): Promise<number> {
+    let balance = 0;
+
+    for (const transaction of this.ledgerByReference.values()) {
+      for (const entry of transaction.entries) {
+        if (entry.accountKey !== accountKey) continue;
+        balance += entry.direction === 'credit'
+          ? entry.amountCents
+          : -entry.amountCents;
+      }
+    }
+
+    return balance;
   }
 }

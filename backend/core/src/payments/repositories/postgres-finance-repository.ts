@@ -2,11 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
-import { paymentCaptureLedger, type LedgerTransaction } from '../ledger.js';
+import {
+  paymentCaptureLedger,
+  rideSettlementLedger,
+  type LedgerTransaction,
+} from '../ledger.js';
 import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type FinanceRepository,
+  type SettleRideInput,
+  type SettleRideResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
@@ -82,6 +88,130 @@ async function insertLedger(
         transaction.createdAt,
       ],
     );
+  }
+
+  async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
+    const client = await this.pool.connect();
+    const referenceKey = `ride-settlement:${input.rideId}`;
+
+    try {
+      await client.query('BEGIN');
+
+      const existing = await client.query<{
+        id: string;
+        kind: string;
+        ride_id: string | null;
+        payment_id: string | null;
+        reference_key: string;
+        created_at: Date;
+      }>(
+        `
+        SELECT id, kind, ride_id, payment_id, reference_key, created_at
+        FROM ledger_transactions
+        WHERE reference_key = $1
+        LIMIT 1
+        `,
+        [referenceKey],
+      );
+
+      if ((existing.rowCount ?? 0) > 0) {
+        const row = existing.rows[0]!;
+        const entries = await client.query<{
+          account_key: string;
+          direction: 'debit' | 'credit';
+          amount_cents: number;
+        }>(
+          `
+          SELECT account_key, direction, amount_cents
+          FROM ledger_entries
+          WHERE transaction_id = $1
+          ORDER BY created_at, id
+          `,
+          [row.id],
+        );
+
+        await client.query('COMMIT');
+        return {
+          ledgerTransaction: {
+            id: row.id,
+            kind: row.kind,
+            ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
+            ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
+            referenceKey: row.reference_key,
+            entries: entries.rows.map((entry) => ({
+              accountKey: entry.account_key,
+              direction: entry.direction,
+              amountCents: entry.amount_cents,
+            })),
+            createdAt: row.created_at.toISOString(),
+          },
+          duplicateSettlement: true,
+        };
+      }
+
+      const payment = await client.query<{ status: string; amount_cents: number }>(
+        `
+        SELECT status, amount_cents
+        FROM payments
+        WHERE id = $1 AND ride_id = $2
+        FOR UPDATE
+        `,
+        [input.paymentId, input.rideId],
+      );
+
+      const paymentRow = payment.rows[0];
+      if (
+        paymentRow == null ||
+        paymentRow.status !== 'paid' ||
+        paymentRow.amount_cents !== input.totalAmountCents
+      ) {
+        throw new PaymentDomainError(
+          'INVALID_PAYMENT_TRANSITION',
+          'Pagamento não está pronto para liquidação.',
+        );
+      }
+
+      const ledger = rideSettlementLedger({
+        rideId: input.rideId,
+        paymentId: input.paymentId,
+        driverId: input.driverId,
+        totalAmountCents: input.totalAmountCents,
+        platformCommissionCents: input.platformCommissionCents,
+        driverNetCents: input.driverNetCents,
+        createdAt: (input.settledAt ?? new Date()).toISOString(),
+      });
+
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      return {
+        ledgerTransaction: ledger,
+        duplicateSettlement: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getAccountBalanceCents(accountKey: string): Promise<number> {
+    const result = await this.pool.query<{ balance_cents: string }>(
+      `
+      SELECT COALESCE(SUM(
+        CASE
+          WHEN direction = 'credit' THEN amount_cents
+          ELSE -amount_cents
+        END
+      ), 0)::text AS balance_cents
+      FROM ledger_entries
+      WHERE account_key = $1
+      `,
+      [accountKey],
+    );
+
+    return Number(result.rows[0]?.balance_cents ?? '0');
   }
 }
 

@@ -8,6 +8,7 @@ interface RideRow {
   passenger_id: string;
   state: RideRecord['state'];
   payment_status: RideRecord['paymentStatus'];
+  driver_id: string | null;
   origin_zone_id: RideRecord['origin']['zoneId'];
   origin_locality_id: string | null;
   destination_zone_id: RideRecord['destination']['zoneId'];
@@ -33,6 +34,7 @@ function mapRow(row: RideRow): RideRecord {
     passengerId: row.passenger_id,
     state: row.state,
     paymentStatus: row.payment_status,
+    ...(row.driver_id != null ? { driverId: row.driver_id } : {}),
     origin: {
       zoneId: row.origin_zone_id,
       ...(row.origin_locality_id != null
@@ -68,7 +70,7 @@ function mapRow(row: RideRow): RideRecord {
 }
 
 const RETURNING = `
-  id, passenger_id, state, payment_status,
+  id, passenger_id, state, payment_status, driver_id,
   origin_zone_id, origin_locality_id,
   destination_zone_id, destination_locality_id,
   category, price_period, passengers,
@@ -85,7 +87,7 @@ export class PostgresRideRepository implements RideRepository {
     const result = await this.pool.query<RideRow>(
       `
       INSERT INTO rides (
-        id, passenger_id, state, payment_status,
+        id, passenger_id, state, payment_status, driver_id,
         origin_zone_id, origin_locality_id,
         destination_zone_id, destination_locality_id,
         category, price_period, passengers,
@@ -94,8 +96,8 @@ export class PostgresRideRepository implements RideRepository {
         total_amount_cents, platform_commission_cents, driver_net_cents,
         created_at, updated_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-        $14,$15,$16,$17,$18,$19,$20,$21
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+        $15,$16,$17,$18,$19,$20,$21,$22
       )
       RETURNING ${RETURNING}
       `,
@@ -104,6 +106,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.passengerId,
         ride.state,
         ride.paymentStatus,
+        ride.driverId ?? null,
         ride.origin.zoneId,
         ride.origin.localityId ?? null,
         ride.destination.zoneId,
@@ -144,12 +147,13 @@ export class PostgresRideRepository implements RideRepository {
       SET
         state = $2,
         payment_status = $3,
-        driver_pickup_distance_km = $4,
-        pickup_compensation_cents = $5,
-        total_amount_cents = $6,
-        platform_commission_cents = $7,
-        driver_net_cents = $8,
-        updated_at = $9
+        driver_id = $4,
+        driver_pickup_distance_km = $5,
+        pickup_compensation_cents = $6,
+        total_amount_cents = $7,
+        platform_commission_cents = $8,
+        driver_net_cents = $9,
+        updated_at = $10
       WHERE id = $1
       RETURNING ${RETURNING}
       `,
@@ -157,6 +161,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.id,
         ride.state,
         ride.paymentStatus,
+        ride.driverId ?? null,
         ride.driverPickupDistanceKm ?? null,
         ride.quote.pickupCompensationCents,
         ride.quote.totalAmountCents,

@@ -86,8 +86,10 @@
 - [x] máquina de estados inicial de corrida/pagamento
 - [ ] adapter de gateway Pix/cartão
 - [x] ledger financeiro base e escrow de pagamento
+- [x] liquidação 10% plataforma / 90% motorista após corrida concluída
 - [ ] Carteira do passageiro
-- [ ] saldo/repasse do motorista
+- [x] saldo contábil do motorista por ledger
+- [ ] saque/repasse real ao motorista
 - [ ] notificações
 - [ ] chat
 - [ ] auditoria persistente
