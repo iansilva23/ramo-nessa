@@ -43,6 +43,17 @@ export interface RideRecord {
   updatedAt: string;
 }
 
+export function isRidePreparedForPayment(ride: RideRecord): boolean {
+  return (
+    ride.reservedDriverId != null &&
+    ride.driverHoldExpiresAt != null &&
+    ride.pickupLatitude != null &&
+    ride.pickupLongitude != null &&
+    ride.dropoffLatitude != null &&
+    ride.dropoffLongitude != null
+  );
+}
+
 export function isDriverPaymentHoldExpired(
   ride: RideRecord,
   now: Date,
