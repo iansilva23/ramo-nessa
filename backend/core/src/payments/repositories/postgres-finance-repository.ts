@@ -1096,6 +1096,11 @@ export class PostgresFinanceRepository implements FinanceRepository {
     try {
       await client.query('BEGIN');
 
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`driver-payout-idempotency:${payout.idempotencyKey}`],
+      );
+
       const existingResult = await client.query<DriverPayoutRow>(
         `
         SELECT ${PAYOUT_COLUMNS}
