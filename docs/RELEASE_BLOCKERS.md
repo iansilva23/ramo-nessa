@@ -61,7 +61,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem;
    - código OTP fica armazenado somente como HMAC no Core e tem expiração/limite de tentativas;
    - falta provider SMS real e credenciais de produção;
-   - falta painel/processo administrativo para aprovar motorista;
+   - provider/edge de produção deve aplicar rate-limit anti-abuso por IP/dispositivo além do cooldown por telefone já existente;
+   - falta painel/processo administrativo para aprovar/suspender motorista;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**
