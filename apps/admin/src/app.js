@@ -8,11 +8,13 @@ import {
   locationLabel,
   paymentStatusLabel,
   pricePeriodLabel,
+  registryStatusPresentation,
   rideStatePresentation,
   secondsUntil,
   serviceCategoryLabel,
   statusPresentation,
   validateDriverId,
+  validateDriverRegistryStatus,
   validateDriverStatus,
   validatePhone,
 } from './security.js';
@@ -24,6 +26,7 @@ const state = {
   user: null,
   expiresAt: null,
   currentDriver: null,
+  currentDriverRegistry: null,
   dashboard: {
     generatedAt: null,
     rides: {
@@ -75,7 +78,9 @@ const globalMessage = byId('global-message');
 
 const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
-  ['drivers:auth:write', 'Aprovar e suspender motoristas'],
+  ['drivers:auth:write', 'Aprovar e suspender acessos de motoristas'],
+  ['drivers:profile:read', 'Consultar perfil e veículo de motoristas'],
+  ['drivers:profile:write', 'Editar e aprovar perfil e veículo'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
   ['audit:read', 'Consultar auditoria'],
@@ -119,6 +124,7 @@ function clearSession(message = '') {
   state.user = null;
   state.expiresAt = null;
   state.currentDriver = null;
+  state.currentDriverRegistry = null;
   state.dashboard = {
     generatedAt: null,
     rides: {
@@ -395,6 +401,417 @@ function detailRow(label, value) {
   content.textContent = value;
   row.append(term, content);
   return row;
+}
+
+function setRegistryWriteControlsVisible() {
+  const controls = byId('driver-registry-write-controls');
+  controls.hidden = !hasScope('drivers:profile:write');
+}
+
+function clearDriverRegistryForm() {
+  byId('registry-full-name').value = '';
+  byId('registry-preferred-name').value = '';
+  byId('registry-plate').value = '';
+  byId('registry-make').value = '';
+  byId('registry-model').value = '';
+  byId('registry-model-year').value = '';
+  byId('registry-color').value = '';
+  byId('registry-seat-capacity').value = '';
+  byId('registry-four-by-four').checked = false;
+  document
+    .querySelectorAll('input[name="registry-category"]')
+    .forEach((input) => {
+      input.checked = false;
+    });
+  byId('registry-profile-status').value = 'pending';
+  byId('registry-vehicle-status').value = 'pending';
+}
+
+function fillDriverRegistryForm(payload) {
+  const profile = payload?.profile ?? null;
+  const vehicle = payload?.vehicle ?? null;
+  byId('registry-full-name').value = profile?.fullName ?? '';
+  byId('registry-preferred-name').value =
+    profile?.preferredName ?? '';
+  byId('registry-plate').value = vehicle?.plateNormalized ?? '';
+  byId('registry-make').value = vehicle?.make ?? '';
+  byId('registry-model').value = vehicle?.model ?? '';
+  byId('registry-model-year').value =
+    vehicle?.modelYear == null ? '' : String(vehicle.modelYear);
+  byId('registry-color').value = vehicle?.color ?? '';
+  byId('registry-seat-capacity').value =
+    vehicle?.seatCapacity == null
+      ? ''
+      : String(vehicle.seatCapacity);
+  byId('registry-four-by-four').checked =
+    vehicle?.fourByFour === true;
+
+  const categories = new Set(
+    Array.isArray(vehicle?.categories) ? vehicle.categories : [],
+  );
+  document
+    .querySelectorAll('input[name="registry-category"]')
+    .forEach((input) => {
+      input.checked = categories.has(input.value);
+    });
+
+  byId('registry-profile-status').value =
+    profile?.status ?? 'pending';
+  byId('registry-vehicle-status').value =
+    vehicle?.status ?? 'pending';
+}
+
+function registrySummaryItem(label, value) {
+  const item = document.createElement('div');
+  const caption = document.createElement('span');
+  caption.textContent = label;
+  const strong = document.createElement('strong');
+  strong.textContent = value;
+  item.append(caption, strong);
+  return item;
+}
+
+function renderDriverRegistry(payload, driverId) {
+  state.currentDriverRegistry = payload;
+  setRegistryWriteControlsVisible();
+  fillDriverRegistryForm(payload);
+
+  const target = byId('driver-registry-result');
+  const overall = byId('driver-registry-overall');
+  target.replaceChildren();
+
+  const profile = payload?.profile ?? null;
+  const vehicle = payload?.vehicle ?? null;
+  const approved = payload?.registryApproved === true;
+  overall.className = `pill pill--${approved ? 'success' : 'warning'}`;
+  overall.textContent = approved
+    ? 'Cadastro aprovado'
+    : profile || vehicle
+      ? 'Aguardando aprovação'
+      : 'Cadastro pendente';
+
+  if (!profile && !vehicle) {
+    target.className = 'driver-registry-result empty-state';
+    target.textContent =
+      `O motorista ${driverId} ainda não possui perfil e veículo cadastrados.`;
+    byId('registry-status-button').disabled = true;
+    return;
+  }
+
+  target.className = 'driver-registry-result';
+  const profileStatus = registryStatusPresentation(profile?.status);
+  const vehicleStatus = registryStatusPresentation(vehicle?.status);
+
+  const summary = document.createElement('div');
+  summary.className = 'driver-registry-summary';
+  summary.append(
+    registrySummaryItem(
+      'Nome',
+      profile?.preferredName || profile?.fullName || '—',
+    ),
+    registrySummaryItem(
+      'Perfil',
+      profileStatus.label,
+    ),
+    registrySummaryItem(
+      'Veículo',
+      vehicle
+        ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNormalized}`
+        : '—',
+    ),
+    registrySummaryItem(
+      'Status do veículo',
+      vehicleStatus.label,
+    ),
+    registrySummaryItem(
+      'Categorias',
+      Array.isArray(vehicle?.categories) &&
+        vehicle.categories.length > 0
+        ? vehicle.categories
+            .map((category) => serviceCategoryLabel(category))
+            .join(', ')
+        : '—',
+    ),
+    registrySummaryItem(
+      'Capacidade',
+      vehicle?.seatCapacity == null
+        ? '—'
+        : `${vehicle.seatCapacity} lugar(es)`,
+    ),
+    registrySummaryItem(
+      'Tração',
+      vehicle?.fourByFour === true ? '4x4' : 'Convencional',
+    ),
+    registrySummaryItem(
+      'Atualizado',
+      formatDateTime(
+        vehicle?.updatedAt ?? profile?.updatedAt,
+      ),
+    ),
+  );
+  target.append(summary);
+  byId('registry-status-button').disabled =
+    !profile || !vehicle || !hasScope('drivers:profile:write');
+}
+
+function renderDriverRegistryUnavailable(
+  message = 'Cadastre ou abra um motorista para continuar.',
+) {
+  state.currentDriverRegistry = null;
+  clearDriverRegistryForm();
+  setRegistryWriteControlsVisible();
+  const target = byId('driver-registry-result');
+  target.replaceChildren();
+  target.className = 'driver-registry-result empty-state';
+  target.textContent = message;
+  const overall = byId('driver-registry-overall');
+  overall.className = 'pill';
+  overall.textContent = 'Não carregado';
+  byId('registry-status-button').disabled = true;
+}
+
+async function loadDriverRegistry(driverId) {
+  if (!state.token) return;
+
+  if (!hasScope('drivers:profile:read')) {
+    renderDriverRegistryUnavailable(
+      hasScope('drivers:profile:write')
+        ? 'Sem permissão de leitura do cadastro. É possível criar dados, mas não consultar os existentes.'
+        : 'Sua conta não possui acesso ao cadastro de perfil e veículo.',
+    );
+    return;
+  }
+
+  try {
+    const payload = await api.getDriverRegistry(
+      state.token,
+      driverId,
+    );
+    renderDriverRegistry(payload, driverId);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderDriverRegistryUnavailable(
+        'A identidade do motorista não foi encontrada para o cadastro.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+function requiredRegistryText(value, label, min, max) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (
+    normalized.length < min ||
+    normalized.length > max
+  ) {
+    throw new Error(
+      `${label} deve ter entre ${min} e ${max} caracteres.`,
+    );
+  }
+  return normalized;
+}
+
+function collectDriverRegistryForm() {
+  const categories = [
+    ...document.querySelectorAll(
+      'input[name="registry-category"]:checked',
+    ),
+  ].map((input) => input.value);
+
+  if (categories.length === 0) {
+    throw new Error('Selecione ao menos uma categoria do veículo.');
+  }
+
+  const modelYear = Number(byId('registry-model-year').value);
+  if (
+    !Number.isInteger(modelYear) ||
+    modelYear < 1980 ||
+    modelYear > 2100
+  ) {
+    throw new Error('Informe um ano de veículo válido.');
+  }
+
+  const seatCapacity = Number(
+    byId('registry-seat-capacity').value,
+  );
+  if (
+    !Number.isInteger(seatCapacity) ||
+    seatCapacity < 1 ||
+    seatCapacity > 12
+  ) {
+    throw new Error('A capacidade deve ficar entre 1 e 12 lugares.');
+  }
+
+  const preferredName = String(
+    byId('registry-preferred-name').value ?? '',
+  ).trim();
+
+  return {
+    fullName: requiredRegistryText(
+      byId('registry-full-name').value,
+      'Nome completo',
+      3,
+      120,
+    ),
+    ...(preferredName
+      ? {
+          preferredName: requiredRegistryText(
+            preferredName,
+            'Nome preferido',
+            2,
+            80,
+          ),
+        }
+      : {}),
+    vehicle: {
+      plate: requiredRegistryText(
+        byId('registry-plate').value,
+        'Placa',
+        7,
+        10,
+      ),
+      make: requiredRegistryText(
+        byId('registry-make').value,
+        'Marca',
+        2,
+        60,
+      ),
+      model: requiredRegistryText(
+        byId('registry-model').value,
+        'Modelo',
+        1,
+        80,
+      ),
+      modelYear,
+      color: requiredRegistryText(
+        byId('registry-color').value,
+        'Cor',
+        2,
+        40,
+      ),
+      categories,
+      fourByFour: byId('registry-four-by-four').checked,
+      seatCapacity,
+    },
+  };
+}
+
+async function handleDriverRegistrySubmit(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de salvar o cadastro.',
+      'danger',
+    );
+    return;
+  }
+  if (!hasScope('drivers:profile:write')) {
+    setMessage(
+      globalMessage,
+      'Sua conta não pode editar o cadastro do motorista.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('registry-save-button');
+  button.disabled = true;
+  try {
+    const payload = collectDriverRegistryForm();
+    const result = await api.upsertDriverRegistry(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        ...payload,
+      },
+    );
+    renderDriverRegistry(
+      result,
+      state.currentDriver.driverId,
+    );
+    setMessage(
+      globalMessage,
+      'Perfil e veículo salvos. A aprovação continua explícita.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleDriverRegistryStatus() {
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de alterar a aprovação.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !state.currentDriverRegistry?.profile ||
+    !state.currentDriverRegistry?.vehicle
+  ) {
+    setMessage(
+      globalMessage,
+      'Salve o perfil e o veículo antes de alterar a aprovação.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('registry-status-button');
+  button.disabled = true;
+  try {
+    const profileStatus = validateDriverRegistryStatus(
+      byId('registry-profile-status').value,
+    );
+    const vehicleStatus = validateDriverRegistryStatus(
+      byId('registry-vehicle-status').value,
+    );
+    const result = await api.setDriverRegistryStatus(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        profileStatus,
+        vehicleStatus,
+      },
+    );
+    renderDriverRegistry(
+      result,
+      state.currentDriver.driverId,
+    );
+    setMessage(
+      globalMessage,
+      result.registryApproved
+        ? 'Perfil e veículo aprovados administrativamente.'
+        : 'Status cadastral atualizado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderDriver(driver) {
@@ -1184,6 +1601,7 @@ async function lookupDriver(driverId) {
     const driver = await api.getDriver(state.token, driverId);
     state.currentDriver = driver;
     renderDriver(driver);
+    await loadDriverRegistry(driverId);
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -1191,6 +1609,9 @@ async function lookupDriver(driverId) {
     ) {
       state.currentDriver = null;
       renderDriverNotFound(driverId);
+      renderDriverRegistryUnavailable(
+        'Provisione o acesso do motorista antes de cadastrar perfil e veículo.',
+      );
       return;
     }
     handleAuthenticatedError(error);
@@ -1228,6 +1649,7 @@ async function handleDriverProvision(event) {
     state.currentDriver = result;
     byId('driver-search-id').value = driverId;
     renderDriver(result);
+    await loadDriverRegistry(driverId);
     setMessage(
       globalMessage,
       result.created
@@ -1388,6 +1810,12 @@ byId('driver-search-form').addEventListener('submit', (event) => {
 byId('driver-provision-form').addEventListener('submit', (event) => {
   void handleDriverProvision(event);
 });
+byId('driver-registry-form').addEventListener('submit', (event) => {
+  void handleDriverRegistrySubmit(event);
+});
+byId('registry-status-button').addEventListener('click', () => {
+  void handleDriverRegistryStatus();
+});
 byId('refresh-audit-button').addEventListener('click', () => {
   void loadAudit();
 });
@@ -1413,3 +1841,4 @@ authView.hidden = false;
 adminView.hidden = true;
 setMessage(loginMessage);
 setMessage(globalMessage);
+renderDriverRegistryUnavailable();
