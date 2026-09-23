@@ -38,7 +38,8 @@
 - [ ] tela/fluxo Pix
 - [x] endpoint de desenvolvimento para criar registro de pagamento
 - [ ] tela/fluxo cartão
-- [ ] Carteira Ramo Nessa
+- [ ] Carteira Ramo Nessa no app
+- [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [ ] confirmação de pagamento antes do despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
 - [ ] matching real
@@ -88,7 +89,7 @@
 - [ ] adapter de gateway Pix/cartão
 - [x] ledger financeiro base e escrow de pagamento
 - [x] liquidação 10% plataforma / 90% motorista após corrida concluída
-- [ ] Carteira do passageiro
+- [x] Carteira do passageiro no Core
 - [x] saldo contábil do motorista por ledger
 - [x] solicitação e reserva idempotente de saque
 - [ ] repasse Pix real ao motorista

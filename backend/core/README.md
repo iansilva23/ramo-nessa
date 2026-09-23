@@ -39,6 +39,10 @@ O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é 
 - solicitação de saque idempotente;
 - reserva atômica do saldo para impedir saque duplicado;
 - saldo reservado separado em payout_pending;
+- Carteira Ramo Nessa do passageiro no ledger;
+- recarga só creditada após captura confirmada;
+- pagamento de corrida pela carteira com débito atômico;
+- proteção contra saldo negativo e pagamentos duplicados;
 - fallback em memória somente fora de produção;
 - endpoint `GET /v1/payments/policy`;
 - endpoint `GET /health`;
