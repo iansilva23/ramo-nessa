@@ -10,19 +10,25 @@ import 'passenger_payment_service.dart';
 class HttpPassengerPaymentService implements PassengerPaymentService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
-    required String passengerId,
+    String? accessToken,
+    String? passengerId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
-        _passengerId = passengerId,
+        _accessToken = accessToken ?? RamoCoreConfig.authToken,
+        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
+  final String _accessToken;
   final String _passengerId;
   final http.Client _client;
 
   Map<String, String> get _identityHeaders => {
         'content-type': 'application/json',
-        'x-dev-passenger-id': _passengerId,
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_passengerId.trim().isNotEmpty)
+          'x-dev-passenger-id': _passengerId.trim(),
       };
 
   @override
