@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/config/ramo_map_config.dart';
+import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/passenger_ride_tracking_snapshot.dart';
 import '../../rides/domain/prepared_ride.dart';
@@ -16,6 +17,7 @@ class RideTrackingScreen extends StatefulWidget {
     required this.rideId,
     required this.remainingWalletCents,
     required this.trackingService,
+    this.realtimeService,
     this.initialDispatchStatus,
     this.networkTilesEnabled = true,
   });
@@ -23,6 +25,7 @@ class RideTrackingScreen extends StatefulWidget {
   final String rideId;
   final int remainingWalletCents;
   final PassengerRideTrackingService trackingService;
+  final PassengerRideRealtimeService? realtimeService;
   final String? initialDispatchStatus;
   final bool networkTilesEnabled;
 
@@ -33,6 +36,7 @@ class RideTrackingScreen extends StatefulWidget {
 class _RideTrackingScreenState extends State<RideTrackingScreen> {
   final MapController _mapController = MapController();
   Timer? _timer;
+  StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
   PassengerRideTrackingSnapshot? _snapshot;
   String? _error;
   bool _mapReady = false;
@@ -42,8 +46,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   void initState() {
     super.initState();
     _refresh();
+    _startRealtime();
     _timer = Timer.periodic(
-      const Duration(seconds: 3),
+      const Duration(seconds: 10),
       (_) => _refresh(),
     );
   }
@@ -51,8 +56,53 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _realtimeSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _startRealtime() {
+    final service = widget.realtimeService;
+    if (service == null) return;
+
+    _realtimeSubscription = service.watch(widget.rideId).listen(
+      (snapshot) {
+        if (!mounted) return;
+        _applySnapshot(snapshot);
+      },
+      onError: (_) {
+        // HTTP periódico continua como fallback.
+      },
+    );
+  }
+
+  void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
+    if (!mounted) return;
+
+    setState(() {
+      _snapshot = snapshot;
+      _error = null;
+    });
+
+    if (snapshot.isTerminal) {
+      _timer?.cancel();
+      _realtimeSubscription?.cancel();
+    }
+
+    final driver = snapshot.driverLocation;
+    final center = driver != null
+        ? LatLng(driver.latitude, driver.longitude)
+        : snapshot.pickupLatitude != null &&
+                snapshot.pickupLongitude != null
+            ? LatLng(
+                snapshot.pickupLatitude!,
+                snapshot.pickupLongitude!,
+              )
+            : null;
+
+    if (_mapReady && center != null) {
+      _mapController.move(center, 15.5);
+    }
   }
 
   Future<void> _refresh() async {
@@ -62,29 +112,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     try {
       final snapshot = await widget.trackingService.tracking(widget.rideId);
       if (!mounted) return;
-
-      setState(() {
-        _snapshot = snapshot;
-        _error = null;
-      });
-
-      if (snapshot.isTerminal) {
-        _timer?.cancel();
-      }
-
-      final driver = snapshot.driverLocation;
-      final center = driver != null
-          ? LatLng(driver.latitude, driver.longitude)
-          : snapshot.pickupLatitude != null &&
-                  snapshot.pickupLongitude != null
-              ? LatLng(
-                  snapshot.pickupLatitude!,
-                  snapshot.pickupLongitude!,
-                )
-              : null;
-      if (_mapReady && center != null) {
-        _mapController.move(center, 15.5);
-      }
+      _applySnapshot(snapshot);
     } on PassengerRideTrackingException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
@@ -14,12 +15,14 @@ class RidePaymentScreen extends StatefulWidget {
     required this.ride,
     this.paymentService,
     this.rideTrackingService,
+    this.rideRealtimeService,
     this.networkTilesEnabled = true,
   });
 
   final PreparedRide ride;
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
+  final PassengerRideRealtimeService? rideRealtimeService;
   final bool networkTilesEnabled;
 
   @override
@@ -143,6 +146,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   rideId: widget.ride.id,
                   remainingWalletCents: result.walletBalanceCents,
                   trackingService: tracking,
+                  realtimeService: widget.rideRealtimeService,
                   initialDispatchStatus: result.dispatchStatus,
                   networkTilesEnabled: widget.networkTilesEnabled,
                 ),

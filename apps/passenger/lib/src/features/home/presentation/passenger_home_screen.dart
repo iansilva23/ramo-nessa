@@ -17,6 +17,8 @@ import '../../pricing/domain/pricing_quote.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
 import '../../rides/data/http_passenger_ride_tracking_service.dart';
+import '../../rides/data/io_passenger_ride_realtime_service.dart';
+import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../payments/data/http_passenger_payment_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
@@ -37,6 +39,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.ridePreparationService,
     this.paymentService,
     this.rideTrackingService,
+    this.rideRealtimeService,
     this.networkTilesEnabled = true,
   });
 
@@ -47,6 +50,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
+  final PassengerRideRealtimeService? rideRealtimeService;
   final bool networkTilesEnabled;
 
   @override
@@ -92,6 +96,15 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.rideTrackingService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? HttpPassengerRideTrackingService(
+                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  passengerId: RamoCoreConfig.devPassengerId,
+                )
+              : null);
+
+  late final PassengerRideRealtimeService? _rideRealtimeService =
+      widget.rideRealtimeService ??
+          (RamoCoreConfig.devPassengerIdentityEnabled
+              ? IoPassengerRideRealtimeService(
                   baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
@@ -643,6 +656,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             ride: prepared,
             paymentService: _paymentService,
             rideTrackingService: _rideTrackingService,
+            rideRealtimeService: _rideRealtimeService,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),
         ),
