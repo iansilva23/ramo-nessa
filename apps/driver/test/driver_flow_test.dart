@@ -29,6 +29,8 @@ void main() {
     expect(find.text('R\$ 110,00'), findsOneWidget);
     expect(find.text('Preá → Jijoca'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Aceitar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Aceitar'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
@@ -54,6 +56,8 @@ void main() {
 
     expect(find.text('Nova corrida'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Recusar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Recusar'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
