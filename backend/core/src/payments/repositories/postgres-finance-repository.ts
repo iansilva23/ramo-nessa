@@ -371,6 +371,13 @@ export class PostgresFinanceRepository implements FinanceRepository {
       const existingLedger = await loadLedgerByReference(client, eventKey);
 
       if (existingLedger != null) {
+        if (existingLedger.paymentId !== payment.id) {
+          throw new PaymentDomainError(
+            'IDEMPOTENCY_CONFLICT',
+            'Evento do processador já foi usado em outro pagamento.',
+          );
+        }
+
         await client.query('COMMIT');
         return {
           payment,
@@ -544,6 +551,13 @@ export class PostgresFinanceRepository implements FinanceRepository {
       );
 
       if (existingLedger != null) {
+        if (existingLedger.walletTopupId !== topup.id) {
+          throw new WalletDomainError(
+            'WALLET_IDEMPOTENCY_CONFLICT',
+            'Evento do processador já foi usado em outra recarga.',
+          );
+        }
+
         await client.query('COMMIT');
         return {
           topup,
