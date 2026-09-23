@@ -7,6 +7,7 @@ x-core-environment: &core-environment
   DB_SSL: "false"
   TRUST_PROXY: "true"
   ALLOW_DEV_IDENTITY: "false"
+  ALLOW_DEV_OTP: "true"
   OTP_PROVIDER: "dev"
   OTP_HASH_SECRET: ${OTP_HASH_SECRET}
   OTP_RATE_LIMIT_SECRET: ${OTP_RATE_LIMIT_SECRET}
