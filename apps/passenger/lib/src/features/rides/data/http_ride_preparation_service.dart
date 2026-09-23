@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
 import '../../home/domain/service_type.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../map/domain/route_info.dart';
@@ -74,21 +75,23 @@ class HttpRidePreparationService implements RidePreparationService {
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
-    final decoded = jsonDecode(response.body);
+    final decoded = decodeJsonObject(response.body);
 
-    if (response.statusCode == 201 && decoded is Map<String, dynamic>) {
-      return PreparedRide.fromJson(decoded);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return PreparedRide.fromJson(decoded);
+      } catch (_) {
+        throw const RidePreparationException(
+          'O servidor retornou uma corrida preparada inválida.',
+        );
+      }
     }
 
-    if (decoded is Map<String, dynamic>) {
-      throw RidePreparationException(
-        decoded['message'] as String? ??
-            'Não conseguimos preparar essa corrida agora.',
-      );
-    }
-
-    throw const RidePreparationException(
-      'Não conseguimos preparar essa corrida agora.',
+    throw RidePreparationException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos preparar essa corrida agora.',
+      ),
     );
   }
 }
