@@ -76,36 +76,40 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   late final RidePreparationService? _ridePreparationService =
       widget.ridePreparationService ??
-          (RamoCoreConfig.devPassengerIdentityEnabled
+          (RamoCoreConfig.authenticated
               ? HttpRidePreparationService(
                   baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: RamoCoreConfig.authToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerPaymentService? _paymentService =
       widget.paymentService ??
-          (RamoCoreConfig.devPassengerIdentityEnabled
+          (RamoCoreConfig.authenticated
               ? HttpPassengerPaymentService(
                   baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: RamoCoreConfig.authToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerRideTrackingService? _rideTrackingService =
       widget.rideTrackingService ??
-          (RamoCoreConfig.devPassengerIdentityEnabled
+          (RamoCoreConfig.authenticated
               ? HttpPassengerRideTrackingService(
                   baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: RamoCoreConfig.authToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
 
   late final PassengerRideRealtimeService? _rideRealtimeService =
       widget.rideRealtimeService ??
-          (RamoCoreConfig.devPassengerIdentityEnabled
+          (RamoCoreConfig.authenticated
               ? IoPassengerRideRealtimeService(
                   baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: RamoCoreConfig.authToken,
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
               : null);
