@@ -3,6 +3,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'core/location/location_service.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
+import 'features/payments/data/passenger_payment_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
@@ -16,6 +17,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.placeSearchService,
     this.pricingQuoteService,
     this.ridePreparationService,
+    this.paymentService,
     this.networkTilesEnabled = true,
   });
 
@@ -24,6 +26,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   final PlaceSearchService? placeSearchService;
   final PricingQuoteService? pricingQuoteService;
   final RidePreparationService? ridePreparationService;
+  final PassengerPaymentService? paymentService;
   final bool networkTilesEnabled;
 
   @override
@@ -40,6 +43,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         placeSearchService: placeSearchService,
         pricingQuoteService: pricingQuoteService,
         ridePreparationService: ridePreparationService,
+        paymentService: paymentService,
         networkTilesEnabled: networkTilesEnabled,
       ),
     );

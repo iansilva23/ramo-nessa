@@ -16,6 +16,8 @@ import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/domain/pricing_quote.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
+import '../../payments/data/http_passenger_payment_service.dart';
+import '../../payments/data/passenger_payment_service.dart';
 import '../../payments/presentation/ride_payment_screen.dart';
 import '../../service_area/domain/service_area_policy.dart';
 import '../domain/service_type.dart';
@@ -31,6 +33,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.placeSearchService,
     this.pricingQuoteService,
     this.ridePreparationService,
+    this.paymentService,
     this.networkTilesEnabled = true,
   });
 
@@ -39,6 +42,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final PlaceSearchService? placeSearchService;
   final PricingQuoteService? pricingQuoteService;
   final RidePreparationService? ridePreparationService;
+  final PassengerPaymentService? paymentService;
   final bool networkTilesEnabled;
 
   @override
@@ -66,6 +70,15 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.ridePreparationService ??
           (RamoCoreConfig.devPassengerIdentityEnabled
               ? HttpRidePreparationService(
+                  baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
+                  passengerId: RamoCoreConfig.devPassengerId,
+                )
+              : null);
+
+  late final PassengerPaymentService? _paymentService =
+      widget.paymentService ??
+          (RamoCoreConfig.devPassengerIdentityEnabled
+              ? HttpPassengerPaymentService(
                   baseUrl: Uri.parse(RamoCoreConfig.baseUrl),
                   passengerId: RamoCoreConfig.devPassengerId,
                 )
@@ -613,7 +626,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => RidePaymentScreen(ride: prepared),
+          builder: (_) => RidePaymentScreen(
+            ride: prepared,
+            paymentService: _paymentService,
+          ),
         ),
       );
     } on RidePreparationException catch (error) {

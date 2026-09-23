@@ -9,6 +9,8 @@ import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.
 import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
@@ -47,6 +49,7 @@ void main() {
         placeSearchService: search,
         pricingQuoteService: _FakePricingQuoteService(),
         ridePreparationService: _FakeRidePreparationService(),
+        paymentService: _FakePassengerPaymentService(),
         networkTilesEnabled: false,
       ),
     );
@@ -93,7 +96,14 @@ void main() {
     expect(find.text('Pix'), findsOneWidget);
     expect(find.text('Cartão'), findsOneWidget);
     expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
+    expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
     expect(find.textContaining('Procurando buggy'), findsNothing);
+
+    await tester.tap(find.text('Carteira Ramo Nessa'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pagamento confirmado'), findsOneWidget);
+    expect(find.text('Saldo restante: R\$ 55,00'), findsOneWidget);
   });
 
   testWidgets('passageiro consegue trocar a origem manualmente', (tester) async {
@@ -222,6 +232,24 @@ class _FakeRidePreparationService implements RidePreparationService {
       pickupCompensationCents: 100,
       totalAmountCents: 4500,
       holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
+  }
+}
+
+
+class _FakePassengerPaymentService implements PassengerPaymentService {
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const WalletRidePaymentResult(
+      rideState: 'PAID',
+      walletBalanceCents: 5500,
+      duplicatePayment: false,
     );
   }
 }

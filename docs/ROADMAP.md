@@ -39,7 +39,8 @@
 - [ ] cobrança Pix real
 - [x] endpoint de desenvolvimento para criar registro de pagamento
 - [ ] cobrança cartão real
-- [ ] interface da Carteira Ramo Nessa no app
+- [ ] interface completa da Carteira Ramo Nessa no app
+- [x] consulta de saldo e pagamento da corrida com Carteira
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend (dev identity; aguardando auth)
