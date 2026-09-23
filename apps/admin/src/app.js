@@ -2,6 +2,8 @@ import { AdminApiError, createAdminApi } from './api.js';
 import {
   actionLabel,
   actorLabel,
+  driverDocumentStatusPresentation,
+  driverDocumentTypeLabel,
   formatCurrencyCents,
   formatDateTime,
   formatSessionRemaining,
@@ -27,6 +29,7 @@ const state = {
   expiresAt: null,
   currentDriver: null,
   currentDriverRegistry: null,
+  currentDriverDocuments: null,
   dashboard: {
     generatedAt: null,
     rides: {
@@ -81,6 +84,8 @@ const scopeLabels = new Map([
   ['drivers:auth:write', 'Aprovar e suspender acessos de motoristas'],
   ['drivers:profile:read', 'Consultar perfil e veículo de motoristas'],
   ['drivers:profile:write', 'Editar e aprovar perfil e veículo'],
+  ['drivers:documents:read', 'Consultar documentos de motoristas'],
+  ['drivers:documents:write', 'Revisar documentos de motoristas'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
   ['audit:read', 'Consultar auditoria'],
@@ -125,6 +130,7 @@ function clearSession(message = '') {
   state.expiresAt = null;
   state.currentDriver = null;
   state.currentDriverRegistry = null;
+  state.currentDriverDocuments = null;
   state.dashboard = {
     generatedAt: null,
     rides: {
@@ -802,6 +808,311 @@ async function handleDriverRegistryStatus() {
       result.registryApproved
         ? 'Perfil e veículo aprovados administrativamente.'
         : 'Status cadastral atualizado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function formatDocumentFileSize(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${Math.trunc(bytes)} B`;
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDocumentDate(value) {
+  if (typeof value !== 'string') return '—';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return '—';
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function setDocumentReviewControlsVisible(payload = null) {
+  const panel = byId('driver-document-review-panel');
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const hasPending = items.some(
+    (item) => item?.status === 'pending',
+  );
+  panel.hidden =
+    !hasScope('drivers:documents:write') || !hasPending;
+}
+
+function documentItemByType(payload, type) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  return items.find((item) => item?.documentType === type) ?? null;
+}
+
+function syncDocumentReviewForm(payload) {
+  const select = byId('driver-document-review-type');
+  const pending = (Array.isArray(payload?.items) ? payload.items : [])
+    .filter((item) => item?.status === 'pending');
+  select.replaceChildren();
+
+  for (const item of pending) {
+    const option = document.createElement('option');
+    option.value = item.documentType;
+    option.textContent = driverDocumentTypeLabel(item.documentType);
+    select.append(option);
+  }
+
+  byId('driver-document-review-status').value = 'approved';
+  byId('driver-document-rejection-reason').value = '';
+  byId('driver-document-review-button').disabled =
+    pending.length === 0 || !hasScope('drivers:documents:write');
+}
+
+function documentMeta(label, value) {
+  const item = document.createElement('div');
+  const caption = document.createElement('span');
+  caption.textContent = label;
+  const strong = document.createElement('strong');
+  strong.textContent = value;
+  item.append(caption, strong);
+  return item;
+}
+
+function renderDriverDocumentCard(type, record) {
+  const card = document.createElement('article');
+  card.className = 'driver-document-item';
+
+  const header = document.createElement('div');
+  header.className = 'driver-document-item__header';
+
+  const titleWrap = document.createElement('div');
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'eyebrow eyebrow--dark';
+  eyebrow.textContent = 'DOCUMENTO';
+  const title = document.createElement('h3');
+  title.textContent = driverDocumentTypeLabel(type);
+  titleWrap.append(eyebrow, title);
+
+  const presentation = driverDocumentStatusPresentation(
+    record?.effectiveStatus ?? record?.status,
+  );
+  const pill = document.createElement('span');
+  pill.className = `pill pill--${presentation.tone}`;
+  pill.textContent = presentation.label;
+  header.append(titleWrap, pill);
+
+  const detail = document.createElement('p');
+  detail.className = 'muted-copy';
+  detail.textContent = presentation.detail;
+
+  const meta = document.createElement('div');
+  meta.className = 'driver-document-meta';
+
+  if (record == null) {
+    meta.append(
+      documentMeta('Arquivo privado', 'Não recebido'),
+      documentMeta('Validade', '—'),
+      documentMeta('Enviado', '—'),
+      documentMeta('Revisado', '—'),
+    );
+  } else {
+    meta.append(
+      documentMeta(
+        'Arquivo privado',
+        record.hasPrivateFile === true
+          ? `${record.mimeType ?? 'Arquivo'} · ${formatDocumentFileSize(record.sizeBytes)}`
+          : 'Indisponível',
+      ),
+      documentMeta('Validade', formatDocumentDate(record.expiresOn)),
+      documentMeta('Enviado', formatDateTime(record.submittedAt)),
+      documentMeta('Revisado', formatDateTime(record.reviewedAt)),
+    );
+  }
+
+  card.append(header, detail, meta);
+
+  if (record?.rejectionReason) {
+    const reason = document.createElement('p');
+    reason.className = 'driver-document-rejection';
+    reason.textContent = `Motivo: ${record.rejectionReason}`;
+    card.append(reason);
+  }
+
+  return card;
+}
+
+function renderDriverDocuments(payload) {
+  state.currentDriverDocuments = payload;
+  const target = byId('driver-documents-result');
+  const overall = byId('driver-documents-overall');
+  target.replaceChildren();
+
+  const approved = payload?.documentsApproved === true;
+  overall.className = `pill pill--${approved ? 'success' : 'warning'}`;
+  overall.textContent = approved
+    ? 'Documentos aprovados'
+    : 'Revisão pendente';
+
+  const grid = document.createElement('div');
+  grid.className = 'driver-documents-grid';
+  grid.append(
+    renderDriverDocumentCard(
+      'driver_license',
+      documentItemByType(payload, 'driver_license'),
+    ),
+    renderDriverDocumentCard(
+      'vehicle_registration',
+      documentItemByType(payload, 'vehicle_registration'),
+    ),
+  );
+  target.className = 'driver-documents-result';
+  target.append(grid);
+
+  syncDocumentReviewForm(payload);
+  setDocumentReviewControlsVisible(payload);
+}
+
+function renderDriverDocumentsUnavailable(
+  message = 'Abra um motorista para consultar os documentos.',
+) {
+  state.currentDriverDocuments = null;
+  const target = byId('driver-documents-result');
+  target.replaceChildren();
+  target.className = 'driver-documents-result empty-state';
+  target.textContent = message;
+
+  const overall = byId('driver-documents-overall');
+  overall.className = 'pill';
+  overall.textContent = 'Não carregado';
+
+  const select = byId('driver-document-review-type');
+  select.replaceChildren();
+  byId('driver-document-review-status').value = 'approved';
+  byId('driver-document-rejection-reason').value = '';
+  byId('driver-document-review-button').disabled = true;
+  byId('driver-document-review-panel').hidden = true;
+}
+
+async function loadDriverDocuments(driverId) {
+  if (!state.token) return;
+
+  if (!hasScope('drivers:documents:read')) {
+    renderDriverDocumentsUnavailable(
+      'Sua conta não possui permissão para consultar documentos.',
+    );
+    return;
+  }
+
+  try {
+    const payload = await api.getDriverDocuments(
+      state.token,
+      driverId,
+    );
+    renderDriverDocuments(payload);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderDriverDocumentsUnavailable(
+        'Cadastre o perfil do motorista antes de revisar documentos.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+function normalizedRejectionReason() {
+  return String(
+    byId('driver-document-rejection-reason').value ?? '',
+  )
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function syncDocumentRejectionRequirement() {
+  const rejected =
+    byId('driver-document-review-status').value === 'rejected';
+  const field = byId('driver-document-rejection-reason');
+  field.required = rejected;
+  field.disabled = !rejected;
+  if (!rejected) field.value = '';
+}
+
+async function handleDriverDocumentReview(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de revisar documentos.',
+      'danger',
+    );
+    return;
+  }
+  if (!hasScope('drivers:documents:write')) {
+    setMessage(
+      globalMessage,
+      'Sua conta não pode revisar documentos.',
+      'danger',
+    );
+    return;
+  }
+
+  const documentType =
+    byId('driver-document-review-type').value;
+  const current = documentItemByType(
+    state.currentDriverDocuments,
+    documentType,
+  );
+  if (current?.status !== 'pending') {
+    setMessage(
+      globalMessage,
+      'Selecione um documento pendente de revisão.',
+      'danger',
+    );
+    return;
+  }
+
+  const status = byId('driver-document-review-status').value;
+  if (status !== 'approved' && status !== 'rejected') {
+    setMessage(globalMessage, 'Decisão documental inválida.', 'danger');
+    return;
+  }
+
+  const rejectionReason = normalizedRejectionReason();
+  if (
+    status === 'rejected' &&
+    (rejectionReason.length < 3 || rejectionReason.length > 240)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um motivo de rejeição entre 3 e 240 caracteres.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('driver-document-review-button');
+  button.disabled = true;
+  try {
+    await api.reviewDriverDocument(state.token, {
+      driverId: state.currentDriver.driverId,
+      documentType,
+      status,
+      ...(status === 'rejected' ? { rejectionReason } : {}),
+    });
+    await loadDriverDocuments(state.currentDriver.driverId);
+    setMessage(
+      globalMessage,
+      status === 'approved'
+        ? 'Documento aprovado e decisão auditada.'
+        : 'Documento rejeitado e decisão auditada.',
       'success',
     );
     if (hasScope('audit:read')) {
@@ -1602,6 +1913,7 @@ async function lookupDriver(driverId) {
     state.currentDriver = driver;
     renderDriver(driver);
     await loadDriverRegistry(driverId);
+    await loadDriverDocuments(driverId);
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -1611,6 +1923,9 @@ async function lookupDriver(driverId) {
       renderDriverNotFound(driverId);
       renderDriverRegistryUnavailable(
         'Provisione o acesso do motorista antes de cadastrar perfil e veículo.',
+      );
+      renderDriverDocumentsUnavailable(
+        'Provisione o motorista e cadastre o perfil antes dos documentos.',
       );
       return;
     }
@@ -1650,6 +1965,7 @@ async function handleDriverProvision(event) {
     byId('driver-search-id').value = driverId;
     renderDriver(result);
     await loadDriverRegistry(driverId);
+    await loadDriverDocuments(driverId);
     setMessage(
       globalMessage,
       result.created
@@ -1816,6 +2132,12 @@ byId('driver-registry-form').addEventListener('submit', (event) => {
 byId('registry-status-button').addEventListener('click', () => {
   void handleDriverRegistryStatus();
 });
+byId('driver-document-review-form').addEventListener('submit', (event) => {
+  void handleDriverDocumentReview(event);
+});
+byId('driver-document-review-status').addEventListener('change', () => {
+  syncDocumentRejectionRequirement();
+});
 byId('refresh-audit-button').addEventListener('click', () => {
   void loadAudit();
 });
@@ -1842,3 +2164,5 @@ adminView.hidden = true;
 setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
+renderDriverDocumentsUnavailable();
+syncDocumentRejectionRequirement();
