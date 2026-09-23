@@ -3,7 +3,17 @@ name: Mobile Build Audit
 on:
   workflow_dispatch:
   push:
+    branches: [main, "feature/**"]
     paths:
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "packages/design_system/**"
+      - ".github/workflows/mobile-build-audit.yml"
+  pull_request:
+    paths:
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "packages/design_system/**"
       - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
