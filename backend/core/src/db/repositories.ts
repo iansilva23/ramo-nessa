@@ -26,6 +26,9 @@ import { InMemoryDriverRegistryRepository } from '../drivers/repositories/in-mem
 import { PostgresDriverRegistryRepository } from '../drivers/repositories/postgres-driver-registry-repository.js';
 import { InMemoryDriverSupplyRepository } from '../drivers/repositories/in-memory-driver-supply-repository.js';
 import { PostgresDriverSupplyRepository } from '../drivers/repositories/postgres-driver-supply-repository.js';
+import type { PricingCatalogVersionRepository } from '../pricing/pricing-catalog-version-repository.js';
+import { InMemoryPricingCatalogVersionRepository } from '../pricing/repositories/in-memory-pricing-catalog-version-repository.js';
+import { PostgresPricingCatalogVersionRepository } from '../pricing/repositories/postgres-pricing-catalog-version-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import { InMemoryFinanceRepository } from '../payments/repositories/in-memory-finance-repository.js';
 import { PostgresFinanceRepository } from '../payments/repositories/postgres-finance-repository.js';
@@ -43,6 +46,7 @@ export interface RepositoryBundle {
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
   driverDocumentRepository: DriverDocumentRepository;
+  pricingCatalogVersionRepository: PricingCatalogVersionRepository;
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
   storageMode: 'postgres' | 'memory';
@@ -72,6 +76,8 @@ export function createRepositories(): RepositoryBundle {
         new PostgresDriverRegistryRepository(pool),
       driverDocumentRepository:
         new PostgresDriverDocumentRepository(pool),
+      pricingCatalogVersionRepository:
+        new PostgresPricingCatalogVersionRepository(pool),
       rideMatchingRepository: new PostgresRideMatchingRepository(pool),
       ridePreparationRepository:
         new PostgresRidePreparationRepository(pool),
@@ -107,6 +113,8 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryDriverRegistryRepository(),
     driverDocumentRepository:
       new InMemoryDriverDocumentRepository(),
+    pricingCatalogVersionRepository:
+      new InMemoryPricingCatalogVersionRepository(),
     rideMatchingRepository: new InMemoryRideMatchingRepository(
       rideRepository,
       driverSupplyRepository,
