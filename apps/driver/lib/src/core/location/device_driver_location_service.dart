@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'driver_location_service.dart';
@@ -43,30 +44,50 @@ class DeviceDriverLocationService implements DriverLocationService {
     );
   }
 
+  LocationSettings _streamSettings() {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 20,
+        intervalDuration: const Duration(seconds: 10),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Ramo Nessa Motorista online',
+          notificationText:
+              'Sua localização está sendo atualizada para receber corridas.',
+          notificationChannelName: 'Localização do motorista',
+          notificationIcon: AndroidResource(
+            name: 'ic_launcher',
+            defType: 'drawable',
+          ),
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    }
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType: ActivityType.automotiveNavigation,
+        distanceFilter: 20,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
+        allowBackgroundLocationUpdates: true,
+      );
+    }
+
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 20,
+    );
+  }
+
   @override
   Stream<DriverPosition> positionStream() async* {
     await _ensureReady();
 
-    final settings = AndroidSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 20,
-      intervalDuration: const Duration(seconds: 10),
-      foregroundNotificationConfig: const ForegroundNotificationConfig(
-        notificationTitle: 'Ramo Nessa Motorista online',
-        notificationText:
-            'Sua localização está sendo atualizada para receber corridas.',
-        notificationChannelName: 'Localização do motorista',
-        notificationIcon: AndroidResource(
-          name: 'ic_launcher',
-          defType: 'drawable',
-        ),
-        enableWakeLock: true,
-        setOngoing: true,
-      ),
-    );
-
     yield* Geolocator.getPositionStream(
-      locationSettings: settings,
+      locationSettings: _streamSettings(),
     ).map(
       (position) => DriverPosition(
         latitude: position.latitude,
