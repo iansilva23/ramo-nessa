@@ -1,5 +1,5 @@
 name: One-time Generate Driver Native Icons
-# retry-valid-source-v2
+# retry-direct-valid-png-v3
 
 on:
   push:
@@ -34,16 +34,11 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
-          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
           source_path = root / "assets/brand/driver/app_icon_source.png"
-          encoded = (
-              root / "assets/brand/driver/app_icon_source.b64"
-          ).read_text(encoding="ascii").strip()
-          source_path.write_bytes(b64decode(encoded, validate=True))
           source = Image.open(source_path).convert("RGB")
           
           android = {
@@ -125,16 +120,11 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
-          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
           source_path = root / "assets/brand/driver/app_icon_source.png"
-          encoded = (
-              root / "assets/brand/driver/app_icon_source.b64"
-          ).read_text(encoding="ascii").strip()
-          source_path.write_bytes(b64decode(encoded, validate=True))
           source = Image.open(source_path).convert("RGB")
           
           android = {
@@ -213,16 +203,11 @@ jobs:
         shell: bash
         run: |
           cat > /tmp/generate_driver_icons.py <<'PY'
-          from base64 import b64decode
           from pathlib import Path
           from PIL import Image
           
           root = Path("apps/driver")
           source_path = root / "assets/brand/driver/app_icon_source.png"
-          encoded = (
-              root / "assets/brand/driver/app_icon_source.b64"
-          ).read_text(encoding="ascii").strip()
-          source_path.write_bytes(b64decode(encoded, validate=True))
           source = Image.open(source_path).convert("RGB")
           
           android = {
