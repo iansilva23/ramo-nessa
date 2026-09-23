@@ -102,13 +102,18 @@ class HttpPhoneAuthService implements PhoneAuthService {
   }
 
   @override
-  Future<AuthSessionInfo> currentSession(String accessToken) async {
+  Future<AuthSessionInfo?> currentSession(String accessToken) async {
     final response = await _client
         .get(
           _baseUrl.resolve('/v1/auth/me'),
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      return null;
+    }
+
     final json = _decodeObject(response);
     _throwIfError(response, json);
 
