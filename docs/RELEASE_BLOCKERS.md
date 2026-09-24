@@ -86,6 +86,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 10. **Regras de acesso/eligibilidade e geografia**
    - preço não substitui autorização operacional;
    - o Core já valida categoria, lotação, disponibilidade e 4x4 antes da oferta;
+   - disponibilidade de categorias e exigência 4x4 ao cruzar Jeri já são políticas versionadas e publicáveis pelo Admin;
+   - cada corrida congela sua exigência 4x4 para não mudar com versões futuras;
    - falta um catálogo geoespacial autoritativo para validar a localidade exata de todas as tarifas locais/externas, além da validação de zona/GPS já implementada.
 
 ## Regra do projeto
