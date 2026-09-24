@@ -84,6 +84,34 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverProfileSnapshot> profile() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/profile'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverProfileSnapshot.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
+  Future<DriverActivitySnapshot> activity() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/activity?limit=30'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverActivitySnapshot.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
   Future<AcceptedDriverRide?> currentRide() async {
     final response = await _client
         .get(
