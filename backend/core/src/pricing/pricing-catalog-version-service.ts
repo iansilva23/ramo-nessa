@@ -47,6 +47,10 @@ export function pricingCatalogVersionView(
       preaLocalities: Object.keys(record.snapshot.localities.prea).length,
       jijocaLocalities: Object.keys(record.snapshot.localities.jijoca).length,
       fixedRoutes: record.snapshot.fixedRoutes.length,
+      enabledCategories: record.snapshot.categories.filter(
+        (category) =>
+          record.snapshot.categoryPolicies[category].enabled,
+      ).length,
     },
   };
 }
@@ -128,7 +132,7 @@ export async function updatePricingCatalogDraft(input: {
       dayCents: patch.dayCents,
       after22Cents: patch.after22Cents,
     };
-  } else {
+  } else if (patch.kind === 'locality_price') {
     const locality =
       snapshot.localities[patch.hub][
         patch.localityId
@@ -153,6 +157,19 @@ export async function updatePricingCatalogDraft(input: {
       localityId: patch.localityId,
       category: patch.category,
       price: patch.price,
+    };
+  } else {
+    snapshot.categoryPolicies[patch.category] = {
+      enabled: patch.enabled,
+      requiresFourByFourOnJeriBoundary:
+        patch.requiresFourByFourOnJeriBoundary,
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      category: patch.category,
+      enabled: patch.enabled,
+      requiresFourByFourOnJeriBoundary:
+        patch.requiresFourByFourOnJeriBoundary,
     };
   }
 
