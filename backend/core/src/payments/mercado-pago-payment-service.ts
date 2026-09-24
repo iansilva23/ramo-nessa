@@ -1,5 +1,5 @@
 import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
-import type { RideRecord } from '../rides/ride.js';
+import { isDriverPaymentHoldExpired, type RideRecord } from '../rides/ride.js';
 import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';
 import type {
@@ -28,6 +28,16 @@ export class MercadoPagoPaymentServiceError extends Error {
 export interface MercadoPagoPixIntent {
   payment: PaymentRecord;
   pix: MercadoPagoPixOrder;
+}
+
+export function shouldRefundMercadoPagoPaymentBeforeDispatch(
+  ride: RideRecord,
+  now: Date,
+): boolean {
+  return (
+    ride.state === 'AWAITING_PAYMENT' &&
+    isDriverPaymentHoldExpired(ride, now)
+  );
 }
 
 export async function createMercadoPagoPixIntent(input: {
