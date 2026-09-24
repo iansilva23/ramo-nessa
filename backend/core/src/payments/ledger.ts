@@ -271,7 +271,8 @@ export function cashRideCommissionDebtLedger(input: {
   rideId: string;
   driverId: string;
   platformCommissionCents: number;
-  driverPayableRecoveryCents?: number;
+  existingDebtCents?: number;
+  availableDriverPayableCents?: number;
   createdAt: string;
 }): LedgerTransaction {
   if (
@@ -283,33 +284,57 @@ export function cashRideCommissionDebtLedger(input: {
     );
   }
 
-  const driverPayableRecoveryCents =
-    input.driverPayableRecoveryCents ?? 0;
+  const existingDebtCents = input.existingDebtCents ?? 0;
+  const availableDriverPayableCents =
+    input.availableDriverPayableCents ?? 0;
   if (
-    !Number.isInteger(driverPayableRecoveryCents) ||
-    driverPayableRecoveryCents < 0 ||
-    driverPayableRecoveryCents > input.platformCommissionCents
+    !Number.isInteger(existingDebtCents) ||
+    existingDebtCents < 0 ||
+    !Number.isInteger(availableDriverPayableCents) ||
+    availableDriverPayableCents < 0
   ) {
     throw new LedgerError(
-      'Recuperação de comissão cash inválida.',
+      'Saldos usados na liquidação cash são inválidos.',
     );
   }
-  const debtCents =
-    input.platformCommissionCents - driverPayableRecoveryCents;
+
+  const totalObligationCents =
+    existingDebtCents + input.platformCommissionCents;
+  const payableRecoveryCents = Math.min(
+    availableDriverPayableCents,
+    totalObligationCents,
+  );
+  const priorDebtRecoveryCents = Math.min(
+    existingDebtCents,
+    payableRecoveryCents,
+  );
+  const newCommissionRecoveryCents =
+    payableRecoveryCents - priorDebtRecoveryCents;
+  const newDebtCents =
+    input.platformCommissionCents - newCommissionRecoveryCents;
 
   const entries: LedgerEntry[] = [
-    ...(driverPayableRecoveryCents > 0
+    ...(payableRecoveryCents > 0
       ? [{
           accountKey: `driver:${input.driverId}:payable`,
           direction: 'debit' as const,
-          amountCents: driverPayableRecoveryCents,
+          amountCents: payableRecoveryCents,
         }]
       : []),
-    ...(debtCents > 0
+    ...(priorDebtRecoveryCents > 0
       ? [{
-          accountKey: `driver:${input.driverId}:commission_debt`,
+          accountKey:
+            `driver:${input.driverId}:commission_debt`,
+          direction: 'credit' as const,
+          amountCents: priorDebtRecoveryCents,
+        }]
+      : []),
+    ...(newDebtCents > 0
+      ? [{
+          accountKey:
+            `driver:${input.driverId}:commission_debt`,
           direction: 'debit' as const,
-          amountCents: debtCents,
+          amountCents: newDebtCents,
         }]
       : []),
     {
