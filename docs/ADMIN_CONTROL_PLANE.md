@@ -109,7 +109,12 @@ exigir 4x4 quando a viagem cruza o limite de Jericoacoara. A exigência é
 congelada na corrida no momento da criação/preparação, evitando que uma mudança
 futura reclassifique uma viagem já existente.
 
-Alterações estruturais de localidades/zonas permanecem em etapa própria.
+As quatro zonas técnicas suportadas (`jericoacoara`, `prea`, `jijoca` e
+`external`) podem ser ativadas/desativadas dentro do mesmo fluxo versionado.
+Localidades de Preá/Jijoca e destinos externos aprovados podem ser adicionados ou
+removidos em rascunho. Hubs centrais e localidades referenciadas por rotas fixas
+não podem ser removidos. A cotação e a validação de GPS usam o catálogo efetivo,
+evitando divergência entre configuração do Admin e runtime.
 
 ### Diretório de passageiros
 
