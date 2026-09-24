@@ -379,6 +379,37 @@ function sendPushBestEffort(input: {
   });
 }
 
+async function releaseExpiredPreparedDriverHold(input: {
+  rideId: string;
+  driverId?: string;
+  now: Date;
+}): Promise<void> {
+  const driverId = input.driverId?.trim();
+  if (!driverId) return;
+
+  const supply = await driverSupplyRepository.findByDriverId(driverId);
+  if (
+    supply == null ||
+    supply.reservedRideId !== input.rideId ||
+    supply.reservedUntil == null ||
+    Date.parse(supply.reservedUntil) > input.now.getTime()
+  ) {
+    return;
+  }
+
+  const {
+    reservedRideId: _reservedRideId,
+    reservedUntil: _reservedUntil,
+    ...released
+  } = supply;
+
+  await driverSupplyRepository.upsert({
+    ...released,
+    updatedAt: input.now.toISOString(),
+  });
+}
+
+
 async function processConfirmedMercadoPagoRide(
   payment: PaymentRecord,
 ): Promise<void> {
@@ -405,6 +436,12 @@ async function processConfirmedMercadoPagoRide(
       paymentId: payment.id,
       driverHoldExpiresAt:
         rideBeforeConfirmation?.driverHoldExpiresAt ?? null,
+    });
+
+    await releaseExpiredPreparedDriverHold({
+      rideId: ride.id,
+      driverId: rideBeforeConfirmation?.reservedDriverId,
+      now: confirmationTime,
     });
 
     const refund = await refundMercadoPagoRideAfterNoDriver({
