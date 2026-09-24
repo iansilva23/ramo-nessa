@@ -43,6 +43,9 @@ import { PostgresPushDeviceRepository } from '../notifications/repositories/post
 import type { AdminCommunicationsRepository } from '../admin/admin-communications-repository.js';
 import { InMemoryAdminCommunicationsRepository } from '../admin/repositories/in-memory-admin-communications-repository.js';
 import { PostgresAdminCommunicationsRepository } from '../admin/repositories/postgres-admin-communications-repository.js';
+import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
+import { InMemoryOperationalSettingsRepository } from '../config/in-memory-operational-settings-repository.js';
+import { PostgresOperationalSettingsRepository } from '../config/postgres-operational-settings-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
@@ -61,6 +64,7 @@ export interface RepositoryBundle {
   ridePreparationRepository: RidePreparationRepository;
   pushDeviceRepository: PushDeviceRepository;
   adminCommunicationsRepository: AdminCommunicationsRepository;
+  operationalSettingsRepository: OperationalSettingsRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -98,6 +102,8 @@ export function createRepositories(): RepositoryBundle {
       pushDeviceRepository: new PostgresPushDeviceRepository(pool),
       adminCommunicationsRepository:
         new PostgresAdminCommunicationsRepository(pool),
+      operationalSettingsRepository:
+        new PostgresOperationalSettingsRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -145,6 +151,8 @@ export function createRepositories(): RepositoryBundle {
     pushDeviceRepository: new InMemoryPushDeviceRepository(),
     adminCommunicationsRepository:
       new InMemoryAdminCommunicationsRepository(),
+    operationalSettingsRepository:
+      new InMemoryOperationalSettingsRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
