@@ -584,6 +584,47 @@ class DriverDocumentsSnapshot {
 }
 
 
+class DriverSecuritySnapshot {
+  const DriverSecuritySnapshot({
+    required this.sessionId,
+    required this.subjectType,
+    required this.createdAt,
+    required this.expiresAt,
+  });
+
+  factory DriverSecuritySnapshot.fromJson(Map<String, dynamic> json) {
+    return DriverSecuritySnapshot(
+      sessionId: json['id'] as String,
+      subjectType: json['subjectType'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      expiresAt: DateTime.parse(json['expiresAt'] as String),
+    );
+  }
+
+  final String sessionId;
+  final String subjectType;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+}
+
+class DriverSessionRevokeResult {
+  const DriverSessionRevokeResult({
+    required this.revokedSessions,
+    required this.disabledDevices,
+  });
+
+  factory DriverSessionRevokeResult.fromJson(Map<String, dynamic> json) {
+    return DriverSessionRevokeResult(
+      revokedSessions: (json['revokedSessions'] as num?)?.toInt() ?? 0,
+      disabledDevices: (json['disabledDevices'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final int revokedSessions;
+  final int disabledDevices;
+}
+
+
 class DriverActivityRide {
   const DriverActivityRide({
     required this.id,
