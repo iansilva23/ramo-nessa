@@ -1105,10 +1105,13 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-        [debtAccount],
-      );
+      const payableAccount = `driver:${input.driverId}:payable`;
+      for (const account of [debtAccount, payableAccount].sort()) {
+        await client.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [account],
+        );
+      }
       const debtBalance = await accountBalanceCents(
         client,
         debtAccount,
@@ -1152,16 +1155,25 @@ export class PostgresFinanceRepository implements FinanceRepository {
     const client = await this.pool.connect();
     const referenceKey = `cash-ride-commission:${input.rideId}`;
     const debtAccount = `driver:${input.driverId}:commission_debt`;
+    const payableAccount = `driver:${input.driverId}:payable`;
 
     try {
       await client.query('BEGIN');
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-        [debtAccount],
-      );
+      for (const account of [debtAccount, payableAccount].sort()) {
+        await client.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [account],
+        );
+      }
 
       const existing = await loadLedgerByReference(client, referenceKey);
       if (existing != null) {
+        const recovered =
+          existing.entries.find(
+            (entry) =>
+              entry.accountKey === payableAccount &&
+              entry.direction === 'debit',
+          )?.amountCents ?? 0;
         const debtBalance = await accountBalanceCents(
           client,
           debtAccount,
@@ -1170,14 +1182,25 @@ export class PostgresFinanceRepository implements FinanceRepository {
         return {
           ledgerTransaction: existing,
           duplicateSettlement: true,
+          cashCommissionRecoveredFromBalanceCents: recovered,
           cashDebtCents: Math.max(0, -debtBalance),
         };
       }
+
+      const availablePayable = Math.max(
+        0,
+        await accountBalanceCents(client, payableAccount),
+      );
+      const recovered = Math.min(
+        availablePayable,
+        input.platformCommissionCents,
+      );
 
       const ledger = cashRideCommissionDebtLedger({
         rideId: input.rideId,
         driverId: input.driverId,
         platformCommissionCents: input.platformCommissionCents,
+        driverPayableRecoveryCents: recovered,
         createdAt: (input.settledAt ?? new Date()).toISOString(),
       });
       await insertLedger(client, ledger);
@@ -1191,6 +1214,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
       return {
         ledgerTransaction: ledger,
         duplicateSettlement: false,
+        cashCommissionRecoveredFromBalanceCents: recovered,
         cashDebtCents: Math.max(0, -debtBalance),
       };
     } catch (error) {
