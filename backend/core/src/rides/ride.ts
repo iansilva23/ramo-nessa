@@ -9,6 +9,9 @@ import type { RideState } from './ride-state.js';
 
 export interface RideQuoteSnapshot {
   ruleId: string;
+  catalogVersion?: string;
+  catalogVersionId?: string;
+  catalogVersionNumber?: number;
   baseAmountCents: number;
   pickupCompensationCents: number;
   totalAmountCents: number;
@@ -68,9 +71,28 @@ export function isDriverPaymentHoldExpired(
   return Number.isNaN(expiresAt) || expiresAt <= now.getTime();
 }
 
-export function snapshotExactFare(fare: ExactFare): RideQuoteSnapshot {
+export function snapshotExactFare(
+  fare: ExactFare,
+  pricing: {
+    catalogVersion?: string;
+    catalogVersionId?: string;
+    catalogVersionNumber?: number;
+  } = {},
+): RideQuoteSnapshot {
   return {
     ruleId: fare.ruleId,
+    ...(pricing.catalogVersion == null
+      ? {}
+      : { catalogVersion: pricing.catalogVersion }),
+    ...(pricing.catalogVersionId == null
+      ? {}
+      : { catalogVersionId: pricing.catalogVersionId }),
+    ...(pricing.catalogVersionNumber == null
+      ? {}
+      : {
+          catalogVersionNumber:
+            pricing.catalogVersionNumber,
+        }),
     baseAmountCents: fare.baseAmountCents,
     pickupCompensationCents: fare.pickupCompensationCents,
     totalAmountCents: fare.totalAmountCents,
