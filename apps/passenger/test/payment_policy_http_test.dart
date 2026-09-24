@@ -195,8 +195,7 @@ void main() {
     final result = await service.createCardRidePayment(
       rideId: 'ride-card-http',
       idempotencyKey: 'card-http-idempotency-key',
-      payerEmail: 'passageiro@example.com',
-      cardToken: 'secure-token-${'x' * 40}',
+      cardToken: 'secure-token-NaN',
       paymentMethodId: 'master',
       paymentMethodType: 'credit_card',
     );
@@ -207,11 +206,10 @@ void main() {
     expect(body['paymentMethodId'], 'master');
     expect(body['paymentMethodType'], 'credit_card');
     expect(body['installments'], 1);
+    expect(body.containsKey('payerEmail'), isFalse);
     expect(body.containsKey('cardNumber'), isFalse);
     expect(body.containsKey('cvv'), isFalse);
     expect(result.status, 'action_required');
     expect(result.challengeUrl, 'https://secure.example.test/challenge');
   });
-
-
 }
