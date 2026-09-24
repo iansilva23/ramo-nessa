@@ -537,19 +537,39 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const referenceKey = `cash-ride-commission:${input.rideId}`;
     const existing = this.ledgerByReference.get(referenceKey);
     if (existing != null) {
+      const recovered =
+        existing.entries.find(
+          (entry) =>
+            entry.accountKey ===
+              `driver:${input.driverId}:payable` &&
+            entry.direction === 'debit',
+        )?.amountCents ?? 0;
       return {
         ledgerTransaction: structuredClone(existing),
         duplicateSettlement: true,
+        cashCommissionRecoveredFromBalanceCents: recovered,
         cashDebtCents: await this.getDriverCashDebtCents(
           input.driverId,
         ),
       };
     }
 
+    const availablePayable = Math.max(
+      0,
+      await this.getAccountBalanceCents(
+        `driver:${input.driverId}:payable`,
+      ),
+    );
+    const recovered = Math.min(
+      availablePayable,
+      input.platformCommissionCents,
+    );
+
     const ledger = cashRideCommissionDebtLedger({
       rideId: input.rideId,
       driverId: input.driverId,
       platformCommissionCents: input.platformCommissionCents,
+      driverPayableRecoveryCents: recovered,
       createdAt: (input.settledAt ?? new Date()).toISOString(),
     });
     this.ledgerByReference.set(referenceKey, structuredClone(ledger));
@@ -557,6 +577,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     return {
       ledgerTransaction: structuredClone(ledger),
       duplicateSettlement: false,
+      cashCommissionRecoveredFromBalanceCents: recovered,
       cashDebtCents: await this.getDriverCashDebtCents(input.driverId),
     };
   }
