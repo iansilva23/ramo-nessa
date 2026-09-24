@@ -72,20 +72,17 @@ export async function passengerRideTracking(input: {
 
     const profile = await input.registry.findProfile(ride.driverId);
     if (profile != null) {
+      const photoPath = driverPhotoPath(
+        ride.driverId,
+        profile.photoUpdatedAt,
+      );
       driver = {
         id: ride.driverId,
         displayName:
           profile.preferredName?.trim() ||
           profile.fullName.trim() ||
           'Motorista Ramo Nessa',
-        ...(driverPhotoPath(ride.driverId, profile.photoUpdatedAt) == null
-          ? {}
-          : {
-              photoPath: driverPhotoPath(
-                ride.driverId,
-                profile.photoUpdatedAt,
-              ),
-            }),
+        ...(photoPath == null ? {} : { photoPath }),
         ...(profile.ratingAverage == null
           ? {}
           : { ratingAverage: profile.ratingAverage }),
