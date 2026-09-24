@@ -71,6 +71,7 @@ const state = {
     query: '',
     status: '',
   },
+  selectedPassenger: null,
   passengerDirectory: {
     items: [],
     nextCursor: null,
@@ -207,6 +208,7 @@ function clearSession(message = '') {
     query: '',
     status: '',
   };
+  state.selectedPassenger = null;
   state.passengerDirectory = {
     items: [],
     nextCursor: null,
@@ -2457,7 +2459,20 @@ function renderPassengerDirectory() {
     const updated = document.createElement('td');
     updated.textContent = formatDateTime(passenger.updatedAt);
 
-    row.append(identity, phone, status, created, updated);
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    if (hasScope('rides:read')) {
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'button button--table';
+      open.textContent = 'Abrir';
+      open.addEventListener('click', () => {
+        void lookupPassenger(passenger.passengerId);
+      });
+      actions.append(open);
+    }
+
+    row.append(identity, phone, status, created, updated, actions);
     body.append(row);
   }
 
@@ -2536,6 +2551,156 @@ async function loadPassengerDirectory({
     }
   } catch (error) {
     more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderPassengerDetailEmpty(
+  message = 'Abra um passageiro na tabela para ver identidade e histórico recente.',
+) {
+  state.selectedPassenger = null;
+  const content = byId('passenger-detail-content');
+  content.replaceChildren();
+  content.className = 'passenger-detail-content empty-state';
+  content.textContent = message;
+
+  const status = byId('passenger-detail-status');
+  status.className = 'pill pill--neutral';
+  status.textContent = 'Nenhum';
+
+  byId('passenger-detail-history').hidden = true;
+  byId('passenger-detail-rides-body').replaceChildren();
+}
+
+function passengerDetailItem(label, value) {
+  const item = document.createElement('div');
+  item.className = 'passenger-detail-item';
+  const term = document.createElement('span');
+  term.textContent = label;
+  const data = document.createElement('strong');
+  data.textContent = value;
+  item.append(term, data);
+  return item;
+}
+
+function renderPassengerDetail(payload) {
+  state.selectedPassenger = payload;
+  const passenger = payload?.passenger;
+  if (passenger == null) {
+    renderPassengerDetailEmpty('Ficha do passageiro indisponível.');
+    return;
+  }
+
+  const presentation = passengerStatusPresentation(passenger.status);
+  const status = byId('passenger-detail-status');
+  status.className = `pill pill--${presentation.tone}`;
+  status.textContent = presentation.label;
+
+  const content = byId('passenger-detail-content');
+  content.replaceChildren();
+  content.className = 'passenger-detail-content';
+
+  const identity = document.createElement('div');
+  identity.className = 'passenger-detail-identity';
+  const title = document.createElement('div');
+  const kicker = document.createElement('span');
+  kicker.className = 'eyebrow eyebrow--dark';
+  kicker.textContent = 'PASSAGEIRO';
+  const id = document.createElement('h3');
+  id.textContent = passenger.passengerId;
+  title.append(kicker, id);
+  identity.append(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'passenger-detail-grid';
+  grid.append(
+    passengerDetailItem('Telefone', passenger.phoneE164 ?? '—'),
+    passengerDetailItem('Status', presentation.label),
+    passengerDetailItem('Criado', formatDateTime(passenger.createdAt)),
+    passengerDetailItem(
+      'Atualizado',
+      formatDateTime(passenger.updatedAt),
+    ),
+  );
+  content.append(identity, grid);
+
+  const summary = payload?.rides ?? {};
+  byId('passenger-detail-total-rides').textContent =
+    String(numericMetric(summary.total));
+  byId('passenger-detail-active-rides').textContent =
+    String(numericMetric(summary.active));
+  byId('passenger-detail-completed-rides').textContent =
+    String(numericMetric(summary.completed));
+  byId('passenger-detail-cancelled-rides').textContent =
+    String(numericMetric(summary.cancelled));
+  byId('passenger-detail-completed-amount').textContent =
+    formatCurrencyCents(summary.completedAmountCents);
+
+  const rides = Array.isArray(payload?.recentRides)
+    ? payload.recentRides
+    : [];
+  const body = byId('passenger-detail-rides-body');
+  body.replaceChildren();
+
+  for (const ride of rides) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${stateInfo.tone}`;
+    pill.textContent = stateInfo.label;
+    stateCell.append(pill);
+
+    const route = document.createElement('td');
+    const routeName = document.createElement('strong');
+    routeName.textContent =
+      `${locationLabel(ride.origin)} → ${locationLabel(ride.destination)}`;
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = ride.id;
+    route.append(routeName, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(ride.totalAmountCents);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    row.append(stateCell, route, category, amount, updated);
+    body.append(row);
+  }
+
+  byId('passenger-detail-rides-empty').hidden = rides.length !== 0;
+  byId('passenger-detail-history').hidden = false;
+}
+
+async function lookupPassenger(passengerId) {
+  if (
+    !state.token ||
+    !hasScope('passengers:auth:read') ||
+    !hasScope('rides:read')
+  ) {
+    renderPassengerDetailEmpty(
+      'Sua conta precisa de passengers:auth:read e rides:read para abrir a ficha.',
+    );
+    return;
+  }
+
+  try {
+    const payload = await api.getPassenger(state.token, passengerId);
+    renderPassengerDetail(payload);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderPassengerDetailEmpty('Passageiro não encontrado.');
+      return;
+    }
     handleAuthenticatedError(error);
   }
 }
@@ -3120,6 +3285,7 @@ setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
+renderPassengerDetailEmpty();
 renderFleet();
 renderPricingCatalog();
 renderPricingVersions();
