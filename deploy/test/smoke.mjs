@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,19 @@ const envFile = resolve(here, `.env.smoke-${process.pid}`);
 const project = `ramo-nessa-smoke-${process.pid}`;
 const port = 18080;
 const baseUrl = `http://127.0.0.1:${port}`;
+
+const cnhDocumentFixture = Buffer.from(
+  '%PDF-1.4\n% Ramo Nessa CNH smoke fixture\n',
+  'utf8',
+);
+const crlvDocumentFixture = Buffer.from(
+  '%PDF-1.4\n% Ramo Nessa CRLV smoke fixture\n',
+  'utf8',
+);
+
+function sha256Hex(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
 
 function compose(args, options = {}) {
   return spawnSync(
@@ -572,12 +585,12 @@ try {
     {
       type: 'driver_license',
       storageKey: `drivers/${driverId}/documents/cnh-smoke.pdf`,
-      sha: 'd'.repeat(64),
+      fixture: cnhDocumentFixture,
     },
     {
       type: 'vehicle_registration',
       storageKey: `drivers/${driverId}/documents/crlv-smoke.pdf`,
-      sha: 'e'.repeat(64),
+      fixture: crlvDocumentFixture,
     },
   ]) {
     const submittedDocument = await jsonRequest(
@@ -590,9 +603,9 @@ try {
         },
         body: JSON.stringify({
           storageKey: document.storageKey,
-          contentSha256: document.sha,
+          contentSha256: sha256Hex(document.fixture),
           mimeType: 'application/pdf',
-          sizeBytes: 125000,
+          sizeBytes: document.fixture.length,
           expiresOn: '2027-12-31',
         }),
       },
@@ -606,6 +619,78 @@ try {
       throw new Error(
         `Submissão segura de ${document.type} não foi confirmada.`,
       );
+    }
+
+    if (document.type === 'driver_license') {
+      const integrationInspection = await jsonRequest(
+        `/v1/admin/drivers/${driverId}/documents/driver_license/inspection`,
+        {
+          method: 'POST',
+          headers: documentStorageHeaders,
+        },
+      );
+      if (
+        integrationInspection.response.status !== 401 ||
+        integrationInspection.payload?.error !== 'ADMIN_SESSION_REQUIRED'
+      ) {
+        throw new Error(
+          'API key de integração conseguiu solicitar inspeção visual.',
+        );
+      }
+
+      const inspection = await jsonRequest(
+        `/v1/admin/drivers/${driverId}/documents/driver_license/inspection`,
+        {
+          method: 'POST',
+          headers: authHeaders,
+        },
+      );
+      const inspectionToken = inspection.payload?.inspectionToken;
+      if (
+        inspection.response.status !== 201 ||
+        typeof inspectionToken !== 'string' ||
+        !inspectionToken.startsWith('rn_doc_inspect_v1.') ||
+        inspectionToken.includes('cnh-smoke') ||
+        'storageKey' in (inspection.payload ?? {})
+      ) {
+        throw new Error(
+          'Token seguro de inspeção documental não foi emitido.',
+        );
+      }
+
+      const inspectedFile = await fetch(
+        `${baseUrl}/v1/admin/document-inspection/${inspectionToken}`,
+        {
+          headers: authHeaders,
+          cache: 'no-store',
+        },
+      );
+      const inspectedBytes = Buffer.from(
+        await inspectedFile.arrayBuffer(),
+      );
+      if (
+        inspectedFile.status !== 200 ||
+        inspectedFile.headers.get('content-type') !==
+          'application/pdf' ||
+        !String(
+          inspectedFile.headers.get('cache-control') ?? '',
+        ).includes('no-store') ||
+        !inspectedBytes.equals(document.fixture)
+      ) {
+        throw new Error(
+          'Proxy seguro de inspeção não retornou o arquivo privado validado.',
+        );
+      }
+
+      const inspectionWithoutSession = await fetch(
+        `${baseUrl}/v1/admin/document-inspection/${inspectionToken}`,
+        { cache: 'no-store' },
+      );
+      if (inspectionWithoutSession.status !== 401) {
+        throw new Error(
+          'Token de inspeção abriu arquivo sem sessão Admin humana.',
+        );
+      }
     }
 
     const reviewedDocument = await jsonRequest(
@@ -1542,7 +1627,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, frota/GPS, ficha de passageiro, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados com inspeção segura, frota/GPS, ficha de passageiro, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
