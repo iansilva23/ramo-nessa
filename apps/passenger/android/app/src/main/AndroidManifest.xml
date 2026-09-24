@@ -10,6 +10,12 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
+            android:name=".CardTokenizationActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
