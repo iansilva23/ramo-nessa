@@ -1018,17 +1018,18 @@ class _DriverFinanceCard extends StatelessWidget {
         final cashDebt = current.cashCommissionDebtCents;
 
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              RamoSpacing.lg,
-              0,
-              RamoSpacing.lg,
-              RamoSpacing.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                RamoSpacing.lg,
+                0,
+                RamoSpacing.lg,
+                RamoSpacing.xl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Text(
                   'Extrato da carteira',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1067,7 +1068,8 @@ class _DriverFinanceCard extends StatelessWidget {
                     'recebimentos digitais.',
                   ),
                 ],
-              ],
+                ],
+              ),
             ),
           ),
         );
