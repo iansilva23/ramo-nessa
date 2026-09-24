@@ -17,6 +17,13 @@ abstract interface class DriverApi {
 
   Future<DriverDocumentsSnapshot> documents();
 
+  Future<DriverDocumentItem> uploadDocument({
+    required String documentType,
+    required String mimeType,
+    required List<int> bytes,
+    String? expiresOn,
+  });
+
   Future<DriverSecuritySnapshot> security();
 
   Future<DriverSessionRevokeResult> revokeOtherSessions();
