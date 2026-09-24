@@ -3347,6 +3347,28 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof MercadoPagoPaymentServiceError) {
+      const status =
+        error.code === 'MERCADO_PAGO_NOT_CONFIGURED'
+          ? 503
+          : error.code === 'PASSENGER_EMAIL_REQUIRED'
+            ? 422
+            : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof MercadoPagoOrdersError) {
+      json(response, 502, {
+        error: 'MERCADO_PAGO_UNAVAILABLE',
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof DriverAppError) {
       const status =
         error.code === 'DRIVER_NOT_REGISTERED' ||
@@ -3409,6 +3431,21 @@ const server = createServer(async (request, response) => {
     if (error instanceof RideRefundError) {
       const status =
         error.code === 'RIDE_NOT_FOUND' || error.code === 'PAYMENT_NOT_FOUND'
+          ? 404
+          : error.code === 'REFUND_NOT_ALLOWED'
+            ? 409
+            : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof ExternalRideRefundError) {
+      const status =
+        error.code === 'RIDE_NOT_FOUND' ||
+        error.code === 'PAYMENT_NOT_FOUND'
           ? 404
           : error.code === 'REFUND_NOT_ALLOWED'
             ? 409
