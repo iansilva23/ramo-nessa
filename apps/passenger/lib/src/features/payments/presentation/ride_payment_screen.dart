@@ -245,7 +245,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     try {
       final tokenizer =
           widget.cardTokenizationService ??
-          const NativeCardTokenizationService();
+          NativeCardTokenizationService(
+            amountCents: widget.ride.totalAmountCents,
+          );
       final tokenized = await tokenizer.tokenize();
       if (!mounted) return;
 
