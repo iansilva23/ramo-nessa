@@ -470,6 +470,10 @@ const server = createServer(async (request, response) => {
         body != null && typeof body === 'object' && 'phone' in body
           ? String((body as { phone?: unknown }).phone ?? '')
           : '';
+      const email =
+        body != null && typeof body === 'object' && 'email' in body
+          ? String((body as { email?: unknown }).email ?? '')
+          : '';
 
       if (subjectType !== 'passenger' && subjectType !== 'driver') {
         json(response, 422, {
@@ -484,6 +488,7 @@ const server = createServer(async (request, response) => {
         delivery: otpDeliveryProvider,
         subjectType,
         phone,
+        email,
         context: {
           clientIp: requestClientIp(request),
           clientInstanceId: headerValue(request, 'x-client-instance-id'),
@@ -586,10 +591,17 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
         headers: request.headers,
       });
+      const identity = await authOtpRepository.findIdentityBySubject(
+        session.subjectType,
+        session.subjectId,
+      );
       json(response, 200, {
         subjectId: session.subjectId,
         subjectType: session.subjectType,
         expiresAt: session.expiresAt,
+        ...(identity?.emailNormalized == null
+          ? {}
+          : { email: identity.emailNormalized }),
       });
       return;
     }
