@@ -515,6 +515,22 @@ class _FakeDriverApi implements DriverApi {
       );
 
   @override
+  Future<DriverSecuritySnapshot> security() async =>
+      DriverSecuritySnapshot(
+        sessionId: 'session-test',
+        subjectType: 'driver',
+        createdAt: DateTime(2026, 9, 24, 10),
+        expiresAt: DateTime(2026, 10, 24, 10),
+      );
+
+  @override
+  Future<DriverSessionRevokeResult> revokeOtherSessions() async =>
+      const DriverSessionRevokeResult(
+        revokedSessions: 0,
+        disabledDevices: 0,
+      );
+
+  @override
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
