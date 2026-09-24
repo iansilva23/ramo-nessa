@@ -102,6 +102,29 @@ class _NoOfferDriverApi implements DriverApi {
   Future<DriverOffer?> currentOffer() async => null;
 
   @override
+  Future<NearbyDriversSnapshot> nearbyDrivers() async =>
+      const NearbyDriversSnapshot(
+        enabled: false,
+        refreshAfterSeconds: 30,
+        drivers: [],
+      );
+
+  @override
+  Future<DriverProfileSnapshot> profile() async =>
+      const DriverProfileSnapshot(driverId: 'driver-live');
+
+  @override
+  Future<DriverActivitySnapshot> activity() async =>
+      const DriverActivitySnapshot(
+        total: 0,
+        completed: 0,
+        cancelled: 0,
+        inProgress: 0,
+        earningsCents: 0,
+        rides: [],
+      );
+
+  @override
   Future<AcceptedDriverRide?> currentRide() async => null;
 
   @override
