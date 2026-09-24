@@ -22,6 +22,15 @@ export function driverRideView(ride: RideRecord) {
     dropoffLongitude: ride.dropoffLongitude,
     driverEarningsCents: ride.quote.driverNetCents,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
+    paymentMethod: ride.paymentMethod ?? null,
+    cashCollectionAmountCents:
+      ride.paymentMethod === 'cash'
+        ? ride.quote.totalAmountCents
+        : null,
+    cashCommissionCents:
+      ride.paymentMethod === 'cash'
+        ? ride.quote.platformCommissionCents
+        : null,
   };
 }
 
