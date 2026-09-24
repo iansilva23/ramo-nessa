@@ -1,3 +1,4 @@
+import { normalizePricingCatalogSnapshot } from '../catalog-snapshot.js';
 import type {
   PricingCatalogVersionRecord,
   PricingCatalogVersionRepository,
@@ -15,7 +16,9 @@ export class InMemoryPricingCatalogVersionRepository
       id: input.id,
       versionNumber: this.nextVersion++,
       status: 'draft',
-      snapshot: structuredClone(input.snapshot),
+      snapshot: normalizePricingCatalogSnapshot(
+        structuredClone(input.snapshot),
+      ),
       createdBy: structuredClone(input.createdBy),
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
@@ -45,7 +48,9 @@ export class InMemoryPricingCatalogVersionRepository
     if (current == null || current.status !== 'draft') return null;
     const updated: PricingCatalogVersionRecord = {
       ...current,
-      snapshot: structuredClone(input.snapshot),
+      snapshot: normalizePricingCatalogSnapshot(
+        structuredClone(input.snapshot),
+      ),
       updatedAt: input.updatedAt,
     };
     this.versions.set(updated.id, updated);
