@@ -90,6 +90,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         accessToken: normalizedToken,
         onLogout: logout,
         authService: authService,
+        paymentService: paymentService ?? preview?.payments,
         activityService: activityService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
