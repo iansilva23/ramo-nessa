@@ -160,7 +160,8 @@
 - [x] viagens em andamento
 - [ ] histórico
 - [ ] cancelamentos
-- [ ] edição/versionamento de preços, localidades, zonas e vigência
+- [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
+- [ ] edição estrutural de localidades/zonas
 - [ ] categorias e elegibilidade
 - [ ] pagamentos/comissões
 - [ ] habilitar/desabilitar dinheiro futuramente
