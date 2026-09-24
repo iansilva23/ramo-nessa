@@ -65,7 +65,7 @@ function accountDeltaCents(
 }
 
 function transactionLabel(kind: string): string {
-  return switch (kind) {
+  switch (kind) {
     case 'RIDE_SETTLED':
       return 'Corrida concluída';
     case 'CASH_RIDE_COMMISSION_ACCRUED':
