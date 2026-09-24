@@ -103,10 +103,39 @@ class CoreDriverRouteService implements DriverRouteService {
       throw const FormatException('Rota sem pontos suficientes.');
     }
 
+    final maneuversJson = decoded['maneuvers'];
+    final maneuvers = maneuversJson is List
+        ? maneuversJson
+            .whereType<Map>()
+            .map((raw) => Map<String, dynamic>.from(raw))
+            .where((raw) => raw['instruction'] is String)
+            .map(
+              (raw) => DriverRouteManeuver(
+                instruction: (raw['instruction'] as String).trim(),
+                verbalInstruction:
+                    (raw['verbalInstruction'] as String?)?.trim(),
+                type: (raw['type'] as num?)?.toInt(),
+                distanceMeters:
+                    (raw['distanceMeters'] as num?)?.toDouble() ?? 0,
+                duration: Duration(
+                  seconds:
+                      (raw['durationSeconds'] as num?)?.round() ?? 0,
+                ),
+                streetNames: raw['streetNames'] is List
+                    ? (raw['streetNames'] as List)
+                        .whereType<String>()
+                        .toList(growable: false)
+                    : const [],
+              ),
+            )
+            .toList(growable: false)
+        : const <DriverRouteManeuver>[];
+
     return DriverRouteInfo(
       points: points,
       distanceMeters: distance.toDouble(),
       duration: Duration(seconds: duration.round()),
+      maneuvers: maneuvers,
     );
   }
 }
