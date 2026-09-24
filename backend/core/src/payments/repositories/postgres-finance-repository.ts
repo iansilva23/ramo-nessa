@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import {
+  cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -23,6 +24,8 @@ import {
   type RefundWalletRideInput,
   type RefundWalletRideResult,
   type ReserveDriverPayoutResult,
+  type SettleCashRideInput,
+  type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
 } from '../finance-repository.js';
@@ -1043,16 +1046,24 @@ export class PostgresFinanceRepository implements FinanceRepository {
   async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
     const client = await this.pool.connect();
     const referenceKey = `ride-settlement:${input.rideId}`;
+    const debtAccount = `driver:${input.driverId}:commission_debt`;
 
     try {
       await client.query('BEGIN');
 
       const existing = await loadLedgerByReference(client, referenceKey);
       if (existing != null) {
+        const recovered =
+          existing.entries.find(
+            (entry) =>
+              entry.accountKey === debtAccount &&
+              entry.direction === 'credit',
+          )?.amountCents ?? 0;
         await client.query('COMMIT');
         return {
           ledgerTransaction: existing,
           duplicateSettlement: true,
+          cashDebtRecoveredCents: recovered,
         };
       }
 
@@ -1083,13 +1094,30 @@ export class PostgresFinanceRepository implements FinanceRepository {
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [escrowAccount],
       );
-      const escrowBalance = await accountBalanceCents(client, escrowAccount);
+      const escrowBalance = await accountBalanceCents(
+        client,
+        escrowAccount,
+      );
       if (escrowBalance < input.totalAmountCents) {
         throw new PaymentDomainError(
           'INSUFFICIENT_RIDE_ESCROW',
           'Escrow da corrida não possui saldo suficiente para liquidação.',
         );
       }
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [debtAccount],
+      );
+      const debtBalance = await accountBalanceCents(
+        client,
+        debtAccount,
+      );
+      const cashDebtCents = Math.max(0, -debtBalance);
+      const cashDebtRecoveredCents = Math.min(
+        cashDebtCents,
+        input.driverNetCents,
+      );
 
       const ledger = rideSettlementLedger({
         rideId: input.rideId,
@@ -1098,6 +1126,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
         totalAmountCents: input.totalAmountCents,
         platformCommissionCents: input.platformCommissionCents,
         driverNetCents: input.driverNetCents,
+        cashDebtRecoveryCents,
         createdAt: (input.settledAt ?? new Date()).toISOString(),
       });
 
@@ -1107,6 +1136,62 @@ export class PostgresFinanceRepository implements FinanceRepository {
       return {
         ledgerTransaction: ledger,
         duplicateSettlement: false,
+        cashDebtRecoveredCents,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async settleCashRide(
+    input: SettleCashRideInput,
+  ): Promise<SettleCashRideResult> {
+    const client = await this.pool.connect();
+    const referenceKey = `cash-ride-commission:${input.rideId}`;
+    const debtAccount = `driver:${input.driverId}:commission_debt`;
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [debtAccount],
+      );
+
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        const debtBalance = await accountBalanceCents(
+          client,
+          debtAccount,
+        );
+        await client.query('COMMIT');
+        return {
+          ledgerTransaction: existing,
+          duplicateSettlement: true,
+          cashDebtCents: Math.max(0, -debtBalance),
+        };
+      }
+
+      const ledger = cashRideCommissionDebtLedger({
+        rideId: input.rideId,
+        driverId: input.driverId,
+        platformCommissionCents: input.platformCommissionCents,
+        createdAt: (input.settledAt ?? new Date()).toISOString(),
+      });
+      await insertLedger(client, ledger);
+
+      const debtBalance = await accountBalanceCents(
+        client,
+        debtAccount,
+      );
+      await client.query('COMMIT');
+
+      return {
+        ledgerTransaction: ledger,
+        duplicateSettlement: false,
+        cashDebtCents: Math.max(0, -debtBalance),
       };
     } catch (error) {
       await client.query('ROLLBACK');
@@ -1277,6 +1362,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
         platform_revenue_cents: string;
         driver_payable_cents: string;
         driver_payout_pending_cents: string;
+        driver_cash_commission_debt_cents: string;
         ride_escrow_cents: string;
         passenger_wallet_cents: string;
       }>(`
@@ -1305,6 +1391,17 @@ export class PostgresFinanceRepository implements FinanceRepository {
               ELSE 0
             END
           ), 0)::text AS driver_payout_pending_cents,
+          GREATEST(
+            COALESCE(SUM(
+              CASE
+                WHEN account_key LIKE 'driver:%:commission_debt'
+                THEN CASE WHEN direction = 'debit'
+                  THEN amount_cents ELSE -amount_cents END
+                ELSE 0
+              END
+            ), 0),
+            0
+          )::text AS driver_cash_commission_debt_cents,
           COALESCE(SUM(
             CASE
               WHEN account_key LIKE 'ride:%:escrow'
@@ -1365,6 +1462,9 @@ export class PostgresFinanceRepository implements FinanceRepository {
       driverPayoutPendingCents: Number(
         ledgerRow?.driver_payout_pending_cents ?? '0',
       ),
+      driverCashCommissionDebtCents: Number(
+        ledgerRow?.driver_cash_commission_debt_cents ?? '0',
+      ),
       rideEscrowCents: Number(
         ledgerRow?.ride_escrow_cents ?? '0',
       ),
@@ -1422,5 +1522,12 @@ export class PostgresFinanceRepository implements FinanceRepository {
     );
 
     return Number(result.rows[0]?.balance_cents ?? '0');
+  }
+
+  async getDriverCashDebtCents(driverId: string): Promise<number> {
+    const balance = await this.getAccountBalanceCents(
+      `driver:${driverId}:commission_debt`,
+    );
+    return Math.max(0, -balance);
   }
 }
