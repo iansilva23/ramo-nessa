@@ -63,4 +63,25 @@ export class InMemoryAuthSessionRepository
     }
     return revoked;
   }
+
+  async revokeOthersForSubject(
+    subjectType: AuthSessionRecord['subjectType'],
+    subjectId: string,
+    exceptSessionId: string,
+    revokedAt: string,
+  ): Promise<number> {
+    let revoked = 0;
+    for (const [id, session] of this.sessions) {
+      if (
+        id !== exceptSessionId &&
+        session.subjectType === subjectType &&
+        session.subjectId === subjectId &&
+        session.revokedAt == null
+      ) {
+        this.sessions.set(id, { ...session, revokedAt });
+        revoked += 1;
+      }
+    }
+    return revoked;
+  }
 }
