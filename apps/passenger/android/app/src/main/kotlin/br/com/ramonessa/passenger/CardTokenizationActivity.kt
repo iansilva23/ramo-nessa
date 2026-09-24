@@ -499,6 +499,8 @@ class CardTokenizationActivity : ComponentActivity() {
         val methodId = paymentMethodId
         val methodType = paymentMethodType
         if (
+            loadingMethod ||
+            !singlePaymentAvailable ||
             !cardValid ||
             !expirationValid ||
             !securityFilled ||
