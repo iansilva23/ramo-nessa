@@ -140,6 +140,22 @@ evitando divergência entre configuração do Admin e runtime.
 Escopo: `passengers:auth:read`. A operação é somente leitura e retorna identidades
 de acesso do app Passageiro com resumo real de `total`, `active` e `suspended`.
 
+### Ficha operacional de passageiro
+
+`GET /v1/admin/passengers/:passengerId`
+
+Exige `passengers:auth:read` e `rides:read`. Retorna a identidade exata,
+resumo de corridas e histórico recente somente leitura. A resposta não expõe
+latitude ou longitude de embarque/destino.
+
+### Financeiro read-only
+
+`GET /v1/admin/finance?limit=25`
+
+Escopo: `finance:read`. Retorna pagamentos recentes, resumo contábil,
+comissão reconhecida, saldos agregados, escrow e solicitações de saque.
+A rota é somente leitura e não executa movimentações financeiras.
+
 ### Consultar autenticação de motorista
 
 `GET /v1/admin/drivers/:driverId/auth`
