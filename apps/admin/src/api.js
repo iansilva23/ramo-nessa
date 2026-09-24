@@ -368,9 +368,39 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
-    audit(token, limit = 50) {
-      const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
-      return request(`/v1/admin/audit?limit=${safeLimit}`, { token });
+    audit(token, options = 50) {
+      const config =
+        typeof options === 'number'
+          ? { limit: options }
+          : options ?? {};
+      const params = new URLSearchParams();
+      params.set(
+        'limit',
+        String(
+          Math.max(
+            1,
+            Math.min(100, Math.trunc(config.limit ?? 50)),
+          ),
+        ),
+      );
+      if (config.actorKind === 'user' || config.actorKind === 'api_key') {
+        params.set('actorKind', config.actorKind);
+      }
+      if (String(config.action ?? '').trim()) {
+        params.set('action', String(config.action).trim());
+      }
+      if (String(config.targetType ?? '').trim()) {
+        params.set('targetType', String(config.targetType).trim());
+      }
+      if (String(config.query ?? '').trim()) {
+        params.set('query', String(config.query).trim());
+      }
+      if (config.cursor) {
+        params.set('cursor', config.cursor);
+      }
+      return request(`/v1/admin/audit?${params.toString()}`, {
+        token,
+      });
     },
   };
 }
