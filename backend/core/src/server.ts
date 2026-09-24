@@ -738,10 +738,14 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'pricing:write',
       });
+      const currentPricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+      });
       const draft = await createPricingCatalogDraft({
         versions: pricingCatalogVersionRepository,
         admin: adminRepository,
         actor,
+        snapshot: structuredClone(currentPricing.snapshot),
       });
       json(response, 201, pricingCatalogVersionView(draft));
       return;
