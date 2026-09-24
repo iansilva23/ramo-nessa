@@ -523,7 +523,15 @@ try {
     typeof driverOtp.payload?.challengeId !== 'string' ||
     !/^\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))
   ) {
-    throw new Error('OTP real do motorista para frota falhou.');
+    throw new Error(
+      'OTP real do motorista para frota falhou. ' +
+      `HTTP ${driverOtp.response.status}; ` +
+      `challenge=${typeof driverOtp.payload?.challengeId === 'string'}; ` +
+      `devCode=${/^\\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))}; ` +
+      `error=${String(driverOtp.payload?.error ?? '—')}; ` +
+      `message=${String(driverOtp.payload?.message ?? '—')}; ` +
+      `adminStatus=${String(driver.payload?.status ?? '—')}.`,
+    );
   }
 
   const driverVerify = await jsonRequest(
