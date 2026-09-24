@@ -94,9 +94,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('R\$ 44,00'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Solicitar'));
+    final requestRideButton =
+        find.byKey(const Key('request-ride-button'));
+    await tester.scrollUntilVisible(
+      requestRideButton,
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Solicitar'));
+    await tester.tap(requestRideButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Pague com'), findsOneWidget);
@@ -279,9 +285,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, 'Jericoacoara'));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -260));
+    final requestRideButton =
+        find.byKey(const Key('request-ride-button'));
+    await tester.scrollUntilVisible(
+      requestRideButton,
+      240,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Solicitar'));
+    await tester.tap(requestRideButton);
     await tester.pumpAndSettle();
     final walletOption =
         find.byKey(const Key('payment-option-wallet'));
