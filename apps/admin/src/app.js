@@ -1,4 +1,5 @@
 import { AdminApiError, createAdminApi } from './api.js';
+import { createFleetMap } from './fleet-map.js';
 import {
   actionLabel,
   actorLabel,
@@ -36,6 +37,21 @@ const state = {
     effectiveVersionId: null,
   },
   selectedPricingVersion: null,
+  fleet: {
+    generatedAt: null,
+    staleAfterSeconds: 120,
+    summary: {
+      totalOnline: 0,
+      free: 0,
+      reserved: 0,
+      onRide: 0,
+      busy: 0,
+      staleGps: 0,
+    },
+    items: [],
+  },
+  fleetTimer: null,
+  fleetLoading: false,
   dashboard: {
     generatedAt: null,
     rides: {
@@ -84,6 +100,7 @@ const loginTotp = byId('login-totp');
 const loginButton = byId('login-button');
 const loginMessage = byId('login-message');
 const globalMessage = byId('global-message');
+let fleetMap = null;
 
 const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
@@ -94,6 +111,7 @@ const scopeLabels = new Map([
   ['drivers:documents:write', 'Revisar documentos de motoristas'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
+  ['fleet:read', 'Consultar frota e posições operacionais'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['audit:read', 'Consultar auditoria'],
@@ -131,8 +149,16 @@ function stopSessionTimer() {
   }
 }
 
+function stopFleetPolling() {
+  if (state.fleetTimer != null) {
+    clearInterval(state.fleetTimer);
+    state.fleetTimer = null;
+  }
+}
+
 function clearSession(message = '') {
   stopSessionTimer();
+  stopFleetPolling();
   state.token = null;
   state.user = null;
   state.expiresAt = null;
@@ -145,6 +171,23 @@ function clearSession(message = '') {
     effectiveVersionId: null,
   };
   state.selectedPricingVersion = null;
+  state.fleet = {
+    generatedAt: null,
+    staleAfterSeconds: 120,
+    summary: {
+      totalOnline: 0,
+      free: 0,
+      reserved: 0,
+      onRide: 0,
+      busy: 0,
+      staleGps: 0,
+    },
+    items: [],
+  };
+  state.fleetLoading = false;
+  if (fleetMap != null) {
+    fleetMap.update([]);
+  }
   state.dashboard = {
     generatedAt: null,
     rides: {
@@ -277,6 +320,7 @@ function renderIdentity() {
 function activateView(viewName) {
   const known = new Set([
     'overview',
+    'fleet',
     'rides',
     'drivers',
     'passengers',
@@ -284,6 +328,7 @@ function activateView(viewName) {
     'audit',
   ]);
   const view = known.has(viewName) ? viewName : 'overview';
+  stopFleetPolling();
 
   document.querySelectorAll('.view-panel').forEach((panel) => {
     panel.hidden = panel.id !== `view-${view}`;
@@ -296,6 +341,7 @@ function activateView(viewName) {
 
   const titles = {
     overview: 'Visão geral',
+    fleet: 'Frota',
     rides: 'Viagens',
     drivers: 'Motoristas',
     passengers: 'Passageiros',
@@ -307,6 +353,10 @@ function activateView(viewName) {
 
   if (view === 'overview') {
     void loadDashboard({ announce: false });
+  }
+  if (view === 'fleet') {
+    void loadFleet({ announce: false });
+    startFleetPolling();
   }
   if (view === 'audit') {
     void loadAudit({ announce: false });
@@ -1364,6 +1414,192 @@ async function loadDashboard({ announce = true } = {}) {
   } finally {
     refreshButton.disabled = false;
   }
+}
+
+function fleetAvailabilityPresentation(value) {
+  if (value === 'on_ride') {
+    return { label: 'Em corrida', tone: 'info' };
+  }
+  if (value === 'reserved') {
+    return { label: 'Reservado', tone: 'warning' };
+  }
+  if (value === 'busy') {
+    return { label: 'Ocupado', tone: 'warning' };
+  }
+  return { label: 'Livre', tone: 'success' };
+}
+
+function fleetGpsLabel(location) {
+  if (location?.status === 'stale') {
+    const minutes = Math.max(
+      1,
+      Math.round(Number(location.ageSeconds ?? 0) / 60),
+    );
+    return `GPS há ${minutes} min`;
+  }
+  const seconds = Math.max(
+    0,
+    Math.trunc(Number(location?.ageSeconds ?? 0)),
+  );
+  return seconds < 5 ? 'GPS agora' : `GPS há ${seconds}s`;
+}
+
+function ensureFleetMap() {
+  if (fleetMap != null) return fleetMap;
+  fleetMap = createFleetMap({
+    root: byId('fleet-map'),
+    tiles: byId('fleet-map-tiles'),
+    markers: byId('fleet-map-markers'),
+    zoomIn: byId('fleet-map-zoom-in'),
+    zoomOut: byId('fleet-map-zoom-out'),
+  });
+  return fleetMap;
+}
+
+function renderFleet(payload = null) {
+  const summary = {
+    totalOnline: numericMetric(payload?.summary?.totalOnline),
+    free: numericMetric(payload?.summary?.free),
+    reserved: numericMetric(payload?.summary?.reserved),
+    onRide: numericMetric(payload?.summary?.onRide),
+    busy: numericMetric(payload?.summary?.busy),
+    staleGps: numericMetric(payload?.summary?.staleGps),
+  };
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+
+  state.fleet = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    staleAfterSeconds: numericMetric(
+      payload?.staleAfterSeconds ?? 120,
+    ),
+    summary,
+    items,
+  };
+
+  byId('fleet-total-online').textContent =
+    String(summary.totalOnline);
+  byId('fleet-free').textContent = String(summary.free);
+  byId('fleet-on-ride').textContent = String(summary.onRide);
+  byId('fleet-stale-gps').textContent =
+    String(summary.staleGps);
+  byId('fleet-roster-count').textContent =
+    `${items.length} online`;
+  byId('fleet-updated-at').textContent =
+    state.fleet.generatedAt == null
+      ? hasScope('fleet:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão fleet:read'
+      : `Atualizado em ${formatDateTime(state.fleet.generatedAt)}`;
+
+  const roster = byId('fleet-roster');
+  const empty = byId('fleet-roster-empty');
+  roster.replaceChildren();
+
+  for (const item of items) {
+    const card = document.createElement('article');
+    card.className = 'fleet-roster-item';
+
+    const top = document.createElement('div');
+    top.className = 'fleet-roster-item__top';
+
+    const identity = document.createElement('div');
+    identity.className = 'fleet-roster-item__identity';
+    const name = document.createElement('strong');
+    name.textContent = item.driverName ?? item.driverId ?? 'Motorista';
+    const vehicle = document.createElement('small');
+    const vehicleParts = [
+      item.vehicle?.make,
+      item.vehicle?.model,
+      item.vehicle?.plate,
+    ].filter(Boolean);
+    vehicle.textContent =
+      vehicleParts.length > 0
+        ? vehicleParts.join(' · ')
+        : String(item.driverId ?? '—');
+    identity.append(name, vehicle);
+
+    const availability = fleetAvailabilityPresentation(
+      item.availability,
+    );
+    const status = document.createElement('span');
+    status.className = `pill pill--${availability.tone}`;
+    status.textContent = availability.label;
+
+    top.append(identity, status);
+
+    const meta = document.createElement('div');
+    meta.className = 'fleet-roster-item__meta';
+    const service = document.createElement('span');
+    service.textContent =
+      item.currentServiceCategory != null
+        ? serviceCategoryLabel(item.currentServiceCategory)
+        : Array.isArray(item.categories) && item.categories.length > 0
+          ? item.categories
+              .map((category) => serviceCategoryLabel(category))
+              .join(', ')
+          : 'Sem categoria';
+
+    const gps = document.createElement('span');
+    gps.textContent = fleetGpsLabel(item.location);
+    if (item.location?.status === 'stale') {
+      gps.className = 'text-danger';
+    }
+
+    meta.append(service, gps);
+    card.append(top, meta);
+    roster.append(card);
+  }
+
+  empty.hidden = items.length !== 0;
+
+  if (!byId('view-fleet').hidden) {
+    ensureFleetMap().update(items);
+  }
+}
+
+async function loadFleet({ announce = true } = {}) {
+  if (
+    !state.token ||
+    !hasScope('fleet:read') ||
+    state.fleetLoading
+  ) {
+    if (!hasScope('fleet:read')) renderFleet();
+    return;
+  }
+
+  state.fleetLoading = true;
+  const button = byId('refresh-fleet-button');
+  button.disabled = true;
+  try {
+    const payload = await api.fleet(state.token);
+    renderFleet(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Mapa da frota atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    state.fleetLoading = false;
+    button.disabled = false;
+  }
+}
+
+function startFleetPolling() {
+  stopFleetPolling();
+  if (!state.token || !hasScope('fleet:read')) {
+    renderFleet();
+    return;
+  }
+  state.fleetTimer = setInterval(() => {
+    void loadFleet({ announce: false });
+  }, 5_000);
 }
 
 function pricingValueLabel(value) {
@@ -2807,6 +3043,9 @@ byId('passenger-directory-more').addEventListener('click', () => {
 byId('refresh-dashboard-button').addEventListener('click', () => {
   void loadDashboard();
 });
+byId('refresh-fleet-button').addEventListener('click', () => {
+  void loadFleet();
+});
 byId('refresh-pricing-button').addEventListener('click', () => {
   void Promise.all([
     loadPricingCatalog(),
@@ -2871,6 +3110,7 @@ loginTotp.addEventListener('input', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  stopFleetPolling();
   state.token = null;
 });
 
@@ -2880,6 +3120,7 @@ setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
+renderFleet();
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
