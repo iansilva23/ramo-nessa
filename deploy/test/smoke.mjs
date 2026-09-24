@@ -542,7 +542,9 @@ try {
   if (
     driverVerify.response.status !== 201 ||
     driverVerify.payload?.subjectId !== driverId ||
-    !driverVerify.payload?.accessToken?.startsWith('rn_auth_')
+    !/^[A-Za-z0-9_-]{20,}$/.test(
+      String(driverVerify.payload?.accessToken ?? ''),
+    )
   ) {
     throw new Error('Sessão Bearer real do motorista para frota falhou.');
   }
