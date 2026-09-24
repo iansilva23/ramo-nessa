@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { RankedDriver } from './select-driver.js';
 import type { RideMatchingRepository } from './ride-matching-repository.js';
 
-export const DEFAULT_DRIVER_OFFER_TTL_SECONDS = 20;
+export const DEFAULT_DRIVER_OFFER_TTL_SECONDS = 60;
 
 export function createDriverOffer(input: {
   repository: RideMatchingRepository;
