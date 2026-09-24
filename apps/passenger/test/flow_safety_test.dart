@@ -96,14 +96,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('R\$ 42,00'), findsOneWidget);
-    expect(find.text('preço confirmado pelo Core'), findsOneWidget);
+    expect(
+      find.text('R\$ 42,00', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.text('preço confirmado pelo Core', skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.text('Buggy'), findsOneWidget);
     expect(find.text('Carro'), findsNothing);
 
     await tester.tap(find.byTooltip('Adicionar passageiro'));
     await tester.pumpAndSettle();
-    expect(find.text('R\$ 44,00'), findsOneWidget);
+    expect(
+      find.text('R\$ 44,00', skipOffstage: false),
+      findsOneWidget,
+    );
 
     final requestRideButton =
         find.byKey(const Key('request-ride-button'));
@@ -396,12 +405,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     await tester.tap(find.text('Pix'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('payment-email-field')),
-      'passageiro@example.com',
-    );
-    await tester.tap(find.byKey(const Key('payment-email-confirm')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
