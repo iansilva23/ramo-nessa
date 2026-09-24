@@ -390,6 +390,7 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   @override
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
+    required String idempotencyKey,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
@@ -433,6 +434,7 @@ class _FakeCashPassengerPaymentService
   @override
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
+    required String idempotencyKey,
   }) async {
     cashAuthorizations++;
     return const CashRideAuthorizationResult(
@@ -491,6 +493,7 @@ class _FakeRefundedPassengerPaymentService
   @override
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
+    required String idempotencyKey,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
   }
