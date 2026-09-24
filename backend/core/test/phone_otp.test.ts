@@ -60,6 +60,7 @@ test('passageiro confirma OTP e recebe sessão Bearer sem reutilizar código', a
     delivery,
     subjectType: 'passenger',
     phone: '(88) 99999-1234',
+    email: 'otp-test@example.com',
     now,
   });
 
@@ -106,6 +107,7 @@ test('OTP respeita cooldown e limite de tentativas', async () => {
     delivery,
     subjectType: 'passenger',
     phone: '88999991235',
+    email: 'otp-test@example.com',
     now,
   });
 
@@ -116,6 +118,7 @@ test('OTP respeita cooldown e limite de tentativas', async () => {
         delivery,
         subjectType: 'passenger',
         phone: '88999991235',
+    email: 'otp-test@example.com',
         now: new Date('2026-09-23T10:20:30.000Z'),
       }),
     (error: unknown) =>
@@ -169,6 +172,7 @@ test('motorista não cadastrado recebe resposta opaca sem SMS', async () => {
     delivery,
     subjectType: 'driver',
     phone: '88999991236',
+    email: 'otp-test@example.com',
     now,
   });
 
@@ -211,6 +215,7 @@ test('motorista suspenso também recebe resposta opaca sem SMS', async () => {
     delivery,
     subjectType: 'driver',
     phone: '88999991243',
+    email: 'otp-test@example.com',
     now,
   });
 
@@ -240,6 +245,7 @@ test('motorista previamente aprovado pode autenticar por OTP', async () => {
     delivery,
     subjectType: 'driver',
     phone: '88999991237',
+    email: 'otp-test@example.com',
     now,
   });
   const verified = await verifyPhoneOtp({
@@ -265,6 +271,7 @@ test('falha de entrega invalida desafio e permite tentar novamente', async () =>
         delivery: new FailingDelivery(),
         subjectType: 'passenger',
         phone: '88999991238',
+    email: 'otp-test@example.com',
         now,
       }),
     (error: unknown) =>
@@ -278,6 +285,7 @@ test('falha de entrega invalida desafio e permite tentar novamente', async () =>
     delivery,
     subjectType: 'passenger',
     phone: '88999991238',
+    email: 'otp-test@example.com',
     now: new Date('2026-09-23T10:40:01.000Z'),
   });
 
@@ -297,6 +305,7 @@ test('novo OTP após cooldown invalida o desafio anterior', async () => {
     delivery: firstDelivery,
     subjectType: 'passenger',
     phone: '88999991239',
+    email: 'otp-test@example.com',
     now: new Date('2026-09-23T10:50:00.000Z'),
   });
 
@@ -305,6 +314,7 @@ test('novo OTP após cooldown invalida o desafio anterior', async () => {
     delivery: secondDelivery,
     subjectType: 'passenger',
     phone: '88999991239',
+    email: 'otp-test@example.com',
     now: new Date('2026-09-23T10:51:01.000Z'),
   });
 
@@ -344,6 +354,7 @@ test('requisições OTP simultâneas para o mesmo telefone geram só um desafio'
       delivery,
       subjectType: 'passenger',
       phone: '88999991242',
+    email: 'otp-test@example.com',
       now,
     }),
     requestPhoneOtp({
@@ -351,6 +362,7 @@ test('requisições OTP simultâneas para o mesmo telefone geram só um desafio'
       delivery,
       subjectType: 'passenger',
       phone: '88999991242',
+    email: 'otp-test@example.com',
       now,
     }),
   ]);
@@ -395,6 +407,7 @@ test('rate-limit por dispositivo bloqueia flood entre telefones diferentes', asy
         delivery,
         subjectType: 'passenger',
         phone: '88910000020',
+    email: 'otp-test@example.com',
         context,
         now: new Date(base + 21_000),
       }),
