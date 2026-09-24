@@ -1,4 +1,5 @@
 import {
+  cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -19,6 +20,8 @@ import {
   type RefundWalletRideInput,
   type RefundWalletRideResult,
   type ReserveDriverPayoutResult,
+  type SettleCashRideInput,
+  type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
 } from '../finance-repository.js';
@@ -475,9 +478,17 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const referenceKey = `ride-settlement:${input.rideId}`;
     const existing = this.ledgerByReference.get(referenceKey);
     if (existing != null) {
+      const recovered =
+        existing.entries.find(
+          (entry) =>
+            entry.accountKey ===
+              `driver:${input.driverId}:commission_debt` &&
+            entry.direction === 'credit',
+        )?.amountCents ?? 0;
       return {
         ledgerTransaction: structuredClone(existing),
         duplicateSettlement: true,
+        cashDebtRecoveredCents: recovered,
       };
     }
 
@@ -491,6 +502,14 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       );
     }
 
+    const cashDebtCents = await this.getDriverCashDebtCents(
+      input.driverId,
+    );
+    const cashDebtRecoveredCents = Math.min(
+      cashDebtCents,
+      input.driverNetCents,
+    );
+
     const createdAt = (input.settledAt ?? new Date()).toISOString();
     const ledger = rideSettlementLedger({
       rideId: input.rideId,
@@ -499,6 +518,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       totalAmountCents: input.totalAmountCents,
       platformCommissionCents: input.platformCommissionCents,
       driverNetCents: input.driverNetCents,
+      cashDebtRecoveryCents: cashDebtRecoveredCents,
       createdAt,
     });
 
@@ -507,6 +527,37 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     return {
       ledgerTransaction: structuredClone(ledger),
       duplicateSettlement: false,
+      cashDebtRecoveredCents,
+    };
+  }
+
+  async settleCashRide(
+    input: SettleCashRideInput,
+  ): Promise<SettleCashRideResult> {
+    const referenceKey = `cash-ride-commission:${input.rideId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicateSettlement: true,
+        cashDebtCents: await this.getDriverCashDebtCents(
+          input.driverId,
+        ),
+      };
+    }
+
+    const ledger = cashRideCommissionDebtLedger({
+      rideId: input.rideId,
+      driverId: input.driverId,
+      platformCommissionCents: input.platformCommissionCents,
+      createdAt: (input.settledAt ?? new Date()).toISOString(),
+    });
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicateSettlement: false,
+      cashDebtCents: await this.getDriverCashDebtCents(input.driverId),
     };
   }
 
@@ -627,6 +678,14 @@ export class InMemoryFinanceRepository implements FinanceRepository {
           accountKey.startsWith('driver:') &&
           accountKey.endsWith(':payout_pending'),
       ),
+      driverCashCommissionDebtCents: Math.max(
+        0,
+        -familyBalance(
+          (accountKey) =>
+            accountKey.startsWith('driver:') &&
+            accountKey.endsWith(':commission_debt'),
+        ),
+      ),
       rideEscrowCents: familyBalance(
         (accountKey) =>
           accountKey.startsWith('ride:') &&
@@ -675,5 +734,12 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     }
 
     return balance;
+  }
+
+  async getDriverCashDebtCents(driverId: string): Promise<number> {
+    const balance = await this.getAccountBalanceCents(
+      `driver:${driverId}:commission_debt`,
+    );
+    return Math.max(0, -balance);
   }
 }
