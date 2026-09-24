@@ -42,7 +42,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Admin já possui visão financeira somente leitura baseada no ledger, sem ações de mutação financeira;
    - dinheiro está desativado no lançamento; a política de dinheiro também está persistida no Core/Admin, mas a ativação é bloqueada até existir fluxo cash de dívida de comissão, limite e liquidação;
    - falta integrar gateway para Pix/cartão e confirmação real de recarga;
-   - faltam estorno/chargeback, conciliação e repasse Pix real.
+   - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão ficam em `REFUND_PENDING`; ainda faltam confirmação de estorno/chargeback do gateway externo, conciliação e repasse Pix real.
 
 5. **Assinatura Android de produção ainda não existe**
    - a auditoria removeu o fallback de release para chave debug;
@@ -71,7 +71,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já possui metadados/revisão de CNH e CRLV com histórico de versões e sem expor referência privada ao browser;
    - o Admin já consulta somente metadados sanitizados e registra a decisão humana de aprovação/rejeição, sem receber storageKey ou hash do arquivo;
    - ainda faltam storage privado, upload real, acesso/preview seguro do arquivo, validação do conteúdo e integração completa dessa aprovação com o onboarding final;
-   - ainda faltam os módulos administrativos completos e a implantação operacional de produção;
+   - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria e financeiro read-only; ainda faltam inspeção segura dos arquivos privados e a implantação operacional de produção;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**
