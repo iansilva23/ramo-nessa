@@ -108,9 +108,11 @@ export async function updatePricingCatalogDraft(input: {
   const snapshot = structuredClone(current.snapshot);
   let auditMetadata: Record<string, unknown>;
 
-  if (input.patch.kind === 'fixed_route') {
+  const patch = input.patch;
+
+  if (patch.kind === 'fixed_route') {
     const route = snapshot.fixedRoutes.find(
-      (candidate) => candidate.id === input.patch.routeId,
+      (candidate) => candidate.id === patch.routeId,
     );
     if (route == null) {
       throw new PricingCatalogVersionError(
@@ -118,18 +120,18 @@ export async function updatePricingCatalogDraft(input: {
         'Rota fixa não encontrada no catálogo.',
       );
     }
-    route.dayCents = input.patch.dayCents;
-    route.after22Cents = input.patch.after22Cents;
+    route.dayCents = patch.dayCents;
+    route.after22Cents = patch.after22Cents;
     auditMetadata = {
-      kind: input.patch.kind,
-      routeId: input.patch.routeId,
-      dayCents: input.patch.dayCents,
-      after22Cents: input.patch.after22Cents,
+      kind: patch.kind,
+      routeId: patch.routeId,
+      dayCents: patch.dayCents,
+      after22Cents: patch.after22Cents,
     };
   } else {
     const locality =
-      snapshot.localities[input.patch.hub][
-        input.patch.localityId
+      snapshot.localities[patch.hub][
+        patch.localityId
       ];
     if (locality == null) {
       throw new PricingCatalogVersionError(
@@ -138,19 +140,19 @@ export async function updatePricingCatalogDraft(input: {
       );
     }
 
-    locality[input.patch.category] =
-      input.patch.price.kind === 'exact'
-        ? input.patch.price.amountCents
+    locality[patch.category] =
+      patch.price.kind === 'exact'
+        ? patch.price.amountCents
         : {
-            minCents: input.patch.price.minCents,
-            maxCents: input.patch.price.maxCents,
+            minCents: patch.price.minCents,
+            maxCents: patch.price.maxCents,
           };
     auditMetadata = {
-      kind: input.patch.kind,
-      hub: input.patch.hub,
-      localityId: input.patch.localityId,
-      category: input.patch.category,
-      price: input.patch.price,
+      kind: patch.kind,
+      hub: patch.hub,
+      localityId: patch.localityId,
+      category: patch.category,
+      price: patch.price,
     };
   }
 
