@@ -423,9 +423,9 @@ class _PassengerPersonalDataScreenState
             decoration: const InputDecoration(labelText: 'E-mail'),
           ),
           const SizedBox(height: RamoSpacing.md),
-          TextField(
+          TextFormField(
+            initialValue: widget.account.phoneE164,
             enabled: false,
-            controller: TextEditingController(text: widget.account.phoneE164),
             decoration: const InputDecoration(
               labelText: 'Telefone verificado',
             ),
