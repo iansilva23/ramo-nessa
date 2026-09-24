@@ -1,3 +1,4 @@
+import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
@@ -37,6 +38,7 @@ export async function dispatchNextDriver(input: {
   maxLocationAgeSeconds?: number;
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
+  operationalSettings?: OperationalSettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<DispatchNextResult> {
   const now = input.now ?? new Date();
@@ -142,13 +144,20 @@ export async function dispatchNextDriver(input: {
     return { kind: 'NO_DRIVER_FOUND' };
   }
 
+  const configuredTtl =
+    input.offerTtlSeconds ??
+    (
+      input.operationalSettings == null
+        ? DEFAULT_DRIVER_OFFER_TTL_SECONDS
+        : (await input.operationalSettings.get()).driverOfferTtlSeconds
+    );
+
   const created = await createDriverOffer({
     repository: input.matching,
     rideId: ride.id,
     driver: next,
     now,
-    ttlSeconds:
-      input.offerTtlSeconds ?? DEFAULT_DRIVER_OFFER_TTL_SECONDS,
+    ttlSeconds: configuredTtl,
   });
 
   notifyDefaultPushSubject({
