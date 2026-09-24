@@ -11,6 +11,7 @@ import { PricingError } from './pricing/types.js';
 import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validation.js';
 import { pricingPeriodAt } from './pricing/period.js';
 import { PAYMENT_POLICY_V1 } from './payments/payment-policy.js';
+import { DriverCashPolicyError } from './payments/cash-policy.js';
 import { createPaymentForRide } from './payments/create-payment.js';
 import { PaymentDomainError } from './payments/payment.js';
 import {
@@ -201,6 +202,7 @@ import {
   confirmRidePayment,
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
+import { authorizeCashRide } from './rides/authorize-cash.js';
 import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
 import {
   refundWalletRideAfterNoDriver,
@@ -1938,6 +1940,8 @@ const server = createServer(async (request, response) => {
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
         matching: rideMatchingRepository,
+        finance: financeRepository,
+        paymentPolicySettings: paymentPolicySettingsRepository,
         driverId,
       });
       json(response, 200, { offer });
@@ -2004,6 +2008,8 @@ const server = createServer(async (request, response) => {
         rides: rideRepository,
         drivers: driverSupplyRepository,
         matching: rideMatchingRepository,
+        finance: financeRepository,
+        paymentPolicySettings: paymentPolicySettingsRepository,
         offerId,
         driverId,
       });
@@ -2040,7 +2046,15 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && request.url === '/v1/payments/policy') {
-      json(response, 200, PAYMENT_POLICY_V1);
+      const settings = await paymentPolicySettingsRepository.get();
+      json(response, 200, {
+        ...PAYMENT_POLICY_V1,
+        cashEnabled: settings.cashEnabled,
+        allowedMethods: [
+          ...PAYMENT_POLICY_V1.allowedMethods,
+          ...(settings.cashEnabled ? ['cash'] : []),
+        ],
+      });
       return;
     }
 
@@ -2239,6 +2253,97 @@ const server = createServer(async (request, response) => {
 
       const body = parseCreatePaymentRequest(await readJson(request));
       const idempotencyKey = readIdempotencyKey(request.headers);
+
+      if (body.method === 'cash') {
+        const result = await authorizeCashRide({
+          rides: rideRepository,
+          settings: paymentPolicySettingsRepository,
+          finance: financeRepository,
+          rideId: ride.id,
+          passengerId,
+        });
+
+        let currentRide = result.ride;
+        let dispatchStatus:
+          | 'SEARCHING_DRIVER'
+          | 'NO_DRIVER_FOUND'
+          | 'NOT_PREPARED'
+          | 'PENDING_RETRY' = 'PENDING_RETRY';
+
+        if (currentRide.state === 'NO_DRIVER_FOUND') {
+          dispatchStatus = 'NO_DRIVER_FOUND';
+        } else if (
+          currentRide.state === 'DRIVER_ASSIGNED' ||
+          currentRide.state === 'DRIVER_ARRIVING' ||
+          currentRide.state === 'DRIVER_ARRIVED' ||
+          currentRide.state === 'IN_PROGRESS' ||
+          currentRide.state === 'COMPLETED'
+        ) {
+          dispatchStatus = 'SEARCHING_DRIVER';
+        } else {
+          const dispatch = await dispatchRideAfterPayment({
+            ride: currentRide,
+            rides: rideRepository,
+            drivers: driverSupplyRepository,
+            matching: rideMatchingRepository,
+            finance: financeRepository,
+            paymentPolicySettings:
+              paymentPolicySettingsRepository,
+          });
+          dispatchStatus =
+            dispatch.kind === 'OFFER_CREATED' ||
+            dispatch.kind === 'OFFER_ACTIVE'
+              ? 'SEARCHING_DRIVER'
+              : dispatch.kind;
+
+          if (
+            dispatch.kind === 'OFFER_CREATED' ||
+            dispatch.kind === 'OFFER_ACTIVE'
+          ) {
+            const offerRide =
+              await rideRepository.findById(dispatch.offer.rideId);
+            if (offerRide != null) {
+              realtimeHub.publishDriver(dispatch.offer.driverId, {
+                type: 'driver.offer.updated',
+                offer: driverOfferView(
+                  dispatch.offer,
+                  offerRide,
+                ),
+                serverTime: new Date().toISOString(),
+              });
+            }
+          }
+          currentRide =
+            (await rideRepository.findById(ride.id)) ??
+            currentRide;
+        }
+
+        const {
+          reservedDriverId: _internalReservedDriverId,
+          ...publicRide
+        } = currentRide;
+
+        json(response, 201, {
+          authorization: {
+            method: 'cash',
+            status: 'authorized',
+            amountCents: currentRide.quote.totalAmountCents,
+          },
+          ride: publicRide,
+          dispatchStatus,
+          duplicateAuthorization:
+            result.duplicateAuthorization,
+          cashPolicy: {
+            effectiveDebtLimitCents:
+              result.cashPolicy.effectiveDebtLimitCents,
+            currentDebtCents:
+              result.cashPolicy.currentDebtCents,
+            projectedDebtCents:
+              result.cashPolicy.projectedDebtCents,
+          },
+        });
+        return;
+      }
 
       if (body.method === 'wallet') {
         const result = await payRideWithWallet(financeRepository, {
@@ -2653,6 +2758,14 @@ const server = createServer(async (request, response) => {
     if (error instanceof IdentityUnavailableError) {
       json(response, 503, {
         error: 'AUTH_NOT_CONFIGURED',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof DriverCashPolicyError) {
+      json(response, 409, {
+        error: error.code,
         message: error.message,
       });
       return;
