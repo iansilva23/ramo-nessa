@@ -2827,6 +2827,24 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/documents'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const result = await getDriverDocumentsForAdmin({
+        registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
+        driverId,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/finance'
     ) {
       const driverId = await resolveDriverId({
