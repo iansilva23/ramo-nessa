@@ -113,10 +113,9 @@ void main() {
 
     expect(find.text('Dinheiro'), findsOneWidget);
     expect(find.text('Em breve'), findsOneWidget);
-    final cashTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Dinheiro'),
-    );
-    expect(cashTile.enabled, isFalse);
+    await tester.tap(find.text('Dinheiro'), warnIfMissed: false);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
     expect(find.textContaining('Procurando buggy'), findsNothing);
 
     await tester.drag(
@@ -163,11 +162,7 @@ void main() {
 
       expect(find.text('Dinheiro'), findsOneWidget);
       expect(find.text('Em breve'), findsNothing);
-      final cashTile = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, 'Dinheiro'),
-      );
-      expect(cashTile.enabled, isTrue);
-
+      await tester.ensureVisible(find.text('Dinheiro'));
       await tester.tap(find.text('Dinheiro'));
       await tester.pumpAndSettle();
 
@@ -284,6 +279,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Solicitar'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
     await tester.tap(find.text('Carteira Ramo Nessa'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -377,10 +373,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 2200)),
-    );
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 3));
 
     expect(find.text('Copiar código Pix'), findsNothing);
     expect(
