@@ -81,6 +81,7 @@ export interface AdminFinanceSummary {
   paymentsPaidCents: number;
   paymentsPending: number;
   paymentsFailed: number;
+  paymentsCancelled: number;
   paymentsRefunded: number;
   platformRevenueCents: number;
   driverPayableCents: number;
