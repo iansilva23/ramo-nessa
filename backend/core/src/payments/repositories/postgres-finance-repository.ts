@@ -16,6 +16,7 @@ import {
   type AdminFinanceSummary,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type MarkPaymentPendingInput,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -391,6 +392,56 @@ export class PostgresFinanceRepository implements FinanceRepository {
       }
       throw error;
     }
+  }
+
+  async markPaymentPending(
+    input: MarkPaymentPendingInput,
+  ): Promise<PaymentRecord> {
+    const current = await this.findPaymentById(input.paymentId);
+    if (current == null) {
+      throw new PaymentDomainError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado.',
+      );
+    }
+
+    if (current.status === 'pending') {
+      return current;
+    }
+
+    let status: PaymentRecord['status'];
+    try {
+      status = transitionPayment(current.status, 'pending');
+    } catch {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        `Pagamento em estado ${current.status} não pode ficar pendente.`,
+      );
+    }
+
+    const updatedAt = (input.pendingAt ?? new Date()).toISOString();
+    const result = await this.pool.query<PaymentRow>(
+      `
+      UPDATE payments
+      SET status = $2,
+          processor_payment_id = $3,
+          updated_at = $4
+      WHERE id = $1
+      RETURNING ${PAYMENT_COLUMNS}
+      `,
+      [
+        current.id,
+        status,
+        input.processorPaymentId,
+        updatedAt,
+      ],
+    );
+
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error('PostgreSQL não retornou pagamento pendente.');
+    }
+    return mapPayment(row);
   }
 
   async capturePayment(
