@@ -78,6 +78,11 @@ import {
   resolveOtpRateLimitSecret,
   verifyPhoneOtp,
 } from './auth/phone-otp-service.js';
+import {
+  loginPassengerWithPassword,
+  PassengerPasswordAuthError,
+  updatePassengerAccount,
+} from './auth/passenger-password-auth-service.js';
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   AdminAuthenticationError,
@@ -314,7 +319,7 @@ const pushNotificationService = new PushNotificationService(
   resolvePushDeliveryProviderFromEnv(),
 );
 resolveOtpHashSecret();
-resolveOtpRateLimitSecret();
+const authRateLimitSecret = resolveOtpRateLimitSecret();
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
 const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
@@ -920,6 +925,34 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/passenger/password/login'
+    ) {
+      const body = await readJson(request);
+      const email =
+        body != null && typeof body === 'object' && 'email' in body
+          ? String((body as { email?: unknown }).email ?? '')
+          : '';
+      const password =
+        body != null && typeof body === 'object' && 'password' in body
+          ? String((body as { password?: unknown }).password ?? '')
+          : '';
+
+      const session = await loginPassengerWithPassword({
+        identities: authOtpRepository,
+        sessions: authSessionRepository,
+        email,
+        password,
+        rateLimitSecret: authRateLimitSecret,
+        clientIp: requestClientIp(request),
+        clientInstanceId: headerValue(request, 'x-client-instance-id'),
+      });
+      json(response, 201, session);
+      return;
+    }
+
+
+    if (
+      request.method === 'POST' &&
       requestUrl.pathname === '/v1/auth/dev/driver-identity'
     ) {
       if (
@@ -1001,6 +1034,75 @@ const server = createServer(async (request, response) => {
       });
       return;
     }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/account'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const identity = await authOtpRepository.findIdentityBySubject(
+        'passenger',
+        session.subjectId,
+      );
+      if (identity == null) {
+        throw new PassengerPasswordAuthError(
+          'PASSENGER_IDENTITY_NOT_FOUND',
+          'Conta de passageiro não encontrada.',
+        );
+      }
+      json(response, 200, {
+        subjectId: identity.subjectId,
+        phoneE164: identity.phoneE164,
+        email: identity.emailNormalized ?? null,
+        fullName: identity.fullName ?? null,
+        photoUrl: identity.photoUrl ?? null,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/passenger/me/account'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const body = await readJson(request);
+      const fullName =
+        body != null && typeof body === 'object' && 'fullName' in body
+          ? String((body as { fullName?: unknown }).fullName ?? '')
+          : undefined;
+      const email =
+        body != null && typeof body === 'object' && 'email' in body
+          ? String((body as { email?: unknown }).email ?? '')
+          : undefined;
+      const password =
+        body != null && typeof body === 'object' && 'password' in body
+          ? String((body as { password?: unknown }).password ?? '')
+          : undefined;
+
+      json(
+        response,
+        200,
+        await updatePassengerAccount({
+          identities: authOtpRepository,
+          subjectId: session.subjectId,
+          ...(fullName == null ? {} : { fullName }),
+          ...(email == null ? {} : { email }),
+          ...(password == null ? {} : { password }),
+        }),
+      );
+      return;
+    }
+
 
     if (
       request.method === 'PUT' &&
@@ -3608,6 +3710,36 @@ const server = createServer(async (request, response) => {
       json(response, status, {
         error: error.code,
         message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PassengerPasswordAuthError) {
+      const status =
+        error.code === 'PASSENGER_LOGIN_RATE_LIMITED'
+          ? 429
+          : error.code === 'PASSENGER_LOGIN_INVALID'
+            ? 401
+            : error.code === 'PASSENGER_EMAIL_IN_USE'
+              ? 409
+              : error.code === 'PASSENGER_IDENTITY_NOT_FOUND'
+                ? 404
+                : 422;
+      if (
+        error.code === 'PASSENGER_LOGIN_RATE_LIMITED' &&
+        error.retryAfterSeconds != null
+      ) {
+        response.setHeader(
+          'retry-after',
+          String(error.retryAfterSeconds),
+        );
+      }
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+        ...(error.retryAfterSeconds == null
+          ? {}
+          : { retryAfterSeconds: error.retryAfterSeconds }),
       });
       return;
     }
