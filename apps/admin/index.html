@@ -599,6 +599,56 @@
               </div>
             </article>
 
+            <article class="panel-card driver-cash-policy-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DINHEIRO · MOTORISTA</span>
+                  <h2>Limite individual de comissão</h2>
+                  <p class="muted-copy">
+                    O padrão é R$ 120. Um override maior vale somente para este motorista e só tem efeito quando dinheiro estiver ativado.
+                  </p>
+                </div>
+                <span id="driver-cash-policy-status" class="pill">Não carregado</span>
+              </div>
+
+              <div id="driver-cash-policy-summary" class="driver-cash-policy-summary empty-state">
+                Abra um motorista para consultar a política cash.
+              </div>
+
+              <form id="driver-cash-policy-form" class="driver-cash-policy-form" hidden>
+                <label class="field">
+                  <span>Limite individual (R$)</span>
+                  <input
+                    id="driver-cash-limit-reais"
+                    type="number"
+                    min="120"
+                    step="1"
+                    inputmode="numeric"
+                    placeholder="120"
+                  >
+                </label>
+                <div class="driver-cash-policy-actions">
+                  <button
+                    id="driver-cash-limit-save"
+                    class="button button--primary"
+                    type="submit"
+                  >
+                    Salvar limite
+                  </button>
+                  <button
+                    id="driver-cash-limit-reset"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Usar padrão R$ 120
+                  </button>
+                </div>
+                <small id="driver-cash-policy-note">
+                  A edição será liberada somente quando dinheiro estiver ativado.
+                </small>
+              </form>
+            </article>
+
             <article class="panel-card driver-documents-card">
               <div class="panel-card__header">
                 <div>
