@@ -9,8 +9,6 @@ import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/agency_promotion_service.dart';
-import '../../account/data/passenger_self_service.dart';
-import '../../account/domain/passenger_account_models.dart';
 import '../../map/data/nominatim_place_search_service.dart';
 import '../../map/data/osrm_route_service.dart';
 import '../../map/data/place_search_service.dart';
@@ -51,7 +49,6 @@ class PassengerHomeScreen extends StatefulWidget {
     this.rideRealtimeService,
     this.releasePolicyService,
     this.agencyPromotionService,
-    this.selfService,
     this.networkTilesEnabled = true,
   });
 
@@ -68,7 +65,6 @@ class PassengerHomeScreen extends StatefulWidget {
   final PassengerRideRealtimeService? rideRealtimeService;
   final AppReleasePolicyService? releasePolicyService;
   final AgencyPromotionService? agencyPromotionService;
-  final PassengerSelfService? selfService;
   final bool networkTilesEnabled;
 
   @override
@@ -154,20 +150,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 )
               : null);
 
-  late final PassengerSelfService? _selfService =
-      widget.selfService ??
-          (_authenticated && _accessToken.length >= 20
-              ? HttpPassengerSelfService(
-                  baseUrl: RamoCoreConfig.baseUri!,
-                  accessToken: _accessToken,
-                )
-              : null);
-
-  int _selectedTab = 0;
-  PassengerAccountSnapshot? _account;
-  PassengerActivitySnapshot? _activity;
-  bool _selfLoading = false;
-
   ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
@@ -194,7 +176,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locateUser(showErrors: false);
       _loadCommunicationContent();
-      _loadSelfData();
     });
   }
 
@@ -929,186 +910,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       );
   }
 
-  Future<void> _loadSelfData() async {
-    final service = _selfService;
-    if (service == null || _selfLoading) return;
-    if (mounted) setState(() => _selfLoading = true);
-    try {
-      final results = await Future.wait<Object>([
-        service.account(),
-        service.activity(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _account = results[0] as PassengerAccountSnapshot;
-        _activity = results[1] as PassengerActivitySnapshot;
-        _selfLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _selfLoading = false);
-    }
-  }
-
-  Future<void> _logoutAccount() async {
-    final logout = widget.onLogout;
-    if (logout == null) return;
-    final success = await logout();
-    if (!mounted || success) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Não foi possível encerrar a sessão agora. Tente novamente.',
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityTab() {
-    final activity = _activity;
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: _loadSelfData,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.xxl,
-          ),
-          children: [
-            Text(
-              'Atividade',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Suas corridas ficam organizadas aqui.',
-              style: TextStyle(color: RamoColors.muted),
-            ),
-            const SizedBox(height: RamoSpacing.lg),
-            if (_selfLoading && activity == null)
-              const Center(child: CircularProgressIndicator())
-            else if (activity == null)
-              const _PassengerEmptyState(
-                icon: Icons.history_rounded,
-                title: 'Histórico indisponível',
-                subtitle: 'Puxe para baixo para tentar novamente.',
-              )
-            else ...[
-              _PassengerActivitySummary(activity: activity),
-              const SizedBox(height: RamoSpacing.lg),
-              if (activity.rides.isEmpty)
-                const _PassengerEmptyState(
-                  icon: Icons.route_rounded,
-                  title: 'Nenhuma corrida ainda',
-                  subtitle: 'Suas próximas viagens aparecerão aqui.',
-                )
-              else
-                ...activity.rides.map(
-                  (ride) => Padding(
-                    padding: const EdgeInsets.only(bottom: RamoSpacing.sm),
-                    child: _PassengerRideHistoryCard(ride: ride),
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileTab() {
-    final account = _account;
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: _loadSelfData,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.lg,
-            RamoSpacing.xxl,
-          ),
-          children: [
-            Text(
-              'Perfil',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1,
-                  ),
-            ),
-            const SizedBox(height: RamoSpacing.lg),
-            _PassengerProfileHero(
-              account: account,
-              loading: _selfLoading && account == null,
-            ),
-            const SizedBox(height: RamoSpacing.lg),
-            _PassengerProfileOption(
-              icon: Icons.badge_outlined,
-              title: 'Dados pessoais',
-              subtitle: account?.email ?? 'Nome, celular e e-mail',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) =>
-                        _PassengerPersonalDataScreen(account: account),
-                  ),
-                );
-              },
-            ),
-            _PassengerProfileOption(
-              icon: Icons.receipt_long_rounded,
-              title: 'Histórico de corridas',
-              subtitle: _activity == null
-                  ? 'Consultar atividade'
-                  : '${_activity!.completed} concluídas',
-              onTap: () => setState(() => _selectedTab = 1),
-            ),
-            _PassengerProfileOption(
-              icon: Icons.credit_card_rounded,
-              title: 'Formas de pagamento',
-              subtitle: 'Pix, cartão, carteira e dinheiro quando habilitado',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const _PassengerPaymentMethodsScreen(),
-                  ),
-                );
-              },
-            ),
-            _PassengerProfileOption(
-              icon: Icons.security_rounded,
-              title: 'Segurança',
-              subtitle: 'Sessão protegida neste aparelho',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const _PassengerSecurityScreen(),
-                  ),
-                );
-              },
-            ),
-            if (widget.onLogout != null)
-              _PassengerProfileOption(
-                key: const Key('passenger-logout'),
-                icon: Icons.logout_rounded,
-                title: 'Sair',
-                subtitle: 'Encerrar a sessão neste aparelho',
-                onTap: _logoutAccount,
-                destructive: true,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final coverage = _origin != null && _destination != null
@@ -1129,8 +930,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
-    final homeMap = Stack(
-      children: [
+    return Scaffold(
+      body: Stack(
+        children: [
           Positioned.fill(
             child: RamoLiveMap(
               controller: _mapController,
@@ -1158,7 +960,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                     children: [
                       _MapFloatingButton(
                         tooltip: 'Perfil',
-                        onPressed: () => setState(() => _selectedTab = 2),
+                        onPressed: widget.onOpenProfile,
                         icon: const Icon(Icons.person_rounded),
                       ),
                       const Spacer(),
@@ -1258,424 +1060,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onServiceChanged: _reloadQuoteForService,
             onRequestRide: _requestRide,
           ),
-      ],
-    );
-
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedTab,
-        children: [
-          homeMap,
-          _buildActivityTab(),
-          _buildProfileTab(),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          setState(() => _selectedTab = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Início',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded),
-            label: 'Atividade',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Perfil',
-          ),
         ],
       ),
     );
   }
 }
 
-
-String _passengerFormatCents(int cents) {
-  final value = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
-  return 'R\$ $value';
-}
-
-class _PassengerEmptyState extends StatelessWidget {
-  const _PassengerEmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(RamoSpacing.xl),
-      decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 38),
-          const SizedBox(height: RamoSpacing.sm),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 17,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: RamoColors.muted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerActivitySummary extends StatelessWidget {
-  const _PassengerActivitySummary({required this.activity});
-
-  final PassengerActivitySnapshot activity;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      ('Total', activity.total.toString()),
-      ('Concluídas', activity.completed.toString()),
-      ('Canceladas', activity.cancelled.toString()),
-      ('Ativas', activity.active.toString()),
-    ];
-    final width =
-        (MediaQuery.sizeOf(context).width -
-            (RamoSpacing.lg * 2) -
-            RamoSpacing.sm) /
-        2;
-
-    return Wrap(
-      spacing: RamoSpacing.sm,
-      runSpacing: RamoSpacing.sm,
-      children: items
-          .map(
-            (item) => SizedBox(
-              width: width,
-              child: Container(
-                padding: const EdgeInsets.all(RamoSpacing.md),
-                decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
-                  borderRadius: BorderRadius.circular(RamoRadius.md),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.$1,
-                      style: const TextStyle(
-                        color: RamoColors.muted,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.$2,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 22,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
-          .toList(growable: false),
-    );
-  }
-}
-
-class _PassengerRideHistoryCard extends StatelessWidget {
-  const _PassengerRideHistoryCard({required this.ride});
-
-  final PassengerActivityRide ride;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: RamoColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(RamoRadius.md),
-      child: Padding(
-        padding: const EdgeInsets.all(RamoSpacing.md),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.white,
-              foregroundColor: RamoColors.brandBlack,
-              child: Icon(
-                ride.state == 'COMPLETED'
-                    ? Icons.check_rounded
-                    : ride.state.startsWith('CANCELLED_')
-                        ? Icons.close_rounded
-                        : Icons.route_rounded,
-              ),
-            ),
-            const SizedBox(width: RamoSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${ride.originZoneId} → ${ride.destinationZoneId}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${ride.categoryLabel} · ${ride.stateLabel}',
-                    style: const TextStyle(
-                      color: RamoColors.muted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: RamoSpacing.sm),
-            Text(
-              _passengerFormatCents(ride.totalAmountCents),
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PassengerProfileHero extends StatelessWidget {
-  const _PassengerProfileHero({
-    required this.account,
-    required this.loading,
-  });
-
-  final PassengerAccountSnapshot? account;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final account = this.account;
-    final name = loading
-        ? 'Carregando conta…'
-        : account?.displayName ?? 'Passageiro Ramo Nessa';
-
-    return Container(
-      padding: const EdgeInsets.all(RamoSpacing.lg),
-      decoration: BoxDecoration(
-        color: RamoColors.brandBlack,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 32,
-            backgroundColor: RamoColors.brandYellow,
-            foregroundColor: RamoColors.brandBlack,
-            child: Icon(Icons.person_rounded, size: 34),
-          ),
-          const SizedBox(width: RamoSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 19,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  account?.phoneE164 ?? 'Conta protegida',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerProfileOption extends StatelessWidget {
-  const _PassengerProfileOption({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
-        child: Icon(
-          icon,
-          color: destructive
-              ? Theme.of(context).colorScheme.error
-              : RamoColors.brandBlack,
-        ),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          color: destructive ? Theme.of(context).colorScheme.error : null,
-        ),
-      ),
-      subtitle: Text(subtitle),
-      trailing: destructive
-          ? null
-          : const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
-    );
-  }
-}
-
-class _PassengerPersonalDataScreen extends StatelessWidget {
-  const _PassengerPersonalDataScreen({required this.account});
-
-  final PassengerAccountSnapshot? account;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Dados pessoais')),
-      body: ListView(
-        padding: const EdgeInsets.all(RamoSpacing.lg),
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Nome'),
-            subtitle: Text(account?.fullName ?? 'Não informado'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Celular'),
-            subtitle: Text(account?.phoneE164 ?? 'Não informado'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('E-mail'),
-            subtitle: Text(account?.email ?? 'Não informado'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerPaymentMethodsScreen extends StatelessWidget {
-  const _PassengerPaymentMethodsScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Formas de pagamento')),
-      body: ListView(
-        padding: const EdgeInsets.all(RamoSpacing.lg),
-        children: const [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.pix_rounded),
-            title: Text('Pix'),
-            subtitle: Text('Disponível para corridas digitais.'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.credit_card_rounded),
-            title: Text('Cartão'),
-            subtitle: Text(
-              'Tokenizado pelo Mercado Pago. O Ramo Nessa não recebe seu CVV.',
-            ),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.account_balance_wallet_outlined),
-            title: Text('Carteira Ramo Nessa'),
-            subtitle: Text('Usa o saldo disponível da sua conta.'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.payments_outlined),
-            title: Text('Dinheiro'),
-            subtitle: Text('Só aparece quando a operação liberar pelo ADM.'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PassengerSecurityScreen extends StatelessWidget {
-  const _PassengerSecurityScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Segurança')),
-      body: const ListView(
-        padding: EdgeInsets.all(RamoSpacing.lg),
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.lock_rounded),
-            title: Text('Sessão segura'),
-            subtitle: Text(
-              'Sua sessão permanece protegida no armazenamento seguro do aparelho e pode ser revogada pelo Core.',
-            ),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.sms_outlined),
-            title: Text('Telefone verificado'),
-            subtitle: Text(
-              'O OTP continua sendo usado para confirmar e recuperar sua conta.',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _MapFloatingButton extends StatelessWidget {
   const _MapFloatingButton({
