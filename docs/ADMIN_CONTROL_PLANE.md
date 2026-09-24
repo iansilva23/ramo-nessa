@@ -44,6 +44,7 @@ Escopos atuais:
 - `passengers:auth:read`
 - `passengers:auth:write`
 - `rides:read`
+- `rides:write`
 - `fleet:read`
 - `finance:read`
 - `finance:write`
@@ -356,7 +357,7 @@ o painel estiver aberto. Não usar `localStorage` para a sessão Admin.
 
 ## Diretório administrativo de viagens
 
-O escopo `rides:read` também protege a navegação read-only de corridas.
+O escopo `rides:read` protege consulta/histórico de corridas. A ação sensível de cancelamento exige `rides:write`.
 
 ### Listagem
 
@@ -370,6 +371,7 @@ Parâmetros:
 - `scope=active|all` — `active` é o padrão;
 - `state=<RideState>` — quando informado, filtra um estado exato;
 - `query=<texto>` — busca por ID da corrida, passageiro, motorista ou motorista reservado;
+- `from=<data>` / `to=<data>` — histórico por período de criação, aceitando data ISO ou `YYYY-MM-DD`;
 - `limit=1..100`;
 - `cursor=<opaco>` — paginação estável por `updated_at + id`.
 
@@ -387,6 +389,23 @@ período tarifário, quantidade de passageiros, distâncias conhecidas, snapshot
 tarifa e timestamps. Coordenadas exatas não são expostas nesta primeira superfície
 administrativa.
 
-Esta fase é **somente leitura**. Cancelamento administrativo não foi adicionado
-porque precisa respeitar, numa única operação transacional, estado da corrida,
-reembolso e ledger financeiro.
+### Cancelamento administrativo
+
+```http
+POST /v1/admin/rides/<uuid>/cancel
+Authorization: Bearer rn_admin_session_<token>
+Content-Type: application/json
+
+{"reason":"motivo operacional"}
+```
+
+Escopo: `rides:write`. O Core aceita cancelamento administrativo somente antes
+do início da viagem: `PAID`, `SEARCHING_DRIVER`, `DRIVER_ASSIGNED`,
+`DRIVER_ARRIVING` e `DRIVER_ARRIVED`. `IN_PROGRESS` permanece bloqueado até
+existir política explícita de compensação.
+
+A operação cancela ofertas, libera reserva/motorista e registra auditoria de forma
+idempotente. Pagamento em carteira é estornado imediatamente pelo ledger e a
+corrida termina em `REFUNDED`. Pix/cartão terminam em `REFUND_PENDING` com
+`pending_external_gateway`; o Admin não finge que o estorno externo aconteceu
+antes da confirmação do gateway real.
