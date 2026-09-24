@@ -44,6 +44,10 @@ test('cria rascunho imutável do catálogo atual e registra auditoria', async ()
     preaLocalities: Object.keys(draft.snapshot.localities.prea).length,
     jijocaLocalities: Object.keys(draft.snapshot.localities.jijoca).length,
     fixedRoutes: draft.snapshot.fixedRoutes.length,
+    enabledCategories: draft.snapshot.categories.filter(
+      (category) =>
+        draft.snapshot.categoryPolicies[category].enabled,
+    ).length,
   });
 
   const audit = await admin.listAudit(10);
@@ -334,5 +338,69 @@ test('edita preço por localidade com valor exato ou faixa validada', async () =
         },
       }),
     /minCents/,
+  );
+});
+
+
+test('política de categoria fica no rascunho e pode desativar novas cotações', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-category-policy',
+    name: 'Admin Category Policy',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-24T00:00:00.000Z'),
+  });
+
+  const patch = parsePricingCatalogDraftPatch({
+    kind: 'category_policy',
+    category: 'moto',
+    enabled: false,
+    requiresFourByFourOnJeriBoundary: false,
+  });
+  const updated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch,
+    now: new Date('2026-09-24T00:01:00.000Z'),
+  });
+
+  assert.equal(
+    STATIC_PRICING_CATALOG_V1.categoryPolicies.moto.enabled,
+    true,
+  );
+  assert.equal(updated.snapshot.categoryPolicies.moto.enabled, false);
+
+  const request = {
+    origin: { zoneId: 'prea' as const, localityId: 'prea' },
+    destination: { zoneId: 'prea' as const, localityId: 'laguim' },
+    category: 'moto' as const,
+    period: 'day' as const,
+  };
+
+  assert.equal(quoteFare(request).kind, 'exact');
+  assert.throws(
+    () => quoteFare(request, updated.snapshot),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes('desativada'),
+  );
+
+  const audit = await admin.listAudit(10);
+  assert.equal(
+    audit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.metadata?.kind === 'category_policy' &&
+        entry.metadata?.category === 'moto',
+    ),
+    true,
   );
 });
