@@ -10,10 +10,12 @@ import 'core/location/location_service.dart';
 import 'core/notifications/firebase_push_coordinator.dart';
 import 'core/notifications/push_foreground_listener.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
+import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
+import 'features/rides/data/http_passenger_activity_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
@@ -60,13 +62,40 @@ class RamoNessaPassengerApp extends StatelessWidget {
             ? restoredToken
             : null;
 
-    Widget home(
+    final authService = coreUri == null
+        ? null
+        : HttpPhoneAuthService(
+            baseUrl: coreUri,
+            subjectType: 'passenger',
+            clientInstanceId: clientInstanceId,
+          );
+
+    Widget shell(
       String? token, [
       Future<bool> Function()? logout,
-    ]) =>
-        PassengerHomeScreen(
-          accessToken: token,
+    ]) {
+      final normalizedToken = token?.trim();
+      final activityService = RamoCoreConfig.previewMode
+          ? preview?.activity
+          : coreUri != null &&
+                  normalizedToken != null &&
+                  normalizedToken.length >= 20
+              ? HttpPassengerActivityService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
+              : null;
+
+      return PassengerMainShell(
+        accessToken: normalizedToken,
+        onLogout: logout,
+        authService: authService,
+        activityService: activityService,
+        previewMode: RamoCoreConfig.previewMode,
+        homeBuilder: (openProfile) => PassengerHomeScreen(
+          accessToken: normalizedToken,
           onLogout: logout,
+          onOpenProfile: openProfile,
           locationService: locationService ?? preview?.location,
           routeService: routeService,
           placeSearchService: placeSearchService,
@@ -77,33 +106,31 @@ class RamoNessaPassengerApp extends StatelessWidget {
           rideTrackingService: rideTrackingService ?? preview?.tracking,
           rideRealtimeService: rideRealtimeService,
           networkTilesEnabled: networkTilesEnabled,
-        );
+        ),
+      );
+    }
 
     final Widget homeWidget;
     if (RamoCoreConfig.previewMode) {
-      homeWidget = home(
+      homeWidget = shell(
         null,
         () async => true,
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
     } else if (coreUri == null) {
-      homeWidget = home(initialToken);
+      homeWidget = shell(initialToken);
     } else {
       homeWidget = MobileAuthGate(
         subjectType: 'passenger',
-        service: HttpPhoneAuthService(
-          baseUrl: coreUri,
-          subjectType: 'passenger',
-          clientInstanceId: clientInstanceId,
-        ),
+        service: authService!,
         tokenStore: SecureAuthTokenStore(),
         initialAccessToken: initialToken,
         devBypass: RamoCoreConfig.devPassengerIdentityEnabled,
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código por SMS para confirmar sua conta.',
-        authenticatedBuilder: (token, logout) => home(token, logout),
+        authenticatedBuilder: (token, logout) => shell(token, logout),
         onSessionReady: pushCoordinator?.bindSession,
         onSessionEnded: pushCoordinator?.unbindSession,
       );
