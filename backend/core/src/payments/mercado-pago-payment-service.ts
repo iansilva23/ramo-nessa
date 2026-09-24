@@ -223,30 +223,6 @@ export async function applyMercadoPagoOrderStatus(input: {
     return { kind: 'cancelled', payment: cancelled };
   }
 
-  if (status === 'refunded' || paymentStatus === 'refunded') {
-    if (payment.status === 'refunded') {
-      const duplicate = await input.finance.refundExternalPayment({
-        paymentId: payment.id,
-        ...(input.now != null ? { refundedAt: input.now } : {}),
-      });
-      return {
-        kind: 'refunded',
-        payment: duplicate.payment,
-        duplicateRefund: true,
-      };
-    }
-
-    const refunded = await input.finance.refundExternalPayment({
-      paymentId: payment.id,
-      ...(input.now != null ? { refundedAt: input.now } : {}),
-    });
-    return {
-      kind: 'refunded',
-      payment: refunded.payment,
-      duplicateRefund: refunded.duplicateRefund,
-    };
-  }
-
   if (
     status === 'created' ||
     status === 'processing' ||
