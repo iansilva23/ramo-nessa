@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
 
 PassengerRideTrackingSnapshot snapshot(String state) {
   return PassengerRideTrackingSnapshot(
