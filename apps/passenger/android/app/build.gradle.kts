@@ -62,7 +62,7 @@ android {
                 rootProject.file(
                     "../../../tooling/preview-signing/ramo-preview.keystore",
                 )
-            storeType = "PKCS12"
+            storeType = "JKS"
             storePassword = "ramo-preview-only"
             keyAlias = "ramo-preview"
             keyPassword = "ramo-preview-only"
