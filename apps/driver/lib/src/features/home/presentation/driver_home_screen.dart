@@ -17,6 +17,7 @@ import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
+import '../../profile/presentation/driver_ride_summary_screen.dart';
 import '../../profile/presentation/driver_security_screen.dart';
 import '../../profile/presentation/driver_settings_screen.dart';
 import '../../profile/presentation/driver_support_screen.dart';
@@ -1530,7 +1531,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   ? 'Consultar sua atividade'
                   : '${_activity!.completed} concluídas · '
                       '${_activity!.cancelled} canceladas',
-              onTap: () => setState(() => _selectedTab = 2),
+              onTap: _api == null
+                  ? () {}
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverRideSummaryScreen(
+                            api: _api!,
+                          ),
+                        ),
+                      );
+                    },
             ),
             _ProfileOption(
               icon: Icons.account_balance_wallet_outlined,
@@ -1643,12 +1654,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         ),
                       );
                     },
-            ),
-            _ProfileOption(
-              icon: Icons.location_on_rounded,
-              title: 'Localização',
-              subtitle: 'Atualização automática enquanto estiver online',
-              onTap: _updateLocation,
             ),
             _ProfileOption(
               icon: Icons.support_agent_rounded,
