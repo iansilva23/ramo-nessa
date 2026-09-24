@@ -31,6 +31,7 @@ export async function dispatchNextDriver(input: {
   now?: Date;
   offerTtlSeconds?: number;
   maxLocationAgeSeconds?: number;
+  canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<DispatchNextResult> {
   const now = input.now ?? new Date();
   const ride = await input.rides.findById(input.rideId);
@@ -76,6 +77,16 @@ export async function dispatchNextDriver(input: {
     candidates = candidates.filter(
       (candidate) => candidate.supply.driverId === ride.reservedDriverId,
     );
+  }
+
+  if (input.canOfferDriver != null) {
+    const allowed = [];
+    for (const candidate of candidates) {
+      if (await input.canOfferDriver(candidate.supply.driverId)) {
+        allowed.push(candidate);
+      }
+    }
+    candidates = allowed;
   }
 
   const next = candidates[0];
