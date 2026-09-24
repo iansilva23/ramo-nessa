@@ -11,6 +11,7 @@ abstract interface class PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   });
 
   Future<CashRideAuthorizationResult> authorizeCashRide({
