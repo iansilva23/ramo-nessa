@@ -247,19 +247,20 @@ interface FirebaseServiceAccountFile {
   private_key?: unknown;
 }
 
-export function readFirebaseServiceAccountFile(path: string): {
+function parseFirebaseServiceAccount(
+  raw: string,
+  sourceLabel: string,
+): {
   projectId: string;
   clientEmail: string;
   privateKey: string;
 } {
   let parsed: FirebaseServiceAccountFile;
   try {
-    parsed = JSON.parse(
-      readFileSync(path, 'utf8'),
-    ) as FirebaseServiceAccountFile;
+    parsed = JSON.parse(raw) as FirebaseServiceAccountFile;
   } catch {
     throw new Error(
-      'FIREBASE_SERVICE_ACCOUNT_FILE não pôde ser lido como JSON válido.',
+      `${sourceLabel} não contém JSON válido.`,
     );
   }
 
@@ -282,11 +283,42 @@ export function readFirebaseServiceAccountFile(path: string): {
     privateKey.length < 100
   ) {
     throw new Error(
-      'FIREBASE_SERVICE_ACCOUNT_FILE não contém credenciais Firebase válidas.',
+      `${sourceLabel} não contém credenciais Firebase válidas.`,
     );
   }
 
   return { projectId, clientEmail, privateKey };
+}
+
+export function readFirebaseServiceAccountJson(raw: string): {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+} {
+  return parseFirebaseServiceAccount(
+    raw,
+    'FIREBASE_SERVICE_ACCOUNT_JSON',
+  );
+}
+
+export function readFirebaseServiceAccountFile(path: string): {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+} {
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_FILE não pôde ser lido.',
+    );
+  }
+
+  return parseFirebaseServiceAccount(
+    raw,
+    'FIREBASE_SERVICE_ACCOUNT_FILE',
+  );
 }
 
 export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
@@ -296,22 +328,26 @@ export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
   }
 
   if (kind === 'fcm') {
+    const serviceAccountJson =
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     const serviceAccountFile =
       process.env.FIREBASE_SERVICE_ACCOUNT_FILE?.trim();
 
     const credentials =
-      serviceAccountFile != null && serviceAccountFile !== ''
-        ? readFirebaseServiceAccountFile(serviceAccountFile)
-        : {
-            projectId:
-              process.env.FIREBASE_PROJECT_ID?.trim() ?? '',
-            clientEmail:
-              process.env.FIREBASE_CLIENT_EMAIL?.trim() ?? '',
-            privateKey:
-              process.env.FIREBASE_PRIVATE_KEY
-                ?.replace(/\\n/g, '\n')
-                .trim() ?? '',
-          };
+      serviceAccountJson != null && serviceAccountJson !== ''
+        ? readFirebaseServiceAccountJson(serviceAccountJson)
+        : serviceAccountFile != null && serviceAccountFile !== ''
+          ? readFirebaseServiceAccountFile(serviceAccountFile)
+          : {
+              projectId:
+                process.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+              clientEmail:
+                process.env.FIREBASE_CLIENT_EMAIL?.trim() ?? '',
+              privateKey:
+                process.env.FIREBASE_PRIVATE_KEY
+                  ?.replace(/\\n/g, '\n')
+                  .trim() ?? '',
+            };
 
     if (
       credentials.projectId.length < 3 ||
@@ -319,7 +355,7 @@ export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
       credentials.privateKey.length < 100
     ) {
       throw new Error(
-        'Para PUSH_PROVIDER=fcm, configure FIREBASE_SERVICE_ACCOUNT_FILE ou as três variáveis Firebase separadas.',
+        'Para PUSH_PROVIDER=fcm, configure FIREBASE_SERVICE_ACCOUNT_JSON, FIREBASE_SERVICE_ACCOUNT_FILE ou as três variáveis Firebase separadas.',
       );
     }
 
