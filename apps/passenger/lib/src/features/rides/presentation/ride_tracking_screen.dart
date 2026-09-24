@@ -17,14 +17,16 @@ class RideTrackingScreen extends StatefulWidget {
     required this.rideId,
     required this.remainingWalletCents,
     required this.trackingService,
+    this.paymentMethod,
     this.realtimeService,
     this.initialDispatchStatus,
     this.networkTilesEnabled = true,
   });
 
   final String rideId;
-  final int remainingWalletCents;
+  final int? remainingWalletCents;
   final PassengerRideTrackingService trackingService;
+  final String? paymentMethod;
   final PassengerRideRealtimeService? realtimeService;
   final String? initialDispatchStatus;
   final bool networkTilesEnabled;
@@ -247,16 +249,20 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.check_circle_rounded,
                         color: RamoColors.signal,
                       ),
-                      SizedBox(width: RamoSpacing.xs),
+                      const SizedBox(width: RamoSpacing.xs),
                       Text(
-                        'Pagamento confirmado',
-                        style: TextStyle(fontWeight: FontWeight.w800),
+                        widget.paymentMethod == 'cash'
+                            ? 'Pagamento em dinheiro'
+                            : 'Pagamento confirmado',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
@@ -283,11 +289,20 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                           ),
                     ),
                   ],
-                  const SizedBox(height: RamoSpacing.sm),
-                  Text(
-                    'Saldo restante: '
-                    '${PreparedRide.formatCents(widget.remainingWalletCents)}',
-                  ),
+                  if (widget.remainingWalletCents != null) ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    Text(
+                      'Saldo restante: '
+                      '${PreparedRide.formatCents(widget.remainingWalletCents!)}',
+                    ),
+                  ],
+                  if (widget.paymentMethod == 'cash') ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    Text(
+                      'Pague diretamente ao motorista no fim da corrida.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   if (snapshot?.isTerminal == true) ...[
                     const SizedBox(height: RamoSpacing.md),
                     SizedBox(
