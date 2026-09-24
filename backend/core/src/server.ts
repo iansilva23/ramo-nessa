@@ -153,6 +153,11 @@ import {
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminFinanceView } from './admin/admin-finance-service.js';
 import {
+  AdminPaymentPolicyError,
+  adminPaymentPolicyView,
+  updateAdminPaymentPolicy,
+} from './admin/admin-payment-policy-service.js';
+import {
   AdminPassengerError,
   adminPassengerProfile,
 } from './admin/admin-passenger-service.js';
@@ -206,6 +211,7 @@ const {
   adminHumanAuthRepository,
   rideRepository,
   financeRepository,
+  paymentPolicySettingsRepository,
   driverSupplyRepository,
   driverRegistryRepository,
   driverDocumentRepository,
@@ -719,6 +725,55 @@ const server = createServer(async (request, response) => {
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
       });
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/payment-policy'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      json(
+        response,
+        200,
+        await adminPaymentPolicyView(paymentPolicySettingsRepository),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/admin/payment-policy'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      const body = await readJson(request);
+      if (
+        body == null ||
+        typeof body !== 'object' ||
+        Array.isArray(body) ||
+        typeof (body as { cashEnabled?: unknown }).cashEnabled !== 'boolean'
+      ) {
+        throw new InvalidAdminRequestError(
+          'cashEnabled deve ser booleano.',
+        );
+      }
+      const policy = await updateAdminPaymentPolicy({
+        repository: paymentPolicySettingsRepository,
+        admin: adminRepository,
+        actor,
+        cashEnabled: (body as { cashEnabled: boolean }).cashEnabled,
+      });
+      json(response, 200, policy);
       return;
     }
 
@@ -2105,6 +2160,14 @@ const server = createServer(async (request, response) => {
       const status =
         error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
       json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminPaymentPolicyError) {
+      json(response, 409, {
         error: error.code,
         message: error.message,
       });
