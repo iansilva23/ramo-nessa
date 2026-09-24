@@ -31,6 +31,7 @@ const state = {
   currentDriver: null,
   currentDriverRegistry: null,
   currentDriverDocuments: null,
+  currentDriverCashPolicy: null,
   documentInspectionObjectUrl: null,
   documentInspectionTimer: null,
   pricingCatalog: null,
@@ -237,6 +238,7 @@ function clearSession(message = '') {
   state.currentDriver = null;
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
+  state.currentDriverCashPolicy = null;
   state.pricingCatalog = null;
   state.pricingVersions = {
     items: [],
@@ -738,6 +740,194 @@ function renderDriverRegistry(payload, driverId) {
   target.append(summary);
   byId('registry-status-button').disabled =
     !profile || !vehicle || !hasScope('drivers:profile:write');
+}
+
+function renderDriverCashPolicyUnavailable(
+  message = 'Abra um motorista para consultar a política cash.',
+) {
+  state.currentDriverCashPolicy = null;
+  const summary = byId('driver-cash-policy-summary');
+  summary.replaceChildren();
+  summary.className =
+    'driver-cash-policy-summary empty-state';
+  summary.textContent = message;
+  const status = byId('driver-cash-policy-status');
+  status.className = 'pill';
+  status.textContent = 'Não carregado';
+  const form = byId('driver-cash-policy-form');
+  form.hidden = true;
+  byId('driver-cash-limit-reais').value = '';
+}
+
+function renderDriverCashPolicy(policy) {
+  state.currentDriverCashPolicy = policy;
+  const summary = byId('driver-cash-policy-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-cash-policy-summary';
+
+  const items = [
+    ['Limite padrão', formatCurrencyCents(policy.defaultDebtLimitCents)],
+    [
+      'Override',
+      policy.overrideDebtLimitCents == null
+        ? 'Sem override'
+        : formatCurrencyCents(policy.overrideDebtLimitCents),
+    ],
+    ['Limite efetivo', formatCurrencyCents(policy.effectiveDebtLimitCents)],
+    ['Dívida atual', formatCurrencyCents(policy.currentDebtCents)],
+    [
+      'Capacidade restante',
+      formatCurrencyCents(policy.remainingDebtCapacityCents),
+    ],
+  ];
+  for (const [label, value] of items) {
+    summary.append(registrySummaryItem(label, value));
+  }
+
+  const status = byId('driver-cash-policy-status');
+  status.className =
+    policy.cashEnabled ? 'pill pill--success' : 'pill pill--neutral';
+  status.textContent =
+    policy.cashEnabled ? 'Dinheiro ativado' : 'Dinheiro desativado';
+
+  const canEdit =
+    policy.cashEnabled && hasScope('finance:write');
+  const form = byId('driver-cash-policy-form');
+  form.hidden = !hasScope('finance:read');
+  const input = byId('driver-cash-limit-reais');
+  input.disabled = !canEdit;
+  input.min = String(
+    Math.trunc(policy.defaultDebtLimitCents / 100),
+  );
+  input.value = String(
+    Math.trunc(
+      (policy.overrideDebtLimitCents ??
+        policy.defaultDebtLimitCents) / 100,
+    ),
+  );
+  byId('driver-cash-limit-save').disabled = !canEdit;
+  byId('driver-cash-limit-reset').disabled =
+    !canEdit || policy.overrideDebtLimitCents == null;
+  byId('driver-cash-policy-note').textContent =
+    policy.cashEnabled
+      ? 'O override afeta somente este motorista. O limite efetivo nunca fica abaixo do padrão.'
+      : 'A edição será liberada somente quando dinheiro estiver ativado.';
+}
+
+async function loadDriverCashPolicy(driverId) {
+  if (!state.token) return;
+  if (!hasScope('finance:read')) {
+    renderDriverCashPolicyUnavailable(
+      'Sua conta não possui permissão finance:read.',
+    );
+    return;
+  }
+
+  try {
+    const policy = await api.getDriverCashPolicy(
+      state.token,
+      driverId,
+    );
+    renderDriverCashPolicy(policy);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 404) {
+      renderDriverCashPolicyUnavailable(
+        'Motorista não encontrado para política cash.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverCashPolicySubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !state.currentDriverCashPolicy ||
+    !hasScope('finance:write')
+  ) {
+    return;
+  }
+
+  if (!state.currentDriverCashPolicy.cashEnabled) {
+    setMessage(
+      globalMessage,
+      'Ative dinheiro no Financeiro antes de alterar o limite individual.',
+      'danger',
+    );
+    return;
+  }
+
+  const reais = Number(byId('driver-cash-limit-reais').value);
+  const minimum =
+    state.currentDriverCashPolicy.defaultDebtLimitCents / 100;
+  if (!Number.isInteger(reais) || reais < minimum) {
+    setMessage(
+      globalMessage,
+      `O limite individual deve ser um valor inteiro de pelo menos R$ ${minimum}.`,
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('driver-cash-limit-save');
+  button.disabled = true;
+  try {
+    const policy = await api.setDriverCashPolicy(state.token, {
+      driverId: state.currentDriver.driverId,
+      debtLimitCents: reais * 100,
+    });
+    renderDriverCashPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Limite individual cash atualizado e auditado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      !state.currentDriverCashPolicy?.cashEnabled;
+  }
+}
+
+async function handleDriverCashPolicyReset() {
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !state.currentDriverCashPolicy?.cashEnabled ||
+    !hasScope('finance:write')
+  ) {
+    return;
+  }
+
+  const button = byId('driver-cash-limit-reset');
+  button.disabled = true;
+  try {
+    const policy = await api.setDriverCashPolicy(state.token, {
+      driverId: state.currentDriver.driverId,
+      debtLimitCents: null,
+    });
+    renderDriverCashPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Limite individual removido. O motorista voltou ao padrão de R$ 120.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.currentDriverCashPolicy?.overrideDebtLimitCents == null;
+  }
 }
 
 function renderDriverRegistryUnavailable(
@@ -3671,6 +3861,7 @@ async function lookupDriver(driverId) {
     renderDriver(driver);
     await loadDriverRegistry(driverId);
     await loadDriverDocuments(driverId);
+    await loadDriverCashPolicy(driverId);
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -3683,6 +3874,9 @@ async function lookupDriver(driverId) {
       );
       renderDriverDocumentsUnavailable(
         'Provisione o motorista e cadastre o perfil antes dos documentos.',
+      );
+      renderDriverCashPolicyUnavailable(
+        'Provisione o motorista antes de configurar limite cash.',
       );
       return;
     }
@@ -3723,6 +3917,7 @@ async function handleDriverProvision(event) {
     renderDriver(result);
     await loadDriverRegistry(driverId);
     await loadDriverDocuments(driverId);
+    await loadDriverCashPolicy(driverId);
     setMessage(
       globalMessage,
       result.created
@@ -3988,6 +4183,12 @@ byId('driver-provision-form').addEventListener('submit', (event) => {
 byId('driver-registry-form').addEventListener('submit', (event) => {
   void handleDriverRegistrySubmit(event);
 });
+byId('driver-cash-policy-form').addEventListener('submit', (event) => {
+  void handleDriverCashPolicySubmit(event);
+});
+byId('driver-cash-limit-reset').addEventListener('click', () => {
+  void handleDriverCashPolicyReset();
+});
 byId('registry-status-button').addEventListener('click', () => {
   void handleDriverRegistryStatus();
 });
@@ -4035,6 +4236,7 @@ setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
+renderDriverCashPolicyUnavailable();
 renderPassengerDetailEmpty();
 renderFleet();
 renderFinance();
