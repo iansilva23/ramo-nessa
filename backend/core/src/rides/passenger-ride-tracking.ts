@@ -53,21 +53,24 @@ export async function passengerRideTracking(input: {
 
   let driverLocation: PassengerRideTrackingSnapshot['driverLocation'] = null;
   let driver: PassengerRideTrackingSnapshot['driver'] = null;
-  if (ride.driverId != null && LOCATION_VISIBLE_STATES.has(ride.state)) {
-    const supply = await input.drivers.findByDriverId(ride.driverId);
-    if (supply != null) {
-      const now = input.now ?? new Date();
-      const updatedAtMs = Date.parse(supply.locationUpdatedAt);
-      const stale =
-        Number.isNaN(updatedAtMs) ||
-        now.getTime() - updatedAtMs > 60_000;
 
-      driverLocation = {
-        latitude: supply.latitude,
-        longitude: supply.longitude,
-        updatedAt: supply.locationUpdatedAt,
-        stale,
-      };
+  if (ride.driverId != null) {
+    if (LOCATION_VISIBLE_STATES.has(ride.state)) {
+      const supply = await input.drivers.findByDriverId(ride.driverId);
+      if (supply != null) {
+        const now = input.now ?? new Date();
+        const updatedAtMs = Date.parse(supply.locationUpdatedAt);
+        const stale =
+          Number.isNaN(updatedAtMs) ||
+          now.getTime() - updatedAtMs > 60_000;
+
+        driverLocation = {
+          latitude: supply.latitude,
+          longitude: supply.longitude,
+          updatedAt: supply.locationUpdatedAt,
+          stale,
+        };
+      }
     }
 
     const profile = await input.registry.findProfile(ride.driverId);
