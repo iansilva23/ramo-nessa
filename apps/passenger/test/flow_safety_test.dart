@@ -295,6 +295,40 @@ void main() {
     await tester.pump();
   });
 
+
+  testWidgets('Pix abre checkout real com copia e cola', (tester) async {
+    final ride = PreparedRide(
+      id: 'ride-pix-ui',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4500,
+      pickupCompensationCents: 0,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RidePaymentScreen(
+          ride: ride,
+          paymentService: _FakePixPassengerPaymentService(),
+          networkTilesEnabled: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    await tester.tap(find.text('Pix'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pagar com Pix'), findsOneWidget);
+    expect(find.text('Copiar código Pix'), findsOneWidget);
+    expect(
+      find.textContaining('A corrida só será enviada ao motorista'),
+      findsOneWidget,
+    );
+  });
+
 }
 
 class _FakeLocationService implements LocationService {
@@ -557,5 +591,56 @@ class _FakeRefundedPassengerPaymentService
       paymentRefunded: true,
       dispatchStatus: 'NO_DRIVER_FOUND',
     );
+  }
+}
+
+
+class _FakePixPassengerPaymentService
+    implements PassengerPaymentService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 0;
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const PixRidePaymentResult(
+      internalPaymentId: 'payment-pix-ui',
+      internalPaymentStatus: 'pending',
+      orderId: 'ORD01PIXUI123456789',
+      gatewayPaymentId: 'PAY01PIXUI123456789',
+      status: 'created',
+      statusDetail: 'waiting_payment',
+      ticketUrl: 'https://example.test/pix',
+      qrCode: '000201010212-test-pix-ui',
+      qrCodeBase64: '',
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Cash não faz parte deste teste Pix.');
+  }
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Carteira não faz parte deste teste Pix.');
   }
 }
