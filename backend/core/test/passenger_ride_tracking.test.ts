@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { passengerRideTracking } from '../src/rides/passenger-ride-tracking.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
@@ -40,7 +41,19 @@ function activeRide(): RideRecord {
 test('passageiro recebe posição do motorista somente durante corrida ativa', async () => {
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
   const ride = await rides.create(activeRide());
+
+  await registry.upsertProfile({
+    driverId: 'driver-tracking',
+    fullName: 'Motorista Tracking',
+    preferredName: 'Tracking',
+    status: 'approved',
+    ratingAverage: 4.9,
+    ratingCount: 12,
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
 
   await drivers.upsert({
     driverId: 'driver-tracking',
@@ -59,6 +72,7 @@ test('passageiro recebe posição do motorista somente durante corrida ativa', a
   const active = await passengerRideTracking({
     rides,
     drivers,
+    registry,
     rideId: ride.id,
     passengerId: ride.passengerId,
     now,
@@ -68,6 +82,9 @@ test('passageiro recebe posição do motorista somente durante corrida ativa', a
   assert.equal(active?.driverLocation?.latitude, -2.81234);
   assert.equal(active?.driverLocation?.longitude, -40.42345);
   assert.equal(active?.driverLocation?.stale, false);
+  assert.equal(active?.driver?.displayName, 'Tracking');
+  assert.equal(active?.driver?.ratingAverage, 4.9);
+  assert.equal(active?.driver?.ratingCount, 12);
   assert.equal('driverId' in (active?.ride ?? {}), false);
 
   await rides.save({
@@ -79,6 +96,7 @@ test('passageiro recebe posição do motorista somente durante corrida ativa', a
   const completed = await passengerRideTracking({
     rides,
     drivers,
+    registry,
     rideId: ride.id,
     passengerId: ride.passengerId,
     now: new Date('2026-09-23T19:20:01.000Z'),
@@ -91,11 +109,13 @@ test('passageiro recebe posição do motorista somente durante corrida ativa', a
 test('tracking não revela corrida pertencente a outro passageiro', async () => {
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
   const ride = await rides.create(activeRide());
 
   const result = await passengerRideTracking({
     rides,
     drivers,
+    registry,
     rideId: ride.id,
     passengerId: 'passenger-other',
     now,
