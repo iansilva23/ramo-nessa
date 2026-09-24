@@ -89,6 +89,39 @@ export function paymentCaptureLedger(input: {
   };
 }
 
+export function externalRideRefundLedger(input: {
+  rideId: string;
+  paymentId: string;
+  processor: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `ride:${input.rideId}:escrow`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `processor:${input.processor}:clearing`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'EXTERNAL_RIDE_REFUNDED',
+    rideId: input.rideId,
+    paymentId: input.paymentId,
+    referenceKey: `external-ride-refund:${input.paymentId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function walletTopupCaptureLedger(input: {
   walletTopupId: string;
   passengerId: string;
