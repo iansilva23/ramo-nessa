@@ -80,10 +80,10 @@ class DriverSettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: RamoSpacing.sm),
-          ListTile(
+          const ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.info_outline_rounded),
-            title: const Text('Versão'),
+            leading: Icon(Icons.info_outline_rounded),
+            title: Text('Versão'),
             subtitle: Text(
               '${DriverCoreConfig.appVersion} '
               '(build ${DriverCoreConfig.appBuild})',
