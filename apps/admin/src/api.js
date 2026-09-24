@@ -395,6 +395,24 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    getDriverCashPolicy(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/cash-policy`,
+        { token },
+      );
+    },
+
+    setDriverCashPolicy(token, { driverId, debtLimitCents }) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/cash-policy`,
+        {
+          method: 'PATCH',
+          token,
+          body: { debtLimitCents },
+        },
+      );
+    },
+
     getDriverDocuments(token, driverId) {
       return request(
         `/v1/admin/drivers/${driverId}/documents`,
