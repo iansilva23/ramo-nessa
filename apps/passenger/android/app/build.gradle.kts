@@ -6,6 +6,7 @@ plugins {
 
 val mercadoPagoPublicKey =
     providers.gradleProperty("RAMO_MERCADO_PAGO_PUBLIC_KEY")
+        .orElse(providers.environmentVariable("RAMO_MERCADO_PAGO_PUBLIC_KEY"))
         .orElse("")
         .get()
         .trim()
