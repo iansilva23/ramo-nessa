@@ -162,7 +162,7 @@
 - [ ] cancelamentos
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
 - [ ] edição estrutural de localidades/zonas
-- [ ] categorias e elegibilidade
+- [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
 - [ ] pagamentos/comissões
 - [ ] habilitar/desabilitar dinheiro futuramente
 - [ ] bloqueios
