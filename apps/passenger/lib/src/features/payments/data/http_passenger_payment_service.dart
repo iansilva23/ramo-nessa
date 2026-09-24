@@ -6,6 +6,7 @@ import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
 import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
+import '../domain/pix_ride_payment_result.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import 'passenger_payment_service.dart';
 
@@ -84,6 +85,41 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       apiErrorMessage(
         decoded,
         'Não conseguimos consultar a carteira agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/payments'),
+          headers: {
+            ..._identityHeaders,
+            'idempotency-key': idempotencyKey,
+          },
+          body: jsonEncode({'method': 'pix'}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return PixRidePaymentResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou um Pix inválido.',
+        );
+      }
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos gerar o Pix agora.',
       ),
     );
   }
