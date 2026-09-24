@@ -28,6 +28,12 @@ export interface PricingCatalogVersionRepository {
 
   list(limit: number): Promise<PricingCatalogVersionRecord[]>;
 
+  updateDraftSnapshot(input: {
+    id: string;
+    snapshot: PricingCatalogSnapshot;
+    updatedAt: string;
+  }): Promise<PricingCatalogVersionRecord | null>;
+
   publish(input: {
     id: string;
     effectiveFrom: string;
