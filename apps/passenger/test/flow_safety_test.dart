@@ -10,6 +10,8 @@ import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
@@ -100,6 +102,12 @@ void main() {
     expect(find.text('Cartão'), findsOneWidget);
     expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
     expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+    expect(find.text('Dinheiro'), findsOneWidget);
+    expect(find.text('Em breve'), findsOneWidget);
+    final cashTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Dinheiro'),
+    );
+    expect(cashTile.enabled, isFalse);
     expect(find.textContaining('Procurando buggy'), findsNothing);
 
     await tester.tap(find.text('Carteira Ramo Nessa'));
@@ -108,6 +116,49 @@ void main() {
     expect(find.text('Pagamento confirmado'), findsOneWidget);
     expect(find.text('Saldo restante: R\$ 55,00'), findsOneWidget);
   });
+
+  testWidgets(
+    'dinheiro aparece ativo quando a política central libera cash',
+    (tester) async {
+      final service = _FakeCashPassengerPaymentService();
+      final ride = PreparedRide(
+        id: 'ride-cash-enabled',
+        state: 'AWAITING_PAYMENT',
+        baseAmountCents: 4500,
+        pickupCompensationCents: 0,
+        totalAmountCents: 4500,
+        holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RidePaymentScreen(
+            ride: ride,
+            paymentService: service,
+            networkTilesEnabled: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dinheiro'), findsOneWidget);
+      expect(find.text('Em breve'), findsNothing);
+      final cashTile = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, 'Dinheiro'),
+      );
+      expect(cashTile.enabled, isTrue);
+
+      await tester.tap(find.text('Dinheiro'));
+      await tester.pumpAndSettle();
+
+      expect(service.cashAuthorizations, 1);
+      expect(find.text('Pagamento em dinheiro'), findsOneWidget);
+      expect(
+        find.textContaining('Pague R\$ 45,00 diretamente ao motorista'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets(
     'sem motorista o valor volta para a carteira e a tela explica o estorno',
@@ -327,6 +378,23 @@ class _FakeRidePreparationService implements RidePreparationService {
 
 class _FakePassengerPaymentService implements PassengerPaymentService {
   @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+  }) async {
+    throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
+  @override
   Future<int> walletBalanceCents() async => 10000;
 
   @override
@@ -341,6 +409,47 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
       paymentConfirmed: true,
       dispatchStatus: 'SEARCHING_DRIVER',
     );
+  }
+}
+
+
+class _FakeCashPassengerPaymentService
+    implements PassengerPaymentService {
+  int cashAuthorizations = 0;
+
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: true,
+      allowedMethods: {'pix', 'card', 'wallet', 'cash'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+  }) async {
+    cashAuthorizations++;
+    return const CashRideAuthorizationResult(
+      rideState: 'SEARCHING_DRIVER',
+      amountCents: 4500,
+      duplicateAuthorization: false,
+      authorized: true,
+      dispatchStatus: 'SEARCHING_DRIVER',
+    );
+  }
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Carteira não faz parte deste teste cash.');
   }
 }
 
@@ -369,6 +478,23 @@ class _FakeRideTrackingService implements PassengerRideTrackingService {
 
 class _FakeRefundedPassengerPaymentService
     implements PassengerPaymentService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+  }) async {
+    throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
   @override
   Future<int> walletBalanceCents() async => 10000;
 
