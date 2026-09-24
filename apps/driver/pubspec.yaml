@@ -18,6 +18,7 @@ dependencies:
   url_launcher: ^6.3.2
   latlong2: ^0.10.1
   maplibre_gl: 0.27.1
+  image_picker: ^1.2.3
   ramo_design_system:
     path: ../../packages/design_system
 
