@@ -248,7 +248,6 @@ async function resolveIdentity(input: {
     subjectId: id,
     subjectType: 'passenger',
     phoneE164: input.phoneE164,
-    emailNormalized: input.emailNormalized,
     status: 'active',
     createdAt: input.now.toISOString(),
     updatedAt: input.now.toISOString(),
