@@ -125,15 +125,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
     final month = local.month.toString().padLeft(2, '0');
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    return day +
-        '/' +
-        month +
-        '/' +
-        local.year.toString() +
-        ' · ' +
-        hour +
-        ':' +
-        minute;
+    return '$day/$month/${local.year} · $hour:$minute';
   }
 
   Color _statusColor(BuildContext context, String status) {
@@ -343,9 +335,8 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          ticket.categoryLabel +
-                              ' · ' +
-                              _dateLabel(ticket.createdAt),
+                          '${ticket.categoryLabel} · '
+                              '${_dateLabel(ticket.createdAt)}',
                           style: const TextStyle(
                             color: RamoColors.muted,
                             fontSize: 12,
