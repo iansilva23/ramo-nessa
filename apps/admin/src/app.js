@@ -73,6 +73,7 @@ const state = {
     },
     payments: [],
     payouts: [],
+    policy: null,
   },
   dashboard: {
     generatedAt: null,
@@ -136,6 +137,7 @@ const scopeLabels = new Map([
   ['rides:read', 'Consultar operação de corridas'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
   ['finance:read', 'Consultar pagamentos, comissões e saques'],
+  ['finance:write', 'Administrar políticas financeiras permitidas'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['audit:read', 'Consultar auditoria'],
@@ -230,6 +232,7 @@ function clearSession(message = '') {
     },
     payments: [],
     payouts: [],
+    policy: null,
   };
   if (fleetMap != null) {
     fleetMap.update([]);
@@ -1681,6 +1684,38 @@ function paymentMethodLabel(method) {
   return String(method ?? '—');
 }
 
+function renderPaymentPolicy(policy = null) {
+  state.finance.policy = policy;
+
+  const cashEnabled = policy?.cashEnabled === true;
+  const activationReady = policy?.cashActivationReady === true;
+  const status = byId('finance-cash-status');
+  status.className = cashEnabled
+    ? 'pill pill--danger'
+    : 'pill pill--success';
+  status.textContent = cashEnabled ? 'Ativado' : 'Desativado';
+
+  byId('finance-cash-debt-limit').textContent =
+    formatCurrencyCents(
+      numericMetric(policy?.futureCashDebtLimitCents ?? 12000),
+    );
+  byId('finance-cash-readiness').textContent =
+    activationReady ? 'Pronta' : 'Bloqueada';
+  byId('finance-cash-updated-at').textContent =
+    policy?.updatedAt
+      ? `Atualizada em ${formatDateTime(policy.updatedAt)}`
+      : 'Aguardando política';
+
+  const disableButton = byId('finance-disable-cash-button');
+  disableButton.hidden =
+    !cashEnabled || !hasScope('finance:write');
+  disableButton.disabled = false;
+
+  byId('finance-cash-note').textContent = activationReady
+    ? 'A política está tecnicamente pronta para ativação.'
+    : 'A ativação só será liberada depois do fluxo cash de comissão, dívida e limite operacional.';
+}
+
 function renderFinance(payload = null) {
   const summary = payload?.summary ?? {};
   const payments = Array.isArray(payload?.payments)
@@ -1722,6 +1757,7 @@ function renderFinance(payload = null) {
     },
     payments,
     payouts,
+    policy: state.finance.policy,
   };
 
   const current = state.finance.summary;
@@ -1839,14 +1875,49 @@ async function loadFinance({ announce = true } = {}) {
   const button = byId('refresh-finance-button');
   button.disabled = true;
   try {
-    const payload = await api.finance(state.token, 25);
+    const [payload, policy] = await Promise.all([
+      api.finance(state.token, 25),
+      api.paymentPolicy(state.token),
+    ]);
     renderFinance(payload);
+    renderPaymentPolicy(policy);
     if (announce) {
       setMessage(
         globalMessage,
         'Financeiro atualizado pelo ledger.',
         'success',
       );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleDisableCash() {
+  if (
+    !state.token ||
+    !hasScope('finance:write') ||
+    state.finance.policy?.cashEnabled !== true
+  ) {
+    return;
+  }
+
+  const button = byId('finance-disable-cash-button');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cashEnabled: false,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Dinheiro desativado com segurança.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
     }
   } catch (error) {
     handleAuthenticatedError(error);
@@ -3465,6 +3536,9 @@ byId('refresh-fleet-button').addEventListener('click', () => {
 byId('refresh-finance-button').addEventListener('click', () => {
   void loadFinance();
 });
+byId('finance-disable-cash-button').addEventListener('click', () => {
+  void handleDisableCash();
+});
 byId('refresh-pricing-button').addEventListener('click', () => {
   void Promise.all([
     loadPricingCatalog(),
@@ -3542,6 +3616,7 @@ renderDriverDocumentsUnavailable();
 renderPassengerDetailEmpty();
 renderFleet();
 renderFinance();
+renderPaymentPolicy();
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
