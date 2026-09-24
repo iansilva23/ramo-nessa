@@ -319,6 +319,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     await tester.tap(find.text('Pix'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Só falta seu e-mail'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('payment-email-field')),
+      'passageiro@example.com',
+    );
+    await tester.tap(find.byKey(const Key('payment-email-confirm')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -353,6 +361,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     await tester.tap(find.text('Pix'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('payment-email-field')),
+      'passageiro@example.com',
+    );
+    await tester.tap(find.byKey(const Key('payment-email-confirm')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -501,6 +515,7 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -542,6 +557,7 @@ class _FakeCashPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -620,6 +636,7 @@ class _FakeRefundedPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -663,6 +680,7 @@ class _FakePixPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   }) async {
     return const PixRidePaymentResult(
       internalPaymentId: 'payment-pix-ui',
