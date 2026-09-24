@@ -5,6 +5,8 @@ import type { RideRepository } from '../rides/ride-repository.js';
 import { transitionRide } from '../rides/ride-state.js';
 import type {
   AcceptRideOfferInput,
+  CancelRideByAdminInput,
+  CancelRideByAdminResult,
   CreateRideOfferInput,
   ExpireRideOfferInput,
   MarkNoDriverFoundInput,
@@ -307,6 +309,110 @@ export class InMemoryRideMatchingRepository
       state: transitionRide(searching, 'NO_DRIVER_FOUND'),
       updatedAt: input.at,
     });
+  }
+
+  async cancelRideByAdmin(
+    input: CancelRideByAdminInput,
+  ): Promise<CancelRideByAdminResult> {
+    const ride = await this.rides.findById(input.rideId);
+    if (ride == null) {
+      throw new RideOfferError(
+        'RIDE_NOT_READY',
+        'Corrida não encontrada para cancelamento.',
+      );
+    }
+
+    if (
+      ride.state === 'CANCELLED_BY_ADMIN' ||
+      ride.state === 'REFUND_PENDING' ||
+      ride.state === 'REFUNDED'
+    ) {
+      return {
+        ride,
+        alreadyCancelled: true,
+        cancelledOffers: 0,
+        releasedDriverId: ride.driverId ?? null,
+      };
+    }
+
+    if (
+      ![
+        'PAID',
+        'SEARCHING_DRIVER',
+        'DRIVER_ASSIGNED',
+        'DRIVER_ARRIVING',
+        'DRIVER_ARRIVED',
+      ].includes(ride.state)
+    ) {
+      throw new RideOfferError(
+        'RIDE_NOT_READY',
+        `Corrida em ${ride.state} não pode ser cancelada administrativamente nesta etapa.`,
+      );
+    }
+
+    let cancelledOffers = 0;
+    for (const [id, offer] of this.offers.entries()) {
+      if (offer.rideId !== ride.id || offer.status !== 'OFFERED') {
+        continue;
+      }
+      this.offers.set(id, {
+        ...offer,
+        status: 'CANCELLED',
+        updatedAt: input.cancelledAt,
+      });
+      cancelledOffers += 1;
+    }
+
+    if (ride.reservedDriverId != null) {
+      const reserved = await this.drivers.findByDriverId(
+        ride.reservedDriverId,
+      );
+      if (reserved?.reservedRideId === ride.id) {
+        const {
+          reservedRideId: _reservedRideId,
+          reservedUntil: _reservedUntil,
+          ...released
+        } = reserved;
+        await this.drivers.upsert({
+          ...released,
+          updatedAt: input.cancelledAt,
+        });
+      }
+    }
+
+    if (ride.driverId != null) {
+      const assigned = await this.drivers.findByDriverId(ride.driverId);
+      if (assigned != null) {
+        const {
+          reservedRideId: _reservedRideId,
+          reservedUntil: _reservedUntil,
+          ...released
+        } = assigned;
+        await this.drivers.upsert({
+          ...released,
+          busy: false,
+          updatedAt: input.cancelledAt,
+        });
+      }
+    }
+
+    const {
+      reservedDriverId: _reservedDriverId,
+      driverHoldExpiresAt: _driverHoldExpiresAt,
+      ...rideWithoutHold
+    } = ride;
+    const cancelled = await this.rides.save({
+      ...rideWithoutHold,
+      state: transitionRide(ride.state, 'CANCELLED_BY_ADMIN'),
+      updatedAt: input.cancelledAt,
+    });
+
+    return {
+      ride: cancelled,
+      alreadyCancelled: false,
+      cancelledOffers,
+      releasedDriverId: ride.driverId ?? ride.reservedDriverId ?? null,
+    };
   }
 
   async acceptOffer(
