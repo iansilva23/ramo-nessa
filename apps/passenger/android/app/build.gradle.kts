@@ -66,6 +66,11 @@ dependencies {
         platform("com.mercadopago.android.sdk:sdk-android-bom:0.2.3"),
     )
     implementation("com.mercadopago.android.sdk:core-methods")
+    // Os campos PCI XML do Mercado Pago herdam de AbstractComposeView.
+    // O SDK publica essas classes na API, então o app consumidor precisa
+    // ter Compose UI também no classpath de compilação.
+    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-ktx:1.11.0")
 }
 
