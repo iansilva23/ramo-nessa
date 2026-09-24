@@ -50,7 +50,7 @@ class DriverRouteInfo {
 
   String get durationLabel {
     final minutes = duration.inMinutes < 1 ? 1 : duration.inMinutes;
-    if (minutes < 60) return '${minutes} min';
+    if (minutes < 60) return '$minutes min';
     final hours = minutes ~/ 60;
     final remaining = minutes % 60;
     return remaining == 0 ? '${hours}h' : '${hours}h ${remaining}min';
