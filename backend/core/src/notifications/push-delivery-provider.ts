@@ -1,3 +1,5 @@
+import { createSign } from 'node:crypto';
+
 import type {
   PushPlatform,
   PushTokenProvider,
@@ -26,6 +28,11 @@ export interface PushDeliveryProvider {
   readonly kind: string;
   send(input: PushDeliveryRequest): Promise<PushDeliveryResult>;
 }
+
+type PushFetch = (
+  url: string,
+  init?: RequestInit,
+) => Promise<Response>;
 
 class DisabledPushDeliveryProvider implements PushDeliveryProvider {
   readonly kind = 'disabled';
@@ -71,14 +78,207 @@ class WebhookPushDeliveryProvider implements PushDeliveryProvider {
   }
 }
 
+export interface FcmAccessTokenSource {
+  getAccessToken(): Promise<string>;
+}
+
+export class GoogleServiceAccountAccessTokenSource
+  implements FcmAccessTokenSource {
+  private cached:
+    | { token: string; expiresAtMs: number }
+    | null = null;
+
+  constructor(
+    private readonly clientEmail: string,
+    private readonly privateKey: string,
+    private readonly fetcher: PushFetch = (url, init) => fetch(url, init),
+  ) {}
+
+  async getAccessToken(): Promise<string> {
+    const nowMs = Date.now();
+    if (
+      this.cached != null &&
+      this.cached.expiresAtMs > nowMs + 60_000
+    ) {
+      return this.cached.token;
+    }
+
+    const nowSeconds = Math.floor(nowMs / 1000);
+    const encodedHeader = Buffer.from(
+      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
+      'utf8',
+    ).toString('base64url');
+    const encodedClaims = Buffer.from(
+      JSON.stringify({
+        iss: this.clientEmail,
+        scope:
+          'https://www.googleapis.com/auth/firebase.messaging',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: nowSeconds,
+        exp: nowSeconds + 3600,
+      }),
+      'utf8',
+    ).toString('base64url');
+    const unsigned = `${encodedHeader}.${encodedClaims}`;
+    const signer = createSign('RSA-SHA256');
+    signer.update(unsigned);
+    signer.end();
+    const signature = signer
+      .sign(this.privateKey)
+      .toString('base64url');
+    const assertion = `${unsigned}.${signature}`;
+
+    const response = await this.fetcher(
+      'https://oauth2.googleapis.com/token',
+      {
+        method: 'POST',
+        headers: {
+          'content-type':
+            'application/x-www-form-urlencoded; charset=utf-8',
+        },
+        body: new URLSearchParams({
+          grant_type:
+            'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion,
+        }).toString(),
+        signal: AbortSignal.timeout(8_000),
+      },
+    );
+
+    const payload = await response.json() as {
+      access_token?: unknown;
+      expires_in?: unknown;
+    };
+    if (
+      !response.ok ||
+      typeof payload.access_token !== 'string' ||
+      typeof payload.expires_in !== 'number'
+    ) {
+      throw new Error(
+        'Não foi possível obter token OAuth do Firebase.',
+      );
+    }
+
+    this.cached = {
+      token: payload.access_token,
+      expiresAtMs:
+        nowMs + Math.max(60, payload.expires_in) * 1000,
+    };
+    return this.cached.token;
+  }
+}
+
+export class FcmPushDeliveryProvider
+  implements PushDeliveryProvider {
+  readonly kind = 'fcm';
+
+  constructor(
+    private readonly projectId: string,
+    private readonly accessTokens: FcmAccessTokenSource,
+    private readonly fetcher: PushFetch = (url, init) => fetch(url, init),
+  ) {}
+
+  async send(input: PushDeliveryRequest): Promise<PushDeliveryResult> {
+    if (input.tokenProvider !== 'fcm') {
+      return { delivered: false };
+    }
+
+    const accessToken = await this.accessTokens.getAccessToken();
+    const response = await this.fetcher(
+      `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(this.projectId)}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token: input.token,
+            notification: {
+              title: input.message.title,
+              body: input.message.body,
+            },
+            data: {
+              type: input.message.type,
+              ...(input.message.data ?? {}),
+            },
+            android: {
+              priority: 'high',
+              notification: {
+                sound: 'default',
+              },
+            },
+            apns: {
+              headers: {
+                'apns-priority': '10',
+              },
+              payload: {
+                aps: {
+                  sound: 'default',
+                },
+              },
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(8_000),
+      },
+    );
+
+    if (response.ok) {
+      return { delivered: true };
+    }
+
+    const responseBody = await response.text();
+    if (/UNREGISTERED|registration-token-not-registered/i.test(responseBody)) {
+      return { delivered: false, invalidToken: true };
+    }
+
+    throw new Error(
+      `FCM respondeu HTTP ${response.status}.`,
+    );
+  }
+}
+
 export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
   const kind = process.env.PUSH_PROVIDER?.trim().toLowerCase();
   if (kind == null || kind === '' || kind === 'disabled') {
     return new DisabledPushDeliveryProvider();
   }
 
+  if (kind === 'fcm') {
+    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+      ?.replace(/\\n/g, '\n')
+      .trim();
+
+    if (
+      projectId == null ||
+      projectId.length < 3 ||
+      clientEmail == null ||
+      clientEmail.length < 5 ||
+      privateKey == null ||
+      privateKey.length < 100
+    ) {
+      throw new Error(
+        'FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY são obrigatórios para PUSH_PROVIDER=fcm.',
+      );
+    }
+
+    return new FcmPushDeliveryProvider(
+      projectId,
+      new GoogleServiceAccountAccessTokenSource(
+        clientEmail,
+        privateKey,
+      ),
+    );
+  }
+
   if (kind !== 'webhook') {
-    throw new Error('PUSH_PROVIDER deve ser disabled ou webhook.');
+    throw new Error(
+      'PUSH_PROVIDER deve ser disabled, fcm ou webhook.',
+    );
   }
 
   const rawUrl = process.env.PUSH_WEBHOOK_URL?.trim();
