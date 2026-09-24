@@ -26,11 +26,26 @@ export interface AdminRideOperationalSummary {
   cancelledLast24h: number;
 }
 
+export interface AdminPassengerRideSummary {
+  total: number;
+  active: number;
+  completed: number;
+  cancelled: number;
+  completedAmountCents: number;
+}
+
 export interface RideRepository {
   create(ride: RideRecord): Promise<RideRecord>;
   findById(id: string): Promise<RideRecord | null>;
   findActiveByDriverId(driverId: string): Promise<RideRecord | null>;
   listAdminActive(limit: number): Promise<RideRecord[]>;
+  listAdminRecentByPassengerId(
+    passengerId: string,
+    limit: number,
+  ): Promise<RideRecord[]>;
+  getAdminPassengerRideSummary(
+    passengerId: string,
+  ): Promise<AdminPassengerRideSummary>;
   listAdmin(input: AdminRideListInput): Promise<AdminRideListPage>;
   getAdminOperationalSummary(
     since: string,
