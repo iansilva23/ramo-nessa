@@ -308,7 +308,8 @@ export async function applyMercadoPagoOrderStatus(input: {
     status === 'processing' ||
     status === 'action_required' ||
     paymentStatus === 'pending' ||
-    paymentStatus === 'processing'
+    paymentStatus === 'processing' ||
+    paymentStatus === 'action_required'
   ) {
     return { kind: 'pending', payment };
   }
