@@ -104,9 +104,9 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
   assert.match(app, /5_000/);
   assert.match(app, /createFleetMap/);
   assert.match(map, /https:\/\/tile\.openstreetmap\.org/);
-  assert.match(map, /data-availability/);
-  assert.match(map, /data-gps/);
-  assert.match(map, /data-category/);
+  assert.match(map, /marker\.dataset\.availability/);
+  assert.match(map, /marker\.dataset\.gps/);
+  assert.match(map, /marker\.dataset\.category/);
   assert.equal(app.includes('.innerHTML'), false);
   assert.equal(map.includes('.innerHTML'), false);
 
