@@ -115,9 +115,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     const result = await this.pool.query<IdentityRow>(
       `
       INSERT INTO auth_identities (
-        id, subject_id, subject_type, phone_e164,
+        id, subject_id, subject_type, phone_e164, email_normalized,
         status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (subject_type, phone_e164)
       DO UPDATE SET phone_e164 = auth_identities.phone_e164
       RETURNING *
@@ -127,6 +127,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         identity.subjectId,
         identity.subjectType,
         identity.phoneE164,
+        identity.emailNormalized ?? null,
         identity.status,
         identity.createdAt,
         identity.updatedAt,
