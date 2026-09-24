@@ -1927,3 +1927,295 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+
+.fleet-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.fleet-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.75fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.fleet-map-card,
+.fleet-roster-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fleet-map-header {
+  align-items: center;
+  gap: 18px;
+}
+
+.fleet-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px 12px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.fleet-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fleet-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.fleet-legend i[data-tone="free"] {
+  background: var(--success);
+}
+
+.fleet-legend i[data-tone="ride"] {
+  background: var(--info);
+}
+
+.fleet-legend i[data-tone="delivery"] {
+  background: var(--yellow);
+}
+
+.fleet-legend i[data-tone="stale"] {
+  background: var(--danger);
+}
+
+.fleet-map {
+  position: relative;
+  min-height: 560px;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--raised);
+}
+
+.fleet-map__tiles,
+.fleet-map__markers {
+  position: absolute;
+  inset: 0;
+}
+
+.fleet-map__tiles {
+  z-index: 1;
+  overflow: hidden;
+  background: var(--raised);
+}
+
+.fleet-map__tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.fleet-map__markers {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.fleet-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  color: var(--surface);
+  background: var(--success);
+  box-shadow: 0 8px 18px rgba(13, 13, 13, 0.24);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.fleet-marker[data-availability="on_ride"],
+.fleet-marker[data-availability="reserved"],
+.fleet-marker[data-availability="busy"] {
+  background: var(--info);
+}
+
+.fleet-marker[data-category="delivery"] {
+  color: var(--ink);
+  background: var(--yellow);
+}
+
+.fleet-marker[data-gps="stale"] {
+  background: var(--danger);
+}
+
+.fleet-marker__code {
+  position: relative;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: -0.4px;
+}
+
+.fleet-marker__pulse {
+  position: absolute;
+  inset: -7px;
+  border: 2px solid currentColor;
+  border-radius: inherit;
+  opacity: 0.2;
+}
+
+.fleet-marker[data-gps="fresh"][data-availability="free"] .fleet-marker__pulse {
+  animation: fleet-pulse 2.4s ease-out infinite;
+}
+
+@keyframes fleet-pulse {
+  0% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+  75%,
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.fleet-map__controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  display: grid;
+  gap: 6px;
+}
+
+.fleet-map__controls button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.fleet-map__attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  z-index: 5;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.fleet-roster {
+  display: grid;
+  gap: 8px;
+  max-height: 560px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.fleet-roster-item {
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.fleet-roster-item__top,
+.fleet-roster-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fleet-roster-item__identity {
+  min-width: 0;
+}
+
+.fleet-roster-item__identity strong,
+.fleet-roster-item__identity small {
+  display: block;
+}
+
+.fleet-roster-item__identity strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.fleet-roster-item__identity small,
+.fleet-roster-item__meta {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.fleet-roster-item__identity small {
+  margin-top: 3px;
+}
+
+.fleet-roster-item__meta span:last-child {
+  text-align: right;
+}
+
+.fleet-live-note {
+  margin: 12px 2px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1120px) {
+  .fleet-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fleet-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-roster {
+    max-height: 360px;
+  }
+}
+
+@media (max-width: 620px) {
+  .fleet-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-map-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fleet-legend {
+    justify-content: flex-start;
+  }
+
+  .fleet-map {
+    min-height: 430px;
+  }
+}
