@@ -23,10 +23,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Offline'), findsOneWidget);
     expect(find.text('Você está offline'), findsOneWidget);
 
-    await tester.tap(find.byType(Switch));
+    await tester.tap(find.byKey(const Key('driver-go-online')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
@@ -104,7 +103,6 @@ void main() {
       expect(api.getSupplyCalls, 1);
       expect(api.lastSyncedPosition?.latitude, -2.82017);
       expect(api.lastSyncedPosition?.longitude, -40.41467);
-      expect(find.text('Offline'), findsOneWidget);
       expect(find.text('Você está offline'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -180,8 +178,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Ganhos'), findsOneWidget);
-    expect(find.text('R\$ 110,00'), findsOneWidget);
+    await tester.tap(find.text('Ganhos'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ganhos'), findsWidgets);
+    expect(find.text('R\$ 110,00'), findsWidgets);
     expect(find.text('Em processamento: R\$ 0,00'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Solicitar saque'));
@@ -214,6 +215,9 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
+
+      await tester.tap(find.text('Ganhos'));
+      await tester.pumpAndSettle();
 
       expect(find.text('Taxa de uso do app pendente'), findsNothing);
 
@@ -250,6 +254,9 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
+
+      await tester.tap(find.text('Ganhos'));
+      await tester.pumpAndSettle();
 
       await tester.ensureVisible(find.text('Solicitar saque'));
       await tester.pumpAndSettle();
