@@ -1,0 +1,41 @@
+name: Native Mercado Pago Audit
+
+on:
+  push:
+    branches:
+      - audit/native-mp-build-20260924
+
+permissions:
+  contents: read
+
+jobs:
+  passenger-android-debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Passenger debug APK
+        working-directory: apps/passenger
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-passenger-native-mp-audit
+          path: apps/passenger/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 3
