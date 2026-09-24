@@ -6,8 +6,10 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -43,6 +45,7 @@ class CardTokenizationActivity : ComponentActivity() {
     private lateinit var expirationField: ExpirationDateTextField
     private lateinit var securityField: SecurityCodeTextField
     private lateinit var holderNameField: EditText
+    private lateinit var cpfField: EditText
     private lateinit var submitButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var statusText: TextView
@@ -53,6 +56,7 @@ class CardTokenizationActivity : ComponentActivity() {
     private var cardValid = false
     private var expirationValid = false
     private var securityFilled = false
+    private var cpfValid = false
     private var loadingMethod = false
     private var tokenizing = false
 
@@ -170,6 +174,40 @@ class CardTokenizationActivity : ComponentActivity() {
         }
         container.addView(label("Titular do cartão"))
         container.addView(holderNameField, fullWidth(dp(58)))
+
+        cpfField = EditText(this).apply {
+            hint = "CPF do titular"
+            setTextColor(BRAND_BLACK)
+            setHintTextColor(Color.rgb(115, 118, 123))
+            textSize = 16f
+            inputType = InputType.TYPE_CLASS_NUMBER
+            isSingleLine = true
+            background = inputBackground()
+            setPadding(dp(16), 0, dp(16), 0)
+            filters = arrayOf(InputFilter.LengthFilter(11))
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int,
+                ) = Unit
+
+                override fun onTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    before: Int,
+                    count: Int,
+                ) {
+                    cpfValid = isValidCpf(s?.toString().orEmpty())
+                    updateSubmitState()
+                }
+
+                override fun afterTextChanged(s: Editable?) = Unit
+            })
+        }
+        container.addView(label("CPF do titular"))
+        container.addView(cpfField, fullWidth(dp(58)))
 
         cardNumberField = CardNumberTextField(this).apply {
             background = inputBackground()
@@ -377,6 +415,13 @@ class CardTokenizationActivity : ComponentActivity() {
             return
         }
 
+        val cpf = cpfField.text.toString().filter(Char::isDigit)
+        if (!isValidCpf(cpf)) {
+            statusText.text = "Informe um CPF válido do titular."
+            cpfField.requestFocus()
+            return
+        }
+
         val methodId = paymentMethodId
         val methodType = paymentMethodType
         if (
@@ -402,7 +447,11 @@ class CardTokenizationActivity : ComponentActivity() {
                         cardNumberState = cardNumberField.state,
                         expirationDateState = expirationField.state,
                         securityCodeState = securityField.state,
-                        buyerIdentification = BuyerIdentification(name = holder),
+                        buyerIdentification = BuyerIdentification(
+                            name = holder,
+                            number = cpf,
+                            type = "CPF",
+                        ),
                     )
 
                 when (result) {
@@ -444,12 +493,32 @@ class CardTokenizationActivity : ComponentActivity() {
         submitButton.isEnabled =
             !tokenizing &&
             !loadingMethod &&
+            cpfValid &&
             cardValid &&
             expirationValid &&
             securityFilled &&
             !paymentMethodId.isNullOrBlank() &&
             (paymentMethodType == "credit_card" || paymentMethodType == "debit_card")
         submitButton.alpha = if (submitButton.isEnabled) 1f else 0.45f
+    }
+
+    private fun isValidCpf(value: String): Boolean {
+        val digits = value.filter(Char::isDigit)
+        if (digits.length != 11 || digits.toSet().size == 1) return false
+
+        fun checkDigit(length: Int): Int {
+            var sum = 0
+            var weight = length + 1
+            for (index in 0 until length) {
+                sum += (digits[index] - '0') * weight
+                weight -= 1
+            }
+            val remainder = (sum * 10) % 11
+            return if (remainder == 10) 0 else remainder
+        }
+
+        return checkDigit(9) == (digits[9] - '0') &&
+            checkDigit(10) == (digits[10] - '0')
     }
 
     private fun label(text: String) = TextView(this).apply {
