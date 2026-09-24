@@ -281,8 +281,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Solicitar'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
-    await tester.tap(find.text('Carteira Ramo Nessa'));
+    final walletOption =
+        find.byKey(const Key('payment-option-wallet'));
+    await tester.scrollUntilVisible(
+      walletOption,
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(walletOption);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
