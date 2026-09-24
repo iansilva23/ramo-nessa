@@ -14,6 +14,7 @@ import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
+import '../../profile/presentation/driver_documents_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/driver_route_service.dart';
@@ -1555,6 +1556,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverStatementScreen(
+                            api: _api!,
+                          ),
+                        ),
+                      );
+                    },
+            ),
+            _ProfileOption(
+              icon: Icons.folder_copy_outlined,
+              title: 'Documentos',
+              subtitle: 'CNH, CRLV e status de aprovação',
+              onTap: _api == null
+                  ? () {}
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverDocumentsScreen(
                             api: _api!,
                           ),
                         ),
