@@ -673,6 +673,89 @@ try {
     );
   }
 
+  const pricingLocalityAdd = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'locality_structure',
+        operation: 'add',
+        scope: 'prea',
+        localityId: 'smoke-novo-ponto',
+      }),
+    },
+  );
+  if (
+    pricingLocalityAdd.response.status !== 200 ||
+    !pricingLocalityAdd.payload?.catalog?.localities?.prea?.some(
+      (item) => item.localityId === 'smoke-novo-ponto',
+    )
+  ) {
+    throw new Error('Criação versionada de localidade falhou.');
+  }
+
+  const pricingLocalityPrice = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'locality_price',
+        hub: 'prea',
+        localityId: 'smoke-novo-ponto',
+        category: 'car',
+        price: {
+          kind: 'exact',
+          amountCents: 2600,
+        },
+      }),
+    },
+  );
+  if (
+    pricingLocalityPrice.response.status !== 200 ||
+    !pricingLocalityPrice.payload?.catalog?.localities?.prea?.some(
+      (item) =>
+        item.localityId === 'smoke-novo-ponto' &&
+        item.prices?.car?.kind === 'exact' &&
+        item.prices?.car?.amountCents === 2600,
+    )
+  ) {
+    throw new Error('Preço da nova localidade não foi salvo no rascunho.');
+  }
+
+  const pricingZoneEdit = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'zone_policy',
+        zoneId: 'external',
+        enabled: false,
+      }),
+    },
+  );
+  if (
+    pricingZoneEdit.response.status !== 200 ||
+    !pricingZoneEdit.payload?.catalog?.zonePolicies?.some(
+      (policy) =>
+        policy.zoneId === 'external' &&
+        policy.enabled === false,
+    )
+  ) {
+    throw new Error('Edição versionada da zona externa falhou.');
+  }
+
   const pricingStillActive = await jsonRequest(
     '/v1/admin/pricing/catalog',
     { headers: authHeaders },
@@ -690,6 +773,14 @@ try {
     !pricingStillActive.payload?.categoryPolicies?.some(
       (policy) =>
         policy.category === 'moto' &&
+        policy.enabled === true,
+    ) ||
+    pricingStillActive.payload?.localities?.prea?.some(
+      (item) => item.localityId === 'smoke-novo-ponto',
+    ) ||
+    !pricingStillActive.payload?.zonePolicies?.some(
+      (policy) =>
+        policy.zoneId === 'external' &&
         policy.enabled === true,
     )
   ) {
@@ -735,6 +826,17 @@ try {
     !pricingPublishedCatalog.payload?.categoryPolicies?.some(
       (policy) =>
         policy.category === 'moto' &&
+        policy.enabled === false,
+    ) ||
+    !pricingPublishedCatalog.payload?.localities?.prea?.some(
+      (item) =>
+        item.localityId === 'smoke-novo-ponto' &&
+        item.prices?.car?.kind === 'exact' &&
+        item.prices?.car?.amountCents === 2600,
+    ) ||
+    !pricingPublishedCatalog.payload?.zonePolicies?.some(
+      (policy) =>
+        policy.zoneId === 'external' &&
         policy.enabled === false,
     )
   ) {
@@ -800,6 +902,64 @@ try {
     );
   }
 
+  const newLocalityQuote = await jsonRequest(
+    '/v1/pricing/quote',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin: {
+          zoneId: 'prea',
+          localityId: 'prea',
+        },
+        destination: {
+          zoneId: 'prea',
+          localityId: 'smoke-novo-ponto',
+        },
+        category: 'car',
+        period: 'day',
+      }),
+    },
+  );
+  if (
+    newLocalityQuote.response.status !== 200 ||
+    newLocalityQuote.payload?.kind !== 'exact' ||
+    newLocalityQuote.payload?.baseAmountCents !== 2600
+  ) {
+    throw new Error(
+      'Nova localidade publicada não entrou na cotação.',
+    );
+  }
+
+  const disabledExternalQuote = await jsonRequest(
+    '/v1/pricing/quote',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin: { zoneId: 'jericoacoara' },
+        destination: {
+          zoneId: 'external',
+          localityId: 'airport-jjd',
+        },
+        category: 'comfort_black',
+        period: 'day',
+      }),
+    },
+  );
+  if (
+    disabledExternalQuote.response.status !== 422 ||
+    disabledExternalQuote.payload?.error !== 'UNAVAILABLE_ZONE'
+  ) {
+    throw new Error(
+      'Zona externa desativada continuou aceitando nova cotação.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
@@ -823,7 +983,7 @@ try {
   if (
     audit.response.status !== 200 ||
     !Array.isArray(pricingAudit) ||
-    pricingAudit.length !== 4 ||
+    pricingAudit.length !== 7 ||
     !pricingAudit.some(
       (entry) =>
         entry.action === 'pricing.catalog_version.created' &&
@@ -839,6 +999,20 @@ try {
         entry.action === 'pricing.catalog_version.updated' &&
         entry.metadata?.kind === 'category_policy' &&
         entry.metadata?.category === 'moto' &&
+        entry.actor?.kind === 'user',
+    ) ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.metadata?.kind === 'locality_structure' &&
+        entry.metadata?.localityId === 'smoke-novo-ponto' &&
+        entry.actor?.kind === 'user',
+    ) ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.metadata?.kind === 'zone_policy' &&
+        entry.metadata?.zoneId === 'external' &&
         entry.actor?.kind === 'user',
     ) ||
     !pricingAudit.some(
@@ -891,7 +1065,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços e categorias versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
