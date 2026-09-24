@@ -72,3 +72,30 @@ export function resolveShutdownTimeoutMs(
     max: 60_000,
   });
 }
+
+
+export function assertMercadoPagoProductionConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (env.NODE_ENV !== 'production') return;
+
+  if (env.MERCADO_PAGO_MODE?.trim() !== 'production') {
+    throw new Error(
+      'MERCADO_PAGO_MODE deve ser production em ambiente de produção.',
+    );
+  }
+
+  const accessToken = env.MERCADO_PAGO_ACCESS_TOKEN?.trim() ?? '';
+  if (accessToken.length < 20) {
+    throw new Error(
+      'MERCADO_PAGO_ACCESS_TOKEN é obrigatório em produção.',
+    );
+  }
+
+  const webhookSecret = env.MERCADO_PAGO_WEBHOOK_SECRET?.trim() ?? '';
+  if (webhookSecret.length < 16) {
+    throw new Error(
+      'MERCADO_PAGO_WEBHOOK_SECRET é obrigatório em produção.',
+    );
+  }
+}
