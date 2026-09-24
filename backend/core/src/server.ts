@@ -177,6 +177,13 @@ import {
   driverActivityForApp,
   driverProfileForApp,
 } from './drivers/driver-self-service.js';
+import {
+  DriverProfilePhotoError,
+  MAX_DRIVER_PROFILE_PHOTO_JSON_BYTES,
+  driverPhotoPath,
+  readDriverProfilePhoto,
+  updateDriverProfilePhoto,
+} from './drivers/driver-profile-photo-service.js';
 import { nearbyDriversForApp } from './drivers/driver-nearby-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
@@ -861,6 +868,43 @@ const server = createServer(async (request, response) => {
         orderId,
         status: applied.kind,
       });
+      return;
+    }
+
+    const driverPhotoMatch =
+      requestUrl.pathname.match(/^\/v1\/drivers\/([^/]+)\/photo$/);
+    if (request.method === 'GET' && driverPhotoMatch != null) {
+      let driverId = '';
+      try {
+        driverId = decodeURIComponent(driverPhotoMatch[1] ?? '').trim();
+      } catch {
+        json(response, 400, { error: 'INVALID_DRIVER_ID' });
+        return;
+      }
+      if (!driverId) {
+        json(response, 400, { error: 'INVALID_DRIVER_ID' });
+        return;
+      }
+
+      const photo = await readDriverProfilePhoto({
+        registry: driverRegistryRepository,
+        driverId,
+      });
+      if (photo == null) {
+        json(response, 404, {
+          error: 'DRIVER_PHOTO_NOT_FOUND',
+          message: 'Foto do motorista não encontrada.',
+        });
+        return;
+      }
+
+      response.writeHead(200, {
+        'content-type': photo.mimeType,
+        'content-length': String(photo.bytes.length),
+        'cache-control': 'public, max-age=86400, immutable',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(photo.bytes);
       return;
     }
 
@@ -2962,6 +3006,43 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/driver/me/photo'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(
+        request,
+        MAX_DRIVER_PROFILE_PHOTO_JSON_BYTES,
+      );
+      const record =
+        body != null && typeof body === 'object'
+          ? body as {
+              mimeType?: unknown;
+              dataBase64?: unknown;
+            }
+          : {};
+
+      const profile = await updateDriverProfilePhoto({
+        registry: driverRegistryRepository,
+        driverId,
+        mimeType: record.mimeType,
+        dataBase64: record.dataBase64,
+      });
+      json(response, 200, {
+        photoPath: driverPhotoPath(
+          driverId,
+          profile.photoUpdatedAt,
+        ),
+        photoUpdatedAt: profile.photoUpdatedAt,
+      });
+      return;
+    }
+
+    if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/activity'
     ) {
@@ -3924,6 +4005,20 @@ const server = createServer(async (request, response) => {
           message: error.message,
         },
       );
+      return;
+    }
+
+    if (error instanceof DriverProfilePhotoError) {
+      const status =
+        error.code === 'DRIVER_PROFILE_NOT_FOUND'
+          ? 404
+          : error.code === 'PHOTO_TOO_LARGE'
+            ? 413
+            : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
