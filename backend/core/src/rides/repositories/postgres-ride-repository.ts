@@ -6,6 +6,7 @@ import type {
   AdminRideListPage,
   AdminPassengerRideSummary,
   AdminRideOperationalSummary,
+  DriverRideSummary,
   RideRepository,
 } from '../ride-repository.js';
 
@@ -317,6 +318,70 @@ export class PostgresRideRepository implements RideRepository {
       completed: 0,
       cancelled: 0,
       completedAmountCents: 0,
+    };
+  }
+
+  async listRecentByDriverId(
+    driverId: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE driver_id = $1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $2
+      `,
+      [driverId, safeLimit],
+    );
+    return result.rows.map(mapRow);
+  }
+
+  async getDriverRideSummary(
+    driverId: string,
+  ): Promise<DriverRideSummary> {
+    const result = await this.pool.query<DriverRideSummary>(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (
+          WHERE state = 'COMPLETED'
+        )::int AS completed,
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'CANCELLED_BY_PASSENGER',
+            'CANCELLED_BY_DRIVER',
+            'CANCELLED_BY_ADMIN'
+          )
+        )::int AS cancelled,
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'DRIVER_ASSIGNED',
+            'DRIVER_ARRIVING',
+            'DRIVER_ARRIVED',
+            'IN_PROGRESS'
+          )
+        )::int AS "inProgress",
+        COALESCE(SUM(
+          CASE
+            WHEN state = 'COMPLETED' THEN driver_net_cents
+            ELSE 0
+          END
+        ), 0)::int AS "earningsCents"
+      FROM rides
+      WHERE driver_id = $1
+      `,
+      [driverId],
+    );
+
+    return result.rows[0] ?? {
+      total: 0,
+      completed: 0,
+      cancelled: 0,
+      inProgress: 0,
+      earningsCents: 0,
     };
   }
 
