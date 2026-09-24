@@ -214,6 +214,7 @@ export function attachRealtimeServer(
           void passengerRideTracking({
             rides: input.rides,
             drivers: input.drivers,
+            registry: input.registry,
             rideId,
             passengerId,
           })
