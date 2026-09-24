@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 
 const port = Number(process.env.DOCUMENT_STORAGE_PORT ?? '8090');
 const token = process.env.DOCUMENT_STORAGE_AUTH_TOKEN?.trim() ?? '';
+const maxBytes = 20 * 1024 * 1024;
 
 if (token.length < 24) {
   throw new Error(
@@ -18,7 +19,12 @@ const crlv = Buffer.from(
   'utf8',
 );
 
-const server = createServer((request, response) => {
+const uploaded = new Map<
+  string,
+  { bytes: Buffer; contentType: string }
+>();
+
+const server = createServer(async (request, response) => {
   const authorization = request.headers.authorization ?? '';
   if (authorization !== `Bearer ${token}`) {
     response.writeHead(401, {
@@ -29,13 +35,55 @@ const server = createServer((request, response) => {
     return;
   }
 
-  if (request.method !== 'GET') {
-    response.writeHead(405, { allow: 'GET' });
+  const url = new URL(request.url ?? '/', 'http://storage.local');
+
+  if (request.method === 'PUT') {
+    const chunks: Buffer[] = [];
+    let received = 0;
+    for await (const chunk of request) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      received += buffer.length;
+      if (received > maxBytes) {
+        response.writeHead(413);
+        response.end();
+        return;
+      }
+      chunks.push(buffer);
+    }
+
+    uploaded.set(url.pathname, {
+      bytes: Buffer.concat(chunks),
+      contentType:
+        request.headers['content-type']
+          ?.split(';')[0]
+          ?.trim()
+          .toLowerCase() || 'application/octet-stream',
+    });
+    response.writeHead(204, {
+      'cache-control': 'no-store',
+    });
     response.end();
     return;
   }
 
-  const url = new URL(request.url ?? '/', 'http://storage.local');
+  if (request.method !== 'GET') {
+    response.writeHead(405, { allow: 'GET, PUT' });
+    response.end();
+    return;
+  }
+
+  const dynamic = uploaded.get(url.pathname);
+  if (dynamic != null) {
+    response.writeHead(200, {
+      'content-type': dynamic.contentType,
+      'content-length': String(dynamic.bytes.length),
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    });
+    response.end(dynamic.bytes);
+    return;
+  }
+
   const fixture = url.pathname.endsWith('/cnh-smoke.pdf')
     ? cnh
     : url.pathname.endsWith('/crlv-smoke.pdf')
