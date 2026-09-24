@@ -391,6 +391,64 @@
               </div>
             </div>
 
+            <article class="panel-card operational-settings-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO OPERACIONAL</span>
+                  <h2>Chamadas e mapa do motorista</h2>
+                </div>
+                <span id="operational-settings-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <form id="operational-settings-form" class="operational-settings-form">
+                <label class="field">
+                  <span>Tempo para aceitar corrida</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="driver-offer-ttl-seconds"
+                      type="number"
+                      min="5"
+                      max="120"
+                      step="1"
+                      value="35"
+                      required
+                    >
+                    <strong>segundos</strong>
+                  </div>
+                  <small>
+                    Quando o tempo termina, a oferta expira no Core e pode seguir
+                    para o próximo motorista elegível.
+                  </small>
+                </label>
+
+                <label class="operational-settings-toggle">
+                  <span>
+                    <strong>Mostrar outros motoristas no mapa</strong>
+                    <small>
+                      Exibe somente posições anônimas e recentes para motoristas
+                      online. Nome, telefone, placa e ID não são compartilhados.
+                    </small>
+                  </span>
+                  <input id="show-nearby-drivers" type="checkbox">
+                </label>
+
+                <div class="operational-settings-actions">
+                  <small id="operational-settings-updated-at">
+                    Ainda não carregado
+                  </small>
+                  <button
+                    id="save-operational-settings-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar configurações
+                  </button>
+                </div>
+              </form>
+            </article>
+
             <article class="panel-card panel-card--directory">
               <div class="panel-card__header directory-header">
                 <div>
