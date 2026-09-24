@@ -504,6 +504,99 @@ try {
     );
   }
 
+  const driverOtp = await jsonRequest(
+    '/v1/auth/otp/request',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-client-instance-id': 'ci-smoke-driver-fleet',
+      },
+      body: JSON.stringify({
+        subjectType: 'driver',
+        phone: '88999991279',
+      }),
+    },
+  );
+  if (
+    driverOtp.response.status !== 202 ||
+    typeof driverOtp.payload?.challengeId !== 'string' ||
+    !/^\\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))
+  ) {
+    throw new Error('OTP real do motorista para frota falhou.');
+  }
+
+  const driverVerify = await jsonRequest(
+    '/v1/auth/otp/verify',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        challengeId: driverOtp.payload.challengeId,
+        code: driverOtp.payload.devCode,
+      }),
+    },
+  );
+  if (
+    driverVerify.response.status !== 201 ||
+    driverVerify.payload?.subjectId !== driverId ||
+    !driverVerify.payload?.accessToken?.startsWith('rn_auth_')
+  ) {
+    throw new Error('Sessão Bearer real do motorista para frota falhou.');
+  }
+  const driverAuthHeaders = {
+    authorization: `Bearer ${driverVerify.payload.accessToken}`,
+  };
+
+  const driverSupply = await jsonRequest(
+    '/v1/driver/me/supply',
+    {
+      method: 'PATCH',
+      headers: {
+        ...driverAuthHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        online: true,
+        latitude: -2.82017,
+        longitude: -40.41467,
+      }),
+    },
+  );
+  if (
+    driverSupply.response.status !== 200 ||
+    driverSupply.payload?.online !== true ||
+    driverSupply.payload?.driverId !== driverId ||
+    driverSupply.payload?.latitude !== -2.82017 ||
+    driverSupply.payload?.longitude !== -40.41467
+  ) {
+    throw new Error('Motorista não entrou online com GPS real no smoke.');
+  }
+
+  const fleet = await jsonRequest(
+    '/v1/admin/fleet',
+    { headers: authHeaders },
+  );
+  const fleetDriver = fleet.payload?.items?.find(
+    (item) => item.driverId === driverId,
+  );
+  if (
+    fleet.response.status !== 200 ||
+    Number(fleet.payload?.summary?.totalOnline ?? 0) < 1 ||
+    fleetDriver?.driverName !== 'Motorista Smoke' ||
+    fleetDriver?.vehicle?.plate !== 'SMK1A23' ||
+    fleetDriver?.availability !== 'free' ||
+    fleetDriver?.location?.status !== 'fresh' ||
+    fleetDriver?.location?.latitude !== -2.82017 ||
+    fleetDriver?.location?.longitude !== -40.41467
+  ) {
+    throw new Error(
+      'Mapa administrativo da frota não refletiu motorista online/GPS.',
+    );
+  }
+
   const ridesDirectory = await jsonRequest(
     '/v1/admin/rides?scope=active&limit=20',
     { headers: authHeaders },
@@ -1065,7 +1158,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, frota/GPS, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
