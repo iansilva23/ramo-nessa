@@ -61,7 +61,44 @@ test('cliente Admin abre ficha de passageiro sem vazar Bearer na URL', async () 
   assert.equal(calls[0].options.cache, 'no-store');
 });
 
-test('frontend de Passageiros expõe ficha read-only e histórico recente', () => {
+test('cliente Admin altera acesso do passageiro sem vazar Bearer', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      passenger: {
+        passengerId: 'passenger-profile-001',
+        status: 'suspended',
+      },
+      revokedSessions: 2,
+    });
+  });
+
+  const token = 'rn_admin_session_passenger_block_secret';
+  const result = await api.setPassengerStatus(token, {
+    passengerId: 'passenger-profile-001',
+    status: 'suspended',
+  });
+
+  assert.equal(result.passenger.status, 'suspended');
+  assert.equal(result.revokedSessions, 2);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/passengers/passenger-profile-001/auth/status',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(
+    calls[0].options.body,
+    JSON.stringify({ status: 'suspended' }),
+  );
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+});
+
+test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', () => {
   const html = readFileSync(
     new URL('../index.html', import.meta.url),
     'utf8',
@@ -86,13 +123,18 @@ test('frontend de Passageiros expõe ficha read-only e histórico recente', () =
     'passenger-detail-completed-amount',
     'passenger-detail-rides-body',
     'passenger-detail-rides-empty',
+    'passenger-access-actions',
+    'passenger-access-button',
+    'passenger-access-note',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 
   assert.match(app, /api\.getPassenger\(state\.token, passengerId\)/);
   assert.match(app, /hasScope\('passengers:auth:read'\)/);
+  assert.match(app, /hasScope\('passengers:auth:write'\)/);
   assert.match(app, /hasScope\('rides:read'\)/);
+  assert.match(app, /api\.setPassengerStatus\(state\.token/);
   assert.match(app, /lookupPassenger\(passenger\.passengerId\)/);
   assert.match(app, /completedAmountCents/);
   assert.equal(app.includes('.innerHTML'), false);
@@ -102,6 +144,7 @@ test('frontend de Passageiros expõe ficha read-only e histórico recente', () =
     '.passenger-detail-grid',
     '.passenger-detail-summary',
     '.passenger-history-table',
+    '.passenger-access-actions',
   ]) {
     assert.equal(css.includes(selector), true);
   }
