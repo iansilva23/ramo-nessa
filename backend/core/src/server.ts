@@ -374,6 +374,145 @@ function sendPushBestEffort(input: {
   });
 }
 
+async function processConfirmedMercadoPagoRide(
+  payment: Awaited<ReturnType<typeof financeRepository.findPaymentById>> extends infer T
+    ? NonNullable<T>
+    : never,
+): Promise<void> {
+  let ride = await confirmRidePayment(rideRepository, {
+    rideId: payment.rideId,
+    payment,
+  });
+
+  if (
+    ride.state === 'REFUNDED' ||
+    ride.state === 'REFUND_PENDING' ||
+    ride.state === 'NO_DRIVER_FOUND'
+  ) {
+    if (ride.state !== 'REFUNDED') {
+      await refundMercadoPagoRideAfterNoDriver({
+        rides: rideRepository,
+        finance: financeRepository,
+        gateway: mercadoPagoOrdersClient!,
+        rideId: ride.id,
+        paymentId: payment.id,
+        passengerId: ride.passengerId,
+      });
+    }
+    return;
+  }
+
+  if (
+    ride.state === 'DRIVER_ASSIGNED' ||
+    ride.state === 'DRIVER_ARRIVING' ||
+    ride.state === 'DRIVER_ARRIVED' ||
+    ride.state === 'IN_PROGRESS' ||
+    ride.state === 'COMPLETED' ||
+    ride.state === 'SEARCHING_DRIVER'
+  ) {
+    return;
+  }
+
+  let dispatch:
+    | Awaited<ReturnType<typeof dispatchRideAfterPayment>>
+    | undefined;
+  try {
+    dispatch = await dispatchRideAfterPayment({
+      ride,
+      rides: rideRepository,
+      drivers: driverSupplyRepository,
+      matching: rideMatchingRepository,
+      finance: financeRepository,
+      paymentPolicySettings: paymentPolicySettingsRepository,
+    });
+  } catch (dispatchError) {
+    logError('ride.dispatch.after_gateway_payment.failed', {
+      rideId: ride.id,
+      paymentId: payment.id,
+      ...errorFields(dispatchError),
+    });
+    return;
+  }
+
+  if (
+    dispatch.kind === 'OFFER_CREATED' ||
+    dispatch.kind === 'OFFER_ACTIVE'
+  ) {
+    const offerRide =
+      await rideRepository.findById(dispatch.offer.rideId);
+    if (offerRide != null) {
+      realtimeHub.publishDriver(dispatch.offer.driverId, {
+        type: 'driver.offer.updated',
+        offer: driverOfferView(dispatch.offer, offerRide),
+        serverTime: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (
+    dispatch.kind === 'NO_DRIVER_FOUND' ||
+    dispatch.kind === 'NOT_PREPARED'
+  ) {
+    await refundMercadoPagoRideAfterNoDriver({
+      rides: rideRepository,
+      finance: financeRepository,
+      gateway: mercadoPagoOrdersClient!,
+      rideId: ride.id,
+      paymentId: payment.id,
+      passengerId: ride.passengerId,
+    });
+  }
+}
+
+async function markMercadoPagoRidePaymentFailed(
+  payment: Awaited<ReturnType<typeof financeRepository.findPaymentById>> extends infer T
+    ? NonNullable<T>
+    : never,
+): Promise<void> {
+  const ride = await rideRepository.findById(payment.rideId);
+  if (ride == null) return;
+
+  if (ride.state === 'PAYMENT_FAILED') {
+    if (ride.paymentStatus !== payment.status) {
+      await rideRepository.save({
+        ...ride,
+        paymentStatus: payment.status,
+        paymentMethod: payment.method,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (ride.state !== 'AWAITING_PAYMENT') {
+    logWarn('ride.payment.failure_after_state_advanced', {
+      rideId: ride.id,
+      rideState: ride.state,
+      paymentId: payment.id,
+      paymentStatus: payment.status,
+    });
+    return;
+  }
+
+  const failedRide = await rideRepository.save({
+    ...ride,
+    state: transitionRide(ride.state, 'PAYMENT_FAILED'),
+    paymentStatus: payment.status,
+    paymentMethod: payment.method,
+    updatedAt: new Date().toISOString(),
+  });
+
+  sendPushBestEffort({
+    subjectType: 'passenger',
+    subjectId: failedRide.passengerId,
+    type: 'passenger.payment.failed',
+    title: 'Pagamento não aprovado',
+    body: 'Não foi possível confirmar o pagamento. Tente novamente.',
+    data: { rideId: failedRide.id },
+  });
+}
+
 let shuttingDown = false;
 const shutdownTimeoutMs = resolveShutdownTimeoutMs();
 
