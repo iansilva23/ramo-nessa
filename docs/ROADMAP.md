@@ -54,7 +54,7 @@
 - [x] acompanhamento do motorista via polling temporário
 - [x] acompanhamento realtime via WebSocket com fallback HTTP
 - [ ] chat
-- [ ] histórico
+- [x] histórico de viagens read-only com escopo completo, filtros e detalhe
 - [ ] avaliação
 
 ## Etapa 2 — Motorista
@@ -155,7 +155,7 @@
 - [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [x] dashboard
 - [x] passageiros (diretório + ficha operacional + histórico recente read-only)
-- [ ] motoristas
+- [x] motoristas (acesso + cadastro + veículo + aprovação + documentos sanitizados)
 - [ ] aprovação de documentos com inspeção segura do arquivo privado
 - [x] viagens em andamento
 - [ ] histórico
