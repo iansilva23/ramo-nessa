@@ -308,3 +308,188 @@ class DriverPayoutReservation {
   final DriverFinanceSummary finance;
   final bool duplicateRequest;
 }
+
+
+class DriverProfileSnapshot {
+  const DriverProfileSnapshot({
+    required this.driverId,
+    this.phoneE164,
+    this.email,
+    this.fullName,
+    this.preferredName,
+    this.profileStatus,
+    this.vehicleId,
+    this.vehiclePlate,
+    this.vehicleMake,
+    this.vehicleModel,
+    this.vehicleYear,
+    this.vehicleColor,
+    this.vehicleStatus,
+    this.vehicleCategories = const [],
+    this.vehicleFourByFour = false,
+    this.vehicleSeatCapacity,
+  });
+
+  factory DriverProfileSnapshot.fromJson(Map<String, dynamic> json) {
+    final profile = json['profile'];
+    final vehicle = json['vehicle'];
+    final profileMap =
+        profile is Map<String, dynamic> ? profile : <String, dynamic>{};
+    final vehicleMap =
+        vehicle is Map<String, dynamic> ? vehicle : <String, dynamic>{};
+    final categories = vehicleMap['categories'];
+
+    return DriverProfileSnapshot(
+      driverId: json['driverId'] as String,
+      phoneE164: json['phoneE164'] as String?,
+      email: json['email'] as String?,
+      fullName: profileMap['fullName'] as String?,
+      preferredName: profileMap['preferredName'] as String?,
+      profileStatus: profileMap['status'] as String?,
+      vehicleId: vehicleMap['id'] as String?,
+      vehiclePlate: vehicleMap['plateNormalized'] as String?,
+      vehicleMake: vehicleMap['make'] as String?,
+      vehicleModel: vehicleMap['model'] as String?,
+      vehicleYear: (vehicleMap['modelYear'] as num?)?.toInt(),
+      vehicleColor: vehicleMap['color'] as String?,
+      vehicleStatus: vehicleMap['status'] as String?,
+      vehicleCategories: categories is List
+          ? categories.whereType<String>().toList(growable: false)
+          : const [],
+      vehicleFourByFour: vehicleMap['fourByFour'] as bool? ?? false,
+      vehicleSeatCapacity:
+          (vehicleMap['seatCapacity'] as num?)?.toInt(),
+    );
+  }
+
+  final String driverId;
+  final String? phoneE164;
+  final String? email;
+  final String? fullName;
+  final String? preferredName;
+  final String? profileStatus;
+  final String? vehicleId;
+  final String? vehiclePlate;
+  final String? vehicleMake;
+  final String? vehicleModel;
+  final int? vehicleYear;
+  final String? vehicleColor;
+  final String? vehicleStatus;
+  final List<String> vehicleCategories;
+  final bool vehicleFourByFour;
+  final int? vehicleSeatCapacity;
+
+  String get displayName =>
+      preferredName?.trim().isNotEmpty == true
+          ? preferredName!.trim()
+          : fullName?.trim().isNotEmpty == true
+              ? fullName!.trim()
+              : 'Motorista Ramo Nessa';
+
+  String get vehicleLabel {
+    final parts = [
+      if (vehicleMake?.trim().isNotEmpty == true) vehicleMake!.trim(),
+      if (vehicleModel?.trim().isNotEmpty == true) vehicleModel!.trim(),
+      if (vehicleYear != null) vehicleYear.toString(),
+    ];
+    return parts.isEmpty ? 'Veículo cadastrado' : parts.join(' ');
+  }
+}
+
+class DriverActivityRide {
+  const DriverActivityRide({
+    required this.id,
+    required this.state,
+    required this.category,
+    required this.origin,
+    required this.destination,
+    required this.driverEarningsCents,
+    required this.updatedAt,
+    this.paymentMethod,
+  });
+
+  factory DriverActivityRide.fromJson(Map<String, dynamic> json) {
+    return DriverActivityRide(
+      id: json['id'] as String,
+      state: json['state'] as String,
+      category: json['category'] as String,
+      origin: DriverLocationRef.fromJson(
+        json['origin'] as Map<String, dynamic>,
+      ),
+      destination: DriverLocationRef.fromJson(
+        json['destination'] as Map<String, dynamic>,
+      ),
+      driverEarningsCents:
+          (json['driverEarningsCents'] as num).toInt(),
+      paymentMethod: json['paymentMethod'] as String?,
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  final String id;
+  final String state;
+  final String category;
+  final DriverLocationRef origin;
+  final DriverLocationRef destination;
+  final int driverEarningsCents;
+  final String? paymentMethod;
+  final DateTime updatedAt;
+
+  String get stateLabel => switch (state) {
+        'COMPLETED' => 'Concluída',
+        'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
+        'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
+        'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
+        'IN_PROGRESS' => 'Em andamento',
+        'DRIVER_ARRIVED' => 'No embarque',
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho',
+        _ => state,
+      };
+
+  String get categoryLabel => switch (category) {
+        'moto' => 'Moto',
+        'car' => 'Carro',
+        'comfort_black' => 'Comfort / Black',
+        'buggy' => 'Buggy',
+        'delivery' => 'Entrega',
+        _ => category,
+      };
+}
+
+class DriverActivitySnapshot {
+  const DriverActivitySnapshot({
+    required this.total,
+    required this.completed,
+    required this.cancelled,
+    required this.inProgress,
+    required this.earningsCents,
+    required this.rides,
+  });
+
+  factory DriverActivitySnapshot.fromJson(Map<String, dynamic> json) {
+    final summary = json['summary'] as Map<String, dynamic>? ??
+        const <String, dynamic>{};
+    final rides = json['rides'];
+    return DriverActivitySnapshot(
+      total: (summary['total'] as num?)?.toInt() ?? 0,
+      completed: (summary['completed'] as num?)?.toInt() ?? 0,
+      cancelled: (summary['cancelled'] as num?)?.toInt() ?? 0,
+      inProgress: (summary['inProgress'] as num?)?.toInt() ?? 0,
+      earningsCents:
+          (summary['earningsCents'] as num?)?.toInt() ?? 0,
+      rides: rides is List
+          ? rides
+              .whereType<Map<String, dynamic>>()
+              .map(DriverActivityRide.fromJson)
+              .toList(growable: false)
+          : const [],
+    );
+  }
+
+  final int total;
+  final int completed;
+  final int cancelled;
+  final int inProgress;
+  final int earningsCents;
+  final List<DriverActivityRide> rides;
+}
