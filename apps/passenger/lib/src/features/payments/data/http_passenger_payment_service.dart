@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
+import '../domain/card_ride_payment_result.dart';
 import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
 import '../domain/pix_ride_payment_result.dart';
@@ -124,6 +125,53 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       apiErrorMessage(
         decoded,
         'Não conseguimos gerar o Pix agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/payments'),
+          headers: {
+            ..._identityHeaders,
+            'idempotency-key': idempotencyKey,
+          },
+          body: jsonEncode({
+            'method': 'card',
+            'payerEmail': payerEmail.trim().toLowerCase(),
+            'cardToken': cardToken,
+            'paymentMethodId': paymentMethodId,
+            'paymentMethodType': paymentMethodType,
+            'installments': installments,
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return CardRidePaymentResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou um pagamento de cartão inválido.',
+        );
+      }
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos processar o cartão agora.',
       ),
     );
   }
