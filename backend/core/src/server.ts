@@ -199,6 +199,11 @@ import {
   updateAdminPaymentPolicy,
 } from './admin/admin-payment-policy-service.js';
 import {
+  AdminOperationalSettingsError,
+  adminOperationalSettingsView,
+  updateAdminOperationalSettings,
+} from './admin/admin-operational-settings-service.js';
+import {
   AdminDriverCashPolicyError,
   adminDriverCashPolicyView,
   setAdminDriverCashDebtLimit,
@@ -1557,6 +1562,100 @@ const server = createServer(async (request, response) => {
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
       });
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/operational-settings'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+      json(
+        response,
+        200,
+        await adminOperationalSettingsView(
+          operationalSettingsRepository,
+        ),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/admin/operational-settings'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:write',
+      });
+      const body = await readJson(request);
+      if (
+        body == null ||
+        typeof body !== 'object' ||
+        Array.isArray(body)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Configurações operacionais inválidas.',
+        );
+      }
+
+      const payload = body as {
+        driverOfferTtlSeconds?: unknown;
+        showNearbyDrivers?: unknown;
+      };
+      const driverOfferTtlSeconds =
+        payload.driverOfferTtlSeconds == null
+          ? undefined
+          : Number(payload.driverOfferTtlSeconds);
+      const showNearbyDrivers =
+        payload.showNearbyDrivers == null
+          ? undefined
+          : payload.showNearbyDrivers;
+
+      if (
+        driverOfferTtlSeconds != null &&
+        !Number.isInteger(driverOfferTtlSeconds)
+      ) {
+        throw new InvalidAdminRequestError(
+          'driverOfferTtlSeconds deve ser inteiro.',
+        );
+      }
+      if (
+        showNearbyDrivers != null &&
+        typeof showNearbyDrivers !== 'boolean'
+      ) {
+        throw new InvalidAdminRequestError(
+          'showNearbyDrivers deve ser booleano.',
+        );
+      }
+      if (
+        driverOfferTtlSeconds == null &&
+        showNearbyDrivers == null
+      ) {
+        throw new InvalidAdminRequestError(
+          'Informe ao menos uma configuração operacional.',
+        );
+      }
+
+      const settings = await updateAdminOperationalSettings({
+        repository: operationalSettingsRepository,
+        admin: adminRepository,
+        actor,
+        ...(driverOfferTtlSeconds == null
+          ? {}
+          : { driverOfferTtlSeconds }),
+        ...(showNearbyDrivers == null
+          ? {}
+          : { showNearbyDrivers }),
+      });
+      json(response, 200, settings);
       return;
     }
 
@@ -3627,6 +3726,14 @@ const server = createServer(async (request, response) => {
       const status =
         error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
       json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminOperationalSettingsError) {
+      json(response, 422, {
         error: error.code,
         message: error.message,
       });
