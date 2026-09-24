@@ -41,6 +41,7 @@ A versão inicial implementa:
 - dashboard operacional de corridas com estados reais e janela móvel de 24h;
 - mapa da frota ao vivo com GPS, veículo, categoria e estado operacional;
 - módulo Financeiro somente leitura derivado do ledger, com pagamentos, comissão, saldos e saques;
+- política persistente de dinheiro visível no Admin, desligada por padrão e com ativação bloqueada até o fluxo cash estar pronto;
 - módulo Viagens com filtros, busca, paginação e detalhe read-only;
 - catálogo ativo protegido de preços/zonas com histórico de versões;
 - criação e edição de rascunhos de preços para rotas fixas e localidades;
