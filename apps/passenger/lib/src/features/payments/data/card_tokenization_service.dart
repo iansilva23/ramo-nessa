@@ -38,6 +38,11 @@ class NativeCardTokenizationService implements CardTokenizationService {
     'br.com.ramonessa.passenger/payments',
   );
 
+  static const _mercadoPagoPublicKey = String.fromEnvironment(
+    'RAMO_MERCADO_PAGO_PUBLIC_KEY',
+    defaultValue: '',
+  );
+
   @override
   Future<CardTokenizationResult> tokenize() async {
     if (amountCents <= 0) {
@@ -46,16 +51,25 @@ class NativeCardTokenizationService implements CardTokenizationService {
       );
     }
 
-    if (!Platform.isAndroid) {
+    if (!Platform.isAndroid && !Platform.isIOS) {
       throw const CardTokenizationException(
         'Cartão seguro ainda não está habilitado nesta plataforma.',
+      );
+    }
+
+    if (Platform.isIOS && _mercadoPagoPublicKey.trim().isEmpty) {
+      throw const CardTokenizationException(
+        'Pagamento por cartão ainda não está configurado neste build.',
       );
     }
 
     try {
       final result = await _channel.invokeMapMethod<String, dynamic>(
         'tokenizeCard',
-        {'amountCents': amountCents},
+        {
+          'amountCents': amountCents,
+          'publicKey': _mercadoPagoPublicKey,
+        },
       );
       if (result == null) {
         throw const CardTokenizationException(
