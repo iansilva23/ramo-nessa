@@ -154,7 +154,7 @@
 - [x] ambiente same-origin de teste para Admin + Core
 - [x] smoke E2E do Admin com MFA, motorista, auditoria e logout
 - [x] dashboard
-- [ ] passageiros
+- [x] passageiros (diretório + ficha operacional + histórico recente read-only)
 - [ ] motoristas
 - [ ] aprovação de documentos com inspeção segura do arquivo privado
 - [x] viagens em andamento
@@ -163,7 +163,7 @@
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
 - [x] edição estrutural versionada de localidades/zonas suportadas
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
-- [ ] pagamentos/comissões
+- [x] painel read-only de pagamentos/comissões, saldos contábeis e saques
 - [ ] habilitar/desabilitar dinheiro futuramente
 - [ ] bloqueios
 - [ ] logs administrativos
