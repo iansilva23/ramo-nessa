@@ -530,6 +530,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
+              key: const Key('payment-option-pix'),
               icon: Icons.pix_rounded,
               title: 'Pix',
               subtitle:
@@ -548,6 +549,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
+              key: const Key('payment-option-card'),
               icon: Icons.credit_card_rounded,
               title: 'Cartão',
               subtitle: 'Dados protegidos pelo Mercado Pago · 3DS quando necessário',
@@ -565,6 +567,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
+              key: const Key('payment-option-wallet'),
               icon: Icons.account_balance_wallet_rounded,
               title: 'Carteira Ramo Nessa',
               subtitle: walletSubtitle,
@@ -580,6 +583,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
+              key: const Key('payment-option-cash'),
               icon: Icons.payments_rounded,
               title: 'Dinheiro',
               subtitle: cashSubtitle,
@@ -1532,6 +1536,7 @@ class _PriceRow extends StatelessWidget {
 
 class _PaymentOption extends StatelessWidget {
   const _PaymentOption({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
