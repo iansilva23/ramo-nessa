@@ -151,6 +151,10 @@ import {
   RidePreparationError,
 } from './rides/prepare-ride.js';
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
+import {
+  AdminPassengerError,
+  adminPassengerProfile,
+} from './admin/admin-passenger-service.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
 import {
@@ -988,6 +992,34 @@ const server = createServer(async (request, response) => {
         createdAt: ride.createdAt,
         updatedAt: ride.updatedAt,
       });
+      return;
+    }
+
+    const adminPassengerMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminPassengerMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'passengers:auth:read',
+      });
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+      const profile = await adminPassengerProfile({
+        identities: authOtpRepository,
+        rides: rideRepository,
+        passengerId: adminPassengerMatch[1]!,
+      });
+      json(response, 200, profile);
       return;
     }
 
@@ -2077,6 +2109,14 @@ const server = createServer(async (request, response) => {
             ? 409
             : 400;
       json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminPassengerError) {
+      json(response, 404, {
         error: error.code,
         message: error.message,
       });
