@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import { rankEligibleDrivers, type GeoPoint } from '../matching/select-driver.js';
 import { STATIC_PRICING_CATALOG_V1 } from '../pricing/catalog-snapshot.js';
+import { requiresFourByFourForTrip } from '../pricing/category-eligibility.js';
 import type { PricingCatalogContext } from '../pricing/effective-catalog.js';
 import { quoteFare } from '../pricing/quote-engine.js';
 import { pricingPeriodAt } from '../pricing/period.js';
@@ -152,6 +153,12 @@ export async function prepareRideForPayment(input: {
     origin: trustedQuoteRequest.origin,
     destination: trustedQuoteRequest.destination,
     category: trustedQuoteRequest.category,
+    requiresFourByFour: requiresFourByFourForTrip({
+      catalog: pricing.snapshot,
+      category: trustedQuoteRequest.category,
+      origin: trustedQuoteRequest.origin,
+      destination: trustedQuoteRequest.destination,
+    }),
     period: trustedQuoteRequest.period,
     passengers: trustedQuoteRequest.passengers ?? 1,
     ...(trustedQuoteRequest.tripDistanceKm != null
