@@ -1129,7 +1129,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
         totalAmountCents: input.totalAmountCents,
         platformCommissionCents: input.platformCommissionCents,
         driverNetCents: input.driverNetCents,
-        cashDebtRecoveryCents,
+        cashDebtRecoveryCents: cashDebtRecoveredCents,
         createdAt: (input.settledAt ?? new Date()).toISOString(),
       });
 
