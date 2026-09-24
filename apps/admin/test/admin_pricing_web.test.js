@@ -148,6 +148,12 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-fixed-routes',
     'pricing-localities-body',
     'pricing-routes-body',
+    'pricing-category-count',
+    'pricing-category-policies-body',
+    'pricing-category-policy-fields',
+    'pricing-policy-category',
+    'pricing-policy-enabled',
+    'pricing-policy-four-by-four',
     'pricing-versions-body',
     'pricing-create-draft-button',
     'pricing-editor-status',
@@ -178,6 +184,9 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /api\.createPricingVersion\(state\.token\)/);
   assert.match(app, /api\.updatePricingVersion\(state\.token/);
   assert.match(app, /api\.publishPricingVersion/);
+  assert.match(app, /category_policy/);
+  assert.match(app, /pricing-category-policies-body/);
+  assert.match(app, /pricing-policy-four-by-four/);
   assert.match(
     app,
     /pricing-create-draft-button'\)\.addEventListener/,
