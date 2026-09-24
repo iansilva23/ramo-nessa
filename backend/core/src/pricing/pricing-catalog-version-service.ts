@@ -12,12 +12,14 @@ import type {
   PricingCatalogVersionRecord,
   PricingCatalogVersionRepository,
 } from './pricing-catalog-version-repository.js';
+import type { PricingCatalogDraftPatch } from './pricing-catalog-version-validation.js';
 
 export class PricingCatalogVersionError extends Error {
   constructor(
     public readonly code:
       | 'PRICING_VERSION_NOT_FOUND'
       | 'PRICING_VERSION_NOT_DRAFT'
+      | 'PRICING_RULE_NOT_FOUND'
       | 'INVALID_EFFECTIVE_FROM',
     message: string,
   ) {
@@ -79,6 +81,106 @@ export async function createPricingCatalogDraft(input: {
   });
 
   return draft;
+}
+
+export async function updatePricingCatalogDraft(input: {
+  versions: PricingCatalogVersionRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  versionId: string;
+  patch: PricingCatalogDraftPatch;
+  now?: Date;
+}): Promise<PricingCatalogVersionRecord> {
+  const current = await input.versions.findById(input.versionId);
+  if (current == null) {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_FOUND',
+      'Versão de preços não encontrada.',
+    );
+  }
+  if (current.status !== 'draft') {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_DRAFT',
+      'Somente rascunhos podem ser alterados.',
+    );
+  }
+
+  const snapshot = structuredClone(current.snapshot);
+  let auditMetadata: Record<string, unknown>;
+
+  if (input.patch.kind === 'fixed_route') {
+    const route = snapshot.fixedRoutes.find(
+      (candidate) => candidate.id === input.patch.routeId,
+    );
+    if (route == null) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'Rota fixa não encontrada no catálogo.',
+      );
+    }
+    route.dayCents = input.patch.dayCents;
+    route.after22Cents = input.patch.after22Cents;
+    auditMetadata = {
+      kind: input.patch.kind,
+      routeId: input.patch.routeId,
+      dayCents: input.patch.dayCents,
+      after22Cents: input.patch.after22Cents,
+    };
+  } else {
+    const locality =
+      snapshot.localities[input.patch.hub][
+        input.patch.localityId
+      ];
+    if (locality == null) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'Localidade não encontrada no catálogo.',
+      );
+    }
+
+    locality[input.patch.category] =
+      input.patch.price.kind === 'exact'
+        ? input.patch.price.amountCents
+        : {
+            minCents: input.patch.price.minCents,
+            maxCents: input.patch.price.maxCents,
+          };
+    auditMetadata = {
+      kind: input.patch.kind,
+      hub: input.patch.hub,
+      localityId: input.patch.localityId,
+      category: input.patch.category,
+      price: input.patch.price,
+    };
+  }
+
+  const instant = (input.now ?? new Date()).toISOString();
+  const updated = await input.versions.updateDraftSnapshot({
+    id: current.id,
+    snapshot,
+    updatedAt: instant,
+  });
+  if (updated == null) {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_DRAFT',
+      'O rascunho deixou de estar disponível para edição.',
+    );
+  }
+
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'pricing.catalog_version.updated',
+    targetType: 'pricing_catalog_version',
+    targetId: updated.id,
+    metadata: {
+      versionNumber: updated.versionNumber,
+      ...auditMetadata,
+    },
+    createdAt: instant,
+  });
+
+  return updated;
 }
 
 export async function publishPricingCatalogVersion(input: {
