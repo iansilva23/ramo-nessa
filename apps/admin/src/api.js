@@ -245,6 +245,17 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    setPassengerStatus(token, { passengerId, status }) {
+      return request(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}/auth/status`,
+        {
+          method: 'PATCH',
+          token,
+          body: { status },
+        },
+      );
+    },
+
     drivers(
       token,
       { query = '', status = '', limit = 25, cursor = null } = {},
