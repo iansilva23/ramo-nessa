@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import {
   FcmPushDeliveryProvider,
   readFirebaseServiceAccountFile,
+  readFirebaseServiceAccountJson,
   type FcmAccessTokenSource,
 } from '../src/notifications/push-delivery-provider.js';
 
@@ -142,4 +143,23 @@ test('rejeita arquivo Firebase incompleto', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+
+test('carrega credencial Firebase direto do Secret JSON', () => {
+  const credentials = readFirebaseServiceAccountJson(
+    JSON.stringify({
+      project_id: 'ramo-nessa',
+      client_email:
+        'firebase-adminsdk@ramo-nessa.iam.gserviceaccount.com',
+      private_key: 'x'.repeat(120),
+    }),
+  );
+
+  assert.equal(credentials.projectId, 'ramo-nessa');
+  assert.equal(
+    credentials.clientEmail,
+    'firebase-adminsdk@ramo-nessa.iam.gserviceaccount.com',
+  );
+  assert.equal(credentials.privateKey.length, 120);
 });
