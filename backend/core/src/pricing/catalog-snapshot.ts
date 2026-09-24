@@ -32,6 +32,8 @@ export interface PricingCatalogSnapshot {
       requiresFourByFourOnJeriBoundary: boolean;
     }
   >;
+  zonePolicies: Record<ZoneId, { enabled: boolean }>;
+  externalLocalities: string[];
   pickupPolicy: {
     freeKm: number;
     fuelPriceCentsPerLiter: number;
@@ -97,6 +99,29 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
       requiresFourByFourOnJeriBoundary: false,
     },
   },
+  zonePolicies: {
+    jericoacoara: { enabled: true },
+    jijoca: { enabled: true },
+    prea: { enabled: true },
+    external: { enabled: true },
+  },
+  externalLocalities: [
+    'airport-jjd',
+    'triangulo-do-marco',
+    'santana-do-acarau',
+    'bela-cruz',
+    'itapipoca',
+    'parazinha',
+    'morrinhos',
+    'amontada',
+    'camocim',
+    'itarema',
+    'acarau',
+    'granja',
+    'sobral',
+    'marco',
+    'cruz',
+  ].sort(),
   pickupPolicy: {
     freeKm: FREE_PICKUP_KM,
     fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
@@ -132,3 +157,33 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
   },
   fixedRoutes: structuredClone(FIXED_ROUTES),
 };
+
+
+export function normalizePricingCatalogSnapshot(
+  input: PricingCatalogSnapshot,
+): PricingCatalogSnapshot {
+  const value = input as PricingCatalogSnapshot & {
+    zonePolicies?: PricingCatalogSnapshot['zonePolicies'];
+    externalLocalities?: string[];
+    categoryPolicies?: PricingCatalogSnapshot['categoryPolicies'];
+  };
+
+  return {
+    ...structuredClone(value),
+    categoryPolicies:
+      value.categoryPolicies == null
+        ? structuredClone(STATIC_PRICING_CATALOG_V1.categoryPolicies)
+        : structuredClone(value.categoryPolicies),
+    zonePolicies:
+      value.zonePolicies == null
+        ? structuredClone(STATIC_PRICING_CATALOG_V1.zonePolicies)
+        : {
+            ...structuredClone(STATIC_PRICING_CATALOG_V1.zonePolicies),
+            ...structuredClone(value.zonePolicies),
+          },
+    externalLocalities:
+      value.externalLocalities == null
+        ? [...STATIC_PRICING_CATALOG_V1.externalLocalities]
+        : [...value.externalLocalities],
+  };
+}
