@@ -63,6 +63,35 @@ function amount(amountCents: number): string {
   return (amountCents / 100).toFixed(2);
 }
 
+export type MercadoPagoRefundState = 'none' | 'partial' | 'full';
+
+export function mercadoPagoOrderRefundState(
+  order: MercadoPagoOrderStatus,
+): MercadoPagoRefundState {
+  const status = order.status.toLowerCase();
+  const statusDetail = order.statusDetail.toLowerCase();
+  const paymentStatus = order.paymentStatus.toLowerCase();
+  const paymentStatusDetail = order.paymentStatusDetail.toLowerCase();
+
+  if (
+    status === 'refunded' ||
+    paymentStatus === 'refunded' ||
+    statusDetail === 'refunded' ||
+    paymentStatusDetail === 'refunded'
+  ) {
+    return 'full';
+  }
+
+  if (
+    statusDetail === 'partially_refunded' ||
+    paymentStatusDetail === 'partially_refunded'
+  ) {
+    return 'partial';
+  }
+
+  return 'none';
+}
+
 export class MercadoPagoOrdersClient {
   constructor(
     private readonly accessToken: string,
@@ -194,7 +223,7 @@ export class MercadoPagoOrdersClient {
   async refundOrder(
     orderId: string,
     idempotencyKey: string,
-  ): Promise<void> {
+  ): Promise<MercadoPagoOrderStatus> {
     await this.request(
       `/v1/orders/${encodeURIComponent(orderId)}/refund`,
       {
@@ -202,6 +231,8 @@ export class MercadoPagoOrdersClient {
         headers: { 'x-idempotency-key': idempotencyKey },
       },
     );
+
+    return this.getOrder(orderId);
   }
 }
 
