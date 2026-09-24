@@ -5,6 +5,7 @@ import type { Pool, PoolClient } from 'pg';
 import {
   cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
+  externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
@@ -17,6 +18,9 @@ import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type MarkPaymentPendingInput,
+  type MarkPaymentTerminalInput,
+  type RefundExternalPaymentInput,
+  type RefundExternalPaymentResult,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -444,6 +448,49 @@ export class PostgresFinanceRepository implements FinanceRepository {
     return mapPayment(row);
   }
 
+  async markPaymentTerminal(
+    input: MarkPaymentTerminalInput,
+  ): Promise<PaymentRecord> {
+    const current = await this.findPaymentById(input.paymentId);
+    if (current == null) {
+      throw new PaymentDomainError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado.',
+      );
+    }
+
+    if (current.status === input.status) {
+      return current;
+    }
+
+    let status: PaymentRecord['status'];
+    try {
+      status = transitionPayment(current.status, input.status);
+    } catch {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        `Pagamento em estado ${current.status} não pode ir para ${input.status}.`,
+      );
+    }
+
+    const updatedAt = (input.updatedAt ?? new Date()).toISOString();
+    const result = await this.pool.query<PaymentRow>(
+      `
+      UPDATE payments
+      SET status = $2, updated_at = $3
+      WHERE id = $1
+      RETURNING ${PAYMENT_COLUMNS}
+      `,
+      [current.id, status, updatedAt],
+    );
+
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error('PostgreSQL não retornou pagamento terminal.');
+    }
+    return mapPayment(row);
+  }
+
   async capturePayment(
     input: CapturePaymentInput,
   ): Promise<CapturePaymentResult> {
@@ -603,6 +650,120 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async refundExternalPayment(
+    input: RefundExternalPaymentInput,
+  ): Promise<RefundExternalPaymentResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const paymentResult = await client.query<PaymentRow>(
+        `SELECT ${PAYMENT_COLUMNS}
+         FROM payments
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.paymentId],
+      );
+      const row = paymentResult.rows[0];
+      if (row == null) {
+        throw new PaymentDomainError(
+          'PAYMENT_NOT_FOUND',
+          'Pagamento não encontrado.',
+        );
+      }
+
+      const payment = mapPayment(row);
+      const referenceKey = `external-ride-refund:${payment.id}`;
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [referenceKey],
+      );
+
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        if (
+          existing.paymentId !== payment.id ||
+          payment.status !== 'refunded'
+        ) {
+          throw new Error(
+            'Estado inconsistente entre estorno externo e pagamento.',
+          );
+        }
+
+        await client.query('COMMIT');
+        return {
+          payment,
+          ledgerTransaction: existing,
+          duplicateRefund: true,
+        };
+      }
+
+      if (payment.status !== 'paid') {
+        throw new PaymentDomainError(
+          'INVALID_PAYMENT_TRANSITION',
+          `Pagamento em estado ${payment.status} não pode ser estornado externamente.`,
+        );
+      }
+
+      const escrowAccount = `ride:${payment.rideId}:escrow`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [escrowAccount],
+      );
+
+      const escrowBalance = await accountBalanceCents(
+        client,
+        escrowAccount,
+      );
+      if (escrowBalance < payment.amountCents) {
+        throw new PaymentDomainError(
+          'INSUFFICIENT_RIDE_ESCROW',
+          'Escrow da corrida não possui saldo suficiente para o estorno.',
+        );
+      }
+
+      const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+      const nextStatus = transitionPayment(payment.status, 'refunded');
+      const updatedResult = await client.query<PaymentRow>(
+        `
+        UPDATE payments
+        SET status = $2, updated_at = $3
+        WHERE id = $1
+        RETURNING ${PAYMENT_COLUMNS}
+        `,
+        [payment.id, nextStatus, refundedAt],
+      );
+
+      const ledger = externalRideRefundLedger({
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        processor: payment.processor,
+        amountCents: payment.amountCents,
+        createdAt: refundedAt,
+      });
+      await insertLedger(client, ledger);
+
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou pagamento estornado.');
+      }
+
+      await client.query('COMMIT');
+      return {
+        payment: mapPayment(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateRefund: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
