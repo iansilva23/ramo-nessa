@@ -1,6 +1,6 @@
 import {
   isPaymentMethodEnabled,
-  type EnabledPaymentMethod,
+  type RidePaymentMethod,
 } from './payment-policy.js';
 
 export class InvalidPaymentRequestError extends Error {
@@ -11,7 +11,7 @@ export class InvalidPaymentRequestError extends Error {
 }
 
 export interface CreatePaymentRequest {
-  method: EnabledPaymentMethod;
+  method: RidePaymentMethod;
 }
 
 export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest {
@@ -22,9 +22,12 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
   const record = input as Record<string, unknown>;
   const method = record.method;
 
-  if (typeof method !== 'string' || !isPaymentMethodEnabled(method)) {
+  if (
+    typeof method !== 'string' ||
+    (method !== 'cash' && !isPaymentMethodEnabled(method))
+  ) {
     throw new InvalidPaymentRequestError(
-      'method deve ser pix, card ou wallet.',
+      'method deve ser pix, card, wallet ou cash.',
     );
   }
 
