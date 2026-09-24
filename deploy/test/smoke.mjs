@@ -521,7 +521,7 @@ try {
   if (
     driverOtp.response.status !== 202 ||
     typeof driverOtp.payload?.challengeId !== 'string' ||
-    !/^\\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))
+    !/^\d{6}$/.test(String(driverOtp.payload?.devCode ?? ''))
   ) {
     throw new Error('OTP real do motorista para frota falhou.');
   }
