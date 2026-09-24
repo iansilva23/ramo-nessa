@@ -26,7 +26,11 @@ class ServiceSelector extends StatelessWidget {
             onTap: () => onChanged(services[index]),
           ),
           if (index != services.length - 1)
-            const Divider(height: 1, indent: 76),
+            Divider(
+              height: 1,
+              indent: 68,
+              color: Theme.of(context).dividerColor.withValues(alpha: .42),
+            ),
         ],
       ],
     );
@@ -56,42 +60,34 @@ class _ServiceRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(RamoRadius.md),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: RamoMotion.standard,
+          duration: RamoMotion.fast,
           curve: RamoMotion.standardCurve,
           padding: const EdgeInsets.symmetric(
-            horizontal: RamoSpacing.sm,
-            vertical: RamoSpacing.sm,
+            horizontal: RamoSpacing.xs,
+            vertical: 9,
           ),
           decoration: BoxDecoration(
             color: selected
                 ? RamoColors.surfaceRaised
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(RamoRadius.md),
-            border: Border.all(
-              color: selected
-                  ? RamoColors.brandBlack
-                  : Colors.transparent,
-              width: selected ? 1.5 : 1,
-            ),
           ),
           child: Row(
             children: [
               AnimatedContainer(
-                duration: RamoMotion.standard,
-                width: 52,
-                height: 52,
+                duration: RamoMotion.fast,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: selected
-                      ? RamoColors.brandBlack
+                      ? RamoColors.brandYellow
                       : RamoColors.surfaceRaised,
-                  borderRadius: BorderRadius.circular(17),
+                  borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
                   service.icon,
-                  size: 25,
-                  color: selected
-                      ? Colors.white
-                      : RamoColors.brandBlack,
+                  size: 23,
+                  color: RamoColors.brandBlack,
                 ),
               ),
               const SizedBox(width: RamoSpacing.md),
@@ -99,12 +95,41 @@ class _ServiceRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      service.label,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.35,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            service.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.4,
+                                ),
                           ),
+                        ),
+                        if (selected) ...[
+                          const SizedBox(width: RamoSpacing.xs),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: RamoColors.brandBlack,
+                              borderRadius: BorderRadius.circular(RamoRadius.pill),
+                            ),
+                            child: const Text(
+                              'Selecionado',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: .15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -118,28 +143,20 @@ class _ServiceRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: RamoSpacing.sm),
+              const SizedBox(width: RamoSpacing.xs),
               AnimatedSwitcher(
                 duration: RamoMotion.fast,
                 child: selected
-                    ? Container(
-                        key: const ValueKey('selected'),
-                        width: 28,
-                        height: 28,
-                        decoration: const BoxDecoration(
-                          color: RamoColors.brandYellow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check_rounded,
-                          size: 18,
-                          color: RamoColors.brandBlack,
-                        ),
+                    ? const Icon(
+                        Icons.check_circle_rounded,
+                        key: ValueKey('selected'),
+                        color: RamoColors.brandBlack,
+                        size: 22,
                       )
                     : Icon(
                         Icons.chevron_right_rounded,
                         key: const ValueKey('idle'),
-                        color: scheme.onSurface.withValues(alpha: .36),
+                        color: scheme.onSurface.withValues(alpha: .28),
                       ),
               ),
             ],
