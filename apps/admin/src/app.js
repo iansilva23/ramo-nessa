@@ -31,6 +31,11 @@ const state = {
   currentDriverRegistry: null,
   currentDriverDocuments: null,
   pricingCatalog: null,
+  pricingVersions: {
+    items: [],
+    effectiveVersionId: null,
+  },
+  selectedPricingVersion: null,
   dashboard: {
     generatedAt: null,
     rides: {
@@ -90,6 +95,7 @@ const scopeLabels = new Map([
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
+  ['pricing:write', 'Editar e publicar versões de preços'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -134,6 +140,11 @@ function clearSession(message = '') {
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
   state.pricingCatalog = null;
+  state.pricingVersions = {
+    items: [],
+    effectiveVersionId: null,
+  };
+  state.selectedPricingVersion = null;
   state.dashboard = {
     generatedAt: null,
     rides: {
@@ -302,6 +313,7 @@ function activateView(viewName) {
   }
   if (view === 'pricing') {
     void loadPricingCatalog({ announce: false });
+    void loadPricingVersions({ announce: false });
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
