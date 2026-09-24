@@ -130,6 +130,62 @@ test('cliente Admin consulta, salva e aprova cadastro sem vazar Bearer na URL', 
   });
 });
 
+test('cliente Admin consulta e altera limite cash individual sem vazar Bearer', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      cashEnabled: true,
+      defaultDebtLimitCents: 12000,
+      overrideDebtLimitCents: 20000,
+      effectiveDebtLimitCents: 20000,
+      currentDebtCents: 3000,
+      remainingDebtCapacityCents: 17000,
+      canAcceptCashRide: true,
+      updatedAt: '2026-09-24T03:30:00.000Z',
+    });
+  };
+
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_driver_cash_secret';
+  const driverId = 'driver-registry-web';
+
+  await api.getDriverCashPolicy(token, driverId);
+  await api.setDriverCashPolicy(token, {
+    driverId,
+    debtLimitCents: 20000,
+  });
+  await api.setDriverCashPolicy(token, {
+    driverId,
+    debtLimitCents: null,
+  });
+
+  assert.equal(calls.length, 3);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/drivers/driver-registry-web/cash-policy',
+  );
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.equal(
+    calls[1].options.body,
+    JSON.stringify({ debtLimitCents: 20000 }),
+  );
+  assert.equal(
+    calls[2].options.body,
+    JSON.stringify({ debtLimitCents: null }),
+  );
+
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+    assert.equal(call.options.credentials, 'omit');
+    assert.equal(call.options.cache, 'no-store');
+  }
+});
+
 test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
   const html = readFileSync(
     new URL('../index.html', import.meta.url),
@@ -148,9 +204,31 @@ test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
     'registry-profile-status',
     'registry-vehicle-status',
     'registry-status-button',
+    'driver-cash-policy-status',
+    'driver-cash-policy-summary',
+    'driver-cash-policy-form',
+    'driver-cash-limit-reais',
+    'driver-cash-limit-save',
+    'driver-cash-limit-reset',
+    'driver-cash-policy-note',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
+
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+  const css = readFileSync(
+    new URL('../styles.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(app, /loadDriverCashPolicy/);
+  assert.match(app, /hasScope\('finance:write'\)/);
+  assert.match(app, /currentDriverCashPolicy\.cashEnabled/);
+  assert.match(app, /api\.setDriverCashPolicy/);
+  assert.match(css, /\.driver-cash-policy-summary/);
+  assert.match(css, /\.driver-cash-policy-form/);
 
   for (const category of [
     'moto',
