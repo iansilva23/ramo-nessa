@@ -84,6 +84,28 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return found == null ? null : structuredClone(found);
   }
 
+  async setIdentityEmail(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    emailNormalized: string;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const identity = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === input.subjectType &&
+        candidate.subjectId === input.subjectId,
+    );
+    if (identity == null) return null;
+
+    const updated = {
+      ...identity,
+      emailNormalized: input.emailNormalized,
+      updatedAt: input.updatedAt,
+    };
+    this.identities.set(updated.id, updated);
+    return structuredClone(updated);
+  }
+
   async setIdentityStatus(input: {
     subjectType: AuthSubjectType;
     subjectId: string;
@@ -123,7 +145,8 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
         if (!search) return true;
         return (
           identity.subjectId.toLowerCase().includes(search) ||
-          identity.phoneE164.toLowerCase().includes(search)
+          identity.phoneE164.toLowerCase().includes(search) ||
+          identity.emailNormalized?.toLowerCase().includes(search) === true
         );
       })
       .filter((identity) => {
