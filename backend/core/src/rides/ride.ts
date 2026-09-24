@@ -1,4 +1,5 @@
 import type { PaymentStatus } from '../payments/payment-state.js';
+import type { RidePaymentMethod } from '../payments/payment-policy.js';
 import type {
   ExactFare,
   LocationRef,
@@ -24,6 +25,7 @@ export interface RideRecord {
   passengerId: string;
   state: RideState;
   paymentStatus: PaymentStatus;
+  paymentMethod?: RidePaymentMethod;
   driverId?: string;
   reservedDriverId?: string;
   driverHoldExpiresAt?: string;
