@@ -66,7 +66,7 @@ export class PostgresRidePreparationRepository
       await client.query(
         `
         INSERT INTO rides (
-          id, passenger_id, state, payment_status, driver_id,
+          id, passenger_id, state, payment_status, payment_method, driver_id,
           reserved_driver_id, driver_hold_expires_at,
           pickup_latitude, pickup_longitude,
           dropoff_latitude, dropoff_longitude,
@@ -81,7 +81,7 @@ export class PostgresRidePreparationRepository
           created_at, updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33
         )
         `,
         [
@@ -89,6 +89,7 @@ export class PostgresRidePreparationRepository
           ride.passengerId,
           ride.state,
           ride.paymentStatus,
+          ride.paymentMethod ?? null,
           ride.driverId ?? null,
           driverId,
           holdExpiresAt,
