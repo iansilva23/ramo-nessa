@@ -3179,6 +3179,9 @@ const server = createServer(async (request, response) => {
           gateway: mercadoPagoOrdersClient,
           ride,
           identity,
+          ...(body.payerEmail == null
+            ? {}
+            : { payerEmail: body.payerEmail }),
           idempotencyKey,
         });
 
