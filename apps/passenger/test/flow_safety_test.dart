@@ -123,6 +123,8 @@ void main() {
       const Offset(0, 260),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Carteira Ramo Nessa'));
     await tester.pumpAndSettle();
 
@@ -373,7 +375,10 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(seconds: 3));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2200)),
+    );
+    await tester.pump();
 
     expect(find.text('Copiar código Pix'), findsNothing);
     expect(
