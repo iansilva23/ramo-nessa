@@ -20,6 +20,7 @@ export class PricingCatalogVersionError extends Error {
       | 'PRICING_VERSION_NOT_FOUND'
       | 'PRICING_VERSION_NOT_DRAFT'
       | 'PRICING_RULE_NOT_FOUND'
+      | 'PRICING_STRUCTURE_CONFLICT'
       | 'INVALID_EFFECTIVE_FROM',
     message: string,
   ) {
@@ -51,6 +52,10 @@ export function pricingCatalogVersionView(
         (category) =>
           record.snapshot.categoryPolicies[category].enabled,
       ).length,
+      enabledZones: record.snapshot.zones.filter(
+        (zoneId) => record.snapshot.zonePolicies[zoneId].enabled,
+      ).length,
+      externalLocalities: record.snapshot.externalLocalities.length,
     },
   };
 }
@@ -134,9 +139,7 @@ export async function updatePricingCatalogDraft(input: {
     };
   } else if (patch.kind === 'locality_price') {
     const locality =
-      snapshot.localities[patch.hub][
-        patch.localityId
-      ];
+      snapshot.localities[patch.hub][patch.localityId];
     if (locality == null) {
       throw new PricingCatalogVersionError(
         'PRICING_RULE_NOT_FOUND',
@@ -158,7 +161,7 @@ export async function updatePricingCatalogDraft(input: {
       category: patch.category,
       price: patch.price,
     };
-  } else {
+  } else if (patch.kind === 'category_policy') {
     snapshot.categoryPolicies[patch.category] = {
       enabled: patch.enabled,
       requiresFourByFourOnJeriBoundary:
@@ -170,6 +173,98 @@ export async function updatePricingCatalogDraft(input: {
       enabled: patch.enabled,
       requiresFourByFourOnJeriBoundary:
         patch.requiresFourByFourOnJeriBoundary,
+    };
+  } else if (patch.kind === 'zone_policy') {
+    snapshot.zonePolicies[patch.zoneId] = {
+      enabled: patch.enabled,
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      zoneId: patch.zoneId,
+      enabled: patch.enabled,
+    };
+  } else {
+    const referencedByFixedRoute = snapshot.fixedRoutes.some(
+      (route) =>
+        route.a === patch.localityId ||
+        route.b === patch.localityId,
+    );
+
+    if (patch.operation === 'remove' && referencedByFixedRoute) {
+      throw new PricingCatalogVersionError(
+        'PRICING_STRUCTURE_CONFLICT',
+        'Localidade é usada por rota fixa e não pode ser removida.',
+      );
+    }
+
+    if (
+      patch.operation === 'remove' &&
+      ((patch.scope === 'prea' && patch.localityId === 'prea') ||
+        (patch.scope === 'jijoca' &&
+          patch.localityId === 'jijoca'))
+    ) {
+      throw new PricingCatalogVersionError(
+        'PRICING_STRUCTURE_CONFLICT',
+        'A localidade central da zona não pode ser removida.',
+      );
+    }
+
+    if (patch.scope === 'external') {
+      const exists = snapshot.externalLocalities.includes(
+        patch.localityId,
+      );
+      if (patch.operation === 'add' && exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_STRUCTURE_CONFLICT',
+          'Localidade externa já existe no catálogo.',
+        );
+      }
+      if (patch.operation === 'remove' && !exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_RULE_NOT_FOUND',
+          'Localidade externa não encontrada no catálogo.',
+        );
+      }
+      snapshot.externalLocalities =
+        patch.operation === 'add'
+          ? [...snapshot.externalLocalities, patch.localityId].sort()
+          : snapshot.externalLocalities.filter(
+              (id) => id !== patch.localityId,
+            );
+    } else {
+      const table = snapshot.localities[patch.scope];
+      const exists = table[patch.localityId] != null;
+      if (patch.operation === 'add' && exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_STRUCTURE_CONFLICT',
+          'Localidade já existe na zona.',
+        );
+      }
+      if (patch.operation === 'remove' && !exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_RULE_NOT_FOUND',
+          'Localidade não encontrada na zona.',
+        );
+      }
+
+      if (patch.operation === 'add') {
+        table[patch.localityId] = {};
+      } else {
+        delete table[patch.localityId];
+        if (patch.scope === 'prea') {
+          snapshot.surcharges.preaLocalCarAfter22LocalityIds =
+            snapshot.surcharges.preaLocalCarAfter22LocalityIds.filter(
+              (id) => id !== patch.localityId,
+            );
+        }
+      }
+    }
+
+    auditMetadata = {
+      kind: patch.kind,
+      operation: patch.operation,
+      scope: patch.scope,
+      localityId: patch.localityId,
     };
   }
 
