@@ -136,7 +136,6 @@ void main() {
     final result = await service.createPixRidePayment(
       rideId: 'ride-pix-http',
       idempotencyKey: 'pix-http-idempotency-key',
-      payerEmail: 'passageiro@example.com',
     );
 
     expect(captured.method, 'POST');
@@ -151,7 +150,6 @@ void main() {
     );
     expect(jsonDecode(captured.body), {
       'method': 'pix',
-      'payerEmail': 'passageiro@example.com',
     });
     expect(result.internalPaymentStatus, 'pending');
     expect(result.orderId, 'ORD01PIXHTTP123456789');
@@ -206,7 +204,6 @@ void main() {
     final body = jsonDecode(captured.body) as Map<String, dynamic>;
     expect(captured.url.path, '/v1/rides/ride-card-http/payments');
     expect(body['method'], 'card');
-    expect(body['payerEmail'], 'passageiro@example.com');
     expect(body['paymentMethodId'], 'master');
     expect(body['paymentMethodType'], 'credit_card');
     expect(body['installments'], 1);
