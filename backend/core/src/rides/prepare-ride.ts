@@ -121,11 +121,13 @@ export async function prepareRideForPayment(input: {
     ref: trustedQuoteRequest.origin,
     point: input.pickup,
     field: 'origin',
+    catalog: pricing.snapshot,
   });
   assertPricingLocationMatchesPoint({
     ref: trustedQuoteRequest.destination,
     point: input.dropoff,
     field: 'destination',
+    catalog: pricing.snapshot,
   });
 
   const baseFare = quoteFare(
