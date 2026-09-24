@@ -151,6 +151,7 @@ import {
   RidePreparationError,
 } from './rides/prepare-ride.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
+import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
 import {
   createPricingCatalogDraft,
   pricingCatalogVersionView,
@@ -682,7 +683,20 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'pricing:read',
       });
-      json(response, 200, adminPricingCatalogView());
+      const pricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+      });
+      json(
+        response,
+        200,
+        adminPricingCatalogView(pricing.snapshot, {
+          mode: pricing.version == null ? 'static' : 'versioned',
+          editable: false,
+          versionId: pricing.version?.id ?? null,
+          versionNumber: pricing.version?.versionNumber ?? null,
+          effectiveFrom: pricing.version?.effectiveFrom ?? null,
+        }),
+      );
       return;
     }
 
@@ -1516,11 +1530,22 @@ const server = createServer(async (request, response) => {
 
     if (request.method === 'POST' && request.url === '/v1/pricing/quote') {
       const body = parseQuoteRequest(await readJson(request));
-      const quote = quoteFare({
-        ...body,
-        period: pricingPeriodAt(),
+      const now = new Date();
+      const pricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+        at: now,
       });
-      json(response, 200, quote);
+      const quote = quoteFare(
+        {
+          ...body,
+          period: pricingPeriodAt(now),
+        },
+        pricing.snapshot,
+      );
+      json(response, 200, {
+        ...quote,
+        pricingCatalog: pricing.reference,
+      });
       return;
     }
 
@@ -1543,14 +1568,21 @@ const server = createServer(async (request, response) => {
       }
 
       const body = parsePrepareRideRequest(await readJson(request));
+      const now = new Date();
+      const pricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+        at: now,
+      });
       const ride = await prepareRideForPayment({
         repository: ridePreparationRepository,
         drivers: driverSupplyRepository,
         routing: routingDistanceProvider,
         passengerId,
         quoteRequest: body.quoteRequest,
+        pricing,
         pickup: body.pickup,
         dropoff: body.dropoff,
+        now,
       });
 
       const { reservedDriverId: _internalReservedDriverId, ...publicRide } = ride;
@@ -1569,9 +1601,16 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
       });
       const body = parseCreateRideRequest(await readJson(request));
+      const now = new Date();
+      const pricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+        at: now,
+      });
       const ride = await createRide(rideRepository, {
         passengerId,
         quoteRequest: body.quoteRequest,
+        pricing,
+        now,
       });
       json(response, 201, ride);
       return;
