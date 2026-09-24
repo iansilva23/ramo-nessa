@@ -25,6 +25,13 @@ export interface PricingCatalogSnapshot {
   periods: PricePeriod[];
   zones: ZoneId[];
   commissionBps: number;
+  categoryPolicies: Record<
+    ServiceCategory,
+    {
+      enabled: boolean;
+      requiresFourByFourOnJeriBoundary: boolean;
+    }
+  >;
   pickupPolicy: {
     freeKm: number;
     fuelPriceCentsPerLiter: number;
@@ -68,6 +75,28 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
   periods: ['day', 'after_22'],
   zones: ['jericoacoara', 'jijoca', 'prea', 'external'],
   commissionBps: COMMISSION_BPS,
+  categoryPolicies: {
+    moto: {
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: false,
+    },
+    delivery: {
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: false,
+    },
+    car: {
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: false,
+    },
+    comfort_black: {
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: true,
+    },
+    buggy: {
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: false,
+    },
+  },
   pickupPolicy: {
     freeKm: FREE_PICKUP_KM,
     fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
