@@ -61,6 +61,11 @@ export function adminPricingCatalogView(
     })),
     periods: [...snapshot.periods],
     zones: [...snapshot.zones],
+    zonePolicies: snapshot.zones.map((zoneId) => ({
+      zoneId,
+      enabled: snapshot.zonePolicies[zoneId].enabled,
+    })),
+    externalLocalities: [...snapshot.externalLocalities].sort(),
     commissionBps: snapshot.commissionBps,
     pickupPolicy: { ...snapshot.pickupPolicy },
     surcharges: {
