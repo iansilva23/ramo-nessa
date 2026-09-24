@@ -4,6 +4,7 @@ import type { RideRecord } from '../ride.js';
 import type {
   AdminRideListInput,
   AdminRideListPage,
+  AdminPassengerRideSummary,
   AdminRideOperationalSummary,
   RideRepository,
 } from '../ride-repository.js';
@@ -247,6 +248,71 @@ export class PostgresRideRepository implements RideRepository {
       [limit],
     );
     return result.rows.map(mapRow);
+  }
+
+  async listAdminRecentByPassengerId(
+    passengerId: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE passenger_id = $1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT $2
+      `,
+      [passengerId, safeLimit],
+    );
+    return result.rows.map(mapRow);
+  }
+
+  async getAdminPassengerRideSummary(
+    passengerId: string,
+  ): Promise<AdminPassengerRideSummary> {
+    const result = await this.pool.query<AdminPassengerRideSummary>(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'PAID',
+            'SEARCHING_DRIVER',
+            'DRIVER_ASSIGNED',
+            'DRIVER_ARRIVING',
+            'DRIVER_ARRIVED',
+            'IN_PROGRESS'
+          )
+        )::int AS active,
+        COUNT(*) FILTER (
+          WHERE state = 'COMPLETED'
+        )::int AS completed,
+        COUNT(*) FILTER (
+          WHERE state IN (
+            'CANCELLED_BY_PASSENGER',
+            'CANCELLED_BY_DRIVER',
+            'CANCELLED_BY_ADMIN'
+          )
+        )::int AS cancelled,
+        COALESCE(SUM(
+          CASE
+            WHEN state = 'COMPLETED' THEN total_amount_cents
+            ELSE 0
+          END
+        ), 0)::int AS "completedAmountCents"
+      FROM rides
+      WHERE passenger_id = $1
+      `,
+      [passengerId],
+    );
+    return result.rows[0] ?? {
+      total: 0,
+      active: 0,
+      completed: 0,
+      cancelled: 0,
+      completedAmountCents: 0,
+    };
   }
 
   async listAdmin(
