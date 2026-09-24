@@ -138,6 +138,7 @@ import {
   getDriverDocumentsForAdmin,
   reviewDriverDocumentFromAdmin,
   submitDriverDocumentFromAdmin,
+  submitDriverDocumentFromDriverApp,
 } from './drivers/driver-document-service.js';
 import {
   InvalidDriverDocumentRequestError,
@@ -152,6 +153,7 @@ import {
   resolveDocumentInspectionTtlSeconds,
 } from './drivers/driver-document-inspection.js';
 import {
+  MAX_PRIVATE_DOCUMENT_BYTES,
   PrivateDocumentStorageError,
   createPrivateDocumentStorageFromEnv,
 } from './drivers/driver-document-private-storage.js';
@@ -278,6 +280,7 @@ import {
 } from './observability/logger.js';
 import {
   HttpRequestBodyError,
+  readBinaryBody,
   readJsonBody as readJson,
 } from './http/request-body.js';
 import {
@@ -2880,6 +2883,63 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const driverDocumentUploadMatch = requestUrl.pathname.match(
+      /^\/v1\/driver\/me\/documents\/(driver_license|vehicle_registration)$/,
+    );
+    if (
+      request.method === 'PUT' &&
+      driverDocumentUploadMatch != null
+    ) {
+      if (privateDocumentStorage == null) {
+        json(response, 503, {
+          error: 'DOCUMENT_STORAGE_NOT_CONFIGURED',
+          message:
+            'Storage privado de documentos ainda não está configurado.',
+        });
+        return;
+      }
+
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const rawContentType = headerValue(request, 'content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        rawContentType !== 'image/jpeg' &&
+        rawContentType !== 'image/png' &&
+        rawContentType !== 'application/pdf'
+      ) {
+        json(response, 415, {
+          error: 'UNSUPPORTED_DOCUMENT_TYPE',
+          message: 'Envie um arquivo JPEG, PNG ou PDF.',
+        });
+        return;
+      }
+
+      const bytes = await readBinaryBody(
+        request,
+        MAX_PRIVATE_DOCUMENT_BYTES,
+      );
+      const expiresOn = headerValue(request, 'x-document-expires-on');
+      const result = await submitDriverDocumentFromDriverApp({
+        registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
+        storage: privateDocumentStorage,
+        driverId,
+        documentType:
+          driverDocumentUploadMatch[1]! as DriverDocumentType,
+        bytes,
+        mimeType: rawContentType,
+        ...(expiresOn == null ? {} : { expiresOn }),
+      });
+      json(response, 201, result);
+      return;
+    }
+
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/documents'
@@ -4181,7 +4241,9 @@ const server = createServer(async (request, response) => {
         error.code === 'DOCUMENT_REVIEW_CONFLICT'
           ? 409
           : error.code === 'DOCUMENT_STORAGE_REFERENCE_INVALID' ||
-              error.code === 'DOCUMENT_ALREADY_EXPIRED'
+              error.code === 'DOCUMENT_ALREADY_EXPIRED' ||
+              error.code === 'DOCUMENT_CONTENT_INVALID' ||
+              error.code === 'DOCUMENT_EXPIRATION_INVALID'
             ? 422
             : 404;
       json(response, status, {
