@@ -362,7 +362,10 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(seconds: 3));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2200)),
+    );
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Copiar código Pix'), findsNothing);
     expect(
