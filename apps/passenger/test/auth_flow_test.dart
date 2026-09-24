@@ -40,6 +40,7 @@ class _FakeAuthService implements PhoneAuthService {
   @override
   Future<RequestedOtp> requestOtp({
     required String phone,
+    String? email,
   }) async {
     requestedPhone = phone;
     return RequestedOtp(
@@ -62,6 +63,50 @@ class _FakeAuthService implements PhoneAuthService {
       expiresAt: DateTime(2026, 10, 23),
       subjectId: 'subject-auth-test',
       subjectType: subjectType,
+    );
+  }
+
+  @override
+  Future<RequestedOtp> requestPasswordResetOtp({
+    required String phone,
+  }) =>
+      requestOtp(phone: phone);
+
+  @override
+  Future<AuthSession> loginWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    return AuthSession(
+      accessToken: 'abcdefghijklmnopqrstuvwxyz123456',
+      expiresAt: DateTime(2026, 10, 23),
+      subjectId: 'subject-auth-test',
+      subjectType: subjectType,
+    );
+  }
+
+  @override
+  Future<PassengerAccount> passengerAccount(String accessToken) async {
+    return const PassengerAccount(
+      subjectId: 'subject-auth-test',
+      phoneE164: '+5588999991234',
+      email: 'passageiro@example.com',
+      fullName: 'Passageiro Teste',
+    );
+  }
+
+  @override
+  Future<PassengerAccount> updatePassengerAccount({
+    required String accessToken,
+    String? fullName,
+    String? email,
+    String? password,
+  }) async {
+    return PassengerAccount(
+      subjectId: 'subject-auth-test',
+      phoneE164: '+5588999991234',
+      email: email ?? 'passageiro@example.com',
+      fullName: fullName ?? 'Passageiro Teste',
     );
   }
 
@@ -128,7 +173,7 @@ void main() {
     expect(authenticatedToken, 'abcdefghijklmnopqrstuvwxyz123456');
   });
 
-  testWidgets('token inválido é apagado e volta ao login', (tester) async {
+  testWidgets('token inválido é apagado e volta à entrada da conta', (tester) async {
     final store = _MemoryTokenStore()
       ..token = 'abcdefghijklmnopqrstuvwxyz123456';
     final service = _FakeAuthService(
@@ -154,7 +199,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(store.cleared, isTrue);
-    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('auth-create-account-button')),
+      findsOneWidget,
+    );
     expect(find.text('HOME AUTH'), findsNothing);
   });
 
@@ -188,7 +237,7 @@ void main() {
       expect(store.cleared, isFalse);
       expect(store.token, 'abcdefghijklmnopqrstuvwxyz123456');
       expect(find.text('HOME OFFLINE'), findsOneWidget);
-      expect(find.byKey(const Key('auth-phone-field')), findsNothing);
+      expect(find.byKey(const Key('auth-login-button')), findsNothing);
     },
   );
 
@@ -224,6 +273,6 @@ void main() {
 
     expect(service.logoutCalls, 1);
     expect(store.cleared, isTrue);
-    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
   });
 }
