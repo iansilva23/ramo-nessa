@@ -64,7 +64,6 @@ class PassengerRideTrackingSnapshot {
 
   bool get isTerminal => const {
         'COMPLETED',
-        'NO_DRIVER_FOUND',
         'CANCELLED_BY_PASSENGER',
         'CANCELLED_BY_DRIVER',
         'CANCELLED_BY_ADMIN',
