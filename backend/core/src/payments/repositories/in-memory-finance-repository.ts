@@ -58,6 +58,15 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     return payment == null ? null : structuredClone(payment);
   }
 
+  async findLatestPaymentByRideId(
+    rideId: string,
+  ): Promise<PaymentRecord | null> {
+    const payments = [...this.payments.values()]
+      .filter((payment) => payment.rideId === rideId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return payments[0] == null ? null : structuredClone(payments[0]);
+  }
+
   async findPaidPaymentByRideId(
     rideId: string,
   ): Promise<PaymentRecord | null> {
