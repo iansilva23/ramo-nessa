@@ -236,6 +236,26 @@ final class _PreviewDriverApi implements DriverApi {
       );
 
   @override
+  Future<DriverSupportSnapshot> supportTickets() async =>
+      const DriverSupportSnapshot(tickets: []);
+
+  @override
+  Future<DriverSupportTicket> createSupportTicket({
+    required String category,
+    required String subject,
+    required String message,
+  }) async =>
+      DriverSupportTicket(
+        id: 'support-test',
+        category: category,
+        subject: subject,
+        message: message,
+        status: 'open',
+        createdAt: DateTime(2026, 9, 24, 12),
+        updatedAt: DateTime(2026, 9, 24, 12),
+      );
+
+  @override
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
