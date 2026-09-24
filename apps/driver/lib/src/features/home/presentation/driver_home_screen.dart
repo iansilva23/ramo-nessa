@@ -1048,7 +1048,7 @@ class _DriverStatusCard extends StatelessWidget {
             children: [
               _DriverMetaChip(
                 icon: Icons.directions_car_filled_rounded,
-                label: supply.vehicleId,
+                label: 'Aprovado · ${supply.vehicleId}',
               ),
               _DriverMetaChip(
                 icon: Icons.airline_seat_recline_normal_rounded,
@@ -1057,7 +1057,7 @@ class _DriverStatusCard extends StatelessWidget {
               if (supply.fourByFour)
                 const _DriverMetaChip(
                   icon: Icons.terrain_rounded,
-                  label: '4x4',
+                  label: '4x4 aprovado',
                 ),
             ],
           ),
@@ -1090,7 +1090,7 @@ class _DriverStatusCard extends StatelessWidget {
                   SizedBox(width: RamoSpacing.xs),
                   Expanded(
                     child: Text(
-                      'Localização automática ativa',
+                      'Localização automática ativa enquanto você estiver online',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
