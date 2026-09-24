@@ -96,14 +96,37 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     final canSearch = _controller.text.trim().length >= 3 && !_loading;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(RamoSpacing.md),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.sm,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Voltar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                  const SizedBox(width: RamoSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.7,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: RamoSpacing.lg),
               TextField(
                 autofocus: true,
                 controller: _controller,
@@ -121,12 +144,11 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                 ),
               ),
               const SizedBox(height: RamoSpacing.sm),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Digite e toque em buscar.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+              Text(
+                'Busque por pousada, rua, ponto turístico ou cidade.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: RamoColors.muted,
+                    ),
               ),
               const SizedBox(height: RamoSpacing.sm),
               if (_loading) const LinearProgressIndicator(minHeight: 3),
@@ -156,8 +178,17 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                           horizontal: RamoSpacing.xs,
                           vertical: RamoSpacing.xs,
                         ),
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.place_rounded),
+                        leading: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: RamoColors.surfaceRaised,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.place_rounded,
+                            color: RamoColors.brandBlack,
+                          ),
                         ),
                         title: Text(
                           place.displayName,
@@ -169,8 +200,8 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         trailing: const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 16,
+                          Icons.chevron_right_rounded,
+                          size: 24,
                         ),
                         onTap: () => Navigator.of(context).pop(place),
                       );
@@ -198,7 +229,19 @@ class _SearchHint extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.map_outlined, size: 42),
+            Container(
+              width: 66,
+              height: 66,
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: const Icon(
+                Icons.map_outlined,
+                size: 30,
+                color: RamoColors.brandBlack,
+              ),
+            ),
             const SizedBox(height: RamoSpacing.sm),
             Text(
               title,
@@ -206,9 +249,11 @@ class _SearchHint extends StatelessWidget {
             ),
             const SizedBox(height: RamoSpacing.xs),
             Text(
-              'A busca acontece somente quando você confirmar.',
+              'Digite pelo menos 3 caracteres para começar.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: RamoColors.muted,
+                  ),
             ),
           ],
         ),
