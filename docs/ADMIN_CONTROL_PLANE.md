@@ -103,9 +103,13 @@ Criação, alteração e publicação geram auditoria. O `quote-engine` resolve 
 versão publicada efetiva pelo horário, e cada corrida congela a referência da
 versão comercial usada.
 
-A edição desta etapa cobre rotas fixas e tarifas por localidade. Alterações
-estruturais de localidades/zonas e controles de elegibilidade de categorias
-permanecem em etapas próprias.
+A edição desta etapa cobre rotas fixas, tarifas por localidade e políticas
+versionadas por categoria. Cada categoria pode ser ativada/desativada e pode
+exigir 4x4 quando a viagem cruza o limite de Jericoacoara. A exigência é
+congelada na corrida no momento da criação/preparação, evitando que uma mudança
+futura reclassifique uma viagem já existente.
+
+Alterações estruturais de localidades/zonas permanecem em etapa própria.
 
 ### Diretório de passageiros
 
