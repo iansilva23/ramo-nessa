@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   FcmPushDeliveryProvider,
+  readFirebaseServiceAccountFile,
   type FcmAccessTokenSource,
 } from '../src/notifications/push-delivery-provider.js';
 
@@ -90,4 +94,52 @@ test('FCM invalida token somente quando provider informa UNREGISTERED', async ()
     }),
     { delivered: false, invalidToken: true },
   );
+});
+
+
+test('carrega credencial Firebase por arquivo montado', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ramo-fcm-'));
+  const path = join(dir, 'firebase.json');
+
+  try {
+    writeFileSync(
+      path,
+      JSON.stringify({
+        project_id: 'ramo-nessa',
+        client_email:
+          'firebase-adminsdk@ramo-nessa.iam.gserviceaccount.com',
+        private_key: 'x'.repeat(120),
+      }),
+      'utf8',
+    );
+
+    const credentials = readFirebaseServiceAccountFile(path);
+    assert.equal(credentials.projectId, 'ramo-nessa');
+    assert.equal(
+      credentials.clientEmail,
+      'firebase-adminsdk@ramo-nessa.iam.gserviceaccount.com',
+    );
+    assert.equal(credentials.privateKey.length, 120);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('rejeita arquivo Firebase incompleto', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ramo-fcm-'));
+  const path = join(dir, 'firebase.json');
+
+  try {
+    writeFileSync(
+      path,
+      JSON.stringify({ project_id: 'ramo-nessa' }),
+      'utf8',
+    );
+    assert.throws(
+      () => readFirebaseServiceAccountFile(path),
+      /não contém credenciais Firebase válidas/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
