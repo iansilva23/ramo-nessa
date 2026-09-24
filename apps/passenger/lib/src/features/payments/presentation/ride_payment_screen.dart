@@ -4,12 +4,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
+import '../data/card_tokenization_service.dart';
 import '../data/passenger_payment_service.dart';
+import '../domain/card_ride_payment_result.dart';
 import '../domain/passenger_payment_policy.dart';
 import '../domain/pix_ride_payment_result.dart';
 
@@ -18,6 +21,7 @@ class RidePaymentScreen extends StatefulWidget {
     super.key,
     required this.ride,
     this.paymentService,
+    this.cardTokenizationService,
     this.rideTrackingService,
     this.rideRealtimeService,
     this.networkTilesEnabled = true,
@@ -25,6 +29,7 @@ class RidePaymentScreen extends StatefulWidget {
 
   final PreparedRide ride;
   final PassengerPaymentService? paymentService;
+  final CardTokenizationService? cardTokenizationService;
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
   final bool networkTilesEnabled;
@@ -42,6 +47,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   String? _walletMessage;
   bool _creatingPix = false;
   String? _pixMessage;
+  bool _creatingCard = false;
+  String? _cardMessage;
   PassengerPaymentPolicy? _paymentPolicy;
   bool _paymentPolicyLoading = false;
   bool _authorizingCash = false;
@@ -49,6 +56,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   late final String _walletIdempotencyKey;
   late final String _cashIdempotencyKey;
   late final String _pixIdempotencyKey;
+  late final String _cardIdempotencyKey;
 
   @override
   void initState() {
@@ -60,6 +68,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         'cash-${widget.ride.id}-$nonce';
     _pixIdempotencyKey =
         'pix-${widget.ride.id}-$nonce';
+    _cardIdempotencyKey =
+        'card-${widget.ride.id}-$nonce';
     _updateRemaining();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -332,6 +342,82 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     }
   }
 
+  Future<void> _startCard() async {
+    final service = widget.paymentService;
+    if (service == null || _creatingCard || _remaining == Duration.zero) return;
+
+    final payerEmail = await _requestPayerEmail('cartão');
+    if (!mounted || payerEmail == null) return;
+
+    setState(() {
+      _creatingCard = true;
+      _cardMessage = null;
+    });
+
+    try {
+      final tokenizer =
+          widget.cardTokenizationService ??
+          const NativeCardTokenizationService();
+      final tokenized = await tokenizer.tokenize();
+      if (!mounted) return;
+
+      final result = await service.createCardRidePayment(
+        rideId: widget.ride.id,
+        idempotencyKey: _cardIdempotencyKey,
+        payerEmail: payerEmail,
+        cardToken: tokenized.token,
+        paymentMethodId: tokenized.paymentMethodId,
+        paymentMethodType: tokenized.paymentMethodType,
+      );
+
+      if (!mounted) return;
+      setState(() => _creatingCard = false);
+
+      final failed =
+          result.internalPaymentStatus == 'failed' ||
+          result.internalPaymentStatus == 'cancelled' ||
+          result.rideState == 'PAYMENT_FAILED';
+      if (failed) {
+        setState(() {
+          _cardMessage =
+              'Pagamento não aprovado. Confira os dados ou tente outro cartão.';
+        });
+        return;
+      }
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => _CardPaymentStatusScreen(
+            rideId: widget.ride.id,
+            result: result,
+            trackingService: widget.rideTrackingService,
+            realtimeService: widget.rideRealtimeService,
+            networkTilesEnabled: widget.networkTilesEnabled,
+          ),
+        ),
+      );
+    } on CardTokenizationException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _creatingCard = false;
+        _cardMessage = error.message;
+      });
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _creatingCard = false;
+        _cardMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _creatingCard = false;
+        _cardMessage =
+            'Não conseguimos concluir o pagamento por cartão agora.';
+      });
+    }
+  }
+
   Future<void> _authorizeCash() async {
     final service = widget.paymentService;
     if (service == null || !_cashAvailable || _authorizingCash) {
@@ -477,19 +563,6 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     }
   }
 
-  void _gatewayPending(String method) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            '$method será ativado quando o gateway real estiver conectado. '
-            'Nenhuma cobrança foi feita.',
-          ),
-        ),
-      );
-  }
-
   @override
   Widget build(BuildContext context) {
     final expired = _remaining == Duration.zero;
@@ -589,9 +662,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             _PaymentOption(
               icon: Icons.credit_card_rounded,
               title: 'Cartão',
-              subtitle: 'Cobrança segura pelo gateway',
-              enabled: !expired,
-              onTap: () => _gatewayPending('Cartão'),
+              subtitle: 'Dados protegidos pelo Mercado Pago · 3DS quando necessário',
+              enabled:
+                  !expired &&
+                  widget.paymentService != null &&
+                  !_creatingCard,
+              trailing: _creatingCard
+                  ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _startCard,
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
@@ -635,6 +717,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               const SizedBox(height: RamoSpacing.xs),
               Text(
                 _pixMessage!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
+            if (_cardMessage != null) ...[
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                _cardMessage!,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.error,
                     ),
