@@ -6,8 +6,6 @@ import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
 import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
-import '../domain/cash_ride_payment_result.dart';
-import '../domain/payment_policy_snapshot.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import 'passenger_payment_service.dart';
 
@@ -64,69 +62,6 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
   }
 
   @override
-  Future<PaymentPolicySnapshot> paymentPolicy() async {
-    final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/payments/policy'),
-          headers: _identityHeaders,
-        )
-        .timeout(RamoCoreConfig.requestTimeout);
-
-    final decoded = decodeJsonObject(response.body);
-    if (response.statusCode == 200 && decoded != null) {
-      try {
-        return PaymentPolicySnapshot.fromJson(decoded);
-      } catch (_) {
-        throw const PassengerPaymentException(
-          'O servidor retornou uma política de pagamento inválida.',
-        );
-      }
-    }
-
-    throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos consultar as formas de pagamento agora.',
-      ),
-    );
-  }
-
-  @override
-  Future<CashRidePaymentResult> authorizeCashRide({
-    required String rideId,
-    required String idempotencyKey,
-  }) async {
-    final response = await _client
-        .post(
-          _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
-          body: jsonEncode({'method': 'cash'}),
-        )
-        .timeout(RamoCoreConfig.requestTimeout);
-
-    final decoded = decodeJsonObject(response.body);
-    if (response.statusCode == 201 && decoded != null) {
-      try {
-        return CashRidePaymentResult.fromJson(decoded);
-      } catch (_) {
-        throw const PassengerPaymentException(
-          'O servidor retornou uma autorização em dinheiro inválida.',
-        );
-      }
-    }
-
-    throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos autorizar pagamento em dinheiro agora.',
-      ),
-    );
-  }
-
-  @override
   Future<int> walletBalanceCents() async {
     final response = await _client
         .get(
@@ -156,11 +91,15 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
   @override
   Future<CashRideAuthorizationResult> authorizeCashRide({
     required String rideId,
+    required String idempotencyKey,
   }) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: _identityHeaders,
+          headers: {
+            ..._identityHeaders,
+            'idempotency-key': idempotencyKey,
+          },
           body: jsonEncode({'method': 'cash'}),
         )
         .timeout(RamoCoreConfig.requestTimeout);
