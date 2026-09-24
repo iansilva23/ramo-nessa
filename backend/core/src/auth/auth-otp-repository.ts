@@ -8,6 +8,9 @@ export interface AuthIdentityRecord {
   subjectType: AuthSubjectType;
   phoneE164: string;
   emailNormalized?: string;
+  fullName?: string;
+  passwordHash?: string;
+  photoUrl?: string;
   status: AuthIdentityStatus;
   createdAt: string;
   updatedAt: string;
@@ -77,6 +80,10 @@ export interface AuthOtpRepository {
     subjectType: AuthSubjectType,
     phoneE164: string,
   ): Promise<AuthIdentityRecord | null>;
+  findIdentityByEmail(
+    subjectType: AuthSubjectType,
+    emailNormalized: string,
+  ): Promise<AuthIdentityRecord | null>;
   findIdentityById(id: string): Promise<AuthIdentityRecord | null>;
   findIdentityBySubject(
     subjectType: AuthSubjectType,
@@ -86,6 +93,14 @@ export interface AuthOtpRepository {
     subjectType: AuthSubjectType;
     subjectId: string;
     emailNormalized: string;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  setPassengerAccount(input: {
+    subjectId: string;
+    fullName?: string;
+    emailNormalized?: string;
+    passwordHash?: string;
+    photoUrl?: string | null;
     updatedAt: string;
   }): Promise<AuthIdentityRecord | null>;
   setIdentityStatus(input: {
