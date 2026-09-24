@@ -44,6 +44,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   String? _error;
   bool _mapReady = false;
   bool _requestInFlight = false;
+  int _ratingStars = 0;
+  bool _ratingSubmitting = false;
+  bool _ratingSubmitted = false;
+  String? _ratingError;
 
   @override
   void initState() {
@@ -126,6 +130,43 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       });
     } finally {
       _requestInFlight = false;
+    }
+  }
+
+  Future<void> _submitDriverRating() async {
+    if (_ratingStars < 1 || _ratingStars > 5 || _ratingSubmitting) {
+      return;
+    }
+
+    setState(() {
+      _ratingSubmitting = true;
+      _ratingError = null;
+    });
+
+    try {
+      final result = await widget.trackingService.rateDriver(
+        widget.rideId,
+        _ratingStars,
+      );
+      if (!mounted) return;
+      setState(() {
+        _ratingStars = result.stars;
+        _ratingSubmitting = false;
+        _ratingSubmitted = true;
+      });
+      await _refresh();
+    } on PassengerRideTrackingException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _ratingSubmitting = false;
+        _ratingError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _ratingSubmitting = false;
+        _ratingError = 'Não conseguimos enviar sua avaliação agora.';
+      });
     }
   }
 
@@ -251,6 +292,21 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                     const SizedBox(height: RamoSpacing.md),
                     _AssignedDriverCard(driver: driverProfile),
                   ],
+                  if (snapshot?.state == 'COMPLETED' &&
+                      driverProfile != null) ...[
+                    const SizedBox(height: RamoSpacing.md),
+                    _DriverRatingPanel(
+                      stars: _ratingStars,
+                      submitting: _ratingSubmitting,
+                      submitted: _ratingSubmitted,
+                      error: _ratingError,
+                      onChanged: (stars) {
+                        if (_ratingSubmitting || _ratingSubmitted) return;
+                        setState(() => _ratingStars = stars);
+                      },
+                      onSubmit: _submitDriverRating,
+                    ),
+                  ],
                   if (driver?.stale == true) ...[
                     const SizedBox(height: RamoSpacing.xs),
                     Text(
@@ -296,6 +352,103 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _DriverRatingPanel extends StatelessWidget {
+  const _DriverRatingPanel({
+    required this.stars,
+    required this.submitting,
+    required this.submitted,
+    required this.onChanged,
+    required this.onSubmit,
+    this.error,
+  });
+
+  final int stars;
+  final bool submitting;
+  final bool submitted;
+  final ValueChanged<int> onChanged;
+  final VoidCallback onSubmit;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: .45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            submitted ? 'Avaliação enviada' : 'Como foi sua corrida?',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            submitted
+                ? 'Obrigado por avaliar seu motorista.'
+                : 'Sua avaliação ajuda a manter a qualidade do Ramo Nessa.',
+            style: const TextStyle(color: RamoColors.muted),
+          ),
+          const SizedBox(height: RamoSpacing.sm),
+          Row(
+            children: List.generate(5, (index) {
+              final value = index + 1;
+              return IconButton(
+                tooltip:
+                    value == 1 ? '1 estrela' : value.toString() + ' estrelas',
+                onPressed:
+                    submitting || submitted ? null : () => onChanged(value),
+                icon: Icon(
+                  value <= stars
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  color: RamoColors.brandYellow,
+                  size: 32,
+                ),
+              );
+            }),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: RamoSpacing.xs),
+            Text(
+              error!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          if (!submitted) ...[
+            const SizedBox(height: RamoSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed:
+                    stars > 0 && !submitting ? onSubmit : null,
+                child: submitting
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Enviar avaliação'),
+              ),
+            ),
+          ],
         ],
       ),
     );
