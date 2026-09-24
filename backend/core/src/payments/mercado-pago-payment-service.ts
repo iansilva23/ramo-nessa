@@ -46,6 +46,7 @@ export async function createMercadoPagoPixIntent(input: {
   gateway: MercadoPagoOrdersClient | null;
   ride: RideRecord;
   identity: AuthIdentityRecord | null;
+  payerEmail?: string;
   idempotencyKey: string;
   now?: Date;
 }): Promise<MercadoPagoPixIntent> {
@@ -56,11 +57,13 @@ export async function createMercadoPagoPixIntent(input: {
     );
   }
 
-  const email = input.identity?.emailNormalized?.trim();
+  const email =
+    input.payerEmail?.trim().toLowerCase() ||
+    input.identity?.emailNormalized?.trim();
   if (!email) {
     throw new MercadoPagoPaymentServiceError(
       'PASSENGER_EMAIL_REQUIRED',
-      'Cadastre um e-mail válido antes de pagar com Pix.',
+      'Informe um e-mail válido para gerar o Pix.',
     );
   }
 
