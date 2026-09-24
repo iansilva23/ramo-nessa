@@ -35,6 +35,23 @@ test('catálogo Admin é somente leitura e preserva a autoridade do Core', () =>
       requiresFourByFourOnJeriBoundary: true,
     },
   );
+  assert.deepEqual(
+    catalog.zonePolicies.find(
+      (item) => item.zoneId === 'external',
+    ),
+    {
+      zoneId: 'external',
+      enabled: true,
+    },
+  );
+  assert.equal(
+    catalog.externalLocalities.includes('airport-jjd'),
+    true,
+  );
+  assert.equal(
+    catalog.externalLocalities.includes('sobral'),
+    true,
+  );
 });
 
 test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tarifa por conta própria', () => {
