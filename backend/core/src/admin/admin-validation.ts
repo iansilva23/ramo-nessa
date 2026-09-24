@@ -83,6 +83,138 @@ export interface AdminIdentityDirectoryQuery {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export interface AdminAuditCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface AdminAuditQuery {
+  actorKind?: 'user' | 'api_key';
+  action?: string;
+  targetType?: string;
+  search?: string;
+  limit: number;
+  cursor?: AdminAuditCursor;
+}
+
+export function encodeAdminAuditCursor(input: AdminAuditCursor): string {
+  return Buffer.from(
+    JSON.stringify({
+      v: 1,
+      c: input.createdAt,
+      i: input.id,
+    }),
+    'utf8',
+  ).toString('base64url');
+}
+
+function decodeAdminAuditCursor(value: string): AdminAuditCursor {
+  if (
+    value.length < 8 ||
+    value.length > 512 ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new InvalidAdminRequestError('cursor é inválido.');
+  }
+
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(value, 'base64url').toString('utf8'),
+    ) as {
+      v?: unknown;
+      c?: unknown;
+      i?: unknown;
+    };
+    const createdAt =
+      typeof decoded.c === 'string' ? decoded.c : '';
+    const id =
+      typeof decoded.i === 'string' ? decoded.i : '';
+    if (
+      decoded.v !== 1 ||
+      !Number.isFinite(Date.parse(createdAt)) ||
+      !UUID_PATTERN.test(id)
+    ) {
+      throw new Error('invalid');
+    }
+    return {
+      createdAt: new Date(createdAt).toISOString(),
+      id,
+    };
+  } catch {
+    throw new InvalidAdminRequestError('cursor é inválido.');
+  }
+}
+
+function auditFilterValue(
+  value: string | null,
+  field: 'action' | 'targetType',
+  maxLength: number,
+): string | undefined {
+  const raw = value?.trim() ?? '';
+  if (!raw) return undefined;
+  if (
+    raw.length > maxLength ||
+    /[\u0000-\u001f\u007f]/.test(raw) ||
+    !/^[A-Za-z0-9._:-]+$/.test(raw)
+  ) {
+    throw new InvalidAdminRequestError(
+      `${field} possui valor inválido.`,
+    );
+  }
+  return raw;
+}
+
+export function parseAdminAuditQuery(
+  searchParams: URLSearchParams,
+): AdminAuditQuery {
+  const limit = parseAdminAuditLimit(searchParams.get('limit'));
+
+  const rawActor = searchParams.get('actorKind')?.trim() ?? '';
+  let actorKind: 'user' | 'api_key' | undefined;
+  if (rawActor) {
+    if (rawActor !== 'user' && rawActor !== 'api_key') {
+      throw new InvalidAdminRequestError(
+        'actorKind deve ser user ou api_key.',
+      );
+    }
+    actorKind = rawActor;
+  }
+
+  const action = auditFilterValue(
+    searchParams.get('action'),
+    'action',
+    120,
+  );
+  const targetType = auditFilterValue(
+    searchParams.get('targetType'),
+    'targetType',
+    80,
+  );
+
+  const rawSearch = searchParams.get('query')?.trim() ?? '';
+  if (
+    rawSearch.length > 120 ||
+    /[\u0000-\u001f\u007f]/.test(rawSearch)
+  ) {
+    throw new InvalidAdminRequestError(
+      'query deve ter no máximo 120 caracteres válidos.',
+    );
+  }
+
+  const rawCursor = searchParams.get('cursor')?.trim() ?? '';
+
+  return {
+    limit,
+    ...(actorKind == null ? {} : { actorKind }),
+    ...(action == null ? {} : { action }),
+    ...(targetType == null ? {} : { targetType }),
+    ...(rawSearch ? { search: rawSearch } : {}),
+    ...(rawCursor
+      ? { cursor: decodeAdminAuditCursor(rawCursor) }
+      : {}),
+  };
+}
+
 export function encodeAdminIdentityDirectoryCursor(input: {
   updatedAt: string;
   id: string;
