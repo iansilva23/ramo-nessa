@@ -185,3 +185,37 @@ test('Jeri local não força 4x4 por esta regra de corredor', () => {
 
   assert.equal(rideRequiresFourByFour(localJeri), false);
 });
+
+
+test('matching respeita a política 4x4 congelada na corrida', () => {
+  const currentRide = ride({
+    category: 'comfort_black',
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'jericoacoara' },
+    passengers: 2,
+    requiresFourByFour: false,
+  });
+
+  const ranked = rankEligibleDrivers({
+    ride: currentRide,
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    candidates: [
+      supply('comfort-common-frozen', {
+        categories: ['comfort_black'],
+        fourByFour: false,
+      }),
+      supply('comfort-4x4-frozen', {
+        categories: ['comfort_black'],
+        fourByFour: true,
+        latitude: -2.84,
+      }),
+    ],
+    now,
+  });
+
+  assert.equal(rideRequiresFourByFour(currentRide), false);
+  assert.deepEqual(
+    ranked.map((item) => item.supply.driverId),
+    ['comfort-common-frozen', 'comfort-4x4-frozen'],
+  );
+});
