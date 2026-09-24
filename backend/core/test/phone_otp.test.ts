@@ -51,6 +51,37 @@ test('normaliza celular brasileiro para E.164', () => {
 
 
 
+test('passageiro pode entrar somente com telefone sem cadastrar e-mail', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const sessions = new InMemoryAuthSessionRepository();
+  const delivery = new RecordingDelivery();
+  const now = new Date('2026-09-24T10:00:00.000Z');
+
+  const requested = await requestPhoneOtp({
+    repository,
+    delivery,
+    subjectType: 'passenger',
+    phone: '88999994321',
+    now,
+  });
+
+  const verified = await verifyPhoneOtp({
+    repository,
+    sessions,
+    challengeId: requested.challengeId,
+    code: delivery.sent[0]!.code,
+    now: new Date('2026-09-24T10:00:20.000Z'),
+  });
+
+  assert.equal(verified.subjectType, 'passenger');
+  assert.equal(verified.emailNormalized, undefined);
+  const identity = await repository.findIdentityByPhone(
+    'passenger',
+    '+5588999994321',
+  );
+  assert.equal(identity?.emailNormalized, undefined);
+});
+
 test('e-mail inválido é recusado antes do envio do SMS', async () => {
   const repository = new InMemoryAuthOtpRepository();
   const delivery = new RecordingDelivery();
