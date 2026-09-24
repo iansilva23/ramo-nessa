@@ -57,6 +57,19 @@ void main() {
 
 class _FakeTrackingService implements PassengerRideTrackingService {
   @override
+  Future<PassengerDriverRatingResult> rateDriver(
+    String rideId,
+    int stars,
+  ) async {
+    return PassengerDriverRatingResult(
+      stars: stars,
+      ratingAverage: stars.toDouble(),
+      ratingCount: 1,
+      duplicate: false,
+    );
+  }
+
+  @override
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
     return const PassengerRideTrackingSnapshot(
       rideId: 'ride-1',
