@@ -19,6 +19,7 @@ import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
 import '../../profile/presentation/driver_security_screen.dart';
 import '../../profile/presentation/driver_settings_screen.dart';
+import '../../profile/presentation/driver_support_screen.dart';
 import '../../profile/presentation/driver_terms_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
@@ -1648,6 +1649,22 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               title: 'Localização',
               subtitle: 'Atualização automática enquanto estiver online',
               onTap: _updateLocation,
+            ),
+            _ProfileOption(
+              icon: Icons.support_agent_rounded,
+              title: 'Suporte',
+              subtitle: 'Abrir e acompanhar chamados',
+              onTap: _api == null
+                  ? () {}
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverSupportScreen(
+                            api: _api!,
+                          ),
+                        ),
+                      );
+                    },
             ),
             _ProfileOption(
               icon: Icons.settings_outlined,
