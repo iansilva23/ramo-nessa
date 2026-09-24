@@ -185,7 +185,7 @@ final class _PreviewPaymentService implements PassengerPaymentService {
     required String idempotencyKey,
   }) async {
     const fare = 4500;
-    _walletCents = (_walletCents - fare).clamp(0, 1 << 31);
+    _walletCents = (_walletCents - fare).clamp(0, 1 << 31).toInt();
     return WalletRidePaymentResult(
       rideState: 'SEARCHING_DRIVER',
       walletBalanceCents: _walletCents,
