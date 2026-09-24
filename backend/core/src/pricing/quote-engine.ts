@@ -9,6 +9,7 @@ import {
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
 import { categoryEnabled } from './category-eligibility.js';
+import { assertCatalogLocationSupported } from './catalog-location-policy.js';
 import { splitCommission } from './commission.js';
 import {
   PricingError,
@@ -399,6 +400,17 @@ export function quoteFare(
   request: QuoteRequest,
   catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
 ): FareQuote {
+  assertCatalogLocationSupported({
+    catalog,
+    ref: request.origin,
+    field: 'origin',
+  });
+  assertCatalogLocationSupported({
+    catalog,
+    ref: request.destination,
+    field: 'destination',
+  });
+
   if (!categoryEnabled({ catalog, category: request.category })) {
     throw new PricingError(
       'UNAVAILABLE_CATEGORY',
