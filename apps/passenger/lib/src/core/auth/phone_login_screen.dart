@@ -26,7 +26,6 @@ class PhoneLoginScreen extends StatefulWidget {
 
 class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
   final _codeController = TextEditingController();
 
   RequestedOtp? _challenge;
@@ -37,30 +36,12 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   @override
   void dispose() {
     _phoneController.dispose();
-    _emailController.dispose();
     _codeController.dispose();
     super.dispose();
   }
 
-  bool _looksLikeEmail(String value) {
-    final email = value.trim();
-    final at = email.indexOf('@');
-    final dot = email.lastIndexOf('.');
-    return email.length >= 5 &&
-        at > 0 &&
-        dot > at + 1 &&
-        dot < email.length - 1 &&
-        !email.contains(' ');
-  }
-
   Future<void> _requestCode() async {
     if (_loading) return;
-
-    final email = _emailController.text.trim();
-    if (!_looksLikeEmail(email)) {
-      setState(() => _error = 'Digite um e-mail válido.');
-      return;
-    }
 
     setState(() {
       _loading = true;
@@ -71,7 +52,6 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     try {
       final requested = await widget.service.requestOtp(
         phone: _phoneController.text,
-        email: email,
       );
       if (!mounted) return;
       setState(() {
@@ -162,24 +142,10 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     controller: _phoneController,
                     enabled: !_loading && !waitingForCode,
                     keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
+                    textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
                       labelText: 'Celular com DDD',
                       hintText: '(88) 99999-9999',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    key: const Key('auth-email-field'),
-                    controller: _emailController,
-                    enabled: !_loading && !waitingForCode,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.done,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'E-mail',
-                      hintText: 'voce@exemplo.com',
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) {
@@ -258,7 +224,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                                 _error = null;
                               });
                             },
-                      child: const Text('Alterar dados'),
+                      child: const Text('Alterar número'),
                     ),
                     TextButton(
                       onPressed: _loading ? null : _requestCode,
