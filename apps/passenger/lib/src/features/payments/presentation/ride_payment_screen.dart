@@ -183,6 +183,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         MaterialPageRoute(
           builder: (_) => _PixPaymentScreen(
             rideId: widget.ride.id,
+            holdExpiresAt: widget.ride.holdExpiresAt,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -551,6 +552,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 class _PixPaymentScreen extends StatefulWidget {
   const _PixPaymentScreen({
     required this.rideId,
+    required this.holdExpiresAt,
     required this.result,
     required this.trackingService,
     required this.realtimeService,
@@ -558,6 +560,7 @@ class _PixPaymentScreen extends StatefulWidget {
   });
 
   final String rideId;
+  final DateTime holdExpiresAt;
   final PixRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
   final PassengerRideRealtimeService? realtimeService;
@@ -569,6 +572,8 @@ class _PixPaymentScreen extends StatefulWidget {
 
 class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   Timer? _pollTimer;
+  Timer? _holdTimer;
+  Duration _reservationRemaining = Duration.zero;
   bool _checking = false;
   bool _navigating = false;
   String _statusMessage = 'Aguardando confirmação do Pix…';
@@ -576,6 +581,11 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _updateReservationRemaining();
+    _holdTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _updateReservationRemaining(),
+    );
     if (widget.trackingService != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkStatus());
       _pollTimer = Timer.periodic(
@@ -588,7 +598,27 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _holdTimer?.cancel();
     super.dispose();
+  }
+
+  bool get _reservationExpired =>
+      _reservationRemaining == Duration.zero;
+
+  String get _reservationCountdown {
+    final seconds = _reservationRemaining.inSeconds;
+    final minutes = seconds ~/ 60;
+    final rest = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$rest';
+  }
+
+  void _updateReservationRemaining() {
+    final remaining = widget.holdExpiresAt.difference(DateTime.now());
+    if (!mounted) return;
+    setState(() {
+      _reservationRemaining =
+          remaining.isNegative ? Duration.zero : remaining;
+    });
   }
 
   Uint8List? get _qrBytes {
@@ -603,6 +633,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   }
 
   Future<void> _copyPix() async {
+    if (_reservationExpired) return;
     final code = widget.result.qrCode.trim();
     if (code.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: code));
@@ -653,7 +684,11 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       if (!confirmedStates.contains(snapshot.state)) {
         if (mounted) {
           setState(() {
-            _statusMessage = 'Aguardando confirmação do Pix…';
+            _statusMessage = _reservationExpired
+                ? 'A reserva expirou. Não faça mais este Pix. '
+                    'Se você já pagou, vamos confirmar ou estornar '
+                    'automaticamente.'
+                : 'Aguardando confirmação do Pix…';
           });
         }
         return;
@@ -686,14 +721,18 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
     } on PassengerRideTrackingException {
       if (!mounted) return;
       setState(() {
-        _statusMessage =
-            'Pix gerado. Estamos aguardando a confirmação do pagamento.';
+        _statusMessage = _reservationExpired
+            ? 'A reserva expirou. Não faça mais este Pix. '
+                'Se você já pagou, o status será atualizado automaticamente.'
+            : 'Pix gerado. Estamos aguardando a confirmação do pagamento.';
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _statusMessage =
-            'Pix gerado. A confirmação será atualizada automaticamente.';
+        _statusMessage = _reservationExpired
+            ? 'A reserva expirou. Não faça mais este Pix. '
+                'Se você já pagou, o status será atualizado automaticamente.'
+            : 'Pix gerado. A confirmação será atualizada automaticamente.';
       });
     } finally {
       _checking = false;
@@ -704,6 +743,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   Widget build(BuildContext context) {
     final qrBytes = _qrBytes;
     final hasCopyCode = widget.result.qrCode.trim().isNotEmpty;
+    final reservationExpired = _reservationExpired;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Pagar com Pix')),
@@ -724,8 +764,21 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: RamoSpacing.md),
+            Text(
+              reservationExpired
+                  ? 'Reserva expirada · não faça mais este Pix'
+                  : 'Reserva do motorista: $_reservationCountdown',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: reservationExpired
+                    ? Theme.of(context).colorScheme.error
+                    : null,
+              ),
+            ),
             const SizedBox(height: RamoSpacing.lg),
-            if (qrBytes != null)
+            if (!reservationExpired && qrBytes != null)
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(RamoSpacing.md),
@@ -739,12 +792,20 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
                   ),
                 ),
               )
-            else
+            else if (!reservationExpired)
               const Center(
                 child: Icon(Icons.pix_rounded, size: 96),
+              )
+            else
+              Center(
+                child: Icon(
+                  Icons.timer_off_rounded,
+                  size: 96,
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
             const SizedBox(height: RamoSpacing.lg),
-            if (hasCopyCode)
+            if (!reservationExpired && hasCopyCode)
               FilledButton.icon(
                 onPressed: _copyPix,
                 icon: const Icon(Icons.copy_rounded),
