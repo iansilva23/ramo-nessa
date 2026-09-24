@@ -271,6 +271,7 @@ export function cashRideCommissionDebtLedger(input: {
   rideId: string;
   driverId: string;
   platformCommissionCents: number;
+  driverPayableRecoveryCents?: number;
   createdAt: string;
 }): LedgerTransaction {
   if (
@@ -282,12 +283,35 @@ export function cashRideCommissionDebtLedger(input: {
     );
   }
 
+  const driverPayableRecoveryCents =
+    input.driverPayableRecoveryCents ?? 0;
+  if (
+    !Number.isInteger(driverPayableRecoveryCents) ||
+    driverPayableRecoveryCents < 0 ||
+    driverPayableRecoveryCents > input.platformCommissionCents
+  ) {
+    throw new LedgerError(
+      'Recuperação de comissão cash inválida.',
+    );
+  }
+  const debtCents =
+    input.platformCommissionCents - driverPayableRecoveryCents;
+
   const entries: LedgerEntry[] = [
-    {
-      accountKey: `driver:${input.driverId}:commission_debt`,
-      direction: 'debit',
-      amountCents: input.platformCommissionCents,
-    },
+    ...(driverPayableRecoveryCents > 0
+      ? [{
+          accountKey: `driver:${input.driverId}:payable`,
+          direction: 'debit' as const,
+          amountCents: driverPayableRecoveryCents,
+        }]
+      : []),
+    ...(debtCents > 0
+      ? [{
+          accountKey: `driver:${input.driverId}:commission_debt`,
+          direction: 'debit' as const,
+          amountCents: debtCents,
+        }]
+      : []),
     {
       accountKey: 'platform:revenue',
       direction: 'credit',
