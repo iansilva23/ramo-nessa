@@ -37,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
 class CardTokenizationActivity : ComponentActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -57,11 +58,27 @@ class CardTokenizationActivity : ComponentActivity() {
     private var expirationValid = false
     private var securityFilled = false
     private var cpfValid = false
+    private var singlePaymentAvailable = false
     private var loadingMethod = false
     private var tokenizing = false
+    private var paymentLookupGeneration = 0
+    private var amountCents = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        amountCents = intent.getIntExtra(MainActivity.EXTRA_AMOUNT_CENTS, 0)
+        if (amountCents <= 0) {
+            setResult(
+                RESULT_FIRST_USER,
+                Intent().putExtra(
+                    "error",
+                    "Valor da corrida inválido para pagamento por cartão.",
+                ),
+            )
+            finish()
+            return
+        }
 
         val publicKey = BuildConfig.MERCADO_PAGO_PUBLIC_KEY.trim()
         if (publicKey.isEmpty()) {
@@ -329,8 +346,11 @@ class CardTokenizationActivity : ComponentActivity() {
                     if (bin.length >= 6) {
                         loadPaymentMethod(bin)
                     } else {
+                        paymentLookupGeneration += 1
                         paymentMethodId = null
                         paymentMethodType = null
+                        singlePaymentAvailable = false
+                        loadingMethod = false
                         updateSubmitState()
                     }
                 }
@@ -361,46 +381,100 @@ class CardTokenizationActivity : ComponentActivity() {
     }
 
     private fun loadPaymentMethod(bin: String) {
-        if (loadingMethod) return
+        val generation = ++paymentLookupGeneration
         loadingMethod = true
-        statusText.text = "Identificando seu cartão…"
+        singlePaymentAvailable = false
+        paymentMethodId = null
+        paymentMethodType = null
+        statusText.text = "Validando seu cartão para pagamento à vista…"
         updateSubmitState()
 
         scope.launch {
             try {
-                val result = MercadoPagoSDK.getInstance().coreMethods
-                    .getPaymentMethods(bin = bin)
-                when (result) {
+                val coreMethods = MercadoPagoSDK.getInstance().coreMethods
+                val methodResult = coreMethods.getPaymentMethods(bin = bin)
+                if (generation != paymentLookupGeneration) return@launch
+
+                when (methodResult) {
                     is Result.Success -> {
-                        val method = result.data.firstOrNull()
-                        paymentMethodId = method?.id
-                        paymentMethodType = method?.paymentTypeId
-                        method?.card?.length?.max?.let {
+                        val method = methodResult.data.firstOrNull()
+                        val methodId = method?.id
+                        val methodType = method?.paymentTypeId
+
+                        if (
+                            methodId.isNullOrBlank() ||
+                            (methodType != "credit_card" &&
+                                methodType != "debit_card")
+                        ) {
+                            statusText.text =
+                                "Este cartão não está disponível para pagamento."
+                            return@launch
+                        }
+
+                        method.card?.length?.max?.let {
                             cardNumberField.maxLength = it
                         }
-                        method?.card?.securityCode?.length?.let {
+                        method.card?.securityCode?.length?.let {
                             securityField.securityCodeSize = it
                         }
-                        statusText.text =
-                            if (paymentMethodId != null) "Cartão identificado com segurança."
-                            else "Não conseguimos identificar este cartão."
+
+                        val installmentResult = coreMethods.getInstallments(
+                            bin = bin,
+                            amount = BigDecimal.valueOf(
+                                amountCents.toLong(),
+                                2,
+                            ),
+                        )
+                        if (generation != paymentLookupGeneration) return@launch
+
+                        when (installmentResult) {
+                            is Result.Success -> {
+                                val supportsSinglePayment =
+                                    installmentResult.data.any { option ->
+                                        option.payerCost.orEmpty().any { cost ->
+                                            cost.instalments == 1
+                                        }
+                                    }
+
+                                if (!supportsSinglePayment) {
+                                    statusText.text =
+                                        "Este cartão não permite pagamento à vista " +
+                                            "para este valor."
+                                    return@launch
+                                }
+
+                                paymentMethodId = methodId
+                                paymentMethodType = methodType
+                                singlePaymentAvailable = true
+                                statusText.text =
+                                    "Cartão válido para pagamento à vista."
+                            }
+                            is Result.Error -> {
+                                statusText.text =
+                                    "Não conseguimos validar o pagamento à vista agora."
+                            }
+                        }
                     }
                     is Result.Error -> {
-                        paymentMethodId = null
-                        paymentMethodType = null
-                        statusText.text = when (val error = result.error) {
+                        statusText.text = when (val error = methodResult.error) {
                             is ResultError.Request -> error.message
                             is ResultError.Validation -> error.message
                         }
                     }
                 }
-            } catch (error: Throwable) {
-                paymentMethodId = null
-                paymentMethodType = null
-                statusText.text = "Não conseguimos identificar o cartão agora."
+            } catch (_: Throwable) {
+                if (generation == paymentLookupGeneration) {
+                    paymentMethodId = null
+                    paymentMethodType = null
+                    singlePaymentAvailable = false
+                    statusText.text =
+                        "Não conseguimos validar este cartão agora."
+                }
             } finally {
-                loadingMethod = false
-                updateSubmitState()
+                if (generation == paymentLookupGeneration) {
+                    loadingMethod = false
+                    updateSubmitState()
+                }
             }
         }
     }
@@ -494,6 +568,7 @@ class CardTokenizationActivity : ComponentActivity() {
             !tokenizing &&
             !loadingMethod &&
             cpfValid &&
+            singlePaymentAvailable &&
             cardValid &&
             expirationValid &&
             securityFilled &&
