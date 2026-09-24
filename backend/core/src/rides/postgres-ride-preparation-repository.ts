@@ -74,12 +74,14 @@ export class PostgresRidePreparationRepository
           destination_zone_id, destination_locality_id,
           category, price_period, passengers,
           trip_distance_km, driver_pickup_distance_km,
-          pricing_rule_id, base_amount_cents, pickup_compensation_cents,
+          pricing_rule_id, pricing_catalog_label,
+          pricing_catalog_version_id, pricing_catalog_version_number,
+          base_amount_cents, pickup_compensation_cents,
           total_amount_cents, platform_commission_cents, driver_net_cents,
           created_at, updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
         )
         `,
         [
@@ -104,6 +106,9 @@ export class PostgresRidePreparationRepository
           ride.tripDistanceKm ?? null,
           ride.driverPickupDistanceKm ?? null,
           ride.quote.ruleId,
+          ride.quote.catalogVersion ?? 'v1',
+          ride.quote.catalogVersionId ?? null,
+          ride.quote.catalogVersionNumber ?? null,
           ride.quote.baseAmountCents,
           ride.quote.pickupCompensationCents,
           ride.quote.totalAmountCents,
