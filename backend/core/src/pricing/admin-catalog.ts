@@ -52,6 +52,13 @@ export function adminPricingCatalogView(
     versionNumber: options.versionNumber ?? null,
     effectiveFrom: options.effectiveFrom ?? null,
     categories: [...snapshot.categories],
+    categoryPolicies: snapshot.categories.map((category) => ({
+      category,
+      enabled: snapshot.categoryPolicies[category].enabled,
+      requiresFourByFourOnJeriBoundary:
+        snapshot.categoryPolicies[category]
+          .requiresFourByFourOnJeriBoundary,
+    })),
     periods: [...snapshot.periods],
     zones: [...snapshot.zones],
     commissionBps: snapshot.commissionBps,
