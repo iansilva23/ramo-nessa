@@ -94,6 +94,7 @@ export interface AdminFinanceSummary {
 
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
+  findLatestPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
   findPaidPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
