@@ -962,14 +962,19 @@ const server = createServer(async (request, response) => {
           ? String((body as { password?: unknown }).password ?? '')
           : '';
 
+      const clientIp = requestClientIp(request);
+      const clientInstanceId =
+        headerValue(request, 'x-client-instance-id');
       const session = await loginPassengerWithPassword({
         identities: authOtpRepository,
         sessions: authSessionRepository,
         email,
         password,
         rateLimitSecret: authRateLimitSecret,
-        clientIp: requestClientIp(request),
-        clientInstanceId: headerValue(request, 'x-client-instance-id'),
+        ...(clientIp == null ? {} : { clientIp }),
+        ...(clientInstanceId == null
+          ? {}
+          : { clientInstanceId }),
       });
       json(response, 201, session);
       return;
