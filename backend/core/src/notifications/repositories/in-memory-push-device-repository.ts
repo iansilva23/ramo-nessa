@@ -31,19 +31,24 @@ export class InMemoryPushDeviceRepository
     );
     const next: PushDeviceRecord = existing == null
       ? { ...input, enabled: true }
-      : {
-          ...existing,
-          sessionId: input.sessionId,
-          subjectId: input.subjectId,
-          subjectType: input.subjectType,
-          platform: input.platform,
-          provider: input.provider,
-          token: input.token,
-          tokenHash: input.tokenHash,
-          enabled: true,
-          updatedAt: input.updatedAt,
-          disabledAt: undefined,
-        };
+      : (() => {
+          const {
+            disabledAt: _disabledAt,
+            ...existingWithoutDisabledAt
+          } = existing;
+          return {
+            ...existingWithoutDisabledAt,
+            sessionId: input.sessionId,
+            subjectId: input.subjectId,
+            subjectType: input.subjectType,
+            platform: input.platform,
+            provider: input.provider,
+            token: input.token,
+            tokenHash: input.tokenHash,
+            enabled: true,
+            updatedAt: input.updatedAt,
+          };
+        })();
 
     this.devices.set(next.id, structuredClone(next));
     return structuredClone(next);
