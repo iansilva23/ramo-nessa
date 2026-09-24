@@ -35,16 +35,13 @@ class _FakeAuthService implements PhoneAuthService {
   final bool invalidCurrentSession;
   final bool throwCurrentSession;
   String? requestedPhone;
-  String? requestedEmail;
   int logoutCalls = 0;
 
   @override
   Future<RequestedOtp> requestOtp({
     required String phone,
-    required String email,
   }) async {
     requestedPhone = phone;
-    requestedEmail = email;
     return RequestedOtp(
       challengeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       expiresAt: DateTime(2026, 9, 23, 12, 0),
@@ -109,15 +106,10 @@ void main() {
       find.byKey(const Key('auth-phone-field')),
       '(88) 99999-1234',
     );
-    await tester.enterText(
-      find.byKey(const Key('auth-email-field')),
-      'ian@example.com',
-    );
     await tester.tap(find.byKey(const Key('auth-primary-button')));
     await tester.pumpAndSettle();
 
     expect(service.requestedPhone, '(88) 99999-1234');
-    expect(service.requestedEmail, 'ian@example.com');
     expect(find.byKey(const Key('auth-code-field')), findsOneWidget);
 
     await tester.enterText(
