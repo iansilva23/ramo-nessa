@@ -134,6 +134,7 @@ const scopeLabels = new Map([
   ['drivers:documents:read', 'Consultar documentos de motoristas'],
   ['drivers:documents:write', 'Revisar documentos de motoristas'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
+  ['passengers:auth:write', 'Bloquear e desbloquear passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
   ['finance:read', 'Consultar pagamentos, comissões e saques'],
@@ -2891,6 +2892,7 @@ function renderPassengerDetailEmpty(
   status.textContent = 'Nenhum';
 
   byId('passenger-detail-history').hidden = true;
+  byId('passenger-access-actions').hidden = true;
   byId('passenger-detail-rides-body').replaceChildren();
 }
 
@@ -2945,6 +2947,26 @@ function renderPassengerDetail(payload) {
     ),
   );
   content.append(identity, grid);
+
+  const accessActions = byId('passenger-access-actions');
+  const accessButton = byId('passenger-access-button');
+  const accessNote = byId('passenger-access-note');
+  const canManageAccess = hasScope('passengers:auth:write');
+  accessActions.hidden = !canManageAccess;
+  if (canManageAccess) {
+    const blocking = passenger.status === 'active';
+    accessButton.dataset.nextStatus =
+      blocking ? 'suspended' : 'active';
+    accessButton.textContent =
+      blocking ? 'Bloquear acesso' : 'Desbloquear acesso';
+    accessButton.className = blocking
+      ? 'button button--danger'
+      : 'button button--dark';
+    accessButton.disabled = false;
+    accessNote.textContent = blocking
+      ? 'O bloqueio revoga imediatamente todas as sessões do passageiro.'
+      : 'O desbloqueio libera novo login, mas não restaura sessões revogadas.';
+  }
 
   const summary = payload?.rides ?? {};
   byId('passenger-detail-total-rides').textContent =
@@ -3024,6 +3046,53 @@ async function lookupPassenger(passengerId) {
       return;
     }
     handleAuthenticatedError(error);
+  }
+}
+
+async function handlePassengerAccessChange() {
+  const passengerId =
+    state.selectedPassenger?.passenger?.passengerId;
+  const button = byId('passenger-access-button');
+  const nextStatus = button.dataset.nextStatus;
+
+  if (
+    !state.token ||
+    !passengerId ||
+    !hasScope('passengers:auth:write') ||
+    (nextStatus !== 'active' && nextStatus !== 'suspended')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const result = await api.setPassengerStatus(state.token, {
+      passengerId,
+      status: nextStatus,
+    });
+
+    await loadPassengerDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupPassenger(passengerId);
+
+    const revoked = Number(result?.revokedSessions ?? 0);
+    setMessage(
+      globalMessage,
+      nextStatus === 'suspended'
+        ? `Passageiro bloqueado. ${revoked} sessão(ões) revogada(s).`
+        : 'Passageiro desbloqueado. Um novo login será necessário.',
+      'success',
+    );
+
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -3526,6 +3595,9 @@ byId('passenger-directory-form').addEventListener('submit', (event) => {
 });
 byId('passenger-directory-more').addEventListener('click', () => {
   void loadPassengerDirectory({ reset: false, announce: false });
+});
+byId('passenger-access-button').addEventListener('click', () => {
+  void handlePassengerAccessChange();
 });
 byId('refresh-dashboard-button').addEventListener('click', () => {
   void loadDashboard();
