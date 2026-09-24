@@ -32,7 +32,9 @@
 	<string>O Ramo Nessa Motorista usa sua localização em segundo plano enquanto você estiver online para manter sua posição atualizada e receber corridas.</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>fetch</string>
 		<string>location</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

@@ -7,6 +7,8 @@ import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
 import 'core/config/driver_core_config.dart';
 import 'core/location/driver_location_service.dart';
+import 'core/notifications/firebase_push_coordinator.dart';
+import 'core/notifications/push_foreground_listener.dart';
 import 'core/navigation/driver_navigation_service.dart';
 import 'features/home/data/driver_api.dart';
 import 'features/home/data/driver_realtime_service.dart';
@@ -21,6 +23,7 @@ class RamoNessaDriverApp extends StatelessWidget {
     this.locationService,
     this.navigationService,
     this.realtimeService,
+    this.pushCoordinator,
   });
 
   final String? accessToken;
@@ -29,6 +32,7 @@ class RamoNessaDriverApp extends StatelessWidget {
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
   final DriverRealtimeService? realtimeService;
+  final FirebasePushCoordinator? pushCoordinator;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +76,8 @@ class RamoNessaDriverApp extends StatelessWidget {
         loginSubtitle:
             'Entre com o celular aprovado no seu cadastro de motorista.',
         authenticatedBuilder: (token, logout) => home(token, logout),
+        onSessionReady: pushCoordinator?.bindSession,
+        onSessionEnded: pushCoordinator?.unbindSession,
       );
     }
 
@@ -81,7 +87,10 @@ class RamoNessaDriverApp extends StatelessWidget {
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
-      home: homeWidget,
+      home: PushForegroundListener(
+        coordinator: pushCoordinator,
+        child: homeWidget,
+      ),
     );
   }
 }

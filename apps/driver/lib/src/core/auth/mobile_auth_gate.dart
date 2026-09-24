@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'auth_token_store.dart';
@@ -15,6 +17,8 @@ class MobileAuthGate extends StatefulWidget {
     required this.loginTitle,
     required this.loginSubtitle,
     required this.authenticatedBuilder,
+    this.onSessionReady,
+    this.onSessionEnded,
   });
 
   final String subjectType;
@@ -28,6 +32,8 @@ class MobileAuthGate extends StatefulWidget {
     String? accessToken,
     Future<bool> Function() logout,
   ) authenticatedBuilder;
+  final Future<void> Function(String accessToken)? onSessionReady;
+  final Future<void> Function()? onSessionEnded;
 
   @override
   State<MobileAuthGate> createState() => _MobileAuthGateState();
@@ -69,6 +75,14 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
       // As chamadas protegidas continuarão dependendo da validação do servidor.
     }
 
+    final readyToken = _accessToken;
+    if (readyToken != null && readyToken.length >= 20) {
+      final callback = widget.onSessionReady;
+      if (callback != null) {
+        unawaited(callback(readyToken));
+      }
+    }
+
     if (!mounted) return;
     setState(() => _checking = false);
   }
@@ -78,6 +92,10 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
       _accessToken = token;
       _checking = false;
     });
+    final callback = widget.onSessionReady;
+    if (callback != null) {
+      unawaited(callback(token));
+    }
   }
 
   Future<bool> _logout() async {
@@ -97,6 +115,15 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
     } catch (_) {
       // A sessão já foi revogada no Core. Um token local residual será
       // rejeitado no próximo bootstrap e não deve manter a UI autenticada.
+    }
+
+    final ended = widget.onSessionEnded;
+    if (ended != null) {
+      try {
+        await ended();
+      } catch (_) {
+        // Logout do Core já foi concluído; push é best-effort.
+      }
     }
 
     if (!mounted) return true;

@@ -28,6 +28,11 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>O Ramo Nessa usa sua localização para encontrar sua origem e calcular rotas próximas.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

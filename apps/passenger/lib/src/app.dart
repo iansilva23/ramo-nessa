@@ -7,6 +7,8 @@ import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
 import 'core/config/ramo_core_config.dart';
 import 'core/location/location_service.dart';
+import 'core/notifications/firebase_push_coordinator.dart';
+import 'core/notifications/push_foreground_listener.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/payments/data/passenger_payment_service.dart';
 import 'features/map/data/place_search_service.dart';
@@ -29,6 +31,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.paymentService,
     this.rideTrackingService,
     this.rideRealtimeService,
+    this.pushCoordinator,
     this.networkTilesEnabled = true,
   });
 
@@ -42,6 +45,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
+  final FirebasePushCoordinator? pushCoordinator;
   final bool networkTilesEnabled;
 
   @override
@@ -91,6 +95,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => home(token, logout),
+        onSessionReady: pushCoordinator?.bindSession,
+        onSessionEnded: pushCoordinator?.unbindSession,
       );
     }
 
@@ -100,7 +106,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
-      home: homeWidget,
+      home: PushForegroundListener(
+        coordinator: pushCoordinator,
+        child: homeWidget,
+      ),
     );
   }
 }
