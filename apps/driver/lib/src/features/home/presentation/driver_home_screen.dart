@@ -1165,46 +1165,94 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Widget _buildActivity(DriverSupplySnapshot supply) {
+    final activity = _activity;
+
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          RamoSpacing.lg,
-          RamoSpacing.lg,
-          RamoSpacing.lg,
-          RamoSpacing.xxl,
-        ),
-        children: [
-          const _SectionHeader(
-            eyebrow: 'CORRIDAS',
-            title: 'Atividade',
-            subtitle: 'Sua operação atual fica separada da tela principal.',
+      child: RefreshIndicator(
+        onRefresh: _refreshActivity,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.xxl,
           ),
-          const SizedBox(height: RamoSpacing.lg),
-          if (_activeRide != null)
-            _ActiveRideCard(
-              ride: _activeRide!,
-              busy: _rideAction,
-              onNavigate: _navigateActiveRide,
-              onArrived: _markArrived,
-              onStart: _startRide,
-              onComplete: _completeRide,
-              route: _activeRoute,
-            )
-          else
-            _WaitingCard(
-              icon: Icons.history_rounded,
-              title: 'Nenhuma corrida ativa',
-              subtitle: supply.online
-                  ? 'Você está online e pronto para receber novas corridas.'
-                  : 'Fique online pela tela Início quando quiser dirigir.',
+          children: [
+            const _SectionHeader(
+              eyebrow: 'CORRIDAS',
+              title: 'Atividade',
+              subtitle: 'Resumo e histórico recente da sua operação.',
             ),
-        ],
+            const SizedBox(height: RamoSpacing.lg),
+            if (_activityLoading && activity == null)
+              const Center(child: CircularProgressIndicator())
+            else if (activity != null) ...[
+              _ActivitySummaryGrid(activity: activity),
+              const SizedBox(height: RamoSpacing.lg),
+            ],
+            if (_activeRide != null) ...[
+              const Text(
+                'Corrida atual',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
+                ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              _ActiveRideCard(
+                ride: _activeRide!,
+                busy: _rideAction,
+                onNavigate: _navigateActiveRide,
+                onArrived: _markArrived,
+                onStart: _startRide,
+                onComplete: _completeRide,
+                route: _activeRoute,
+              ),
+              const SizedBox(height: RamoSpacing.xl),
+            ],
+            const Text(
+              'Histórico recente',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+              ),
+            ),
+            const SizedBox(height: RamoSpacing.sm),
+            if (activity == null || activity.rides.isEmpty)
+              _WaitingCard(
+                icon: Icons.history_rounded,
+                title: 'Nenhuma corrida no histórico',
+                subtitle: supply.online
+                    ? 'Suas corridas aparecerão aqui quando forem concluídas.'
+                    : 'Fique online pela tela Início quando quiser dirigir.',
+              )
+            else
+              ...activity.rides.map(
+                (ride) => Padding(
+                  padding: const EdgeInsets.only(bottom: RamoSpacing.sm),
+                  child: _ActivityRideCard(ride: ride),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildProfile(DriverSupplySnapshot supply) {
-    final categories = supply.categories
+    final profile = _profile;
+    final fallbackCategories = supply.categories
+        .map((category) => switch (category) {
+              'moto' => 'Moto',
+              'car' => 'Carro',
+              'comfort_black' => 'Comfort / Black',
+              'buggy' => 'Buggy',
+              'delivery' => 'Entrega',
+              _ => category,
+            })
+        .join(' · ');
+    final profileCategories = profile?.vehicleCategories
         .map((category) => switch (category) {
               'moto' => 'Moto',
               'car' => 'Carro',
@@ -1216,57 +1264,106 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         .join(' · ');
 
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          RamoSpacing.lg,
-          RamoSpacing.lg,
-          RamoSpacing.lg,
-          RamoSpacing.xxl,
-        ),
-        children: [
-          const _SectionHeader(
-            eyebrow: 'CONTA',
-            title: 'Perfil',
-            subtitle: 'Dados da conta e da operação do motorista.',
+      child: RefreshIndicator(
+        onRefresh: _refreshProfile,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.xxl,
           ),
-          const SizedBox(height: RamoSpacing.lg),
-          _DriverProfileHero(
-            driverId: supply.driverId,
-            online: supply.online,
-          ),
-          const SizedBox(height: RamoSpacing.lg),
-          _ProfileOption(
-            icon: Icons.directions_car_filled_rounded,
-            title: 'Veículo',
-            subtitle: supply.vehicleId,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => _DriverVehicleDetailsScreen(
-                    vehicleId: supply.vehicleId,
-                    categories: categories,
-                    seatCapacity: supply.seatCapacity,
-                    fourByFour: supply.fourByFour,
-                  ),
-                ),
-              );
-            },
-          ),
-          _ProfileOption(
-            icon: Icons.location_on_rounded,
-            title: 'Localização',
-            subtitle: 'Atualização automática durante o modo online',
-            onTap: _updateLocation,
-          ),
-          if (widget.onLogout != null)
-            _ProfileOption(
-              icon: Icons.logout_rounded,
-              title: 'Sair da conta',
-              subtitle: 'Encerrar a sessão neste aparelho',
-              onTap: _logout,
-              destructive: true,
+          children: [
+            const _SectionHeader(
+              eyebrow: 'CONTA',
+              title: 'Perfil',
+              subtitle: 'Sua conta, veículo e preferências.',
             ),
-        ],
+            const SizedBox(height: RamoSpacing.lg),
+            _DriverProfileHero(
+              driverId: supply.driverId,
+              online: supply.online,
+              displayName: profile?.displayName,
+              phone: profile?.phoneE164,
+              loading: _profileLoading && profile == null,
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            _ProfileOption(
+              icon: Icons.badge_outlined,
+              title: 'Dados pessoais',
+              subtitle: profile?.phoneE164 ?? 'Dados da sua conta',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _DriverPersonalDataScreen(
+                      profile: profile,
+                      driverId: supply.driverId,
+                    ),
+                  ),
+                );
+              },
+            ),
+            _ProfileOption(
+              icon: Icons.receipt_long_rounded,
+              title: 'Resumo de corridas',
+              subtitle: _activity == null
+                  ? 'Consultar sua atividade'
+                  : '${_activity!.completed} concluídas · '
+                      '${_activity!.cancelled} canceladas',
+              onTap: () => setState(() => _selectedTab = 2),
+            ),
+            _ProfileOption(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Carteira',
+              subtitle: _finance == null
+                  ? 'Saldo e saques'
+                  : 'Disponível: ${formatCents(_finance!.availableBalanceCents)}',
+              onTap: () => setState(() => _selectedTab = 1),
+            ),
+            _ProfileOption(
+              icon: Icons.directions_car_filled_rounded,
+              title: 'Veículo',
+              subtitle: profile?.vehicleLabel ?? supply.vehicleId,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _DriverVehicleDetailsScreen(
+                      vehicleId: profile?.vehicleId ?? supply.vehicleId,
+                      categories:
+                          profileCategories?.isNotEmpty == true
+                              ? profileCategories!
+                              : fallbackCategories,
+                      seatCapacity:
+                          profile?.vehicleSeatCapacity ?? supply.seatCapacity,
+                      fourByFour:
+                          profile?.vehicleFourByFour ?? supply.fourByFour,
+                      plate: profile?.vehiclePlate,
+                      make: profile?.vehicleMake,
+                      model: profile?.vehicleModel,
+                      modelYear: profile?.vehicleYear,
+                      color: profile?.vehicleColor,
+                    ),
+                  ),
+                );
+              },
+            ),
+            _ProfileOption(
+              icon: Icons.location_on_rounded,
+              title: 'Localização',
+              subtitle: 'Atualização automática enquanto estiver online',
+              onTap: _updateLocation,
+            ),
+            if (widget.onLogout != null)
+              _ProfileOption(
+                icon: Icons.logout_rounded,
+                title: 'Sair da conta',
+                subtitle: 'Encerrar a sessão neste aparelho',
+                onTap: _logout,
+                destructive: true,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1577,10 +1674,16 @@ class _DriverProfileHero extends StatelessWidget {
   const _DriverProfileHero({
     required this.driverId,
     required this.online,
+    this.displayName,
+    this.phone,
+    this.loading = false,
   });
 
   final String driverId;
   final bool online;
+  final String? displayName;
+  final String? phone;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -1603,9 +1706,13 @@ class _DriverProfileHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Motorista Ramo Nessa',
-                  style: TextStyle(
+                Text(
+                  loading
+                      ? 'Carregando perfil…'
+                      : (displayName?.trim().isNotEmpty == true
+                          ? displayName!.trim()
+                          : 'Motorista Ramo Nessa'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                     fontSize: 19,
@@ -1613,7 +1720,7 @@ class _DriverProfileHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  driverId,
+                  phone?.trim().isNotEmpty == true ? phone! : driverId,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Colors.white70),
@@ -1677,18 +1784,195 @@ class _ProfileOption extends StatelessWidget {
   }
 }
 
+class _ActivitySummaryGrid extends StatelessWidget {
+  const _ActivitySummaryGrid({required this.activity});
+
+  final DriverActivitySnapshot activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      ('Total', activity.total.toString()),
+      ('Concluídas', activity.completed.toString()),
+      ('Canceladas', activity.cancelled.toString()),
+      ('Ganhos', formatCents(activity.earningsCents)),
+    ];
+
+    return Wrap(
+      spacing: RamoSpacing.sm,
+      runSpacing: RamoSpacing.sm,
+      children: items
+          .map(
+            (item) => SizedBox(
+              width: (MediaQuery.sizeOf(context).width -
+                      RamoSpacing.lg * 2 -
+                      RamoSpacing.sm) /
+                  2,
+              child: Container(
+                padding: const EdgeInsets.all(RamoSpacing.md),
+                decoration: BoxDecoration(
+                  color: RamoColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(RamoRadius.md),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.$1,
+                      style: const TextStyle(
+                        color: RamoColors.muted,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.$2,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+}
+
+class _ActivityRideCard extends StatelessWidget {
+  const _ActivityRideCard({required this.ride});
+
+  final DriverActivityRide ride;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: RamoColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(RamoRadius.md),
+      child: Padding(
+        padding: const EdgeInsets.all(RamoSpacing.md),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.white,
+              foregroundColor: RamoColors.brandBlack,
+              child: Icon(
+                ride.state == 'COMPLETED'
+                    ? Icons.check_rounded
+                    : ride.state.startsWith('CANCELLED_')
+                        ? Icons.close_rounded
+                        : Icons.route_rounded,
+              ),
+            ),
+            const SizedBox(width: RamoSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${ride.origin.displayName} → '
+                    '${ride.destination.displayName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${ride.categoryLabel} · ${ride.stateLabel}',
+                    style: const TextStyle(
+                      color: RamoColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: RamoSpacing.sm),
+            Text(
+              formatCents(ride.driverEarningsCents),
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverPersonalDataScreen extends StatelessWidget {
+  const _DriverPersonalDataScreen({
+    required this.profile,
+    required this.driverId,
+  });
+
+  final DriverProfileSnapshot? profile;
+  final String driverId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Dados pessoais')),
+      body: ListView(
+        padding: const EdgeInsets.all(RamoSpacing.lg),
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Nome'),
+            subtitle: Text(profile?.fullName ?? 'Não informado'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Nome de exibição'),
+            subtitle: Text(profile?.displayName ?? 'Motorista Ramo Nessa'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Telefone'),
+            subtitle: Text(profile?.phoneE164 ?? 'Não informado'),
+          ),
+          if (profile?.email != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('E-mail'),
+              subtitle: Text(profile!.email!),
+            ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Identificador'),
+            subtitle: Text(driverId),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DriverVehicleDetailsScreen extends StatelessWidget {
   const _DriverVehicleDetailsScreen({
     required this.vehicleId,
     required this.categories,
     required this.seatCapacity,
     required this.fourByFour,
+    this.plate,
+    this.make,
+    this.model,
+    this.modelYear,
+    this.color,
   });
 
   final String vehicleId;
   final String categories;
   final int seatCapacity;
   final bool fourByFour;
+  final String? plate;
+  final String? make;
+  final String? model;
+  final int? modelYear;
+  final String? color;
 
   @override
   Widget build(BuildContext context) {
@@ -1702,6 +1986,30 @@ class _DriverVehicleDetailsScreen extends StatelessWidget {
             title: const Text('Veículo aprovado'),
             subtitle: Text(vehicleId),
           ),
+          if (plate != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Placa'),
+              subtitle: Text(plate!),
+            ),
+          if (make != null || model != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Modelo'),
+              subtitle: Text(
+                [
+                  if (make != null) make!,
+                  if (model != null) model!,
+                  if (modelYear != null) modelYear.toString(),
+                ].join(' '),
+              ),
+            ),
+          if (color != null)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Cor'),
+              subtitle: Text(color!),
+            ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Categorias'),
