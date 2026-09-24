@@ -126,4 +126,14 @@ export class PostgresDriverSupplyRepository
     );
     return result.rows.map(mapRow);
   }
+
+  async listFleet(): Promise<DriverSupplyRecord[]> {
+    const result = await this.pool.query<DriverSupplyRow>(
+      `SELECT ${COLUMNS}
+       FROM driver_supply
+       WHERE online = TRUE
+       ORDER BY location_updated_at DESC`,
+    );
+    return result.rows.map(mapRow);
+  }
 }
