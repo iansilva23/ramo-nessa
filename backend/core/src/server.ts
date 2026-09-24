@@ -28,6 +28,7 @@ import {
   applyMercadoPagoOrderStatus,
   createMercadoPagoPixIntent,
   MercadoPagoPaymentServiceError,
+  shouldRefundMercadoPagoPaymentBeforeDispatch,
 } from './payments/mercado-pago-payment-service.js';
 import {
   InvalidPaymentRequestError,
@@ -229,7 +230,6 @@ import {
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
-import { isDriverPaymentHoldExpired } from './rides/ride.js';
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
@@ -386,8 +386,8 @@ async function processConfirmedMercadoPagoRide(
   const rideBeforeConfirmation =
     await rideRepository.findById(payment.rideId);
   const expiredHold =
-    rideBeforeConfirmation?.state === 'AWAITING_PAYMENT' &&
-    isDriverPaymentHoldExpired(
+    rideBeforeConfirmation != null &&
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
       rideBeforeConfirmation,
       confirmationTime,
     );
