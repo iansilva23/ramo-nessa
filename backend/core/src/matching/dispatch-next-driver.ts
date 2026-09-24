@@ -11,6 +11,7 @@ import type { GeoPoint } from './select-driver.js';
 import { rankEligibleDrivers } from './select-driver.js';
 import type { RideMatchingRepository } from './ride-matching-repository.js';
 import type { RideOfferRecord } from './ride-offer.js';
+import { notifyDefaultPushSubject } from '../notifications/push-notification-service.js';
 
 export type DispatchNextResult =
   | {
@@ -136,6 +137,20 @@ export async function dispatchNextDriver(input: {
     now,
     ttlSeconds:
       input.offerTtlSeconds ?? DEFAULT_DRIVER_OFFER_TTL_SECONDS,
+  });
+
+  notifyDefaultPushSubject({
+    subjectType: 'driver',
+    subjectId: created.offer.driverId,
+    message: {
+      type: 'driver.offer.new',
+      title: 'Nova corrida',
+      body: 'Uma nova corrida está disponível. Abra o app para responder.',
+      data: {
+        offerId: created.offer.id,
+        rideId: created.offer.rideId,
+      },
+    },
   });
 
   return { kind: 'OFFER_CREATED', offer: created.offer };

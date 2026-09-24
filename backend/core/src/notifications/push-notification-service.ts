@@ -52,11 +52,18 @@ export interface PushNotificationStats {
   invalidated: number;
 }
 
+let defaultPushNotificationService: PushNotificationService | null = null;
+
 export class PushNotificationService {
   constructor(
     private readonly repository: PushDeviceRepository,
     private readonly provider: PushDeliveryProvider,
-  ) {}
+    registerAsDefault = true,
+  ) {
+    if (registerAsDefault) {
+      defaultPushNotificationService = this;
+    }
+  }
 
   get providerKind(): string {
     return this.provider.kind;
@@ -102,4 +109,18 @@ export class PushNotificationService {
       invalidated,
     };
   }
+}
+
+
+export function notifyDefaultPushSubject(input: {
+  subjectType: AuthSessionRecord['subjectType'];
+  subjectId: string;
+  message: PushMessage;
+}): void {
+  const service = defaultPushNotificationService;
+  if (service == null) return;
+
+  void service.notifySubject(input).catch(() => {
+    // Push é best-effort e nunca bloqueia matching ou estado da corrida.
+  });
 }
