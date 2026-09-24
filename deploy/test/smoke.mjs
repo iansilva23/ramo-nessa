@@ -819,6 +819,61 @@ try {
     );
   }
 
+  const ridesHistory = await jsonRequest(
+    '/v1/admin/rides?scope=all&from=2026-09-20&to=2026-09-24&limit=20',
+    { headers: authHeaders },
+  );
+  if (
+    ridesHistory.response.status !== 200 ||
+    !Array.isArray(ridesHistory.payload?.items)
+  ) {
+    throw new Error(
+      'Histórico administrativo de viagens por período não foi confirmado.',
+    );
+  }
+
+  const invalidAdminCancel = await jsonRequest(
+    '/v1/admin/rides/99999999-9999-4999-8999-999999999999/cancel',
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ reason: 'x' }),
+    },
+  );
+  if (
+    invalidAdminCancel.response.status !== 422 ||
+    invalidAdminCancel.payload?.error !== 'INVALID_CANCELLATION_REASON'
+  ) {
+    throw new Error(
+      'Validação do motivo de cancelamento administrativo falhou.',
+    );
+  }
+
+  const missingAdminCancel = await jsonRequest(
+    '/v1/admin/rides/99999999-9999-4999-8999-999999999999/cancel',
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        reason: 'Teste de rota administrativa sem corrida real',
+      }),
+    },
+  );
+  if (
+    missingAdminCancel.response.status !== 404 ||
+    missingAdminCancel.payload?.error !== 'RIDE_NOT_FOUND'
+  ) {
+    throw new Error(
+      'Rota administrativa de cancelamento não tratou corrida ausente.',
+    );
+  }
+
   const missingRide = await jsonRequest(
     '/v1/admin/rides/99999999-9999-4999-8999-999999999999',
     { headers: authHeaders },
