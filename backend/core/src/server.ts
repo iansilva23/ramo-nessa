@@ -163,6 +163,10 @@ import {
   adminPassengerProfile,
   setPassengerAuthStatusFromAdmin,
 } from './admin/admin-passenger-service.js';
+import {
+  AdminRideCancellationError,
+  cancelRideFromAdmin,
+} from './admin/admin-ride-cancellation-service.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
 import {
@@ -1012,6 +1016,59 @@ const server = createServer(async (request, response) => {
           updatedAt: ride.updatedAt,
         })),
         nextCursor,
+      });
+      return;
+    }
+
+    const adminRideCancelMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/rides\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})\/cancel$/,
+    );
+    if (
+      request.method === 'POST' &&
+      adminRideCancelMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:write',
+      });
+      const body = await readJson(request);
+      const reason =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        'reason' in body
+          ? String((body as { reason?: unknown }).reason ?? '')
+          : '';
+
+      const result = await cancelRideFromAdmin({
+        rides: rideRepository,
+        matching: rideMatchingRepository,
+        finance: financeRepository,
+        admin: adminRepository,
+        actor,
+        rideId: adminRideCancelMatch[1]!,
+        reason,
+      });
+      const ride = result.ride;
+      json(response, 200, {
+        ride: {
+          id: ride.id,
+          state: ride.state,
+          paymentStatus: ride.paymentStatus,
+          passengerId: ride.passengerId,
+          driverId: ride.driverId ?? null,
+          reservedDriverId: ride.reservedDriverId ?? null,
+          category: ride.category,
+          origin: ride.origin,
+          destination: ride.destination,
+          totalAmountCents: ride.quote.totalAmountCents,
+          updatedAt: ride.updatedAt,
+        },
+        payment: result.payment,
+        duplicateCancellation: result.duplicateCancellation,
+        refundStatus: result.refundStatus,
       });
       return;
     }
@@ -2243,6 +2300,20 @@ const server = createServer(async (request, response) => {
               error.code === 'PRICING_STRUCTURE_CONFLICT'
             ? 409
             : 400;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminRideCancellationError) {
+      const status =
+        error.code === 'RIDE_NOT_FOUND'
+          ? 404
+          : error.code === 'INVALID_CANCELLATION_REASON'
+            ? 422
+            : 409;
       json(response, status, {
         error: error.code,
         message: error.message,
