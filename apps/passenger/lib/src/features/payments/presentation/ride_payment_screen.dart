@@ -576,7 +576,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               key: const Key('payment-option-card'),
               icon: Icons.credit_card_rounded,
               title: 'Cartão',
-              subtitle: 'Dados protegidos pelo Mercado Pago · 3DS quando necessário',
+              subtitle: 'À vista · dados protegidos pelo Mercado Pago · 3DS quando necessário',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
