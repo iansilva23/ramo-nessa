@@ -11,6 +11,8 @@ import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
+import '../../finance/presentation/driver_statement_screen.dart';
+import '../../finance/presentation/driver_wallet_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/driver_route_service.dart';
@@ -1248,6 +1250,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               requesting: _payoutAction,
               onRefresh: _refreshFinance,
               onRequestPayout: _requestPayout,
+              onOpenStatement: _api == null
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverStatementScreen(
+                            api: _api!,
+                          ),
+                        ),
+                      );
+                    },
             ),
           ],
         ),
@@ -1410,7 +1423,37 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               subtitle: _finance == null
                   ? 'Saldo e saques'
                   : 'Disponível: ${formatCents(_finance!.availableBalanceCents)}',
-              onTap: () => setState(() => _selectedTab = 1),
+              onTap: _api == null
+                  ? () {}
+                  : () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverWalletScreen(
+                            api: _api!,
+                            initialFinance: _finance,
+                          ),
+                        ),
+                      );
+                      if (mounted) {
+                        await _refreshFinance(showError: false);
+                      }
+                    },
+            ),
+            _ProfileOption(
+              icon: Icons.receipt_long_rounded,
+              title: 'Extrato de ganhos',
+              subtitle: 'Corridas, taxas, saques e saldo',
+              onTap: _api == null
+                  ? () {}
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverStatementScreen(
+                            api: _api!,
+                          ),
+                        ),
+                      );
+                    },
             ),
             _ProfileOption(
               icon: Icons.directions_car_filled_rounded,
@@ -2129,6 +2172,7 @@ class _DriverFinanceCard extends StatelessWidget {
     required this.requesting,
     required this.onRefresh,
     required this.onRequestPayout,
+    required this.onOpenStatement,
   });
 
   final DriverFinanceSummary? finance;
@@ -2136,75 +2180,10 @@ class _DriverFinanceCard extends StatelessWidget {
   final bool requesting;
   final VoidCallback onRefresh;
   final VoidCallback onRequestPayout;
+  final VoidCallback? onOpenStatement;
 
   void _showWalletStatement(BuildContext context) {
-    final current = finance;
-    if (current == null) return;
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        final cashDebt = current.cashCommissionDebtCents;
-
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                RamoSpacing.lg,
-                0,
-                RamoSpacing.lg,
-                RamoSpacing.xl,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                Text(
-                  'Extrato da carteira',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: RamoSpacing.md),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Disponível para saque'),
-                  trailing: Text(
-                    formatCents(current.availableBalanceCents),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Em processamento'),
-                  trailing: Text(
-                    formatCents(current.payoutPendingCents),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                if (cashDebt > 0) ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Taxa de uso do app pendente'),
-                    trailing: Text(
-                      formatCents(cashDebt),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  const Text(
-                    'Esse valor vem de corridas recebidas em dinheiro e '
-                    'será compensado automaticamente pelos próximos '
-                    'recebimentos digitais.',
-                  ),
-                ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    onOpenStatement?.call();
   }
 
   @override
@@ -2265,7 +2244,9 @@ class _DriverFinanceCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed:
-                  finance == null ? null : () => _showWalletStatement(context),
+                  finance == null || onOpenStatement == null
+                      ? null
+                      : () => _showWalletStatement(context),
               icon: const Icon(Icons.receipt_long_rounded),
               label: const Text('Ver extrato'),
             ),
