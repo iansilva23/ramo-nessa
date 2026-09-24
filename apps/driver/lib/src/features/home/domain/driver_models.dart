@@ -88,6 +88,9 @@ class DriverOffer {
     required this.destination,
     required this.driverEarningsCents,
     required this.pickupCompensationCents,
+    this.paymentMethod,
+    this.cashCollectionAmountCents,
+    this.cashCommissionCents,
   });
 
   factory DriverOffer.fromJson(Map<String, dynamic> json) {
@@ -108,6 +111,11 @@ class DriverOffer {
       driverEarningsCents: (json['driverEarningsCents'] as num).toInt(),
       pickupCompensationCents:
           (json['pickupCompensationCents'] as num).toInt(),
+      paymentMethod: json['paymentMethod'] as String?,
+      cashCollectionAmountCents:
+          (json['cashCollectionAmountCents'] as num?)?.toInt(),
+      cashCommissionCents:
+          (json['cashCommissionCents'] as num?)?.toInt(),
     );
   }
 
@@ -121,6 +129,11 @@ class DriverOffer {
   final DriverLocationRef destination;
   final int driverEarningsCents;
   final int pickupCompensationCents;
+  final String? paymentMethod;
+  final int? cashCollectionAmountCents;
+  final int? cashCommissionCents;
+
+  bool get isCash => paymentMethod == 'cash';
 
   String get categoryLabel => switch (category) {
         'moto' => 'Moto',
@@ -142,6 +155,9 @@ class AcceptedDriverRide {
     required this.destination,
     required this.driverEarningsCents,
     required this.pickupCompensationCents,
+    this.paymentMethod,
+    this.cashCollectionAmountCents,
+    this.cashCommissionCents,
     this.pickupLatitude,
     this.pickupLongitude,
     this.dropoffLatitude,
@@ -163,6 +179,11 @@ class AcceptedDriverRide {
       driverEarningsCents: (json['driverEarningsCents'] as num).toInt(),
       pickupCompensationCents:
           (json['pickupCompensationCents'] as num).toInt(),
+      paymentMethod: json['paymentMethod'] as String?,
+      cashCollectionAmountCents:
+          (json['cashCollectionAmountCents'] as num?)?.toInt(),
+      cashCommissionCents:
+          (json['cashCommissionCents'] as num?)?.toInt(),
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
       pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble(),
       dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble(),
@@ -178,10 +199,15 @@ class AcceptedDriverRide {
   final DriverLocationRef destination;
   final int driverEarningsCents;
   final int pickupCompensationCents;
+  final String? paymentMethod;
+  final int? cashCollectionAmountCents;
+  final int? cashCommissionCents;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;
   final double? dropoffLongitude;
+
+  bool get isCash => paymentMethod == 'cash';
 }
 
 String formatCents(int cents) {
