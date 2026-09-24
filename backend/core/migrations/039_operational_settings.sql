@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS operational_settings (
   driver_offer_ttl_seconds integer NOT NULL
     CHECK (driver_offer_ttl_seconds BETWEEN 5 AND 120),
   show_nearby_drivers boolean NOT NULL DEFAULT false,
+  mercado_pago_public_key text,
   updated_at timestamptz NOT NULL
 );
 
@@ -15,7 +16,8 @@ INSERT INTO operational_settings (
   id,
   driver_offer_ttl_seconds,
   show_nearby_drivers,
+  mercado_pago_public_key,
   updated_at
 )
-VALUES (1, 35, false, now())
+VALUES (1, 35, false, NULL, now())
 ON CONFLICT (id) DO NOTHING;
