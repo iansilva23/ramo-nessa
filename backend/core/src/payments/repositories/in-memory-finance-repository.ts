@@ -560,19 +560,26 @@ export class InMemoryFinanceRepository implements FinanceRepository {
         `driver:${input.driverId}:payable`,
       ),
     );
-    const recovered = Math.min(
-      availablePayable,
-      input.platformCommissionCents,
-    );
+    const existingDebtCents =
+      await this.getDriverCashDebtCents(input.driverId);
 
     const ledger = cashRideCommissionDebtLedger({
       rideId: input.rideId,
       driverId: input.driverId,
       platformCommissionCents: input.platformCommissionCents,
-      driverPayableRecoveryCents: recovered,
+      existingDebtCents,
+      availableDriverPayableCents: availablePayable,
       createdAt: (input.settledAt ?? new Date()).toISOString(),
     });
     this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    const recovered =
+      ledger.entries.find(
+        (entry) =>
+          entry.accountKey ===
+            `driver:${input.driverId}:payable` &&
+          entry.direction === 'debit',
+      )?.amountCents ?? 0;
 
     return {
       ledgerTransaction: structuredClone(ledger),
