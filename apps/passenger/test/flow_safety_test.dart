@@ -102,6 +102,13 @@ void main() {
     expect(find.text('Cartão'), findsOneWidget);
     expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
     expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+
+    await tester.drag(
+      find.byType(ListView).last,
+      const Offset(0, -260),
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Dinheiro'), findsOneWidget);
     expect(find.text('Em breve'), findsOneWidget);
     final cashTile = tester.widget<ListTile>(
@@ -110,6 +117,11 @@ void main() {
     expect(cashTile.enabled, isFalse);
     expect(find.textContaining('Procurando buggy'), findsNothing);
 
+    await tester.drag(
+      find.byType(ListView).last,
+      const Offset(0, 260),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Carteira Ramo Nessa'));
     await tester.pumpAndSettle();
 
@@ -138,6 +150,12 @@ void main() {
             networkTilesEnabled: false,
           ),
         ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byType(ListView),
+        const Offset(0, -280),
       );
       await tester.pumpAndSettle();
 
