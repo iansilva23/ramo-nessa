@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'auth_token_store.dart';
 import 'phone_auth_service.dart';
@@ -119,73 +120,109 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: RamoBrandLockup(),
+                  ),
+                  const SizedBox(height: 54),
                   Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                    waitingForCode ? 'Confirme seu número' : widget.title,
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.3,
+                          height: 1.04,
                         ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
-                    widget.subtitle,
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    waitingForCode
+                        ? 'Digite o código de 6 dígitos que enviamos para seu celular.'
+                        : widget.subtitle,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: RamoColors.muted,
+                          height: 1.4,
+                        ),
                   ),
                   const SizedBox(height: 32),
-                  TextField(
-                    key: const Key('auth-phone-field'),
-                    controller: _phoneController,
-                    enabled: !_loading && !waitingForCode,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Celular com DDD',
-                      hintText: '(88) 99999-9999',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) {
-                      if (!waitingForCode) _requestCode();
-                    },
-                  ),
-                  if (waitingForCode) ...[
-                    const SizedBox(height: 16),
+                  if (!waitingForCode)
+                    TextField(
+                      key: const Key('auth-phone-field'),
+                      controller: _phoneController,
+                      enabled: !_loading,
+                      autofocus: true,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Celular',
+                        hintText: '(88) 99999-9999',
+                        prefixText: '+55  ',
+                        prefixStyle: TextStyle(
+                          color: RamoColors.brandBlack,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      onSubmitted: (_) => _requestCode(),
+                    )
+                  else
                     TextField(
                       key: const Key('auth-code-field'),
                       controller: _codeController,
                       enabled: !_loading,
+                      autofocus: true,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(6),
                       ],
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 6,
+                      ),
                       decoration: const InputDecoration(
-                        labelText: 'Código de 6 dígitos',
-                        border: OutlineInputBorder(),
+                        labelText: 'Código',
+                        hintText: '000000',
                       ),
                       onSubmitted: (_) => _verifyCode(),
                     ),
-                  ],
                   if (_message != null) ...[
                     const SizedBox(height: 14),
                     Text(
                       _message!,
                       key: const Key('auth-message'),
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: RamoColors.muted,
+                          ),
                     ),
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: 14),
-                    Text(
-                      _error!,
-                      key: const Key('auth-error'),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                    Container(
+                      padding: const EdgeInsets.all(RamoSpacing.md),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(RamoRadius.md),
+                      ),
+                      child: Text(
+                        _error!,
+                        key: const Key('auth-error'),
+                        style: TextStyle(
+                          color:
+                              Theme.of(context).colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -197,19 +234,19 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         : waitingForCode
                             ? _verifyCode
                             : _requestCode,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: _loading
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              waitingForCode
-                                  ? 'Confirmar código'
-                                  : 'Receber código',
+                    child: _loading
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
-                    ),
+                          )
+                        : Text(
+                            waitingForCode
+                                ? 'Confirmar e entrar'
+                                : 'Continuar',
+                          ),
                   ),
                   if (waitingForCode) ...[
                     const SizedBox(height: 8),
@@ -229,6 +266,15 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     TextButton(
                       onPressed: _loading ? null : _requestCode,
                       child: const Text('Reenviar código'),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 18),
+                    Text(
+                      'Ao continuar, você concorda em receber um código de verificação por SMS.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: RamoColors.muted,
+                          ),
                     ),
                   ],
                 ],
