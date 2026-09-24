@@ -1,5 +1,3 @@
-import '../../map/domain/place.dart';
-
 class PassengerActivityRide {
   const PassengerActivityRide({
     required this.id,
