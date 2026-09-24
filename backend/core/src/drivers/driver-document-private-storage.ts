@@ -186,6 +186,8 @@ export class HttpPrivateDocumentStorage
       this.timeoutMs,
     );
     try {
+      const body = new Uint8Array(object.bytes.length);
+      body.set(object.bytes);
       const response = await fetch(objectUrl(this.baseUrl, storageKey), {
         method: 'PUT',
         headers: {
@@ -193,7 +195,7 @@ export class HttpPrivateDocumentStorage
           'content-type': object.contentType,
           'content-length': String(object.bytes.length),
         },
-        body: object.bytes,
+        body,
         redirect: 'error',
         signal: controller.signal,
       });
