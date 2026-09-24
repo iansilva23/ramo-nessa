@@ -101,7 +101,9 @@ class _DriverNotificationsScreenState
     return switch (status) {
       AuthorizationStatus.authorized => 'Ativadas',
       AuthorizationStatus.provisional => 'Ativadas provisoriamente',
-      AuthorizationStatus.denied => 'Desativadas',
+      AuthorizationStatus.denied ||
+      AuthorizationStatus.deniedPermanently =>
+        'Desativadas',
       AuthorizationStatus.notDetermined => 'Ainda não configuradas',
       null => 'Verificando…',
     };
@@ -229,9 +231,9 @@ class _DriverNotificationsScreenState
                   'Avisos quando houver versão nova ou atualização necessária.',
             ),
             const SizedBox(height: RamoSpacing.xl),
-            Text(
+            const Text(
               'App ${DriverCoreConfig.appVersion} · build ${DriverCoreConfig.appBuild}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: RamoColors.muted,
                 fontSize: 12,
               ),
