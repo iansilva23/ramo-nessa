@@ -45,6 +45,25 @@ export interface AdminAuditRecord {
   createdAt: string;
 }
 
+export interface AdminAuditSearchCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface AdminAuditSearchQuery {
+  limit: number;
+  actorKind?: AdminActor['kind'];
+  action?: string;
+  targetType?: string;
+  search?: string;
+  cursor?: AdminAuditSearchCursor;
+}
+
+export interface AdminAuditSearchPage {
+  records: AdminAuditRecord[];
+  hasMore: boolean;
+}
+
 export interface AdminRepository {
   createApiKey(record: AdminApiKeyRecord): Promise<AdminApiKeyRecord>;
   findApiKeyByTokenHash(tokenHash: string): Promise<AdminApiKeyRecord | null>;
@@ -52,4 +71,5 @@ export interface AdminRepository {
   revokeApiKey(id: string, revokedAt: string): Promise<boolean>;
   appendAudit(record: AdminAuditRecord): Promise<AdminAuditRecord>;
   listAudit(limit: number): Promise<AdminAuditRecord[]>;
+  searchAudit(query: AdminAuditSearchQuery): Promise<AdminAuditSearchPage>;
 }
