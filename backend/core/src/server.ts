@@ -440,7 +440,9 @@ async function processConfirmedMercadoPagoRide(
 
     await releaseExpiredPreparedDriverHold({
       rideId: ride.id,
-      driverId: rideBeforeConfirmation?.reservedDriverId,
+      ...(rideBeforeConfirmation?.reservedDriverId == null
+        ? {}
+        : { driverId: rideBeforeConfirmation.reservedDriverId }),
       now: confirmationTime,
     });
 
