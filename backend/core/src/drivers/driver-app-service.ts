@@ -11,6 +11,8 @@ import {
 import { dispatchNextDriver } from '../matching/dispatch-next-driver.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { RideRecord } from '../rides/ride.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
+import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
 
 export class DriverAppError extends Error {
   constructor(
@@ -181,6 +183,15 @@ export function driverOfferView(offer: {
     destination: ride.destination,
     driverEarningsCents: ride.quote.driverNetCents,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
+    paymentMethod: ride.paymentMethod ?? null,
+    cashCollectionAmountCents:
+      ride.paymentMethod === 'cash'
+        ? ride.quote.totalAmountCents
+        : null,
+    cashCommissionCents:
+      ride.paymentMethod === 'cash'
+        ? ride.quote.platformCommissionCents
+        : null,
   };
 }
 
@@ -190,6 +201,8 @@ export async function currentDriverOffer(input: {
   registry: DriverRegistryRepository;
   matching: RideMatchingRepository;
   driverId: string;
+  finance?: FinanceRepository;
+  paymentPolicySettings?: PaymentPolicySettingsRepository;
   now?: Date;
 }) {
   await requireApprovedDriverRegistry({
@@ -230,6 +243,15 @@ export async function currentDriverOffer(input: {
           latitude: ride.pickupLatitude,
           longitude: ride.pickupLongitude,
         },
+        ...(input.finance != null
+          ? { finance: input.finance }
+          : {}),
+        ...(input.paymentPolicySettings != null
+          ? {
+              paymentPolicySettings:
+                input.paymentPolicySettings,
+            }
+          : {}),
         now,
       });
     }
@@ -275,6 +297,15 @@ export async function acceptOfferFromDriverApp(input: {
       driverEarningsCents: result.ride.quote.driverNetCents,
       pickupCompensationCents:
         result.ride.quote.pickupCompensationCents,
+      paymentMethod: result.ride.paymentMethod ?? null,
+      cashCollectionAmountCents:
+        result.ride.paymentMethod === 'cash'
+          ? result.ride.quote.totalAmountCents
+          : null,
+      cashCommissionCents:
+        result.ride.paymentMethod === 'cash'
+          ? result.ride.quote.platformCommissionCents
+          : null,
     },
   };
 }
@@ -285,6 +316,8 @@ export async function rejectOfferFromDriverApp(input: {
   matching: RideMatchingRepository;
   offerId: string;
   driverId: string;
+  finance?: FinanceRepository;
+  paymentPolicySettings?: PaymentPolicySettingsRepository;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -322,6 +355,15 @@ export async function rejectOfferFromDriverApp(input: {
       latitude: ride.pickupLatitude,
       longitude: ride.pickupLongitude,
     },
+    ...(input.finance != null
+      ? { finance: input.finance }
+      : {}),
+    ...(input.paymentPolicySettings != null
+      ? {
+          paymentPolicySettings:
+            input.paymentPolicySettings,
+        }
+      : {}),
     now,
   });
 
