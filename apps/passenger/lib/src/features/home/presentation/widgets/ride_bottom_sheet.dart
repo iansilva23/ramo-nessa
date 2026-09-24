@@ -187,7 +187,7 @@ class RideBottomSheet extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              selectedService.label,
+                              'Total estimado',
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w800,
                                   ),
