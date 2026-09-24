@@ -1191,20 +1191,28 @@ export class PostgresFinanceRepository implements FinanceRepository {
         0,
         await accountBalanceCents(client, payableAccount),
       );
-      const recovered = Math.min(
-        availablePayable,
-        input.platformCommissionCents,
+      const debtBalanceBefore = await accountBalanceCents(
+        client,
+        debtAccount,
       );
+      const existingDebtCents = Math.max(0, -debtBalanceBefore);
 
       const ledger = cashRideCommissionDebtLedger({
         rideId: input.rideId,
         driverId: input.driverId,
         platformCommissionCents: input.platformCommissionCents,
-        driverPayableRecoveryCents: recovered,
+        existingDebtCents,
+        availableDriverPayableCents: availablePayable,
         createdAt: (input.settledAt ?? new Date()).toISOString(),
       });
       await insertLedger(client, ledger);
 
+      const recovered =
+        ledger.entries.find(
+          (entry) =>
+            entry.accountKey === payableAccount &&
+            entry.direction === 'debit',
+        )?.amountCents ?? 0;
       const debtBalance = await accountBalanceCents(
         client,
         debtAccount,
