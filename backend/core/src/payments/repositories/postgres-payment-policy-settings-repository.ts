@@ -1,12 +1,19 @@
 import type { Pool } from 'pg';
 
 import type {
+  DriverCashPolicyOverrideRecord,
   PaymentPolicySettingsRecord,
   PaymentPolicySettingsRepository,
 } from '../payment-policy-settings-repository.js';
 
 interface PaymentPolicySettingsRow {
   cash_enabled: boolean;
+  updated_at: Date;
+}
+
+interface DriverCashPolicyOverrideRow {
+  driver_id: string;
+  debt_limit_cents: number;
   updated_at: Date;
 }
 
@@ -51,5 +58,69 @@ export class PostgresPaymentPolicySettingsRepository
       cashEnabled: row.cash_enabled,
       updatedAt: row.updated_at.toISOString(),
     };
+  }
+
+  async getDriverCashDebtLimitOverride(
+    driverId: string,
+  ): Promise<DriverCashPolicyOverrideRecord | null> {
+    const result =
+      await this.pool.query<DriverCashPolicyOverrideRow>(
+        `SELECT driver_id, debt_limit_cents, updated_at
+         FROM driver_cash_policy_overrides
+         WHERE driver_id = $1
+         LIMIT 1`,
+        [driverId],
+      );
+    const row = result.rows[0];
+    return row == null
+      ? null
+      : {
+          driverId: row.driver_id,
+          debtLimitCents: row.debt_limit_cents,
+          updatedAt: row.updated_at.toISOString(),
+        };
+  }
+
+  async setDriverCashDebtLimitOverride(
+    driverId: string,
+    debtLimitCents: number,
+    updatedAt: string,
+  ): Promise<DriverCashPolicyOverrideRecord> {
+    const result =
+      await this.pool.query<DriverCashPolicyOverrideRow>(
+        `INSERT INTO driver_cash_policy_overrides (
+           driver_id,
+           debt_limit_cents,
+           updated_at
+         )
+         VALUES ($1, $2, $3)
+         ON CONFLICT (driver_id)
+         DO UPDATE SET
+           debt_limit_cents = EXCLUDED.debt_limit_cents,
+           updated_at = EXCLUDED.updated_at
+         RETURNING driver_id, debt_limit_cents, updated_at`,
+        [driverId, debtLimitCents, updatedAt],
+      );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error(
+        'Override cash do motorista não pôde ser salvo.',
+      );
+    }
+    return {
+      driverId: row.driver_id,
+      debtLimitCents: row.debt_limit_cents,
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  async clearDriverCashDebtLimitOverride(
+    driverId: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM driver_cash_policy_overrides
+       WHERE driver_id = $1`,
+      [driverId],
+    );
   }
 }
