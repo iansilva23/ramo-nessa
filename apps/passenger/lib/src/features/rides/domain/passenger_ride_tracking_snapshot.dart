@@ -1,3 +1,30 @@
+class PassengerDriverProfile {
+  const PassengerDriverProfile({
+    required this.id,
+    required this.displayName,
+    required this.ratingCount,
+    this.photoPath,
+    this.ratingAverage,
+  });
+
+  factory PassengerDriverProfile.fromJson(Map<String, dynamic> json) {
+    return PassengerDriverProfile(
+      id: json['id'] as String,
+      displayName:
+          json['displayName'] as String? ?? 'Motorista Ramo Nessa',
+      photoPath: json['photoPath'] as String?,
+      ratingAverage: (json['ratingAverage'] as num?)?.toDouble(),
+      ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final String id;
+  final String displayName;
+  final String? photoPath;
+  final double? ratingAverage;
+  final int ratingCount;
+}
+
 class PassengerDriverLocation {
   const PassengerDriverLocation({
     required this.latitude,
@@ -31,13 +58,15 @@ class PassengerRideTrackingSnapshot {
     this.dropoffLatitude,
     this.dropoffLongitude,
     this.driverLocation,
+    this.driver,
   });
 
   factory PassengerRideTrackingSnapshot.fromJson(
     Map<String, dynamic> json,
   ) {
     final ride = json['ride'] as Map<String, dynamic>;
-    final driver = json['driverLocation'];
+    final driverLocationJson = json['driverLocation'];
+    final driverJson = json['driver'];
 
     return PassengerRideTrackingSnapshot(
       rideId: ride['id'] as String,
@@ -47,8 +76,11 @@ class PassengerRideTrackingSnapshot {
       pickupLongitude: (ride['pickupLongitude'] as num?)?.toDouble(),
       dropoffLatitude: (ride['dropoffLatitude'] as num?)?.toDouble(),
       dropoffLongitude: (ride['dropoffLongitude'] as num?)?.toDouble(),
-      driverLocation: driver is Map<String, dynamic>
-          ? PassengerDriverLocation.fromJson(driver)
+      driverLocation: driverLocationJson is Map<String, dynamic>
+          ? PassengerDriverLocation.fromJson(driverLocationJson)
+          : null,
+      driver: driverJson is Map<String, dynamic>
+          ? PassengerDriverProfile.fromJson(driverJson)
           : null,
     );
   }
@@ -61,6 +93,7 @@ class PassengerRideTrackingSnapshot {
   final double? dropoffLatitude;
   final double? dropoffLongitude;
   final PassengerDriverLocation? driverLocation;
+  final PassengerDriverProfile? driver;
 
   bool get isTerminal => const {
         'COMPLETED',
