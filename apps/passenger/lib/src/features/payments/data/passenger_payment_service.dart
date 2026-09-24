@@ -12,13 +12,11 @@ abstract interface class PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   });
 
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
