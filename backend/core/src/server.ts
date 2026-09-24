@@ -629,6 +629,77 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/webhooks/mercado-pago/orders'
+    ) {
+      const orderId = requestUrl.searchParams.get('data.id')?.trim() ?? '';
+      const topic = requestUrl.searchParams.get('type')?.trim() ?? '';
+      const xSignature = headerValue(request, 'x-signature') ?? '';
+      const xRequestId = headerValue(request, 'x-request-id') ?? '';
+      const secret =
+        process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim() ?? '';
+
+      if (
+        topic !== 'order' ||
+        !orderId ||
+        !xSignature ||
+        !xRequestId
+      ) {
+        json(response, 400, {
+          error: 'INVALID_MERCADO_PAGO_WEBHOOK',
+          message: 'Notificação do Mercado Pago incompleta.',
+        });
+        return;
+      }
+
+      if (!secret || mercadoPagoOrdersClient == null) {
+        json(response, 503, {
+          error: 'MERCADO_PAGO_NOT_CONFIGURED',
+          message: 'Webhook do Mercado Pago ainda não está configurado.',
+        });
+        return;
+      }
+
+      if (
+        !verifyMercadoPagoWebhookSignature({
+          xSignature,
+          xRequestId,
+          dataId: orderId,
+          secret,
+        })
+      ) {
+        json(response, 401, {
+          error: 'INVALID_MERCADO_PAGO_SIGNATURE',
+        });
+        return;
+      }
+
+      const order = await mercadoPagoOrdersClient.getOrder(orderId);
+      const applied = await applyMercadoPagoOrderStatus({
+        finance: financeRepository,
+        order,
+      });
+
+      if (applied.kind === 'paid') {
+        await processConfirmedMercadoPagoRide(applied.payment);
+      } else if (
+        applied.kind === 'failed' ||
+        applied.kind === 'cancelled'
+      ) {
+        await markMercadoPagoRidePaymentFailed(applied.payment);
+      } else if (applied.kind === 'refunded') {
+        await finalizeMercadoPagoRefundedRide(applied.payment);
+      }
+
+      json(response, 200, {
+        received: true,
+        orderId,
+        status: applied.kind,
+      });
+      return;
+    }
+
+    if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/app/release-policy'
     ) {
