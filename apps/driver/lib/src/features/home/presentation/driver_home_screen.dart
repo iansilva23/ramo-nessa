@@ -2041,7 +2041,7 @@ class _DriverProfileHero extends StatelessWidget {
                     if (ratingCount > 0) ...[
                       const SizedBox(width: 4),
                       Text(
-                        '(' + ratingCount.toString() + ')',
+                        '(${ratingCount})',
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 11,
