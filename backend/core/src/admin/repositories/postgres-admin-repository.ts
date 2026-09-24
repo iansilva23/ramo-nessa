@@ -3,6 +3,8 @@ import type { Pool } from 'pg';
 import type {
   AdminApiKeyRecord,
   AdminAuditRecord,
+  AdminAuditSearchPage,
+  AdminAuditSearchQuery,
   AdminRepository,
   AdminScope,
 } from '../admin-repository.js';
@@ -164,11 +166,79 @@ export class PostgresAdminRepository implements AdminRepository {
       `
       SELECT *
       FROM admin_audit_log
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
       LIMIT $1
       `,
       [safeLimit],
     );
     return result.rows.map(mapAudit);
+  }
+
+  async searchAudit(
+    query: AdminAuditSearchQuery,
+  ): Promise<AdminAuditSearchPage> {
+    const limit = Math.max(1, Math.min(100, Math.trunc(query.limit)));
+    const params: unknown[] = [];
+    const clauses: string[] = [];
+
+    const push = (value: unknown): string => {
+      params.push(value);
+      return `${params.length}`;
+    };
+
+    if (query.actorKind === 'user') {
+      clauses.push('actor_user_id IS NOT NULL');
+    } else if (query.actorKind === 'api_key') {
+      clauses.push('actor_key_id IS NOT NULL');
+    }
+
+    if (query.action != null) {
+      clauses.push(`action = ${push(query.action)}`);
+    }
+
+    if (query.targetType != null) {
+      clauses.push(`target_type = ${push(query.targetType)}`);
+    }
+
+    if (query.search != null) {
+      const term = `%${query.search}%`;
+      const p = push(term);
+      clauses.push(
+        `(
+          actor_name ILIKE ${p}
+          OR action ILIKE ${p}
+          OR target_type ILIKE ${p}
+          OR target_id ILIKE ${p}
+        )`,
+      );
+    }
+
+    if (query.cursor != null) {
+      const createdAt = push(query.cursor.createdAt);
+      const id = push(query.cursor.id);
+      clauses.push(
+        `(created_at, id) < (${createdAt}::timestamptz, ${id}::uuid)`,
+      );
+    }
+
+    const limitParam = push(limit + 1);
+    const where =
+      clauses.length === 0 ? '' : `WHERE ${clauses.join(' AND ')}`;
+
+    const result = await this.pool.query<AdminAuditRow>(
+      `
+      SELECT *
+      FROM admin_audit_log
+      ${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${limitParam}
+      `,
+      params,
+    );
+
+    return {
+      records: result.rows.slice(0, limit).map(mapAudit),
+      hasMore: result.rows.length > limit,
+    };
   }
 }
