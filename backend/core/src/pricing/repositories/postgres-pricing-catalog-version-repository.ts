@@ -114,6 +114,28 @@ export class PostgresPricingCatalogVersionRepository
     return result.rows.map(mapRow);
   }
 
+  async updateDraftSnapshot(
+    input: Parameters<
+      PricingCatalogVersionRepository['updateDraftSnapshot']
+    >[0],
+  ): Promise<PricingCatalogVersionRecord | null> {
+    const result = await this.pool.query<PricingCatalogVersionRow>(
+      `
+      UPDATE pricing_catalog_versions
+      SET snapshot = $2::jsonb, updated_at = $3
+      WHERE id = $1
+        AND status = 'draft'
+      RETURNING *
+      `,
+      [
+        input.id,
+        JSON.stringify(input.snapshot),
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapRow(result.rows[0]);
+  }
+
   async publish(
     input: Parameters<PricingCatalogVersionRepository['publish']>[0],
   ): Promise<PricingCatalogVersionRecord | null> {
