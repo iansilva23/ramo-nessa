@@ -669,9 +669,9 @@
               <div>
                 <span class="eyebrow eyebrow--dark">PASSAGEIROS</span>
                 <h1>Diretório de passageiros</h1>
-                <p>Consulta somente leitura das identidades de acesso do app Passageiro.</p>
+                <p>Consulta de identidade, histórico e controle de acesso do app Passageiro.</p>
               </div>
-              <span class="pill">Somente leitura</span>
+              <span class="pill">Acesso controlado</span>
             </div>
 
             <article class="panel-card panel-card--directory">
@@ -763,6 +763,19 @@
 
               <div id="passenger-detail-content" class="passenger-detail-content empty-state">
                 Abra um passageiro na tabela para ver identidade e histórico recente.
+              </div>
+
+              <div id="passenger-access-actions" class="passenger-access-actions" hidden>
+                <button
+                  id="passenger-access-button"
+                  class="button button--danger"
+                  type="button"
+                >
+                  Bloquear acesso
+                </button>
+                <small id="passenger-access-note">
+                  O bloqueio revoga imediatamente todas as sessões do passageiro.
+                </small>
               </div>
 
               <div id="passenger-detail-history" hidden>
