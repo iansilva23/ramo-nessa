@@ -52,7 +52,79 @@ test('cliente Admin consulta catálogo de preços sem vazar Bearer na URL', asyn
   assert.equal(calls[0].options.cache, 'no-store');
 });
 
-test('frontend de preços é somente leitura e expõe os elementos do catálogo', () => {
+test('cliente Admin gerencia versões com Bearer somente no header', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      id: '11111111-1111-4111-8111-111111111111',
+      versionNumber: 2,
+      status: 'draft',
+    });
+  });
+
+  const token = 'rn_admin_session_pricing_write_secret';
+  const versionId = '11111111-1111-4111-8111-111111111111';
+
+  await api.pricingVersions(token);
+  await api.getPricingVersion(token, versionId);
+  await api.createPricingVersion(token);
+  await api.updatePricingVersion(token, {
+    versionId,
+    patch: {
+      kind: 'fixed_route',
+      routeId: 'prea-jijoca-car',
+      dayCents: 13000,
+      after22Cents: 15000,
+    },
+  });
+  await api.publishPricingVersion(token, {
+    versionId,
+    effectiveFrom: '2026-10-01T03:00:00.000Z',
+  });
+
+  assert.deepEqual(
+    calls.map((call) => [call.url, call.options.method]),
+    [
+      ['/v1/admin/pricing/versions', 'GET'],
+      [
+        '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111',
+        'GET',
+      ],
+      ['/v1/admin/pricing/versions', 'POST'],
+      [
+        '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111',
+        'PATCH',
+      ],
+      [
+        '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111/publish',
+        'POST',
+      ],
+    ],
+  );
+
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+    assert.equal(call.options.credentials, 'omit');
+    assert.equal(call.options.cache, 'no-store');
+  }
+
+  assert.deepEqual(JSON.parse(calls[3].options.body), {
+    kind: 'fixed_route',
+    routeId: 'prea-jijoca-car',
+    dayCents: 13000,
+    after22Cents: 15000,
+  });
+  assert.deepEqual(JSON.parse(calls[4].options.body), {
+    effectiveFrom: '2026-10-01T03:00:00.000Z',
+  });
+});
+
+test('frontend de preços expõe catálogo protegido e fluxo versionado', () => {
   const html = readFileSync(
     new URL('../index.html', import.meta.url),
     'utf8',
@@ -76,20 +148,57 @@ test('frontend de preços é somente leitura e expõe os elementos do catálogo'
     'pricing-fixed-routes',
     'pricing-localities-body',
     'pricing-routes-body',
+    'pricing-versions-body',
+    'pricing-create-draft-button',
+    'pricing-editor-status',
+    'pricing-editor-controls',
+    'pricing-edit-form',
+    'pricing-edit-kind',
+    'pricing-route-id',
+    'pricing-route-day',
+    'pricing-route-night',
+    'pricing-locality-hub',
+    'pricing-locality-id',
+    'pricing-locality-category',
+    'pricing-locality-price-kind',
+    'pricing-locality-min',
+    'pricing-locality-max',
+    'pricing-effective-from',
+    'pricing-publish-button',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 
   assert.match(html, /data-view=["']pricing["']/);
-  assert.match(html, /somente leitura/i);
+  assert.match(html, /Catálogo ativo protegido/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
+  assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);
-  assert.equal(app.includes('pricingCatalogUpdate'), false);
+  assert.match(app, /api\.pricingVersions\(state\.token\)/);
+  assert.match(app, /api\.createPricingVersion\(state\.token\)/);
+  assert.match(app, /api\.updatePricingVersion\(state\.token/);
+  assert.match(app, /api\.publishPricingVersion/);
+  assert.match(
+    app,
+    /pricing-create-draft-button'\)\.addEventListener/,
+  );
+  assert.match(
+    app,
+    /pricing-edit-form'\)\.addEventListener/,
+  );
+  assert.match(
+    app,
+    /pricing-publish-button'\)\.addEventListener/,
+  );
+  assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
     '.pricing-summary-grid',
     '.pricing-readonly-note',
     '.pricing-table-heading',
+    '.pricing-workflow-grid',
+    '.pricing-edit-form',
+    '.pricing-publish-panel',
   ]) {
     assert.equal(css.includes(selector), true);
   }
