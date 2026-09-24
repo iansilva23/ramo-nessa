@@ -141,6 +141,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       'CANCELLED_BY_DRIVER' ||
       'CANCELLED_BY_ADMIN' =>
         'Corrida cancelada',
+      'REFUND_PENDING' => 'Estorno em processamento',
       'REFUNDED' => 'Pagamento devolvido',
       'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',
       _ => switch (widget.initialDispatchStatus) {
@@ -259,7 +260,11 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       Text(
                         widget.paymentMethod == 'cash'
                             ? 'Pagamento em dinheiro'
-                            : 'Pagamento confirmado',
+                            : _snapshot?.state == 'REFUNDED'
+                                ? 'Pagamento devolvido'
+                                : _snapshot?.state == 'REFUND_PENDING'
+                                    ? 'Estorno solicitado'
+                                    : 'Pagamento confirmado',
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                         ),
