@@ -36,6 +36,22 @@ export class InMemoryPricingCatalogVersionRepository
       .map((record) => structuredClone(record));
   }
 
+  async updateDraftSnapshot(
+    input: Parameters<
+      PricingCatalogVersionRepository['updateDraftSnapshot']
+    >[0],
+  ): Promise<PricingCatalogVersionRecord | null> {
+    const current = this.versions.get(input.id);
+    if (current == null || current.status !== 'draft') return null;
+    const updated: PricingCatalogVersionRecord = {
+      ...current,
+      snapshot: structuredClone(input.snapshot),
+      updatedAt: input.updatedAt,
+    };
+    this.versions.set(updated.id, updated);
+    return structuredClone(updated);
+  }
+
   async publish(
     input: Parameters<PricingCatalogVersionRepository['publish']>[0],
   ): Promise<PricingCatalogVersionRecord | null> {
