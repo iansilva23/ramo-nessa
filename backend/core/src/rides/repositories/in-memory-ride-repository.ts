@@ -4,6 +4,7 @@ import type {
   AdminRideListPage,
   AdminPassengerRideSummary,
   AdminRideOperationalSummary,
+  DriverRideSummary,
   RideRepository,
 } from '../ride-repository.js';
 
@@ -116,6 +117,51 @@ export class InMemoryRideRepository implements RideRepository {
           (total, ride) => total + ride.quote.totalAmountCents,
           0,
         ),
+    };
+  }
+
+  async listRecentByDriverId(
+    driverId: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    return [...this.rides.values()]
+      .filter((ride) => ride.driverId === driverId)
+      .sort((a, b) => {
+        const updatedDiff = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+        if (updatedDiff !== 0) return updatedDiff;
+        return b.id.localeCompare(a.id);
+      })
+      .slice(0, safeLimit)
+      .map((ride) => structuredClone(ride));
+  }
+
+  async getDriverRideSummary(
+    driverId: string,
+  ): Promise<DriverRideSummary> {
+    const rides = [...this.rides.values()].filter(
+      (ride) => ride.driverId === driverId,
+    );
+    const cancelledStates = new Set<RideRecord['state']>([
+      'CANCELLED_BY_PASSENGER',
+      'CANCELLED_BY_DRIVER',
+      'CANCELLED_BY_ADMIN',
+    ]);
+    const inProgressStates = new Set<RideRecord['state']>([
+      'DRIVER_ASSIGNED',
+      'DRIVER_ARRIVING',
+      'DRIVER_ARRIVED',
+      'IN_PROGRESS',
+    ]);
+
+    return {
+      total: rides.length,
+      completed: rides.filter((ride) => ride.state === 'COMPLETED').length,
+      cancelled: rides.filter((ride) => cancelledStates.has(ride.state)).length,
+      inProgress: rides.filter((ride) => inProgressStates.has(ride.state)).length,
+      earningsCents: rides
+        .filter((ride) => ride.state === 'COMPLETED')
+        .reduce((sum, ride) => sum + ride.quote.driverNetCents, 0),
     };
   }
 
