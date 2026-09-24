@@ -24,7 +24,7 @@ export async function adminPaymentPolicyView(
   const settings = await repository.get();
   return {
     cashEnabled: settings.cashEnabled,
-    cashActivationReady: false,
+    cashActivationReady: true,
     futureCashDebtLimitCents:
       PAYMENT_POLICY_V1.futureCashDebtLimitCents,
     directDriverPixEnabled:
@@ -45,28 +45,26 @@ export async function updateAdminPaymentPolicy(input: {
   cashEnabled: boolean;
   now?: Date;
 }) {
-  if (input.cashEnabled) {
-    throw new AdminPaymentPolicyError(
-      'CASH_ACTIVATION_BLOCKED',
-      'Dinheiro só poderá ser ativado depois do fluxo cash de comissão, dívida e limite operacional estar implementado.',
-    );
-  }
-
   const current = await input.repository.get();
-  if (current.cashEnabled === false) {
+  if (current.cashEnabled === input.cashEnabled) {
     return adminPaymentPolicyView(input.repository);
   }
 
   const updatedAt = (input.now ?? new Date()).toISOString();
-  await input.repository.setCashEnabled(false, updatedAt);
+  await input.repository.setCashEnabled(
+    input.cashEnabled,
+    updatedAt,
+  );
   await input.admin.appendAudit({
     id: randomUUID(),
     actor: input.actor,
-    action: 'payment_policy.cash_disabled',
+    action: input.cashEnabled
+      ? 'payment_policy.cash_enabled'
+      : 'payment_policy.cash_disabled',
     targetType: 'payment_policy',
     targetId: 'cash',
     metadata: {
-      cashEnabled: false,
+      cashEnabled: input.cashEnabled,
     },
     createdAt: updatedAt,
   });

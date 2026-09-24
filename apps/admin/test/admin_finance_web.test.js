@@ -64,7 +64,7 @@ test('cliente Admin consulta financeiro sem vazar Bearer na URL', async () => {
   assert.equal(calls[0].options.cache, 'no-store');
 });
 
-test('política cash usa Bearer e nunca oferece ativação no browser', async () => {
+test('política cash usa Bearer e permite toggle explícito pelo Admin', async () => {
   const calls = [];
   const api = createAdminApi(async (url, options) => {
     calls.push({ url, options });
@@ -74,7 +74,7 @@ test('política cash usa Bearer e nunca oferece ativação no browser', async ()
         : 200,
       {
         cashEnabled: false,
-        cashActivationReady: false,
+        cashActivationReady: true,
         futureCashDebtLimitCents: 12000,
         allowedDigitalMethods: ['pix', 'card', 'wallet'],
         updatedAt: '2026-09-24T01:00:00.000Z',
@@ -86,13 +86,13 @@ test('política cash usa Bearer e nunca oferece ativação no browser', async ()
   const policy = await api.paymentPolicy(token);
   assert.equal(policy.cashEnabled, false);
 
-  await api.updatePaymentPolicy(token, { cashEnabled: false });
+  await api.updatePaymentPolicy(token, { cashEnabled: true });
 
   assert.equal(calls.length, 2);
   assert.equal(calls[0].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].options.method, 'PATCH');
-  assert.equal(calls[1].options.body, JSON.stringify({ cashEnabled: false }));
+  assert.equal(calls[1].options.body, JSON.stringify({ cashEnabled: true }));
   for (const call of calls) {
     assert.equal(call.url.includes(token), false);
     assert.equal(
@@ -143,6 +143,7 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     'finance-cash-debt-limit',
     'finance-cash-readiness',
     'finance-cash-updated-at',
+    'finance-enable-cash-button',
     'finance-disable-cash-button',
     'finance-cash-note',
   ]) {
@@ -157,8 +158,10 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   assert.match(app, /hasScope\('finance:write'\)/);
   assert.match(api, /\/v1\/admin\/finance\?limit=/);
   assert.match(api, /\/v1\/admin\/payment-policy/);
-  assert.equal(html.includes('finance-enable-cash-button'), false);
-  assert.equal(html.includes('Ativar dinheiro'), false);
+  assert.equal(html.includes('finance-enable-cash-button'), true);
+  assert.equal(html.includes('Ativar dinheiro'), true);
+  assert.match(app, /handleEnableCash/);
+  assert.match(app, /cashEnabled: true/);
   assert.equal(api.includes('financeUpdate('), false);
   assert.equal(api.includes('refundPayment('), false);
   assert.equal(api.includes('approvePayout('), false);

@@ -2058,14 +2058,21 @@ function renderPaymentPolicy(policy = null) {
       ? `Atualizada em ${formatDateTime(policy.updatedAt)}`
       : 'Aguardando política';
 
+  const canWrite = hasScope('finance:write');
+  const enableButton = byId('finance-enable-cash-button');
+  enableButton.hidden =
+    cashEnabled || !activationReady || !canWrite;
+  enableButton.disabled = false;
+
   const disableButton = byId('finance-disable-cash-button');
-  disableButton.hidden =
-    !cashEnabled || !hasScope('finance:write');
+  disableButton.hidden = !cashEnabled || !canWrite;
   disableButton.disabled = false;
 
-  byId('finance-cash-note').textContent = activationReady
-    ? 'A política está tecnicamente pronta para ativação.'
-    : 'A ativação só será liberada depois do fluxo cash de comissão, dívida e limite operacional.';
+  byId('finance-cash-note').textContent = cashEnabled
+    ? 'Dinheiro está ativo. O Passageiro pode selecionar essa forma de pagamento.'
+    : activationReady
+      ? 'Estrutura pronta. O Passageiro continuará vendo “Em breve” até você ativar aqui.'
+      : 'A ativação está temporariamente indisponível.';
 }
 
 function renderFinance(payload = null) {
@@ -2239,6 +2246,44 @@ async function loadFinance({ announce = true } = {}) {
         'Financeiro atualizado pelo ledger.',
         'success',
       );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleEnableCash() {
+  if (
+    !state.token ||
+    !hasScope('finance:write') ||
+    state.finance.policy?.cashEnabled !== false ||
+    state.finance.policy?.cashActivationReady !== true
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    'Ativar pagamento em dinheiro para os passageiros? ' +
+      'A opção deixará de aparecer como “Em breve” imediatamente.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-enable-cash-button');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cashEnabled: true,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Pagamento em dinheiro ativado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
     }
   } catch (error) {
     handleAuthenticatedError(error);
@@ -4142,6 +4187,9 @@ byId('refresh-fleet-button').addEventListener('click', () => {
 });
 byId('refresh-finance-button').addEventListener('click', () => {
   void loadFinance();
+});
+byId('finance-enable-cash-button').addEventListener('click', () => {
+  void handleEnableCash();
 });
 byId('finance-disable-cash-button').addEventListener('click', () => {
   void handleDisableCash();
