@@ -518,8 +518,34 @@ async function finalizeMercadoPagoRefundedRide(
   let ride = await rideRepository.findById(payment.rideId);
   if (ride == null || ride.state === 'REFUNDED') return;
 
+  const instant = new Date().toISOString();
+
   if (
     ride.state === 'PAID' ||
+    ride.state === 'SEARCHING_DRIVER' ||
+    ride.state === 'DRIVER_ASSIGNED' ||
+    ride.state === 'DRIVER_ARRIVING' ||
+    ride.state === 'DRIVER_ARRIVED'
+  ) {
+    const operational = await rideMatchingRepository.cancelRideByAdmin({
+      rideId: ride.id,
+      cancelledAt: instant,
+    });
+    ride = operational.ride;
+
+    if (operational.releasedDriverId != null) {
+      sendPushBestEffort({
+        subjectType: 'driver',
+        subjectId: operational.releasedDriverId,
+        type: 'driver.ride.cancelled_after_refund',
+        title: 'Corrida cancelada',
+        body: 'Esta corrida foi cancelada após o estorno do pagamento.',
+        data: { rideId: ride.id },
+      });
+    }
+  }
+
+  if (
     ride.state === 'NO_DRIVER_FOUND' ||
     ride.state === 'CANCELLED_BY_PASSENGER' ||
     ride.state === 'CANCELLED_BY_DRIVER' ||
@@ -528,7 +554,7 @@ async function finalizeMercadoPagoRefundedRide(
     ride = await rideRepository.save({
       ...ride,
       state: transitionRide(ride.state, 'REFUND_PENDING'),
-      updatedAt: new Date().toISOString(),
+      updatedAt: instant,
     });
   }
 
@@ -546,7 +572,7 @@ async function finalizeMercadoPagoRefundedRide(
     state: transitionRide(ride.state, 'REFUNDED'),
     paymentStatus: 'refunded',
     paymentMethod: payment.method,
-    updatedAt: new Date().toISOString(),
+    updatedAt: instant,
   });
 
   sendPushBestEffort({
