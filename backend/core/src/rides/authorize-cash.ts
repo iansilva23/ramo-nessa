@@ -3,22 +3,24 @@ import type { PaymentPolicySettingsRepository } from '../payments/payment-policy
 import { assertDriverCashCapacity } from '../payments/cash-policy.js';
 import { PaymentDomainError } from '../payments/payment.js';
 import type { RideRepository } from './ride-repository.js';
+import type { RideRecord } from './ride.js';
 import {
   isDriverPaymentHoldExpired,
   isRidePreparedForPayment,
 } from './ride.js';
 import { markRidePaid } from './ride-state.js';
 
-const CASH_CONFIRMED_STATES = new Set([
-  'PAID',
-  'SEARCHING_DRIVER',
-  'DRIVER_ASSIGNED',
-  'DRIVER_ARRIVING',
-  'DRIVER_ARRIVED',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'NO_DRIVER_FOUND',
-] as const);
+const CASH_CONFIRMED_STATES: ReadonlySet<RideRecord['state']> =
+  new Set([
+    'PAID',
+    'SEARCHING_DRIVER',
+    'DRIVER_ASSIGNED',
+    'DRIVER_ARRIVING',
+    'DRIVER_ARRIVED',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'NO_DRIVER_FOUND',
+  ]);
 
 export async function authorizeCashRide(input: {
   rides: RideRepository;
@@ -40,11 +42,7 @@ export async function authorizeCashRide(input: {
 
   if (
     ride.paymentMethod === 'cash' &&
-    CASH_CONFIRMED_STATES.has(
-      ride.state as (typeof CASH_CONFIRMED_STATES extends Set<infer T>
-        ? T
-        : never),
-    )
+    CASH_CONFIRMED_STATES.has(ride.state)
   ) {
     return {
       ride,
