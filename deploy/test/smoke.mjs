@@ -260,6 +260,7 @@ try {
       body: JSON.stringify({
         subjectType: 'passenger',
         phone: '88999991278',
+        email: 'ci-passenger@ramonessa.local',
       }),
     },
   );
@@ -795,6 +796,7 @@ try {
       body: JSON.stringify({
         subjectType: 'driver',
         phone: '88999991279',
+        email: 'ci-driver@ramonessa.local',
       }),
     },
   );
