@@ -75,6 +75,22 @@ export interface RefundWalletRideResult {
   duplicateRefund: boolean;
 }
 
+export interface AdminFinanceSummary {
+  paymentsTotal: number;
+  paymentsPaid: number;
+  paymentsPaidCents: number;
+  paymentsPending: number;
+  paymentsFailed: number;
+  paymentsRefunded: number;
+  platformRevenueCents: number;
+  driverPayableCents: number;
+  driverPayoutPendingCents: number;
+  rideEscrowCents: number;
+  passengerWalletCents: number;
+  payoutsRequested: number;
+  payoutsRequestedCents: number;
+}
+
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
   findPaidPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
@@ -102,4 +118,7 @@ export interface FinanceRepository {
   ): Promise<ReserveDriverPayoutResult>;
 
   getAccountBalanceCents(accountKey: string): Promise<number>;
+  adminFinanceSummary(): Promise<AdminFinanceSummary>;
+  listRecentPayments(limit: number): Promise<PaymentRecord[]>;
+  listRecentDriverPayouts(limit: number): Promise<DriverPayoutRecord[]>;
 }
