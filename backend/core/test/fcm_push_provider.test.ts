@@ -13,7 +13,10 @@ class FixedAccessTokenSource implements FcmAccessTokenSource {
 }
 
 test('FCM envia payload de corrida sem expor credencial no corpo', async () => {
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const calls: Array<{
+    url: string;
+    init: RequestInit | undefined;
+  }> = [];
   const provider = new FcmPushDeliveryProvider(
     'ramo-test',
     new FixedAccessTokenSource(),
