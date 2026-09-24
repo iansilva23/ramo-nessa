@@ -1616,7 +1616,47 @@ const server = createServer(async (request, response) => {
         rideId: adminRideCancelMatch[1]!,
         reason,
       });
-      const ride = result.ride;
+
+      let ride = result.ride;
+      let paymentView = result.payment;
+      let refundStatus = result.refundStatus;
+
+      if (refundStatus === 'pending_external_gateway') {
+        const fullPayment =
+          await financeRepository.findPaymentById(result.payment.id);
+
+        if (
+          fullPayment?.processor === 'mercado-pago-orders' &&
+          mercadoPagoOrdersClient != null
+        ) {
+          const orderId = fullPayment.processorPaymentId?.trim();
+          if (!orderId) {
+            throw new ExternalRideRefundError(
+              'PAYMENT_GATEWAY_REFERENCE_MISSING',
+              'Pagamento não possui referência da Order do Mercado Pago.',
+            );
+          }
+
+          await mercadoPagoOrdersClient.refundOrder(
+            orderId,
+            `admin-refund-${fullPayment.id}`,
+          );
+          const refunded = await financeRepository.refundExternalPayment({
+            paymentId: fullPayment.id,
+          });
+          await finalizeMercadoPagoRefundedRide(refunded.payment);
+
+          ride = (await rideRepository.findById(ride.id)) ?? ride;
+          paymentView = {
+            id: refunded.payment.id,
+            method: refunded.payment.method,
+            status: refunded.payment.status,
+            amountCents: refunded.payment.amountCents,
+          };
+          refundStatus = 'refunded';
+        }
+      }
+
       json(response, 200, {
         ride: {
           id: ride.id,
@@ -1631,9 +1671,9 @@ const server = createServer(async (request, response) => {
           totalAmountCents: ride.quote.totalAmountCents,
           updatedAt: ride.updatedAt,
         },
-        payment: result.payment,
+        payment: paymentView,
         duplicateCancellation: result.duplicateCancellation,
-        refundStatus: result.refundStatus,
+        refundStatus,
       });
       return;
     }
