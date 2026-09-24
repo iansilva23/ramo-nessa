@@ -161,9 +161,134 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool get _cashAvailable =>
       _paymentPolicy?.cashAvailable == true;
 
+  bool _looksLikeEmail(String value) {
+    final email = value.trim();
+    final at = email.indexOf('@');
+    final dot = email.lastIndexOf('.');
+    return email.length >= 5 &&
+        at > 0 &&
+        dot > at + 1 &&
+        dot < email.length - 1 &&
+        !email.contains(' ');
+  }
+
+  Future<String?> _requestPayerEmail(String paymentName) async {
+    final controller = TextEditingController();
+    String? validationMessage;
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void submit() {
+              final email = controller.text.trim().toLowerCase();
+              if (!_looksLikeEmail(email)) {
+                setSheetState(() {
+                  validationMessage = 'Digite um e-mail válido.';
+                });
+                return;
+              }
+              Navigator.of(sheetContext).pop(email);
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: RamoSpacing.xl,
+                right: RamoSpacing.xl,
+                top: RamoSpacing.sm,
+                bottom:
+                    MediaQuery.viewInsetsOf(context).bottom + RamoSpacing.xl,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: RamoColors.brandYellow,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.alternate_email_rounded,
+                      color: RamoColors.brandBlack,
+                    ),
+                  ),
+                  const SizedBox(height: RamoSpacing.md),
+                  Text(
+                    'Só falta seu e-mail',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: RamoSpacing.xs),
+                  Text(
+                    'Precisamos dele somente para gerar o pagamento por '
+                    '$paymentName. Seu login continua sendo apenas pelo celular.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: RamoSpacing.lg),
+                  TextField(
+                    key: const Key('payment-email-field'),
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.done,
+                    autocorrect: false,
+                    enableSuggestions: true,
+                    decoration: InputDecoration(
+                      labelText: 'E-mail',
+                      hintText: 'voce@exemplo.com',
+                      prefixIcon: const Icon(Icons.mail_outline_rounded),
+                      errorText: validationMessage,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => submit(),
+                  ),
+                  const SizedBox(height: RamoSpacing.md),
+                  FilledButton(
+                    key: const Key('payment-email-confirm'),
+                    onPressed: submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: RamoColors.brandYellow,
+                      foregroundColor: RamoColors.brandBlack,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text(
+                      'Continuar',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  const SizedBox(height: RamoSpacing.xs),
+                  Text(
+                    'Usamos apenas os dados necessários para processar '
+                    'o pagamento com segurança.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    return result;
+  }
+
   Future<void> _startPix() async {
     final service = widget.paymentService;
-    if (service == null || _creatingPix) return;
+    if (service == null || _creatingPix || _remaining == Duration.zero) return;
+
+    final payerEmail = await _requestPayerEmail('Pix');
+    if (!mounted || payerEmail == null) return;
 
     setState(() {
       _creatingPix = true;
@@ -174,6 +299,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       final result = await service.createPixRidePayment(
         rideId: widget.ride.id,
         idempotencyKey: _pixIdempotencyKey,
+        payerEmail: payerEmail,
       );
 
       if (!mounted) return;
