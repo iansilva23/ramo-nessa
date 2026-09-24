@@ -10,6 +10,7 @@ import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/card_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
@@ -512,6 +513,19 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   }
 
   @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
@@ -551,6 +565,19 @@ class _FakeCashPassengerPaymentService
       paymentRequiredBeforeDispatch: true,
       passengerWalletEnabled: true,
     );
+  }
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
   }
 
   @override
@@ -633,6 +660,19 @@ class _FakeRefundedPassengerPaymentService
   }
 
   @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
@@ -675,6 +715,19 @@ class _FakePixPassengerPaymentService
 
   @override
   Future<int> walletBalanceCents() async => 0;
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
 
   @override
   Future<PixRidePaymentResult> createPixRidePayment({
