@@ -1,0 +1,46 @@
+name: Resolve FlutterFire Locks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/passenger/pubspec.yaml"
+      - "apps/driver/pubspec.yaml"
+      - ".github/workflows/resolve-flutterfire-locks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Passenger
+        working-directory: apps/passenger
+        run: flutter pub get
+
+      - name: Resolve Driver
+        working-directory: apps/driver
+        run: flutter pub get
+
+      - name: Collect lockfiles
+        run: |
+          mkdir -p resolved-locks/passenger resolved-locks/driver
+          cp apps/passenger/pubspec.lock resolved-locks/passenger/pubspec.lock
+          cp apps/driver/pubspec.lock resolved-locks/driver/pubspec.lock
+
+      - name: Upload resolved lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutterfire-lockfiles
+          path: resolved-locks
+          if-no-files-found: error
