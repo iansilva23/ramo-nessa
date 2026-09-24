@@ -79,6 +79,7 @@ void main() {
 
     final result = await service.authorizeCashRide(
       rideId: 'ride-cash-http',
+      idempotencyKey: 'cash-http-idempotency-key',
     );
 
     expect(captured.method, 'POST');
@@ -87,6 +88,10 @@ void main() {
     expect(
       captured.headers['authorization'],
       'Bearer passenger-cash-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(
+      captured.headers['idempotency-key'],
+      'cash-http-idempotency-key',
     );
     expect(jsonDecode(captured.body), {'method': 'cash'});
     expect(result.authorized, isTrue);
