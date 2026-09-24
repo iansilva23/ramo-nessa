@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
@@ -57,4 +59,37 @@ class HttpPassengerRideTrackingService
       ),
     );
   }
+
+  @override
+  Future<PassengerDriverRatingResult> rateDriver(
+    String rideId,
+    int stars,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/rating'),
+          headers: _identityHeaders,
+          body: jsonEncode({'stars': stars}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerDriverRatingResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerRideTrackingException(
+          'O servidor retornou uma avaliação inválida.',
+        );
+      }
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos enviar sua avaliação agora.',
+      ),
+    );
+  }
+
 }
