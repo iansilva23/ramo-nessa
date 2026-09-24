@@ -1,6 +1,7 @@
 import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { DriverRegistryRepository } from './driver-registry-repository.js';
+import { driverPhotoPath } from './driver-profile-photo-service.js';
 
 function activityRideView(
   ride: Awaited<ReturnType<RideRepository['findById']>>,
@@ -39,7 +40,16 @@ export async function driverProfileForApp(input: {
             ? {}
             : { email: identity.emailNormalized }),
         }),
-    profile,
+    profile:
+      profile == null
+        ? null
+        : {
+            ...profile,
+            photoPath: driverPhotoPath(
+              input.driverId,
+              profile.photoUpdatedAt,
+            ),
+          },
     vehicle,
   };
 }
