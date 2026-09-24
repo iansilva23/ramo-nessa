@@ -48,6 +48,7 @@ import {
 import { WalletDomainError } from './payments/wallet.js';
 import { PayoutDomainError } from './payments/payout.js';
 import {
+  driverFinanceStatement,
   driverFinanceSummary,
   requestDriverPayoutFromApp,
 } from './drivers/driver-finance-service.js';
@@ -2790,6 +2791,29 @@ const server = createServer(async (request, response) => {
         driverId,
       );
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/statement'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,3}$/.test(rawLimit)
+          ? 50
+          : Math.max(1, Math.min(100, Number(rawLimit)));
+      const statement = await driverFinanceStatement({
+        repository: financeRepository,
+        driverId,
+        limit,
+      });
+      json(response, 200, statement);
       return;
     }
 
