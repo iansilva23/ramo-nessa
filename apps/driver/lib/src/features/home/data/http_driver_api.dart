@@ -222,6 +222,20 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverFinanceStatement> financeStatement() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/statement?limit=50'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverFinanceStatement.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
