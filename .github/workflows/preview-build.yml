@@ -44,6 +44,7 @@ jobs:
         run: >
           flutter build apk --release
           --dart-define=RAMO_PREVIEW_MODE=true
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
           --dart-define=RAMO_APP_VERSION=0.1.0-preview
           --dart-define=RAMO_APP_BUILD=1
 
