@@ -25,6 +25,16 @@ test('catálogo Admin é somente leitura e preserva a autoridade do Core', () =>
     'comfort_black',
     'buggy',
   ]);
+  assert.deepEqual(
+    catalog.categoryPolicies.find(
+      (item) => item.category === 'comfort_black',
+    ),
+    {
+      category: 'comfort_black',
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: true,
+    },
+  );
 });
 
 test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tarifa por conta própria', () => {
