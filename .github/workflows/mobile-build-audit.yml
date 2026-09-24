@@ -2,6 +2,10 @@ name: Mobile Build Audit
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
   group: mobile-build-audit-${{ github.ref }}
@@ -35,6 +39,8 @@ jobs:
 
       - name: Build Passenger Android release
         working-directory: apps/passenger
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
         run: flutter build apk --release
 
       - name: Upload Passenger APK
@@ -75,6 +81,7 @@ jobs:
           retention-days: 7
 
   passenger-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
     needs: preflight
     runs-on: macos-15
     timeout-minutes: 30
@@ -99,6 +106,7 @@ jobs:
 
 
   driver-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
     needs: preflight
     runs-on: macos-15
     timeout-minutes: 30
