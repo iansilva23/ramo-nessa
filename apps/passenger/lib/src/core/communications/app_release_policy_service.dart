@@ -88,7 +88,7 @@ class HttpAppReleasePolicyService
       queryParameters: {
         'app': appKind,
         'platform': platform,
-        'build': String(buildNumber),
+        'build': buildNumber.toString(),
       },
     );
 
