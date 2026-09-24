@@ -235,6 +235,7 @@ import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
 import {
+  assertMercadoPagoProductionConfig,
   resolveCorePort,
   resolveShutdownTimeoutMs,
 } from './config/runtime-config.js';
@@ -300,6 +301,7 @@ const {
   close: closeRepositories,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
+assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
