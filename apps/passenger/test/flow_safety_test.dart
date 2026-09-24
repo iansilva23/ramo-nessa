@@ -88,7 +88,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
+    expect(find.text('2,5 km · 7 min'), findsOneWidget);
 
     await tester.drag(
       find.byType(ListView).last,
