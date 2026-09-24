@@ -29,7 +29,10 @@ on:
       - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
-  group: preflight-${{ github.event.pull_request.number || github.ref }}
+  # github.workflow is the caller name for reusable workflows. This keeps
+  # standalone PR Preflight and Mobile Build Audit Preflight from cancelling
+  # each other while still cancelling obsolete runs of the same workflow.
+  group: preflight-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
