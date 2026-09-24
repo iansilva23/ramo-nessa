@@ -13,6 +13,10 @@ interface DriverProfileRow {
   full_name: string;
   preferred_name: string | null;
   status: DriverRegistryStatus;
+  photo_mime_type: string | null;
+  photo_updated_at: Date | null;
+  rating_sum: number;
+  rating_count: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -41,10 +45,23 @@ function mapProfile(row: DriverProfileRow): DriverProfileRecord {
       ? { preferredName: row.preferred_name }
       : {}),
     status: row.status,
+    ...(row.photo_updated_at == null
+      ? {}
+      : { photoUpdatedAt: row.photo_updated_at.toISOString() }),
+    ...(row.rating_count > 0
+      ? { ratingAverage: row.rating_sum / row.rating_count }
+      : {}),
+    ratingCount: row.rating_count,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
 }
+
+const PROFILE_COLUMNS = `
+  driver_id, full_name, preferred_name, status,
+  photo_mime_type, photo_updated_at, rating_sum, rating_count,
+  created_at, updated_at
+`;
 
 function mapVehicle(row: DriverVehicleRow): DriverVehicleRecord {
   return {
@@ -72,7 +89,7 @@ export class PostgresDriverRegistryRepository
     driverId: string,
   ): Promise<DriverProfileRecord | null> {
     const result = await this.pool.query<DriverProfileRow>(
-      'SELECT * FROM driver_profiles WHERE driver_id = $1 LIMIT 1',
+      `SELECT ${PROFILE_COLUMNS} FROM driver_profiles WHERE driver_id = $1 LIMIT 1`,
       [driverId],
     );
     return result.rows[0] == null ? null : mapProfile(result.rows[0]);
@@ -92,7 +109,7 @@ export class PostgresDriverRegistryRepository
         full_name = EXCLUDED.full_name,
         preferred_name = EXCLUDED.preferred_name,
         updated_at = EXCLUDED.updated_at
-      RETURNING *
+      RETURNING ${PROFILE_COLUMNS}
       `,
       [
         record.driverId,
@@ -118,11 +135,79 @@ export class PostgresDriverRegistryRepository
       UPDATE driver_profiles
       SET status = $2, updated_at = $3
       WHERE driver_id = $1
-      RETURNING *
+      RETURNING ${PROFILE_COLUMNS}
       `,
       [input.driverId, input.status, input.updatedAt],
     );
     return result.rows[0] == null ? null : mapProfile(result.rows[0]);
+  }
+
+  async updateProfilePhoto(input: {
+    driverId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<DriverProfileRecord | null> {
+    const result = await this.pool.query<DriverProfileRow>(
+      `
+      UPDATE driver_profiles
+      SET
+        photo_bytes = $2,
+        photo_mime_type = $3,
+        photo_updated_at = $4,
+        updated_at = $4
+      WHERE driver_id = $1
+      RETURNING ${PROFILE_COLUMNS}
+      `,
+      [
+        input.driverId,
+        input.bytes,
+        input.mimeType,
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapProfile(result.rows[0]);
+  }
+
+  async findProfilePhoto(driverId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null> {
+    const result = await this.pool.query<{
+      photo_bytes: Buffer | null;
+      photo_mime_type: string | null;
+      photo_updated_at: Date | null;
+    }>(
+      `
+      SELECT photo_bytes, photo_mime_type, photo_updated_at
+      FROM driver_profiles
+      WHERE driver_id = $1
+      LIMIT 1
+      `,
+      [driverId],
+    );
+    const row = result.rows[0];
+    if (
+      row?.photo_bytes == null ||
+      row.photo_mime_type == null ||
+      row.photo_updated_at == null
+    ) {
+      return null;
+    }
+    if (
+      row.photo_mime_type !== 'image/jpeg' &&
+      row.photo_mime_type !== 'image/png' &&
+      row.photo_mime_type !== 'image/webp'
+    ) {
+      return null;
+    }
+
+    return {
+      bytes: row.photo_bytes,
+      mimeType: row.photo_mime_type,
+      updatedAt: row.photo_updated_at.toISOString(),
+    };
   }
 
   async findVehicleByDriverId(
