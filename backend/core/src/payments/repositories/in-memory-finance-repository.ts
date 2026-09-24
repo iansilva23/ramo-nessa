@@ -12,6 +12,7 @@ import {
   type AdminFinanceSummary,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type MarkPaymentPendingInput,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -104,6 +105,41 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     this.payments.set(payment.id, structuredClone(payment));
     this.idempotencyIndex.set(payment.idempotencyKey, payment.id);
     return structuredClone(payment);
+  }
+
+  async markPaymentPending(
+    input: MarkPaymentPendingInput,
+  ): Promise<PaymentRecord> {
+    const payment = this.payments.get(input.paymentId);
+    if (payment == null) {
+      throw new PaymentDomainError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado.',
+      );
+    }
+
+    if (payment.status === 'pending') {
+      return structuredClone(payment);
+    }
+
+    let status: PaymentRecord['status'];
+    try {
+      status = transitionPayment(payment.status, 'pending');
+    } catch {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        `Pagamento em estado ${payment.status} não pode ficar pendente.`,
+      );
+    }
+
+    const updated: PaymentRecord = {
+      ...payment,
+      status,
+      processorPaymentId: input.processorPaymentId,
+      updatedAt: (input.pendingAt ?? new Date()).toISOString(),
+    };
+    this.payments.set(payment.id, structuredClone(updated));
+    return structuredClone(updated);
   }
 
   async capturePayment(
