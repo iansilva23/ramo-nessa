@@ -330,6 +330,51 @@ void main() {
     );
   });
 
+  testWidgets('Pix desativa QR quando a reserva expira', (tester) async {
+    final ride = PreparedRide(
+      id: 'ride-pix-expiry-ui',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4500,
+      pickupCompensationCents: 0,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(seconds: 2)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RidePaymentScreen(
+          ride: ride,
+          paymentService: _FakePixPassengerPaymentService(),
+          networkTilesEnabled: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    await tester.tap(find.text('Pix'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Copiar código Pix'), findsOneWidget);
+    expect(
+      find.textContaining('Reserva do motorista:'),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(find.text('Copiar código Pix'), findsNothing);
+    expect(
+      find.text('Reserva expirada · não faça mais este Pix'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+
 }
 
 class _FakeLocationService implements LocationService {
