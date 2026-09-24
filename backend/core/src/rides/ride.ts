@@ -35,6 +35,7 @@ export interface RideRecord {
   origin: LocationRef;
   destination: LocationRef;
   category: ServiceCategory;
+  requiresFourByFour?: boolean;
   period: PricePeriod;
   passengers: number;
   tripDistanceKm?: number;
