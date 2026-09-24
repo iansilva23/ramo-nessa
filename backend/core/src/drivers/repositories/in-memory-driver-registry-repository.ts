@@ -104,7 +104,6 @@ export class InMemoryDriverRegistryRepository
   }): Promise<DriverRatingResult> {
     const existing = this.ratings.get(input.rideId);
     if (existing != null) {
-      const profile = this.profiles.get(existing.driverId);
       const ratings = [...this.ratings.values()].filter(
         (rating) => rating.driverId === existing.driverId,
       );
