@@ -145,6 +145,50 @@ final class _PreviewDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverProfileSnapshot> profile() async {
+    return const DriverProfileSnapshot(
+      driverId: 'preview-driver',
+      phoneE164: '+5588999999999',
+      fullName: 'Motorista Preview',
+      preferredName: 'Motorista',
+      profileStatus: 'approved',
+      vehicleId: 'preview-vehicle',
+      vehiclePlate: 'PRE1A23',
+      vehicleMake: 'Toyota',
+      vehicleModel: 'SW4',
+      vehicleYear: 2026,
+      vehicleColor: 'Preto',
+      vehicleStatus: 'approved',
+      vehicleCategories: ['car', 'comfort_black', 'buggy'],
+      vehicleFourByFour: true,
+      vehicleSeatCapacity: 4,
+    );
+  }
+
+  @override
+  Future<DriverActivitySnapshot> activity() async {
+    return DriverActivitySnapshot(
+      total: _ride == null ? 12 : 13,
+      completed: 11,
+      cancelled: 1,
+      inProgress: _ride == null ? 0 : 1,
+      earningsCents: 82600,
+      rides: [
+        DriverActivityRide(
+          id: 'preview-history-1',
+          state: 'COMPLETED',
+          category: 'car',
+          origin: const DriverLocationRef(zoneId: 'jericoacoara'),
+          destination: const DriverLocationRef(zoneId: 'prea'),
+          driverEarningsCents: 7200,
+          updatedAt: DateTime(2026, 9, 23, 18, 30),
+          paymentMethod: 'pix',
+        ),
+      ],
+    );
+  }
+
+  @override
   Future<AcceptedDriverRide?> currentRide() async => _ride;
 
   @override
