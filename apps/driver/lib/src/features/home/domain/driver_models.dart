@@ -82,6 +82,11 @@ class DriverOffer {
     required this.rideId,
     required this.expiresAt,
     required this.approximatePickupDistanceKm,
+    this.tripDistanceKm,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
     required this.category,
     required this.passengers,
     required this.origin,
@@ -100,6 +105,11 @@ class DriverOffer {
       expiresAt: DateTime.parse(json['expiresAt'] as String),
       approximatePickupDistanceKm:
           (json['approximatePickupDistanceKm'] as num).toDouble(),
+      tripDistanceKm: (json['tripDistanceKm'] as num?)?.toDouble(),
+      pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
+      pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble(),
+      dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble(),
+      dropoffLongitude: (json['dropoffLongitude'] as num?)?.toDouble(),
       category: json['category'] as String,
       passengers: (json['passengers'] as num).toInt(),
       origin: DriverLocationRef.fromJson(
@@ -123,6 +133,11 @@ class DriverOffer {
   final String rideId;
   final DateTime expiresAt;
   final double approximatePickupDistanceKm;
+  final double? tripDistanceKm;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
   final String category;
   final int passengers;
   final DriverLocationRef origin;
