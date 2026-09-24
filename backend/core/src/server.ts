@@ -2319,29 +2319,16 @@ const server = createServer(async (request, response) => {
             currentRide;
         }
 
-        const {
-          reservedDriverId: _internalReservedDriverId,
-          ...publicRide
-        } = currentRide;
-
         json(response, 201, {
           authorization: {
             method: 'cash',
             status: 'authorized',
             amountCents: currentRide.quote.totalAmountCents,
           },
-          ride: publicRide,
+          ride: passengerRideView(currentRide),
           dispatchStatus,
           duplicateAuthorization:
             result.duplicateAuthorization,
-          cashPolicy: {
-            effectiveDebtLimitCents:
-              result.cashPolicy.effectiveDebtLimitCents,
-            currentDebtCents:
-              result.cashPolicy.currentDebtCents,
-            projectedDebtCents:
-              result.cashPolicy.projectedDebtCents,
-          },
         });
         return;
       }
@@ -2467,10 +2454,6 @@ const server = createServer(async (request, response) => {
 
         const latestRide =
           (await rideRepository.findById(ride.id)) ?? currentRide;
-        const {
-          reservedDriverId: _internalReservedDriverId,
-          ...publicRide
-        } = latestRide;
 
         const walletBalanceCents = await passengerWalletBalanceCents(
           financeRepository,
@@ -2479,7 +2462,7 @@ const server = createServer(async (request, response) => {
 
         json(response, 201, {
           payment: responsePayment,
-          ride: publicRide,
+          ride: passengerRideView(latestRide),
           dispatchStatus,
           walletBalanceCents,
           duplicatePayment: result.duplicatePayment,

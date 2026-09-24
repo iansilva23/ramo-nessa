@@ -1,5 +1,31 @@
-import type { RideRecord } from './ride.js';
-import { publicFareQuoteView } from '../pricing/public-fare-view.js';
+import type {
+  RideQuoteSnapshot,
+  RideRecord,
+} from './ride.js';
+
+export function publicRideQuoteView(
+  quote: RideQuoteSnapshot,
+) {
+  return {
+    ruleId: quote.ruleId,
+    ...(quote.catalogVersion == null
+      ? {}
+      : { catalogVersion: quote.catalogVersion }),
+    ...(quote.catalogVersionId == null
+      ? {}
+      : { catalogVersionId: quote.catalogVersionId }),
+    ...(quote.catalogVersionNumber == null
+      ? {}
+      : {
+          catalogVersionNumber:
+            quote.catalogVersionNumber,
+        }),
+    baseAmountCents: quote.baseAmountCents,
+    pickupCompensationCents:
+      quote.pickupCompensationCents,
+    totalAmountCents: quote.totalAmountCents,
+  };
+}
 
 export function passengerRideView(ride: RideRecord) {
   const {
@@ -9,6 +35,6 @@ export function passengerRideView(ride: RideRecord) {
 
   return {
     ...publicRide,
-    quote: publicFareQuoteView(ride.quote),
+    quote: publicRideQuoteView(ride.quote),
   };
 }

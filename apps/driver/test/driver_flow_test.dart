@@ -202,6 +202,39 @@ void main() {
   });
 
   testWidgets(
+    'taxa cash fica restrita ao extrato da carteira',
+    (tester) async {
+      final api = _FakeDriverApi(cashCommissionDebtCents: 1200);
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(find.text('Taxa de uso do app pendente'), findsNothing);
+
+      await tester.ensureVisible(find.text('Ver extrato'));
+      await tester.tap(find.text('Ver extrato'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Extrato da carteira'), findsOneWidget);
+      expect(find.text('Taxa de uso do app pendente'), findsOneWidget);
+      expect(find.text('R\$ 12,00'), findsOneWidget);
+      expect(
+        find.textContaining('corridas recebidas em dinheiro'),
+        findsOneWidget,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'retry de saque após falha de transporte reutiliza a mesma chave',
     (tester) async {
       final api = _FakeDriverApi(failFirstPayoutUnexpectedly: true);
@@ -323,7 +356,13 @@ class _FakeDriverApi implements DriverApi {
     bool initialBusy = false,
     this.failFirstPayoutUnexpectedly = false,
     this.missingSupplyOnFirstLoad = false,
-  })  : _supply = DriverSupplySnapshot(
+    this.cashCommissionDebtCents = 0,
+  })  : _finance = DriverFinanceSummary(
+          availableBalanceCents: 11000,
+          payoutPendingCents: 0,
+          cashCommissionDebtCents: cashCommissionDebtCents,
+        ),
+        _supply = DriverSupplySnapshot(
           driverId: 'driver-test',
           vehicleId: 'SW4 TESTE',
           categories: const ['car'],
@@ -354,6 +393,7 @@ class _FakeDriverApi implements DriverApi {
 
   final bool failFirstPayoutUnexpectedly;
   final bool missingSupplyOnFirstLoad;
+  final int cashCommissionDebtCents;
   DriverSupplySnapshot _supply;
   int getSupplyCalls = 0;
   bool _offerAvailable = true;
@@ -366,10 +406,7 @@ class _FakeDriverApi implements DriverApi {
   int? lastPayoutAmountCents;
   int payoutAttempts = 0;
   final List<String> payoutIdempotencyKeys = [];
-  DriverFinanceSummary _finance = const DriverFinanceSummary(
-    availableBalanceCents: 11000,
-    payoutPendingCents: 0,
-  );
+  DriverFinanceSummary _finance;
 
   DriverOffer get _offer => DriverOffer(
         id: 'offer-1',
@@ -564,6 +601,8 @@ class _FakeDriverApi implements DriverApi {
           _finance.availableBalanceCents - amountCents,
       payoutPendingCents:
           _finance.payoutPendingCents + amountCents,
+      cashCommissionDebtCents:
+          _finance.cashCommissionDebtCents,
     );
     return DriverPayoutReservation(
       id: 'payout-test',

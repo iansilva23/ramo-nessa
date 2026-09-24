@@ -1007,6 +1007,74 @@ class _DriverFinanceCard extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onRequestPayout;
 
+  void _showWalletStatement(BuildContext context) {
+    final current = finance;
+    if (current == null) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final cashDebt = current.cashCommissionDebtCents;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              RamoSpacing.lg,
+              0,
+              RamoSpacing.lg,
+              RamoSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Extrato da carteira',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: RamoSpacing.md),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Disponível para saque'),
+                  trailing: Text(
+                    formatCents(current.availableBalanceCents),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Em processamento'),
+                  trailing: Text(
+                    formatCents(current.payoutPendingCents),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (cashDebt > 0) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Taxa de uso do app pendente'),
+                    trailing: Text(
+                      formatCents(cashDebt),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const Text(
+                    'Esse valor vem de corridas recebidas em dinheiro e '
+                    'será compensado automaticamente pelos próximos '
+                    'recebimentos digitais.',
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final available = finance?.availableBalanceCents ?? 0;
@@ -1060,7 +1128,17 @@ class _DriverFinanceCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: RamoSpacing.sm),
+          const SizedBox(height: RamoSpacing.xs),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed:
+                  finance == null ? null : () => _showWalletStatement(context),
+              icon: const Icon(Icons.receipt_long_rounded),
+              label: const Text('Ver extrato'),
+            ),
+          ),
+          const SizedBox(height: RamoSpacing.xs),
           const Text(
             'O saque já pode ser reservado no app. O envio Pix real '
             'será ativado quando o provedor de repasses estiver conectado.',
@@ -1195,6 +1273,18 @@ class _OfferCard extends StatelessWidget {
               ),
             ),
           ],
+          if (offer.isCash &&
+              offer.cashCollectionAmountCents != null) ...[
+            const SizedBox(height: RamoSpacing.xs),
+            Text(
+              'Pagamento em dinheiro · cobrar '
+              '${formatCents(offer.cashCollectionAmountCents!)}',
+              style: const TextStyle(
+                color: RamoColors.brandBlack,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
           const SizedBox(height: RamoSpacing.xl),
           Row(
             children: [
@@ -1312,6 +1402,15 @@ class _ActiveRideCard extends StatelessWidget {
           ),
           const SizedBox(height: RamoSpacing.xs),
           Text('Seu ganho: ${formatCents(ride.driverEarningsCents)}'),
+          if (ride.isCash &&
+              ride.cashCollectionAmountCents != null) ...[
+            const SizedBox(height: RamoSpacing.xs),
+            Text(
+              'Receber em dinheiro: '
+              '${formatCents(ride.cashCollectionAmountCents!)}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
           if (ride.pickupLatitude != null && ride.pickupLongitude != null)
             Padding(
               padding: const EdgeInsets.only(top: RamoSpacing.sm),
