@@ -37,7 +37,8 @@ class MainActivity : FlutterActivity() {
         }
 
         val amountCents =
-            (arguments as? Map<*, *>)?.get("amountCents") as? Int
+            ((arguments as? Map<*, *>)?.get("amountCents") as? Number)
+                ?.toInt()
         if (amountCents == null || amountCents <= 0) {
             result.error(
                 "CARD_AMOUNT_INVALID",
