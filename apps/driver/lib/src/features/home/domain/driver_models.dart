@@ -625,6 +625,81 @@ class DriverSessionRevokeResult {
 }
 
 
+class DriverSupportTicket {
+  const DriverSupportTicket({
+    required this.id,
+    required this.category,
+    required this.subject,
+    required this.message,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    this.response,
+    this.respondedAt,
+  });
+
+  factory DriverSupportTicket.fromJson(Map<String, dynamic> json) {
+    return DriverSupportTicket(
+      id: json['id'] as String,
+      category: json['category'] as String,
+      subject: json['subject'] as String,
+      message: json['message'] as String,
+      status: json['status'] as String,
+      response: json['response'] as String?,
+      respondedAt: json['respondedAt'] == null
+          ? null
+          : DateTime.parse(json['respondedAt'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  final String id;
+  final String category;
+  final String subject;
+  final String message;
+  final String status;
+  final String? response;
+  final DateTime? respondedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  String get categoryLabel => switch (category) {
+        'ride' => 'Corrida',
+        'payment' => 'Pagamento',
+        'account' => 'Conta',
+        'document' => 'Documentos',
+        _ => 'Outro',
+      };
+
+  String get statusLabel => switch (status) {
+        'open' => 'Aberto',
+        'in_progress' => 'Em atendimento',
+        'resolved' => 'Resolvido',
+        'closed' => 'Encerrado',
+        _ => status,
+      };
+}
+
+class DriverSupportSnapshot {
+  const DriverSupportSnapshot({required this.tickets});
+
+  factory DriverSupportSnapshot.fromJson(Map<String, dynamic> json) {
+    final raw = json['tickets'];
+    return DriverSupportSnapshot(
+      tickets: raw is List
+          ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(DriverSupportTicket.fromJson)
+              .toList(growable: false)
+          : const [],
+    );
+  }
+
+  final List<DriverSupportTicket> tickets;
+}
+
+
 class DriverActivityRide {
   const DriverActivityRide({
     required this.id,
