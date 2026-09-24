@@ -10,6 +10,9 @@ export interface DriverProfileRecord {
   fullName: string;
   preferredName?: string;
   status: DriverRegistryStatus;
+  photoUpdatedAt?: string;
+  ratingAverage?: number;
+  ratingCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,6 +43,17 @@ export interface DriverRegistryRepository {
     status: DriverRegistryStatus;
     updatedAt: string;
   }): Promise<DriverProfileRecord | null>;
+  updateProfilePhoto(input: {
+    driverId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<DriverProfileRecord | null>;
+  findProfilePhoto(driverId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null>;
 
   findVehicleByDriverId(
     driverId: string,
