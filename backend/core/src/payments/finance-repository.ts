@@ -171,4 +171,8 @@ export interface FinanceRepository {
   adminFinanceSummary(): Promise<AdminFinanceSummary>;
   listRecentPayments(limit: number): Promise<PaymentRecord[]>;
   listRecentDriverPayouts(limit: number): Promise<DriverPayoutRecord[]>;
+  listLedgerTransactionsForAccounts(
+    accountKeys: readonly string[],
+    limit: number,
+  ): Promise<LedgerTransaction[]>;
 }
