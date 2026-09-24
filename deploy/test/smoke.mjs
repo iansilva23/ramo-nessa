@@ -643,6 +643,36 @@ try {
     throw new Error('Edição isolada do rascunho de preços falhou.');
   }
 
+  const pricingCategoryEdit = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'category_policy',
+        category: 'moto',
+        enabled: false,
+        requiresFourByFourOnJeriBoundary: false,
+      }),
+    },
+  );
+  if (
+    pricingCategoryEdit.response.status !== 200 ||
+    !pricingCategoryEdit.payload?.catalog?.categoryPolicies?.some(
+      (policy) =>
+        policy.category === 'moto' &&
+        policy.enabled === false &&
+        policy.requiresFourByFourOnJeriBoundary === false,
+    )
+  ) {
+    throw new Error(
+      'Edição versionada da elegibilidade de categoria falhou.',
+    );
+  }
+
   const pricingStillActive = await jsonRequest(
     '/v1/admin/pricing/catalog',
     { headers: authHeaders },
@@ -656,6 +686,11 @@ try {
         route.id === 'prea-jijoca-car' &&
         route.dayCents === 12000 &&
         route.after22Cents === 14000,
+    ) ||
+    !pricingStillActive.payload?.categoryPolicies?.some(
+      (policy) =>
+        policy.category === 'moto' &&
+        policy.enabled === true,
     )
   ) {
     throw new Error(
@@ -696,6 +731,11 @@ try {
         route.id === 'prea-jijoca-car' &&
         route.dayCents === 13000 &&
         route.after22Cents === 13000,
+    ) ||
+    !pricingPublishedCatalog.payload?.categoryPolicies?.some(
+      (policy) =>
+        policy.category === 'moto' &&
+        policy.enabled === false,
     )
   ) {
     throw new Error(
@@ -730,6 +770,36 @@ try {
     );
   }
 
+  const disabledMotoQuote = await jsonRequest(
+    '/v1/pricing/quote',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin: {
+          zoneId: 'prea',
+          localityId: 'prea',
+        },
+        destination: {
+          zoneId: 'prea',
+          localityId: 'laguim',
+        },
+        category: 'moto',
+        period: 'day',
+      }),
+    },
+  );
+  if (
+    disabledMotoQuote.response.status !== 422 ||
+    disabledMotoQuote.payload?.error !== 'UNAVAILABLE_CATEGORY'
+  ) {
+    throw new Error(
+      'Categoria desativada continuou aceitando nova cotação.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
@@ -753,7 +823,7 @@ try {
   if (
     audit.response.status !== 200 ||
     !Array.isArray(pricingAudit) ||
-    pricingAudit.length !== 3 ||
+    pricingAudit.length !== 4 ||
     !pricingAudit.some(
       (entry) =>
         entry.action === 'pricing.catalog_version.created' &&
@@ -762,6 +832,13 @@ try {
     !pricingAudit.some(
       (entry) =>
         entry.action === 'pricing.catalog_version.updated' &&
+        entry.actor?.kind === 'user',
+    ) ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.metadata?.kind === 'category_policy' &&
+        entry.metadata?.category === 'moto' &&
         entry.actor?.kind === 'user',
     ) ||
     !pricingAudit.some(
@@ -814,7 +891,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços e categorias versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
