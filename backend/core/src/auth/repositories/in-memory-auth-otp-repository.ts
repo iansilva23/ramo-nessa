@@ -142,13 +142,14 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
       ...(input.passwordHash == null
         ? {}
         : { passwordHash: input.passwordHash }),
-      ...(input.photoUrl === undefined
+      ...(input.photoUrl == null
         ? {}
-        : input.photoUrl == null
-          ? { photoUrl: undefined }
-          : { photoUrl: input.photoUrl }),
+        : { photoUrl: input.photoUrl }),
       updatedAt: input.updatedAt,
     };
+    if (input.photoUrl === null) {
+      delete updated.photoUrl;
+    }
     this.identities.set(updated.id, updated);
     return structuredClone(updated);
   }
