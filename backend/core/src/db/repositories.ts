@@ -37,6 +37,9 @@ import { InMemoryPaymentPolicySettingsRepository } from '../payments/repositorie
 import { PostgresPaymentPolicySettingsRepository } from '../payments/repositories/postgres-payment-policy-settings-repository.js';
 import { InMemoryRideRepository } from '../rides/repositories/in-memory-ride-repository.js';
 import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repository.js';
+import type { PushDeviceRepository } from '../notifications/push-device-repository.js';
+import { InMemoryPushDeviceRepository } from '../notifications/repositories/in-memory-push-device-repository.js';
+import { PostgresPushDeviceRepository } from '../notifications/repositories/postgres-push-device-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
@@ -53,6 +56,7 @@ export interface RepositoryBundle {
   pricingCatalogVersionRepository: PricingCatalogVersionRepository;
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
+  pushDeviceRepository: PushDeviceRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -87,6 +91,7 @@ export function createRepositories(): RepositoryBundle {
       rideMatchingRepository: new PostgresRideMatchingRepository(pool),
       ridePreparationRepository:
         new PostgresRidePreparationRepository(pool),
+      pushDeviceRepository: new PostgresPushDeviceRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -131,6 +136,7 @@ export function createRepositories(): RepositoryBundle {
       rideRepository,
       driverSupplyRepository,
     ),
+    pushDeviceRepository: new InMemoryPushDeviceRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
