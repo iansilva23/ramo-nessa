@@ -36,6 +36,18 @@ export interface RideOfferMutationResult {
   offer: RideOfferRecord;
 }
 
+export interface CancelRideByAdminInput {
+  rideId: string;
+  cancelledAt: string;
+}
+
+export interface CancelRideByAdminResult {
+  ride: RideRecord;
+  alreadyCancelled: boolean;
+  cancelledOffers: number;
+  releasedDriverId: string | null;
+}
+
 export interface RideMatchingRepository {
   createOffer(
     input: CreateRideOfferInput,
@@ -46,6 +58,9 @@ export interface RideMatchingRepository {
   rejectOffer(input: RejectRideOfferInput): Promise<RideOfferRecord>;
   expireOffer(input: ExpireRideOfferInput): Promise<RideOfferRecord>;
   markNoDriverFound(input: MarkNoDriverFoundInput): Promise<RideRecord>;
+  cancelRideByAdmin(
+    input: CancelRideByAdminInput,
+  ): Promise<CancelRideByAdminResult>;
   findOfferById(id: string): Promise<RideOfferRecord | null>;
   findLatestOfferedForDriver(
     driverId: string,
