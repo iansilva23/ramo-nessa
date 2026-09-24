@@ -8,6 +8,7 @@ import {
   type LedgerTransaction,
 } from '../ledger.js';
 import {
+  type AdminFinanceSummary,
   type CapturePaymentInput,
   type CapturePaymentResult,
   type CaptureWalletTopupInput,
@@ -564,6 +565,92 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       ledgerTransaction: structuredClone(ledger),
       duplicateRequest: false,
     };
+  }
+
+  async adminFinanceSummary(): Promise<AdminFinanceSummary> {
+    const payments = [...this.payments.values()];
+    const payouts = [...this.payouts.values()];
+
+    const familyBalance = (matches: (accountKey: string) => boolean) => {
+      let balance = 0;
+      for (const transaction of this.ledgerByReference.values()) {
+        for (const entry of transaction.entries) {
+          if (!matches(entry.accountKey)) continue;
+          balance +=
+            entry.direction === 'credit'
+              ? entry.amountCents
+              : -entry.amountCents;
+        }
+      }
+      return balance;
+    };
+
+    return {
+      paymentsTotal: payments.length,
+      paymentsPaid: payments.filter(
+        (payment) => payment.status === 'paid',
+      ).length,
+      paymentsPaidCents: payments
+        .filter((payment) => payment.status === 'paid')
+        .reduce((sum, payment) => sum + payment.amountCents, 0),
+      paymentsPending: payments.filter((payment) =>
+        ['created', 'pending', 'authorized'].includes(payment.status),
+      ).length,
+      paymentsFailed: payments.filter(
+        (payment) => payment.status === 'failed',
+      ).length,
+      paymentsCancelled: payments.filter(
+        (payment) => payment.status === 'cancelled',
+      ).length,
+      paymentsRefunded: payments.filter(
+        (payment) => payment.status === 'refunded',
+      ).length,
+      platformRevenueCents: familyBalance(
+        (accountKey) => accountKey === 'platform:revenue',
+      ),
+      driverPayableCents: familyBalance(
+        (accountKey) =>
+          accountKey.startsWith('driver:') &&
+          accountKey.endsWith(':payable'),
+      ),
+      driverPayoutPendingCents: familyBalance(
+        (accountKey) =>
+          accountKey.startsWith('driver:') &&
+          accountKey.endsWith(':payout_pending'),
+      ),
+      rideEscrowCents: familyBalance(
+        (accountKey) =>
+          accountKey.startsWith('ride:') &&
+          accountKey.endsWith(':escrow'),
+      ),
+      passengerWalletCents: familyBalance(
+        (accountKey) =>
+          accountKey.startsWith('passenger:') &&
+          accountKey.endsWith(':wallet'),
+      ),
+      payoutsRequested: payouts.filter(
+        (payout) => payout.status === 'requested',
+      ).length,
+      payoutsRequestedCents: payouts
+        .filter((payout) => payout.status === 'requested')
+        .reduce((sum, payout) => sum + payout.amountCents, 0),
+    };
+  }
+
+  async listRecentPayments(limit: number): Promise<PaymentRecord[]> {
+    return [...this.payments.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((payment) => structuredClone(payment));
+  }
+
+  async listRecentDriverPayouts(
+    limit: number,
+  ): Promise<DriverPayoutRecord[]> {
+    return [...this.payouts.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((payout) => structuredClone(payout));
   }
 
   async getAccountBalanceCents(accountKey: string): Promise<number> {
