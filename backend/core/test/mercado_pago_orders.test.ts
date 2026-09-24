@@ -102,13 +102,13 @@ test('consulta Order e lê status consolidado e da transação', async () => {
   assert.equal(order.paymentStatus, 'processed');
 });
 
-test('valida assinatura HMAC preservando maiúsculas do data.id', () => {
+test('valida assinatura HMAC com data.id em minúsculas no manifesto', () => {
   const dataId = 'ORD01MiXeDCase123';
   const requestId = 'request-123';
   const timestamp = '1760000000000';
   const secret = 'webhook-secret-test-only-123456789';
   const manifest =
-    `id:${dataId};request-id:${requestId};ts:${timestamp};`;
+    `id:${dataId.toLowerCase()};request-id:${requestId};ts:${timestamp};`;
   const signature = createHmac('sha256', secret)
     .update(manifest, 'utf8')
     .digest('hex');
@@ -127,7 +127,17 @@ test('valida assinatura HMAC preservando maiúsculas do data.id', () => {
     verifyMercadoPagoWebhookSignature({
       xSignature: `ts=${timestamp},v1=${signature}`,
       xRequestId: requestId,
-      dataId: dataId.toLowerCase(),
+      dataId,
+      secret,
+    }),
+    true,
+  );
+
+  assert.equal(
+    verifyMercadoPagoWebhookSignature({
+      xSignature: `ts=${timestamp},v1=${signature}`,
+      xRequestId: requestId,
+      dataId: `${dataId}X`,
       secret,
     }),
     false,
