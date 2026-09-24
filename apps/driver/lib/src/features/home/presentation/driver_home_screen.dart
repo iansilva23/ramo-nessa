@@ -851,27 +851,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const RamoBrandLockup(compact: true),
-            const SizedBox(width: RamoSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: RamoSpacing.sm,
-                vertical: RamoSpacing.xxs,
-              ),
-              decoration: BoxDecoration(
-                color: RamoColors.brandBlack,
-                borderRadius: BorderRadius.circular(RamoRadius.pill),
-              ),
-              child: const Text(
-                'MOTORISTA',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .8,
-                ),
+            RamoBrandLockup(compact: true),
+            SizedBox(height: 2),
+            Text(
+              'Motorista',
+              style: TextStyle(
+                color: RamoColors.muted,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .2,
               ),
             ),
           ],
@@ -907,7 +898,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onRefresh: _load,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(RamoSpacing.lg),
+                  padding: const EdgeInsets.fromLTRB(
+                    RamoSpacing.lg,
+                    RamoSpacing.md,
+                    RamoSpacing.lg,
+                    RamoSpacing.xxl,
+                  ),
                   children: [
                     if (_message != null) ...[
                       _MessageCard(message: _message!),
@@ -994,9 +990,8 @@ class _DriverStatusCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: RamoColors.surfaceRaised,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
-        boxShadow: RamoElevation.floating(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
