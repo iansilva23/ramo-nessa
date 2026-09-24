@@ -47,6 +47,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
   @override
   Future<RequestedOtp> requestOtp({
     required String phone,
+    String? email,
   }) async {
     final response = await _client
         .post(
@@ -55,6 +56,8 @@ class HttpPhoneAuthService implements PhoneAuthService {
           body: jsonEncode({
             'subjectType': _subjectType,
             'phone': phone,
+            if (email != null && email.trim().isNotEmpty)
+              'email': email.trim(),
           }),
         )
         .timeout(const Duration(seconds: 12));
@@ -68,6 +71,37 @@ class HttpPhoneAuthService implements PhoneAuthService {
         expiresAt is! String ||
         retryAfterSeconds is! num) {
       throw const FormatException('Resposta de OTP inválida.');
+    }
+
+    return RequestedOtp(
+      challengeId: challengeId,
+      expiresAt: DateTime.parse(expiresAt),
+      retryAfterSeconds: retryAfterSeconds.toInt(),
+      devCode: json['devCode'] is String ? json['devCode'] as String : null,
+    );
+  }
+
+  @override
+  Future<RequestedOtp> requestPasswordResetOtp({
+    required String phone,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/passenger/password/reset/request'),
+          headers: _otpHeaders,
+          body: jsonEncode({'phone': phone}),
+        )
+        .timeout(const Duration(seconds: 12));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+
+    final challengeId = json['challengeId'];
+    final expiresAt = json['expiresAt'];
+    final retryAfterSeconds = json['retryAfterSeconds'];
+    if (challengeId is! String ||
+        expiresAt is! String ||
+        retryAfterSeconds is! num) {
+      throw const FormatException('Resposta de recuperação inválida.');
     }
 
     return RequestedOtp(
@@ -96,23 +130,66 @@ class HttpPhoneAuthService implements PhoneAuthService {
     final json = _decodeObject(response);
     _throwIfError(response, json);
 
-    final token = json['accessToken'];
-    final expiresAt = json['expiresAt'];
-    final subjectId = json['subjectId'];
-    final subjectType = json['subjectType'];
-    if (token is! String ||
-        expiresAt is! String ||
-        subjectId is! String ||
-        subjectType is! String) {
-      throw const FormatException('Sessão autenticada inválida.');
-    }
+    return _sessionFromJson(json);
+  }
 
-    return AuthSession(
-      accessToken: token,
-      expiresAt: DateTime.parse(expiresAt),
-      subjectId: subjectId,
-      subjectType: subjectType,
-    );
+  @override
+  Future<AuthSession> loginWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/passenger/password/login'),
+          headers: _otpHeaders,
+          body: jsonEncode({
+            'email': email.trim(),
+            'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+    return _sessionFromJson(json);
+  }
+
+  @override
+  Future<PassengerAccount> passengerAccount(String accessToken) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/passenger/me/account'),
+          headers: {'authorization': 'Bearer ${accessToken.trim()}'},
+        )
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+    return _accountFromJson(json);
+  }
+
+  @override
+  Future<PassengerAccount> updatePassengerAccount({
+    required String accessToken,
+    String? fullName,
+    String? email,
+    String? password,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/passenger/me/account'),
+          headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer ${accessToken.trim()}',
+          },
+          body: jsonEncode({
+            if (fullName != null) 'fullName': fullName.trim(),
+            if (email != null) 'email': email.trim(),
+            if (password != null) 'password': password,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+    return _accountFromJson(json);
   }
 
   @override
@@ -144,6 +221,8 @@ class HttpPhoneAuthService implements PhoneAuthService {
       expiresAt: DateTime.parse(expiresAt),
       subjectId: subjectId,
       subjectType: subjectType,
+      email: json['email'] as String?,
+      fullName: json['fullName'] as String?,
     );
   }
 
@@ -166,6 +245,40 @@ class HttpPhoneAuthService implements PhoneAuthService {
     final json = _decodeObject(response);
     _throwIfError(response, json);
     throw const FormatException('Resposta de logout inválida.');
+  }
+
+  AuthSession _sessionFromJson(Map<String, dynamic> json) {
+    final token = json['accessToken'];
+    final expiresAt = json['expiresAt'];
+    final subjectId = json['subjectId'];
+    final subjectType = json['subjectType'];
+    if (token is! String ||
+        expiresAt is! String ||
+        subjectId is! String ||
+        subjectType is! String) {
+      throw const FormatException('Sessão autenticada inválida.');
+    }
+    return AuthSession(
+      accessToken: token,
+      expiresAt: DateTime.parse(expiresAt),
+      subjectId: subjectId,
+      subjectType: subjectType,
+    );
+  }
+
+  PassengerAccount _accountFromJson(Map<String, dynamic> json) {
+    final subjectId = json['subjectId'];
+    final phoneE164 = json['phoneE164'];
+    if (subjectId is! String || phoneE164 is! String) {
+      throw const FormatException('Conta de passageiro inválida.');
+    }
+    return PassengerAccount(
+      subjectId: subjectId,
+      phoneE164: phoneE164,
+      email: json['email'] as String?,
+      fullName: json['fullName'] as String?,
+      photoUrl: json['photoUrl'] as String?,
+    );
   }
 
   Map<String, dynamic> _decodeObject(http.Response response) {
