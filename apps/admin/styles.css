@@ -356,6 +356,13 @@ button:disabled {
   background: rgba(22, 132, 91, 0.08);
 }
 
+.form-message[data-tone="warning"],
+.global-message[data-tone="warning"] {
+  color: #815a00;
+  border: 1px solid rgba(229, 161, 26, 0.22);
+  background: rgba(229, 161, 26, 0.09);
+}
+
 .login-footnote {
   margin: 22px 0 0;
   color: var(--muted);
@@ -1305,9 +1312,11 @@ td strong {
 .ride-directory-toolbar {
   display: grid;
   grid-template-columns:
-    minmax(260px, 1fr)
-    minmax(130px, 170px)
-    minmax(190px, 260px)
+    minmax(220px, 1fr)
+    minmax(110px, 150px)
+    minmax(135px, 170px)
+    minmax(135px, 170px)
+    minmax(180px, 240px)
     auto;
   align-items: end;
   gap: 10px;
@@ -1407,6 +1416,38 @@ td strong {
   font-weight: 850;
 }
 
+.ride-cancel-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(320px, 1.2fr);
+  gap: 18px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(217, 75, 85, 0.2);
+  border-radius: 12px;
+  background: rgba(217, 75, 85, 0.045);
+}
+
+.ride-cancel-panel h3 {
+  margin: 5px 0 6px;
+  font-size: 16px;
+}
+
+.ride-cancel-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ride-cancel-form {
+  display: grid;
+  gap: 10px;
+}
+
+.ride-cancel-form .field {
+  margin: 0;
+}
+
 @media (max-width: 1180px) {
   .ride-directory-toolbar {
     grid-template-columns: 1fr 1fr;
@@ -1420,6 +1461,10 @@ td strong {
 
 @media (max-width: 700px) {
   .ride-directory-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .ride-cancel-panel {
     grid-template-columns: 1fr;
   }
 
