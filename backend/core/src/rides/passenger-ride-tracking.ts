@@ -1,4 +1,6 @@
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
+import { driverPhotoPath } from '../drivers/driver-profile-photo-service.js';
 import type { RideRepository } from './ride-repository.js';
 import type { RideRecord } from './ride.js';
 
@@ -27,11 +29,19 @@ export interface PassengerRideTrackingSnapshot {
     updatedAt: string;
     stale: boolean;
   } | null;
+  driver: {
+    id: string;
+    displayName: string;
+    photoPath?: string;
+    ratingAverage?: number;
+    ratingCount: number;
+  } | null;
 }
 
 export async function passengerRideTracking(input: {
   rides: RideRepository;
   drivers: DriverSupplyRepository;
+  registry: DriverRegistryRepository;
   rideId: string;
   passengerId: string;
   now?: Date;
@@ -42,6 +52,7 @@ export async function passengerRideTracking(input: {
   }
 
   let driverLocation: PassengerRideTrackingSnapshot['driverLocation'] = null;
+  let driver: PassengerRideTrackingSnapshot['driver'] = null;
   if (ride.driverId != null && LOCATION_VISIBLE_STATES.has(ride.state)) {
     const supply = await input.drivers.findByDriverId(ride.driverId);
     if (supply != null) {
@@ -56,6 +67,29 @@ export async function passengerRideTracking(input: {
         longitude: supply.longitude,
         updatedAt: supply.locationUpdatedAt,
         stale,
+      };
+    }
+
+    const profile = await input.registry.findProfile(ride.driverId);
+    if (profile != null) {
+      driver = {
+        id: ride.driverId,
+        displayName:
+          profile.preferredName?.trim() ||
+          profile.fullName.trim() ||
+          'Motorista Ramo Nessa',
+        ...(driverPhotoPath(ride.driverId, profile.photoUpdatedAt) == null
+          ? {}
+          : {
+              photoPath: driverPhotoPath(
+                ride.driverId,
+                profile.photoUpdatedAt,
+              ),
+            }),
+        ...(profile.ratingAverage == null
+          ? {}
+          : { ratingAverage: profile.ratingAverage }),
+        ratingCount: profile.ratingCount ?? 0,
       };
     }
   }
@@ -81,5 +115,6 @@ export async function passengerRideTracking(input: {
         : {}),
     },
     driverLocation,
+    driver,
   };
 }
