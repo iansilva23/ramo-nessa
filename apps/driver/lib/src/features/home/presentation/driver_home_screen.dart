@@ -91,6 +91,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
   DriverActivitySnapshot? _activity;
+  List<NearbyDriverPosition> _nearbyDrivers = const [];
+  bool _nearbyRequestInFlight = false;
   bool _profileLoading = false;
   bool _activityLoading = false;
   DriverRouteInfo? _activeRoute;
@@ -115,6 +117,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   String? _message;
   Timer? _pollTimer;
   Timer? _ticker;
+  Timer? _nearbyTimer;
   StreamSubscription<DriverPosition>? _locationSubscription;
   StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
@@ -207,6 +210,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _ticker?.cancel();
+    _nearbyTimer?.cancel();
     _locationSubscription?.cancel();
     _realtimeSubscription?.cancel();
     super.dispose();
@@ -229,6 +233,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (supply.online) {
       _startLocationTracking();
       _startRealtime();
+      if (!supply.busy) _startNearbyPolling();
     }
 
     if (supply.busy) {
@@ -435,6 +440,65 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _ticker = null;
   }
 
+  void _startNearbyPolling() {
+    _nearbyTimer?.cancel();
+    _nearbyTimer = null;
+    unawaited(_refreshNearbyDrivers());
+  }
+
+  void _stopNearbyPolling({bool clear = true}) {
+    _nearbyTimer?.cancel();
+    _nearbyTimer = null;
+    if (clear && mounted && _nearbyDrivers.isNotEmpty) {
+      setState(() => _nearbyDrivers = const []);
+    }
+  }
+
+  Future<void> _refreshNearbyDrivers() async {
+    final api = _api;
+    final supply = _supply;
+    if (
+      api == null ||
+      supply == null ||
+      !supply.online ||
+      supply.busy ||
+      _nearbyRequestInFlight
+    ) {
+      return;
+    }
+
+    _nearbyRequestInFlight = true;
+    var nextSeconds = 30;
+
+    try {
+      final snapshot = await api.nearbyDrivers();
+      nextSeconds = snapshot.refreshAfterSeconds.clamp(15, 60);
+      if (!mounted) return;
+      setState(() {
+        _nearbyDrivers =
+            snapshot.enabled ? snapshot.drivers : const [];
+      });
+    } catch (_) {
+      // Outros motoristas são informação auxiliar. Falha não interrompe
+      // oferta, navegação ou localização do próprio motorista.
+    } finally {
+      _nearbyRequestInFlight = false;
+      final current = _supply;
+      if (
+        mounted &&
+        current != null &&
+        current.online &&
+        !current.busy
+      ) {
+        _nearbyTimer?.cancel();
+        _nearbyTimer = Timer(
+          Duration(seconds: nextSeconds),
+          () => _refreshNearbyDrivers(),
+        );
+      }
+    }
+  }
+
   Future<void> _refreshOffer() async {
     final api = _api;
     final supply = _supply;
@@ -493,7 +557,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (updated.online) {
         _startLocationTracking();
         _startRealtime();
+        if (!updated.busy) _startNearbyPolling();
       } else {
+        _stopNearbyPolling();
         await _stopLocationTracking();
         await _stopRealtime();
       }
@@ -575,6 +641,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final supply = await api.getSupply();
       if (!mounted) return;
       _stopPolling();
+      _stopNearbyPolling();
       setState(() {
         _activeRide = ride;
         _supply = supply;
@@ -828,6 +895,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       if (supply.online && !supply.busy) {
         _startPolling();
+        _startNearbyPolling();
         await _refreshOffer();
       }
     } on DriverApiException catch (error) {
@@ -1030,6 +1098,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           supply: supply,
           activeRide: _activeRide,
           route: _activeRoute,
+          nearbyDrivers:
+              _activeRide == null ? _nearbyDrivers : const [],
           networkTilesEnabled:
               widget.api == null || DriverCoreConfig.previewMode,
           onMapReady: () {
