@@ -31,6 +31,8 @@ const state = {
   currentDriver: null,
   currentDriverRegistry: null,
   currentDriverDocuments: null,
+  documentInspectionObjectUrl: null,
+  documentInspectionTimer: null,
   pricingCatalog: null,
   pricingVersions: {
     items: [],
@@ -201,9 +203,34 @@ function stopFleetPolling() {
   }
 }
 
+function closeDriverDocumentInspection() {
+  if (state.documentInspectionTimer != null) {
+    clearTimeout(state.documentInspectionTimer);
+    state.documentInspectionTimer = null;
+  }
+  if (state.documentInspectionObjectUrl != null) {
+    URL.revokeObjectURL(state.documentInspectionObjectUrl);
+    state.documentInspectionObjectUrl = null;
+  }
+
+  const panel = byId('driver-document-inspection-panel');
+  const frame = byId('driver-document-inspection-frame');
+  const image = byId('driver-document-inspection-image');
+  if (frame != null) {
+    frame.removeAttribute('src');
+    frame.hidden = true;
+  }
+  if (image != null) {
+    image.removeAttribute('src');
+    image.hidden = true;
+  }
+  if (panel != null) panel.hidden = true;
+}
+
 function clearSession(message = '') {
   stopSessionTimer();
   stopFleetPolling();
+  closeDriverDocumentInspection();
   state.token = null;
   state.user = null;
   state.expiresAt = null;
@@ -1088,6 +1115,23 @@ function renderDriverDocumentCard(type, record) {
 
   card.append(header, detail, meta);
 
+  if (
+    record?.hasPrivateFile === true &&
+    hasScope('drivers:documents:read')
+  ) {
+    const actions = document.createElement('div');
+    actions.className = 'driver-document-actions';
+    const inspect = document.createElement('button');
+    inspect.type = 'button';
+    inspect.className = 'button button--ghost-dark';
+    inspect.textContent = 'Inspecionar arquivo';
+    inspect.addEventListener('click', () => {
+      void handleDriverDocumentInspection(type, inspect);
+    });
+    actions.append(inspect);
+    card.append(actions);
+  }
+
   if (record?.rejectionReason) {
     const reason = document.createElement('p');
     reason.className = 'driver-document-rejection';
@@ -1132,6 +1176,7 @@ function renderDriverDocuments(payload) {
 function renderDriverDocumentsUnavailable(
   message = 'Abra um motorista para consultar os documentos.',
 ) {
+  closeDriverDocumentInspection();
   state.currentDriverDocuments = null;
   const target = byId('driver-documents-result');
   target.replaceChildren();
@@ -1151,6 +1196,7 @@ function renderDriverDocumentsUnavailable(
 }
 
 async function loadDriverDocuments(driverId) {
+  closeDriverDocumentInspection();
   if (!state.token) return;
 
   if (!hasScope('drivers:documents:read')) {
@@ -1177,6 +1223,94 @@ async function loadDriverDocuments(driverId) {
       return;
     }
     handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverDocumentInspection(
+  documentType,
+  button,
+) {
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !hasScope('drivers:documents:read')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  closeDriverDocumentInspection();
+  try {
+    const issued = await api.issueDriverDocumentInspection(
+      state.token,
+      state.currentDriver.driverId,
+      documentType,
+    );
+    const file = await api.readDriverDocumentInspection(
+      state.token,
+      issued.inspectionToken,
+    );
+    if (
+      file.contentType !== 'application/pdf' &&
+      file.contentType !== 'image/jpeg' &&
+      file.contentType !== 'image/png'
+    ) {
+      throw new Error(
+        'O Core retornou um tipo de arquivo documental não permitido.',
+      );
+    }
+    if (
+      issued.mimeType != null &&
+      issued.mimeType !== file.contentType
+    ) {
+      throw new Error(
+        'O tipo do arquivo inspecionado não corresponde aos metadados.',
+      );
+    }
+
+    const blob = new Blob([file.bytes], { type: file.contentType });
+    const objectUrl = URL.createObjectURL(blob);
+    state.documentInspectionObjectUrl = objectUrl;
+
+    const panel = byId('driver-document-inspection-panel');
+    const frame = byId('driver-document-inspection-frame');
+    const image = byId('driver-document-inspection-image');
+    byId('driver-document-inspection-title').textContent =
+      driverDocumentTypeLabel(documentType);
+    byId('driver-document-inspection-expiry').textContent =
+      `Visualização temporária até ${formatDateTime(issued.expiresAt)}`;
+
+    if (file.contentType === 'application/pdf') {
+      frame.src = objectUrl;
+      frame.hidden = false;
+      image.hidden = true;
+    } else {
+      image.src = objectUrl;
+      image.hidden = false;
+      frame.hidden = true;
+    }
+    panel.hidden = false;
+
+    const remainingMs =
+      Date.parse(issued.expiresAt) - Date.now();
+    state.documentInspectionTimer = setTimeout(
+      closeDriverDocumentInspection,
+      Math.max(1000, Math.min(300000, remainingMs)),
+    );
+
+    setMessage(
+      globalMessage,
+      'Arquivo privado validado e aberto temporariamente.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    closeDriverDocumentInspection();
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -3857,6 +3991,9 @@ byId('driver-registry-form').addEventListener('submit', (event) => {
 byId('registry-status-button').addEventListener('click', () => {
   void handleDriverRegistryStatus();
 });
+byId('driver-document-inspection-close').addEventListener('click', () => {
+  closeDriverDocumentInspection();
+});
 byId('driver-document-review-form').addEventListener('submit', (event) => {
   void handleDriverDocumentReview(event);
 });
@@ -3888,6 +4025,7 @@ loginTotp.addEventListener('input', () => {
 
 window.addEventListener('pagehide', () => {
   stopFleetPolling();
+  closeDriverDocumentInspection();
   state.token = null;
 });
 
