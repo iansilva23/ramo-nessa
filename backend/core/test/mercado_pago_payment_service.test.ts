@@ -231,3 +231,112 @@ test('sem motorista estorna Order Mercado Pago e reverte escrow uma vez', async 
     1,
   );
 });
+
+
+test('status_detail refunded tem prioridade sobre status processed', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = preparedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-refund-status-detail',
+    now,
+  });
+
+  const paid = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(paid.kind, 'paid');
+
+  const refunded = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'refunded',
+    },
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(refunded.kind, 'refunded');
+  assert.equal(refunded.payment.status, 'refunded');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+});
+
+test('reembolso parcial não é confundido com pagamento aprovado', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = preparedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-partial-refund',
+    now,
+  });
+
+  const paid = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(paid.kind, 'paid');
+
+  const partial = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'partially_refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'partially_refunded',
+    },
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(partial.kind, 'partially_refunded');
+  assert.equal(partial.payment.status, 'paid');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    12000,
+  );
+});
