@@ -33,6 +33,13 @@ export interface DriverVehicleRecord {
   updatedAt: string;
 }
 
+export interface DriverRatingResult {
+  stars: number;
+  ratingAverage: number;
+  ratingCount: number;
+  duplicate: boolean;
+}
+
 export interface DriverRegistryRepository {
   findProfile(driverId: string): Promise<DriverProfileRecord | null>;
   upsertProfile(
@@ -54,6 +61,13 @@ export interface DriverRegistryRepository {
     mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
     updatedAt: string;
   } | null>;
+  submitRating(input: {
+    rideId: string;
+    passengerId: string;
+    driverId: string;
+    stars: number;
+    createdAt: string;
+  }): Promise<DriverRatingResult>;
 
   findVehicleByDriverId(
     driverId: string,
