@@ -134,6 +134,19 @@ abstract final class RamoTheme {
         textColor: RamoColors.ink,
         contentPadding: EdgeInsets.symmetric(horizontal: 4),
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? RamoColors.brandBlack
+              : RamoColors.muted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? RamoColors.brandYellow
+              : RamoColors.border,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+      ),
     );
   }
 
