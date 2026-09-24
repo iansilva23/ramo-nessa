@@ -69,6 +69,8 @@ class HttpPushDeviceService {
     required String accessToken,
     required String platform,
     required String token,
+    String? appVersion,
+    int? buildNumber,
   }) async {
     final bearer = accessToken.trim();
     final pushToken = token.trim();
@@ -94,6 +96,9 @@ class HttpPushDeviceService {
             'platform': platform,
             'provider': 'fcm',
             'token': pushToken,
+            if (appVersion != null && appVersion.trim().isNotEmpty)
+              'appVersion': appVersion.trim(),
+            if (buildNumber != null) 'buildNumber': buildNumber,
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);

@@ -14,6 +14,8 @@ export interface PushDeviceRegistrationRequest {
   platform: PushPlatform;
   provider: PushTokenProvider;
   token: string;
+  appVersion?: string;
+  buildNumber?: number;
 }
 
 export function parsePushDeviceRegistration(
@@ -47,9 +49,40 @@ export function parsePushDeviceRegistration(
     );
   }
 
+  const rawVersion =
+    typeof value.appVersion === 'string'
+      ? value.appVersion.trim()
+      : '';
+  if (
+    rawVersion &&
+    (rawVersion.length > 40 ||
+      !/^[0-9A-Za-z._+-]+$/.test(rawVersion))
+  ) {
+    throw new PushDeviceValidationError(
+      'Versão do app é inválida.',
+    );
+  }
+
+  let buildNumber: number | undefined;
+  if (value.buildNumber != null) {
+    if (
+      typeof value.buildNumber !== 'number' ||
+      !Number.isInteger(value.buildNumber) ||
+      value.buildNumber < 1 ||
+      value.buildNumber > 2_147_483_647
+    ) {
+      throw new PushDeviceValidationError(
+        'Build do app é inválido.',
+      );
+    }
+    buildNumber = value.buildNumber;
+  }
+
   return {
     platform: value.platform,
     provider: value.provider,
     token,
+    ...(rawVersion ? { appVersion: rawVersion } : {}),
+    ...(buildNumber == null ? {} : { buildNumber }),
   };
 }

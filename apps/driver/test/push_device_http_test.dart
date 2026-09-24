@@ -39,6 +39,8 @@ void main() {
       accessToken: accessToken,
       platform: 'android',
       token: pushToken,
+      appVersion: '0.1.0',
+      buildNumber: 1,
     );
 
     expect(captured.method, 'PUT');
@@ -56,6 +58,8 @@ void main() {
     expect(body['platform'], 'android');
     expect(body['provider'], 'fcm');
     expect(body['token'], pushToken);
+    expect(body['appVersion'], '0.1.0');
+    expect(body['buildNumber'], 1);
     expect(device.enabled, true);
     expect(device.provider, 'fcm');
   });

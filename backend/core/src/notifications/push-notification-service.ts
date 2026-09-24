@@ -21,6 +21,12 @@ export function pushDevicePublicView(device: PushDeviceRecord) {
     platform: device.platform,
     provider: device.provider,
     enabled: device.enabled,
+    ...(device.appVersion == null
+      ? {}
+      : { appVersion: device.appVersion }),
+    ...(device.buildNumber == null
+      ? {}
+      : { buildNumber: device.buildNumber }),
     updatedAt: device.updatedAt,
   };
 }
@@ -41,6 +47,12 @@ export async function registerPushDevice(input: {
     provider: input.registration.provider,
     token: input.registration.token,
     tokenHash: hashPushToken(input.registration.token),
+    ...(input.registration.appVersion == null
+      ? {}
+      : { appVersion: input.registration.appVersion }),
+    ...(input.registration.buildNumber == null
+      ? {}
+      : { buildNumber: input.registration.buildNumber }),
     createdAt: instant,
     updatedAt: instant,
   });
@@ -69,18 +81,15 @@ export class PushNotificationService {
     return this.provider.kind;
   }
 
-  async notifySubject(input: {
-    subjectType: AuthSessionRecord['subjectType'];
-    subjectId: string;
+  async notifyDevices(input: {
+    devices: readonly PushDeviceRecord[];
     message: PushMessage;
     now?: Date;
-  }): Promise<PushNotificationStats> {
-    const devices = await this.repository.listEnabledForSubject(
-      input.subjectType,
-      input.subjectId,
-    );
+  }): Promise<PushNotificationStats & { deliveredDeviceIds: string[] }> {
+    const devices = input.devices;
     let delivered = 0;
     let invalidated = 0;
+    const deliveredDeviceIds: string[] = [];
 
     for (const device of devices) {
       try {
@@ -90,7 +99,10 @@ export class PushNotificationService {
           platform: device.platform,
           message: input.message,
         });
-        if (result.delivered) delivered += 1;
+        if (result.delivered) {
+          delivered += 1;
+          deliveredDeviceIds.push(device.id);
+        }
         if (result.invalidToken) {
           await this.repository.disableDevice(
             device.id,
@@ -107,6 +119,49 @@ export class PushNotificationService {
       devices: devices.length,
       delivered,
       invalidated,
+      deliveredDeviceIds,
+    };
+  }
+
+  async notifySubject(input: {
+    subjectType: AuthSessionRecord['subjectType'];
+    subjectId: string;
+    message: PushMessage;
+    now?: Date;
+  }): Promise<PushNotificationStats> {
+    const devices = await this.repository.listEnabledForSubject(
+      input.subjectType,
+      input.subjectId,
+    );
+    const result = await this.notifyDevices({
+      devices,
+      message: input.message,
+      ...(input.now == null ? {} : { now: input.now }),
+    });
+    return {
+      devices: result.devices,
+      delivered: result.delivered,
+      invalidated: result.invalidated,
+    };
+  }
+
+  async notifyAudience(input: {
+    audience: 'all' | AuthSessionRecord['subjectType'];
+    message: PushMessage;
+    now?: Date;
+  }): Promise<PushNotificationStats> {
+    const devices = await this.repository.listEnabledByAudience(
+      input.audience,
+    );
+    const result = await this.notifyDevices({
+      devices,
+      message: input.message,
+      ...(input.now == null ? {} : { now: input.now }),
+    });
+    return {
+      devices: result.devices,
+      delivered: result.delivered,
+      invalidated: result.invalidated,
     };
   }
 }
