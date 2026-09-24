@@ -31,6 +31,8 @@ abstract interface class DriverApi {
 
   Future<DriverFinanceSummary> financeSummary();
 
+  Future<DriverFinanceStatement> financeStatement();
+
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
