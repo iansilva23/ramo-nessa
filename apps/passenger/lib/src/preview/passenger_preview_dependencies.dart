@@ -203,6 +203,19 @@ final class _PreviewRideTrackingService
   int _checks = 0;
 
   @override
+  Future<PassengerDriverRatingResult> rateDriver(
+    String rideId,
+    int stars,
+  ) async {
+    return PassengerDriverRatingResult(
+      stars: stars,
+      ratingAverage: 4.9,
+      ratingCount: 128,
+      duplicate: false,
+    );
+  }
+
+  @override
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
     _checks += 1;
     final state = _checks < 3 ? 'SEARCHING_DRIVER' : 'DRIVER_ASSIGNED';
