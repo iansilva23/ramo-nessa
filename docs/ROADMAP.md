@@ -85,7 +85,7 @@
 - [ ] painel completo de ganhos bruto/líquido
 - [x] saldo e solicitação de saque no app do motorista
 - [x] saldo e reserva de saque no Core
-- [ ] histórico e avaliações
+- [x] histórico de viagens com busca, estado, paginação e filtro por período e avaliações
 
 ## Etapa 3 — Core
 
@@ -159,7 +159,7 @@
 - [ ] aprovação de documentos com inspeção segura do arquivo privado
 - [x] viagens em andamento
 - [ ] histórico
-- [ ] cancelamentos
+- [x] cancelamento administrativo antes do início da viagem, com liberação do motorista, reembolso imediato da carteira e REFUND_PENDING para Pix/cartão
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
 - [x] edição estrutural versionada de localidades/zonas suportadas
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
