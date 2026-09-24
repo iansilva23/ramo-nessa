@@ -14,7 +14,10 @@ import { pricingPeriodAt } from './pricing/period.js';
 import { PAYMENT_POLICY_V1 } from './payments/payment-policy.js';
 import { DriverCashPolicyError } from './payments/cash-policy.js';
 import { createPaymentForRide } from './payments/create-payment.js';
-import { PaymentDomainError } from './payments/payment.js';
+import {
+  PaymentDomainError,
+  type PaymentRecord,
+} from './payments/payment.js';
 import {
   MercadoPagoOrdersError,
   mercadoPagoOrdersClientFromEnv,
@@ -375,9 +378,7 @@ function sendPushBestEffort(input: {
 }
 
 async function processConfirmedMercadoPagoRide(
-  payment: Awaited<ReturnType<typeof financeRepository.findPaymentById>> extends infer T
-    ? NonNullable<T>
-    : never,
+  payment: PaymentRecord,
 ): Promise<void> {
   let ride = await confirmRidePayment(rideRepository, {
     rideId: payment.rideId,
@@ -466,9 +467,7 @@ async function processConfirmedMercadoPagoRide(
 }
 
 async function markMercadoPagoRidePaymentFailed(
-  payment: Awaited<ReturnType<typeof financeRepository.findPaymentById>> extends infer T
-    ? NonNullable<T>
-    : never,
+  payment: PaymentRecord,
 ): Promise<void> {
   const ride = await rideRepository.findById(payment.rideId);
   if (ride == null) return;
