@@ -218,3 +218,96 @@ test('refund com erro não reconciliável continua falhando', async () => {
       error.message.includes('cannot_refund_order'),
   );
 });
+
+
+test('cria Order de cartão tokenizado com 3DS sem dados PCI crus', async () => {
+  let capturedBody = '';
+  const client = new MercadoPagoOrdersClient(
+    'test-token-' + 'x'.repeat(32),
+    async (_url, init) => {
+      capturedBody = String(init?.body ?? '');
+      return new Response(
+        JSON.stringify({
+          id: 'ORD01CARDTEST123456789',
+          status: 'action_required',
+          status_detail: 'pending_challenge',
+          transactions: {
+            payments: [
+              {
+                id: 'PAY01CARDTEST123456789',
+                status: 'action_required',
+                status_detail: 'pending_challenge',
+                payment_method: {
+                  id: 'master',
+                  type: 'credit_card',
+                  transaction_security: {
+                    url: 'https://secure.example.test/challenge',
+                  },
+                },
+              },
+            ],
+          },
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+
+  const result = await client.createCardOrder({
+    paymentId: 'payment-card-test-001',
+    amountCents: 7890,
+    payerEmail: 'passageiro@example.com',
+    cardToken: 'secure-card-token-12345678901234567890',
+    paymentMethodId: 'master',
+    paymentMethodType: 'credit_card',
+    installments: 1,
+    idempotencyKey: 'mp-card-test-001',
+  });
+
+  const body = JSON.parse(capturedBody) as {
+    payer: { email: string };
+    config: {
+      online: {
+        transaction_security: {
+          validation: string;
+          liability_shift: string;
+        };
+      };
+    };
+    transactions: {
+      payments: Array<{
+        payment_method: {
+          id: string;
+          type: string;
+          token: string;
+          installments: number;
+        };
+      }>;
+    };
+  };
+
+  assert.equal(body.payer.email, 'passageiro@example.com');
+  assert.equal(
+    body.config.online.transaction_security.validation,
+    'on_fraud_risk',
+  );
+  assert.equal(
+    body.config.online.transaction_security.liability_shift,
+    'required',
+  );
+  assert.equal(
+    body.transactions.payments[0]?.payment_method.token,
+    'secure-card-token-12345678901234567890',
+  );
+  assert.equal(
+    body.transactions.payments[0]?.payment_method.id,
+    'master',
+  );
+  assert.equal(result.status, 'action_required');
+  assert.equal(
+    result.challengeUrl,
+    'https://secure.example.test/challenge',
+  );
+  assert.equal(capturedBody.includes('cardNumber'), false);
+  assert.equal(capturedBody.includes('cvv'), false);
+});
