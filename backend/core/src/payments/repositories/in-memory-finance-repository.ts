@@ -885,6 +885,24 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       .map((payout) => structuredClone(payout));
   }
 
+  async listLedgerTransactionsForAccounts(
+    accountKeys: readonly string[],
+    limit: number,
+  ): Promise<LedgerTransaction[]> {
+    const keys = new Set(
+      accountKeys.map((value) => value.trim()).filter(Boolean),
+    );
+    if (keys.size === 0) return [];
+
+    return [...this.ledgerByReference.values()]
+      .filter((transaction) =>
+        transaction.entries.some((entry) => keys.has(entry.accountKey)),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((transaction) => structuredClone(transaction));
+  }
+
   async getAccountBalanceCents(accountKey: string): Promise<number> {
     let balance = 0;
 
