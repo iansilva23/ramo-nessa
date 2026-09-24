@@ -158,4 +158,63 @@ void main() {
     expect(result.qrCode, '000201010212-test-pix');
   });
 
+  test('cartão envia somente token PCI e metadados necessários ao Core', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'payment': {
+            'id': 'payment-card-http',
+            'status': 'pending',
+          },
+          'card': {
+            'orderId': 'ORD01CARDHTTP123456789',
+            'paymentId': 'PAY01CARDHTTP123456789',
+            'status': 'action_required',
+            'statusDetail': 'pending_challenge',
+            'challengeUrl': 'https://secure.example.test/challenge',
+          },
+          'ride': {
+            'id': 'ride-card-http',
+            'state': 'AWAITING_PAYMENT',
+          },
+          'paymentConfirmed': false,
+          'simulated': false,
+          'actionable': true,
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-card-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createCardRidePayment(
+      rideId: 'ride-card-http',
+      idempotencyKey: 'card-http-idempotency-key',
+      payerEmail: 'passageiro@example.com',
+      cardToken: 'secure-token-' + 'x' * 40,
+      paymentMethodId: 'master',
+      paymentMethodType: 'credit_card',
+    );
+
+    final body = jsonDecode(captured.body) as Map<String, dynamic>;
+    expect(captured.url.path, '/v1/rides/ride-card-http/payments');
+    expect(body['method'], 'card');
+    expect(body['payerEmail'], 'passageiro@example.com');
+    expect(body['paymentMethodId'], 'master');
+    expect(body['paymentMethodType'], 'credit_card');
+    expect(body['installments'], 1);
+    expect(body.containsKey('cardNumber'), isFalse);
+    expect(body.containsKey('cvv'), isFalse);
+    expect(result.status, 'action_required');
+    expect(result.challengeUrl, 'https://secure.example.test/challenge');
+  });
+
+
 }
