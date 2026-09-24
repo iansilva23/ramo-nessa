@@ -504,6 +504,14 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
+  Future<String> updateProfilePhoto({
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    return '/v1/drivers/test-driver/photo?v=test';
+  }
+
+  @override
   Future<DriverActivitySnapshot> activity() async {
     return const DriverActivitySnapshot(
       total: 3,
