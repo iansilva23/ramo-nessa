@@ -456,6 +456,14 @@ class _FakeCashPassengerPaymentService
   }
 
   @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
+  }
+
+  @override
   Future<int> walletBalanceCents() async => 10000;
 
   @override
@@ -523,6 +531,14 @@ class _FakeRefundedPassengerPaymentService
     required String idempotencyKey,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
   }
 
   @override
