@@ -13,6 +13,10 @@ export class InvalidPaymentRequestError extends Error {
 export interface CreatePaymentRequest {
   method: RidePaymentMethod;
   payerEmail?: string;
+  cardToken?: string;
+  paymentMethodId?: string;
+  paymentMethodType?: 'credit_card' | 'debit_card';
+  installments?: number;
 }
 
 export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest {
@@ -53,9 +57,75 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
     payerEmail = normalized;
   }
 
+  let cardToken: string | undefined;
+  let paymentMethodId: string | undefined;
+  let paymentMethodType: 'credit_card' | 'debit_card' | undefined;
+  let installments: number | undefined;
+
+  if (method === 'card') {
+    if (payerEmail == null) {
+      throw new InvalidPaymentRequestError(
+        'Informe um e-mail válido para continuar o pagamento.',
+      );
+    }
+
+    const rawToken = record.cardToken;
+    const rawPaymentMethodId = record.paymentMethodId;
+    const rawPaymentMethodType = record.paymentMethodType;
+    const rawInstallments = record.installments ?? 1;
+
+    if (
+      typeof rawToken !== 'string' ||
+      rawToken.trim().length < 20 ||
+      rawToken.trim().length > 1024
+    ) {
+      throw new InvalidPaymentRequestError(
+        'Token seguro do cartão é obrigatório.',
+      );
+    }
+
+    if (
+      typeof rawPaymentMethodId !== 'string' ||
+      !/^[A-Za-z0-9_-]{2,40}$/.test(rawPaymentMethodId.trim())
+    ) {
+      throw new InvalidPaymentRequestError(
+        'Bandeira do cartão inválida.',
+      );
+    }
+
+    if (
+      rawPaymentMethodType !== 'credit_card' &&
+      rawPaymentMethodType !== 'debit_card'
+    ) {
+      throw new InvalidPaymentRequestError(
+        'Tipo de cartão inválido.',
+      );
+    }
+
+    if (
+      typeof rawInstallments !== 'number' ||
+      !Number.isInteger(rawInstallments) ||
+      rawInstallments < 1 ||
+      rawInstallments > 12
+    ) {
+      throw new InvalidPaymentRequestError(
+        'Número de parcelas inválido.',
+      );
+    }
+
+    cardToken = rawToken.trim();
+    paymentMethodId = rawPaymentMethodId.trim();
+    paymentMethodType = rawPaymentMethodType;
+    installments = rawInstallments;
+  }
+
   return {
     method,
     ...(payerEmail == null ? {} : { payerEmail }),
+    ...(cardToken == null ? {} : { cardToken }),
+    ...(paymentMethodId == null ? {} : { paymentMethodId }),
+    ...(paymentMethodType == null ? {} : { paymentMethodType }),
+    ...(installments == null ? {} : { installments }),
   };
 }
 
