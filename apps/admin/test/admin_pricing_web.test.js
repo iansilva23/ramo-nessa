@@ -154,6 +154,17 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-policy-category',
     'pricing-policy-enabled',
     'pricing-policy-four-by-four',
+    'pricing-zone-count',
+    'pricing-zone-policies-body',
+    'pricing-external-count',
+    'pricing-external-localities-body',
+    'pricing-zone-policy-fields',
+    'pricing-zone-policy-id',
+    'pricing-zone-policy-enabled',
+    'pricing-locality-structure-fields',
+    'pricing-locality-structure-operation',
+    'pricing-locality-structure-scope',
+    'pricing-locality-structure-id',
     'pricing-versions-body',
     'pricing-create-draft-button',
     'pricing-editor-status',
@@ -187,6 +198,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /category_policy/);
   assert.match(app, /pricing-category-policies-body/);
   assert.match(app, /pricing-policy-four-by-four/);
+  assert.match(app, /zone_policy/);
+  assert.match(app, /locality_structure/);
+  assert.match(app, /pricing-zone-policies-body/);
+  assert.match(app, /pricing-external-localities-body/);
   assert.match(
     app,
     /pricing-create-draft-button'\)\.addEventListener/,
