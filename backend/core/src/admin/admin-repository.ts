@@ -8,6 +8,7 @@ export const ADMIN_SCOPES = [
   'passengers:auth:read',
   'rides:read',
   'fleet:read',
+  'finance:read',
   'pricing:read',
   'pricing:write',
   'audit:read',
