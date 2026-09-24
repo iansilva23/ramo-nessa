@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../rides/data/passenger_ride_realtime_service.dart';
@@ -9,6 +11,7 @@ import '../../rides/domain/prepared_ride.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
 import '../data/passenger_payment_service.dart';
 import '../domain/passenger_payment_policy.dart';
+import '../domain/pix_ride_payment_result.dart';
 
 class RidePaymentScreen extends StatefulWidget {
   const RidePaymentScreen({
@@ -37,12 +40,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool _walletLoading = false;
   bool _payingWallet = false;
   String? _walletMessage;
+  bool _creatingPix = false;
+  String? _pixMessage;
   PassengerPaymentPolicy? _paymentPolicy;
   bool _paymentPolicyLoading = false;
   bool _authorizingCash = false;
   String? _cashMessage;
   late final String _walletIdempotencyKey;
   late final String _cashIdempotencyKey;
+  late final String _pixIdempotencyKey;
 
   @override
   void initState() {
@@ -52,6 +58,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         'wallet-${widget.ride.id}-$nonce';
     _cashIdempotencyKey =
         'cash-${widget.ride.id}-$nonce';
+    _pixIdempotencyKey =
+        'pix-${widget.ride.id}-$nonce';
     _updateRemaining();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -152,6 +160,50 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   bool get _cashAvailable =>
       _paymentPolicy?.cashAvailable == true;
+
+  Future<void> _startPix() async {
+    final service = widget.paymentService;
+    if (service == null || _creatingPix) return;
+
+    setState(() {
+      _creatingPix = true;
+      _pixMessage = null;
+    });
+
+    try {
+      final result = await service.createPixRidePayment(
+        rideId: widget.ride.id,
+        idempotencyKey: _pixIdempotencyKey,
+      );
+
+      if (!mounted) return;
+      setState(() => _creatingPix = false);
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => _PixPaymentScreen(
+            rideId: widget.ride.id,
+            result: result,
+            trackingService: widget.rideTrackingService,
+            realtimeService: widget.rideRealtimeService,
+            networkTilesEnabled: widget.networkTilesEnabled,
+          ),
+        ),
+      );
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _creatingPix = false;
+        _pixMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _creatingPix = false;
+        _pixMessage = 'Não conseguimos gerar o Pix agora.';
+      });
+    }
+  }
 
   Future<void> _authorizeCash() async {
     final service = widget.paymentService;
@@ -394,8 +446,17 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               title: 'Pix',
               subtitle:
                   'Pagamento confirmado antes do motorista receber a corrida',
-              enabled: !expired,
-              onTap: () => _gatewayPending('Pix'),
+              enabled:
+                  !expired &&
+                  widget.paymentService != null &&
+                  !_creatingPix,
+              trailing: _creatingPix
+                  ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _startPix,
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(
@@ -443,6 +504,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       : null,
               onTap: _authorizeCash,
             ),
+            if (_pixMessage != null) ...[
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                _pixMessage!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
             if (_cashMessage != null) ...[
               const SizedBox(height: RamoSpacing.xs),
               Text(
@@ -471,6 +541,241 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
             ],
             const SizedBox(height: RamoSpacing.lg),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PixPaymentScreen extends StatefulWidget {
+  const _PixPaymentScreen({
+    required this.rideId,
+    required this.result,
+    required this.trackingService,
+    required this.realtimeService,
+    required this.networkTilesEnabled,
+  });
+
+  final String rideId;
+  final PixRidePaymentResult result;
+  final PassengerRideTrackingService? trackingService;
+  final PassengerRideRealtimeService? realtimeService;
+  final bool networkTilesEnabled;
+
+  @override
+  State<_PixPaymentScreen> createState() => _PixPaymentScreenState();
+}
+
+class _PixPaymentScreenState extends State<_PixPaymentScreen> {
+  Timer? _pollTimer;
+  bool _checking = false;
+  bool _navigating = false;
+  String _statusMessage = 'Aguardando confirmação do Pix…';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.trackingService != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkStatus());
+      _pollTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _checkStatus(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Uint8List? get _qrBytes {
+    final raw = widget.result.qrCodeBase64.trim();
+    if (raw.isEmpty) return null;
+    try {
+      final value = raw.contains(',') ? raw.split(',').last : raw;
+      return base64Decode(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _copyPix() async {
+    final code = widget.result.qrCode.trim();
+    if (code.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Código Pix copiado.')),
+    );
+  }
+
+  Future<void> _checkStatus() async {
+    final tracking = widget.trackingService;
+    if (
+      tracking == null ||
+      _checking ||
+      _navigating ||
+      !mounted
+    ) {
+      return;
+    }
+
+    _checking = true;
+    try {
+      final snapshot = await tracking.tracking(widget.rideId);
+      if (!mounted) return;
+
+      if (snapshot.state == 'PAYMENT_FAILED') {
+        _pollTimer?.cancel();
+        setState(() {
+          _statusMessage =
+              'Pagamento não aprovado. Volte ao início e tente novamente.';
+        });
+        return;
+      }
+
+      const confirmedStates = {
+        'PAID',
+        'SEARCHING_DRIVER',
+        'DRIVER_ASSIGNED',
+        'DRIVER_ARRIVING',
+        'DRIVER_ARRIVED',
+        'IN_PROGRESS',
+        'COMPLETED',
+        'NO_DRIVER_FOUND',
+        'REFUND_PENDING',
+        'REFUNDED',
+      };
+
+      if (!confirmedStates.contains(snapshot.state)) {
+        if (mounted) {
+          setState(() {
+            _statusMessage = 'Aguardando confirmação do Pix…';
+          });
+        }
+        return;
+      }
+
+      _pollTimer?.cancel();
+      _navigating = true;
+
+      final dispatchStatus = const {
+        'NO_DRIVER_FOUND',
+        'REFUND_PENDING',
+        'REFUNDED',
+      }.contains(snapshot.state)
+          ? 'NO_DRIVER_FOUND'
+          : 'SEARCHING_DRIVER';
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => RideTrackingScreen(
+            rideId: widget.rideId,
+            remainingWalletCents: null,
+            paymentMethod: 'pix',
+            trackingService: tracking,
+            realtimeService: widget.realtimeService,
+            initialDispatchStatus: dispatchStatus,
+            networkTilesEnabled: widget.networkTilesEnabled,
+          ),
+        ),
+      );
+    } on PassengerRideTrackingException {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage =
+            'Pix gerado. Estamos aguardando a confirmação do pagamento.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage =
+            'Pix gerado. A confirmação será atualizada automaticamente.';
+      });
+    } finally {
+      _checking = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final qrBytes = _qrBytes;
+    final hasCopyCode = widget.result.qrCode.trim().isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pagar com Pix')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(RamoSpacing.xl),
+          children: [
+            Text(
+              'Escaneie o QR Code',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: RamoSpacing.sm),
+            Text(
+              'A corrida só será enviada ao motorista depois da confirmação.',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            if (qrBytes != null)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(RamoSpacing.md),
+                  color: Colors.white,
+                  child: Image.memory(
+                    qrBytes,
+                    width: 260,
+                    height: 260,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                  ),
+                ),
+              )
+            else
+              const Center(
+                child: Icon(Icons.pix_rounded, size: 96),
+              ),
+            const SizedBox(height: RamoSpacing.lg),
+            if (hasCopyCode)
+              FilledButton.icon(
+                onPressed: _copyPix,
+                icon: const Icon(Icons.copy_rounded),
+                label: const Text('Copiar código Pix'),
+              ),
+            const SizedBox(height: RamoSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(RamoSpacing.md),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(RamoRadius.md),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: RamoSpacing.sm),
+                  Expanded(child: Text(_statusMessage)),
+                ],
+              ),
+            ),
+            if (widget.trackingService != null) ...[
+              const SizedBox(height: RamoSpacing.sm),
+              TextButton.icon(
+                onPressed: _checking ? null : _checkStatus,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Atualizar confirmação'),
+              ),
+            ],
           ],
         ),
       ),
