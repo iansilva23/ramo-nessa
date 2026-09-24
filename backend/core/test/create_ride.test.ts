@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import { createRide, RideCreationError } from '../src/rides/create-ride.js';
 
@@ -26,6 +27,7 @@ test('criar corrida congela preço, comissão e regra comercial', async () => {
   assert.equal(ride.quote.totalAmountCents, 15000);
   assert.equal(ride.quote.platformCommissionCents, 1500);
   assert.equal(ride.quote.driverNetCents, 13500);
+  assert.equal(ride.requiresFourByFour, true);
 
   const stored = await repository.findById(ride.id);
   assert.deepEqual(stored, ride);
@@ -72,4 +74,41 @@ test('snapshot da corrida não muda quando objeto externo é alterado', async ()
   const stored = await repository.findById(ride.id);
   assert.equal(original, 20000);
   assert.equal(stored?.quote.totalAmountCents, 20000);
+});
+
+
+test('corrida congela a política 4x4 do catálogo usado na criação', async () => {
+  const repository = repo();
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.categoryPolicies.comfort_black = {
+    enabled: true,
+    requiresFourByFourOnJeriBoundary: false,
+  };
+
+  const ride = await createRide(repository, {
+    passengerId: 'passenger-eligibility-snapshot',
+    now: new Date('2026-09-23T12:00:00.000Z'),
+    pricing: {
+      snapshot,
+      reference: {
+        catalogVersion: 'v1',
+        catalogVersionId: '11111111-1111-4111-8111-111111111111',
+        catalogVersionNumber: 2,
+      },
+      version: null,
+    },
+    quoteRequest: {
+      origin: { zoneId: 'prea' },
+      destination: { zoneId: 'jericoacoara' },
+      category: 'comfort_black',
+      period: 'day',
+    },
+  });
+
+  assert.equal(ride.requiresFourByFour, false);
+  assert.equal(
+    ride.quote.catalogVersionId,
+    '11111111-1111-4111-8111-111111111111',
+  );
+  assert.equal(ride.quote.catalogVersionNumber, 2);
 });
