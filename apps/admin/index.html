@@ -970,6 +970,14 @@
                   </select>
                 </label>
                 <label class="field">
+                  <span>De</span>
+                  <input id="ride-directory-from" type="date">
+                </label>
+                <label class="field">
+                  <span>Até</span>
+                  <input id="ride-directory-to" type="date">
+                </label>
+                <label class="field">
                   <span>Estado</span>
                   <select id="ride-directory-state">
                     <option value="">Todos do escopo</option>
@@ -1041,6 +1049,36 @@
               </div>
               <div id="ride-detail-content" class="ride-detail-content empty-state">
                 Abra uma corrida na tabela para ver os detalhes.
+              </div>
+
+              <div id="ride-cancel-panel" class="ride-cancel-panel" hidden>
+                <div>
+                  <span class="eyebrow eyebrow--dark">CANCELAMENTO ADMINISTRATIVO</span>
+                  <h3>Cancelar corrida</h3>
+                  <p id="ride-cancel-note">
+                    Disponível apenas antes do início da viagem.
+                  </p>
+                </div>
+                <form id="ride-cancel-form" class="ride-cancel-form">
+                  <label class="field">
+                    <span>Motivo</span>
+                    <textarea
+                      id="ride-cancel-reason"
+                      rows="3"
+                      minlength="3"
+                      maxlength="500"
+                      required
+                      placeholder="Explique o motivo operacional do cancelamento"
+                    ></textarea>
+                  </label>
+                  <button
+                    id="ride-cancel-button"
+                    class="button button--danger"
+                    type="submit"
+                  >
+                    Cancelar corrida
+                  </button>
+                </form>
               </div>
             </article>
           </section>
