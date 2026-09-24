@@ -166,13 +166,16 @@ export function parseAdminReleasePolicyUpdate(
     );
   }
 
+  const storeUrl = optionalHttpsUrl(
+    value.storeUrl,
+    'URL da loja',
+  );
+
   return {
     latestVersion,
     latestBuild,
     minimumBuild,
-    ...(optionalHttpsUrl(value.storeUrl, 'URL da loja') == null
-      ? {}
-      : { storeUrl: optionalHttpsUrl(value.storeUrl, 'URL da loja') }),
+    ...(storeUrl == null ? {} : { storeUrl }),
     updateMessage: cleanText(
       value.updateMessage,
       'Mensagem de atualização',
