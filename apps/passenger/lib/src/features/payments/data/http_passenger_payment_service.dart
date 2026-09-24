@@ -93,6 +93,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
+    required String payerEmail,
   }) async {
     final response = await _client
         .post(
@@ -101,7 +102,10 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
             ..._identityHeaders,
             'idempotency-key': idempotencyKey,
           },
-          body: jsonEncode({'method': 'pix'}),
+          body: jsonEncode({
+            'method': 'pix',
+            'payerEmail': payerEmail.trim().toLowerCase(),
+          }),
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
