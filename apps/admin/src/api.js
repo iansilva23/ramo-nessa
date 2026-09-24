@@ -158,6 +158,24 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    operationalSettings(token) {
+      return request('/v1/admin/operational-settings', { token });
+    },
+
+    updateOperationalSettings(
+      token,
+      { driverOfferTtlSeconds, showNearbyDrivers },
+    ) {
+      return request('/v1/admin/operational-settings', {
+        method: 'PATCH',
+        token,
+        body: {
+          driverOfferTtlSeconds,
+          showNearbyDrivers,
+        },
+      });
+    },
+
     paymentPolicy(token) {
       return request('/v1/admin/payment-policy', { token });
     },
