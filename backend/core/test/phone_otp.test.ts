@@ -395,6 +395,7 @@ test('rate-limit por dispositivo bloqueia flood entre telefones diferentes', asy
       delivery,
       subjectType: 'passenger',
       phone,
+      email: 'otp-test@example.com',
       context,
       now: new Date(base + index * 1000),
     });
