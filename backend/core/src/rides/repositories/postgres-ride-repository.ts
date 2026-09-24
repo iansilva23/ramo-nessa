@@ -345,14 +345,24 @@ export class PostgresRideRepository implements RideRepository {
             AND id < $4::uuid
           )
         )
+        AND (
+          $5::timestamptz IS NULL
+          OR created_at >= $5::timestamptz
+        )
+        AND (
+          $6::timestamptz IS NULL
+          OR created_at <= $6::timestamptz
+        )
       ORDER BY updated_at DESC, id DESC
-      LIMIT $5
+      LIMIT $7
       `,
       [
         input.states ?? null,
         input.search?.trim() || null,
         input.cursor?.updatedAt ?? null,
         input.cursor?.id ?? null,
+        input.createdFrom ?? null,
+        input.createdTo ?? null,
         input.limit + 1,
       ],
     );
