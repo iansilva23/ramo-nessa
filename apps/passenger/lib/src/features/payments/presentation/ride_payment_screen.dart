@@ -8,6 +8,7 @@ import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
 import '../data/passenger_payment_service.dart';
+import '../domain/passenger_payment_policy.dart';
 
 class RidePaymentScreen extends StatefulWidget {
   const RidePaymentScreen({
@@ -36,6 +37,10 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool _walletLoading = false;
   bool _payingWallet = false;
   String? _walletMessage;
+  PassengerPaymentPolicy? _paymentPolicy;
+  bool _paymentPolicyLoading = false;
+  bool _authorizingCash = false;
+  String? _cashMessage;
   late final String _walletIdempotencyKey;
 
   @override
@@ -49,6 +54,39 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       (_) => _updateRemaining(),
     );
     _loadWallet();
+    _loadPaymentPolicy();
+  }
+
+  Future<void> _loadPaymentPolicy() async {
+    final service = widget.paymentService;
+    if (service == null) return;
+
+    setState(() {
+      _paymentPolicyLoading = true;
+      _cashMessage = null;
+    });
+
+    try {
+      final policy = await service.paymentPolicy();
+      if (!mounted) return;
+      setState(() {
+        _paymentPolicy = policy;
+        _paymentPolicyLoading = false;
+      });
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _paymentPolicyLoading = false;
+        _cashMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _paymentPolicyLoading = false;
+        _cashMessage =
+            'Não conseguimos consultar o pagamento em dinheiro agora.';
+      });
+    }
   }
 
   Future<void> _loadWallet() async {
@@ -108,6 +146,80 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _walletBalanceCents != null &&
       _walletBalanceCents! >= widget.ride.totalAmountCents;
 
+  bool get _cashAvailable =>
+      _paymentPolicy?.cashAvailable == true;
+
+  Future<void> _authorizeCash() async {
+    final service = widget.paymentService;
+    if (service == null || !_cashAvailable || _authorizingCash) {
+      return;
+    }
+
+    setState(() {
+      _authorizingCash = true;
+      _cashMessage = null;
+    });
+
+    try {
+      final result = await service.authorizeCashRide(
+        rideId: widget.ride.id,
+      );
+
+      if (!mounted) return;
+      if (!result.authorized) {
+        setState(() {
+          _authorizingCash = false;
+          _cashMessage =
+              'O Core ainda não autorizou o pagamento em dinheiro.';
+        });
+        return;
+      }
+
+      if (result.dispatchStatus == 'NO_DRIVER_FOUND') {
+        setState(() {
+          _authorizingCash = false;
+          _cashMessage =
+              'Não encontramos motorista disponível agora. '
+              'Nenhum valor foi cobrado.';
+        });
+        return;
+      }
+
+      final tracking = widget.rideTrackingService;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => tracking == null
+              ? _CashAuthorizedScreen(
+                  amountCents: result.amountCents,
+                  dispatchStatus: result.dispatchStatus,
+                )
+              : RideTrackingScreen(
+                  rideId: widget.ride.id,
+                  remainingWalletCents: null,
+                  paymentMethod: 'cash',
+                  trackingService: tracking,
+                  realtimeService: widget.rideRealtimeService,
+                  initialDispatchStatus: result.dispatchStatus,
+                  networkTilesEnabled: widget.networkTilesEnabled,
+                ),
+        ),
+      );
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _authorizingCash = false;
+        _cashMessage = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _authorizingCash = false;
+        _cashMessage =
+            'Não conseguimos autorizar o pagamento em dinheiro agora.';
+      });
+    }
+  }
+
   Future<void> _payWallet() async {
     final service = widget.paymentService;
     if (service == null || !_walletHasEnough || _payingWallet) return;
@@ -158,6 +270,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               : RideTrackingScreen(
                   rideId: widget.ride.id,
                   remainingWalletCents: result.walletBalanceCents,
+                  paymentMethod: 'wallet',
                   trackingService: tracking,
                   realtimeService: widget.rideRealtimeService,
                   initialDispatchStatus: result.dispatchStatus,
@@ -196,6 +309,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final expired = _remaining == Duration.zero;
+    final cashSubtitle = _paymentPolicyLoading
+        ? 'Verificando disponibilidade…'
+        : _cashAvailable
+            ? 'Pague diretamente ao motorista no fim da corrida'
+            : 'Em breve · será liberado pelo Ramo Nessa';
+
     final walletSubtitle = switch ((
       widget.paymentService,
       _walletLoading,
@@ -296,6 +415,38 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   : null,
               onTap: _payWallet,
             ),
+            const SizedBox(height: RamoSpacing.sm),
+            _PaymentOption(
+              icon: Icons.payments_rounded,
+              title: 'Dinheiro',
+              subtitle: cashSubtitle,
+              enabled:
+                  !expired &&
+                  !_paymentPolicyLoading &&
+                  _cashAvailable &&
+                  !_authorizingCash,
+              trailing: _authorizingCash
+                  ? const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : !_cashAvailable
+                      ? const Chip(
+                          label: Text('Em breve'),
+                          visualDensity: VisualDensity.compact,
+                        )
+                      : null,
+              onTap: _authorizeCash,
+            ),
+            if (_cashMessage != null) ...[
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                _cashMessage!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
             if (_walletBalanceCents != null &&
                 !_walletHasEnough &&
                 !_walletLoading) ...[
@@ -315,12 +466,73 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
             ],
             const SizedBox(height: RamoSpacing.lg),
-            Text(
-              'Dinheiro não está disponível no lançamento.',
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CashAuthorizedScreen extends StatelessWidget {
+  const _CashAuthorizedScreen({
+    required this.amountCents,
+    this.dispatchStatus,
+  });
+
+  final int amountCents;
+  final String? dispatchStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final dispatchMessage = switch (dispatchStatus) {
+      'SEARCHING_DRIVER' =>
+        'Sua corrida já foi enviada ao motorista.',
+      'PENDING_RETRY' =>
+        'O Core vai repetir a tentativa de encontrar motorista.',
+      _ => 'A corrida foi liberada para o matching.',
+    };
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(RamoSpacing.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.payments_rounded,
+                size: 82,
+                color: RamoColors.signal,
+              ),
+              const SizedBox(height: RamoSpacing.lg),
+              Text(
+                'Pagamento em dinheiro',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                'Pague ${PreparedRide.formatCents(amountCents)} '
+                'diretamente ao motorista no fim da corrida.',
+                style: Theme.of(context).textTheme.bodyLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                dispatchMessage,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: RamoSpacing.xl),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Voltar ao início'),
+              ),
+            ],
+          ),
         ),
       ),
     );
