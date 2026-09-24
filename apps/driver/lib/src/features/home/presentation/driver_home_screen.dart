@@ -102,7 +102,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
   int _selectedTab = 0;
-  late final DriverRouteService? _routeService =
+  late final DriverRouteService _routeService =
       DriverCoreConfig.enabled
           ? CoreDriverRouteService(
               baseUrl: DriverCoreConfig.baseUri!,
