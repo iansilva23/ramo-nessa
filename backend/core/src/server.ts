@@ -228,6 +228,16 @@ import {
   HttpRequestBodyError,
   readJsonBody as readJson,
 } from './http/request-body.js';
+import {
+  registerPushDevice,
+  pushDevicePublicView,
+  PushNotificationService,
+} from './notifications/push-notification-service.js';
+import {
+  PushDeviceValidationError,
+  parsePushDeviceRegistration,
+} from './notifications/push-device-validation.js';
+import { resolvePushDeliveryProviderFromEnv } from './notifications/push-delivery-provider.js';
 
 const port = resolveCorePort();
 const {
@@ -244,6 +254,7 @@ const {
   pricingCatalogVersionRepository,
   ridePreparationRepository,
   rideMatchingRepository,
+  pushDeviceRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -251,6 +262,10 @@ const {
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
+const pushNotificationService = new PushNotificationService(
+  pushDeviceRepository,
+  resolvePushDeliveryProviderFromEnv(),
+);
 resolveOtpHashSecret();
 resolveOtpRateLimitSecret();
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
@@ -297,6 +312,31 @@ function json(response: ServerResponse, status: number, body: unknown): void {
     'referrer-policy': 'no-referrer',
   });
   response.end(JSON.stringify(body));
+}
+
+function sendPushBestEffort(input: {
+  subjectType: 'passenger' | 'driver';
+  subjectId: string;
+  type: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}): void {
+  void pushNotificationService.notifySubject({
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    message: {
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      ...(input.data == null ? {} : { data: input.data }),
+    },
+  }).catch((pushError) => {
+    logWarn('push.delivery.failed', {
+      type: input.type,
+      ...errorFields(pushError),
+    });
+  });
 }
 
 let shuttingDown = false;
@@ -506,13 +546,41 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/notifications/device'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      const registration = parsePushDeviceRegistration(
+        await readJson(request),
+      );
+      const device = await registerPushDevice({
+        repository: pushDeviceRepository,
+        session,
+        registration,
+      });
+      json(response, 200, {
+        device: pushDevicePublicView(device),
+        deliveryProvider: pushNotificationService.providerKind,
+      });
+      return;
+    }
+
+    if (
       request.method === 'DELETE' &&
       requestUrl.pathname === '/v1/auth/session'
     ) {
-      await revokeBearerSession({
+      const revoked = await revokeBearerSession({
         repository: authSessionRepository,
         headers: request.headers,
       });
+      await pushDeviceRepository.disableForSession(
+        revoked.id,
+        new Date().toISOString(),
+      );
       response.writeHead(204, {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
@@ -1922,6 +1990,22 @@ const server = createServer(async (request, response) => {
             serverTime: new Date().toISOString(),
           });
         }
+        const pushContent = action === 'arrive'
+          ? ['passenger.ride.driver_arrived', 'Seu motorista chegou',
+              'O motorista já está no ponto de embarque.']
+          : action === 'start'
+            ? ['passenger.ride.started', 'Corrida iniciada',
+                'Sua viagem começou.']
+            : ['passenger.ride.completed', 'Corrida finalizada',
+                'Sua viagem foi finalizada.'];
+        sendPushBestEffort({
+          subjectType: 'passenger',
+          subjectId: ride.passengerId,
+          type: pushContent[0]!,
+          title: pushContent[1]!,
+          body: pushContent[2]!,
+          data: { rideId },
+        });
       }
 
       json(response, 200, result);
@@ -1997,6 +2081,14 @@ const server = createServer(async (request, response) => {
               serverTime: new Date().toISOString(),
             });
           }
+          sendPushBestEffort({
+            subjectType: 'passenger',
+            subjectId: acceptedRide.passengerId,
+            type: 'passenger.ride.driver_accepted',
+            title: 'Motorista a caminho',
+            body: 'Um motorista aceitou sua corrida.',
+            data: { rideId: acceptedRide.id },
+          });
         }
 
         json(response, 200, result);
@@ -2497,7 +2589,8 @@ const server = createServer(async (request, response) => {
       error instanceof InvalidPaymentRequestError ||
       error instanceof InvalidWalletRequestError ||
       error instanceof InvalidDriverRequestError ||
-      error instanceof InvalidDriverFinanceRequestError
+      error instanceof InvalidDriverFinanceRequestError ||
+      error instanceof PushDeviceValidationError
     ) {
       json(response, 400, { error: 'INVALID_REQUEST', message: error.message });
       return;
