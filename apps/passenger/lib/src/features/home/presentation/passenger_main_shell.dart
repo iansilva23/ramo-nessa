@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
+import '../../payments/data/passenger_payment_service.dart';
 import '../../profile/presentation/passenger_profile_screen.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import '../../rides/presentation/passenger_activity_screen.dart';
@@ -11,6 +12,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.homeBuilder,
     required this.activityService,
     required this.authService,
+    required this.paymentService,
     required this.accessToken,
     this.onLogout,
     this.previewMode = false,
@@ -19,6 +21,7 @@ class PassengerMainShell extends StatefulWidget {
   final Widget Function(VoidCallback openProfile) homeBuilder;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
+  final PassengerPaymentService? paymentService;
   final String? accessToken;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
@@ -46,6 +49,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
             authService: widget.authService,
             accessToken: widget.accessToken,
             onOpenActivity: () => _select(1),
+            paymentService: widget.paymentService,
             onLogout: widget.onLogout,
             previewMode: widget.previewMode,
           ),
