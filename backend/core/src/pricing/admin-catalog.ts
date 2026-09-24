@@ -1,23 +1,11 @@
-import {
-  CAR_REFERENCE_KM_PER_LITER,
-  COMMISSION_BPS,
-  FIXED_ROUTES,
-  FREE_PICKUP_KM,
-  FUEL_PRICE_CENTS_PER_LITER,
-  JIJOCA_LOCALITIES,
-  MOTO_REFERENCE_KM_PER_LITER,
-  PREA_COMFORT_SURCHARGE_CENTS,
-  PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS,
-  PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS,
-  PREA_LOCALITIES,
-  type LocalityPricing,
-  type PriceValue,
-} from './catalog.v1.js';
 import type {
-  PricePeriod,
-  ServiceCategory,
-  ZoneId,
-} from './types.js';
+  LocalityPricing,
+  PriceValue,
+} from './catalog.v1.js';
+import {
+  STATIC_PRICING_CATALOG_V1,
+  type PricingCatalogSnapshot,
+} from './catalog-snapshot.js';
 
 function priceValueView(value: PriceValue | undefined) {
   if (value == null) return null;
@@ -45,54 +33,50 @@ function localityView(
   };
 }
 
-export function adminPricingCatalogView() {
-  const categories: ServiceCategory[] = [
-    'moto',
-    'delivery',
-    'car',
-    'comfort_black',
-    'buggy',
-  ];
-  const periods: PricePeriod[] = ['day', 'after_22'];
-  const zones: ZoneId[] = [
-    'jericoacoara',
-    'jijoca',
-    'prea',
-    'external',
-  ];
-
+export function adminPricingCatalogView(
+  snapshot: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
+  options: {
+    mode?: 'static' | 'versioned';
+    editable?: boolean;
+    versionId?: string | null;
+    versionNumber?: number | null;
+    effectiveFrom?: string | null;
+  } = {},
+) {
   return {
-    catalogVersion: 'v1',
-    authority: 'core',
-    mode: 'static',
-    editable: false,
-    categories,
-    periods,
-    zones,
-    commissionBps: COMMISSION_BPS,
-    pickupPolicy: {
-      freeKm: FREE_PICKUP_KM,
-      fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
-      motoReferenceKmPerLiter: MOTO_REFERENCE_KM_PER_LITER,
-      carReferenceKmPerLiter: CAR_REFERENCE_KM_PER_LITER,
-    },
+    catalogVersion: snapshot.catalogVersion,
+    authority: 'core' as const,
+    mode: options.mode ?? 'static',
+    editable: options.editable ?? false,
+    versionId: options.versionId ?? null,
+    versionNumber: options.versionNumber ?? null,
+    effectiveFrom: options.effectiveFrom ?? null,
+    categories: [...snapshot.categories],
+    periods: [...snapshot.periods],
+    zones: [...snapshot.zones],
+    commissionBps: snapshot.commissionBps,
+    pickupPolicy: { ...snapshot.pickupPolicy },
     surcharges: {
-      preaComfortCents: PREA_COMFORT_SURCHARGE_CENTS,
-      preaLocalCarAfter22Cents:
-        PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS,
+      ...snapshot.surcharges,
       preaLocalCarAfter22LocalityIds: [
-        ...PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS,
-      ].sort(),
+        ...snapshot.surcharges.preaLocalCarAfter22LocalityIds,
+      ],
+    },
+    jeri: {
+      buggy: { ...snapshot.jeri.buggy },
+      deliveryBands: snapshot.jeri.deliveryBands.map((band) => ({
+        ...band,
+      })),
     },
     localities: {
-      prea: Object.entries(PREA_LOCALITIES)
+      prea: Object.entries(snapshot.localities.prea)
         .map(([localityId, pricing]) =>
           localityView(localityId, pricing),
         )
         .sort((a, b) =>
           a.localityId.localeCompare(b.localityId),
         ),
-      jijoca: Object.entries(JIJOCA_LOCALITIES)
+      jijoca: Object.entries(snapshot.localities.jijoca)
         .map(([localityId, pricing]) =>
           localityView(localityId, pricing),
         )
@@ -100,17 +84,13 @@ export function adminPricingCatalogView() {
           a.localityId.localeCompare(b.localityId),
         ),
     },
-    fixedRoutes: FIXED_ROUTES.map((route) => ({
-      id: route.id,
-      a: route.a,
-      b: route.b,
-      category: route.category,
-      dayCents: route.dayCents,
-      after22Cents: route.after22Cents,
+    fixedRoutes: snapshot.fixedRoutes.map((route) => ({
+      ...route,
     })),
   };
 }
 
-
-export type PricingCatalogSnapshot =
+export type AdminPricingCatalogView =
   ReturnType<typeof adminPricingCatalogView>;
+
+export type { PricingCatalogSnapshot } from './catalog-snapshot.js';
