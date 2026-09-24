@@ -8,6 +8,7 @@ import {
   STATIC_PRICING_CATALOG_V1,
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
+import { categoryEnabled } from './category-eligibility.js';
 import { splitCommission } from './commission.js';
 import {
   PricingError,
@@ -398,6 +399,12 @@ export function quoteFare(
   request: QuoteRequest,
   catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
 ): FareQuote {
+  if (!categoryEnabled({ catalog, category: request.category })) {
+    throw new PricingError(
+      'UNAVAILABLE_CATEGORY',
+      `Categoria ${request.category} está desativada no catálogo vigente.`,
+    );
+  }
   const fixed = quoteFixedRoute(request, catalog);
   if (fixed != null) return fixed;
 
