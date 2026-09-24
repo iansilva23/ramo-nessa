@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#0D0D0D">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'self'"
     >
     <meta name="referrer" content="no-referrer">
     <title>Ramo Nessa — Admin</title>
@@ -169,6 +169,10 @@
           <button class="nav-item is-active" type="button" data-view="overview">
             <span class="nav-icon">◫</span>
             Visão geral
+          </button>
+          <button class="nav-item" type="button" data-view="fleet">
+            <span class="nav-icon">⌖</span>
+            Frota
           </button>
           <button class="nav-item" type="button" data-view="rides">
             <span class="nav-icon">↗</span>
@@ -743,6 +747,116 @@
                 </button>
               </div>
             </article>
+          </section>
+
+          <section id="view-fleet" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">OPERAÇÃO AO VIVO</span>
+                <h1>Mapa da frota</h1>
+                <p>
+                  Motoristas online, livres, reservados ou em corrida, com categoria
+                  atual e alerta de GPS atrasado.
+                </p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="fleet-updated-at">Ainda não atualizado</small>
+                <button
+                  id="refresh-fleet-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar frota
+                </button>
+              </div>
+            </div>
+
+            <div class="fleet-summary-grid" aria-label="Resumo da frota online">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Online</span>
+                <strong id="fleet-total-online">0</strong>
+                <small>Motoristas enviando presença</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Livres</span>
+                <strong id="fleet-free">0</strong>
+                <small>Disponíveis para novas ofertas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Em corrida</span>
+                <strong id="fleet-on-ride">0</strong>
+                <small>Passageiro, entrega ou outro serviço</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">GPS atrasado</span>
+                <strong id="fleet-stale-gps">0</strong>
+                <small>Última posição acima do limite</small>
+              </article>
+            </div>
+
+            <div class="fleet-layout">
+              <article class="panel-card fleet-map-card">
+                <div class="panel-card__header fleet-map-header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">MAPA</span>
+                    <h2>Frota em operação</h2>
+                  </div>
+                  <div class="fleet-legend" aria-label="Legenda do mapa">
+                    <span><i data-tone="free"></i>Livre</span>
+                    <span><i data-tone="ride"></i>Em corrida</span>
+                    <span><i data-tone="delivery"></i>Entrega</span>
+                    <span><i data-tone="stale"></i>GPS atrasado</span>
+                  </div>
+                </div>
+
+                <div
+                  id="fleet-map"
+                  class="fleet-map"
+                  role="region"
+                  aria-label="Mapa da frota Ramo Nessa"
+                >
+                  <div id="fleet-map-tiles" class="fleet-map__tiles" aria-hidden="true"></div>
+                  <div id="fleet-map-markers" class="fleet-map__markers"></div>
+                  <div class="fleet-map__controls" aria-label="Controles de zoom">
+                    <button
+                      id="fleet-map-zoom-in"
+                      type="button"
+                      aria-label="Aumentar zoom"
+                    >+</button>
+                    <button
+                      id="fleet-map-zoom-out"
+                      type="button"
+                      aria-label="Diminuir zoom"
+                    >−</button>
+                  </div>
+                  <a
+                    class="fleet-map__attribution"
+                    href="https://www.openstreetmap.org/copyright"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >© OpenStreetMap</a>
+                </div>
+              </article>
+
+              <article class="panel-card fleet-roster-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">MOTORISTAS</span>
+                    <h2>Status da frota</h2>
+                  </div>
+                  <span id="fleet-roster-count" class="pill">0 online</span>
+                </div>
+                <div id="fleet-roster" class="fleet-roster"></div>
+                <div id="fleet-roster-empty" class="empty-state">
+                  Nenhum motorista online neste momento.
+                </div>
+              </article>
+            </div>
+
+            <p class="fleet-live-note">
+              Atualização automática a cada 5 segundos enquanto esta tela estiver aberta.
+              GPS com mais de 2 minutos aparece como atrasado.
+            </p>
           </section>
 
           <section id="view-rides" class="view-panel" hidden>
