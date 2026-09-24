@@ -229,6 +229,7 @@ import {
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import { isDriverPaymentHoldExpired } from './rides/ride.js';
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
@@ -381,10 +382,55 @@ function sendPushBestEffort(input: {
 async function processConfirmedMercadoPagoRide(
   payment: PaymentRecord,
 ): Promise<void> {
+  const confirmationTime = new Date();
+  const rideBeforeConfirmation =
+    await rideRepository.findById(payment.rideId);
+  const expiredHold =
+    rideBeforeConfirmation?.state === 'AWAITING_PAYMENT' &&
+    isDriverPaymentHoldExpired(
+      rideBeforeConfirmation,
+      confirmationTime,
+    );
+
   let ride = await confirmRidePayment(rideRepository, {
     rideId: payment.rideId,
     payment,
+    confirmedAt: confirmationTime,
+    notifyPassenger: !expiredHold,
   });
+
+  if (expiredHold) {
+    logWarn('ride.payment.confirmed_after_hold_expired', {
+      rideId: ride.id,
+      paymentId: payment.id,
+      driverHoldExpiresAt:
+        rideBeforeConfirmation?.driverHoldExpiresAt ?? null,
+    });
+
+    const refund = await refundMercadoPagoRideAfterNoDriver({
+      rides: rideRepository,
+      finance: financeRepository,
+      gateway: mercadoPagoOrdersClient!,
+      rideId: ride.id,
+      paymentId: payment.id,
+      passengerId: ride.passengerId,
+      now: confirmationTime,
+    });
+
+    if (refund.ride.state === 'REFUND_PENDING') {
+      sendPushBestEffort({
+        subjectType: 'passenger',
+        subjectId: refund.ride.passengerId,
+        type: 'passenger.payment.refund_pending',
+        title: 'Reserva expirada',
+        body:
+          'Seu Pix foi recebido após a reserva expirar. ' +
+          'O estorno já foi solicitado.',
+        data: { rideId: refund.ride.id },
+      });
+    }
+    return;
+  }
 
   if (
     ride.state === 'REFUNDED' ||
@@ -466,7 +512,6 @@ async function processConfirmedMercadoPagoRide(
     });
   }
 }
-
 async function markMercadoPagoRidePaymentFailed(
   payment: PaymentRecord,
 ): Promise<void> {
