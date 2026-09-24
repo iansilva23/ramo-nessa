@@ -8,6 +8,8 @@ export interface AdminRideCursor {
 export interface AdminRideListInput {
   states?: RideRecord['state'][] | undefined;
   search?: string | undefined;
+  createdFrom?: string | undefined;
+  createdTo?: string | undefined;
   limit: number;
   cursor?: AdminRideCursor | undefined;
 }
