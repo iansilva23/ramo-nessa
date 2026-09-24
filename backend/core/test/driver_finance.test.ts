@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  driverFinanceStatement,
   driverFinanceSummary,
   requestDriverPayoutFromApp,
 } from '../src/drivers/driver-finance-service.js';
@@ -70,6 +71,44 @@ test('resumo separa saldo disponível de saque pendente', async () => {
     payoutPendingCents: 4000,
     cashCommissionDebtCents: 0,
   });
+});
+
+test('extrato mostra corrida, taxa e saque com saldo real', async () => {
+  const finance = await fundedFinance();
+
+  await requestDriverPayoutFromApp({
+    repository: finance,
+    driverId: 'driver-finance',
+    amountCents: 4000,
+    idempotencyKey: 'payout-finance-statement',
+  });
+
+  const statement = await driverFinanceStatement({
+    repository: finance,
+    driverId: 'driver-finance',
+  });
+
+  assert.equal(statement.finance.availableBalanceCents, 5000);
+  assert.equal(statement.finance.payoutPendingCents, 4000);
+  assert.equal(statement.items.length, 2);
+
+  const payout = statement.items[0]!;
+  assert.equal(payout.kind, 'DRIVER_PAYOUT_RESERVED');
+  assert.equal(payout.title, 'Saque solicitado');
+  assert.equal(payout.availableDeltaCents, -4000);
+  assert.equal(payout.pendingDeltaCents, 4000);
+  assert.equal(payout.balanceAfterCents, 5000);
+
+  const ride = statement.items[1]!;
+  assert.equal(ride.kind, 'RIDE_SETTLED');
+  assert.equal(ride.title, 'Corrida concluída');
+  assert.equal(ride.availableDeltaCents, 9000);
+  assert.equal(ride.platformFeeCents, 1000);
+  assert.equal(ride.balanceAfterCents, 9000);
+  assert.equal(
+    ride.rideId,
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+  );
 });
 
 test('solicitação idempotente não reserva saldo duas vezes', async () => {
