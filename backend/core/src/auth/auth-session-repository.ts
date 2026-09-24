@@ -19,4 +19,10 @@ export interface AuthSessionRepository {
     subjectId: string,
     revokedAt: string,
   ): Promise<number>;
+  revokeOthersForSubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+    exceptSessionId: string,
+    revokedAt: string,
+  ): Promise<number>;
 }
