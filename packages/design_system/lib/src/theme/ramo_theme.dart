@@ -86,15 +86,34 @@ abstract final class RamoTheme {
         bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.35),
         bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.35),
       ),
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: scheme.onSurface,
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.6,
+        ),
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(56),
+          minimumSize: const Size.fromHeight(58),
+          backgroundColor: RamoColors.brandBlack,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: RamoColors.border,
+          disabledForegroundColor: RamoColors.muted,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(RamoRadius.md),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
           ),
         ),
       ),
@@ -107,7 +126,13 @@ abstract final class RamoTheme {
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         showDragHandle: false,
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: RamoColors.ink,
+        textColor: RamoColors.ink,
+        contentPadding: EdgeInsets.symmetric(horizontal: 4),
       ),
     );
   }
@@ -129,11 +154,13 @@ abstract final class RamoTheme {
       fillColor: fill,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: RamoSpacing.md,
-        vertical: RamoSpacing.md,
+        vertical: 17,
       ),
-      border: shape(border),
-      enabledBorder: shape(border),
-      focusedBorder: shape(focusedBorderColor, width: 1.5),
+      border: shape(Colors.transparent),
+      enabledBorder: shape(Colors.transparent),
+      focusedBorder: shape(focusedBorderColor, width: 1.4),
+      errorBorder: shape(RamoColors.danger),
+      focusedErrorBorder: shape(RamoColors.danger, width: 1.4),
     );
   }
 
