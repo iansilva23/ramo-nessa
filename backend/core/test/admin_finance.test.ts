@@ -77,6 +77,7 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
     platformRevenueCents: 1000,
     driverPayableCents: 6000,
     driverPayoutPendingCents: 3000,
+    driverCashCommissionDebtCents: 0,
     rideEscrowCents: 0,
     passengerWalletCents: 0,
     payoutsRequested: 1,
