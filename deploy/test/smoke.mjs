@@ -449,6 +449,7 @@ try {
       body: JSON.stringify({
         subjectType: 'passenger',
         phone: '88999991278',
+        email: 'ci-passenger@ramonessa.local',
       }),
     },
   );
