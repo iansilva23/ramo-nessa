@@ -188,5 +188,8 @@ export async function respondToSupportTicket(input: {
       'Chamado de suporte não encontrado.',
     );
   }
-  return supportTicketView(updated);
+  return {
+    driverId: updated.driverId,
+    ticket: supportTicketView(updated),
+  };
 }
