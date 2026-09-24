@@ -14,6 +14,7 @@ function ride(input: {
   id: string;
   state: RideRecord['state'];
   updatedAt: string;
+  createdAt?: string;
   passengerId?: string;
   driverId?: string;
 }): RideRecord {
@@ -39,7 +40,7 @@ function ride(input: {
       platformCommissionCents: 100,
       driverNetCents: 900,
     },
-    createdAt: '2026-09-23T10:00:00.000Z',
+    createdAt: input.createdAt ?? '2026-09-23T10:00:00.000Z',
     updatedAt: input.updatedAt,
   };
 }
@@ -130,6 +131,38 @@ test('diretório Admin de corridas filtra, busca e pagina de forma estável', as
   );
 });
 
+test('diretório Admin de corridas filtra histórico por período', async () => {
+  const repository = new InMemoryRideRepository();
+
+  await repository.create(
+    ride({
+      id: '55555555-5555-4555-8555-555555555551',
+      state: 'COMPLETED',
+      createdAt: '2026-09-20T12:00:00.000Z',
+      updatedAt: '2026-09-20T13:00:00.000Z',
+    }),
+  );
+  await repository.create(
+    ride({
+      id: '55555555-5555-4555-8555-555555555552',
+      state: 'COMPLETED',
+      createdAt: '2026-09-23T12:00:00.000Z',
+      updatedAt: '2026-09-23T13:00:00.000Z',
+    }),
+  );
+
+  const page = await repository.listAdmin({
+    createdFrom: '2026-09-23T00:00:00.000Z',
+    createdTo: '2026-09-23T23:59:59.999Z',
+    limit: 20,
+  });
+
+  assert.deepEqual(
+    page.rides.map((item) => item.id),
+    ['55555555-5555-4555-8555-555555555552'],
+  );
+});
+
 test('query Admin de corridas valida scope, estado, busca e cursor', () => {
   const cursor = encodeAdminRideDirectoryCursor({
     updatedAt: '2026-09-23T20:00:00.000Z',
@@ -165,6 +198,33 @@ test('query Admin de corridas valida scope, estado, busca e cursor', () => {
     }),
   );
   assert.deepEqual(exact.states, ['COMPLETED']);
+
+  const dated = parseAdminRideDirectoryQuery(
+    new URLSearchParams({
+      scope: 'all',
+      from: '2026-09-20',
+      to: '2026-09-23',
+    }),
+  );
+  assert.equal(
+    dated.createdFrom,
+    '2026-09-20T00:00:00.000Z',
+  );
+  assert.equal(
+    dated.createdTo,
+    '2026-09-23T23:59:59.999Z',
+  );
+
+  assert.throws(
+    () =>
+      parseAdminRideDirectoryQuery(
+        new URLSearchParams({
+          from: '2026-09-24',
+          to: '2026-09-23',
+        }),
+      ),
+    /from não pode ser posterior a to/,
+  );
 
   assert.throws(
     () =>
