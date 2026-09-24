@@ -8,7 +8,9 @@ import type { AdminActor, AdminRepository } from './admin-repository.js';
 
 export class AdminOperationalSettingsError extends Error {
   constructor(
-    public readonly code: 'INVALID_DRIVER_OFFER_TTL',
+    public readonly code:
+      | 'INVALID_DRIVER_OFFER_TTL'
+      | 'INVALID_MERCADO_PAGO_PUBLIC_KEY',
     message: string,
   ) {
     super(message);
@@ -28,6 +30,7 @@ export async function updateAdminOperationalSettings(input: {
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
   showNearbyDrivers?: boolean;
+  mercadoPagoPublicKey?: string | null;
   now?: Date;
 }) {
   if (
@@ -42,15 +45,42 @@ export async function updateAdminOperationalSettings(input: {
     );
   }
 
+  const normalizedPublicKey =
+    input.mercadoPagoPublicKey === undefined
+      ? undefined
+      : input.mercadoPagoPublicKey == null
+        ? null
+        : input.mercadoPagoPublicKey.trim();
+
+  if (
+    normalizedPublicKey != null &&
+    normalizedPublicKey.length > 0 &&
+    (normalizedPublicKey.length < 20 ||
+      normalizedPublicKey.length > 220 ||
+      /\s/.test(normalizedPublicKey))
+  ) {
+    throw new AdminOperationalSettingsError(
+      'INVALID_MERCADO_PAGO_PUBLIC_KEY',
+      'Public Key do Mercado Pago inválida.',
+    );
+  }
+
   const current = await input.repository.get();
   const nextTtl =
     input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds;
   const nextNearby =
     input.showNearbyDrivers ?? current.showNearbyDrivers;
+  const nextPublicKey =
+    normalizedPublicKey === undefined
+      ? current.mercadoPagoPublicKey
+      : normalizedPublicKey === null || normalizedPublicKey.length === 0
+        ? undefined
+        : normalizedPublicKey;
 
   if (
     nextTtl === current.driverOfferTtlSeconds &&
-    nextNearby === current.showNearbyDrivers
+    nextNearby === current.showNearbyDrivers &&
+    nextPublicKey === current.mercadoPagoPublicKey
   ) {
     return current;
   }
@@ -59,6 +89,7 @@ export async function updateAdminOperationalSettings(input: {
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
     showNearbyDrivers: nextNearby,
+    mercadoPagoPublicKey: nextPublicKey ?? null,
     updatedAt,
   });
 
@@ -73,6 +104,8 @@ export async function updateAdminOperationalSettings(input: {
       driverOfferTtlSeconds: updated.driverOfferTtlSeconds,
       previousShowNearbyDrivers: current.showNearbyDrivers,
       showNearbyDrivers: updated.showNearbyDrivers,
+      mercadoPagoPublicKeyChanged:
+        current.mercadoPagoPublicKey !== updated.mercadoPagoPublicKey,
     },
     createdAt: updatedAt,
   });
