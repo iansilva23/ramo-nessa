@@ -24,7 +24,7 @@ void main() {
       client: client,
     );
 
-    final requested = await service.requestOtp('(88) 99999-1234');
+    final requested = await service.requestOtp(phone: '(88) 99999-1234', email: 'ian@example.com');
 
     expect(requested.retryAfterSeconds, 60);
     expect(
@@ -32,5 +32,6 @@ void main() {
       'device-test-instance-00000001',
     );
     expect(captured.headers['content-type'], 'application/json');
+    expect(captured.body, contains('"email":"ian@example.com"'));
   });
 }
