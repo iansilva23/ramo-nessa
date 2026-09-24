@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/ramo_core_config.dart';
 import '../../../core/location/geolocator_location_service.dart';
@@ -328,10 +329,27 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               Text(promotion.description),
               const SizedBox(height: RamoSpacing.lg),
               FilledButton.icon(
-                onPressed: () {
-                  if (promotion.ctaUrl == null) {
+                onPressed: () async {
+                  final rawUrl = promotion.ctaUrl;
+                  if (rawUrl == null) {
                     Navigator.of(context).pop();
+                    return;
                   }
+
+                  final uri = Uri.tryParse(rawUrl);
+                  if (uri == null) return;
+                  final opened = await launchUrl(
+                    uri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!context.mounted || opened) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Não conseguimos abrir esse link agora.',
+                      ),
+                    ),
+                  );
                 },
                 icon: const Icon(Icons.tour_rounded),
                 label: Text(promotion.ctaLabel),
