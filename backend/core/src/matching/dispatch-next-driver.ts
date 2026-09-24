@@ -127,6 +127,18 @@ export async function dispatchNextDriver(input: {
       rideId: ride.id,
       at: now.toISOString(),
     });
+
+    notifyDefaultPushSubject({
+      subjectType: 'passenger',
+      subjectId: ride.passengerId,
+      message: {
+        type: 'passenger.ride.no_driver',
+        title: 'Nenhum motorista disponível',
+        body: 'Não encontramos um motorista para esta corrida.',
+        data: { rideId: ride.id },
+      },
+    });
+
     return { kind: 'NO_DRIVER_FOUND' };
   }
 
