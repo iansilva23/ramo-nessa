@@ -20,6 +20,17 @@ export type PricingCatalogDraftPatch =
       price:
         | { kind: 'exact'; amountCents: number }
         | { kind: 'range'; minCents: number; maxCents: number };
+    }
+  | {
+      kind: 'category_policy';
+      category:
+        | 'moto'
+        | 'delivery'
+        | 'car'
+        | 'comfort_black'
+        | 'buggy';
+      enabled: boolean;
+      requiresFourByFourOnJeriBoundary: boolean;
     };
 
 function objectValue(
@@ -50,6 +61,15 @@ function textValue(
     );
   }
   return text;
+}
+
+function booleanValue(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ser booleano.`,
+    );
+  }
+  return value;
 }
 
 function centsValue(value: unknown, field: string): number {
@@ -158,7 +178,32 @@ export function parsePricingCatalogDraftPatch(
     );
   }
 
+  if (kind === 'category_policy') {
+    const category = textValue(value.category, 'category', 30);
+    if (
+      category !== 'moto' &&
+      category !== 'delivery' &&
+      category !== 'car' &&
+      category !== 'comfort_black' &&
+      category !== 'buggy'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'category inválida.',
+      );
+    }
+
+    return {
+      kind,
+      category,
+      enabled: booleanValue(value.enabled, 'enabled'),
+      requiresFourByFourOnJeriBoundary: booleanValue(
+        value.requiresFourByFourOnJeriBoundary,
+        'requiresFourByFourOnJeriBoundary',
+      ),
+    };
+  }
+
   throw new InvalidPricingCatalogPatchError(
-    'kind deve ser fixed_route ou locality_price.',
+    'kind deve ser fixed_route, locality_price ou category_policy.',
   );
 }
