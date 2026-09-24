@@ -339,7 +339,7 @@ void main() {
 
     expect(find.text('Sua corrida'), findsOneWidget);
     expect(find.text('Seu motorista está a caminho'), findsOneWidget);
-    expect(find.byIcon(Icons.directions_car_filled_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
