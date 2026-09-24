@@ -5,6 +5,8 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../../../core/config/ramo_core_config.dart';
 import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
+import '../../../core/communications/app_release_policy_service.dart';
+import '../../../core/communications/agency_promotion_service.dart';
 import '../../map/data/nominatim_place_search_service.dart';
 import '../../map/data/osrm_route_service.dart';
 import '../../map/data/place_search_service.dart';
@@ -42,6 +44,8 @@ class PassengerHomeScreen extends StatefulWidget {
     this.paymentService,
     this.rideTrackingService,
     this.rideRealtimeService,
+    this.releasePolicyService,
+    this.agencyPromotionService,
     this.networkTilesEnabled = true,
   });
 
@@ -55,6 +59,8 @@ class PassengerHomeScreen extends StatefulWidget {
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
+  final AppReleasePolicyService? releasePolicyService;
+  final AgencyPromotionService? agencyPromotionService;
   final bool networkTilesEnabled;
 
   @override
@@ -124,6 +130,22 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 )
               : null);
 
+  late final AppReleasePolicyService? _releasePolicyService =
+      widget.releasePolicyService ??
+          (RamoCoreConfig.enabled
+              ? HttpAppReleasePolicyService(
+                  baseUrl: RamoCoreConfig.baseUri!,
+                )
+              : null);
+
+  late final AgencyPromotionService? _agencyPromotionService =
+      widget.agencyPromotionService ??
+          (RamoCoreConfig.enabled
+              ? HttpAgencyPromotionService(
+                  baseUrl: RamoCoreConfig.baseUri!,
+                )
+              : null);
+
   ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
@@ -140,6 +162,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   int _routeRequestId = 0;
   int _pricingRequestId = 0;
   int _passengerCount = 1;
+  AgencyPromotion? _agencyPromotion;
+  bool _releaseDialogShown = false;
 
   @override
   void initState() {
@@ -147,6 +171,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locateUser(showErrors: false);
+      _loadCommunicationContent();
     });
   }
 
@@ -154,6 +179,176 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  String? get _platformName {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _loadCommunicationContent() async {
+    final platform = _platformName;
+    final releaseService = _releasePolicyService;
+    if (platform != null && releaseService != null) {
+      try {
+        final policy = await releaseService.check(
+          appKind: 'passenger',
+          platform: platform,
+          buildNumber: RamoCoreConfig.appBuild,
+        );
+        if (
+          mounted &&
+          policy.updateAvailable &&
+          !_releaseDialogShown
+        ) {
+          _releaseDialogShown = true;
+          await _showReleasePolicy(policy);
+        }
+      } catch (_) {
+        // Falha de comunicação não bloqueia o uso do app.
+      }
+    }
+
+    final agencyService = _agencyPromotionService;
+    if (agencyService == null) return;
+    try {
+      final promotion = await agencyService.load();
+      if (!mounted) return;
+      setState(() => _agencyPromotion = promotion);
+    } catch (_) {
+      // A divulgação é opcional e não interfere na corrida.
+    }
+  }
+
+  Future<void> _showReleasePolicy(
+    AppReleasePolicy policy,
+  ) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: !policy.updateRequired,
+      builder: (context) => AlertDialog(
+        icon: Icon(
+          policy.updateRequired
+              ? Icons.system_update_alt_rounded
+              : Icons.new_releases_rounded,
+        ),
+        title: Text(
+          policy.updateRequired
+              ? 'Atualização necessária'
+              : 'Atualização disponível',
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(policy.updateMessage),
+            const SizedBox(height: 10),
+            Text(
+              'Versão disponível: ${policy.latestVersion}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (policy.storeUrl != null) ...[
+              const SizedBox(height: 10),
+              const Text('Abra a loja do seu celular pelo endereço:'),
+              const SizedBox(height: 4),
+              SelectableText(policy.storeUrl!),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              policy.updateRequired ? 'Atualizar agora' : 'Entendi',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAgencyPromotion() {
+    final promotion = _agencyPromotion;
+    if (promotion == null || !promotion.enabled) {
+      return Future<void>.value();
+    }
+
+    return showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.sm,
+            RamoSpacing.lg,
+            RamoSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.explore_rounded),
+                  SizedBox(width: RamoSpacing.sm),
+                  Text(
+                    'RAMO NESSA AGÊNCIA',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .8,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: RamoSpacing.md),
+              Text(
+                promotion.title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                promotion.subtitle,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: RamoSpacing.md),
+              Text(promotion.description),
+              const SizedBox(height: RamoSpacing.lg),
+              FilledButton.icon(
+                onPressed: () {
+                  if (promotion.ctaUrl == null) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                icon: const Icon(Icons.tour_rounded),
+                label: Text(promotion.ctaLabel),
+              ),
+              if (promotion.ctaUrl != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                const Text(
+                  'Contato / reservas:',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: RamoSpacing.xxs),
+                SelectableText(promotion.ctaUrl!),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _resetPricing() {
@@ -780,39 +975,88 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(RamoSpacing.md),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(RamoRadius.pill),
-                      boxShadow: RamoElevation.floating(context),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: RamoSpacing.md,
-                        vertical: RamoSpacing.sm,
+                  Row(
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius:
+                              BorderRadius.circular(RamoRadius.pill),
+                          boxShadow: RamoElevation.floating(context),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: RamoSpacing.md,
+                            vertical: RamoSpacing.sm,
+                          ),
+                          child: RamoBrandLockup(compact: true),
+                        ),
                       ),
-                      child: RamoBrandLockup(compact: true),
+                      const Spacer(),
+                      IconButton.filledTonal(
+                        tooltip: 'Usar minha localização',
+                        onPressed:
+                            _locating ? null : () => _locateUser(),
+                        icon: _locating
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.my_location_rounded),
+                      ),
+                      const SizedBox(width: RamoSpacing.xs),
+                      IconButton.filled(
+                        tooltip: 'Perfil',
+                        onPressed: _openProfileMenu,
+                        icon: const Icon(Icons.person_rounded),
+                      ),
+                    ],
+                  ),
+                  if (_agencyPromotion?.enabled == true) ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius:
+                          BorderRadius.circular(RamoRadius.pill),
+                      elevation: 2,
+                      child: InkWell(
+                        key: const Key(
+                          'passenger-agency-promotion',
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(RamoRadius.pill),
+                        onTap: _openAgencyPromotion,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: RamoSpacing.md,
+                            vertical: RamoSpacing.sm,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.explore_rounded,
+                                size: 18,
+                              ),
+                              const SizedBox(width: RamoSpacing.xs),
+                              Text(
+                                _agencyPromotion!.subtitle,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton.filledTonal(
-                    tooltip: 'Usar minha localização',
-                    onPressed: _locating ? null : () => _locateUser(),
-                    icon: _locating
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.my_location_rounded),
-                  ),
-                  const SizedBox(width: RamoSpacing.xs),
-                  IconButton.filled(
-                    tooltip: 'Perfil',
-                    onPressed: _openProfileMenu,
-                    icon: const Icon(Icons.person_rounded),
-                  ),
+                  ],
                 ],
               ),
             ),

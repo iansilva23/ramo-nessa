@@ -8,6 +8,7 @@ import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
+import '../../../core/communications/app_release_policy_service.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/http_driver_api.dart';
@@ -23,6 +24,7 @@ class DriverHomeScreen extends StatefulWidget {
     this.locationService,
     this.navigationService,
     this.realtimeService,
+    this.releasePolicyService,
   });
 
   final String? accessToken;
@@ -31,6 +33,7 @@ class DriverHomeScreen extends StatefulWidget {
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
   final DriverRealtimeService? realtimeService;
+  final AppReleasePolicyService? releasePolicyService;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -68,6 +71,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 )
               : null);
 
+  late final AppReleasePolicyService? _releasePolicyService =
+      widget.releasePolicyService ??
+          (DriverCoreConfig.enabled
+              ? HttpAppReleasePolicyService(
+                  baseUrl: DriverCoreConfig.baseUri!,
+                )
+              : null);
+
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
@@ -86,11 +97,89 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   StreamSubscription<DriverPosition>? _locationSubscription;
   StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
+  bool _releaseDialogShown = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkReleasePolicy();
+    });
+  }
+
+  String? get _platformName {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _checkReleasePolicy() async {
+    final service = _releasePolicyService;
+    final platform = _platformName;
+    if (
+      service == null ||
+      platform == null ||
+      _releaseDialogShown
+    ) {
+      return;
+    }
+
+    try {
+      final policy = await service.check(
+        appKind: 'driver',
+        platform: platform,
+        buildNumber: DriverCoreConfig.appBuild,
+      );
+      if (!mounted || !policy.updateAvailable) return;
+      _releaseDialogShown = true;
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: !policy.updateRequired,
+        builder: (context) => AlertDialog(
+          icon: const Icon(Icons.system_update_alt_rounded),
+          title: Text(
+            policy.updateRequired
+                ? 'Atualização necessária'
+                : 'Atualização disponível',
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(policy.updateMessage),
+              const SizedBox(height: 10),
+              Text(
+                'Versão disponível: ${policy.latestVersion}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              if (policy.storeUrl != null) ...[
+                const SizedBox(height: 10),
+                const Text('Abra a loja pelo endereço:'),
+                const SizedBox(height: 4),
+                SelectableText(policy.storeUrl!),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                policy.updateRequired ? 'Atualizar agora' : 'Entendi',
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      // Falha de consulta de versão não impede o motorista de operar.
+    }
   }
 
   @override

@@ -12,6 +12,16 @@ abstract final class DriverCoreConfig {
   );
 
   static const requestTimeout = Duration(seconds: 10);
+
+  static const appVersion = String.fromEnvironment(
+    'RAMO_APP_VERSION',
+    defaultValue: '0.1.0',
+  );
+
+  static const appBuild = int.fromEnvironment(
+    'RAMO_APP_BUILD',
+    defaultValue: 1,
+  );
   static const offerPollingInterval = Duration(seconds: 10);
 
   static Uri? get baseUri {
