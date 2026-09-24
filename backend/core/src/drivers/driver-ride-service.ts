@@ -135,21 +135,41 @@ export async function performDriverRideAction(input: {
     invalidAction(completed, input.action);
   }
 
-  const payment = await input.finance.findPaidPaymentByRideId(
-    completed.id,
-  );
-  if (payment == null) {
-    throw new DriverAppError(
-      'PAID_PAYMENT_NOT_FOUND',
-      'Pagamento confirmado da corrida não foi encontrado.',
-    );
-  }
+  let duplicateSettlement = false;
+  let cashDebtRecoveredCents = 0;
+  let cashCommissionRecoveredFromBalanceCents = 0;
 
-  const settlement = await settleCompletedRide(input.finance, {
-    ride: completed,
-    payment,
-    settledAt: now,
-  });
+  if (completed.paymentMethod === 'cash') {
+    const cashSettlement = await input.finance.settleCashRide({
+      rideId: completed.id,
+      driverId: input.driverId,
+      platformCommissionCents:
+        completed.quote.platformCommissionCents,
+      settledAt: now,
+    });
+    duplicateSettlement = cashSettlement.duplicateSettlement;
+    cashCommissionRecoveredFromBalanceCents =
+      cashSettlement.cashCommissionRecoveredFromBalanceCents;
+  } else {
+    const payment = await input.finance.findPaidPaymentByRideId(
+      completed.id,
+    );
+    if (payment == null) {
+      throw new DriverAppError(
+        'PAID_PAYMENT_NOT_FOUND',
+        'Pagamento confirmado da corrida não foi encontrado.',
+      );
+    }
+
+    const settlement = await settleCompletedRide(input.finance, {
+      ride: completed,
+      payment,
+      settledAt: now,
+    });
+    duplicateSettlement = settlement.duplicateSettlement;
+    cashDebtRecoveredCents =
+      settlement.cashDebtRecoveredCents;
+  }
 
   const supply = await input.drivers.findByDriverId(input.driverId);
   if (supply == null) {
@@ -175,12 +195,17 @@ export async function performDriverRideAction(input: {
     await input.finance.getAccountBalanceCents(
       `driver:${input.driverId}:payable`,
     );
+  const cashCommissionDebtCents =
+    await input.finance.getDriverCashDebtCents(input.driverId);
 
   return {
     ride: driverRideView(completed),
     settlement: {
-      duplicate: settlement.duplicateSettlement,
+      duplicate: duplicateSettlement,
       driverBalanceCents,
+      cashCommissionDebtCents,
+      cashDebtRecoveredCents,
+      cashCommissionRecoveredFromBalanceCents,
     },
   };
 }
