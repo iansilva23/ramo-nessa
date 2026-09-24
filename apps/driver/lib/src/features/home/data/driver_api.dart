@@ -11,6 +11,10 @@ abstract interface class DriverApi {
 
   Future<DriverOffer?> currentOffer();
 
+  Future<DriverProfileSnapshot> profile();
+
+  Future<DriverActivitySnapshot> activity();
+
   Future<AcceptedDriverRide?> currentRide();
 
   Future<AcceptedDriverRide> acceptOffer(String offerId);
