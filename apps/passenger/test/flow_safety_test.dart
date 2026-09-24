@@ -339,7 +339,7 @@ void main() {
 
     expect(find.text('Sua corrida'), findsOneWidget);
     expect(find.text('Seu motorista está a caminho'), findsOneWidget);
-    expect(find.byIcon(Icons.person_rounded), findsOneWidget);
+    expect(find.text('Motorista Teste'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -679,6 +679,12 @@ class _FakeRideTrackingService implements PassengerRideTrackingService {
         longitude: -40.5001,
         updatedAt: DateTime.now(),
         stale: false,
+      ),
+      driver: const PassengerDriverProfile(
+        id: 'driver-test',
+        displayName: 'Motorista Teste',
+        ratingAverage: 4.9,
+        ratingCount: 12,
       ),
     );
   }
