@@ -90,6 +90,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
   DriverRouteInfo? _activeRoute;
+  DriverRouteInfo? _offerPickupRoute;
+  DriverRouteInfo? _offerTripRoute;
   final MapController _mapController = MapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
@@ -373,6 +375,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           }
         });
 
+        if (update.offerUpdated) {
+          unawaited(_refreshOfferRoutes(update.offer));
+        }
         if (update.rideUpdated) {
           unawaited(_refreshActiveRoute(force: true));
         }
@@ -441,6 +446,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final offer = await api.currentOffer();
       if (!mounted) return;
       setState(() => _offer = offer);
+      unawaited(_refreshOfferRoutes(offer));
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() => _message = error.message);
@@ -567,6 +573,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _activeRide = ride;
         _supply = supply;
         _offer = null;
+        _offerPickupRoute = null;
+        _offerTripRoute = null;
         _offerAction = false;
         _message = null;
       });
@@ -844,6 +852,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted) return;
       setState(() {
         _offer = null;
+        _offerPickupRoute = null;
+        _offerTripRoute = null;
         _offerAction = false;
       });
     } on DriverApiException catch (error) {
@@ -875,6 +885,50 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _refreshOfferRoutes(DriverOffer? offer) async {
+    final service = _routeService;
+    final supply = _supply;
+    if (service == null || supply == null || offer == null) {
+      if (mounted) {
+        setState(() {
+          _offerPickupRoute = null;
+          _offerTripRoute = null;
+        });
+      }
+      return;
+    }
+
+    final pickupLat = offer.pickupLatitude;
+    final pickupLng = offer.pickupLongitude;
+    if (pickupLat == null || pickupLng == null) return;
+
+    try {
+      final pickup = LatLng(pickupLat, pickupLng);
+      final pickupRoute = await service.route(
+        origin: LatLng(supply.latitude, supply.longitude),
+        destination: pickup,
+      );
+
+      DriverRouteInfo? tripRoute;
+      final dropoffLat = offer.dropoffLatitude;
+      final dropoffLng = offer.dropoffLongitude;
+      if (dropoffLat != null && dropoffLng != null) {
+        tripRoute = await service.route(
+          origin: pickup,
+          destination: LatLng(dropoffLat, dropoffLng),
+        );
+      }
+
+      if (!mounted || _offer?.id != offer.id) return;
+      setState(() {
+        _offerPickupRoute = pickupRoute;
+        _offerTripRoute = tripRoute;
+      });
+    } catch (_) {
+      // O card mantém as distâncias já calculadas pelo Core como fallback.
+    }
   }
 
   Future<void> _refreshActiveRoute({bool force = false}) async {
@@ -1008,6 +1062,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       busy: _offerAction,
                       onAccept: _acceptOffer,
                       onReject: _rejectOffer,
+                      pickupRoute: _offerPickupRoute,
+                      tripRoute: _offerTripRoute,
                     )
                   : _activeRide != null
                       ? _ActiveRideCard(
@@ -1822,12 +1878,16 @@ class _OfferCard extends StatelessWidget {
     required this.busy,
     required this.onAccept,
     required this.onReject,
+    this.pickupRoute,
+    this.tripRoute,
   });
 
   final DriverOffer offer;
   final bool busy;
   final VoidCallback onAccept;
   final VoidCallback onReject;
+  final DriverRouteInfo? pickupRoute;
+  final DriverRouteInfo? tripRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -1927,10 +1987,25 @@ class _OfferCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Coleta a aprox. '
-                  '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km',
+                  pickupRoute == null
+                      ? 'Até o passageiro · '
+                          '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km'
+                      : 'Até o passageiro · '
+                          '${pickupRoute!.durationLabel} · '
+                          '${pickupRoute!.distanceLabel}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                if (tripRoute != null || offer.tripDistanceKm != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    tripRoute != null
+                        ? 'Viagem · ${tripRoute!.durationLabel} · '
+                            '${tripRoute!.distanceLabel}'
+                        : 'Viagem · '
+                            '${offer.tripDistanceKm!.toStringAsFixed(1)} km',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
           ),
