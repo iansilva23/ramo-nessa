@@ -40,6 +40,9 @@ import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repo
 import type { PushDeviceRepository } from '../notifications/push-device-repository.js';
 import { InMemoryPushDeviceRepository } from '../notifications/repositories/in-memory-push-device-repository.js';
 import { PostgresPushDeviceRepository } from '../notifications/repositories/postgres-push-device-repository.js';
+import type { AdminCommunicationsRepository } from '../admin/admin-communications-repository.js';
+import { InMemoryAdminCommunicationsRepository } from '../admin/repositories/in-memory-admin-communications-repository.js';
+import { PostgresAdminCommunicationsRepository } from '../admin/repositories/postgres-admin-communications-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
@@ -57,6 +60,7 @@ export interface RepositoryBundle {
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
   pushDeviceRepository: PushDeviceRepository;
+  adminCommunicationsRepository: AdminCommunicationsRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -92,6 +96,8 @@ export function createRepositories(): RepositoryBundle {
       ridePreparationRepository:
         new PostgresRidePreparationRepository(pool),
       pushDeviceRepository: new PostgresPushDeviceRepository(pool),
+      adminCommunicationsRepository:
+        new PostgresAdminCommunicationsRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -137,6 +143,8 @@ export function createRepositories(): RepositoryBundle {
       driverSupplyRepository,
     ),
     pushDeviceRepository: new InMemoryPushDeviceRepository(),
+    adminCommunicationsRepository:
+      new InMemoryAdminCommunicationsRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
