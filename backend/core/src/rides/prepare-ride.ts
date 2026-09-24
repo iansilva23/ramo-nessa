@@ -41,6 +41,7 @@ export async function prepareRideForPayment(input: {
   routing: RoutingDistanceProvider;
   passengerId: string;
   quoteRequest: QuoteRequest;
+  pricing?: PricingCatalogContext;
   pickup: GeoPoint;
   dropoff: GeoPoint;
   now?: Date;
