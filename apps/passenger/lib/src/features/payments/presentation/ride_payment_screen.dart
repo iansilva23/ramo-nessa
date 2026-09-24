@@ -1526,17 +1526,89 @@ class _PaymentOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        enabled: enabled,
-        onTap: enabled ? onTap : null,
-        leading: Icon(icon),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w800),
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 220),
+      opacity: enabled ? 1 : .58,
+      child: Material(
+        color: dark ? RamoColors.darkRaised : RamoColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.symmetric(
+              horizontal: RamoSpacing.md,
+              vertical: 15,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: enabled
+                    ? RamoColors.brandYellow.withValues(alpha: .42)
+                    : scheme.outlineVariant.withValues(alpha: .5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: enabled
+                        ? RamoColors.brandYellow
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: enabled
+                        ? RamoColors.brandBlack
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: RamoSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.25,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: RamoSpacing.sm),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: trailing ??
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        key: ValueKey(enabled),
+                        size: 17,
+                        color: enabled
+                            ? scheme.onSurface
+                            : scheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ),
         ),
-        subtitle: Text(subtitle),
-        trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
       ),
     );
   }
