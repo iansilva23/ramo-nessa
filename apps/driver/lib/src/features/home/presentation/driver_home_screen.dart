@@ -18,6 +18,8 @@ import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
 import '../../profile/presentation/driver_security_screen.dart';
+import '../../profile/presentation/driver_settings_screen.dart';
+import '../../profile/presentation/driver_terms_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/driver_route_service.dart';
@@ -1647,6 +1649,31 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               subtitle: 'Atualização automática enquanto estiver online',
               onTap: _updateLocation,
             ),
+            _ProfileOption(
+              icon: Icons.settings_outlined,
+              title: 'Configurações',
+              subtitle: 'Permissões, localização e informações do app',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DriverSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            _ProfileOption(
+              icon: Icons.gavel_outlined,
+              title: 'Termos e privacidade',
+              subtitle: 'Uso do app, dados e informações legais',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DriverTermsScreen(),
+                  ),
+                );
+              },
+            ),
+
             if (widget.onLogout != null)
               _ProfileOption(
                 icon: Icons.logout_rounded,
