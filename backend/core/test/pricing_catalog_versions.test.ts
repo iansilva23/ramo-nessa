@@ -11,7 +11,9 @@ import {
   pricingCatalogVersionView,
   PricingCatalogVersionError,
   publishPricingCatalogVersion,
+  updatePricingCatalogDraft,
 } from '../src/pricing/pricing-catalog-version-service.js';
+import { parsePricingCatalogDraftPatch } from '../src/pricing/pricing-catalog-version-validation.js';
 
 test('cria rascunho imutável do catálogo atual e registra auditoria', async () => {
   const versions = new InMemoryPricingCatalogVersionRepository();
@@ -205,4 +207,132 @@ test('resolver usa fallback v1 antes da vigência e versão publicada depois del
   assert.equal(before.reference.catalogVersionId, undefined);
   assert.equal(after.reference.catalogVersionId, draft.id);
   assert.equal(after.reference.catalogVersionNumber, 1);
+});
+
+
+test('edita somente o rascunho e preserva o catálogo v1 original', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-editor',
+    name: 'Admin Pricing Editor',
+  };
+
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-24T00:00:00.000Z'),
+  });
+
+  const patch = parsePricingCatalogDraftPatch({
+    kind: 'fixed_route',
+    routeId: 'prea-jijoca-car',
+    dayCents: 13500,
+    after22Cents: 14500,
+  });
+  const updated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch,
+    now: new Date('2026-09-24T00:01:00.000Z'),
+  });
+
+  const staticRoute = STATIC_PRICING_CATALOG_V1.fixedRoutes.find(
+    (item) => item.id === 'prea-jijoca-car',
+  );
+  const draftRoute = updated.snapshot.fixedRoutes.find(
+    (item) => item.id === 'prea-jijoca-car',
+  );
+
+  assert.equal(staticRoute?.dayCents, 12000);
+  assert.equal(staticRoute?.after22Cents, 14000);
+  assert.equal(draftRoute?.dayCents, 13500);
+  assert.equal(draftRoute?.after22Cents, 14500);
+
+  const audit = await admin.listAudit(10);
+  assert.equal(
+    audit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.targetId === draft.id,
+    ),
+    true,
+  );
+});
+
+test('edita preço por localidade com valor exato ou faixa validada', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-locality',
+    name: 'Admin Pricing Locality',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+  });
+
+  const exactPatch = parsePricingCatalogDraftPatch({
+    kind: 'locality_price',
+    hub: 'prea',
+    localityId: 'prea',
+    category: 'car',
+    price: { kind: 'exact', amountCents: 2700 },
+  });
+  const exactUpdated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: exactPatch,
+  });
+  assert.equal(
+    exactUpdated.snapshot.localities.prea.prea?.car,
+    2700,
+  );
+
+  const rangePatch = parsePricingCatalogDraftPatch({
+    kind: 'locality_price',
+    hub: 'prea',
+    localityId: 'formosa',
+    category: 'moto',
+    price: {
+      kind: 'range',
+      minCents: 900,
+      maxCents: 1100,
+    },
+  });
+  const rangeUpdated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: rangePatch,
+  });
+  assert.deepEqual(
+    rangeUpdated.snapshot.localities.prea.formosa?.moto,
+    { minCents: 900, maxCents: 1100 },
+  );
+
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'locality_price',
+        hub: 'prea',
+        localityId: 'formosa',
+        category: 'moto',
+        price: {
+          kind: 'range',
+          minCents: 1200,
+          maxCents: 1000,
+        },
+      }),
+    /minCents/,
+  );
 });
