@@ -580,11 +580,166 @@ try {
     );
   }
 
+  const pricingDraft = await jsonRequest(
+    '/v1/admin/pricing/versions',
+    {
+      method: 'POST',
+      headers: authHeaders,
+    },
+  );
+  const pricingVersionId = pricingDraft.payload?.id;
+  if (
+    pricingDraft.response.status !== 201 ||
+    typeof pricingVersionId !== 'string' ||
+    pricingDraft.payload?.status !== 'draft'
+  ) {
+    throw new Error('Criação do rascunho de preços não foi confirmada.');
+  }
+
+  const pricingDraftBeforeEdit = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    { headers: authHeaders },
+  );
+  if (
+    pricingDraftBeforeEdit.response.status !== 200 ||
+    pricingDraftBeforeEdit.payload?.version?.status !== 'draft' ||
+    pricingDraftBeforeEdit.payload?.catalog?.editable !== true ||
+    !pricingDraftBeforeEdit.payload?.catalog?.fixedRoutes?.some(
+      (route) =>
+        route.id === 'prea-jijoca-car' &&
+        route.dayCents === 12000 &&
+        route.after22Cents === 14000,
+    )
+  ) {
+    throw new Error('Prévia inicial do rascunho de preços falhou.');
+  }
+
+  const pricingDraftEdit = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: 'fixed_route',
+        routeId: 'prea-jijoca-car',
+        dayCents: 13000,
+        after22Cents: 13000,
+      }),
+    },
+  );
+  if (
+    pricingDraftEdit.response.status !== 200 ||
+    pricingDraftEdit.payload?.version?.status !== 'draft' ||
+    !pricingDraftEdit.payload?.catalog?.fixedRoutes?.some(
+      (route) =>
+        route.id === 'prea-jijoca-car' &&
+        route.dayCents === 13000 &&
+        route.after22Cents === 13000,
+    )
+  ) {
+    throw new Error('Edição isolada do rascunho de preços falhou.');
+  }
+
+  const pricingStillActive = await jsonRequest(
+    '/v1/admin/pricing/catalog',
+    { headers: authHeaders },
+  );
+  if (
+    pricingStillActive.response.status !== 200 ||
+    pricingStillActive.payload?.mode !== 'static' ||
+    pricingStillActive.payload?.versionId != null ||
+    !pricingStillActive.payload?.fixedRoutes?.some(
+      (route) =>
+        route.id === 'prea-jijoca-car' &&
+        route.dayCents === 12000 &&
+        route.after22Cents === 14000,
+    )
+  ) {
+    throw new Error(
+      'Rascunho alterou o catálogo ativo antes da publicação.',
+    );
+  }
+
+  const pricingPublish = await jsonRequest(
+    `/v1/admin/pricing/versions/${pricingVersionId}/publish`,
+    {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  if (
+    pricingPublish.response.status !== 200 ||
+    pricingPublish.payload?.status !== 'published' ||
+    pricingPublish.payload?.id !== pricingVersionId
+  ) {
+    throw new Error('Publicação da versão de preços falhou.');
+  }
+
+  const pricingPublishedCatalog = await jsonRequest(
+    '/v1/admin/pricing/catalog',
+    { headers: authHeaders },
+  );
+  if (
+    pricingPublishedCatalog.response.status !== 200 ||
+    pricingPublishedCatalog.payload?.mode !== 'versioned' ||
+    pricingPublishedCatalog.payload?.versionId !== pricingVersionId ||
+    pricingPublishedCatalog.payload?.editable !== false ||
+    !pricingPublishedCatalog.payload?.fixedRoutes?.some(
+      (route) =>
+        route.id === 'prea-jijoca-car' &&
+        route.dayCents === 13000 &&
+        route.after22Cents === 13000,
+    )
+  ) {
+    throw new Error(
+      'Catálogo publicado não se tornou a versão ativa.',
+    );
+  }
+
+  const pricingRuntimeQuote = await jsonRequest(
+    '/v1/pricing/quote',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        origin: { zoneId: 'prea' },
+        destination: { zoneId: 'jijoca' },
+        category: 'car',
+        period: 'day',
+      }),
+    },
+  );
+  if (
+    pricingRuntimeQuote.response.status !== 200 ||
+    pricingRuntimeQuote.payload?.kind !== 'exact' ||
+    pricingRuntimeQuote.payload?.baseAmountCents !== 13000 ||
+    pricingRuntimeQuote.payload?.pricingCatalog?.catalogVersionId !==
+      pricingVersionId
+  ) {
+    throw new Error(
+      'Cotação pública não usou a versão publicada de preços.',
+    );
+  }
+
   const audit = await jsonRequest('/v1/admin/audit?limit=20', {
     headers: authHeaders,
   });
   const matchingAudit = audit.payload?.entries?.filter(
     (entry) => entry.targetId === driverId,
+  );
+  const pricingAudit = audit.payload?.entries?.filter(
+    (entry) =>
+      entry.targetId === pricingVersionId &&
+      entry.targetType === 'pricing_catalog_version',
   );
   const documentSubmissionAudit = matchingAudit?.filter(
     (entry) => entry.action === 'driver.document.submitted',
@@ -597,6 +752,23 @@ try {
   );
   if (
     audit.response.status !== 200 ||
+    !Array.isArray(pricingAudit) ||
+    pricingAudit.length !== 3 ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.created' &&
+        entry.actor?.kind === 'user',
+    ) ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.updated' &&
+        entry.actor?.kind === 'user',
+    ) ||
+    !pricingAudit.some(
+      (entry) =>
+        entry.action === 'pricing.catalog_version.published' &&
+        entry.actor?.kind === 'user',
+    ) ||
     !Array.isArray(matchingAudit) ||
     matchingAudit.length < 8 ||
     documentSubmissionAudit?.length !== 2 ||
@@ -642,7 +814,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard operacional, preços read-only, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, diretórios, viagens, dashboard, preços versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
