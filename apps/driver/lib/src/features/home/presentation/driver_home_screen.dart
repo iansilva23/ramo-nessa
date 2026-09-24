@@ -1394,7 +1394,7 @@ class _OfferCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(RamoRadius.pill),
                 ),
                 child: const Text(
-                  'NOVA CORRIDA',
+                  'Nova corrida',
                   style: TextStyle(
                     color: RamoColors.brandBlack,
                     fontSize: 10,
