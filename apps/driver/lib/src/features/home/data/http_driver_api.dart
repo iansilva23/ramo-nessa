@@ -126,6 +126,34 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverSecuritySnapshot> security() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/auth/session'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverSecuritySnapshot.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
+  Future<DriverSessionRevokeResult> revokeOtherSessions() async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/session/revoke-others'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverSessionRevokeResult.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
