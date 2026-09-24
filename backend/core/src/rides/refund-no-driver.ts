@@ -1,4 +1,5 @@
 import type { FinanceRepository } from '../payments/finance-repository.js';
+import { notifyDefaultPushSubject } from '../notifications/push-notification-service.js';
 import type { PaymentRecord } from '../payments/payment.js';
 import type { RideRepository } from './ride-repository.js';
 import { transitionRide } from './ride-state.js';
@@ -141,6 +142,17 @@ export async function refundWalletRideAfterNoDriver(input: {
     state: transitionRide(latestRide.state, 'REFUNDED'),
     paymentStatus: refund.payment.status,
     updatedAt: instant,
+  });
+
+  notifyDefaultPushSubject({
+    subjectType: 'passenger',
+    subjectId: refundedRide.passengerId,
+    message: {
+      type: 'passenger.payment.refunded',
+      title: 'Estorno concluído',
+      body: 'O valor da corrida foi devolvido à sua carteira.',
+      data: { rideId: refundedRide.id },
+    },
   });
 
   return {
