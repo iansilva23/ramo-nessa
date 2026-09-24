@@ -1,18 +1,13 @@
 import {
-  CAR_REFERENCE_KM_PER_LITER,
-  FIXED_ROUTES,
-  FREE_PICKUP_KM,
-  FUEL_PRICE_CENTS_PER_LITER,
-  JIJOCA_LOCALITIES,
-  MOTO_REFERENCE_KM_PER_LITER,
-  PREA_COMFORT_SURCHARGE_CENTS,
-  PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS,
-  PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS,
-  PREA_LOCALITIES,
+  type LocalityPricing,
   type PriceBand,
   type PriceValue,
   valueForPeriod,
 } from './catalog.v1.js';
+import {
+  STATIC_PRICING_CATALOG_V1,
+  type PricingCatalogSnapshot,
+} from './catalog-snapshot.js';
 import { splitCommission } from './commission.js';
 import {
   PricingError,
@@ -34,14 +29,17 @@ function isBand(value: PriceValue): value is PriceBand {
   return typeof value !== 'number';
 }
 
-function pickupFuelProfile(category: ServiceCategory): number | null {
+function pickupFuelProfile(
+  category: ServiceCategory,
+  catalog: PricingCatalogSnapshot,
+): number | null {
   switch (category) {
     case 'moto':
     case 'delivery':
-      return MOTO_REFERENCE_KM_PER_LITER;
+      return catalog.pickupPolicy.motoReferenceKmPerLiter;
     case 'car':
     case 'comfort_black':
-      return CAR_REFERENCE_KM_PER_LITER;
+      return catalog.pickupPolicy.carReferenceKmPerLiter;
     case 'buggy':
       return null;
   }
@@ -50,16 +48,21 @@ function pickupFuelProfile(category: ServiceCategory): number | null {
 export function pickupCompensationCents(
   category: ServiceCategory,
   driverPickupDistanceKm = 0,
+  catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
 ): number {
-  const kmPerLiter = pickupFuelProfile(category);
-  const chargeableKm = Math.max(0, driverPickupDistanceKm - FREE_PICKUP_KM);
+  const kmPerLiter = pickupFuelProfile(category, catalog);
+  const chargeableKm = Math.max(
+    0,
+    driverPickupDistanceKm - catalog.pickupPolicy.freeKm,
+  );
 
   if (kmPerLiter == null || chargeableKm <= 0) {
     return 0;
   }
 
   const rawCents =
-    (chargeableKm * FUEL_PRICE_CENTS_PER_LITER) / kmPerLiter;
+    (chargeableKm * catalog.pickupPolicy.fuelPriceCentsPerLiter) /
+    kmPerLiter;
 
   // Regra comercial: compensação simples, arredondada para cima em reais.
   return Math.ceil(rawCents / 100) * 100;
@@ -69,13 +72,18 @@ function exactQuote(
   ruleId: string,
   baseAmountCents: number,
   request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
 ): FareQuote {
   const pickup = pickupCompensationCents(
     request.category,
     request.driverPickupDistanceKm,
+    catalog,
   );
   const total = baseAmountCents + pickup;
-  const baseSplit = splitCommission(baseAmountCents);
+  const baseSplit = splitCommission(
+    baseAmountCents,
+    catalog.commissionBps,
+  );
 
   return {
     kind: 'exact',
@@ -92,15 +100,23 @@ function rangeQuote(
   ruleId: string,
   value: PriceBand,
   request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
 ): FareQuote {
   const pickup = pickupCompensationCents(
     request.category,
     request.driverPickupDistanceKm,
+    catalog,
   );
   const minTotal = value.minCents + pickup;
   const maxTotal = value.maxCents + pickup;
-  const minBaseSplit = splitCommission(value.minCents);
-  const maxBaseSplit = splitCommission(value.maxCents);
+  const minBaseSplit = splitCommission(
+    value.minCents,
+    catalog.commissionBps,
+  );
+  const maxBaseSplit = splitCommission(
+    value.maxCents,
+    catalog.commissionBps,
+  );
 
   return {
     kind: 'range',
@@ -121,7 +137,7 @@ function rangeQuote(
 }
 
 function localityPrice(
-  table: typeof PREA_LOCALITIES,
+  table: Record<string, LocalityPricing>,
   localityId: string,
   category: ServiceCategory,
 ): PriceValue | undefined {
@@ -140,11 +156,14 @@ function localityPrice(
   }
 }
 
-function quoteFixedRoute(request: QuoteRequest): FareQuote | null {
+function quoteFixedRoute(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
+): FareQuote | null {
   const a = endpointId(request.origin);
   const b = endpointId(request.destination);
 
-  const rule = FIXED_ROUTES.find(
+  const rule = catalog.fixedRoutes.find(
     (candidate) =>
       candidate.category === request.category &&
       matchesPair(candidate.a, candidate.b, a, b),
@@ -156,6 +175,7 @@ function quoteFixedRoute(request: QuoteRequest): FareQuote | null {
     rule.id,
     valueForPeriod(rule.dayCents, rule.after22Cents, request.period),
     request,
+    catalog,
   );
 }
 
@@ -211,38 +231,43 @@ function resolveHubLocality(
   return null;
 }
 
-function quotePrea(request: QuoteRequest): FareQuote | null {
+function quotePrea(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
+): FareQuote | null {
   const localityId = resolveHubLocality(request.origin, request.destination, 'prea');
   if (localityId == null) return null;
 
   if (request.category === 'comfort_black') {
-    const car = localityPrice(PREA_LOCALITIES, localityId, 'car');
+    const car = localityPrice(catalog.localities.prea, localityId, 'car');
     if (car == null) return null;
     if (isBand(car)) {
       return rangeQuote(
         `prea-${localityId}-comfort`,
         {
-          minCents: car.minCents + PREA_COMFORT_SURCHARGE_CENTS,
-          maxCents: car.maxCents + PREA_COMFORT_SURCHARGE_CENTS,
+          minCents: car.minCents + catalog.surcharges.preaComfortCents,
+          maxCents: car.maxCents + catalog.surcharges.preaComfortCents,
         },
         request,
+        catalog,
       );
     }
 
     const night =
       request.period === 'after_22' &&
-      PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(localityId)
-        ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
+      catalog.surcharges.preaLocalCarAfter22LocalityIds.includes(localityId)
+        ? catalog.surcharges.preaLocalCarAfter22Cents
         : 0;
 
     return exactQuote(
       `prea-${localityId}-comfort`,
-      car + night + PREA_COMFORT_SURCHARGE_CENTS,
+      car + night + catalog.surcharges.preaComfortCents,
       request,
+      catalog,
     );
   }
 
-  const value = localityPrice(PREA_LOCALITIES, localityId, request.category);
+  const value = localityPrice(catalog.localities.prea, localityId, request.category);
   if (value == null) return null;
 
   if (isBand(value)) {
@@ -252,18 +277,22 @@ function quotePrea(request: QuoteRequest): FareQuote | null {
   const localCarNight =
     request.category === 'car' &&
     request.period === 'after_22' &&
-    PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS.has(localityId)
-      ? PREA_LOCAL_CAR_NIGHT_SURCHARGE_CENTS
+    catalog.surcharges.preaLocalCarAfter22LocalityIds.includes(localityId)
+      ? catalog.surcharges.preaLocalCarAfter22Cents
       : 0;
 
   return exactQuote(
     `prea-${localityId}-${request.category}`,
     value + localCarNight,
     request,
+    catalog,
   );
 }
 
-function quoteJijoca(request: QuoteRequest): FareQuote | null {
+function quoteJijoca(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
+): FareQuote | null {
   const localityId = resolveHubLocality(
     request.origin,
     request.destination,
@@ -271,7 +300,7 @@ function quoteJijoca(request: QuoteRequest): FareQuote | null {
   );
   if (localityId == null) return null;
 
-  const value = localityPrice(JIJOCA_LOCALITIES, localityId, request.category);
+  const value = localityPrice(catalog.localities.jijoca, localityId, request.category);
   if (value == null) return null;
 
   if (isBand(value)) {
@@ -289,7 +318,10 @@ function quoteJijoca(request: QuoteRequest): FareQuote | null {
   );
 }
 
-function quoteJeriLocal(request: QuoteRequest): FareQuote | null {
+function quoteJeriLocal(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
+): FareQuote | null {
   if (
     request.origin.zoneId !== 'jericoacoara' ||
     request.destination.zoneId !== 'jericoacoara'
@@ -299,15 +331,27 @@ function quoteJeriLocal(request: QuoteRequest): FareQuote | null {
 
   if (request.category === 'buggy') {
     const passengers = request.passengers ?? 1;
-    if (passengers < 1 || passengers > 4 || !Number.isInteger(passengers)) {
+    if (
+      passengers < catalog.jeri.buggy.minPassengers ||
+      passengers > catalog.jeri.buggy.maxPassengers ||
+      !Number.isInteger(passengers)
+    ) {
       throw new PricingError(
         'INVALID_PASSENGER_COUNT',
         'Buggy aceita de 1 a 4 passageiros.',
       );
     }
 
-    const base = request.period === 'after_22' ? 6000 : 4000;
-    return exactQuote('jeri-buggy', base + passengers * 200, request);
+    const base =
+      request.period === 'after_22'
+        ? catalog.jeri.buggy.after22BaseCents
+        : catalog.jeri.buggy.dayBaseCents;
+    return exactQuote(
+      'jeri-buggy',
+      base + passengers * catalog.jeri.buggy.perPassengerCents,
+      request,
+      catalog,
+    );
   }
 
   if (request.category === 'delivery') {
@@ -319,31 +363,44 @@ function quoteJeriLocal(request: QuoteRequest): FareQuote | null {
       );
     }
 
-    if (distance <= 0.7) return exactQuote('jeri-delivery-0-07', 500, request);
-    if (distance <= 1.2) return exactQuote('jeri-delivery-07-12', 700, request);
-    if (distance <= 1.6) return exactQuote('jeri-delivery-12-16', 800, request);
-    if (distance <= 2.0) return exactQuote('jeri-delivery-16-20', 1000, request);
+    const band = catalog.jeri.deliveryBands.find(
+      (candidate) => distance <= candidate.maxKm,
+    );
+    if (band != null) {
+      return exactQuote(
+        `jeri-delivery-${String(band.maxKm).replace('.', '-')}`,
+        band.amountCents,
+        request,
+        catalog,
+      );
+    }
 
+    const maxKm = Math.max(
+      ...catalog.jeri.deliveryBands.map((candidate) => candidate.maxKm),
+    );
     throw new PricingError(
       'UNKNOWN_ROUTE',
-      'Entrega acima de 2 km dentro de Jeri exige regra específica.',
+      `Entrega acima de ${maxKm} km dentro de Jeri exige regra específica.`,
     );
   }
 
   return null;
 }
 
-export function quoteFare(request: QuoteRequest): FareQuote {
-  const fixed = quoteFixedRoute(request);
+export function quoteFare(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
+): FareQuote {
+  const fixed = quoteFixedRoute(request, catalog);
   if (fixed != null) return fixed;
 
-  const jeri = quoteJeriLocal(request);
+  const jeri = quoteJeriLocal(request, catalog);
   if (jeri != null) return jeri;
 
-  const prea = quotePrea(request);
+  const prea = quotePrea(request, catalog);
   if (prea != null) return prea;
 
-  const jijoca = quoteJijoca(request);
+  const jijoca = quoteJijoca(request, catalog);
   if (jijoca != null) return jijoca;
 
   throw new PricingError(
