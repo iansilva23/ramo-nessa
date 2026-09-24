@@ -17,6 +17,7 @@ export async function dispatchRideAfterPayment(input: {
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
   now?: Date;
+  canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<PostPaymentDispatchResult> {
   if (
     input.ride.pickupLatitude == null ||
@@ -35,5 +36,8 @@ export async function dispatchRideAfterPayment(input: {
       longitude: input.ride.pickupLongitude,
     },
     ...(input.now != null ? { now: input.now } : {}),
+    ...(input.canOfferDriver != null
+      ? { canOfferDriver: input.canOfferDriver }
+      : {}),
   });
 }
