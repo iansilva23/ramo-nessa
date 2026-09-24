@@ -238,6 +238,24 @@ import {
   parsePushDeviceRegistration,
 } from './notifications/push-device-validation.js';
 import { resolvePushDeliveryProviderFromEnv } from './notifications/push-delivery-provider.js';
+import {
+  AdminCommunicationsError,
+  adminCommunicationsView,
+  notifyRegisteredDeviceIfOutdated,
+  releasePolicyView,
+  sendAdminNotification,
+  updateAgencyPromotion,
+  updateAppReleasePolicy,
+} from './admin/admin-communications-service.js';
+import {
+  InvalidCommunicationsRequestError,
+  parseAdminAgencyPromotionUpdate,
+  parseAdminNotificationBroadcast,
+  parseAdminReleasePolicyUpdate,
+  parseAppKind,
+  parsePublicReleasePolicyQuery,
+  parsePushPlatform,
+} from './admin/admin-communications-validation.js';
 
 const port = resolveCorePort();
 const {
@@ -255,6 +273,7 @@ const {
   ridePreparationRepository,
   rideMatchingRepository,
   pushDeviceRepository,
+  adminCommunicationsRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -405,6 +424,36 @@ const server = createServer(async (request, response) => {
           reason: 'DEPENDENCY_UNAVAILABLE',
         });
       }
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/app/release-policy'
+    ) {
+      const query = parsePublicReleasePolicyQuery(
+        requestUrl.searchParams,
+      );
+      const policy =
+        await adminCommunicationsRepository.getReleasePolicy(
+          query.appKind,
+          query.platform,
+        );
+      json(
+        response,
+        200,
+        releasePolicyView(policy, query.buildNumber),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/content/agency-promotion'
+    ) {
+      const promotion =
+        await adminCommunicationsRepository.getAgencyPromotion();
+      json(response, 200, promotion);
       return;
     }
 
@@ -562,9 +611,18 @@ const server = createServer(async (request, response) => {
         session,
         registration,
       });
+      const release = await notifyRegisteredDeviceIfOutdated({
+        communications: adminCommunicationsRepository,
+        devices: pushDeviceRepository,
+        push: pushNotificationService,
+        device,
+      });
       json(response, 200, {
         device: pushDevicePublicView(device),
         deliveryProvider: pushNotificationService.providerKind,
+        releasePolicy: release.policy,
+        updateNotificationDelivered:
+          release.notificationDelivered,
       });
       return;
     }
@@ -744,6 +802,106 @@ const server = createServer(async (request, response) => {
         'cache-control': 'no-store',
       });
       response.end();
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/communications'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      json(
+        response,
+        200,
+        await adminCommunicationsView({
+          communications: adminCommunicationsRepository,
+          push: pushNotificationService,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/notifications'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const body = parseAdminNotificationBroadcast(
+        await readJson(request),
+      );
+      const campaign = await sendAdminNotification({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        push: pushNotificationService,
+        ...body,
+      });
+      json(response, 201, { campaign });
+      return;
+    }
+
+    const adminReleasePolicyMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/release-policy\/(passenger|driver)\/(android|ios)$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminReleasePolicyMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const appKind = parseAppKind(adminReleasePolicyMatch[1]!);
+      const platform = parsePushPlatform(adminReleasePolicyMatch[2]!);
+      const body = parseAdminReleasePolicyUpdate(
+        await readJson(request),
+      );
+      const result = await updateAppReleasePolicy({
+        communications: adminCommunicationsRepository,
+        devices: pushDeviceRepository,
+        admin: adminRepository,
+        actor,
+        push: pushNotificationService,
+        appKind,
+        platform,
+        ...body,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/admin/agency-promotion'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const body = parseAdminAgencyPromotionUpdate(
+        await readJson(request),
+      );
+      const promotion = await updateAgencyPromotion({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        ...body,
+      });
+      json(response, 200, { promotion });
       return;
     }
 
@@ -2615,6 +2773,22 @@ const server = createServer(async (request, response) => {
     if (error instanceof InvalidAdminRequestError) {
       json(response, 400, {
         error: 'INVALID_ADMIN_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof InvalidCommunicationsRequestError) {
+      json(response, 400, {
+        error: 'INVALID_COMMUNICATIONS_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminCommunicationsError) {
+      json(response, 409, {
+        error: error.code,
         message: error.message,
       });
       return;
