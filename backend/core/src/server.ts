@@ -170,6 +170,11 @@ import {
   updateAdminPaymentPolicy,
 } from './admin/admin-payment-policy-service.js';
 import {
+  AdminDriverCashPolicyError,
+  adminDriverCashPolicyView,
+  setAdminDriverCashDebtLimit,
+} from './admin/admin-driver-cash-policy-service.js';
+import {
   AdminPassengerError,
   adminPassengerProfile,
   setPassengerAuthStatusFromAdmin,
@@ -1562,6 +1567,89 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const adminDriverCashPolicyMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/cash-policy$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminDriverCashPolicyMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      const driverId = adminDriverCashPolicyMatch[1]!;
+      await getDriverAuthForAdmin({
+        identities: authOtpRepository,
+        driverId,
+      });
+      json(
+        response,
+        200,
+        await adminDriverCashPolicyView({
+          settings: paymentPolicySettingsRepository,
+          finance: financeRepository,
+          driverId,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      adminDriverCashPolicyMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      const driverId = adminDriverCashPolicyMatch[1]!;
+      await getDriverAuthForAdmin({
+        identities: authOtpRepository,
+        driverId,
+      });
+      const body = await readJson(request);
+      if (
+        body == null ||
+        typeof body !== 'object' ||
+        Array.isArray(body) ||
+        !('debtLimitCents' in body)
+      ) {
+        throw new InvalidAdminRequestError(
+          'debtLimitCents é obrigatório e deve ser inteiro positivo ou null.',
+        );
+      }
+      const debtLimitCents =
+        (body as { debtLimitCents?: unknown }).debtLimitCents;
+      if (
+        debtLimitCents !== null &&
+        (!Number.isInteger(debtLimitCents) ||
+          Number(debtLimitCents) <= 0)
+      ) {
+        throw new InvalidAdminRequestError(
+          'debtLimitCents deve ser inteiro positivo ou null.',
+        );
+      }
+      json(
+        response,
+        200,
+        await setAdminDriverCashDebtLimit({
+          settings: paymentPolicySettingsRepository,
+          finance: financeRepository,
+          admin: adminRepository,
+          actor,
+          driverId,
+          debtLimitCents:
+            debtLimitCents == null ? null : Number(debtLimitCents),
+        }),
+      );
+      return;
+    }
+
     const adminDriverAuthMatch = requestUrl.pathname.match(
       /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/auth$/,
     );
@@ -2390,6 +2478,16 @@ const server = createServer(async (request, response) => {
 
     if (error instanceof AdminPaymentPolicyError) {
       json(response, 409, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminDriverCashPolicyError) {
+      const status =
+        error.code === 'INVALID_DRIVER_CASH_LIMIT' ? 422 : 409;
+      json(response, status, {
         error: error.code,
         message: error.message,
       });
