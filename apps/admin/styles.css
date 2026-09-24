@@ -2586,3 +2586,70 @@ td strong {
     flex-direction: column;
   }
 }
+
+
+.driver-cash-policy-card {
+  margin-top: 18px;
+}
+
+.driver-cash-policy-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.driver-cash-policy-summary > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.driver-cash-policy-summary span,
+.driver-cash-policy-summary strong {
+  display: block;
+}
+
+.driver-cash-policy-summary span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.driver-cash-policy-summary strong {
+  margin-top: 5px;
+  font-size: 15px;
+}
+
+.driver-cash-policy-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 14px;
+  align-items: end;
+  padding: 0 16px 16px;
+}
+
+.driver-cash-policy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.driver-cash-policy-form > small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .driver-cash-policy-summary,
+  .driver-cash-policy-form {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-cash-policy-form > small {
+    grid-column: auto;
+  }
+}
