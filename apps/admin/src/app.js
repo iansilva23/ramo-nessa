@@ -108,6 +108,8 @@ const state = {
     scope: 'active',
     state: '',
     query: '',
+    from: '',
+    to: '',
   },
   selectedRide: null,
   auditEntries: [],
@@ -143,12 +145,21 @@ const scopeLabels = new Map([
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['passengers:auth:write', 'Bloquear e desbloquear passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
+  ['rides:write', 'Cancelar corridas antes do início da viagem'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
   ['finance:read', 'Consultar pagamentos, comissões e saques'],
   ['finance:write', 'Administrar políticas financeiras permitidas'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['audit:read', 'Consultar auditoria'],
+]);
+
+const ADMIN_CANCELLABLE_RIDE_STATES = new Set([
+  'PAID',
+  'SEARCHING_DRIVER',
+  'DRIVER_ASSIGNED',
+  'DRIVER_ARRIVING',
+  'DRIVER_ARRIVED',
 ]);
 
 function hasScope(scope) {
@@ -278,6 +289,8 @@ function clearSession(message = '') {
     scope: 'active',
     state: '',
     query: '',
+    from: '',
+    to: '',
   };
   state.selectedRide = null;
   state.auditEntries = [];
@@ -3208,6 +3221,12 @@ function renderRideDetailEmpty(
   const status = byId('ride-detail-status');
   status.className = 'pill pill--neutral';
   status.textContent = 'Nenhuma';
+
+  byId('ride-cancel-panel').hidden = true;
+  byId('ride-cancel-reason').value = '';
+  byId('ride-cancel-button').disabled = false;
+  byId('ride-cancel-note').textContent =
+    'Disponível apenas antes do início da viagem.';
 }
 
 function rideDetailItem(label, value) {
@@ -3233,6 +3252,18 @@ function renderRideDetail(ride) {
   const status = byId('ride-detail-status');
   status.className = `pill pill--${stateInfo.tone}`;
   status.textContent = stateInfo.label;
+
+  const cancelPanel = byId('ride-cancel-panel');
+  const canCancel =
+    hasScope('rides:write') &&
+    ADMIN_CANCELLABLE_RIDE_STATES.has(ride.state);
+  cancelPanel.hidden = !canCancel;
+  byId('ride-cancel-button').disabled = false;
+  byId('ride-cancel-reason').value = '';
+  byId('ride-cancel-note').textContent =
+    ride.paymentStatus === 'paid'
+      ? 'Carteira é estornada imediatamente. Pix/cartão permanecem em reembolso pendente até o gateway confirmar.'
+      : 'O cancelamento só é aceito quando o pagamento está confirmado.';
 
   const identity = document.createElement('div');
   identity.className = 'ride-detail-hero';
@@ -3335,6 +3366,70 @@ async function lookupRide(rideId) {
   }
 }
 
+async function handleRideCancel(event) {
+  event.preventDefault();
+  const ride = state.selectedRide;
+  if (
+    !state.token ||
+    ride == null ||
+    !hasScope('rides:write') ||
+    !ADMIN_CANCELLABLE_RIDE_STATES.has(ride.state)
+  ) {
+    return;
+  }
+
+  const reason = byId('ride-cancel-reason').value
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (reason.length < 3 || reason.length > 500) {
+    setMessage(
+      globalMessage,
+      'Informe um motivo de cancelamento entre 3 e 500 caracteres.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('ride-cancel-button');
+  button.disabled = true;
+  try {
+    const result = await api.cancelRide(state.token, {
+      rideId: ride.id,
+      reason,
+    });
+
+    const message =
+      result.refundStatus === 'refunded'
+        ? 'Corrida cancelada e reembolso concluído.'
+        : 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.';
+    setMessage(
+      globalMessage,
+      result.refundStatus === 'refunded' ? message : message,
+      result.refundStatus === 'refunded' ? 'success' : 'warning',
+    );
+
+    await loadRideDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupRide(ride.id);
+
+    if (hasScope('rides:read')) {
+      void loadDashboard({ announce: false });
+    }
+    if (hasScope('finance:read')) {
+      void loadFinance({ announce: false });
+    }
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function loadRideDirectory({
   reset = true,
   announce = true,
@@ -3357,6 +3452,23 @@ async function loadRideDirectory({
         : 'active';
     state.rideDirectory.state =
       byId('ride-directory-state').value;
+    state.rideDirectory.from =
+      byId('ride-directory-from').value;
+    state.rideDirectory.to =
+      byId('ride-directory-to').value;
+    if (
+      state.rideDirectory.from &&
+      state.rideDirectory.to &&
+      state.rideDirectory.from > state.rideDirectory.to
+    ) {
+      setMessage(
+        globalMessage,
+        'A data inicial não pode ser posterior à data final.',
+        'danger',
+      );
+      more.disabled = false;
+      return;
+    }
     state.rideDirectory.items = [];
     state.rideDirectory.nextCursor = null;
     renderRideDetailEmpty();
@@ -3368,6 +3480,8 @@ async function loadRideDirectory({
       scope: state.rideDirectory.scope,
       state: state.rideDirectory.state,
       query: state.rideDirectory.query,
+      from: state.rideDirectory.from,
+      to: state.rideDirectory.to,
       limit: 25,
       cursor: reset ? null : state.rideDirectory.nextCursor,
     });
@@ -3665,6 +3779,9 @@ byId('logout-button').addEventListener('click', () => {
 byId('ride-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();
   void loadRideDirectory({ reset: true });
+});
+byId('ride-cancel-form').addEventListener('submit', (event) => {
+  void handleRideCancel(event);
 });
 byId('ride-directory-more').addEventListener('click', () => {
   void loadRideDirectory({ reset: false, announce: false });
