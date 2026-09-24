@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import {
   assertPricingLocationMatchesPoint,
   PricingLocationMismatchError,
@@ -67,5 +68,33 @@ test('localityId incompatível com a tabela da zona é rejeitado', () => {
         field: 'destination',
       }),
     PricingLocationMismatchError,
+  );
+});
+
+
+test('validação de GPS usa localidades e zonas do catálogo vigente', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.localities.prea['novo-ponto'] = {};
+  catalog.externalLocalities.push('novo-externo');
+
+  assert.doesNotThrow(() =>
+    assertPricingLocationMatchesPoint({
+      ref: { zoneId: 'prea', localityId: 'novo-ponto' },
+      point: { latitude: -2.82017, longitude: -40.41467 },
+      field: 'origin',
+      catalog,
+    }),
+  );
+
+  catalog.zonePolicies.prea.enabled = false;
+  assert.throws(
+    () =>
+      assertPricingLocationMatchesPoint({
+        ref: { zoneId: 'prea', localityId: 'novo-ponto' },
+        point: { latitude: -2.82017, longitude: -40.41467 },
+        field: 'origin',
+        catalog,
+      }),
+    /desativada/i,
   );
 });
