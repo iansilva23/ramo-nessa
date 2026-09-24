@@ -20,6 +20,9 @@ interface IdentityRow {
   subject_type: AuthSubjectType;
   phone_e164: string;
   email_normalized: string | null;
+  full_name: string | null;
+  password_hash: string | null;
+  photo_url: string | null;
   status: AuthIdentityStatus;
   created_at: Date;
   updated_at: Date;
@@ -52,6 +55,11 @@ function mapIdentity(row: IdentityRow): AuthIdentityRecord {
     ...(row.email_normalized != null
       ? { emailNormalized: row.email_normalized }
       : {}),
+    ...(row.full_name != null ? { fullName: row.full_name } : {}),
+    ...(row.password_hash != null
+      ? { passwordHash: row.password_hash }
+      : {}),
+    ...(row.photo_url != null ? { photoUrl: row.photo_url } : {}),
     status: row.status,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -85,8 +93,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       `
       INSERT INTO auth_identities (
         id, subject_id, subject_type, phone_e164, email_normalized,
+        full_name, password_hash, photo_url,
         status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
       `,
       [
@@ -95,6 +104,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         identity.subjectType,
         identity.phoneE164,
         identity.emailNormalized ?? null,
+        identity.fullName ?? null,
+        identity.passwordHash ?? null,
+        identity.photoUrl ?? null,
         identity.status,
         identity.createdAt,
         identity.updatedAt,
@@ -116,8 +128,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       `
       INSERT INTO auth_identities (
         id, subject_id, subject_type, phone_e164, email_normalized,
+        full_name, password_hash, photo_url,
         status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (subject_type, phone_e164)
       DO UPDATE SET phone_e164 = auth_identities.phone_e164
       RETURNING *
@@ -128,6 +141,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         identity.subjectType,
         identity.phoneE164,
         identity.emailNormalized ?? null,
+        identity.fullName ?? null,
+        identity.passwordHash ?? null,
+        identity.photoUrl ?? null,
         identity.status,
         identity.createdAt,
         identity.updatedAt,
@@ -153,6 +169,23 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     );
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
   }
+  async findIdentityByEmail(
+    subjectType: AuthSubjectType,
+    emailNormalized: string,
+  ): Promise<AuthIdentityRecord | null> {
+    const result = await this.pool.query<IdentityRow>(
+      `
+      SELECT *
+      FROM auth_identities
+      WHERE subject_type = $1 AND email_normalized = $2
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+      `,
+      [subjectType, emailNormalized],
+    );
+    return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
 
   async findIdentityById(id: string): Promise<AuthIdentityRecord | null> {
     const result = await this.pool.query<IdentityRow>(
@@ -195,6 +228,46 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         input.subjectType,
         input.subjectId,
         input.emailNormalized,
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async setPassengerAccount(input: {
+    subjectId: string;
+    fullName?: string;
+    emailNormalized?: string;
+    passwordHash?: string;
+    photoUrl?: string | null;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const current = await this.findIdentityBySubject(
+      'passenger',
+      input.subjectId,
+    );
+    if (current == null) return null;
+
+    const result = await this.pool.query<IdentityRow>(
+      `
+      UPDATE auth_identities
+      SET
+        full_name = $2,
+        email_normalized = $3,
+        password_hash = $4,
+        photo_url = $5,
+        updated_at = $6
+      WHERE subject_type = 'passenger' AND subject_id = $1
+      RETURNING *
+      `,
+      [
+        input.subjectId,
+        input.fullName ?? current.fullName ?? null,
+        input.emailNormalized ?? current.emailNormalized ?? null,
+        input.passwordHash ?? current.passwordHash ?? null,
+        input.photoUrl === undefined
+          ? current.photoUrl ?? null
+          : input.photoUrl,
         input.updatedAt,
       ],
     );
