@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../../../core/config/ramo_core_config.dart';
 import '../../home/presentation/widgets/ramo_live_map.dart';
 import '../../map/domain/ramo_place.dart';
 import '../data/passenger_ride_realtime_service.dart';
@@ -180,6 +181,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
     final driver = snapshot?.driverLocation;
+    final driverProfile = snapshot?.driver;
     final driverPosition = driver == null
         ? null
         : LatLng(driver.latitude, driver.longitude);
@@ -245,6 +247,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                           fontWeight: FontWeight.w900,
                         ),
                   ),
+                  if (driverProfile != null) ...[
+                    const SizedBox(height: RamoSpacing.md),
+                    _AssignedDriverCard(driver: driverProfile),
+                  ],
                   if (driver?.stale == true) ...[
                     const SizedBox(height: RamoSpacing.xs),
                     Text(
@@ -290,6 +296,93 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _AssignedDriverCard extends StatelessWidget {
+  const _AssignedDriverCard({required this.driver});
+
+  final PassengerDriverProfile driver;
+
+  String? get _photoUrl {
+    final path = driver.photoPath?.trim();
+    final base = RamoCoreConfig.baseUri;
+    if (path == null || path.isEmpty || base == null) return null;
+    return base.resolve(path).toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = _photoUrl;
+    final rating = driver.ratingAverage;
+
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.md),
+      decoration: BoxDecoration(
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: RamoColors.brandYellow,
+            foregroundColor: RamoColors.brandBlack,
+            backgroundImage:
+                photoUrl == null ? null : NetworkImage(photoUrl),
+            child: photoUrl == null
+                ? const Icon(Icons.person_rounded, size: 30)
+                : null,
+          ),
+          const SizedBox(width: RamoSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  driver.displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.star_rounded,
+                      size: 18,
+                      color: RamoColors.brandYellow,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      rating == null
+                          ? 'Novo motorista'
+                          : rating.toStringAsFixed(2),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (driver.ratingCount > 0) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '(' + driver.ratingCount.toString() + ')',
+                        style: const TextStyle(
+                          color: RamoColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.verified_rounded, size: 20),
         ],
       ),
     );
