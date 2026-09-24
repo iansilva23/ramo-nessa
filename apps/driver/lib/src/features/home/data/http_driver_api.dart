@@ -126,6 +126,31 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverDocumentItem> uploadDocument({
+    required String documentType,
+    required String mimeType,
+    required List<int> bytes,
+    String? expiresOn,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/driver/me/documents/$documentType'),
+          headers: {
+            ..._headers,
+            'content-type': mimeType,
+            if (expiresOn?.trim().isNotEmpty == true)
+              'x-document-expires-on': expiresOn!.trim(),
+          },
+          body: bytes,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverDocumentItem.fromJson(
+      _expectObject(response, expectedStatus: 201),
+    );
+  }
+
+  @override
   Future<DriverSecuritySnapshot> security() async {
     final response = await _client
         .get(
