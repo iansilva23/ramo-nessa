@@ -157,7 +157,12 @@ import {
   pricingCatalogVersionView,
   publishPricingCatalogVersion,
   PricingCatalogVersionError,
+  updatePricingCatalogDraft,
 } from './pricing/pricing-catalog-version-service.js';
+import {
+  InvalidPricingCatalogPatchError,
+  parsePricingCatalogDraftPatch,
+} from './pricing/pricing-catalog-version-validation.js';
 import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
 import {
   confirmRidePayment,
@@ -739,6 +744,76 @@ const server = createServer(async (request, response) => {
         actor,
       });
       json(response, 201, pricingCatalogVersionView(draft));
+      return;
+    }
+
+    const pricingVersionMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/pricing\/versions\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$/,
+    );
+    if (
+      request.method === 'GET' &&
+      pricingVersionMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:read',
+      });
+      const version =
+        await pricingCatalogVersionRepository.findById(
+          pricingVersionMatch[1]!,
+        );
+      if (version == null) {
+        json(response, 404, {
+          error: 'PRICING_VERSION_NOT_FOUND',
+          message: 'Versão de preços não encontrada.',
+        });
+        return;
+      }
+      json(response, 200, {
+        version: pricingCatalogVersionView(version),
+        catalog: adminPricingCatalogView(version.snapshot, {
+          mode: 'versioned',
+          editable: version.status === 'draft',
+          versionId: version.id,
+          versionNumber: version.versionNumber,
+          effectiveFrom: version.effectiveFrom ?? null,
+        }),
+      });
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      pricingVersionMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:write',
+      });
+      const patch = parsePricingCatalogDraftPatch(
+        await readJson(request),
+      );
+      const updated = await updatePricingCatalogDraft({
+        versions: pricingCatalogVersionRepository,
+        admin: adminRepository,
+        actor,
+        versionId: pricingVersionMatch[1]!,
+        patch,
+      });
+      json(response, 200, {
+        version: pricingCatalogVersionView(updated),
+        catalog: adminPricingCatalogView(updated.snapshot, {
+          mode: 'versioned',
+          editable: true,
+          versionId: updated.id,
+          versionNumber: updated.versionNumber,
+          effectiveFrom: null,
+        }),
+      });
       return;
     }
 
@@ -1960,9 +2035,18 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof InvalidPricingCatalogPatchError) {
+      json(response, 400, {
+        error: 'INVALID_PRICING_CATALOG_PATCH',
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof PricingCatalogVersionError) {
       const status =
-        error.code === 'PRICING_VERSION_NOT_FOUND'
+        error.code === 'PRICING_VERSION_NOT_FOUND' ||
+        error.code === 'PRICING_RULE_NOT_FOUND'
           ? 404
           : error.code === 'PRICING_VERSION_NOT_DRAFT'
             ? 409
