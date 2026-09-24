@@ -57,6 +57,7 @@ class RamoNessaDriverApp extends StatelessWidget {
           locationService: locationService ?? preview?.location,
           navigationService: navigationService ?? preview?.navigation,
           realtimeService: realtimeService,
+          pushCoordinator: pushCoordinator,
         );
 
     final Widget homeWidget;
