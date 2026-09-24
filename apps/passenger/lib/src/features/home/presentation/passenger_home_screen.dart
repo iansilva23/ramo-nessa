@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -73,7 +72,7 @@ class PassengerHomeScreen extends StatefulWidget {
 }
 
 class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
-  final MapController _mapController = MapController();
+  final RamoMapController _mapController = RamoMapController();
 
   late final String _accessToken = widget.accessToken?.trim() ?? '';
   late final bool _authenticated =
@@ -414,7 +413,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       });
 
       if (_mapReady) {
-        _mapController.move(location, 16);
+        unawaited(_mapController.move(location, 16));
       }
 
       if (_destination != null) {
@@ -476,7 +475,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     if (_destination != null) {
       await _loadRoute();
     } else if (_mapReady) {
-      _mapController.move(origin.position, 16);
+      unawaited(_mapController.move(origin.position, 16));
     }
   }
 
@@ -813,8 +812,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    _mapController.fitCamera(
-      CameraFit.coordinates(
+    unawaited(
+      _mapController.fitCoordinates(
         coordinates: [
           origin.position,
           ...route.points,
@@ -952,7 +951,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
                 final origin = _origin;
                 if (origin != null) {
-                  _mapController.move(origin.position, 16);
+                  unawaited(_mapController.move(origin.position, 16));
                 }
               },
             ),
