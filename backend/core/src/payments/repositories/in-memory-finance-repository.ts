@@ -1,6 +1,7 @@
 import {
   cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
+  externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
@@ -13,6 +14,9 @@ import {
   type CapturePaymentInput,
   type CapturePaymentResult,
   type MarkPaymentPendingInput,
+  type MarkPaymentTerminalInput,
+  type RefundExternalPaymentInput,
+  type RefundExternalPaymentResult,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -142,6 +146,40 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     return structuredClone(updated);
   }
 
+  async markPaymentTerminal(
+    input: MarkPaymentTerminalInput,
+  ): Promise<PaymentRecord> {
+    const payment = this.payments.get(input.paymentId);
+    if (payment == null) {
+      throw new PaymentDomainError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado.',
+      );
+    }
+
+    if (payment.status === input.status) {
+      return structuredClone(payment);
+    }
+
+    let status: PaymentRecord['status'];
+    try {
+      status = transitionPayment(payment.status, input.status);
+    } catch {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        `Pagamento em estado ${payment.status} não pode ir para ${input.status}.`,
+      );
+    }
+
+    const updated = {
+      ...payment,
+      status,
+      updatedAt: (input.updatedAt ?? new Date()).toISOString(),
+    };
+    this.payments.set(payment.id, structuredClone(updated));
+    return structuredClone(updated);
+  }
+
   async capturePayment(
     input: CapturePaymentInput,
   ): Promise<CapturePaymentResult> {
@@ -236,6 +274,68 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       payment: structuredClone(updated),
       ledgerTransaction: structuredClone(ledger),
       duplicateEvent: false,
+    };
+  }
+
+  async refundExternalPayment(
+    input: RefundExternalPaymentInput,
+  ): Promise<RefundExternalPaymentResult> {
+    const payment = this.payments.get(input.paymentId);
+    if (payment == null) {
+      throw new PaymentDomainError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado.',
+      );
+    }
+
+    const referenceKey = `external-ride-refund:${payment.id}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      const stored = this.payments.get(payment.id) ?? payment;
+      return {
+        payment: structuredClone(stored),
+        ledgerTransaction: structuredClone(existing),
+        duplicateRefund: true,
+      };
+    }
+
+    if (payment.status !== 'paid') {
+      throw new PaymentDomainError(
+        'INVALID_PAYMENT_TRANSITION',
+        `Pagamento em estado ${payment.status} não pode ser estornado externamente.`,
+      );
+    }
+
+    const escrowAccount = `ride:${payment.rideId}:escrow`;
+    const escrowBalance = await this.getAccountBalanceCents(escrowAccount);
+    if (escrowBalance < payment.amountCents) {
+      throw new PaymentDomainError(
+        'INSUFFICIENT_RIDE_ESCROW',
+        'Escrow da corrida não possui saldo suficiente para o estorno.',
+      );
+    }
+
+    const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+    const updated = {
+      ...payment,
+      status: transitionPayment(payment.status, 'refunded'),
+      updatedAt: refundedAt,
+    };
+    const ledger = externalRideRefundLedger({
+      rideId: payment.rideId,
+      paymentId: payment.id,
+      processor: payment.processor,
+      amountCents: payment.amountCents,
+      createdAt: refundedAt,
+    });
+
+    this.payments.set(payment.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      payment: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateRefund: false,
     };
   }
 
