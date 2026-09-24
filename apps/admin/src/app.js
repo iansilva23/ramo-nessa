@@ -1528,10 +1528,13 @@ function renderPricingEditor(version = null) {
 }
 
 function syncPricingEditFields() {
-  const locality =
-    byId('pricing-edit-kind').value === 'locality_price';
-  byId('pricing-fixed-route-fields').hidden = locality;
-  byId('pricing-locality-fields').hidden = !locality;
+  const kind = byId('pricing-edit-kind').value;
+  byId('pricing-fixed-route-fields').hidden =
+    kind !== 'fixed_route';
+  byId('pricing-locality-fields').hidden =
+    kind !== 'locality_price';
+  byId('pricing-category-policy-fields').hidden =
+    kind !== 'category_policy';
 }
 
 function syncPricingLocalityPriceFields() {
@@ -1558,6 +1561,9 @@ function renderPricingCatalog(payload = null) {
   const fixedRoutes = Array.isArray(payload?.fixedRoutes)
     ? payload.fixedRoutes
     : [];
+  const categoryPolicies = Array.isArray(payload?.categoryPolicies)
+    ? payload.categoryPolicies
+    : [];
 
   const versionLabel =
     payload?.versionNumber == null
@@ -1579,6 +1585,8 @@ function renderPricingCatalog(payload = null) {
     `${localities.length} localidade(s)`;
   byId('pricing-route-count').textContent =
     `${fixedRoutes.length} rota(s)`;
+  byId('pricing-category-count').textContent =
+    `${categoryPolicies.length} categoria(s)`;
 
   const mode = byId('pricing-mode');
   if (payload == null) {
@@ -1597,6 +1605,33 @@ function renderPricingCatalog(payload = null) {
       `Catálogo ${payload.catalogVersion ?? '—'} · ` +
       'fallback estático';
   }
+
+  const categoryBody = byId('pricing-category-policies-body');
+  categoryBody.replaceChildren();
+  for (const policy of categoryPolicies) {
+    const row = document.createElement('tr');
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(policy.category);
+
+    const status = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className =
+      `pill pill--${policy.enabled ? 'success' : 'danger'}`;
+    statusPill.textContent =
+      policy.enabled ? 'Ativa' : 'Desativada';
+    status.append(statusPill);
+
+    const jeri = document.createElement('td');
+    jeri.textContent = policy.requiresFourByFourOnJeriBoundary
+      ? 'Exige 4x4'
+      : 'Sem exigência 4x4';
+
+    row.append(category, status, jeri);
+    categoryBody.append(row);
+  }
+  byId('pricing-category-policies-empty').hidden =
+    categoryPolicies.length !== 0;
 
   const localityBody = byId('pricing-localities-body');
   localityBody.replaceChildren();
@@ -1776,6 +1811,16 @@ function buildPricingDraftPatch() {
         byId('pricing-route-night').value,
         'Preço após 22h',
       ),
+    };
+  }
+
+  if (kind === 'category_policy') {
+    return {
+      kind: 'category_policy',
+      category: byId('pricing-policy-category').value,
+      enabled: byId('pricing-policy-enabled').value === 'true',
+      requiresFourByFourOnJeriBoundary:
+        byId('pricing-policy-four-by-four').value === 'true',
     };
   }
 
