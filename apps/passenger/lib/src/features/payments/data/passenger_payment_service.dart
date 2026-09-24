@@ -1,3 +1,4 @@
+import '../domain/card_ride_payment_result.dart';
 import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
 import '../domain/pix_ride_payment_result.dart';
@@ -12,6 +13,16 @@ abstract interface class PassengerPaymentService {
     required String rideId,
     required String idempotencyKey,
     required String payerEmail,
+  });
+
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String payerEmail,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
   });
 
   Future<CashRideAuthorizationResult> authorizeCashRide({
