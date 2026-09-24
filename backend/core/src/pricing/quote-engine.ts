@@ -271,7 +271,12 @@ function quotePrea(
   if (value == null) return null;
 
   if (isBand(value)) {
-    return rangeQuote(`prea-${localityId}-${request.category}`, value, request);
+    return rangeQuote(
+      `prea-${localityId}-${request.category}`,
+      value,
+      request,
+      catalog,
+    );
   }
 
   const localCarNight =
@@ -308,6 +313,7 @@ function quoteJijoca(
       `jijoca-${localityId}-${request.category}`,
       value,
       request,
+      catalog,
     );
   }
 
@@ -315,6 +321,7 @@ function quoteJijoca(
     `jijoca-${localityId}-${request.category}`,
     value,
     request,
+    catalog,
   );
 }
 
