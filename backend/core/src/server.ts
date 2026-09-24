@@ -86,9 +86,10 @@ import {
 } from './admin/admin-driver-auth-service.js';
 import {
   InvalidAdminRequestError,
+  encodeAdminAuditCursor,
   encodeAdminIdentityDirectoryCursor,
   encodeAdminRideDirectoryCursor,
-  parseAdminAuditLimit,
+  parseAdminAuditQuery,
   parseAdminIdentityDirectoryQuery,
   parseAdminRideDirectoryQuery,
   parseAdminDriverProvisionRequest,
@@ -1461,11 +1462,19 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'audit:read',
       });
-      const limit = parseAdminAuditLimit(
-        requestUrl.searchParams.get('limit'),
-      );
-      const entries = await adminRepository.listAudit(limit);
-      json(response, 200, { entries });
+      const query = parseAdminAuditQuery(requestUrl.searchParams);
+      const page = await adminRepository.searchAudit(query);
+      const last = page.records[page.records.length - 1];
+      json(response, 200, {
+        entries: page.records,
+        nextCursor:
+          page.hasMore && last != null
+            ? encodeAdminAuditCursor({
+                createdAt: last.createdAt,
+                id: last.id,
+              })
+            : null,
+      });
       return;
     }
 
