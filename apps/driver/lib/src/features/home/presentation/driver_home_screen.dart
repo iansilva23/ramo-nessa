@@ -1142,9 +1142,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
           ),
         ),
+        if (_activeRide != null &&
+            _activeRoute?.nextManeuver != null)
+          Positioned(
+            top: 78,
+            left: 14,
+            right: 14,
+            child: SafeArea(
+              child: _NavigationInstructionBanner(
+                route: _activeRoute!,
+              ),
+            ),
+          ),
         if (_message != null)
           Positioned(
-            top: 86,
+            top: _activeRide != null &&
+                    _activeRoute?.nextManeuver != null
+                ? 158
+                : 86,
             left: 16,
             right: 16,
             child: SafeArea(
@@ -2489,6 +2504,95 @@ class _OfferCard extends StatelessWidget {
   }
 }
 
+class _NavigationInstructionBanner extends StatelessWidget {
+  const _NavigationInstructionBanner({required this.route});
+
+  final DriverRouteInfo route;
+
+  IconData _iconForType(int? type) {
+    return switch (type) {
+      7 || 8 => Icons.turn_left_rounded,
+      9 || 10 => Icons.turn_right_rounded,
+      15 || 16 => Icons.u_turn_left_rounded,
+      17 || 18 => Icons.u_turn_right_rounded,
+      26 || 27 => Icons.roundabout_left_rounded,
+      _ => Icons.navigation_rounded,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maneuver = route.nextManeuver;
+    if (maneuver == null) return const SizedBox.shrink();
+
+    return Material(
+      color: RamoColors.brandBlack,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: RamoSpacing.md,
+          vertical: RamoSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: RamoColors.brandYellow,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _iconForType(maneuver.type),
+                color: RamoColors.brandBlack,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: RamoSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    maneuver.distanceLabel,
+                    style: const TextStyle(
+                      color: RamoColors.brandYellow,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    maneuver.instruction,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      height: 1.15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: RamoSpacing.sm),
+            Text(
+              route.durationLabel,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
     super.key,
@@ -2576,6 +2680,15 @@ class _ActiveRideCard extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
+          if (route?.nextManeuver != null) ...[
+            const SizedBox(height: RamoSpacing.sm),
+            Text(
+              route!.nextManeuver!.instruction,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
           if (route != null) const SizedBox(height: 4),
           Text('Seu ganho: ${formatCents(ride.driverEarningsCents)}'),
           if (ride.isCash &&
