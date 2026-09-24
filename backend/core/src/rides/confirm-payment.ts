@@ -38,6 +38,7 @@ export async function confirmRidePayment(
     rideId: string;
     payment: PaymentRecord;
     confirmedAt?: Date;
+    notifyPassenger?: boolean;
   },
 ) {
   const ride = await repository.findById(input.rideId);
@@ -99,16 +100,18 @@ export async function confirmRidePayment(
     updatedAt,
   });
 
-  notifyDefaultPushSubject({
-    subjectType: 'passenger',
-    subjectId: confirmed.passengerId,
-    message: {
-      type: 'passenger.payment.confirmed',
-      title: 'Pagamento confirmado',
-      body: 'Pagamento aprovado. Estamos procurando seu motorista.',
-      data: { rideId: confirmed.id },
-    },
-  });
+  if (input.notifyPassenger !== false) {
+    notifyDefaultPushSubject({
+      subjectType: 'passenger',
+      subjectId: confirmed.passengerId,
+      message: {
+        type: 'passenger.payment.confirmed',
+        title: 'Pagamento confirmado',
+        body: 'Pagamento aprovado. Estamos procurando seu motorista.',
+        data: { rideId: confirmed.id },
+      },
+    });
+  }
 
   return confirmed;
 }
