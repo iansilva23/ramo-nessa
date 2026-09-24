@@ -120,12 +120,15 @@ import UIKit
 
         switch outcome {
         case .success(let payload):
-          flutterResult([
+          var response: [String: Any] = [
             "token": payload.token,
             "paymentMethodId": payload.paymentMethodId,
             "paymentMethodType": payload.paymentMethodType,
-            "lastFourDigits": payload.lastFourDigits as Any,
-          ])
+          ]
+          if let lastFourDigits = payload.lastFourDigits {
+            response["lastFourDigits"] = lastFourDigits
+          }
+          flutterResult(response)
         case .failure(let error):
           flutterResult(
             FlutterError(
