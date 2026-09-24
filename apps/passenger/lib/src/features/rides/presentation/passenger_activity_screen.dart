@@ -247,7 +247,7 @@ class _RideActivityCard extends StatelessWidget {
             ),
             const SizedBox(width: RamoSpacing.sm),
             Text(
-              formatCents(ride.totalAmountCents),
+              _formatCents(ride.totalAmountCents),
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
           ],
@@ -293,4 +293,10 @@ class _ActivityMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+
+String _formatCents(int cents) {
+  final value = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+  return 'R\$ $value';
 }
