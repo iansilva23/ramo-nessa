@@ -2219,3 +2219,88 @@ td strong {
     min-height: 430px;
   }
 }
+
+
+.passenger-detail-card {
+  margin-top: 18px;
+}
+
+.passenger-detail-content {
+  padding: 20px 22px;
+}
+
+.passenger-detail-identity h3 {
+  margin: 7px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+}
+
+.passenger-detail-grid,
+.passenger-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.passenger-detail-grid {
+  margin-top: 16px;
+}
+
+.passenger-detail-item,
+.passenger-detail-summary > div {
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+}
+
+.passenger-detail-item span,
+.passenger-detail-item strong,
+.passenger-detail-summary span,
+.passenger-detail-summary strong {
+  display: block;
+}
+
+.passenger-detail-item span,
+.passenger-detail-summary span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.passenger-detail-item strong,
+.passenger-detail-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+#passenger-detail-history {
+  padding: 0 22px 22px;
+}
+
+.passenger-detail-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.passenger-history-table {
+  min-width: 760px;
+}
+
+@media (max-width: 980px) {
+  .passenger-detail-grid,
+  .passenger-detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .passenger-detail-grid,
+  .passenger-detail-summary {
+    grid-template-columns: 1fr;
+  }
+}
