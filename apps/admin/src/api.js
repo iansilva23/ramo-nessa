@@ -166,6 +166,8 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         scope = 'active',
         state = '',
         query = '',
+        from = '',
+        to = '',
         limit = 25,
         cursor = null,
       } = {},
@@ -181,6 +183,12 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       }
       if (String(query).trim()) {
         params.set('query', String(query).trim());
+      }
+      if (String(from).trim()) {
+        params.set('from', String(from).trim());
+      }
+      if (String(to).trim()) {
+        params.set('to', String(to).trim());
       }
       if (cursor) {
         params.set('cursor', cursor);
