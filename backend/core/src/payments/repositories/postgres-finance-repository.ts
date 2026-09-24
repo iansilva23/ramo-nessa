@@ -12,6 +12,7 @@ import {
   type LedgerTransaction,
 } from '../ledger.js';
 import {
+  type AdminFinanceSummary,
   type CapturePaymentInput,
   type CapturePaymentResult,
   type CaptureWalletTopupInput,
@@ -1227,6 +1228,168 @@ export class PostgresFinanceRepository implements FinanceRepository {
     } finally {
       client.release();
     }
+  }
+
+  async adminFinanceSummary(): Promise<AdminFinanceSummary> {
+    const [payments, ledger, payouts] = await Promise.all([
+      this.pool.query<{
+        payments_total: string;
+        payments_paid: string;
+        payments_paid_cents: string;
+        payments_pending: string;
+        payments_failed: string;
+        payments_cancelled: string;
+        payments_refunded: string;
+      }>(`
+        SELECT
+          COUNT(*)::text AS payments_total,
+          COUNT(*) FILTER (WHERE status = 'paid')::text AS payments_paid,
+          COALESCE(
+            SUM(amount_cents) FILTER (WHERE status = 'paid'),
+            0
+          )::text AS payments_paid_cents,
+          COUNT(*) FILTER (
+            WHERE status IN ('created', 'pending', 'authorized')
+          )::text AS payments_pending,
+          COUNT(*) FILTER (WHERE status = 'failed')::text
+            AS payments_failed,
+          COUNT(*) FILTER (WHERE status = 'cancelled')::text
+            AS payments_cancelled,
+          COUNT(*) FILTER (WHERE status = 'refunded')::text
+            AS payments_refunded
+        FROM payments
+      `),
+      this.pool.query<{
+        platform_revenue_cents: string;
+        driver_payable_cents: string;
+        driver_payout_pending_cents: string;
+        ride_escrow_cents: string;
+        passenger_wallet_cents: string;
+      }>(`
+        SELECT
+          COALESCE(SUM(
+            CASE
+              WHEN account_key = 'platform:revenue'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS platform_revenue_cents,
+          COALESCE(SUM(
+            CASE
+              WHEN account_key LIKE 'driver:%:payable'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS driver_payable_cents,
+          COALESCE(SUM(
+            CASE
+              WHEN account_key LIKE 'driver:%:payout_pending'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS driver_payout_pending_cents,
+          COALESCE(SUM(
+            CASE
+              WHEN account_key LIKE 'ride:%:escrow'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS ride_escrow_cents,
+          COALESCE(SUM(
+            CASE
+              WHEN account_key LIKE 'passenger:%:wallet'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS passenger_wallet_cents
+        FROM ledger_entries
+      `),
+      this.pool.query<{
+        payouts_requested: string;
+        payouts_requested_cents: string;
+      }>(`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'requested')::text
+            AS payouts_requested,
+          COALESCE(
+            SUM(amount_cents) FILTER (WHERE status = 'requested'),
+            0
+          )::text AS payouts_requested_cents
+        FROM driver_payouts
+      `),
+    ]);
+
+    const paymentRow = payments.rows[0];
+    const ledgerRow = ledger.rows[0];
+    const payoutRow = payouts.rows[0];
+
+    return {
+      paymentsTotal: Number(paymentRow?.payments_total ?? '0'),
+      paymentsPaid: Number(paymentRow?.payments_paid ?? '0'),
+      paymentsPaidCents: Number(
+        paymentRow?.payments_paid_cents ?? '0',
+      ),
+      paymentsPending: Number(paymentRow?.payments_pending ?? '0'),
+      paymentsFailed: Number(paymentRow?.payments_failed ?? '0'),
+      paymentsCancelled: Number(
+        paymentRow?.payments_cancelled ?? '0',
+      ),
+      paymentsRefunded: Number(
+        paymentRow?.payments_refunded ?? '0',
+      ),
+      platformRevenueCents: Number(
+        ledgerRow?.platform_revenue_cents ?? '0',
+      ),
+      driverPayableCents: Number(
+        ledgerRow?.driver_payable_cents ?? '0',
+      ),
+      driverPayoutPendingCents: Number(
+        ledgerRow?.driver_payout_pending_cents ?? '0',
+      ),
+      rideEscrowCents: Number(
+        ledgerRow?.ride_escrow_cents ?? '0',
+      ),
+      passengerWalletCents: Number(
+        ledgerRow?.passenger_wallet_cents ?? '0',
+      ),
+      payoutsRequested: Number(
+        payoutRow?.payouts_requested ?? '0',
+      ),
+      payoutsRequestedCents: Number(
+        payoutRow?.payouts_requested_cents ?? '0',
+      ),
+    };
+  }
+
+  async listRecentPayments(limit: number): Promise<PaymentRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<PaymentRow>(
+      `SELECT ${PAYMENT_COLUMNS}
+       FROM payments
+       ORDER BY created_at DESC, id DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+    return result.rows.map(mapPayment);
+  }
+
+  async listRecentDriverPayouts(
+    limit: number,
+  ): Promise<DriverPayoutRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<DriverPayoutRow>(
+      `SELECT ${PAYOUT_COLUMNS}
+       FROM driver_payouts
+       ORDER BY created_at DESC, id DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+    return result.rows.map(mapPayout);
   }
 
   async getAccountBalanceCents(accountKey: string): Promise<number> {
