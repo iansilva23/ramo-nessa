@@ -45,7 +45,10 @@ class HttpPhoneAuthService implements PhoneAuthService {
   }
 
   @override
-  Future<RequestedOtp> requestOtp(String phone) async {
+  Future<RequestedOtp> requestOtp({
+    required String phone,
+    required String email,
+  }) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/auth/otp/request'),
@@ -53,6 +56,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
           body: jsonEncode({
             'subjectType': _subjectType,
             'phone': phone,
+            'email': email,
           }),
         )
         .timeout(const Duration(seconds: 12));
