@@ -1392,6 +1392,156 @@ function pricingIdentifierLabel(value) {
     .join(' ');
 }
 
+function pricingMoneyToCents(value, label) {
+  const raw = String(value ?? '').trim();
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  const amount = Number(normalized);
+  const cents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    !Number.isInteger(cents) ||
+    cents > 10_000_000
+  ) {
+    throw new Error(`${label} deve ser um valor positivo válido.`);
+  }
+  return cents;
+}
+
+function pricingVersionStatusPresentation(version) {
+  if (version?.status === 'draft') {
+    return { label: 'Rascunho', tone: 'warning' };
+  }
+  if (
+    version?.status === 'published' &&
+    version?.id === state.pricingVersions.effectiveVersionId
+  ) {
+    return { label: 'Em vigor', tone: 'success' };
+  }
+  if (version?.status === 'published') {
+    const future =
+      version.effectiveFrom != null &&
+      Date.parse(version.effectiveFrom) > Date.now();
+    return future
+      ? { label: 'Agendada', tone: 'info' }
+      : { label: 'Publicada', tone: 'neutral' };
+  }
+  return { label: 'Desconhecida', tone: 'neutral' };
+}
+
+function renderPricingVersions() {
+  const body = byId('pricing-versions-body');
+  const empty = byId('pricing-versions-empty');
+  const createButton = byId('pricing-create-draft-button');
+  body.replaceChildren();
+
+  createButton.hidden = !hasScope('pricing:write');
+  createButton.disabled = false;
+
+  const items = state.pricingVersions.items;
+  for (const version of items) {
+    const row = document.createElement('tr');
+
+    const versionCell = document.createElement('td');
+    const versionName = document.createElement('strong');
+    versionName.textContent = `#${version.versionNumber}`;
+    const catalog = document.createElement('small');
+    catalog.className = 'table-subtext';
+    catalog.textContent = version.catalogVersion ?? 'v1';
+    versionCell.append(versionName, catalog);
+
+    const statusCell = document.createElement('td');
+    const presentation = pricingVersionStatusPresentation(version);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    statusCell.append(pill);
+
+    const effective = document.createElement('td');
+    effective.textContent = formatDateTime(version.effectiveFrom);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(version.updatedAt);
+
+    const actions = document.createElement('td');
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir';
+    open.addEventListener('click', () => {
+      void openPricingVersion(version.id);
+    });
+    actions.append(open);
+
+    row.append(
+      versionCell,
+      statusCell,
+      effective,
+      updated,
+      actions,
+    );
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+}
+
+function renderPricingEditor(version = null) {
+  state.selectedPricingVersion = version;
+  const empty = byId('pricing-editor-empty');
+  const controls = byId('pricing-editor-controls');
+  const status = byId('pricing-editor-status');
+
+  if (version == null) {
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Nenhum';
+    controls.hidden = true;
+    empty.hidden = false;
+    empty.textContent =
+      'Abra uma versão em rascunho ou crie uma nova para alterar preços.';
+    return;
+  }
+
+  const presentation = pricingVersionStatusPresentation(version);
+  status.className = `pill pill--${presentation.tone}`;
+  status.textContent = presentation.label;
+
+  byId('pricing-selected-version-title').textContent =
+    `Versão #${version.versionNumber} · ${version.catalogVersion ?? 'v1'}`;
+  byId('pricing-selected-version-meta').textContent =
+    version.status === 'draft'
+      ? 'Alterações ficam isoladas até a publicação.'
+      : `Vigência: ${formatDateTime(version.effectiveFrom)}`;
+
+  const editable =
+    version.status === 'draft' && hasScope('pricing:write');
+  controls.hidden = !editable;
+  empty.hidden = editable;
+  if (!editable) {
+    empty.textContent =
+      version.status === 'published'
+        ? 'Esta versão já foi publicada e é imutável. O catálogo acima está em modo de consulta.'
+        : 'Sua conta não possui permissão para editar esta versão.';
+  }
+}
+
+function syncPricingEditFields() {
+  const locality =
+    byId('pricing-edit-kind').value === 'locality_price';
+  byId('pricing-fixed-route-fields').hidden = locality;
+  byId('pricing-locality-fields').hidden = !locality;
+}
+
+function syncPricingLocalityPriceFields() {
+  const range =
+    byId('pricing-locality-price-kind').value === 'range';
+  byId('pricing-locality-max-field').hidden = !range;
+  byId('pricing-locality-min-label').textContent =
+    range ? 'Mínimo (R$)' : 'Preço (R$)';
+}
+
 function renderPricingCatalog(payload = null) {
   state.pricingCatalog = payload;
 
@@ -1409,8 +1559,11 @@ function renderPricingCatalog(payload = null) {
     ? payload.fixedRoutes
     : [];
 
-  byId('pricing-version').textContent =
-    payload?.catalogVersion ?? '—';
+  const versionLabel =
+    payload?.versionNumber == null
+      ? payload?.catalogVersion ?? '—'
+      : `#${payload.versionNumber}`;
+  byId('pricing-version').textContent = versionLabel;
 
   const commissionBps = Number(payload?.commissionBps);
   byId('pricing-commission').textContent =
@@ -1432,10 +1585,17 @@ function renderPricingCatalog(payload = null) {
     mode.textContent = hasScope('pricing:read')
       ? 'Aguardando catálogo'
       : 'Sem permissão pricing:read';
+  } else if (payload.mode === 'versioned') {
+    mode.textContent =
+      `Versão #${payload.versionNumber ?? '—'} · ` +
+      (payload.editable ? 'rascunho' : 'publicada') +
+      (payload.effectiveFrom
+        ? ` · ${formatDateTime(payload.effectiveFrom)}`
+        : '');
   } else {
     mode.textContent =
       `Catálogo ${payload.catalogVersion ?? '—'} · ` +
-      'estático · somente leitura';
+      'fallback estático';
   }
 
   const localityBody = byId('pricing-localities-body');
@@ -1505,6 +1665,7 @@ function renderPricingCatalog(payload = null) {
 async function loadPricingCatalog({ announce = true } = {}) {
   if (!state.token || !hasScope('pricing:read')) {
     renderPricingCatalog();
+    renderPricingEditor();
     return;
   }
 
@@ -1513,12 +1674,238 @@ async function loadPricingCatalog({ announce = true } = {}) {
   try {
     const payload = await api.pricingCatalog(state.token);
     renderPricingCatalog(payload);
+    renderPricingEditor();
     if (announce) {
       setMessage(
         globalMessage,
-        'Catálogo de preços atualizado.',
+        'Catálogo ativo de preços atualizado.',
         'success',
       );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadPricingVersions({ announce = true } = {}) {
+  if (!state.token || !hasScope('pricing:read')) {
+    state.pricingVersions = {
+      items: [],
+      effectiveVersionId: null,
+    };
+    renderPricingVersions();
+    return;
+  }
+
+  try {
+    const payload = await api.pricingVersions(state.token);
+    state.pricingVersions = {
+      items: Array.isArray(payload?.items) ? payload.items : [],
+      effectiveVersionId:
+        typeof payload?.effectiveVersionId === 'string'
+          ? payload.effectiveVersionId
+          : null,
+    };
+    renderPricingVersions();
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Histórico de versões atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function openPricingVersion(versionId) {
+  if (!state.token || !hasScope('pricing:read')) return;
+  try {
+    const payload = await api.getPricingVersion(
+      state.token,
+      versionId,
+    );
+    renderPricingCatalog(payload?.catalog ?? null);
+    renderPricingEditor(payload?.version ?? null);
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handlePricingCreateDraft() {
+  if (!state.token || !hasScope('pricing:write')) return;
+  const button = byId('pricing-create-draft-button');
+  button.disabled = true;
+  try {
+    const created = await api.createPricingVersion(state.token);
+    await loadPricingVersions({ announce: false });
+    await openPricingVersion(created.id);
+    setMessage(
+      globalMessage,
+      `Rascunho #${created.versionNumber} criado a partir do catálogo vigente.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function buildPricingDraftPatch() {
+  const kind = byId('pricing-edit-kind').value;
+  if (kind === 'fixed_route') {
+    const routeId = byId('pricing-route-id').value.trim();
+    if (!routeId) {
+      throw new Error('Informe o ID da rota fixa.');
+    }
+    return {
+      kind: 'fixed_route',
+      routeId,
+      dayCents: pricingMoneyToCents(
+        byId('pricing-route-day').value,
+        'Preço dia',
+      ),
+      after22Cents: pricingMoneyToCents(
+        byId('pricing-route-night').value,
+        'Preço após 22h',
+      ),
+    };
+  }
+
+  const localityId = byId('pricing-locality-id').value.trim();
+  if (!localityId) {
+    throw new Error('Informe o ID da localidade.');
+  }
+  const priceKind = byId('pricing-locality-price-kind').value;
+  const minCents = pricingMoneyToCents(
+    byId('pricing-locality-min').value,
+    priceKind === 'range' ? 'Preço mínimo' : 'Preço',
+  );
+
+  return {
+    kind: 'locality_price',
+    hub: byId('pricing-locality-hub').value,
+    localityId,
+    category: byId('pricing-locality-category').value,
+    price:
+      priceKind === 'range'
+        ? {
+            kind: 'range',
+            minCents,
+            maxCents: pricingMoneyToCents(
+              byId('pricing-locality-max').value,
+              'Preço máximo',
+            ),
+          }
+        : {
+            kind: 'exact',
+            amountCents: minCents,
+          },
+  };
+}
+
+async function handlePricingEditSubmit(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  const version = state.selectedPricingVersion;
+  if (
+    !state.token ||
+    !hasScope('pricing:write') ||
+    version?.status !== 'draft'
+  ) {
+    setMessage(
+      globalMessage,
+      'Abra um rascunho editável antes de salvar.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('pricing-save-draft-button');
+  button.disabled = true;
+  try {
+    const payload = await api.updatePricingVersion(state.token, {
+      versionId: version.id,
+      patch: buildPricingDraftPatch(),
+    });
+    renderPricingCatalog(payload.catalog);
+    renderPricingEditor(payload.version);
+    await loadPricingVersions({ announce: false });
+    setMessage(
+      globalMessage,
+      'Alteração salva somente no rascunho.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handlePricingPublish() {
+  const version = state.selectedPricingVersion;
+  if (
+    !state.token ||
+    !hasScope('pricing:write') ||
+    version?.status !== 'draft'
+  ) {
+    setMessage(
+      globalMessage,
+      'Abra um rascunho antes de publicar.',
+      'danger',
+    );
+    return;
+  }
+
+  const rawEffective = byId('pricing-effective-from').value;
+  let effectiveFrom = '';
+  if (rawEffective) {
+    const parsed = new Date(rawEffective);
+    if (Number.isNaN(parsed.getTime())) {
+      setMessage(
+        globalMessage,
+        'A vigência informada é inválida.',
+        'danger',
+      );
+      return;
+    }
+    effectiveFrom = parsed.toISOString();
+  }
+
+  const button = byId('pricing-publish-button');
+  button.disabled = true;
+  try {
+    const published = await api.publishPricingVersion(
+      state.token,
+      {
+        versionId: version.id,
+        effectiveFrom,
+      },
+    );
+    byId('pricing-effective-from').value = '';
+    await loadPricingVersions({ announce: false });
+    await loadPricingCatalog({ announce: false });
+    setMessage(
+      globalMessage,
+      published.effectiveFrom
+        ? `Versão #${published.versionNumber} publicada com vigência em ${formatDateTime(published.effectiveFrom)}.`
+        : `Versão #${published.versionNumber} publicada.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
     }
   } catch (error) {
     handleAuthenticatedError(error);
