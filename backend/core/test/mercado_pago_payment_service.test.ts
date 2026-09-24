@@ -5,6 +5,7 @@ import type { AuthIdentityRecord } from '../src/auth/auth-otp-repository.js';
 import {
   applyMercadoPagoOrderStatus,
   createMercadoPagoPixIntent,
+  shouldRefundMercadoPagoPaymentBeforeDispatch,
 } from '../src/payments/mercado-pago-payment-service.js';
 import { MercadoPagoOrdersClient } from '../src/payments/mercado-pago-orders.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
@@ -445,5 +446,37 @@ test('estorno externo pendente mantém corrida em REFUND_PENDING', async () => {
   assert.equal(
     requests.filter((request) => request.endsWith('/refund')).length,
     1,
+  );
+});
+
+
+test('Pix confirmado após expirar hold exige estorno antes do dispatch', () => {
+  const ride = preparedRide();
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      ride,
+      new Date('2026-09-24T08:05:00.000Z'),
+    ),
+    false,
+  );
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      ride,
+      new Date('2026-09-24T08:10:00.000Z'),
+    ),
+    true,
+  );
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      {
+        ...ride,
+        state: 'PAID',
+      },
+      new Date('2026-09-24T08:11:00.000Z'),
+    ),
+    false,
   );
 });
