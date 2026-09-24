@@ -9,6 +9,23 @@ export interface MarkPaymentPendingInput {
   pendingAt?: Date;
 }
 
+export interface MarkPaymentTerminalInput {
+  paymentId: string;
+  status: 'failed' | 'cancelled';
+  updatedAt?: Date;
+}
+
+export interface RefundExternalPaymentInput {
+  paymentId: string;
+  refundedAt?: Date;
+}
+
+export interface RefundExternalPaymentResult {
+  payment: PaymentRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateRefund: boolean;
+}
+
 export interface CapturePaymentInput {
   paymentId: string;
   processorEventId: string;
@@ -121,7 +138,11 @@ export interface FinanceRepository {
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
   markPaymentPending(input: MarkPaymentPendingInput): Promise<PaymentRecord>;
+  markPaymentTerminal(input: MarkPaymentTerminalInput): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
+  refundExternalPayment(
+    input: RefundExternalPaymentInput,
+  ): Promise<RefundExternalPaymentResult>;
 
   findWalletTopupByIdempotencyKey(
     key: string,
