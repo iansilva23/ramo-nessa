@@ -15,6 +15,8 @@ abstract interface class DriverApi {
 
   Future<DriverProfileSnapshot> profile();
 
+  Future<DriverDocumentsSnapshot> documents();
+
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
