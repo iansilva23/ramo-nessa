@@ -126,7 +126,6 @@ final class _PreviewPaymentService implements PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   }) async {
     return PixRidePaymentResult(
       internalPaymentId: 'preview-pix-payment',
@@ -148,7 +147,6 @@ final class _PreviewPaymentService implements PassengerPaymentService {
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
