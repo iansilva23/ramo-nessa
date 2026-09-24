@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -20,6 +21,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
   DriverDocumentsSnapshot? _snapshot;
   bool _loading = true;
   String? _error;
+  String? _uploadingType;
 
   @override
   void initState() {
@@ -51,6 +53,126 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
       setState(() {
         _loading = false;
         _error = 'Não conseguimos carregar seus documentos agora.';
+      });
+    }
+  }
+
+  String? _mimeTypeFor(PlatformFile file) {
+    switch (file.extension?.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return null;
+    }
+  }
+
+  String _dateOnly(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
+  }
+
+  Future<void> _pickAndUpload(String documentType) async {
+    if (_uploadingType != null) return;
+
+    PlatformFile? file;
+    try {
+      file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+        dialogTitle: documentType == 'driver_license'
+            ? 'Escolher CNH'
+            : 'Escolher CRLV',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Não foi possível abrir o seletor de arquivos.';
+      });
+      return;
+    }
+    if (file == null || !mounted) return;
+
+    final mimeType = _mimeTypeFor(file);
+    if (mimeType == null) {
+      setState(() {
+        _error = 'Escolha um arquivo JPG, PNG ou PDF.';
+      });
+      return;
+    }
+
+    try {
+      final reportedLength = file.lengthSync() ?? await file.length();
+      if (reportedLength != null && reportedLength > 20 * 1024 * 1024) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'O documento precisa ter no máximo 20 MB.';
+        });
+        return;
+      }
+
+      final now = DateTime.now();
+      final expires = await showDatePicker(
+        context: context,
+        initialDate: DateTime(now.year + 1, now.month, now.day),
+        firstDate: DateTime(now.year, now.month, now.day),
+        lastDate: DateTime(now.year + 20, 12, 31),
+        helpText: 'Validade do documento (opcional)',
+        cancelText: 'Sem validade',
+        confirmText: 'Usar esta data',
+      );
+      if (!mounted) return;
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || bytes.length > 20 * 1024 * 1024) {
+        setState(() {
+          _error = bytes.isEmpty
+              ? 'O arquivo selecionado está vazio.'
+              : 'O documento precisa ter no máximo 20 MB.';
+        });
+        return;
+      }
+
+      setState(() {
+        _uploadingType = documentType;
+        _error = null;
+      });
+
+      await widget.api.uploadDocument(
+        documentType: documentType,
+        mimeType: mimeType,
+        bytes: bytes,
+        expiresOn: expires == null ? null : _dateOnly(expires),
+      );
+      await _load();
+      if (!mounted) return;
+      setState(() => _uploadingType = null);
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Documento enviado. A equipe fará a análise.',
+            ),
+          ),
+        );
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingType = null;
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingType = null;
+        _error = 'Não conseguimos enviar o documento agora.';
       });
     }
   }
@@ -184,6 +306,10 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                     statusColor: item == null
                         ? RamoColors.muted
                         : _statusColor(context, item.effectiveStatus),
+                    uploading: _uploadingType == type,
+                    onUpload: _uploadingType == null
+                        ? () => _pickAndUpload(type)
+                        : null,
                   ),
                 );
               }),
@@ -201,7 +327,9 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                     SizedBox(width: RamoSpacing.sm),
                     Expanded(
                       child: Text(
-                        'O envio e a substituição dos arquivos ainda são feitos pela equipe administrativa, porque o storage privado atual do projeto é somente leitura. Esta tela mostra o status real registrado no Core.',
+                        'Envie CNH e CRLV em JPG, PNG ou PDF. '
+                        'Os arquivos ficam em storage privado e só entram '
+                        'como aprovados depois da revisão administrativa.',
                       ),
                     ),
                   ],
@@ -221,12 +349,16 @@ class _DocumentCard extends StatelessWidget {
     required this.item,
     required this.statusIcon,
     required this.statusColor,
+    required this.uploading,
+    required this.onUpload,
   });
 
   final String title;
   final DriverDocumentItem? item;
   final IconData statusIcon;
   final Color statusColor;
+  final bool uploading;
+  final VoidCallback? onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +422,31 @@ class _DocumentCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(height: RamoSpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onUpload,
+                    icon: uploading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.upload_file_rounded),
+                    label: Text(
+                      uploading
+                          ? 'Enviando…'
+                          : current == null
+                              ? 'Enviar documento'
+                              : current.effectiveStatus == 'rejected' ||
+                                      current.effectiveStatus == 'expired'
+                                  ? 'Enviar novamente'
+                                  : 'Substituir documento',
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
