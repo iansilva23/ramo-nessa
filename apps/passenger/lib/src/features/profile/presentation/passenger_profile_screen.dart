@@ -580,7 +580,7 @@ class _PassengerPaymentMethodsScreenState
                     policy.allowedMethods.contains('wallet'),
                 subtitle: _walletCents == null
                     ? 'Saldo indisponível'
-                    : 'Saldo: ${formatCents(_walletCents!)}',
+                    : 'Saldo: ${_formatCents(_walletCents!)}',
               ),
               _PaymentMethodTile(
                 icon: Icons.payments_outlined,
@@ -635,7 +635,7 @@ class _PaymentMethodTile extends StatelessWidget {
         ),
         child: Text(
           enabled ? 'Disponível' : 'Indisponível',
-          style: TextStyle(
+          style: const TextStyle(
             color: RamoColors.brandBlack,
             fontWeight: FontWeight.w900,
             fontSize: 11,
@@ -644,4 +644,10 @@ class _PaymentMethodTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+String _formatCents(int cents) {
+  final value = (cents / 100).toStringAsFixed(2).replaceAll('.', ',');
+  return 'R\$ $value';
 }
