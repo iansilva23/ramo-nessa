@@ -1,3 +1,4 @@
+import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
@@ -21,6 +22,7 @@ export async function dispatchRideAfterPayment(input: {
   now?: Date;
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
+  operationalSettings?: OperationalSettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<PostPaymentDispatchResult> {
   if (
@@ -43,6 +45,9 @@ export async function dispatchRideAfterPayment(input: {
     ...(input.finance != null ? { finance: input.finance } : {}),
     ...(input.paymentPolicySettings != null
       ? { paymentPolicySettings: input.paymentPolicySettings }
+      : {}),
+    ...(input.operationalSettings != null
+      ? { operationalSettings: input.operationalSettings }
       : {}),
     ...(input.canOfferDriver != null
       ? { canOfferDriver: input.canOfferDriver }
