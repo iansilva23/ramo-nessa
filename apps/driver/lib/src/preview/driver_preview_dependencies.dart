@@ -199,7 +199,7 @@ final class _PreviewDriverApi implements DriverApi {
     required int amountCents,
     required String idempotencyKey,
   }) async {
-    final amount = amountCents.clamp(0, _finance.availableBalanceCents);
+    final amount = amountCents.clamp(0, _finance.availableBalanceCents).toInt();
     _finance = DriverFinanceSummary(
       availableBalanceCents:
           _finance.availableBalanceCents - amount,
