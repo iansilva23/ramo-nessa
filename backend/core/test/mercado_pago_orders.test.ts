@@ -143,3 +143,78 @@ test('valida assinatura HMAC com data.id em minúsculas no manifesto', () => {
     false,
   );
 });
+
+
+test('retry de refund já processado reconcilia consultando a Order', async () => {
+  const requests: string[] = [];
+  const client = new MercadoPagoOrdersClient(
+    'test-token-' + 'x'.repeat(32),
+    async (url, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${url}`);
+
+      if ((init?.method ?? 'GET') === 'POST') {
+        return new Response(
+          JSON.stringify({
+            errors: [{ code: 'order_already_refunded' }],
+          }),
+          { status: 409, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          id: 'ORD01REFUNDRETRY123456',
+          external_reference: 'payment-refund-retry',
+          status: 'processed',
+          status_detail: 'refunded',
+          total_amount: '45.00',
+          transactions: {
+            payments: [
+              {
+                id: 'PAY01REFUNDRETRY123456',
+                status: 'processed',
+                status_detail: 'refunded',
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+
+  const order = await client.refundOrder(
+    'ORD01REFUNDRETRY123456',
+    'refund-retry-key-001',
+  );
+
+  assert.equal(order.statusDetail, 'refunded');
+  assert.deepEqual(requests, [
+    'POST https://api.mercadopago.com/v1/orders/ORD01REFUNDRETRY123456/refund',
+    'GET https://api.mercadopago.com/v1/orders/ORD01REFUNDRETRY123456',
+  ]);
+});
+
+test('refund com erro não reconciliável continua falhando', async () => {
+  const client = new MercadoPagoOrdersClient(
+    'test-token-' + 'x'.repeat(32),
+    async () =>
+      new Response(
+        JSON.stringify({
+          errors: [{ code: 'cannot_refund_order' }],
+        }),
+        { status: 409, headers: { 'content-type': 'application/json' } },
+      ),
+  );
+
+  await assert.rejects(
+    () =>
+      client.refundOrder(
+        'ORD01REFUNDERROR123456',
+        'refund-error-key-001',
+      ),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes('cannot_refund_order'),
+  );
+});
