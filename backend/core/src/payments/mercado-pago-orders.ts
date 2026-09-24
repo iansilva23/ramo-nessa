@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 type MpFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 export class MercadoPagoOrdersError extends Error {
@@ -24,6 +26,8 @@ export interface MercadoPagoOrderStatus {
   statusDetail: string;
   totalAmountCents: number;
   paymentId: string;
+  paymentStatus: string;
+  paymentStatusDetail: string;
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -178,6 +182,12 @@ export class MercadoPagoOrdersClient {
           : '',
       totalAmountCents: cents(payload.total_amount),
       paymentId: typeof payment.id === 'string' ? payment.id : '',
+      paymentStatus:
+        typeof payment.status === 'string' ? payment.status : '',
+      paymentStatusDetail:
+        typeof payment.status_detail === 'string'
+          ? payment.status_detail
+          : '',
     };
   }
 
@@ -204,4 +214,48 @@ export function mercadoPagoOrdersClientFromEnv(
     : env.MERCADO_PAGO_ACCESS_TOKEN_TEST?.trim();
 
   return token ? new MercadoPagoOrdersClient(token) : null;
+}
+
+
+export function verifyMercadoPagoWebhookSignature(input: {
+  xSignature: string;
+  xRequestId: string;
+  dataId: string;
+  secret: string;
+}): boolean {
+  const parts = input.xSignature.split(',');
+  let timestamp = '';
+  let signature = '';
+
+  for (const rawPart of parts) {
+    const [rawKey, rawValue] = rawPart.split('=', 2);
+    const key = rawKey?.trim();
+    const value = rawValue?.trim() ?? '';
+    if (key === 'ts') timestamp = value;
+    if (key === 'v1') signature = value;
+  }
+
+  if (
+    !timestamp ||
+    !/^\d{10,16}$/.test(timestamp) ||
+    !/^[0-9a-f]{64}$/i.test(signature) ||
+    !input.xRequestId.trim() ||
+    !input.dataId.trim() ||
+    input.secret.length < 16
+  ) {
+    return false;
+  }
+
+  const manifest =
+    `id:${input.dataId};request-id:${input.xRequestId};ts:${timestamp};`;
+  const expected = createHmac('sha256', input.secret)
+    .update(manifest, 'utf8')
+    .digest('hex');
+
+  const received = Buffer.from(signature, 'hex');
+  const expectedBytes = Buffer.from(expected, 'hex');
+  return (
+    received.length === expectedBytes.length &&
+    timingSafeEqual(received, expectedBytes)
+  );
 }
