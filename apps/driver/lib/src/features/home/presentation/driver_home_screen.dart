@@ -103,8 +103,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DateTime? _lastRouteRefreshAt;
   int _selectedTab = 0;
   late final DriverRouteService? _routeService =
-      widget.api != null && !DriverCoreConfig.previewMode
-          ? null
+      DriverCoreConfig.enabled
+          ? CoreDriverRouteService(
+              baseUrl: DriverCoreConfig.baseUri!,
+              accessToken: _accessToken,
+            )
           : OsrmDriverRouteService();
   bool _loading = true;
   bool _changingStatus = false;
