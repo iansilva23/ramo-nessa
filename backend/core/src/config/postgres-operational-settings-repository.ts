@@ -8,6 +8,7 @@ import type {
 interface OperationalSettingsRow {
   driver_offer_ttl_seconds: number;
   show_nearby_drivers: boolean;
+  mercado_pago_public_key: string | null;
   updated_at: Date;
 }
 
@@ -15,6 +16,9 @@ function mapRow(row: OperationalSettingsRow): OperationalSettingsRecord {
   return {
     driverOfferTtlSeconds: row.driver_offer_ttl_seconds,
     showNearbyDrivers: row.show_nearby_drivers,
+    ...(row.mercado_pago_public_key == null
+      ? {}
+      : { mercadoPagoPublicKey: row.mercado_pago_public_key }),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -26,7 +30,8 @@ export class PostgresOperationalSettingsRepository
 
   async get(): Promise<OperationalSettingsRecord> {
     const result = await this.pool.query<OperationalSettingsRow>(
-      `SELECT driver_offer_ttl_seconds, show_nearby_drivers, updated_at
+      `SELECT driver_offer_ttl_seconds, show_nearby_drivers,
+              mercado_pago_public_key, updated_at
        FROM operational_settings
        WHERE id = 1
        LIMIT 1`,
@@ -41,6 +46,7 @@ export class PostgresOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     showNearbyDrivers?: boolean;
+    mercadoPagoPublicKey?: string | null;
     updatedAt: string;
   }): Promise<OperationalSettingsRecord> {
     const current = await this.get();
@@ -48,12 +54,17 @@ export class PostgresOperationalSettingsRepository
       `UPDATE operational_settings
        SET driver_offer_ttl_seconds = $1,
            show_nearby_drivers = $2,
-           updated_at = $3
+           mercado_pago_public_key = $3,
+           updated_at = $4
        WHERE id = 1
-       RETURNING driver_offer_ttl_seconds, show_nearby_drivers, updated_at`,
+       RETURNING driver_offer_ttl_seconds, show_nearby_drivers,
+                 mercado_pago_public_key, updated_at`,
       [
         input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds,
         input.showNearbyDrivers ?? current.showNearbyDrivers,
+        input.mercadoPagoPublicKey === undefined
+          ? current.mercadoPagoPublicKey ?? null
+          : input.mercadoPagoPublicKey,
         input.updatedAt,
       ],
     );
