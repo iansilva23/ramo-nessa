@@ -1,3 +1,4 @@
+import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
 import type {
   DriverRegistryRepository,
@@ -208,6 +209,7 @@ export async function currentDriverOffer(input: {
   driverId: string;
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
+  operationalSettings?: OperationalSettingsRepository;
   now?: Date;
 }) {
   await requireApprovedDriverRegistry({
@@ -256,6 +258,9 @@ export async function currentDriverOffer(input: {
               paymentPolicySettings:
                 input.paymentPolicySettings,
             }
+          : {}),
+        ...(input.operationalSettings != null
+          ? { operationalSettings: input.operationalSettings }
           : {}),
         now,
       });
@@ -323,6 +328,7 @@ export async function rejectOfferFromDriverApp(input: {
   driverId: string;
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
+  operationalSettings?: OperationalSettingsRepository;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -368,6 +374,9 @@ export async function rejectOfferFromDriverApp(input: {
           paymentPolicySettings:
             input.paymentPolicySettings,
         }
+      : {}),
+    ...(input.operationalSettings != null
+      ? { operationalSettings: input.operationalSettings }
       : {}),
     now,
   });
