@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -98,7 +97,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverRouteInfo? _activeRoute;
   DriverRouteInfo? _offerPickupRoute;
   DriverRouteInfo? _offerTripRoute;
-  final MapController _mapController = MapController();
+  final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
   int _selectedTab = 0;
@@ -349,9 +348,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted) return;
       setState(() => _supply = updated);
       if (_mapReady) {
-        _mapController.move(
-          LatLng(updated.latitude, updated.longitude),
-          _mapController.camera.zoom,
+        unawaited(
+          _mapController.move(
+            LatLng(updated.latitude, updated.longitude),
+            _mapController.currentZoom,
+          ),
         );
       }
       if (_activeRide != null) {
@@ -1084,9 +1085,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void _centerDriverOnMap() {
     final supply = _supply;
     if (!_mapReady || supply == null) return;
-    _mapController.move(
-      LatLng(supply.latitude, supply.longitude),
-      _mapController.camera.zoom,
+    unawaited(
+      _mapController.move(
+        LatLng(supply.latitude, supply.longitude),
+        _mapController.currentZoom,
+      ),
     );
   }
 
