@@ -150,6 +150,7 @@ import {
   prepareRideForPayment,
   RidePreparationError,
 } from './rides/prepare-ride.js';
+import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
 import {
@@ -675,6 +676,25 @@ const server = createServer(async (request, response) => {
           updatedAt: ride.updatedAt,
         })),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/fleet'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'fleet:read',
+      });
+      const fleet = await adminFleetSnapshot({
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rides: rideRepository,
+      });
+      json(response, 200, fleet);
       return;
     }
 
