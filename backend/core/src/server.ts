@@ -7,6 +7,7 @@ import {
 import { isIP } from 'node:net';
 
 import { quoteFare } from './pricing/quote-engine.js';
+import { publicFareQuoteView } from './pricing/public-fare-view.js';
 import { PricingError } from './pricing/types.js';
 import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validation.js';
 import { pricingPeriodAt } from './pricing/period.js';
@@ -152,6 +153,7 @@ import {
 } from './drivers/driver-ride-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
+import { passengerRideView } from './rides/passenger-ride-view.js';
 import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
 import { createRepositories } from './db/repositories.js';
 import {
@@ -2073,7 +2075,7 @@ const server = createServer(async (request, response) => {
         pricing.snapshot,
       );
       json(response, 200, {
-        ...quote,
+        ...publicFareQuoteView(quote),
         pricingCatalog: pricing.reference,
       });
       return;
@@ -2115,9 +2117,8 @@ const server = createServer(async (request, response) => {
         now,
       });
 
-      const { reservedDriverId: _internalReservedDriverId, ...publicRide } = ride;
       json(response, 201, {
-        ride: publicRide,
+        ride: passengerRideView(ride),
         priceFinal: true,
         holdExpiresAt: ride.driverHoldExpiresAt,
       });
@@ -2142,7 +2143,7 @@ const server = createServer(async (request, response) => {
         pricing,
         now,
       });
-      json(response, 201, ride);
+      json(response, 201, passengerRideView(ride));
       return;
     }
 
@@ -2187,7 +2188,7 @@ const server = createServer(async (request, response) => {
         return;
       }
 
-      json(response, 200, ride);
+      json(response, 200, passengerRideView(ride));
       return;
     }
 
