@@ -26,6 +26,7 @@ import {
 } from './payments/mercado-pago-orders.js';
 import {
   applyMercadoPagoOrderStatus,
+  createMercadoPagoCardIntent,
   createMercadoPagoPixIntent,
   MercadoPagoPaymentServiceError,
   shouldRefundMercadoPagoPaymentBeforeDispatch,
@@ -3163,6 +3164,84 @@ const server = createServer(async (request, response) => {
           walletBalanceCents,
           duplicatePayment: result.duplicatePayment,
           duplicateRefund,
+        });
+        return;
+      }
+
+      if (body.method === 'card') {
+        const identity =
+          await authOtpRepository.findIdentityBySubject(
+            'passenger',
+            passengerId,
+          );
+
+        const result = await createMercadoPagoCardIntent({
+          finance: financeRepository,
+          gateway: mercadoPagoOrdersClient,
+          ride,
+          identity,
+          ...(body.payerEmail == null
+            ? {}
+            : { payerEmail: body.payerEmail }),
+          cardToken: body.cardToken ?? '',
+          paymentMethodId: body.paymentMethodId ?? '',
+          paymentMethodType:
+            body.paymentMethodType ?? 'credit_card',
+          installments: body.installments ?? 1,
+          idempotencyKey,
+        });
+
+        let responsePayment = result.payment;
+        const initialStatus = result.card.status.toLowerCase();
+
+        if (initialStatus !== 'action_required') {
+          try {
+            const order = await mercadoPagoOrdersClient!.getOrder(
+              result.card.orderId,
+            );
+            const applied = await applyMercadoPagoOrderStatus({
+              finance: financeRepository,
+              order,
+            });
+            responsePayment = applied.payment;
+
+            if (applied.kind === 'paid') {
+              await processConfirmedMercadoPagoRide(applied.payment);
+            } else if (
+              applied.kind === 'failed' ||
+              applied.kind === 'cancelled'
+            ) {
+              await markMercadoPagoRidePaymentFailed(applied.payment);
+            } else if (applied.kind === 'refunded') {
+              await finalizeMercadoPagoRefundedRide(applied.payment);
+            }
+          } catch (reconciliationError) {
+            logWarn('payment.mercado_pago.card_initial_reconciliation_failed', {
+              paymentId: result.payment.id,
+              orderId: result.card.orderId,
+              ...errorFields(reconciliationError),
+            });
+          }
+        }
+
+        const currentRide =
+          (await rideRepository.findById(ride.id)) ?? ride;
+
+        json(response, 201, {
+          payment: responsePayment,
+          card: {
+            orderId: result.card.orderId,
+            paymentId: result.card.paymentId,
+            status: result.card.status,
+            statusDetail: result.card.statusDetail,
+            ...(result.card.challengeUrl == null
+              ? {}
+              : { challengeUrl: result.card.challengeUrl }),
+          },
+          ride: passengerRideView(currentRide),
+          paymentConfirmed: responsePayment.status === 'paid',
+          simulated: false,
+          actionable: true,
         });
         return;
       }
