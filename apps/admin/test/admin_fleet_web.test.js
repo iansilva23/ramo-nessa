@@ -112,7 +112,7 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
 
   assert.match(
     html,
-    /img-src 'self' data: https:\/\/tile\.openstreetmap\.org/,
+    /img-src 'self' data: blob: https:\/\/tile\.openstreetmap\.org/,
   );
   assert.match(
     caddy,
