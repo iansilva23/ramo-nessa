@@ -512,6 +512,53 @@ async function markMercadoPagoRidePaymentFailed(
   });
 }
 
+async function finalizeMercadoPagoRefundedRide(
+  payment: PaymentRecord,
+): Promise<void> {
+  let ride = await rideRepository.findById(payment.rideId);
+  if (ride == null || ride.state === 'REFUNDED') return;
+
+  if (
+    ride.state === 'PAID' ||
+    ride.state === 'NO_DRIVER_FOUND' ||
+    ride.state === 'CANCELLED_BY_PASSENGER' ||
+    ride.state === 'CANCELLED_BY_DRIVER' ||
+    ride.state === 'CANCELLED_BY_ADMIN'
+  ) {
+    ride = await rideRepository.save({
+      ...ride,
+      state: transitionRide(ride.state, 'REFUND_PENDING'),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  if (ride.state !== 'REFUND_PENDING') {
+    logWarn('ride.gateway_refund.requires_manual_reconciliation', {
+      rideId: ride.id,
+      rideState: ride.state,
+      paymentId: payment.id,
+    });
+    return;
+  }
+
+  const refundedRide = await rideRepository.save({
+    ...ride,
+    state: transitionRide(ride.state, 'REFUNDED'),
+    paymentStatus: 'refunded',
+    paymentMethod: payment.method,
+    updatedAt: new Date().toISOString(),
+  });
+
+  sendPushBestEffort({
+    subjectType: 'passenger',
+    subjectId: refundedRide.passengerId,
+    type: 'passenger.payment.refunded',
+    title: 'Estorno concluído',
+    body: 'O valor da corrida foi devolvido pelo Mercado Pago.',
+    data: { rideId: refundedRide.id },
+  });
+}
+
 let shuttingDown = false;
 const shutdownTimeoutMs = resolveShutdownTimeoutMs();
 
