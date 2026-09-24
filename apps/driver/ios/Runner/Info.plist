@@ -30,6 +30,8 @@
 	<string>O Ramo Nessa Motorista usa sua localização para encontrar corridas próximas e acompanhar o deslocamento durante a operação.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>O Ramo Nessa Motorista usa sua localização em segundo plano enquanto você estiver online para manter sua posição atualizada e receber corridas.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Ramo Nessa Motorista acessa sua galeria somente quando você escolher uma foto para o seu perfil.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
