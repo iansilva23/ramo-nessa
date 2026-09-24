@@ -28,6 +28,14 @@ abstract interface class DriverApi {
 
   Future<DriverSessionRevokeResult> revokeOtherSessions();
 
+  Future<DriverSupportSnapshot> supportTickets();
+
+  Future<DriverSupportTicket> createSupportTicket({
+    required String category,
+    required String subject,
+    required String message,
+  });
+
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
