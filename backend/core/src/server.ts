@@ -715,6 +715,12 @@ const server = createServer(async (request, response) => {
         await markMercadoPagoRidePaymentFailed(applied.payment);
       } else if (applied.kind === 'refunded') {
         await finalizeMercadoPagoRefundedRide(applied.payment);
+      } else if (applied.kind === 'partially_refunded') {
+        logWarn('payment.mercado_pago.partial_refund_detected', {
+          paymentId: applied.payment.id,
+          rideId: applied.payment.rideId,
+          orderId,
+        });
       }
 
       json(response, 200, {
