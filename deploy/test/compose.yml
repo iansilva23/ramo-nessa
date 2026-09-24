@@ -18,6 +18,9 @@ x-core-environment: &core-environment
   DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY}
   DOCUMENT_INSPECTION_TTL_SECONDS: "60"
   SHUTDOWN_TIMEOUT_MS: "10000"
+  ROUTING_PROVIDER: "valhalla"
+  ROUTING_BASE_URL: "https://valhalla.openstreetmap.de"
+  ROUTING_TIMEOUT_MS: "5000"
 
 x-core-image: &core-image
   image: ramo-nessa-core:test
