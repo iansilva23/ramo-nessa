@@ -246,6 +246,7 @@ class DriverFinanceSummary {
   const DriverFinanceSummary({
     required this.availableBalanceCents,
     required this.payoutPendingCents,
+    this.cashCommissionDebtCents = 0,
   });
 
   factory DriverFinanceSummary.fromJson(Map<String, dynamic> json) {
@@ -254,11 +255,14 @@ class DriverFinanceSummary {
           (json['availableBalanceCents'] as num).toInt(),
       payoutPendingCents:
           (json['payoutPendingCents'] as num).toInt(),
+      cashCommissionDebtCents:
+          (json['cashCommissionDebtCents'] as num?)?.toInt() ?? 0,
     );
   }
 
   final int availableBalanceCents;
   final int payoutPendingCents;
+  final int cashCommissionDebtCents;
 }
 
 class DriverPayoutReservation {
