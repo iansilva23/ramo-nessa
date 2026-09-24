@@ -3,6 +3,12 @@ import type { PaymentRecord } from './payment.js';
 import type { DriverPayoutRecord } from './payout.js';
 import type { WalletTopupRecord } from './wallet.js';
 
+export interface MarkPaymentPendingInput {
+  paymentId: string;
+  processorPaymentId: string;
+  pendingAt?: Date;
+}
+
 export interface CapturePaymentInput {
   paymentId: string;
   processorEventId: string;
@@ -114,6 +120,7 @@ export interface FinanceRepository {
   findPaidPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
   findPaymentByIdempotencyKey(key: string): Promise<PaymentRecord | null>;
   createPayment(payment: PaymentRecord): Promise<PaymentRecord>;
+  markPaymentPending(input: MarkPaymentPendingInput): Promise<PaymentRecord>;
   capturePayment(input: CapturePaymentInput): Promise<CapturePaymentResult>;
 
   findWalletTopupByIdempotencyKey(
