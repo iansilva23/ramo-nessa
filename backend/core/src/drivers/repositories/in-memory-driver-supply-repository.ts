@@ -26,4 +26,13 @@ export class InMemoryDriverSupplyRepository
       .filter((supply) => supply.online && !supply.busy)
       .map((supply) => structuredClone(supply));
   }
+
+  async listFleet(): Promise<DriverSupplyRecord[]> {
+    return [...this.supplies.values()]
+      .filter((supply) => supply.online)
+      .sort((a, b) =>
+        b.locationUpdatedAt.localeCompare(a.locationUpdatedAt),
+      )
+      .map((supply) => structuredClone(supply));
+  }
 }
