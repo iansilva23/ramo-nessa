@@ -1,4 +1,5 @@
 import { createSign } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import type {
   PushPlatform,
@@ -240,6 +241,54 @@ export class FcmPushDeliveryProvider
   }
 }
 
+interface FirebaseServiceAccountFile {
+  project_id?: unknown;
+  client_email?: unknown;
+  private_key?: unknown;
+}
+
+export function readFirebaseServiceAccountFile(path: string): {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+} {
+  let parsed: FirebaseServiceAccountFile;
+  try {
+    parsed = JSON.parse(
+      readFileSync(path, 'utf8'),
+    ) as FirebaseServiceAccountFile;
+  } catch {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_FILE não pôde ser lido como JSON válido.',
+    );
+  }
+
+  const projectId =
+    typeof parsed.project_id === 'string'
+      ? parsed.project_id.trim()
+      : '';
+  const clientEmail =
+    typeof parsed.client_email === 'string'
+      ? parsed.client_email.trim()
+      : '';
+  const privateKey =
+    typeof parsed.private_key === 'string'
+      ? parsed.private_key.trim()
+      : '';
+
+  if (
+    projectId.length < 3 ||
+    clientEmail.length < 5 ||
+    privateKey.length < 100
+  ) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_FILE não contém credenciais Firebase válidas.',
+    );
+  }
+
+  return { projectId, clientEmail, privateKey };
+}
+
 export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
   const kind = process.env.PUSH_PROVIDER?.trim().toLowerCase();
   if (kind == null || kind === '' || kind === 'disabled') {
@@ -247,30 +296,38 @@ export function resolvePushDeliveryProviderFromEnv(): PushDeliveryProvider {
   }
 
   if (kind === 'fcm') {
-    const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY
-      ?.replace(/\\n/g, '\n')
-      .trim();
+    const serviceAccountFile =
+      process.env.FIREBASE_SERVICE_ACCOUNT_FILE?.trim();
+
+    const credentials =
+      serviceAccountFile != null && serviceAccountFile !== ''
+        ? readFirebaseServiceAccountFile(serviceAccountFile)
+        : {
+            projectId:
+              process.env.FIREBASE_PROJECT_ID?.trim() ?? '',
+            clientEmail:
+              process.env.FIREBASE_CLIENT_EMAIL?.trim() ?? '',
+            privateKey:
+              process.env.FIREBASE_PRIVATE_KEY
+                ?.replace(/\\n/g, '\n')
+                .trim() ?? '',
+          };
 
     if (
-      projectId == null ||
-      projectId.length < 3 ||
-      clientEmail == null ||
-      clientEmail.length < 5 ||
-      privateKey == null ||
-      privateKey.length < 100
+      credentials.projectId.length < 3 ||
+      credentials.clientEmail.length < 5 ||
+      credentials.privateKey.length < 100
     ) {
       throw new Error(
-        'FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY são obrigatórios para PUSH_PROVIDER=fcm.',
+        'Para PUSH_PROVIDER=fcm, configure FIREBASE_SERVICE_ACCOUNT_FILE ou as três variáveis Firebase separadas.',
       );
     }
 
     return new FcmPushDeliveryProvider(
-      projectId,
+      credentials.projectId,
       new GoogleServiceAccountAccessTokenSource(
-        clientEmail,
-        privateKey,
+        credentials.clientEmail,
+        credentials.privateKey,
       ),
     );
   }
