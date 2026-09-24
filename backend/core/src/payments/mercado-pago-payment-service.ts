@@ -94,6 +94,7 @@ export type MercadoPagoOrderApplication =
   | { kind: 'paid'; payment: PaymentRecord }
   | { kind: 'failed'; payment: PaymentRecord }
   | { kind: 'cancelled'; payment: PaymentRecord }
+  | { kind: 'partially_refunded'; payment: PaymentRecord }
   | { kind: 'refunded'; payment: PaymentRecord; duplicateRefund: boolean };
 
 export async function applyMercadoPagoOrderStatus(input: {
