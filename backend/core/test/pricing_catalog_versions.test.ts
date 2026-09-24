@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
+import { resolvePricingCatalogContext } from '../src/pricing/effective-catalog.js';
+import { quoteFare } from '../src/pricing/quote-engine.js';
 import { InMemoryPricingCatalogVersionRepository } from '../src/pricing/repositories/in-memory-pricing-catalog-version-repository.js';
 import {
   createPricingCatalogDraft,
@@ -30,14 +33,14 @@ test('cria rascunho imutável do catálogo atual e registra auditoria', async ()
   assert.equal(draft.versionNumber, 1);
   assert.equal(draft.status, 'draft');
   assert.equal(draft.snapshot.catalogVersion, 'v1');
-  assert.equal(draft.snapshot.editable, false);
+  assert.equal(draft.snapshot.commissionBps, 1000);
   assert.equal(draft.effectiveFrom, undefined);
 
   const view = pricingCatalogVersionView(draft);
   assert.deepEqual(view.summary, {
     commissionBps: 1000,
-    preaLocalities: draft.snapshot.localities.prea.length,
-    jijocaLocalities: draft.snapshot.localities.jijoca.length,
+    preaLocalities: Object.keys(draft.snapshot.localities.prea).length,
+    jijocaLocalities: Object.keys(draft.snapshot.localities.jijoca).length,
     fixedRoutes: draft.snapshot.fixedRoutes.length,
   });
 
@@ -141,4 +144,65 @@ test('rejeita vigência inválida sem publicar o rascunho', async () => {
   );
 
   assert.equal((await versions.findById(draft.id))?.status, 'draft');
+});
+
+
+test('resolver usa fallback v1 antes da vigência e versão publicada depois dela', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-runtime',
+    name: 'Admin Pricing Runtime',
+  };
+  const modified = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const route = modified.fixedRoutes.find(
+    (item) => item.id === 'prea-jijoca-car',
+  );
+  assert.ok(route);
+  route.dayCents = 13000;
+
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    snapshot: modified,
+    now: new Date('2026-09-24T00:00:00.000Z'),
+  });
+  await publishPricingCatalogVersion({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    effectiveFrom: '2026-10-01T03:00:00.000Z',
+    now: new Date('2026-09-24T00:05:00.000Z'),
+  });
+
+  const before = await resolvePricingCatalogContext({
+    versions,
+    at: new Date('2026-10-01T02:59:59.999Z'),
+  });
+  const after = await resolvePricingCatalogContext({
+    versions,
+    at: new Date('2026-10-01T03:00:00.000Z'),
+  });
+
+  const request = {
+    origin: { zoneId: 'prea' as const },
+    destination: { zoneId: 'jijoca' as const },
+    category: 'car' as const,
+    period: 'day' as const,
+  };
+
+  const beforeQuote = quoteFare(request, before.snapshot);
+  const afterQuote = quoteFare(request, after.snapshot);
+  assert.equal(beforeQuote.kind, 'exact');
+  assert.equal(afterQuote.kind, 'exact');
+  if (beforeQuote.kind === 'exact' && afterQuote.kind === 'exact') {
+    assert.equal(beforeQuote.baseAmountCents, 12000);
+    assert.equal(afterQuote.baseAmountCents, 13000);
+  }
+  assert.equal(before.reference.catalogVersionId, undefined);
+  assert.equal(after.reference.catalogVersionId, draft.id);
+  assert.equal(after.reference.catalogVersionNumber, 1);
 });
