@@ -999,40 +999,38 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 children: [
                   Row(
                     children: [
+                      _MapFloatingButton(
+                        tooltip: 'Menu',
+                        onPressed: _openProfileMenu,
+                        icon: const Icon(Icons.menu_rounded),
+                      ),
+                      const Spacer(),
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surface,
-                          borderRadius:
-                              BorderRadius.circular(RamoRadius.pill),
+                          borderRadius: BorderRadius.circular(RamoRadius.pill),
                           boxShadow: RamoElevation.floating(context),
                         ),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: RamoSpacing.md,
-                            vertical: RamoSpacing.sm,
+                            vertical: 11,
                           ),
                           child: RamoBrandLockup(compact: true),
                         ),
                       ),
                       const Spacer(),
-                      IconButton.filledTonal(
+                      _MapFloatingButton(
                         tooltip: 'Usar minha localização',
-                        onPressed:
-                            _locating ? null : () => _locateUser(),
+                        onPressed: _locating ? null : () => _locateUser(),
                         icon: _locating
                             ? const SizedBox.square(
-                                dimension: 20,
+                                dimension: 19,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
                             : const Icon(Icons.my_location_rounded),
-                      ),
-                      const SizedBox(width: RamoSpacing.xs),
-                      IconButton.filled(
-                        tooltip: 'Perfil',
-                        onPressed: _openProfileMenu,
-                        icon: const Icon(Icons.person_rounded),
                       ),
                     ],
                   ),
@@ -1104,6 +1102,51 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onRequestRide: _requestRide,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MapFloatingButton extends StatelessWidget {
+  const _MapFloatingButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+  });
+
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final Widget icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 0,
+      shadowColor: Colors.black12,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Tooltip(
+          message: tooltip,
+          child: Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: RamoElevation.floating(context),
+            ),
+            child: IconTheme(
+              data: const IconThemeData(
+                color: RamoColors.brandBlack,
+                size: 23,
+              ),
+              child: icon,
+            ),
+          ),
+        ),
       ),
     );
   }
