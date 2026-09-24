@@ -32,7 +32,7 @@ export class InMemoryOperationalSettingsRepository
             ? {}
             : { mercadoPagoPublicKey: this.record.mercadoPagoPublicKey })
         : input.mercadoPagoPublicKey == null ||
-            input.mercadoPagoPublicKey.trim().isEmpty
+            input.mercadoPagoPublicKey.trim().length === 0
           ? {}
           : { mercadoPagoPublicKey: input.mercadoPagoPublicKey.trim() }),
       updatedAt: input.updatedAt,
