@@ -526,6 +526,7 @@ async function processConfirmedMercadoPagoRide(
       matching: rideMatchingRepository,
       finance: financeRepository,
       paymentPolicySettings: paymentPolicySettingsRepository,
+      operationalSettings: operationalSettingsRepository,
     });
   } catch (dispatchError) {
     logError('ride.dispatch.after_gateway_payment.failed', {
@@ -2869,6 +2870,7 @@ const server = createServer(async (request, response) => {
         matching: rideMatchingRepository,
         finance: financeRepository,
         paymentPolicySettings: paymentPolicySettingsRepository,
+        operationalSettings: operationalSettingsRepository,
         driverId,
       });
       json(response, 200, { offer });
@@ -2945,6 +2947,7 @@ const server = createServer(async (request, response) => {
         matching: rideMatchingRepository,
         finance: financeRepository,
         paymentPolicySettings: paymentPolicySettingsRepository,
+        operationalSettings: operationalSettingsRepository,
         offerId,
         driverId,
       });
@@ -3223,6 +3226,7 @@ const server = createServer(async (request, response) => {
             finance: financeRepository,
             paymentPolicySettings:
               paymentPolicySettingsRepository,
+            operationalSettings: operationalSettingsRepository,
           });
           dispatchStatus =
             dispatch.kind === 'OFFER_CREATED' ||
@@ -3334,6 +3338,7 @@ const server = createServer(async (request, response) => {
                 rides: rideRepository,
                 drivers: driverSupplyRepository,
                 matching: rideMatchingRepository,
+                operationalSettings: operationalSettingsRepository,
               });
             } catch (dispatchError) {
               logError('ride.dispatch.failed', {
