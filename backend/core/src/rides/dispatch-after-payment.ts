@@ -1,4 +1,6 @@
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
+import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
 import {
   dispatchNextDriver,
   type DispatchNextResult,
@@ -17,6 +19,8 @@ export async function dispatchRideAfterPayment(input: {
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
   now?: Date;
+  finance?: FinanceRepository;
+  paymentPolicySettings?: PaymentPolicySettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<PostPaymentDispatchResult> {
   if (
@@ -36,6 +40,10 @@ export async function dispatchRideAfterPayment(input: {
       longitude: input.ride.pickupLongitude,
     },
     ...(input.now != null ? { now: input.now } : {}),
+    ...(input.finance != null ? { finance: input.finance } : {}),
+    ...(input.paymentPolicySettings != null
+      ? { paymentPolicySettings: input.paymentPolicySettings }
+      : {}),
     ...(input.canOfferDriver != null
       ? { canOfferDriver: input.canOfferDriver }
       : {}),
