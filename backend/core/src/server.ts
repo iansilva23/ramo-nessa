@@ -3005,6 +3005,38 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      if (body.method === 'pix') {
+        const identity =
+          await authOtpRepository.findIdentityBySubject(
+            'passenger',
+            passengerId,
+          );
+
+        const result = await createMercadoPagoPixIntent({
+          finance: financeRepository,
+          gateway: mercadoPagoOrdersClient,
+          ride,
+          identity,
+          idempotencyKey,
+        });
+
+        json(response, 201, {
+          payment: result.payment,
+          pix: {
+            orderId: result.pix.orderId,
+            paymentId: result.pix.paymentId,
+            status: result.pix.status,
+            statusDetail: result.pix.statusDetail,
+            ticketUrl: result.pix.ticketUrl,
+            qrCode: result.pix.qrCode,
+            qrCodeBase64: result.pix.qrCodeBase64,
+          },
+          simulated: false,
+          actionable: true,
+        });
+        return;
+      }
+
       const payment = await createPaymentForRide(financeRepository, {
         ride,
         method: body.method,
