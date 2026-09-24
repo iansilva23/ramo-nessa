@@ -161,7 +161,7 @@
 - [ ] histórico
 - [ ] cancelamentos
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
-- [ ] edição estrutural de localidades/zonas
+- [x] edição estrutural versionada de localidades/zonas suportadas
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
 - [ ] pagamentos/comissões
 - [ ] habilitar/desabilitar dinheiro futuramente
