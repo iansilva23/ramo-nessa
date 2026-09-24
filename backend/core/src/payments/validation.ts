@@ -12,6 +12,7 @@ export class InvalidPaymentRequestError extends Error {
 
 export interface CreatePaymentRequest {
   method: RidePaymentMethod;
+  payerEmail?: string;
 }
 
 export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest {
@@ -31,7 +32,31 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
     );
   }
 
-  return { method };
+  const rawEmail = record.payerEmail;
+  let payerEmail: string | undefined;
+  if (rawEmail != null) {
+    if (typeof rawEmail !== 'string') {
+      throw new InvalidPaymentRequestError(
+        'payerEmail deve ser um e-mail válido.',
+      );
+    }
+    const normalized = rawEmail.trim().toLowerCase();
+    if (
+      normalized.length < 5 ||
+      normalized.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+    ) {
+      throw new InvalidPaymentRequestError(
+        'Informe um e-mail válido para continuar o pagamento.',
+      );
+    }
+    payerEmail = normalized;
+  }
+
+  return {
+    method,
+    ...(payerEmail == null ? {} : { payerEmail }),
+  };
 }
 
 export function readIdempotencyKey(
