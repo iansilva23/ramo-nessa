@@ -20,6 +20,7 @@ import {
 } from './payments/payment.js';
 import {
   MercadoPagoOrdersError,
+  mercadoPagoOrderRefundState,
   mercadoPagoOrdersClientFromEnv,
   verifyMercadoPagoWebhookSignature,
 } from './payments/mercado-pago-orders.js';
@@ -1643,23 +1644,28 @@ const server = createServer(async (request, response) => {
             );
           }
 
-          await mercadoPagoOrdersClient.refundOrder(
-            orderId,
-            `admin-refund-${fullPayment.id}`,
-          );
-          const refunded = await financeRepository.refundExternalPayment({
-            paymentId: fullPayment.id,
-          });
-          await finalizeMercadoPagoRefundedRide(refunded.payment);
+          const gatewayOrder =
+            await mercadoPagoOrdersClient.refundOrder(
+              orderId,
+              `admin-refund-${fullPayment.id}`,
+            );
 
-          ride = (await rideRepository.findById(ride.id)) ?? ride;
-          paymentView = {
-            id: refunded.payment.id,
-            method: refunded.payment.method,
-            status: refunded.payment.status,
-            amountCents: refunded.payment.amountCents,
-          };
-          refundStatus = 'refunded';
+          if (mercadoPagoOrderRefundState(gatewayOrder) === 'full') {
+            const refunded =
+              await financeRepository.refundExternalPayment({
+                paymentId: fullPayment.id,
+              });
+            await finalizeMercadoPagoRefundedRide(refunded.payment);
+
+            ride = (await rideRepository.findById(ride.id)) ?? ride;
+            paymentView = {
+              id: refunded.payment.id,
+              method: refunded.payment.method,
+              status: refunded.payment.status,
+              amountCents: refunded.payment.amountCents,
+            };
+            refundStatus = 'refunded';
+          }
         }
       }
 
