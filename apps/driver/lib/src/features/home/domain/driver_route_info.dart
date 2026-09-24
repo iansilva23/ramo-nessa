@@ -53,6 +53,6 @@ class DriverRouteInfo {
     if (minutes < 60) return '$minutes min';
     final hours = minutes ~/ 60;
     final remaining = minutes % 60;
-    return remaining == 0 ? '${hours}h' : '${hours}h ${remaining}min';
+    return remaining == 0 ? '$hours h' : '$hours h $remaining min';
   }
 }
