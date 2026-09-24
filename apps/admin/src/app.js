@@ -2691,7 +2691,25 @@ byId('refresh-dashboard-button').addEventListener('click', () => {
   void loadDashboard();
 });
 byId('refresh-pricing-button').addEventListener('click', () => {
-  void loadPricingCatalog();
+  void Promise.all([
+    loadPricingCatalog(),
+    loadPricingVersions({ announce: false }),
+  ]);
+});
+byId('pricing-create-draft-button').addEventListener('click', () => {
+  void handlePricingCreateDraft();
+});
+byId('pricing-edit-form').addEventListener('submit', (event) => {
+  void handlePricingEditSubmit(event);
+});
+byId('pricing-edit-kind').addEventListener('change', () => {
+  syncPricingEditFields();
+});
+byId('pricing-locality-price-kind').addEventListener('change', () => {
+  syncPricingLocalityPriceFields();
+});
+byId('pricing-publish-button').addEventListener('click', () => {
+  void handlePricingPublish();
 });
 byId('driver-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();
@@ -2746,4 +2764,8 @@ setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
 renderPricingCatalog();
+renderPricingVersions();
+renderPricingEditor();
+syncPricingEditFields();
+syncPricingLocalityPriceFields();
 syncDocumentRejectionRequirement();
