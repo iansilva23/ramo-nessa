@@ -35,6 +35,7 @@ interface RideRow {
   passenger_id: string;
   state: RideRecord['state'];
   payment_status: RideRecord['paymentStatus'];
+  payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
@@ -62,7 +63,7 @@ interface RideRow {
 }
 
 const RIDE_COLUMNS = `
-  id, passenger_id, state, payment_status, driver_id,
+  id, passenger_id, state, payment_status, payment_method, driver_id,
   reserved_driver_id, driver_hold_expires_at,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
@@ -100,6 +101,9 @@ function mapRide(row: RideRow): RideRecord {
     passengerId: row.passenger_id,
     state: row.state,
     paymentStatus: row.payment_status,
+    ...(row.payment_method != null
+      ? { paymentMethod: row.payment_method }
+      : {}),
     ...(row.driver_id != null ? { driverId: row.driver_id } : {}),
     ...(row.reserved_driver_id != null
       ? { reservedDriverId: row.reserved_driver_id }
