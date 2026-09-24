@@ -106,6 +106,46 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/pricing/catalog', { token });
     },
 
+    pricingVersions(token) {
+      return request('/v1/admin/pricing/versions', { token });
+    },
+
+    getPricingVersion(token, versionId) {
+      return request(
+        `/v1/admin/pricing/versions/${versionId}`,
+        { token },
+      );
+    },
+
+    createPricingVersion(token) {
+      return request('/v1/admin/pricing/versions', {
+        method: 'POST',
+        token,
+      });
+    },
+
+    updatePricingVersion(token, { versionId, patch }) {
+      return request(
+        `/v1/admin/pricing/versions/${versionId}`,
+        {
+          method: 'PATCH',
+          token,
+          body: patch,
+        },
+      );
+    },
+
+    publishPricingVersion(token, { versionId, effectiveFrom }) {
+      return request(
+        `/v1/admin/pricing/versions/${versionId}/publish`,
+        {
+          method: 'POST',
+          token,
+          body: effectiveFrom ? { effectiveFrom } : {},
+        },
+      );
+    },
+
     rides(
       token,
       {
