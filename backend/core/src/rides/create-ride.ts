@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { STATIC_PRICING_CATALOG_V1 } from '../pricing/catalog-snapshot.js';
+import type { PricingCatalogContext } from '../pricing/effective-catalog.js';
 import { quoteFare } from '../pricing/quote-engine.js';
 import { pricingPeriodAt } from '../pricing/period.js';
 import type { QuoteRequest } from '../pricing/types.js';
@@ -20,6 +22,7 @@ export class RideCreationError extends Error {
 export interface CreateRideInput {
   passengerId: string;
   quoteRequest: QuoteRequest;
+  pricing?: PricingCatalogContext;
   now?: Date;
 }
 
@@ -41,7 +44,18 @@ export async function createRide(
     period: pricingPeriodAt(now),
   };
 
-  const fare = quoteFare(authoritativeQuoteRequest);
+  const pricing =
+    input.pricing ?? {
+      snapshot: STATIC_PRICING_CATALOG_V1,
+      reference: {
+        catalogVersion: STATIC_PRICING_CATALOG_V1.catalogVersion,
+      },
+      version: null,
+    };
+  const fare = quoteFare(
+    authoritativeQuoteRequest,
+    pricing.snapshot,
+  );
   if (fare.kind !== 'exact') {
     throw new RideCreationError(
       'QUOTE_NOT_EXACT',
@@ -72,7 +86,7 @@ export async function createRide(
         }
       : {}),
 
-    quote: snapshotExactFare(fare),
+    quote: snapshotExactFare(fare, pricing.reference),
 
     createdAt: instant,
     updatedAt: instant,
