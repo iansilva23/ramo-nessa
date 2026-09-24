@@ -165,6 +165,9 @@ export function actionLabel(action) {
     'driver.registry.status_changed': 'Status cadastral alterado',
     'driver.document.submitted': 'Documento recebido',
     'driver.document.reviewed': 'Documento revisado',
+    'pricing.catalog_version.created': 'Versão de preços criada',
+    'pricing.catalog_version.updated': 'Rascunho de preços alterado',
+    'pricing.catalog_version.published': 'Versão de preços publicada',
   };
   return labels[action] ?? action;
 }
