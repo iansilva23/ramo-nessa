@@ -987,17 +987,32 @@ class _DriverStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = supply.categories.map(_categoryLabel).join(' · ');
+    final statusColor =
+        supply.online ? RamoColors.success : RamoColors.muted;
+
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: .55),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: RamoSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1006,11 +1021,16 @@ class _DriverStatusCard extends StatelessWidget {
                       supply.online ? 'Online' : 'Offline',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w900,
+                            letterSpacing: -0.7,
                           ),
                     ),
+                    const SizedBox(height: 1),
                     Text(
                       supply.busy ? 'Ocupado' : 'Disponível',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: RamoColors.muted,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -1021,46 +1041,74 @@ class _DriverStatusCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: RamoSpacing.md),
-          Text(
-            'Veículo aprovado: ${supply.vehicleId}',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: RamoSpacing.xs),
-          Text('$categories · ${supply.seatCapacity} lugares'),
-          if (supply.fourByFour)
-            const Padding(
-              padding: EdgeInsets.only(top: RamoSpacing.xs),
-              child: Text(
-                '4x4 aprovado para rotas elegíveis',
-                style: TextStyle(fontWeight: FontWeight.w700),
+          const SizedBox(height: RamoSpacing.lg),
+          Wrap(
+            spacing: RamoSpacing.xs,
+            runSpacing: RamoSpacing.xs,
+            children: [
+              _DriverMetaChip(
+                icon: Icons.directions_car_filled_rounded,
+                label: supply.vehicleId,
               ),
-            ),
-          const SizedBox(height: RamoSpacing.md),
+              _DriverMetaChip(
+                icon: Icons.airline_seat_recline_normal_rounded,
+                label: '${supply.seatCapacity} lugares',
+              ),
+              if (supply.fourByFour)
+                const _DriverMetaChip(
+                  icon: Icons.terrain_rounded,
+                  label: '4x4',
+                ),
+            ],
+          ),
+          const SizedBox(height: RamoSpacing.sm),
+          Text(
+            categories,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: RamoColors.muted,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
           if (supply.online) ...[
-            const SizedBox(height: RamoSpacing.sm),
-            const Row(
-              children: [
-                Icon(
-                  Icons.location_searching_rounded,
-                  size: 18,
-                  color: RamoColors.success,
-                ),
-                SizedBox(width: RamoSpacing.xs),
-                Expanded(
-                  child: Text(
-                    'Localização automática ativa enquanto você estiver online.',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+            const SizedBox(height: RamoSpacing.md),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: RamoSpacing.sm,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(RamoRadius.md),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.location_searching_rounded,
+                    size: 18,
+                    color: RamoColors.success,
                   ),
-                ),
-              ],
+                  SizedBox(width: RamoSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Localização automática ativa',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: RamoSpacing.md),
-          OutlinedButton.icon(
-            onPressed: supply.online && !changing ? onUpdateLocation : null,
-            icon: const Icon(Icons.my_location_rounded),
-            label: const Text('Atualizar localização'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: supply.online && !changing ? onUpdateLocation : null,
+              icon: const Icon(Icons.my_location_rounded, size: 19),
+              label: const Text('Atualizar localização'),
+            ),
           ),
         ],
       ),
@@ -1075,6 +1123,44 @@ class _DriverStatusCard extends StatelessWidget {
         'delivery' => 'Entrega',
         _ => value,
       };
+}
+
+class _DriverMetaChip extends StatelessWidget {
+  const _DriverMetaChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: RamoSpacing.sm,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _DriverFinanceCard extends StatelessWidget {
@@ -1287,121 +1373,148 @@ class _OfferCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(
-        color: RamoColors.brandYellow,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: .55),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Nova corrida',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: RamoColors.brandBlack,
-                        fontWeight: FontWeight.w900,
-                      ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: RamoSpacing.sm,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: RamoColors.brandYellow,
+                  borderRadius: BorderRadius.circular(RamoRadius.pill),
+                ),
+                child: const Text(
+                  'NOVA CORRIDA',
+                  style: TextStyle(
+                    color: RamoColors.brandBlack,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
                 ),
               ),
-              Text(
-                '${seconds}s',
-                style: const TextStyle(
-                  color: RamoColors.brandBlack,
-                  fontWeight: FontWeight.w900,
-                ),
+              const Spacer(),
+              Row(
+                children: [
+                  const Icon(Icons.timer_outlined, size: 17),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${seconds}s',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: RamoSpacing.md),
+          const SizedBox(height: RamoSpacing.lg),
           Text(
             formatCents(offer.driverEarningsCents),
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: RamoColors.brandBlack,
                   fontWeight: FontWeight.w900,
+                  letterSpacing: -1.2,
                 ),
           ),
-          const Text(
+          Text(
             'Você recebe',
-            style: TextStyle(
-              color: RamoColors.brandBlack,
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: RamoColors.muted,
+                  fontWeight: FontWeight.w700,
+                ),
           ),
           const SizedBox(height: RamoSpacing.lg),
-          Text(
-            '${offer.origin.displayName} → ${offer.destination.displayName}',
-            style: const TextStyle(
-              color: RamoColors.brandBlack,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(RamoSpacing.md),
+            decoration: BoxDecoration(
+              color: RamoColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(RamoRadius.md),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${offer.origin.displayName} → ${offer.destination.displayName}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.35,
+                      ),
+                ),
+                const SizedBox(height: RamoSpacing.xs),
+                Text(
+                  '${offer.categoryLabel} · ${offer.passengers} '
+                  '${offer.passengers == 1 ? 'passageiro' : 'passageiros'}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: RamoColors.muted,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Coleta a aprox. '
+                  '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: RamoSpacing.xs),
-          Text(
-            '${offer.categoryLabel} · ${offer.passengers} '
-            '${offer.passengers == 1 ? 'passageiro' : 'passageiros'}',
-            style: const TextStyle(color: RamoColors.brandBlack),
-          ),
-          const SizedBox(height: RamoSpacing.xs),
-          Text(
-            'Coleta a aprox. '
-            '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km',
-            style: const TextStyle(color: RamoColors.brandBlack),
-          ),
           if (offer.pickupCompensationCents > 0) ...[
-            const SizedBox(height: RamoSpacing.xs),
+            const SizedBox(height: RamoSpacing.sm),
             Text(
               '+ ${formatCents(offer.pickupCompensationCents)} '
               'de coleta distante, integral para você',
               style: const TextStyle(
-                color: RamoColors.brandBlack,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ],
-          if (offer.isCash &&
-              offer.cashCollectionAmountCents != null) ...[
+          if (offer.isCash && offer.cashCollectionAmountCents != null) ...[
             const SizedBox(height: RamoSpacing.xs),
             Text(
               'Pagamento em dinheiro · cobrar '
               '${formatCents(offer.cashCollectionAmountCents!)}',
               style: const TextStyle(
-                color: RamoColors.brandBlack,
                 fontWeight: FontWeight.w900,
               ),
             ),
           ],
-          const SizedBox(height: RamoSpacing.xl),
+          const SizedBox(height: RamoSpacing.lg),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: busy || expired ? null : onReject,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: RamoColors.brandBlack,
-                    side: const BorderSide(color: RamoColors.brandBlack),
-                  ),
                   child: const Text('Recusar'),
                 ),
               ),
               const SizedBox(width: RamoSpacing.sm),
               Expanded(
-                child: FilledButton(
-                  onPressed: busy || expired ? null : onAccept,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: RamoColors.brandBlack,
-                    foregroundColor: Colors.white,
+                flex: 2,
+                child: SizedBox(
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: busy || expired ? null : onAccept,
+                    child: busy
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Aceitar'),
                   ),
-                  child: busy
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Aceitar'),
                 ),
               ),
             ],
