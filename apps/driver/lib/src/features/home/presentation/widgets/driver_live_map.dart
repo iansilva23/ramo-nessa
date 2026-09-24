@@ -14,6 +14,7 @@ class DriverLiveMap extends StatelessWidget {
     required this.supply,
     required this.activeRide,
     required this.route,
+    this.nearbyDrivers = const [],
     this.onMapReady,
     this.networkTilesEnabled = true,
   });
@@ -22,6 +23,7 @@ class DriverLiveMap extends StatelessWidget {
   final DriverSupplySnapshot? supply;
   final AcceptedDriverRide? activeRide;
   final DriverRouteInfo? route;
+  final List<NearbyDriverPosition> nearbyDrivers;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
 
@@ -48,6 +50,14 @@ class DriverLiveMap extends StatelessWidget {
           );
 
     final markers = <Marker>[
+      ...nearbyDrivers.map(
+        (driver) => Marker(
+          point: LatLng(driver.latitude, driver.longitude),
+          width: 34,
+          height: 34,
+          child: _NearbyDriverMarker(busy: driver.busy),
+        ),
+      ),
       Marker(
         point: driverPoint,
         width: 56,
@@ -185,6 +195,37 @@ class _DropoffMarker extends StatelessWidget {
           Icons.flag_rounded,
           color: RamoColors.brandBlack,
           size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+
+class _NearbyDriverMarker extends StatelessWidget {
+  const _NearbyDriverMarker({required this.busy});
+
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: busy ? RamoColors.muted : RamoColors.brandBlack,
+            width: 2.5,
+          ),
+          boxShadow: RamoElevation.floating(context),
+        ),
+        child: Icon(
+          Icons.directions_car_filled_rounded,
+          size: 14,
+          color: busy ? RamoColors.muted : RamoColors.brandBlack,
         ),
       ),
     );
