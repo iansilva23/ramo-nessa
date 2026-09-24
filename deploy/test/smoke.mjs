@@ -306,6 +306,171 @@ try {
     );
   }
 
+  if (
+    typeof passengerOtp.payload?.challengeId !== 'string' ||
+    !/^\d{6}$/.test(String(passengerOtp.payload?.devCode ?? ''))
+  ) {
+    throw new Error(
+      'OTP de desenvolvimento do passageiro não retornou challenge/código válidos.',
+    );
+  }
+
+  const passengerVerify = await jsonRequest(
+    '/v1/auth/otp/verify',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        challengeId: passengerOtp.payload.challengeId,
+        code: passengerOtp.payload.devCode,
+      }),
+    },
+  );
+  if (
+    passengerVerify.response.status !== 201 ||
+    passengerVerify.payload?.subjectId !== smokePassenger.passengerId ||
+    typeof passengerVerify.payload?.accessToken !== 'string'
+  ) {
+    throw new Error(
+      'Sessão Bearer inicial do passageiro não foi confirmada.',
+    );
+  }
+  const passengerAuthHeaders = {
+    authorization: `Bearer ${passengerVerify.payload.accessToken}`,
+  };
+
+  const passengerWalletBeforeBlock = await jsonRequest(
+    '/v1/wallet',
+    { headers: passengerAuthHeaders },
+  );
+  if (passengerWalletBeforeBlock.response.status !== 200) {
+    throw new Error(
+      'Sessão do passageiro não estava utilizável antes do bloqueio.',
+    );
+  }
+
+  const passengerBlock = await jsonRequest(
+    `/v1/admin/passengers/${smokePassenger.passengerId}/auth/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'suspended' }),
+    },
+  );
+  if (
+    passengerBlock.response.status !== 200 ||
+    passengerBlock.payload?.passenger?.status !== 'suspended' ||
+    Number(passengerBlock.payload?.revokedSessions ?? 0) < 1
+  ) {
+    throw new Error(
+      'Bloqueio administrativo do passageiro não revogou a sessão.',
+    );
+  }
+
+  const passengerWalletAfterBlock = await jsonRequest(
+    '/v1/wallet',
+    { headers: passengerAuthHeaders },
+  );
+  if (passengerWalletAfterBlock.response.status !== 401) {
+    throw new Error(
+      'Sessão antiga do passageiro continuou válida após o bloqueio.',
+    );
+  }
+
+  const blockedPassengerProfile = await jsonRequest(
+    `/v1/admin/passengers/${smokePassenger.passengerId}`,
+    { headers: authHeaders },
+  );
+  if (
+    blockedPassengerProfile.response.status !== 200 ||
+    blockedPassengerProfile.payload?.passenger?.status !== 'suspended'
+  ) {
+    throw new Error(
+      'Ficha administrativa não refletiu o passageiro bloqueado.',
+    );
+  }
+
+  const passengerUnblock = await jsonRequest(
+    `/v1/admin/passengers/${smokePassenger.passengerId}/auth/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'active' }),
+    },
+  );
+  if (
+    passengerUnblock.response.status !== 200 ||
+    passengerUnblock.payload?.passenger?.status !== 'active' ||
+    Number(passengerUnblock.payload?.revokedSessions ?? -1) !== 0
+  ) {
+    throw new Error(
+      'Desbloqueio administrativo do passageiro falhou.',
+    );
+  }
+
+  const oldSessionAfterUnblock = await jsonRequest(
+    '/v1/wallet',
+    { headers: passengerAuthHeaders },
+  );
+  if (oldSessionAfterUnblock.response.status !== 401) {
+    throw new Error(
+      'Desbloqueio restaurou indevidamente uma sessão antiga revogada.',
+    );
+  }
+
+  const passengerOtpAfterUnblock = await jsonRequest(
+    '/v1/auth/otp/request',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-client-instance-id': 'ci-smoke-passenger-unblocked',
+      },
+      body: JSON.stringify({
+        subjectType: 'passenger',
+        phone: '88999991278',
+      }),
+    },
+  );
+  if (
+    passengerOtpAfterUnblock.response.status !== 202 ||
+    typeof passengerOtpAfterUnblock.payload?.challengeId !== 'string' ||
+    !/^\d{6}$/.test(
+      String(passengerOtpAfterUnblock.payload?.devCode ?? ''),
+    )
+  ) {
+    throw new Error(
+      'Novo OTP do passageiro após desbloqueio falhou.',
+    );
+  }
+
+  const passengerVerifyAfterUnblock = await jsonRequest(
+    '/v1/auth/otp/verify',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        challengeId: passengerOtpAfterUnblock.payload.challengeId,
+        code: passengerOtpAfterUnblock.payload.devCode,
+      }),
+    },
+  );
+  if (
+    passengerVerifyAfterUnblock.response.status !== 201 ||
+    passengerVerifyAfterUnblock.payload?.subjectId !==
+      smokePassenger.passengerId
+  ) {
+    throw new Error(
+      'Passageiro desbloqueado não conseguiu criar nova sessão.',
+    );
+  }
+
   const driverId = 'driver-smoke-admin-001';
   const provision = await jsonRequest(
     `/v1/admin/drivers/${driverId}/auth`,
