@@ -94,7 +94,7 @@ class RideBottomSheet extends StatelessWidget {
                 ),
               ),
               Text(
-                hasTrip ? 'Escolha sua viagem' : 'Pra onde vamos?',
+                hasTrip ? 'Escolha sua viagem' : 'Sua próxima viagem',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.8,
@@ -215,7 +215,7 @@ class RideBottomSheet extends StatelessWidget {
                       FilledButton(
                         key: const Key('request-ride-button'),
                         onPressed: canRequest ? onRequestRide : null,
-                        child: const Text('Confirmar viagem'),
+                        child: const Text('Solicitar'),
                       ),
                     ],
                   ),
