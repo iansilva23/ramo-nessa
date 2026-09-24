@@ -51,6 +51,7 @@ test('resumo separa saldo disponível de saque pendente', async () => {
     {
       availableBalanceCents: 9000,
       payoutPendingCents: 0,
+      cashCommissionDebtCents: 0,
     },
   );
 
@@ -67,6 +68,7 @@ test('resumo separa saldo disponível de saque pendente', async () => {
   assert.deepEqual(payout.finance, {
     availableBalanceCents: 5000,
     payoutPendingCents: 4000,
+    cashCommissionDebtCents: 0,
   });
 });
 
