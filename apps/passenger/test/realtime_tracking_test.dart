@@ -76,7 +76,14 @@ void main() {
 
     await tester.tap(find.byTooltip('5 estrelas'));
     await tester.pump();
-    await tester.tap(find.text('Enviar avaliação'));
+    final submitRating = find.text('Enviar avaliação');
+    await tester.scrollUntilVisible(
+      submitRating,
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(submitRating);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
