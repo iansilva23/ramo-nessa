@@ -42,12 +42,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool _authorizingCash = false;
   String? _cashMessage;
   late final String _walletIdempotencyKey;
+  late final String _cashIdempotencyKey;
 
   @override
   void initState() {
     super.initState();
+    final nonce = DateTime.now().microsecondsSinceEpoch;
     _walletIdempotencyKey =
-        'wallet-${widget.ride.id}-${DateTime.now().microsecondsSinceEpoch}';
+        'wallet-${widget.ride.id}-$nonce';
+    _cashIdempotencyKey =
+        'cash-${widget.ride.id}-$nonce';
     _updateRemaining();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -163,6 +167,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     try {
       final result = await service.authorizeCashRide(
         rideId: widget.ride.id,
+        idempotencyKey: _cashIdempotencyKey,
       );
 
       if (!mounted) return;
