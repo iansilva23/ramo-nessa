@@ -4,6 +4,7 @@ import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';
 import {
   mercadoPagoOrderRefundState,
+  type MercadoPagoCardOrder,
   type MercadoPagoOrderStatus,
   type MercadoPagoOrdersClient,
   type MercadoPagoPixOrder,
@@ -101,6 +102,81 @@ export async function createMercadoPagoPixIntent(input: {
   });
 
   return { payment, pix };
+}
+
+export interface MercadoPagoCardIntent {
+  payment: PaymentRecord;
+  card: MercadoPagoCardOrder;
+}
+
+export async function createMercadoPagoCardIntent(input: {
+  finance: FinanceRepository;
+  gateway: MercadoPagoOrdersClient | null;
+  ride: RideRecord;
+  identity: AuthIdentityRecord | null;
+  payerEmail?: string;
+  cardToken: string;
+  paymentMethodId: string;
+  paymentMethodType: 'credit_card' | 'debit_card';
+  installments: number;
+  idempotencyKey: string;
+  now?: Date;
+}): Promise<MercadoPagoCardIntent> {
+  if (input.gateway == null) {
+    throw new MercadoPagoPaymentServiceError(
+      'MERCADO_PAGO_NOT_CONFIGURED',
+      'Mercado Pago ainda não está configurado neste ambiente.',
+    );
+  }
+
+  const email =
+    input.payerEmail?.trim().toLowerCase() ||
+    input.identity?.emailNormalized?.trim();
+  if (!email) {
+    throw new MercadoPagoPaymentServiceError(
+      'PASSENGER_EMAIL_REQUIRED',
+      'Informe um e-mail válido para pagar com cartão.',
+    );
+  }
+
+  let payment = await createPaymentForRide(input.finance, {
+    ride: input.ride,
+    method: 'card',
+    processor: 'mercado-pago-orders',
+    idempotencyKey: input.idempotencyKey,
+    ...(input.now != null ? { now: input.now } : {}),
+  });
+
+  if (
+    payment.status === 'paid' ||
+    payment.status === 'refunded' ||
+    payment.status === 'failed' ||
+    payment.status === 'cancelled'
+  ) {
+    throw new PaymentDomainError(
+      'INVALID_PAYMENT_TRANSITION',
+      `Pagamento em estado ${payment.status} não pode gerar nova cobrança.`,
+    );
+  }
+
+  const card = await input.gateway.createCardOrder({
+    paymentId: payment.id,
+    amountCents: payment.amountCents,
+    payerEmail: email,
+    cardToken: input.cardToken,
+    paymentMethodId: input.paymentMethodId,
+    paymentMethodType: input.paymentMethodType,
+    installments: input.installments,
+    idempotencyKey: `mp-card-${payment.id}`,
+  });
+
+  payment = await input.finance.markPaymentPending({
+    paymentId: payment.id,
+    processorPaymentId: card.orderId,
+    ...(input.now != null ? { pendingAt: input.now } : {}),
+  });
+
+  return { payment, card };
 }
 
 export type MercadoPagoOrderApplication =
