@@ -43,6 +43,7 @@ Escopos atuais:
 - `drivers:documents:write`
 - `passengers:auth:read`
 - `rides:read`
+- `fleet:read`
 - `pricing:read`
 - `pricing:write`
 - `audit:read`
@@ -80,6 +81,21 @@ interpretada como API key.
 Escopo: `rides:read`. Retorna contagens reais de corridas ativas, em busca de
 motorista, com motorista a caminho/chegou, em viagem, concluídas nas últimas 24h e
 canceladas nas últimas 24h, além das corridas ativas mais recentes.
+
+### Mapa da frota
+
+`GET /v1/admin/fleet`
+
+Escopo: `fleet:read`. Retorna somente motoristas online, incluindo livres,
+reservados, ocupados e em corrida. Cada item inclui identificação operacional do
+motorista/veículo, categorias, serviço atual quando houver, latitude/longitude e
+idade da última posição. O Core classifica GPS com mais de 120 segundos como
+atrasado por padrão.
+
+O painel atualiza esta visão a cada 5 segundos enquanto a aba **Frota** está
+aberta. A sessão Admin continua no header Bearer e nunca é anexada à URL dos
+tiles. Os tiles OpenStreetMap são apenas infraestrutura de desenvolvimento; antes
+da produção devem ser substituídos pelo provedor comercial previsto no roadmap.
 
 ### Catálogo de preços e zonas
 
