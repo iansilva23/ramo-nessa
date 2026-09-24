@@ -50,6 +50,20 @@ export async function driverCashPolicySnapshot(input: {
   };
 }
 
+export async function canDriverAcceptCashRide(input: {
+  settings: PaymentPolicySettingsRepository;
+  finance: FinanceRepository;
+  driverId: string;
+  additionalCommissionCents: number;
+}): Promise<boolean> {
+  const snapshot = await driverCashPolicySnapshot(input);
+  if (!snapshot.cashEnabled) return false;
+  return (
+    snapshot.currentDebtCents + input.additionalCommissionCents <=
+    snapshot.effectiveDebtLimitCents
+  );
+}
+
 export async function assertDriverCashCapacity(input: {
   settings: PaymentPolicySettingsRepository;
   finance: FinanceRepository;
