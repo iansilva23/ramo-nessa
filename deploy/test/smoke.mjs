@@ -1341,17 +1341,56 @@ try {
     );
   }
 
-  const audit = await jsonRequest('/v1/admin/audit?limit=20', {
-    headers: authHeaders,
-  });
-  const matchingAudit = audit.payload?.entries?.filter(
-    (entry) => entry.targetId === driverId,
+  const passengerAuditPage1 = await jsonRequest(
+    `/v1/admin/audit?limit=1&actorKind=user&action=passenger.auth.status_changed&targetType=passenger&query=${encodeURIComponent(smokePassenger.passengerId)}`,
+    { headers: authHeaders },
   );
-  const pricingAudit = audit.payload?.entries?.filter(
-    (entry) =>
-      entry.targetId === pricingVersionId &&
-      entry.targetType === 'pricing_catalog_version',
+  const passengerAuditFirst =
+    passengerAuditPage1.payload?.entries?.[0];
+  if (
+    passengerAuditPage1.response.status !== 200 ||
+    !Array.isArray(passengerAuditPage1.payload?.entries) ||
+    passengerAuditPage1.payload.entries.length !== 1 ||
+    typeof passengerAuditPage1.payload?.nextCursor !== 'string' ||
+    passengerAuditFirst?.targetId !== smokePassenger.passengerId ||
+    passengerAuditFirst?.targetType !== 'passenger' ||
+    passengerAuditFirst?.actor?.kind !== 'user'
+  ) {
+    throw new Error(
+      'Primeira página filtrada da auditoria de passageiro falhou.',
+    );
+  }
+
+  const passengerAuditPage2 = await jsonRequest(
+    `/v1/admin/audit?limit=1&actorKind=user&action=passenger.auth.status_changed&targetType=passenger&query=${encodeURIComponent(smokePassenger.passengerId)}&cursor=${encodeURIComponent(passengerAuditPage1.payload.nextCursor)}`,
+    { headers: authHeaders },
   );
+  const passengerAuditSecond =
+    passengerAuditPage2.payload?.entries?.[0];
+  if (
+    passengerAuditPage2.response.status !== 200 ||
+    !Array.isArray(passengerAuditPage2.payload?.entries) ||
+    passengerAuditPage2.payload.entries.length !== 1 ||
+    passengerAuditSecond?.id === passengerAuditFirst?.id ||
+    passengerAuditSecond?.targetId !== smokePassenger.passengerId ||
+    passengerAuditSecond?.actor?.kind !== 'user'
+  ) {
+    throw new Error(
+      'Paginação por cursor da auditoria de passageiro falhou.',
+    );
+  }
+
+  const pricingAuditResponse = await jsonRequest(
+    `/v1/admin/audit?limit=20&targetType=pricing_catalog_version&query=${encodeURIComponent(pricingVersionId)}`,
+    { headers: authHeaders },
+  );
+  const pricingAudit = pricingAuditResponse.payload?.entries;
+
+  const driverAuditResponse = await jsonRequest(
+    `/v1/admin/audit?limit=20&targetType=driver&query=${encodeURIComponent(driverId)}`,
+    { headers: authHeaders },
+  );
+  const matchingAudit = driverAuditResponse.payload?.entries;
   const documentSubmissionAudit = matchingAudit?.filter(
     (entry) => entry.action === 'driver.document.submitted',
   );
@@ -1361,8 +1400,10 @@ try {
   const humanOperationalAudit = matchingAudit?.filter(
     (entry) => entry.action !== 'driver.document.submitted',
   );
+
   if (
-    audit.response.status !== 200 ||
+    pricingAuditResponse.response.status !== 200 ||
+    driverAuditResponse.response.status !== 200 ||
     !Array.isArray(pricingAudit) ||
     pricingAudit.length !== 7 ||
     !pricingAudit.some(
@@ -1416,7 +1457,7 @@ try {
     )
   ) {
     throw new Error(
-      'Auditoria Admin não preservou atores humanos e de storage.',
+      'Auditoria Admin filtrada não preservou atores e eventos esperados.',
     );
   }
 
