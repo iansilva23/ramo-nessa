@@ -44,6 +44,7 @@ Escopos atuais:
 - `passengers:auth:read`
 - `rides:read`
 - `pricing:read`
+- `pricing:write`
 - `audit:read`
 
 ### Revogar uma chave
@@ -88,10 +89,23 @@ Escopo: `pricing:read`. Retorna o catálogo comercial v1 autoritativo do Core em
 modo **somente leitura**: versão, categorias, períodos, zonas, comissão,
 política de coleta, adicionais, localidades de Preá/Jijoca e rotas fixas.
 
-A resposta informa `editable: false`. A edição administrativa permanece
-bloqueada até existir persistência, versionamento, vigência e auditoria próprias
-para regras comerciais. O painel não recalcula tarifa nem substitui o
-`quote-engine`.
+O catálogo ativo continua protegido e nunca é alterado diretamente.
+
+O fluxo de escrita usa versões publicáveis:
+- `GET /v1/admin/pricing/versions` — lista versões;
+- `POST /v1/admin/pricing/versions` — cria rascunho a partir do catálogo efetivo;
+- `GET /v1/admin/pricing/versions/:id` — abre versão e prévia;
+- `PATCH /v1/admin/pricing/versions/:id` — edita somente rascunhos;
+- `POST /v1/admin/pricing/versions/:id/publish` — publica com vigência imediata ou futura.
+
+Leitura exige `pricing:read`; escrita/publicação exige `pricing:write`.
+Criação, alteração e publicação geram auditoria. O `quote-engine` resolve a
+versão publicada efetiva pelo horário, e cada corrida congela a referência da
+versão comercial usada.
+
+A edição desta etapa cobre rotas fixas e tarifas por localidade. Alterações
+estruturais de localidades/zonas e controles de elegibilidade de categorias
+permanecem em etapas próprias.
 
 ### Diretório de passageiros
 
