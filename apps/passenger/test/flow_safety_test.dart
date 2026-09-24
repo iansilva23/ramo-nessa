@@ -42,7 +42,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(search.calls, 1);
-    expect(find.text('Jericoacoara'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('rota prepara preço final e abre pagamento sem matching fake',
@@ -74,7 +80,12 @@ void main() {
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Jericoacoara'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
@@ -253,7 +264,12 @@ void main() {
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Preá'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Preá'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Preá'), findsOneWidget);
@@ -283,7 +299,12 @@ void main() {
     await tester.pump();
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Jericoacoara'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+    );
     await tester.pumpAndSettle();
     final requestRideButton =
         find.byKey(const Key('request-ride-button'));
