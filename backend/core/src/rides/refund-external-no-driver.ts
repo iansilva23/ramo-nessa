@@ -1,6 +1,9 @@
 import { notifyDefaultPushSubject } from '../notifications/push-notification-service.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
-import type { MercadoPagoOrdersClient } from '../payments/mercado-pago-orders.js';
+import {
+  mercadoPagoOrderRefundState,
+  type MercadoPagoOrdersClient,
+} from '../payments/mercado-pago-orders.js';
 import type { PaymentRecord } from '../payments/payment.js';
 import type { RideRepository } from './ride-repository.js';
 import { transitionRide } from './ride-state.js';
@@ -130,10 +133,18 @@ export async function refundMercadoPagoRideAfterNoDriver(input: {
       );
     }
 
-    await input.gateway.refundOrder(
+    const gatewayOrder = await input.gateway.refundOrder(
       orderId,
       `refund-${payment.id}`,
     );
+
+    if (mercadoPagoOrderRefundState(gatewayOrder) !== 'full') {
+      return {
+        ride,
+        payment,
+        duplicateRefund: false,
+      };
+    }
   }
 
   const refund = await input.finance.refundExternalPayment({
