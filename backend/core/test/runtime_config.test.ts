@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  assertMercadoPagoProductionConfig,
   parseIntegerSetting,
   resolveCorePort,
   resolveDbPoolMax,
@@ -37,5 +38,55 @@ test('porta e pool rejeitam valores inválidos', () => {
   assert.throws(
     () => resolveRoutingTimeoutMs({ ROUTING_TIMEOUT_MS: '100' }),
     /ROUTING_TIMEOUT_MS deve ser/,
+  );
+});
+
+
+test('Mercado Pago não é obrigatório fora de produção', () => {
+  assert.doesNotThrow(() =>
+    assertMercadoPagoProductionConfig({
+      NODE_ENV: 'development',
+    }),
+  );
+});
+
+test('produção exige configuração completa do Mercado Pago', () => {
+  assert.throws(
+    () =>
+      assertMercadoPagoProductionConfig({
+        NODE_ENV: 'production',
+      }),
+    /MERCADO_PAGO_MODE/,
+  );
+
+  assert.throws(
+    () =>
+      assertMercadoPagoProductionConfig({
+        NODE_ENV: 'production',
+        MERCADO_PAGO_MODE: 'production',
+      }),
+    /MERCADO_PAGO_ACCESS_TOKEN/,
+  );
+
+  assert.throws(
+    () =>
+      assertMercadoPagoProductionConfig({
+        NODE_ENV: 'production',
+        MERCADO_PAGO_MODE: 'production',
+        MERCADO_PAGO_ACCESS_TOKEN:
+          'APP_USR-production-token-with-safe-length',
+      }),
+    /MERCADO_PAGO_WEBHOOK_SECRET/,
+  );
+
+  assert.doesNotThrow(() =>
+    assertMercadoPagoProductionConfig({
+      NODE_ENV: 'production',
+      MERCADO_PAGO_MODE: 'production',
+      MERCADO_PAGO_ACCESS_TOKEN:
+        'APP_USR-production-token-with-safe-length',
+      MERCADO_PAGO_WEBHOOK_SECRET:
+        'production-webhook-secret-safe-length',
+    }),
   );
 });
