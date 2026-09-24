@@ -151,6 +151,12 @@ import {
   RidePreparationError,
 } from './rides/prepare-ride.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
+import {
+  createPricingCatalogDraft,
+  pricingCatalogVersionView,
+  publishPricingCatalogVersion,
+  PricingCatalogVersionError,
+} from './pricing/pricing-catalog-version-service.js';
 import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
 import {
   confirmRidePayment,
@@ -191,6 +197,7 @@ const {
   driverSupplyRepository,
   driverRegistryRepository,
   driverDocumentRepository,
+  pricingCatalogVersionRepository,
   ridePreparationRepository,
   rideMatchingRepository,
   storageMode,
@@ -676,6 +683,98 @@ const server = createServer(async (request, response) => {
         requiredScope: 'pricing:read',
       });
       json(response, 200, adminPricingCatalogView());
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/pricing/versions'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:read',
+      });
+      const [versions, effective] = await Promise.all([
+        pricingCatalogVersionRepository.list(50),
+        pricingCatalogVersionRepository.findEffective(
+          new Date().toISOString(),
+        ),
+      ]);
+      json(response, 200, {
+        items: versions.map(pricingCatalogVersionView),
+        effectiveVersionId: effective?.id ?? null,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/pricing/versions'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:write',
+      });
+      const draft = await createPricingCatalogDraft({
+        versions: pricingCatalogVersionRepository,
+        admin: adminRepository,
+        actor,
+      });
+      json(response, 201, pricingCatalogVersionView(draft));
+      return;
+    }
+
+    const pricingPublishMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/pricing\/versions\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})\/publish$/,
+    );
+    if (
+      request.method === 'POST' &&
+      pricingPublishMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:write',
+      });
+      const body = await readJson(request);
+      if (
+        body != null &&
+        (typeof body !== 'object' || Array.isArray(body))
+      ) {
+        throw new InvalidAdminRequestError(
+          'Corpo da publicação de preços é inválido.',
+        );
+      }
+      const rawEffectiveFrom =
+        body != null &&
+        typeof body === 'object' &&
+        'effectiveFrom' in body
+          ? (body as { effectiveFrom?: unknown }).effectiveFrom
+          : undefined;
+      if (
+        rawEffectiveFrom != null &&
+        typeof rawEffectiveFrom !== 'string'
+      ) {
+        throw new InvalidAdminRequestError(
+          'effectiveFrom deve ser uma data ISO em texto.',
+        );
+      }
+
+      const published = await publishPricingCatalogVersion({
+        versions: pricingCatalogVersionRepository,
+        admin: adminRepository,
+        actor,
+        versionId: pricingPublishMatch[1]!,
+        ...(rawEffectiveFrom == null
+          ? {}
+          : { effectiveFrom: rawEffectiveFrom }),
+      });
+      json(response, 200, pricingCatalogVersionView(published));
       return;
     }
 
@@ -1815,6 +1914,20 @@ const server = createServer(async (request, response) => {
     if (error instanceof AdminAuthenticationError) {
       const status =
         error.code === 'ADMIN_SCOPE_REQUIRED' ? 403 : 401;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PricingCatalogVersionError) {
+      const status =
+        error.code === 'PRICING_VERSION_NOT_FOUND'
+          ? 404
+          : error.code === 'PRICING_VERSION_NOT_DRAFT'
+            ? 409
+            : 400;
       json(response, status, {
         error: error.code,
         message: error.message,
