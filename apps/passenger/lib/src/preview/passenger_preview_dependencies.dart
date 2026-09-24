@@ -12,8 +12,10 @@ import '../features/payments/domain/pix_ride_payment_result.dart';
 import '../features/payments/domain/wallet_ride_payment_result.dart';
 import '../features/pricing/data/pricing_quote_service.dart';
 import '../features/pricing/domain/pricing_quote.dart';
+import '../features/rides/data/passenger_activity_service.dart';
 import '../features/rides/data/passenger_ride_tracking_service.dart';
 import '../features/rides/data/ride_preparation_service.dart';
+import '../features/rides/domain/passenger_activity.dart';
 import '../features/rides/domain/passenger_ride_tracking_snapshot.dart';
 import '../features/rides/domain/prepared_ride.dart';
 
@@ -31,6 +33,8 @@ final class PassengerPreviewDependencies {
   final PassengerPaymentService payments = _PreviewPaymentService();
   final PassengerRideTrackingService tracking =
       _PreviewRideTrackingService();
+  final PassengerActivityService activity =
+      const _PreviewPassengerActivityService();
 }
 
 final class _PreviewLocationService implements LocationService {
@@ -219,6 +223,47 @@ final class _PreviewRideTrackingService
               stale: false,
             )
           : null,
+    );
+  }
+}
+
+
+final class _PreviewPassengerActivityService
+    implements PassengerActivityService {
+  const _PreviewPassengerActivityService();
+
+  @override
+  Future<PassengerActivitySnapshot> fetch() async {
+    return PassengerActivitySnapshot(
+      total: 8,
+      active: 0,
+      completed: 7,
+      cancelled: 1,
+      completedAmountCents: 32600,
+      rides: [
+        PassengerActivityRide(
+          id: 'preview-activity-1',
+          state: 'COMPLETED',
+          category: 'car',
+          origin: 'Jericoacoara',
+          destination: 'Preá',
+          totalAmountCents: 4200,
+          paymentMethod: 'pix',
+          createdAt: DateTime(2026, 9, 23, 18, 30),
+          updatedAt: DateTime(2026, 9, 23, 19, 5),
+        ),
+        PassengerActivityRide(
+          id: 'preview-activity-2',
+          state: 'COMPLETED',
+          category: 'buggy',
+          origin: 'Jericoacoara',
+          destination: 'Jijoca',
+          totalAmountCents: 6800,
+          paymentMethod: 'card',
+          createdAt: DateTime(2026, 9, 21, 14, 10),
+          updatedAt: DateTime(2026, 9, 21, 15, 2),
+        ),
+      ],
     );
   }
 }
