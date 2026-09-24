@@ -52,6 +52,28 @@ const state = {
   },
   fleetTimer: null,
   fleetLoading: false,
+  finance: {
+    generatedAt: null,
+    readOnly: true,
+    summary: {
+      paymentsTotal: 0,
+      paymentsPaid: 0,
+      paymentsPaidCents: 0,
+      paymentsPending: 0,
+      paymentsFailed: 0,
+      paymentsCancelled: 0,
+      paymentsRefunded: 0,
+      platformRevenueCents: 0,
+      driverPayableCents: 0,
+      driverPayoutPendingCents: 0,
+      rideEscrowCents: 0,
+      passengerWalletCents: 0,
+      payoutsRequested: 0,
+      payoutsRequestedCents: 0,
+    },
+    payments: [],
+    payouts: [],
+  },
   dashboard: {
     generatedAt: null,
     rides: {
@@ -113,6 +135,7 @@ const scopeLabels = new Map([
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
+  ['finance:read', 'Consultar pagamentos, comissões e saques'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['audit:read', 'Consultar auditoria'],
@@ -186,6 +209,28 @@ function clearSession(message = '') {
     items: [],
   };
   state.fleetLoading = false;
+  state.finance = {
+    generatedAt: null,
+    readOnly: true,
+    summary: {
+      paymentsTotal: 0,
+      paymentsPaid: 0,
+      paymentsPaidCents: 0,
+      paymentsPending: 0,
+      paymentsFailed: 0,
+      paymentsCancelled: 0,
+      paymentsRefunded: 0,
+      platformRevenueCents: 0,
+      driverPayableCents: 0,
+      driverPayoutPendingCents: 0,
+      rideEscrowCents: 0,
+      passengerWalletCents: 0,
+      payoutsRequested: 0,
+      payoutsRequestedCents: 0,
+    },
+    payments: [],
+    payouts: [],
+  };
   if (fleetMap != null) {
     fleetMap.update([]);
   }
@@ -327,6 +372,7 @@ function activateView(viewName) {
     'drivers',
     'passengers',
     'pricing',
+    'finance',
     'audit',
   ]);
   const view = known.has(viewName) ? viewName : 'overview';
@@ -348,6 +394,7 @@ function activateView(viewName) {
     drivers: 'Motoristas',
     passengers: 'Passageiros',
     pricing: 'Preços',
+    finance: 'Financeiro',
     audit: 'Auditoria',
   };
   byId('page-title').textContent = titles[view];
@@ -366,6 +413,9 @@ function activateView(viewName) {
   if (view === 'pricing') {
     void loadPricingCatalog({ announce: false });
     void loadPricingVersions({ announce: false });
+  }
+  if (view === 'finance') {
+    void loadFinance({ announce: false });
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
@@ -1602,6 +1652,207 @@ function startFleetPolling() {
   state.fleetTimer = setInterval(() => {
     void loadFleet({ announce: false });
   }, 5_000);
+}
+
+function payoutStatusPresentation(status) {
+  const value = String(status ?? '');
+  if (value === 'paid') {
+    return { label: 'Pago', tone: 'success' };
+  }
+  if (value === 'processing') {
+    return { label: 'Processando', tone: 'info' };
+  }
+  if (value === 'requested') {
+    return { label: 'Solicitado', tone: 'warning' };
+  }
+  if (value === 'failed') {
+    return { label: 'Falhou', tone: 'danger' };
+  }
+  if (value === 'cancelled') {
+    return { label: 'Cancelado', tone: 'neutral' };
+  }
+  return { label: value || '—', tone: 'neutral' };
+}
+
+function paymentMethodLabel(method) {
+  if (method === 'pix') return 'Pix';
+  if (method === 'card') return 'Cartão';
+  if (method === 'wallet') return 'Carteira';
+  return String(method ?? '—');
+}
+
+function renderFinance(payload = null) {
+  const summary = payload?.summary ?? {};
+  const payments = Array.isArray(payload?.payments)
+    ? payload.payments
+    : [];
+  const payouts = Array.isArray(payload?.payouts)
+    ? payload.payouts
+    : [];
+
+  state.finance = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    readOnly: payload?.readOnly !== false,
+    summary: {
+      paymentsTotal: numericMetric(summary.paymentsTotal),
+      paymentsPaid: numericMetric(summary.paymentsPaid),
+      paymentsPaidCents: numericMetric(summary.paymentsPaidCents),
+      paymentsPending: numericMetric(summary.paymentsPending),
+      paymentsFailed: numericMetric(summary.paymentsFailed),
+      paymentsCancelled: numericMetric(summary.paymentsCancelled),
+      paymentsRefunded: numericMetric(summary.paymentsRefunded),
+      platformRevenueCents: numericMetric(
+        summary.platformRevenueCents,
+      ),
+      driverPayableCents: numericMetric(summary.driverPayableCents),
+      driverPayoutPendingCents: numericMetric(
+        summary.driverPayoutPendingCents,
+      ),
+      rideEscrowCents: numericMetric(summary.rideEscrowCents),
+      passengerWalletCents: numericMetric(
+        summary.passengerWalletCents,
+      ),
+      payoutsRequested: numericMetric(summary.payoutsRequested),
+      payoutsRequestedCents: numericMetric(
+        summary.payoutsRequestedCents,
+      ),
+    },
+    payments,
+    payouts,
+  };
+
+  const current = state.finance.summary;
+  byId('finance-updated-at').textContent =
+    state.finance.generatedAt == null
+      ? hasScope('finance:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão finance:read'
+      : `Atualizado em ${formatDateTime(state.finance.generatedAt)}`;
+  byId('finance-paid-total').textContent =
+    formatCurrencyCents(current.paymentsPaidCents);
+  byId('finance-paid-count').textContent =
+    `${current.paymentsPaid} pagamento(s)`;
+  byId('finance-platform-revenue').textContent =
+    formatCurrencyCents(current.platformRevenueCents);
+  byId('finance-driver-payable').textContent =
+    formatCurrencyCents(current.driverPayableCents);
+  byId('finance-payout-pending').textContent =
+    formatCurrencyCents(current.driverPayoutPendingCents);
+  byId('finance-payout-count').textContent =
+    `${current.payoutsRequested} solicitação(ões) aberta(s)`;
+  byId('finance-ride-escrow').textContent =
+    formatCurrencyCents(current.rideEscrowCents);
+  byId('finance-passenger-wallet').textContent =
+    formatCurrencyCents(current.passengerWalletCents);
+  byId('finance-payments-total').textContent =
+    String(current.paymentsTotal);
+  byId('finance-payments-pending').textContent =
+    String(current.paymentsPending);
+  byId('finance-payments-failed').textContent =
+    String(current.paymentsFailed);
+  byId('finance-payments-cancelled').textContent =
+    String(current.paymentsCancelled);
+  byId('finance-payments-refunded').textContent =
+    String(current.paymentsRefunded);
+
+  const paymentBody = byId('finance-payments-body');
+  paymentBody.replaceChildren();
+  for (const payment of payments) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className = 'pill pill--neutral';
+    statusPill.textContent = paymentStatusLabel(payment.status);
+    statusCell.append(statusPill);
+
+    const method = document.createElement('td');
+    method.textContent = paymentMethodLabel(payment.method);
+
+    const ride = document.createElement('td');
+    ride.textContent = payment.rideId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(payment.amountCents);
+
+    const processor = document.createElement('td');
+    processor.textContent = payment.processor ?? '—';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payment.createdAt);
+
+    row.append(
+      statusCell,
+      method,
+      ride,
+      amount,
+      processor,
+      created,
+    );
+    paymentBody.append(row);
+  }
+  byId('finance-payments-visible').textContent =
+    `${payments.length} item(ns)`;
+  byId('finance-payments-empty').hidden = payments.length !== 0;
+
+  const payoutBody = byId('finance-payouts-body');
+  payoutBody.replaceChildren();
+  for (const payout of payouts) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const presentation = payoutStatusPresentation(payout.status);
+    const statusPill = document.createElement('span');
+    statusPill.className = `pill pill--${presentation.tone}`;
+    statusPill.textContent = presentation.label;
+    statusCell.append(statusPill);
+
+    const driver = document.createElement('td');
+    driver.textContent = payout.driverId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(payout.amountCents);
+
+    const processor = document.createElement('td');
+    processor.textContent = payout.processor ?? 'Aguardando integração';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payout.createdAt);
+
+    row.append(statusCell, driver, amount, processor, created);
+    payoutBody.append(row);
+  }
+  byId('finance-payouts-visible').textContent =
+    `${payouts.length} item(ns)`;
+  byId('finance-payouts-empty').hidden = payouts.length !== 0;
+}
+
+async function loadFinance({ announce = true } = {}) {
+  if (!state.token || !hasScope('finance:read')) {
+    renderFinance();
+    return;
+  }
+
+  const button = byId('refresh-finance-button');
+  button.disabled = true;
+  try {
+    const payload = await api.finance(state.token, 25);
+    renderFinance(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Financeiro atualizado pelo ledger.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function pricingValueLabel(value) {
@@ -3211,6 +3462,9 @@ byId('refresh-dashboard-button').addEventListener('click', () => {
 byId('refresh-fleet-button').addEventListener('click', () => {
   void loadFleet();
 });
+byId('refresh-finance-button').addEventListener('click', () => {
+  void loadFinance();
+});
 byId('refresh-pricing-button').addEventListener('click', () => {
   void Promise.all([
     loadPricingCatalog(),
@@ -3287,6 +3541,7 @@ renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
 renderPassengerDetailEmpty();
 renderFleet();
+renderFinance();
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
