@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
+import '../../payments/data/passenger_payment_service.dart';
+import '../../payments/domain/passenger_payment_policy.dart';
 
 class PassengerProfileScreen extends StatefulWidget {
   const PassengerProfileScreen({
@@ -9,6 +11,7 @@ class PassengerProfileScreen extends StatefulWidget {
     required this.authService,
     required this.accessToken,
     required this.onOpenActivity,
+    this.paymentService,
     this.onLogout,
     this.previewMode = false,
   });
@@ -16,6 +19,7 @@ class PassengerProfileScreen extends StatefulWidget {
   final PhoneAuthService? authService;
   final String? accessToken;
   final VoidCallback onOpenActivity;
+  final PassengerPaymentService? paymentService;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -178,6 +182,21 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                 title: 'Dados pessoais',
                 subtitle: account.email ?? account.phoneE164,
                 onTap: _openPersonalData,
+              ),
+              _ProfileOption(
+                key: const Key('passenger-payment-methods'),
+                icon: Icons.credit_card_rounded,
+                title: 'Formas de pagamento',
+                subtitle: 'Pix, cartão, carteira e disponibilidade',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => _PassengerPaymentMethodsScreen(
+                        service: widget.paymentService,
+                      ),
+                    ),
+                  );
+                },
               ),
               _ProfileOption(
                 key: const Key('passenger-ride-history'),
@@ -449,6 +468,179 @@ class _PassengerPersonalDataScreenState
                 : const Text('Salvar alterações'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _PassengerPaymentMethodsScreen extends StatefulWidget {
+  const _PassengerPaymentMethodsScreen({required this.service});
+
+  final PassengerPaymentService? service;
+
+  @override
+  State<_PassengerPaymentMethodsScreen> createState() =>
+      _PassengerPaymentMethodsScreenState();
+}
+
+class _PassengerPaymentMethodsScreenState
+    extends State<_PassengerPaymentMethodsScreen> {
+  PassengerPaymentPolicy? _policy;
+  int? _walletCents;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_load);
+  }
+
+  Future<void> _load() async {
+    final service = widget.service;
+    if (service == null) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Formas de pagamento indisponíveis neste modo.';
+      });
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final policy = await service.paymentPolicy();
+      int? wallet;
+      if (policy.passengerWalletEnabled) {
+        wallet = await service.walletBalanceCents();
+      }
+      if (!mounted) return;
+      setState(() {
+        _policy = policy;
+        _walletCents = wallet;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final policy = _policy;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Formas de pagamento')),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(RamoSpacing.lg),
+          children: [
+            if (_loading && policy == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 80),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null && policy == null)
+              Padding(
+                padding: const EdgeInsets.only(top: 60),
+                child: Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: RamoColors.muted),
+                ),
+              )
+            else if (policy != null) ...[
+              _PaymentMethodTile(
+                icon: Icons.qr_code_2_rounded,
+                title: 'Pix',
+                enabled: policy.allowedMethods.contains('pix'),
+                subtitle: 'Pagamento confirmado antes do envio ao motorista',
+              ),
+              _PaymentMethodTile(
+                icon: Icons.credit_card_rounded,
+                title: 'Cartão',
+                enabled: policy.allowedMethods.contains('card'),
+                subtitle: 'Pagamento à vista com tokenização segura',
+              ),
+              _PaymentMethodTile(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'Carteira Ramo Nessa',
+                enabled: policy.passengerWalletEnabled &&
+                    policy.allowedMethods.contains('wallet'),
+                subtitle: _walletCents == null
+                    ? 'Saldo indisponível'
+                    : 'Saldo: ${formatCents(_walletCents!)}',
+              ),
+              _PaymentMethodTile(
+                icon: Icons.payments_outlined,
+                title: 'Dinheiro',
+                enabled: policy.cashEnabled &&
+                    policy.allowedMethods.contains('cash'),
+                subtitle: policy.cashEnabled
+                    ? 'Disponível conforme a política da operação'
+                    : 'Em breve',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentMethodTile extends StatelessWidget {
+  const _PaymentMethodTile({
+    required this.icon,
+    required this.title,
+    required this.enabled,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool enabled;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 5),
+      leading: CircleAvatar(
+        backgroundColor: RamoColors.surfaceRaised,
+        child: Icon(icon, color: RamoColors.brandBlack),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(subtitle),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: enabled
+              ? RamoColors.brandYellow
+              : RamoColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(RamoRadius.pill),
+        ),
+        child: Text(
+          enabled ? 'Disponível' : 'Indisponível',
+          style: TextStyle(
+            color: RamoColors.brandBlack,
+            fontWeight: FontWeight.w900,
+            fontSize: 11,
+          ),
+        ),
       ),
     );
   }
