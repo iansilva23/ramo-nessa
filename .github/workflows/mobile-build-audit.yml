@@ -37,7 +37,9 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
-        run: flutter build apk --release
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
 
       - name: Upload Passenger APK
         uses: actions/upload-artifact@v7.0.1
@@ -98,7 +100,11 @@ jobs:
 
       - name: Build Passenger iOS simulator
         working-directory: apps/passenger
-        run: flutter build ios --simulator --debug
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+        run: >
+          flutter build ios --simulator --debug
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
 
 
   driver-ios-simulator:
