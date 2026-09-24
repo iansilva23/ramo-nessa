@@ -3,7 +3,11 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 type MpFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 export class MercadoPagoOrdersError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+    public readonly apiCode?: string,
+  ) {
     super(message);
     this.name = 'MercadoPagoOrdersError';
   }
@@ -35,6 +39,35 @@ function asObject(value: unknown): Record<string, unknown> {
     throw new MercadoPagoOrdersError('Resposta inválida do Mercado Pago.');
   }
   return value as Record<string, unknown>;
+}
+
+function apiErrorCode(value: unknown): string | undefined {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.code === 'string' && payload.code.trim()) {
+    return payload.code.trim();
+  }
+
+  if (Array.isArray(payload.errors)) {
+    for (const item of payload.errors) {
+      if (
+        item != null &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        typeof (item as Record<string, unknown>).code === 'string'
+      ) {
+        const code = String(
+          (item as Record<string, unknown>).code,
+        ).trim();
+        if (code) return code;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function firstPayment(payload: Record<string, unknown>) {
@@ -127,8 +160,13 @@ export class MercadoPagoOrdersClient {
     }
 
     if (!response.ok) {
+      const code = apiErrorCode(parsed);
       throw new MercadoPagoOrdersError(
-        `Mercado Pago respondeu HTTP ${response.status}.`,
+        code
+          ? `Mercado Pago respondeu HTTP ${response.status} (${code}).`
+          : `Mercado Pago respondeu HTTP ${response.status}.`,
+        response.status,
+        code,
       );
     }
     return asObject(parsed);
@@ -224,13 +262,29 @@ export class MercadoPagoOrdersClient {
     orderId: string,
     idempotencyKey: string,
   ): Promise<MercadoPagoOrderStatus> {
-    await this.request(
-      `/v1/orders/${encodeURIComponent(orderId)}/refund`,
-      {
-        method: 'POST',
-        headers: { 'x-idempotency-key': idempotencyKey },
-      },
-    );
+    try {
+      await this.request(
+        `/v1/orders/${encodeURIComponent(orderId)}/refund`,
+        {
+          method: 'POST',
+          headers: { 'x-idempotency-key': idempotencyKey },
+        },
+      );
+    } catch (error) {
+      const safeReconciliationCodes = new Set([
+        'order_already_refunded',
+        'order_refund_already_in_process',
+        'refund_in_progress',
+      ]);
+
+      if (
+        !(error instanceof MercadoPagoOrdersError) ||
+        error.apiCode == null ||
+        !safeReconciliationCodes.has(error.apiCode)
+      ) {
+        throw error;
+      }
+    }
 
     return this.getOrder(orderId);
   }
