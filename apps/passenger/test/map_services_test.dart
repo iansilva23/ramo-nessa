@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:ramo_nessa_passenger/src/features/map/data/core_route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/nominatim_place_search_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/osrm_route_service.dart';
 
@@ -76,6 +77,42 @@ void main() {
       service.search('Jericoacoara'),
       throwsA(isA<FormatException>()),
     );
+  });
+
+  test('Core converte rota Valhalla normalizada em RouteInfo', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        '{"provider":"valhalla","distanceMeters":4200,'
+        '"durationSeconds":600,"points":['
+        '{"latitude":-2.7956,"longitude":-40.5142},'
+        '{"latitude":-2.81,"longitude":-40.45}],'
+        '"maneuvers":[]}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = CoreRouteService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-route-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+    final route = await service.route(
+      origin: const LatLng(-2.7956, -40.5142),
+      destination: const LatLng(-2.8100, -40.4500),
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/maps/route');
+    expect(
+      captured.headers['authorization'],
+      'Bearer passenger-route-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(route.points, hasLength(2));
+    expect(route.distanceMeters, 4200);
+    expect(route.duration, const Duration(minutes: 10));
   });
 
   test('OSRM rejeita coordenadas não numéricas', () async {
