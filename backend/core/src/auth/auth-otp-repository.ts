@@ -7,6 +7,7 @@ export interface AuthIdentityRecord {
   subjectId: string;
   subjectType: AuthSubjectType;
   phoneE164: string;
+  emailNormalized?: string;
   status: AuthIdentityStatus;
   createdAt: string;
   updatedAt: string;
@@ -42,6 +43,7 @@ export interface OtpChallengeRecord {
   codeDigest: string;
   expiresAt: string;
   attemptCount: number;
+  requestedEmailNormalized?: string;
   consumedAt?: string;
   createdAt: string;
 }
@@ -80,6 +82,12 @@ export interface AuthOtpRepository {
     subjectType: AuthSubjectType,
     subjectId: string,
   ): Promise<AuthIdentityRecord | null>;
+  setIdentityEmail(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    emailNormalized: string;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
   setIdentityStatus(input: {
     subjectType: AuthSubjectType;
     subjectId: string;
