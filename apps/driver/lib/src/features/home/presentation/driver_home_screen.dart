@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/config/driver_core_config.dart';
@@ -12,9 +14,12 @@ import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
+import '../data/driver_route_service.dart';
 import '../data/http_driver_api.dart';
 import '../data/io_driver_realtime_service.dart';
 import '../domain/driver_models.dart';
+import '../domain/driver_route_info.dart';
+import 'widgets/driver_live_map.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({
@@ -84,6 +89,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
+  DriverRouteInfo? _activeRoute;
+  final MapController _mapController = MapController();
+  bool _mapReady = false;
+  DateTime? _lastRouteRefreshAt;
+  int _selectedTab = 0;
+  late final DriverRouteService? _routeService =
+      widget.api != null && !DriverCoreConfig.previewMode
+          ? null
+          : OsrmDriverRouteService();
   bool _loading = true;
   bool _changingStatus = false;
   bool _offerAction = false;
@@ -213,6 +227,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final ride = await _api?.currentRide();
       if (!mounted) return;
       setState(() => _activeRide = ride);
+      await _refreshActiveRoute(force: true);
     } else if (supply.online) {
       _startPolling();
       await _refreshOffer();
@@ -317,6 +332,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
       setState(() => _supply = updated);
+      if (_mapReady) {
+        _mapController.move(
+          LatLng(updated.latitude, updated.longitude),
+          _mapController.camera.zoom,
+        );
+      }
+      if (_activeRide != null) {
+        unawaited(_refreshActiveRoute());
+      }
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -348,6 +372,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             _activeRide = update.ride;
           }
         });
+
+        if (update.rideUpdated) {
+          unawaited(_refreshActiveRoute(force: true));
+        }
 
         if (update.ride != null) {
           _stopPolling();
@@ -542,6 +570,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _offerAction = false;
         _message = null;
       });
+      await _refreshActiveRoute(force: true);
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -607,6 +636,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _rideAction = false;
         _message = null;
       });
+      await _refreshActiveRoute(force: true);
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -636,6 +666,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _rideAction = false;
         _message = null;
       });
+      await _refreshActiveRoute(force: true);
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -762,6 +793,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       setState(() {
         _activeRide = null;
+        _activeRoute = null;
         _supply = supply;
         _rideAction = false;
         _message = null;
@@ -845,127 +877,751 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _refreshActiveRoute({bool force = false}) async {
+    final service = _routeService;
     final supply = _supply;
+    final ride = _activeRide;
+    if (service == null || supply == null || ride == null) {
+      if (mounted && _activeRoute != null) {
+        setState(() => _activeRoute = null);
+      }
+      return;
+    }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            RamoBrandLockup(compact: true),
-            SizedBox(height: 2),
-            Text(
-              'Motorista',
-              style: TextStyle(
-                color: RamoColors.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: .2,
+    final now = DateTime.now();
+    if (!force &&
+        _lastRouteRefreshAt != null &&
+        now.difference(_lastRouteRefreshAt!) < const Duration(seconds: 20)) {
+      return;
+    }
+
+    final useDropoff = ride.state == 'IN_PROGRESS';
+    final latitude =
+        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude =
+        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+    if (latitude == null || longitude == null) return;
+
+    _lastRouteRefreshAt = now;
+    try {
+      final route = await service.route(
+        origin: LatLng(supply.latitude, supply.longitude),
+        destination: LatLng(latitude, longitude),
+      );
+      if (!mounted) return;
+      setState(() => _activeRoute = route);
+    } catch (_) {
+      // A navegação externa continua disponível mesmo quando a rota
+      // embutida não puder ser recalculada.
+    }
+  }
+
+  void _centerDriverOnMap() {
+    final supply = _supply;
+    if (!_mapReady || supply == null) return;
+    _mapController.move(
+      LatLng(supply.latitude, supply.longitude),
+      _mapController.camera.zoom,
+    );
+  }
+
+  Widget _buildHomeMap(DriverSupplySnapshot supply) {
+    final showOffer = _offer != null && _activeRide == null;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DriverLiveMap(
+          controller: _mapController,
+          supply: supply,
+          activeRide: _activeRide,
+          route: _activeRoute,
+          networkTilesEnabled:
+              widget.api == null || DriverCoreConfig.previewMode,
+          onMapReady: () {
+            _mapReady = true;
+            _centerDriverOnMap();
+          },
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _MapCircleButton(
+                    tooltip: 'Perfil',
+                    icon: Icons.person_rounded,
+                    onPressed: () => setState(() => _selectedTab = 3),
+                  ),
+                  const Spacer(),
+                  _EarningsPill(
+                    amountCents: _finance?.availableBalanceCents ?? 0,
+                    onTap: () => setState(() => _selectedTab = 1),
+                  ),
+                  const Spacer(),
+                  _MapCircleButton(
+                    tooltip: 'Centralizar mapa',
+                    icon: Icons.my_location_rounded,
+                    onPressed: _centerDriverOnMap,
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-        actions: [
-          if (widget.onLogout != null)
-            PopupMenuButton<String>(
-              tooltip: 'Conta',
-              onSelected: (value) {
-                if (value == 'logout') {
-                  _logout();
-                }
-              },
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout_rounded),
-                      SizedBox(width: 10),
-                      Text('Sair da conta'),
-                    ],
-                  ),
-                ),
-              ],
+        if (_message != null)
+          Positioned(
+            top: 86,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              child: _CompactMapMessage(message: _message!),
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
-                    RamoSpacing.lg,
-                    RamoSpacing.md,
-                    RamoSpacing.lg,
-                    RamoSpacing.xxl,
-                  ),
-                  children: [
-                    if (_message != null) ...[
-                      _MessageCard(message: _message!),
-                      const SizedBox(height: RamoSpacing.md),
-                    ],
-                    if (supply != null) ...[
-                      _DriverStatusCard(
-                        supply: supply,
-                        changing: _changingStatus,
-                        onToggle: _setOnline,
-                        onUpdateLocation: _updateLocation,
-                      ),
-                      const SizedBox(height: RamoSpacing.lg),
-                      if (_activeRide != null)
-                        _ActiveRideCard(
+          ),
+        Positioned(
+          left: 14,
+          right: 14,
+          bottom: 14,
+          child: SafeArea(
+            top: false,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, .08),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: showOffer
+                  ? _OfferCard(
+                      key: ValueKey('offer-${_offer!.id}'),
+                      offer: _offer!,
+                      busy: _offerAction,
+                      onAccept: _acceptOffer,
+                      onReject: _rejectOffer,
+                    )
+                  : _activeRide != null
+                      ? _ActiveRideCard(
+                          key: ValueKey(
+                            'ride-${_activeRide!.id}-${_activeRide!.state}',
+                          ),
                           ride: _activeRide!,
                           busy: _rideAction,
                           onNavigate: _navigateActiveRide,
                           onArrived: _markArrived,
                           onStart: _startRide,
                           onComplete: _completeRide,
+                          route: _activeRoute,
                         )
-                      else if (!supply.online)
-                        const _WaitingCard(
-                          icon: Icons.power_settings_new_rounded,
-                          title: 'Você está offline',
-                          subtitle:
-                              'Fique online para começar a receber corridas.',
-                        )
-                      else if (supply.busy)
-                        const _WaitingCard(
-                          icon: Icons.directions_car_filled_rounded,
-                          title: 'Corrida em andamento',
-                          subtitle:
-                              'Finalize a corrida atual antes de receber outra.',
-                        )
-                      else if (_offer != null)
-                        _OfferCard(
-                          offer: _offer!,
-                          busy: _offerAction,
-                          onAccept: _acceptOffer,
-                          onReject: _rejectOffer,
-                        )
-                      else
-                        const _WaitingCard(
-                          icon: Icons.radar_rounded,
-                          title: 'Procurando corridas por perto',
-                          subtitle:
-                              'Mantenha o app aberto nesta primeira versão de testes.',
+                      : _MapAvailabilityPanel(
+                          key: ValueKey('availability-${supply.online}'),
+                          online: supply.online,
+                          changing: _changingStatus,
+                          onToggle: _setOnline,
+                          onUpdateLocation: _updateLocation,
                         ),
-                      const SizedBox(height: RamoSpacing.lg),
-                      _DriverFinanceCard(
-                        finance: _finance,
-                        loading: _financeLoading,
-                        requesting: _payoutAction,
-                        onRefresh: _refreshFinance,
-                        onRequestPayout: _requestPayout,
-                      ),
-                    ],
-                  ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEarnings() {
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _refreshFinance,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.xxl,
+          ),
+          children: [
+            const _SectionHeader(
+              eyebrow: 'CARTEIRA',
+              title: 'Ganhos',
+              subtitle: 'Saldo, repasses e extrato em um só lugar.',
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            _DriverFinanceCard(
+              finance: _finance,
+              loading: _financeLoading,
+              requesting: _payoutAction,
+              onRefresh: _refreshFinance,
+              onRequestPayout: _requestPayout,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivity(DriverSupplySnapshot supply) {
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          RamoSpacing.lg,
+          RamoSpacing.lg,
+          RamoSpacing.lg,
+          RamoSpacing.xxl,
+        ),
+        children: [
+          const _SectionHeader(
+            eyebrow: 'CORRIDAS',
+            title: 'Atividade',
+            subtitle: 'Sua operação atual fica separada da tela principal.',
+          ),
+          const SizedBox(height: RamoSpacing.lg),
+          if (_activeRide != null)
+            _ActiveRideCard(
+              ride: _activeRide!,
+              busy: _rideAction,
+              onNavigate: _navigateActiveRide,
+              onArrived: _markArrived,
+              onStart: _startRide,
+              onComplete: _completeRide,
+              route: _activeRoute,
+            )
+          else
+            _WaitingCard(
+              icon: Icons.history_rounded,
+              title: 'Nenhuma corrida ativa',
+              subtitle: supply.online
+                  ? 'Você está online e pronto para receber novas corridas.'
+                  : 'Fique online pela tela Início quando quiser dirigir.',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfile(DriverSupplySnapshot supply) {
+    final categories = supply.categories
+        .map((category) => switch (category) {
+              'moto' => 'Moto',
+              'car' => 'Carro',
+              'comfort_black' => 'Comfort / Black',
+              'buggy' => 'Buggy',
+              'delivery' => 'Entrega',
+              _ => category,
+            })
+        .join(' · ');
+
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(
+          RamoSpacing.lg,
+          RamoSpacing.lg,
+          RamoSpacing.lg,
+          RamoSpacing.xxl,
+        ),
+        children: [
+          const _SectionHeader(
+            eyebrow: 'CONTA',
+            title: 'Perfil',
+            subtitle: 'Dados da conta e da operação do motorista.',
+          ),
+          const SizedBox(height: RamoSpacing.lg),
+          _DriverProfileHero(
+            driverId: supply.driverId,
+            online: supply.online,
+          ),
+          const SizedBox(height: RamoSpacing.lg),
+          _ProfileOption(
+            icon: Icons.directions_car_filled_rounded,
+            title: 'Veículo',
+            subtitle: supply.vehicleId,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _DriverVehicleDetailsScreen(
+                    vehicleId: supply.vehicleId,
+                    categories: categories,
+                    seatCapacity: supply.seatCapacity,
+                    fourByFour: supply.fourByFour,
+                  ),
                 ),
+              );
+            },
+          ),
+          _ProfileOption(
+            icon: Icons.location_on_rounded,
+            title: 'Localização',
+            subtitle: 'Atualização automática durante o modo online',
+            onTap: _updateLocation,
+          ),
+          if (widget.onLogout != null)
+            _ProfileOption(
+              icon: Icons.logout_rounded,
+              title: 'Sair da conta',
+              subtitle: 'Encerrar a sessão neste aparelho',
+              onTap: _logout,
+              destructive: true,
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final supply = _supply;
+
+    if (_loading || supply == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedTab,
+        children: [
+          _buildHomeMap(supply),
+          _buildEarnings(),
+          _buildActivity(supply),
+          _buildProfile(supply),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) {
+          setState(() => _selectedTab = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Início',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+            label: 'Ganhos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long_rounded),
+            label: 'Atividade',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Perfil',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapCircleButton extends StatelessWidget {
+  const _MapCircleButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 5,
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+class _EarningsPill extends StatelessWidget {
+  const _EarningsPill({
+    required this.amountCents,
+    required this.onTap,
+  });
+
+  final int amountCents;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: RamoColors.brandBlack,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(RamoRadius.pill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(RamoRadius.pill),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Text(
+            formatCents(amountCents),
+            style: const TextStyle(
+              color: RamoColors.brandYellow,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactMapMessage extends StatelessWidget {
+  const _CompactMapMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 5,
+      borderRadius: BorderRadius.circular(RamoRadius.md),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, size: 19),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MapAvailabilityPanel extends StatelessWidget {
+  const _MapAvailabilityPanel({
+    super.key,
+    required this.online,
+    required this.changing,
+    required this.onToggle,
+    required this.onUpdateLocation,
+  });
+
+  final bool online;
+  final bool changing;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onUpdateLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: online
+            ? Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: 10,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: RamoColors.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Online',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                          ),
+                        ),
+                        Text(
+                          'Procurando corridas por perto',
+                          style: TextStyle(
+                            color: RamoColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Atualizar localização',
+                    onPressed: changing ? null : onUpdateLocation,
+                    icon: const Icon(Icons.my_location_rounded),
+                  ),
+                  TextButton(
+                    onPressed: changing ? null : () => onToggle(false),
+                    child: const Text('Ficar offline'),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Você está offline',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Entre online para começar a receber corridas.',
+                    style: TextStyle(color: RamoColors.muted),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: 112,
+                    height: 56,
+                    child: FilledButton(
+                      key: const Key('driver-go-online'),
+                      onPressed: changing ? null : () => onToggle(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: RamoColors.brandYellow,
+                        foregroundColor: RamoColors.brandBlack,
+                        shape: const StadiumBorder(),
+                      ),
+                      child: changing
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'INICIAR',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .5,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: const TextStyle(
+            color: RamoColors.muted,
+            fontWeight: FontWeight.w900,
+            fontSize: 11,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1,
+              ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: RamoColors.muted,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DriverProfileHero extends StatelessWidget {
+  const _DriverProfileHero({
+    required this.driverId,
+    required this.online,
+  });
+
+  final String driverId;
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.lg),
+      decoration: BoxDecoration(
+        color: RamoColors.brandBlack,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 32,
+            backgroundColor: RamoColors.brandYellow,
+            foregroundColor: RamoColors.brandBlack,
+            child: Icon(Icons.person_rounded, size: 34),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Motorista Ramo Nessa',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 19,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  driverId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            online ? 'ONLINE' : 'OFFLINE',
+            style: TextStyle(
+              color: online ? RamoColors.brandYellow : Colors.white70,
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileOption extends StatelessWidget {
+  const _ProfileOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      leading: CircleAvatar(
+        backgroundColor: RamoColors.surfaceRaised,
+        child: Icon(
+          icon,
+          color: destructive
+              ? Theme.of(context).colorScheme.error
+              : RamoColors.brandBlack,
+        ),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: destructive ? Theme.of(context).colorScheme.error : null,
+        ),
+      ),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
+    );
+  }
+}
+
+class _DriverVehicleDetailsScreen extends StatelessWidget {
+  const _DriverVehicleDetailsScreen({
+    required this.vehicleId,
+    required this.categories,
+    required this.seatCapacity,
+    required this.fourByFour,
+  });
+
+  final String vehicleId;
+  final String categories;
+  final int seatCapacity;
+  final bool fourByFour;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Veículo')),
+      body: ListView(
+        padding: const EdgeInsets.all(RamoSpacing.lg),
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Veículo aprovado'),
+            subtitle: Text(vehicleId),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Categorias'),
+            subtitle: Text(categories.isEmpty ? '—' : categories),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Capacidade'),
+            subtitle: Text('$seatCapacity lugares'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('4x4'),
+            subtitle: Text(fourByFour ? 'Aprovado' : 'Não habilitado'),
+          ),
+        ],
       ),
     );
   }
@@ -1527,12 +2183,14 @@ class _OfferCard extends StatelessWidget {
 
 class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
+    super.key,
     required this.ride,
     required this.busy,
     required this.onNavigate,
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
+    this.route,
   });
 
   final AcceptedDriverRide ride;
@@ -1541,6 +2199,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
+  final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
@@ -1601,6 +2260,15 @@ class _ActiveRideCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: RamoSpacing.xs),
+          if (route != null)
+            Text(
+              '${route!.durationLabel} · ${route!.distanceLabel}',
+              style: const TextStyle(
+                color: RamoColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          if (route != null) const SizedBox(height: 4),
           Text('Seu ganho: ${formatCents(ride.driverEarningsCents)}'),
           if (ride.isCash &&
               ride.cashCollectionAmountCents != null) ...[
