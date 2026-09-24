@@ -24,6 +24,8 @@ export function buildTestEnvironment({ port = 8080 } = {}) {
     `OTP_RATE_LIMIT_SECRET=${secretHex(32)}`,
     `ADMIN_MFA_ENCRYPTION_KEY=${randomBytes(32).toString('base64')}`,
     `ADMIN_LOGIN_RATE_LIMIT_SECRET=${secretHex(32)}`,
+    `DOCUMENT_STORAGE_AUTH_TOKEN=${secretBase64Url(32)}`,
+    `DOCUMENT_INSPECTION_ENCRYPTION_KEY=${randomBytes(32).toString('base64')}`,
     '',
   ].join('\n');
 }
