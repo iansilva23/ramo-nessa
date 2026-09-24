@@ -9,13 +9,17 @@ on:
       - ".github/workflows/resolve-flutterfire-locks.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   resolve:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0
@@ -32,15 +36,14 @@ jobs:
         working-directory: apps/driver
         run: flutter pub get
 
-      - name: Collect lockfiles
+      - name: Commit resolved lockfiles
         run: |
-          mkdir -p resolved-locks/passenger resolved-locks/driver
-          cp apps/passenger/pubspec.lock resolved-locks/passenger/pubspec.lock
-          cp apps/driver/pubspec.lock resolved-locks/driver/pubspec.lock
-
-      - name: Upload resolved lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutterfire-lockfiles
-          path: resolved-locks
-          if-no-files-found: error
+          if git diff --quiet -- apps/passenger/pubspec.lock apps/driver/pubspec.lock; then
+            echo "Lockfiles already resolved."
+            exit 0
+          fi
+          git config user.name "ramo-nessa-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/passenger/pubspec.lock apps/driver/pubspec.lock
+          git commit -m "chore(push): resolve FlutterFire lockfiles"
+          git push origin "HEAD:${{ github.head_ref }}"
