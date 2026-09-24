@@ -30,6 +30,20 @@ export interface SettleRideInput {
 export interface SettleRideResult {
   ledgerTransaction: LedgerTransaction;
   duplicateSettlement: boolean;
+  cashDebtRecoveredCents: number;
+}
+
+export interface SettleCashRideInput {
+  rideId: string;
+  driverId: string;
+  platformCommissionCents: number;
+  settledAt?: Date;
+}
+
+export interface SettleCashRideResult {
+  ledgerTransaction: LedgerTransaction;
+  duplicateSettlement: boolean;
+  cashDebtCents: number;
 }
 
 export interface ReserveDriverPayoutResult {
@@ -86,6 +100,7 @@ export interface AdminFinanceSummary {
   platformRevenueCents: number;
   driverPayableCents: number;
   driverPayoutPendingCents: number;
+  driverCashCommissionDebtCents: number;
   rideEscrowCents: number;
   passengerWalletCents: number;
   payoutsRequested: number;
@@ -115,11 +130,15 @@ export interface FinanceRepository {
   ): Promise<RefundWalletRideResult>;
 
   settleRide(input: SettleRideInput): Promise<SettleRideResult>;
+  settleCashRide(
+    input: SettleCashRideInput,
+  ): Promise<SettleCashRideResult>;
   reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
 
   getAccountBalanceCents(accountKey: string): Promise<number>;
+  getDriverCashDebtCents(driverId: string): Promise<number>;
   adminFinanceSummary(): Promise<AdminFinanceSummary>;
   listRecentPayments(limit: number): Promise<PaymentRecord[]>;
   listRecentDriverPayouts(limit: number): Promise<DriverPayoutRecord[]>;
