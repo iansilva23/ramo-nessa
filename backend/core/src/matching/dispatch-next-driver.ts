@@ -1,4 +1,7 @@
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
+import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
+import { canDriverAcceptCashRide } from '../payments/cash-policy.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import {
   createDriverOffer,
@@ -31,6 +34,8 @@ export async function dispatchNextDriver(input: {
   now?: Date;
   offerTtlSeconds?: number;
   maxLocationAgeSeconds?: number;
+  finance?: FinanceRepository;
+  paymentPolicySettings?: PaymentPolicySettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<DispatchNextResult> {
   const now = input.now ?? new Date();
@@ -77,6 +82,32 @@ export async function dispatchNextDriver(input: {
     candidates = candidates.filter(
       (candidate) => candidate.supply.driverId === ride.reservedDriverId,
     );
+  }
+
+  if (ride.paymentMethod === 'cash') {
+    if (
+      input.finance == null ||
+      input.paymentPolicySettings == null
+    ) {
+      throw new Error(
+        'Dispatch cash exige política e repositório financeiro.',
+      );
+    }
+    const cashEligible = [];
+    for (const candidate of candidates) {
+      if (
+        await canDriverAcceptCashRide({
+          settings: input.paymentPolicySettings,
+          finance: input.finance,
+          driverId: candidate.supply.driverId,
+          additionalCommissionCents:
+            ride.quote.platformCommissionCents,
+        })
+      ) {
+        cashEligible.push(candidate);
+      }
+    }
+    candidates = cashEligible;
   }
 
   if (input.canOfferDriver != null) {
