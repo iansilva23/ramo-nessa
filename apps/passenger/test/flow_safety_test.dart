@@ -12,6 +12,7 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
@@ -411,6 +412,14 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
     required String idempotencyKey,
   }) async {
     throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
   }
 
   @override
