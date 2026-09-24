@@ -5,9 +5,9 @@ import type {
   AdminRepository,
 } from '../admin/admin-repository.js';
 import {
-  adminPricingCatalogView,
+  STATIC_PRICING_CATALOG_V1,
   type PricingCatalogSnapshot,
-} from './admin-catalog.js';
+} from './catalog-snapshot.js';
 import type {
   PricingCatalogVersionRecord,
   PricingCatalogVersionRepository,
@@ -42,8 +42,8 @@ export function pricingCatalogVersionView(
     publishedAt: record.publishedAt ?? null,
     summary: {
       commissionBps: record.snapshot.commissionBps,
-      preaLocalities: record.snapshot.localities.prea.length,
-      jijocaLocalities: record.snapshot.localities.jijoca.length,
+      preaLocalities: Object.keys(record.snapshot.localities.prea).length,
+      jijocaLocalities: Object.keys(record.snapshot.localities.jijoca).length,
       fixedRoutes: record.snapshot.fixedRoutes.length,
     },
   };
@@ -59,7 +59,8 @@ export async function createPricingCatalogDraft(input: {
   const instant = (input.now ?? new Date()).toISOString();
   const draft = await input.versions.createDraft({
     id: randomUUID(),
-    snapshot: input.snapshot ?? adminPricingCatalogView(),
+    snapshot:
+      input.snapshot ?? structuredClone(STATIC_PRICING_CATALOG_V1),
     createdBy: input.actor,
     createdAt: instant,
   });
