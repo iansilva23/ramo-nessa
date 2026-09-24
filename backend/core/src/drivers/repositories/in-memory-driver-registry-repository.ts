@@ -9,6 +9,14 @@ export class InMemoryDriverRegistryRepository
   implements DriverRegistryRepository {
   private readonly profiles = new Map<string, DriverProfileRecord>();
   private readonly vehicles = new Map<string, DriverVehicleRecord>();
+  private readonly photos = new Map<
+    string,
+    {
+      bytes: Buffer;
+      mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+      updatedAt: string;
+    }
+  >();
 
   async findProfile(
     driverId: string,
@@ -38,6 +46,43 @@ export class InMemoryDriverRegistryRepository
     };
     this.profiles.set(input.driverId, updated);
     return structuredClone(updated);
+  }
+
+  async updateProfilePhoto(input: {
+    driverId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<DriverProfileRecord | null> {
+    const found = this.profiles.get(input.driverId);
+    if (found == null) return null;
+
+    this.photos.set(input.driverId, {
+      bytes: Buffer.from(input.bytes),
+      mimeType: input.mimeType,
+      updatedAt: input.updatedAt,
+    });
+    const updated = {
+      ...found,
+      photoUpdatedAt: input.updatedAt,
+      updatedAt: input.updatedAt,
+    };
+    this.profiles.set(input.driverId, updated);
+    return structuredClone(updated);
+  }
+
+  async findProfilePhoto(driverId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null> {
+    const found = this.photos.get(driverId);
+    if (found == null) return null;
+    return {
+      bytes: Buffer.from(found.bytes),
+      mimeType: found.mimeType,
+      updatedAt: found.updatedAt,
+    };
   }
 
   async findVehicleByDriverId(
