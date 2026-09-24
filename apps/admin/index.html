@@ -899,10 +899,148 @@
             </div>
 
             <div class="pricing-readonly-note">
-              <strong>Somente leitura</strong>
+              <strong>Catálogo ativo protegido</strong>
               <span>
-                O catálogo atual ainda é estático. Alterações de preço e vigência só serão liberadas após persistência, versionamento e auditoria próprios.
+                O preço em produção nunca é alterado diretamente. Mudanças são feitas em rascunho, revisadas e só entram em vigor quando uma versão é publicada com vigência definida.
               </span>
+            </div>
+
+            <div class="pricing-workflow-grid">
+              <article class="panel-card panel-card--table">
+                <div class="pricing-table-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">VERSÕES</span>
+                    <h2>Histórico comercial</h2>
+                  </div>
+                  <button
+                    id="pricing-create-draft-button"
+                    class="button button--primary"
+                    type="button"
+                  >
+                    Novo rascunho
+                  </button>
+                </div>
+                <div class="table-wrap">
+                  <table class="pricing-versions-table">
+                    <thead>
+                      <tr>
+                        <th>Versão</th>
+                        <th>Status</th>
+                        <th>Vigência</th>
+                        <th>Atualizada</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="pricing-versions-body"></tbody>
+                  </table>
+                </div>
+                <div id="pricing-versions-empty" class="empty-state">
+                  Nenhuma versão persistida ainda.
+                </div>
+              </article>
+
+              <article class="panel-card pricing-editor-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">RASCUNHO</span>
+                    <h2>Editar e publicar</h2>
+                  </div>
+                  <span id="pricing-editor-status" class="pill pill--neutral">Nenhum</span>
+                </div>
+
+                <div id="pricing-editor-empty" class="empty-state">
+                  Abra uma versão em rascunho ou crie uma nova para alterar preços.
+                </div>
+
+                <div id="pricing-editor-controls" hidden>
+                  <div class="pricing-selected-version">
+                    <strong id="pricing-selected-version-title">—</strong>
+                    <small id="pricing-selected-version-meta">—</small>
+                  </div>
+
+                  <form id="pricing-edit-form" class="pricing-edit-form">
+                    <label class="field">
+                      <span>Tipo de alteração</span>
+                      <select id="pricing-edit-kind">
+                        <option value="fixed_route">Rota fixa</option>
+                        <option value="locality_price">Preço por localidade</option>
+                      </select>
+                    </label>
+
+                    <div id="pricing-fixed-route-fields" class="pricing-edit-group">
+                      <label class="field">
+                        <span>ID da rota</span>
+                        <input id="pricing-route-id" autocomplete="off" placeholder="prea-jijoca-car">
+                      </label>
+                      <label class="field">
+                        <span>Preço dia (R$)</span>
+                        <input id="pricing-route-day" inputmode="decimal" placeholder="120,00">
+                      </label>
+                      <label class="field">
+                        <span>Preço após 22h (R$)</span>
+                        <input id="pricing-route-night" inputmode="decimal" placeholder="140,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Base</span>
+                        <select id="pricing-locality-hub">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input id="pricing-locality-id" autocomplete="off" placeholder="formosa">
+                      </label>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-locality-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Formato do preço</span>
+                        <select id="pricing-locality-price-kind">
+                          <option value="exact">Valor exato</option>
+                          <option value="range">Faixa</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span id="pricing-locality-min-label">Preço (R$)</span>
+                        <input id="pricing-locality-min" inputmode="decimal" placeholder="25,00">
+                      </label>
+                      <label id="pricing-locality-max-field" class="field" hidden>
+                        <span>Máximo (R$)</span>
+                        <input id="pricing-locality-max" inputmode="decimal" placeholder="30,00">
+                      </label>
+                    </div>
+
+                    <button id="pricing-save-draft-button" class="button button--primary" type="submit">
+                      Salvar no rascunho
+                    </button>
+                  </form>
+
+                  <div class="pricing-publish-panel">
+                    <div>
+                      <strong>Publicar versão</strong>
+                      <small>
+                        Se a vigência ficar vazia, entra em vigor imediatamente.
+                      </small>
+                    </div>
+                    <label class="field">
+                      <span>Vigência</span>
+                      <input id="pricing-effective-from" type="datetime-local">
+                    </label>
+                    <button id="pricing-publish-button" class="button button--dark" type="button">
+                      Publicar versão
+                    </button>
+                  </div>
+                </div>
+              </article>
             </div>
 
             <article class="panel-card panel-card--table pricing-table-card">
