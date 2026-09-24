@@ -493,3 +493,55 @@ class DriverActivitySnapshot {
   final int earningsCents;
   final List<DriverActivityRide> rides;
 }
+
+
+class NearbyDriverPosition {
+  const NearbyDriverPosition({
+    required this.latitude,
+    required this.longitude,
+    required this.busy,
+    required this.locationAgeSeconds,
+  });
+
+  factory NearbyDriverPosition.fromJson(Map<String, dynamic> json) {
+    return NearbyDriverPosition(
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      busy: json['busy'] as bool? ?? false,
+      locationAgeSeconds:
+          (json['locationAgeSeconds'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final double latitude;
+  final double longitude;
+  final bool busy;
+  final int locationAgeSeconds;
+}
+
+class NearbyDriversSnapshot {
+  const NearbyDriversSnapshot({
+    required this.enabled,
+    required this.refreshAfterSeconds,
+    required this.drivers,
+  });
+
+  factory NearbyDriversSnapshot.fromJson(Map<String, dynamic> json) {
+    final raw=json['drivers'];
+    return NearbyDriversSnapshot(
+      enabled: json['enabled'] as bool? ?? false,
+      refreshAfterSeconds:
+          (json['refreshAfterSeconds'] as num?)?.toInt() ?? 30,
+      drivers: raw is List
+          ? raw
+              .whereType<Map<String,dynamic>>()
+              .map(NearbyDriverPosition.fromJson)
+              .toList(growable:false)
+          : const [],
+    );
+  }
+
+  final bool enabled;
+  final int refreshAfterSeconds;
+  final List<NearbyDriverPosition> drivers;
+}
