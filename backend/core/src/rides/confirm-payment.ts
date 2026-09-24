@@ -65,7 +65,19 @@ export async function confirmRidePayment(
     ride.paymentStatus === input.payment.status &&
     CONFIRMED_PAYMENT_RIDE_STATES.has(ride.state)
   ) {
-    return ride;
+    if (ride.paymentMethod === input.payment.method) {
+      return ride;
+    }
+    if (ride.paymentMethod == null) {
+      return repository.save({
+        ...ride,
+        paymentMethod: input.payment.method,
+      });
+    }
+    throw new RidePaymentConfirmationError(
+      'RIDE_NOT_AWAITING_PAYMENT',
+      'Corrida já possui outra forma de pagamento confirmada.',
+    );
   }
 
   if (ride.state !== 'AWAITING_PAYMENT') {
@@ -82,6 +94,7 @@ export async function confirmRidePayment(
     ...ride,
     state,
     paymentStatus: input.payment.status,
+    paymentMethod: input.payment.method,
     updatedAt,
   });
 }
