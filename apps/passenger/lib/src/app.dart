@@ -17,6 +17,7 @@ import 'features/pricing/data/pricing_quote_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
+import 'preview/passenger_preview_dependencies.dart';
 
 class RamoNessaPassengerApp extends StatelessWidget {
   const RamoNessaPassengerApp({
@@ -51,6 +52,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coreUri = RamoCoreConfig.baseUri;
+    final preview =
+        RamoCoreConfig.previewMode ? PassengerPreviewDependencies() : null;
     final restoredToken = accessToken?.trim();
     final initialToken =
         restoredToken != null && restoredToken.length >= 20
@@ -64,19 +67,25 @@ class RamoNessaPassengerApp extends StatelessWidget {
         PassengerHomeScreen(
           accessToken: token,
           onLogout: logout,
-          locationService: locationService,
+          locationService: locationService ?? preview?.location,
           routeService: routeService,
           placeSearchService: placeSearchService,
-          pricingQuoteService: pricingQuoteService,
-          ridePreparationService: ridePreparationService,
-          paymentService: paymentService,
-          rideTrackingService: rideTrackingService,
+          pricingQuoteService: pricingQuoteService ?? preview?.pricing,
+          ridePreparationService:
+              ridePreparationService ?? preview?.ridePreparation,
+          paymentService: paymentService ?? preview?.payments,
+          rideTrackingService: rideTrackingService ?? preview?.tracking,
           rideRealtimeService: rideRealtimeService,
           networkTilesEnabled: networkTilesEnabled,
         );
 
     final Widget homeWidget;
-    if (coreUri == null && kReleaseMode) {
+    if (RamoCoreConfig.previewMode) {
+      homeWidget = home(
+        null,
+        () async => true,
+      );
+    } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
     } else if (coreUri == null) {
       homeWidget = home(initialToken);
