@@ -15,6 +15,7 @@ import '../../../core/communications/app_release_policy_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
+import '../../profile/presentation/driver_security_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/driver_route_service.dart';
@@ -1604,6 +1605,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   ),
                 );
               },
+            ),
+            _ProfileOption(
+              icon: Icons.shield_outlined,
+              title: 'Segurança',
+              subtitle: 'Sessões, acessos e proteção da conta',
+              onTap: _api == null
+                  ? () {}
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverSecurityScreen(
+                            api: _api!,
+                            profile: _profile,
+                          ),
+                        ),
+                      );
+                    },
             ),
             _ProfileOption(
               icon: Icons.location_on_rounded,
