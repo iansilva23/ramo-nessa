@@ -31,6 +31,17 @@ export type PricingCatalogDraftPatch =
         | 'buggy';
       enabled: boolean;
       requiresFourByFourOnJeriBoundary: boolean;
+    }
+  | {
+      kind: 'zone_policy';
+      zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+      enabled: boolean;
+    }
+  | {
+      kind: 'locality_structure';
+      operation: 'add' | 'remove';
+      scope: 'prea' | 'jijoca' | 'external';
+      localityId: string;
     };
 
 function objectValue(
@@ -58,6 +69,19 @@ function textValue(
   ) {
     throw new InvalidPricingCatalogPatchError(
       `${field} é inválido.`,
+    );
+  }
+  return text;
+}
+
+function identifierValue(
+  value: unknown,
+  field: string,
+): string {
+  const text = textValue(value, field, 80);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(text)) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve usar apenas letras minúsculas, números e hífens.`,
     );
   }
   return text;
@@ -203,7 +227,56 @@ export function parsePricingCatalogDraftPatch(
     };
   }
 
+  if (kind === 'zone_policy') {
+    const zoneId = textValue(value.zoneId, 'zoneId', 30);
+    if (
+      zoneId !== 'jericoacoara' &&
+      zoneId !== 'jijoca' &&
+      zoneId !== 'prea' &&
+      zoneId !== 'external'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'zoneId inválida.',
+      );
+    }
+    return {
+      kind,
+      zoneId,
+      enabled: booleanValue(value.enabled, 'enabled'),
+    };
+  }
+
+  if (kind === 'locality_structure') {
+    const operation = textValue(value.operation, 'operation', 20);
+    if (operation !== 'add' && operation !== 'remove') {
+      throw new InvalidPricingCatalogPatchError(
+        'operation deve ser add ou remove.',
+      );
+    }
+
+    const scope = textValue(value.scope, 'scope', 20);
+    if (
+      scope !== 'prea' &&
+      scope !== 'jijoca' &&
+      scope !== 'external'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'scope deve ser prea, jijoca ou external.',
+      );
+    }
+
+    return {
+      kind,
+      operation,
+      scope,
+      localityId: identifierValue(
+        value.localityId,
+        'localityId',
+      ),
+    };
+  }
+
   throw new InvalidPricingCatalogPatchError(
-    'kind deve ser fixed_route, locality_price ou category_policy.',
+    'kind de alteração do catálogo não é suportado.',
   );
 }
