@@ -84,3 +84,28 @@ proxy da infraestrutura.
 
 `TRUST_PROXY=true` só pode ser usado quando o proxy confiável sobrescreve
 `X-Forwarded-For`; caso contrário mantenha `false`.
+
+
+## Firebase Cloud Messaging
+
+O método recomendado para produção é manter o JSON da Service Account fora do
+repositório e montá-lo como arquivo somente-leitura no host/container.
+
+Variáveis do Core:
+
+```bash
+PUSH_PROVIDER=fcm
+FIREBASE_SERVICE_ACCOUNT_FILE=/run/secrets/ramo-nessa-firebase.json
+```
+
+O arquivo deve ser o JSON baixado no Firebase Console em
+Configurações do projeto -> Contas de serviço -> Firebase Admin SDK.
+
+Nunca copie esse JSON para o Git, para a imagem Docker ou para logs.
+No host, restrinja as permissões do arquivo e, se o Core rodar em container,
+monte-o como volume/secret somente-leitura em
+`/run/secrets/ramo-nessa-firebase.json`.
+
+A configuração por `FIREBASE_PROJECT_ID`,
+`FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continua aceita como
+alternativa, mas o arquivo montado é preferível.
