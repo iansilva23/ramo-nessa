@@ -1750,6 +1750,71 @@ export class PostgresFinanceRepository implements FinanceRepository {
     return result.rows.map(mapPayout);
   }
 
+  async listLedgerTransactionsForAccounts(
+    accountKeys: readonly string[],
+    limit: number,
+  ): Promise<LedgerTransaction[]> {
+    const keys = [...new Set(
+      accountKeys.map((value) => value.trim()).filter(Boolean),
+    )];
+    if (keys.length === 0) return [];
+
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<LedgerTransactionRow>(
+      `
+      SELECT DISTINCT
+        transaction.id,
+        transaction.kind,
+        transaction.ride_id,
+        transaction.payment_id,
+        transaction.payout_id,
+        transaction.wallet_topup_id,
+        transaction.reference_key,
+        transaction.created_at
+      FROM ledger_transactions AS transaction
+      INNER JOIN ledger_entries AS entry
+        ON entry.transaction_id = transaction.id
+      WHERE entry.account_key = ANY($1::text[])
+      ORDER BY transaction.created_at DESC, transaction.id DESC
+      LIMIT $2
+      `,
+      [keys, safeLimit],
+    );
+
+    const transactions: LedgerTransaction[] = [];
+    for (const row of result.rows) {
+      const entries = await this.pool.query<LedgerEntryRow>(
+        `
+        SELECT account_key, direction, amount_cents
+        FROM ledger_entries
+        WHERE transaction_id = $1
+        ORDER BY created_at, id
+        `,
+        [row.id],
+      );
+
+      transactions.push({
+        id: row.id,
+        kind: row.kind,
+        ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
+        ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
+        ...(row.payout_id != null ? { payoutId: row.payout_id } : {}),
+        ...(row.wallet_topup_id != null
+          ? { walletTopupId: row.wallet_topup_id }
+          : {}),
+        referenceKey: row.reference_key,
+        entries: entries.rows.map((entry) => ({
+          accountKey: entry.account_key,
+          direction: entry.direction,
+          amountCents: entry.amount_cents,
+        })),
+        createdAt: row.created_at.toISOString(),
+      });
+    }
+
+    return transactions;
+  }
+
   async getAccountBalanceCents(accountKey: string): Promise<number> {
     const result = await this.pool.query<{ balance_cents: string }>(
       `
