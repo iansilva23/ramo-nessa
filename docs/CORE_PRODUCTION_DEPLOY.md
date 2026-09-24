@@ -109,3 +109,37 @@ monte-o como volume/secret somente-leitura em
 A configuração por `FIREBASE_PROJECT_ID`,
 `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continua aceita como
 alternativa, mas o arquivo montado é preferível.
+
+
+## Mercado Pago
+
+O Core usa Checkout Transparente via **Orders API** para Pix. O Access Token é
+credencial privada e nunca deve ser enviado ao app ou versionado no Git.
+
+Ambiente de teste:
+
+```bash
+MERCADO_PAGO_MODE=test
+MERCADO_PAGO_ACCESS_TOKEN_TEST=<secret>
+MERCADO_PAGO_WEBHOOK_SECRET=<secret>
+```
+
+Produção:
+
+```bash
+MERCADO_PAGO_MODE=production
+MERCADO_PAGO_ACCESS_TOKEN=<secret>
+MERCADO_PAGO_WEBHOOK_SECRET=<secret>
+```
+
+Endpoint para configurar nas notificações de Orders do Mercado Pago:
+
+```text
+https://<dominio-do-core>/v1/webhooks/mercado-pago/orders
+```
+
+O Core valida `x-signature` e `x-request-id`, consulta a Order diretamente
+no Mercado Pago e somente depois atualiza pagamento/corrida.
+
+Para Pix, o identificador da Order é persistido como referência do processador,
+permitindo consulta e reembolso idempotentes.
