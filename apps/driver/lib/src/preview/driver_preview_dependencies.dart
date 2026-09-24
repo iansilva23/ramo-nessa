@@ -145,6 +145,28 @@ final class _PreviewDriverApi implements DriverApi {
   }
 
   @override
+  Future<NearbyDriversSnapshot> nearbyDrivers() async {
+    return const NearbyDriversSnapshot(
+      enabled: true,
+      refreshAfterSeconds: 20,
+      drivers: [
+        NearbyDriverPosition(
+          latitude: -2.7982,
+          longitude: -40.5180,
+          busy: false,
+          locationAgeSeconds: 8,
+        ),
+        NearbyDriverPosition(
+          latitude: -2.7918,
+          longitude: -40.5095,
+          busy: true,
+          locationAgeSeconds: 14,
+        ),
+      ],
+    );
+  }
+
+  @override
   Future<DriverProfileSnapshot> profile() async {
     return const DriverProfileSnapshot(
       driverId: 'preview-driver',
