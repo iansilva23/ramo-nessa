@@ -208,6 +208,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    getPassenger(token, passengerId) {
+      return request(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}`,
+        { token },
+      );
+    },
+
     drivers(
       token,
       { query = '', status = '', limit = 25, cursor = null } = {},
