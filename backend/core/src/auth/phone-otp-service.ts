@@ -224,6 +224,7 @@ async function resolveIdentity(input: {
   subjectType: AuthSubjectType;
   phoneE164: string;
   now: Date;
+  allowPassengerCreate: boolean;
 }): Promise<AuthIdentityRecord | null> {
   const existing = await input.repository.findIdentityByPhone(
     input.subjectType,
@@ -235,7 +236,10 @@ async function resolveIdentity(input: {
     return existing.status === 'active' ? existing : null;
   }
 
-  if (input.subjectType === 'driver') {
+  if (
+    input.subjectType === 'driver' ||
+    !input.allowPassengerCreate
+  ) {
     // Motorista é pré-provisionado. Retornamos um desafio opaco abaixo, mas
     // não persistimos nem enviamos SMS, evitando enumeração de cadastros.
     return null;
@@ -266,6 +270,7 @@ export async function requestPhoneOtp(input: {
   subjectType: AuthSubjectType;
   phone: string;
   email?: string;
+  allowPassengerCreate?: boolean;
   context?: OtpRequestContext;
   now?: Date;
 }): Promise<RequestedPhoneOtp> {
@@ -297,6 +302,8 @@ export async function requestPhoneOtp(input: {
     subjectType: input.subjectType,
     phoneE164,
     now,
+    allowPassengerCreate:
+      input.allowPassengerCreate ?? input.subjectType === 'passenger',
   });
 
   if (identity == null) {
