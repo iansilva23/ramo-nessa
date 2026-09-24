@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_token_store.dart';
 import 'phone_auth_service.dart';
-import 'phone_login_screen.dart';
+import 'passenger_auth_screen.dart';
 
 class MobileAuthGate extends StatefulWidget {
   const MobileAuthGate({
@@ -147,11 +147,9 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
       return widget.authenticatedBuilder(token, _logout);
     }
 
-    return PhoneLoginScreen(
+    return PassengerAuthScreen(
       service: widget.service,
       tokenStore: widget.tokenStore,
-      title: widget.loginTitle,
-      subtitle: widget.loginSubtitle,
       onAuthenticated: _authenticated,
     );
   }
