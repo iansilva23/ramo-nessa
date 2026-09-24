@@ -5,6 +5,8 @@ import type { Pool, PoolClient } from 'pg';
 import type { RideRecord } from '../rides/ride.js';
 import type {
   AcceptRideOfferInput,
+  CancelRideByAdminInput,
+  CancelRideByAdminResult,
   CreateRideOfferInput,
   ExpireRideOfferInput,
   MarkNoDriverFoundInput,
@@ -554,6 +556,132 @@ export class PostgresRideMatchingRepository
 
       await client.query('COMMIT');
       return mapRide(updated.rows[0]!);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async cancelRideByAdmin(
+    input: CancelRideByAdminInput,
+  ): Promise<CancelRideByAdminResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      const ride = await lockRide(client, input.rideId);
+      if (ride == null) {
+        throw new RideOfferError(
+          'RIDE_NOT_READY',
+          'Corrida não encontrada para cancelamento.',
+        );
+      }
+
+      if (
+        ride.state === 'CANCELLED_BY_ADMIN' ||
+        ride.state === 'REFUND_PENDING' ||
+        ride.state === 'REFUNDED'
+      ) {
+        await client.query('COMMIT');
+        return {
+          ride: mapRide(ride),
+          alreadyCancelled: true,
+          cancelledOffers: 0,
+          releasedDriverId:
+            ride.driver_id ?? ride.reserved_driver_id ?? null,
+        };
+      }
+
+      if (
+        ![
+          'PAID',
+          'SEARCHING_DRIVER',
+          'DRIVER_ASSIGNED',
+          'DRIVER_ARRIVING',
+          'DRIVER_ARRIVED',
+        ].includes(ride.state)
+      ) {
+        throw new RideOfferError(
+          'RIDE_NOT_READY',
+          `Corrida em ${ride.state} não pode ser cancelada administrativamente nesta etapa.`,
+        );
+      }
+
+      const offers = await client.query<{ id: string }>(
+        `
+        UPDATE ride_offers
+        SET status = 'CANCELLED', updated_at = $2
+        WHERE ride_id = $1
+          AND status = 'OFFERED'
+        RETURNING id
+        `,
+        [ride.id, input.cancelledAt],
+      );
+
+      await client.query(
+        `
+        UPDATE driver_supply
+        SET reserved_ride_id = NULL,
+            reserved_until = NULL,
+            updated_at = $2
+        WHERE reserved_ride_id = $1
+        `,
+        [ride.id, input.cancelledAt],
+      );
+
+      if (ride.driver_id != null) {
+        await client.query(
+          `
+          UPDATE driver_supply
+          SET busy = FALSE,
+              reserved_ride_id = NULL,
+              reserved_until = NULL,
+              updated_at = $3
+          WHERE driver_id = $1
+            AND NOT EXISTS (
+              SELECT 1
+              FROM rides other
+              WHERE other.driver_id = $1
+                AND other.id <> $2
+                AND other.state IN (
+                  'DRIVER_ASSIGNED',
+                  'DRIVER_ARRIVING',
+                  'DRIVER_ARRIVED',
+                  'IN_PROGRESS'
+                )
+            )
+          `,
+          [ride.driver_id, ride.id, input.cancelledAt],
+        );
+      }
+
+      const updated = await client.query<RideRow>(
+        `
+        UPDATE rides
+        SET state = 'CANCELLED_BY_ADMIN',
+            reserved_driver_id = NULL,
+            driver_hold_expires_at = NULL,
+            updated_at = $2
+        WHERE id = $1
+        RETURNING ${RIDE_COLUMNS}
+        `,
+        [ride.id, input.cancelledAt],
+      );
+      const updatedRide = updated.rows[0];
+      if (updatedRide == null) {
+        throw new Error('Corrida não foi atualizada durante cancelamento.');
+      }
+
+      await client.query('COMMIT');
+      return {
+        ride: mapRide(updatedRide),
+        alreadyCancelled: false,
+        cancelledOffers: offers.rowCount ?? 0,
+        releasedDriverId:
+          ride.driver_id ?? ride.reserved_driver_id ?? null,
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
