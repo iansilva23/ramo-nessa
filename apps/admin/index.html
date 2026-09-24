@@ -861,7 +861,7 @@
               <div>
                 <span class="eyebrow eyebrow--dark">CATÁLOGO COMERCIAL</span>
                 <h1>Preços e zonas</h1>
-                <p>Consulta somente leitura do catálogo v1 autoritativo usado pelo Core.</p>
+                <p>Catálogo autoritativo versionado usado pelo Core para preços, categorias, zonas e localidades.</p>
               </div>
               <div class="dashboard-refresh">
                 <small id="pricing-mode">Aguardando catálogo</small>
@@ -965,6 +965,8 @@
                         <option value="fixed_route">Rota fixa</option>
                         <option value="locality_price">Preço por localidade</option>
                         <option value="category_policy">Categoria e elegibilidade</option>
+                        <option value="zone_policy">Disponibilidade de zona</option>
+                        <option value="locality_structure">Estrutura de localidade</option>
                       </select>
                     </label>
 
@@ -1047,6 +1049,51 @@
                       </label>
                     </div>
 
+                    <div id="pricing-zone-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Zona</span>
+                        <select id="pricing-zone-policy-id">
+                          <option value="jericoacoara">Jericoacoara</option>
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destinos externos</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-zone-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-structure-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Ação</span>
+                        <select id="pricing-locality-structure-operation">
+                          <option value="add">Adicionar</option>
+                          <option value="remove">Remover</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Estrutura</span>
+                        <select id="pricing-locality-structure-scope">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destino externo</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-structure-id"
+                          autocomplete="off"
+                          placeholder="novo-destino"
+                        >
+                      </label>
+                    </div>
+
                     <button id="pricing-save-draft-button" class="button button--primary" type="submit">
                       Salvar no rascunho
                     </button>
@@ -1093,6 +1140,53 @@
               </div>
               <div id="pricing-category-policies-empty" class="empty-state">
                 Nenhuma política de categoria carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ZONAS</span>
+                  <h2>Disponibilidade operacional</h2>
+                </div>
+                <span id="pricing-zone-count" class="pill">0 zonas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Zona</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-zone-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-zone-policies-empty" class="empty-state">
+                Nenhuma política de zona carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">EXTERNOS</span>
+                  <h2>Destinos externos aprovados</h2>
+                </div>
+                <span id="pricing-external-count" class="pill">0 destinos</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>ID da localidade</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-external-localities-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-external-localities-empty" class="empty-state">
+                Nenhum destino externo aprovado.
               </div>
             </article>
 
