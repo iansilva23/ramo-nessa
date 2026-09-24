@@ -114,6 +114,11 @@ const state = {
     from: '',
     to: '',
   },
+  operationalSettings: {
+    driverOfferTtlSeconds: 35,
+    showNearbyDrivers: false,
+    updatedAt: null,
+  },
   selectedRide: null,
   auditEntries: [],
   auditDirectory: {
@@ -329,6 +334,11 @@ function clearSession(message = '') {
     from: '',
     to: '',
   };
+  state.operationalSettings = {
+    driverOfferTtlSeconds: 35,
+    showNearbyDrivers: false,
+    updatedAt: null,
+  };
   state.selectedRide = null;
   state.auditEntries = [];
   state.auditDirectory = {
@@ -506,6 +516,7 @@ function activateView(viewName) {
   }
   if (view === 'rides' && hasScope('rides:read')) {
     void loadRideDirectory({ reset: true, announce: false });
+    void loadOperationalSettings({ announce: false });
   }
   if (
     view === 'passengers' &&
@@ -3523,6 +3534,101 @@ function formatKm(value) {
     : '—';
 }
 
+function renderOperationalSettings(payload = state.operationalSettings) {
+  const ttl = Number(payload?.driverOfferTtlSeconds);
+  const safeTtl = Number.isInteger(ttl) && ttl >= 5 && ttl <= 120
+    ? ttl
+    : 35;
+  const showNearbyDrivers = payload?.showNearbyDrivers === true;
+  const updatedAt =
+    typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
+
+  state.operationalSettings = {
+    driverOfferTtlSeconds: safeTtl,
+    showNearbyDrivers,
+    updatedAt,
+  };
+
+  byId('driver-offer-ttl-seconds').value = String(safeTtl);
+  byId('show-nearby-drivers').checked = showNearbyDrivers;
+
+  const status = byId('operational-settings-status');
+  status.className = showNearbyDrivers
+    ? 'pill pill--success'
+    : 'pill pill--neutral';
+  status.textContent = showNearbyDrivers
+    ? 'Motoristas no mapa: ativo'
+    : 'Motoristas no mapa: oculto';
+
+  byId('operational-settings-updated-at').textContent = updatedAt
+    ? `Atualizado em ${formatDateTime(updatedAt)}`
+    : 'Configuração padrão';
+
+  const canWrite = hasScope('rides:write');
+  byId('driver-offer-ttl-seconds').disabled = !canWrite;
+  byId('show-nearby-drivers').disabled = !canWrite;
+  byId('save-operational-settings-button').disabled = !canWrite;
+}
+
+async function loadOperationalSettings({ announce = true } = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    renderOperationalSettings();
+    return;
+  }
+
+  try {
+    const settings = await api.operationalSettings(state.token);
+    renderOperationalSettings(settings);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Configurações operacionais atualizadas.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleOperationalSettingsSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('rides:write')) return;
+
+  const ttl = Number(byId('driver-offer-ttl-seconds').value);
+  const showNearbyDrivers = byId('show-nearby-drivers').checked;
+  if (!Number.isInteger(ttl) || ttl < 5 || ttl > 120) {
+    setMessage(
+      globalMessage,
+      'O tempo de aceite deve ficar entre 5 e 120 segundos.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('save-operational-settings-button');
+  button.disabled = true;
+  try {
+    const settings = await api.updateOperationalSettings(state.token, {
+      driverOfferTtlSeconds: ttl,
+      showNearbyDrivers,
+    });
+    renderOperationalSettings(settings);
+    setMessage(
+      globalMessage,
+      `Configurações salvas. Novas ofertas usarão ${settings.driverOfferTtlSeconds}s.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('rides:write');
+  }
+}
+
 function renderRideDirectory() {
   const body = byId('ride-directory-body');
   const empty = byId('ride-directory-empty');
@@ -4446,6 +4552,9 @@ loginForm.addEventListener('submit', (event) => {
 byId('logout-button').addEventListener('click', () => {
   void handleLogout();
 });
+byId('operational-settings-form').addEventListener('submit', (event) => {
+  void handleOperationalSettingsSubmit(event);
+});
 byId('ride-directory-form').addEventListener('submit', (event) => {
   event.preventDefault();
   void loadRideDirectory({ reset: true });
@@ -4594,6 +4703,7 @@ renderPassengerDetailEmpty();
 renderFleet();
 renderFinance();
 renderPaymentPolicy();
+renderOperationalSettings();
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
