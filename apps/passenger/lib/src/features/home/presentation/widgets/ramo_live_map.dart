@@ -107,6 +107,8 @@ class RamoLiveMap extends StatefulWidget {
     required this.origin,
     required this.destination,
     required this.routePoints,
+    this.driverPosition,
+    this.driverPositionStale = false,
     this.onMapReady,
     this.networkTilesEnabled = true,
   });
@@ -115,6 +117,8 @@ class RamoLiveMap extends StatefulWidget {
   final RamoPlace? origin;
   final RamoPlace? destination;
   final List<domain.LatLng> routePoints;
+  final domain.LatLng? driverPosition;
+  final bool driverPositionStale;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
 
@@ -151,6 +155,8 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
     if (_styleReady &&
         (oldWidget.origin != widget.origin ||
             oldWidget.destination != widget.destination ||
+            oldWidget.driverPosition != widget.driverPosition ||
+            oldWidget.driverPositionStale != widget.driverPositionStale ||
             !_samePoints(oldWidget.routePoints, widget.routePoints))) {
       unawaited(_syncAnnotations());
     }
@@ -236,6 +242,18 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
           circleRadius: 10,
           circleColor: '#111111',
           circleStrokeWidth: 4,
+          circleStrokeColor: '#F7C600',
+        ),
+      if (widget.driverPosition != null)
+        ml.CircleOptions(
+          geometry: ml.LatLng(
+            widget.driverPosition!.latitude,
+            widget.driverPosition!.longitude,
+          ),
+          circleRadius: 11,
+          circleColor:
+              widget.driverPositionStale ? '#777777' : '#111111',
+          circleStrokeWidth: 5,
           circleStrokeColor: '#F7C600',
         ),
     ];
