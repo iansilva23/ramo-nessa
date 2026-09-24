@@ -12,7 +12,7 @@ ALTER TABLE auth_identities
 ALTER TABLE auth_identities
   ADD COLUMN IF NOT EXISTS photo_url text;
 
-CREATE INDEX IF NOT EXISTS auth_passenger_email_login_idx
+CREATE UNIQUE INDEX IF NOT EXISTS auth_passenger_email_login_idx
   ON auth_identities (email_normalized)
   WHERE subject_type = 'passenger'
     AND email_normalized IS NOT NULL;
