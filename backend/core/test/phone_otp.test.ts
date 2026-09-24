@@ -49,6 +49,30 @@ test('normaliza celular brasileiro para E.164', () => {
   );
 });
 
+
+
+test('e-mail inválido é recusado antes do envio do SMS', async () => {
+  const repository = new InMemoryAuthOtpRepository();
+  const delivery = new RecordingDelivery();
+
+  await assert.rejects(
+    () =>
+      requestPhoneOtp({
+        repository,
+        delivery,
+        subjectType: 'passenger',
+        phone: '88999991234',
+        email: 'email-invalido',
+        now: new Date('2026-09-23T10:00:00.000Z'),
+      }),
+    (error: unknown) =>
+      error instanceof PhoneOtpError &&
+      error.code === 'INVALID_EMAIL',
+  );
+
+  assert.equal(delivery.sent.length, 0);
+});
+
 test('passageiro confirma OTP e recebe sessão Bearer sem reutilizar código', async () => {
   const repository = new InMemoryAuthOtpRepository();
   const sessions = new InMemoryAuthSessionRepository();
@@ -63,6 +87,12 @@ test('passageiro confirma OTP e recebe sessão Bearer sem reutilizar código', a
     email: 'otp-test@example.com',
     now,
   });
+
+  const beforeVerification = await repository.findIdentityByPhone(
+    'passenger',
+    '+5588999991234',
+  );
+  assert.equal(beforeVerification?.emailNormalized, undefined);
 
   assert.equal(delivery.sent.length, 1);
   assert.equal(delivery.sent[0]?.phoneE164, '+5588999991234');
@@ -80,6 +110,15 @@ test('passageiro confirma OTP e recebe sessão Bearer sem reutilizar código', a
   assert.equal(verified.tokenType, 'Bearer');
   assert.equal(verified.subjectType, 'passenger');
   assert.ok(verified.accessToken.length >= 32);
+  assert.equal(verified.emailNormalized, 'otp-test@example.com');
+  const afterVerification = await repository.findIdentityByPhone(
+    'passenger',
+    '+5588999991234',
+  );
+  assert.equal(
+    afterVerification?.emailNormalized,
+    'otp-test@example.com',
+  );
 
   await assert.rejects(
     () =>
