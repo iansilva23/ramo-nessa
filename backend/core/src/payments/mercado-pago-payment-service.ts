@@ -2,10 +2,11 @@ import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
 import { isDriverPaymentHoldExpired, type RideRecord } from '../rides/ride.js';
 import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';
-import type {
-  MercadoPagoOrderStatus,
-  MercadoPagoOrdersClient,
-  MercadoPagoPixOrder,
+import {
+  mercadoPagoOrderRefundState,
+  type MercadoPagoOrderStatus,
+  type MercadoPagoOrdersClient,
+  type MercadoPagoPixOrder,
 } from './mercado-pago-orders.js';
 import { PaymentDomainError, type PaymentRecord } from './payment.js';
 
@@ -139,17 +140,10 @@ export async function applyMercadoPagoOrderStatus(input: {
   }
 
   const status = input.order.status.toLowerCase();
-  const statusDetail = input.order.statusDetail.toLowerCase();
   const paymentStatus = input.order.paymentStatus.toLowerCase();
-  const paymentStatusDetail =
-    input.order.paymentStatusDetail.toLowerCase();
+  const refundState = mercadoPagoOrderRefundState(input.order);
 
-  if (
-    status === 'refunded' ||
-    paymentStatus === 'refunded' ||
-    statusDetail === 'refunded' ||
-    paymentStatusDetail === 'refunded'
-  ) {
+  if (refundState === 'full') {
     if (payment.status === 'refunded') {
       const duplicate = await input.finance.refundExternalPayment({
         paymentId: payment.id,
@@ -173,10 +167,7 @@ export async function applyMercadoPagoOrderStatus(input: {
     };
   }
 
-  if (
-    statusDetail === 'partially_refunded' ||
-    paymentStatusDetail === 'partially_refunded'
-  ) {
+  if (refundState === 'partial') {
     return { kind: 'partially_refunded', payment };
   }
 
