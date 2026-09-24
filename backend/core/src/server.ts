@@ -925,6 +925,31 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/passenger/password/reset/request'
+    ) {
+      const body = await readJson(request);
+      const phone =
+        body != null && typeof body === 'object' && 'phone' in body
+          ? String((body as { phone?: unknown }).phone ?? '')
+          : '';
+
+      const requested = await requestPhoneOtp({
+        repository: authOtpRepository,
+        delivery: otpDeliveryProvider,
+        subjectType: 'passenger',
+        phone,
+        allowPassengerCreate: false,
+        context: {
+          clientIp: requestClientIp(request),
+          clientInstanceId: headerValue(request, 'x-client-instance-id'),
+        },
+      });
+      json(response, 202, requested);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
       requestUrl.pathname === '/v1/auth/passenger/password/login'
     ) {
       const body = await readJson(request);
