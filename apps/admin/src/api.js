@@ -79,6 +79,48 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     return payload;
   }
 
+  async function requestBinary(path, options = {}) {
+    const headers = {
+      accept: 'application/pdf,image/jpeg,image/png',
+    };
+    if (options.token) {
+      headers.authorization = `Bearer ${options.token}`;
+    }
+
+    let response;
+    try {
+      response = await fetchImpl(path, {
+        method: 'GET',
+        headers,
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+      });
+    } catch {
+      throw new AdminApiError(
+        'Não foi possível carregar o arquivo privado.',
+        { code: 'NETWORK_ERROR' },
+      );
+    }
+
+    if (!response.ok) {
+      const payload = await parseResponse(response);
+      throw new AdminApiError(
+        payload?.message || defaultErrorMessage(response.status),
+        {
+          status: response.status,
+          code: payload?.error || 'ADMIN_API_ERROR',
+        },
+      );
+    }
+
+    const contentType =
+      response.headers?.get?.('content-type')?.split(';')[0]?.trim() ??
+      'application/octet-stream';
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return { bytes, contentType };
+  }
+
   return {
     login({ email, password, totpCode }) {
       return request('/v1/admin/auth/login', {
@@ -356,6 +398,23 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     getDriverDocuments(token, driverId) {
       return request(
         `/v1/admin/drivers/${driverId}/documents`,
+        { token },
+      );
+    },
+
+    issueDriverDocumentInspection(token, driverId, documentType) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/documents/${encodeURIComponent(documentType)}/inspection`,
+        {
+          method: 'POST',
+          token,
+        },
+      );
+    },
+
+    readDriverDocumentInspection(token, inspectionToken) {
+      return requestBinary(
+        `/v1/admin/document-inspection/${encodeURIComponent(inspectionToken)}`,
         { token },
       );
     },
