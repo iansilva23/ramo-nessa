@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { STATIC_PRICING_CATALOG_V1 } from '../pricing/catalog-snapshot.js';
+import { requiresFourByFourForTrip } from '../pricing/category-eligibility.js';
 import type { PricingCatalogContext } from '../pricing/effective-catalog.js';
 import { quoteFare } from '../pricing/quote-engine.js';
 import { pricingPeriodAt } from '../pricing/period.js';
@@ -74,6 +75,12 @@ export async function createRide(
     origin: authoritativeQuoteRequest.origin,
     destination: authoritativeQuoteRequest.destination,
     category: authoritativeQuoteRequest.category,
+    requiresFourByFour: requiresFourByFourForTrip({
+      catalog: pricing.snapshot,
+      category: authoritativeQuoteRequest.category,
+      origin: authoritativeQuoteRequest.origin,
+      destination: authoritativeQuoteRequest.destination,
+    }),
     period: authoritativeQuoteRequest.period,
     passengers: authoritativeQuoteRequest.passengers ?? 1,
     ...(authoritativeQuoteRequest.tripDistanceKm != null
