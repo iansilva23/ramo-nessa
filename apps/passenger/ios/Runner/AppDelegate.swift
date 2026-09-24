@@ -8,6 +8,8 @@ import UIKit
 
   private var paymentChannel: FlutterMethodChannel?
   private var pendingCardResult: FlutterResult?
+  private var mercadoPagoInitialized = false
+  private var mercadoPagoPublicKey = ""
 
   override func application(
     _ application: UIApplication,
@@ -81,7 +83,16 @@ import UIKit
       publicKey: publicKey,
       country: .BRA
     )
-    MercadoPagoSDK.shared.initialize(configuration)
+    if mercadoPagoInitialized {
+      if mercadoPagoPublicKey != publicKey {
+        MercadoPagoSDK.shared.setNewConfiguration(configuration)
+        mercadoPagoPublicKey = publicKey
+      }
+    } else {
+      MercadoPagoSDK.shared.initialize(configuration)
+      mercadoPagoInitialized = true
+      mercadoPagoPublicKey = publicKey
+    }
 
     guard let presenter = topViewController(from: window?.rootViewController) else {
       result(
