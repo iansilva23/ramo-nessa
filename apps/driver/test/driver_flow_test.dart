@@ -217,8 +217,11 @@ void main() {
 
       expect(find.text('Taxa de uso do app pendente'), findsNothing);
 
-      await tester.ensureVisible(find.text('Ver extrato'));
-      await tester.tap(find.text('Ver extrato'));
+      final statementButton =
+          find.widgetWithText(TextButton, 'Ver extrato');
+      await tester.ensureVisible(statementButton);
+      await tester.pumpAndSettle();
+      await tester.tap(statementButton);
       await tester.pumpAndSettle();
 
       expect(find.text('Extrato da carteira'), findsOneWidget);
