@@ -319,7 +319,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     await tester.tap(find.text('Pix'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Pagar com Pix'), findsOneWidget);
     expect(find.text('Copiar código Pix'), findsOneWidget);
