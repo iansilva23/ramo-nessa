@@ -39,6 +39,7 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          SWIFT_VERSION: "5.0"
         run: >
           flutter build ios --simulator --debug
           --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
