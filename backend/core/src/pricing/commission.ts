@@ -6,9 +6,12 @@ export interface CommissionSplit {
   driverNetCents: number;
 }
 
-export function splitCommission(totalAmountCents: number): CommissionSplit {
+export function splitCommission(
+  totalAmountCents: number,
+  commissionBps = COMMISSION_BPS,
+): CommissionSplit {
   const platformCommissionCents = Math.round(
-    (totalAmountCents * COMMISSION_BPS) / 10_000,
+    (totalAmountCents * commissionBps) / 10_000,
   );
 
   return {
