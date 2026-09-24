@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
+import '../domain/cash_ride_authorization_result.dart';
+import '../domain/passenger_payment_policy.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import 'passenger_payment_service.dart';
 
@@ -32,6 +34,34 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       };
 
   @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/payments/policy'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerPaymentPolicy.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma política de pagamentos inválida.',
+        );
+      }
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos consultar as formas de pagamento agora.',
+      ),
+    );
+  }
+
+  @override
   Future<int> walletBalanceCents() async {
     final response = await _client
         .get(
@@ -54,6 +84,37 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       apiErrorMessage(
         decoded,
         'Não conseguimos consultar a carteira agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/payments'),
+          headers: _identityHeaders,
+          body: jsonEncode({'method': 'cash'}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return CashRideAuthorizationResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma autorização em dinheiro inválida.',
+        );
+      }
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos autorizar o pagamento em dinheiro agora.',
       ),
     );
   }
