@@ -399,6 +399,9 @@ class DriverProfileSnapshot {
     this.fullName,
     this.preferredName,
     this.profileStatus,
+    this.photoPath,
+    this.ratingAverage,
+    this.ratingCount = 0,
     this.vehicleId,
     this.vehiclePlate,
     this.vehicleMake,
@@ -427,6 +430,9 @@ class DriverProfileSnapshot {
       fullName: profileMap['fullName'] as String?,
       preferredName: profileMap['preferredName'] as String?,
       profileStatus: profileMap['status'] as String?,
+      photoPath: profileMap['photoPath'] as String?,
+      ratingAverage: (profileMap['ratingAverage'] as num?)?.toDouble(),
+      ratingCount: (profileMap['ratingCount'] as num?)?.toInt() ?? 0,
       vehicleId: vehicleMap['id'] as String?,
       vehiclePlate: vehicleMap['plateNormalized'] as String?,
       vehicleMake: vehicleMap['make'] as String?,
@@ -449,6 +455,9 @@ class DriverProfileSnapshot {
   final String? fullName;
   final String? preferredName;
   final String? profileStatus;
+  final String? photoPath;
+  final double? ratingAverage;
+  final int ratingCount;
   final String? vehicleId;
   final String? vehiclePlate;
   final String? vehicleMake;
