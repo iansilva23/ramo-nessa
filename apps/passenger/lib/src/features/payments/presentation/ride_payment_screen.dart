@@ -496,7 +496,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Valor da viagem',
+                          'Preço final',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: RamoColors.muted,
                               ),
