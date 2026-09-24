@@ -129,7 +129,46 @@ export async function applyMercadoPagoOrderStatus(input: {
   }
 
   const status = input.order.status.toLowerCase();
+  const statusDetail = input.order.statusDetail.toLowerCase();
   const paymentStatus = input.order.paymentStatus.toLowerCase();
+  const paymentStatusDetail =
+    input.order.paymentStatusDetail.toLowerCase();
+
+  if (
+    status === 'refunded' ||
+    paymentStatus === 'refunded' ||
+    statusDetail === 'refunded' ||
+    paymentStatusDetail === 'refunded'
+  ) {
+    if (payment.status === 'refunded') {
+      const duplicate = await input.finance.refundExternalPayment({
+        paymentId: payment.id,
+        ...(input.now != null ? { refundedAt: input.now } : {}),
+      });
+      return {
+        kind: 'refunded',
+        payment: duplicate.payment,
+        duplicateRefund: true,
+      };
+    }
+
+    const refunded = await input.finance.refundExternalPayment({
+      paymentId: payment.id,
+      ...(input.now != null ? { refundedAt: input.now } : {}),
+    });
+    return {
+      kind: 'refunded',
+      payment: refunded.payment,
+      duplicateRefund: refunded.duplicateRefund,
+    };
+  }
+
+  if (
+    statusDetail === 'partially_refunded' ||
+    paymentStatusDetail === 'partially_refunded'
+  ) {
+    return { kind: 'partially_refunded', payment };
+  }
 
   if (
     status === 'processed' ||
