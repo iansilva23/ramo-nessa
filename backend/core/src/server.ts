@@ -240,6 +240,7 @@ import {
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import { passengerActivityForApp } from './rides/passenger-activity-service.js';
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
@@ -1062,6 +1063,33 @@ const server = createServer(async (request, response) => {
           ? {}
           : { email: identity.emailNormalized }),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/activity'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,2}$/.test(rawLimit)
+          ? 30
+          : Math.max(1, Math.min(50, Number(rawLimit)));
+      json(
+        response,
+        200,
+        await passengerActivityForApp({
+          rides: rideRepository,
+          passengerId: session.subjectId,
+          limit,
+        }),
+      );
       return;
     }
 
