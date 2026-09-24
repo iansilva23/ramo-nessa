@@ -39,11 +39,14 @@ A versão inicial implementa:
 - diretório paginado somente leitura de passageiros;
 - indicadores reais de total/aprovados/suspensos;
 - dashboard operacional de corridas com estados reais e janela móvel de 24h;
+- mapa da frota ao vivo com GPS, veículo, categoria e estado operacional;
+- módulo Financeiro somente leitura derivado do ledger, com pagamentos, comissão, saldos e saques;
 - módulo Viagens com filtros, busca, paginação e detalhe read-only;
 - catálogo ativo protegido de preços/zonas com histórico de versões;
 - criação e edição de rascunhos de preços para rotas fixas e localidades;
 - publicação auditada com vigência imediata ou programada;
 - ativação/desativação versionada de categorias e política 4x4 ao cruzar Jeri;
+- edição estrutural versionada de zonas/localidades suportadas;
 - tabela de corridas ativas com rota, categoria, operador, valor e atualização;
 - consulta de identidade de motorista;
 - cadastro de perfil + veículo com edição e aprovação explícita no painel;
@@ -73,7 +76,6 @@ apps/admin/src/
 ```
 
 A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
-privado, edição estrutural de zonas/localidades, pagamentos, mapa da frota,
-bloqueios e demais módulos. O painel atual
+privado, ações financeiras após gateway real, bloqueios, cancelamentos e demais módulos. O painel atual
 registra a decisão humana, mas não substitui a inspeção do arquivo no storage
 privado autorizado.
