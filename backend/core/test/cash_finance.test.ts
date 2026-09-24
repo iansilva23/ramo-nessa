@@ -143,3 +143,62 @@ test('dívida cash maior que ganho digital é amortizada parcialmente', async ()
     0,
   );
 });
+
+
+test('saldo digital existente quita comissão cash antes de gerar nova dívida', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const driverId = 'driver-cash-existing-balance';
+
+  await finance.createPayment({
+    id: 'existing-balance-payment',
+    rideId: 'existing-balance-ride',
+    method: 'pix',
+    processor: 'test-gateway',
+    status: 'pending',
+    amountCents: 10000,
+    idempotencyKey: 'existing-balance-payment-key',
+    createdAt: '2026-09-24T03:30:00.000Z',
+    updatedAt: '2026-09-24T03:30:00.000Z',
+  });
+  const captured = await finance.capturePayment({
+    paymentId: 'existing-balance-payment',
+    processorEventId: 'existing-balance-payment-event',
+  });
+  await finance.settleRide({
+    rideId: 'existing-balance-ride',
+    paymentId: captured.payment.id,
+    driverId,
+    totalAmountCents: 10000,
+    platformCommissionCents: 1000,
+    driverNetCents: 9000,
+  });
+
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      `driver:${driverId}:payable`,
+    ),
+    9000,
+  );
+
+  const cash = await finance.settleCashRide({
+    rideId: 'cash-ride-existing-balance',
+    driverId,
+    platformCommissionCents: 1200,
+  });
+
+  assert.equal(
+    cash.cashCommissionRecoveredFromBalanceCents,
+    1200,
+  );
+  assert.equal(cash.cashDebtCents, 0);
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      `driver:${driverId}:payable`,
+    ),
+    7800,
+  );
+  assert.equal(
+    await finance.getDriverCashDebtCents(driverId),
+    0,
+  );
+});
