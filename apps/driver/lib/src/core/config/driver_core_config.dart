@@ -1,6 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 abstract final class DriverCoreConfig {
+  static const previewMode = bool.fromEnvironment(
+    'RAMO_PREVIEW_MODE',
+    defaultValue: false,
+  );
+
   static const baseUrl = String.fromEnvironment(
     'RAMO_CORE_BASE_URL',
     defaultValue: '',
