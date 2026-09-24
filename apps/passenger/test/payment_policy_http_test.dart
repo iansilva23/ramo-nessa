@@ -99,4 +99,59 @@ void main() {
     expect(result.dispatchStatus, 'SEARCHING_DRIVER');
     expect(result.duplicateAuthorization, isFalse);
   });
+
+  test('criação Pix usa Orders pelo Core e retorna QR/copia e cola', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'payment': {
+            'id': 'payment-pix-http',
+            'status': 'pending',
+          },
+          'pix': {
+            'orderId': 'ORD01PIXHTTP123456789',
+            'paymentId': 'PAY01PIXHTTP123456789',
+            'status': 'created',
+            'statusDetail': 'waiting_payment',
+            'ticketUrl': 'https://example.test/pix',
+            'qrCode': '000201010212-test-pix',
+            'qrCodeBase64': '',
+          },
+          'simulated': false,
+          'actionable': true,
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-pix-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createPixRidePayment(
+      rideId: 'ride-pix-http',
+      idempotencyKey: 'pix-http-idempotency-key',
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/rides/ride-pix-http/payments');
+    expect(
+      captured.headers['authorization'],
+      'Bearer passenger-pix-token-abcdefghijklmnopqrstuvwxyz',
+    );
+    expect(
+      captured.headers['idempotency-key'],
+      'pix-http-idempotency-key',
+    );
+    expect(jsonDecode(captured.body), {'method': 'pix'});
+    expect(result.internalPaymentStatus, 'pending');
+    expect(result.orderId, 'ORD01PIXHTTP123456789');
+    expect(result.qrCode, '000201010212-test-pix');
+  });
+
 }
