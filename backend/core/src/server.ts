@@ -2986,6 +2986,7 @@ const server = createServer(async (request, response) => {
       let status: number;
       switch (error.code) {
         case 'INVALID_PHONE':
+        case 'INVALID_EMAIL':
           status = 422;
           break;
         case 'DRIVER_NOT_REGISTERED':
