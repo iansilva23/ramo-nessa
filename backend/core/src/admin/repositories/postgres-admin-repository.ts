@@ -183,7 +183,7 @@ export class PostgresAdminRepository implements AdminRepository {
 
     const push = (value: unknown): string => {
       params.push(value);
-      return `${params.length}`;
+      return `$${params.length}`;
     };
 
     if (query.actorKind === 'user') {
