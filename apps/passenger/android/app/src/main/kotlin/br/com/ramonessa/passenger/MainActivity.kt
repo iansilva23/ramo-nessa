@@ -17,17 +17,31 @@ class MainActivity : FlutterActivity() {
             PAYMENT_CHANNEL,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "tokenizeCard" -> openCardTokenization(result)
+                "tokenizeCard" -> openCardTokenization(call.arguments, result)
                 else -> result.notImplemented()
             }
         }
     }
 
-    private fun openCardTokenization(result: MethodChannel.Result) {
+    private fun openCardTokenization(
+        arguments: Any?,
+        result: MethodChannel.Result,
+    ) {
         if (pendingCardResult != null) {
             result.error(
                 "CARD_FLOW_ACTIVE",
                 "Já existe um cartão sendo preenchido.",
+                null,
+            )
+            return
+        }
+
+        val amountCents =
+            (arguments as? Map<*, *>)?.get("amountCents") as? Int
+        if (amountCents == null || amountCents <= 0) {
+            result.error(
+                "CARD_AMOUNT_INVALID",
+                "Valor da corrida inválido para validar o cartão.",
                 null,
             )
             return
@@ -44,7 +58,9 @@ class MainActivity : FlutterActivity() {
 
         pendingCardResult = result
         startActivityForResult(
-            Intent(this, CardTokenizationActivity::class.java),
+            Intent(this, CardTokenizationActivity::class.java).apply {
+                putExtra(EXTRA_AMOUNT_CENTS, amountCents)
+            },
             CARD_REQUEST_CODE,
         )
     }
@@ -114,6 +130,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val PAYMENT_CHANNEL =
             "br.com.ramonessa.passenger/payments"
+        const val EXTRA_AMOUNT_CENTS = "amountCents"
         private const val CARD_REQUEST_CODE = 8042
     }
 }
