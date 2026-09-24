@@ -1,0 +1,39 @@
+name: Driver Preview APK
+
+on:
+  push:
+    branches:
+      - build/driver-preview-apk-20260924
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Driver debug APK
+        working-directory: apps/driver
+        run: flutter build apk --debug
+
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-driver-preview-apk
+          path: apps/driver/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 7
