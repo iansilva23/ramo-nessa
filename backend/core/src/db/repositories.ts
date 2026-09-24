@@ -30,8 +30,11 @@ import type { PricingCatalogVersionRepository } from '../pricing/pricing-catalog
 import { InMemoryPricingCatalogVersionRepository } from '../pricing/repositories/in-memory-pricing-catalog-version-repository.js';
 import { PostgresPricingCatalogVersionRepository } from '../pricing/repositories/postgres-pricing-catalog-version-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
+import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
 import { InMemoryFinanceRepository } from '../payments/repositories/in-memory-finance-repository.js';
 import { PostgresFinanceRepository } from '../payments/repositories/postgres-finance-repository.js';
+import { InMemoryPaymentPolicySettingsRepository } from '../payments/repositories/in-memory-payment-policy-settings-repository.js';
+import { PostgresPaymentPolicySettingsRepository } from '../payments/repositories/postgres-payment-policy-settings-repository.js';
 import { InMemoryRideRepository } from '../rides/repositories/in-memory-ride-repository.js';
 import { PostgresRideRepository } from '../rides/repositories/postgres-ride-repository.js';
 import { createPostgresPool } from './postgres.js';
@@ -43,6 +46,7 @@ export interface RepositoryBundle {
   adminHumanAuthRepository: AdminHumanAuthRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
+  paymentPolicySettingsRepository: PaymentPolicySettingsRepository;
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
   driverDocumentRepository: DriverDocumentRepository;
@@ -71,6 +75,8 @@ export function createRepositories(): RepositoryBundle {
         new PostgresAdminHumanAuthRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
+      paymentPolicySettingsRepository:
+        new PostgresPaymentPolicySettingsRepository(pool),
       driverSupplyRepository,
       driverRegistryRepository:
         new PostgresDriverRegistryRepository(pool),
@@ -108,6 +114,8 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryAdminHumanAuthRepository(),
     rideRepository,
     financeRepository: new InMemoryFinanceRepository(),
+    paymentPolicySettingsRepository:
+      new InMemoryPaymentPolicySettingsRepository(),
     driverSupplyRepository,
     driverRegistryRepository:
       new InMemoryDriverRegistryRepository(),
