@@ -55,6 +55,8 @@ export class PricingError extends Error {
   constructor(
     public readonly code:
       | 'UNAVAILABLE_CATEGORY'
+      | 'UNAVAILABLE_ZONE'
+      | 'UNKNOWN_LOCALITY'
       | 'UNKNOWN_ROUTE'
       | 'MISSING_DISTANCE'
       | 'INVALID_PASSENGER_COUNT',
