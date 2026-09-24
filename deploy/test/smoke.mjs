@@ -276,6 +276,36 @@ try {
     );
   }
 
+  const smokePassenger = passengerDirectory.payload.items.find(
+    (item) => item.phoneE164 === '+5588999991278',
+  );
+  const passengerProfile = await jsonRequest(
+    `/v1/admin/passengers/${smokePassenger.passengerId}`,
+    { headers: authHeaders },
+  );
+  if (
+    passengerProfile.response.status !== 200 ||
+    passengerProfile.payload?.passenger?.passengerId !==
+      smokePassenger.passengerId ||
+    passengerProfile.payload?.passenger?.phoneE164 !==
+      '+5588999991278' ||
+    passengerProfile.payload?.passenger?.status !== 'active' ||
+    !Number.isInteger(
+      Number(passengerProfile.payload?.rides?.total),
+    ) ||
+    !Array.isArray(passengerProfile.payload?.recentRides) ||
+    JSON.stringify(passengerProfile.payload).includes(
+      'pickupLatitude',
+    ) ||
+    JSON.stringify(passengerProfile.payload).includes(
+      'dropoffLatitude',
+    )
+  ) {
+    throw new Error(
+      'Ficha administrativa do passageiro não foi confirmada.',
+    );
+  }
+
   const driverId = 'driver-smoke-admin-001';
   const provision = await jsonRequest(
     `/v1/admin/drivers/${driverId}/auth`,
@@ -1168,7 +1198,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, frota/GPS, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados, frota/GPS, ficha de passageiro, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);
