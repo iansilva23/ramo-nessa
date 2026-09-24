@@ -196,6 +196,7 @@ export function rideSettlementLedger(input: {
   totalAmountCents: number;
   platformCommissionCents: number;
   driverNetCents: number;
+  cashDebtRecoveryCents?: number;
   createdAt: string;
 }): LedgerTransaction {
   if (
@@ -207,6 +208,20 @@ export function rideSettlementLedger(input: {
     );
   }
 
+  const cashDebtRecoveryCents =
+    input.cashDebtRecoveryCents ?? 0;
+  if (
+    !Number.isInteger(cashDebtRecoveryCents) ||
+    cashDebtRecoveryCents < 0 ||
+    cashDebtRecoveryCents > input.driverNetCents
+  ) {
+    throw new LedgerError(
+      'Recuperação de dívida cash inválida para a liquidação.',
+    );
+  }
+
+  const driverPayableCents =
+    input.driverNetCents - cashDebtRecoveryCents;
   const entries: LedgerEntry[] = [
     {
       accountKey: `ride:${input.rideId}:escrow`,
@@ -218,11 +233,25 @@ export function rideSettlementLedger(input: {
       direction: 'credit',
       amountCents: input.platformCommissionCents,
     },
-    {
-      accountKey: `driver:${input.driverId}:payable`,
-      direction: 'credit',
-      amountCents: input.driverNetCents,
-    },
+    ...(cashDebtRecoveryCents > 0
+      ? [
+          {
+            accountKey:
+              `driver:${input.driverId}:commission_debt`,
+            direction: 'credit' as const,
+            amountCents: cashDebtRecoveryCents,
+          },
+        ]
+      : []),
+    ...(driverPayableCents > 0
+      ? [
+          {
+            accountKey: `driver:${input.driverId}:payable`,
+            direction: 'credit' as const,
+            amountCents: driverPayableCents,
+          },
+        ]
+      : []),
   ];
 
   assertBalanced(entries);
@@ -233,6 +262,46 @@ export function rideSettlementLedger(input: {
     rideId: input.rideId,
     paymentId: input.paymentId,
     referenceKey: `ride-settlement:${input.rideId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function cashRideCommissionDebtLedger(input: {
+  rideId: string;
+  driverId: string;
+  platformCommissionCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (
+    !Number.isInteger(input.platformCommissionCents) ||
+    input.platformCommissionCents <= 0
+  ) {
+    throw new LedgerError(
+      'Comissão cash precisa ser um inteiro positivo.',
+    );
+  }
+
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:commission_debt`,
+      direction: 'debit',
+      amountCents: input.platformCommissionCents,
+    },
+    {
+      accountKey: 'platform:revenue',
+      direction: 'credit',
+      amountCents: input.platformCommissionCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'CASH_RIDE_COMMISSION_ACCRUED',
+    rideId: input.rideId,
+    referenceKey: `cash-ride-commission:${input.rideId}`,
     entries,
     createdAt: input.createdAt,
   };
