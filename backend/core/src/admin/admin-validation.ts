@@ -501,11 +501,60 @@ export function parseAdminRideDirectoryQuery(
     }
   }
 
+  const parseDateBoundary = (
+    value: string | null,
+    field: 'from' | 'to',
+    endOfDay = false,
+  ): string | undefined => {
+    const raw = value?.trim() ?? '';
+    if (!raw) return undefined;
+    if (
+      raw.length > 40 ||
+      /[\u0000-\u001f\u007f]/.test(raw)
+    ) {
+      throw new InvalidAdminRequestError(
+        `${field} deve ser uma data ISO válida.`,
+      );
+    }
+
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+    const normalized = dateOnly
+      ? `${raw}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`
+      : raw;
+    if (!Number.isFinite(Date.parse(normalized))) {
+      throw new InvalidAdminRequestError(
+        `${field} deve ser uma data ISO válida.`,
+      );
+    }
+    return new Date(normalized).toISOString();
+  };
+
+  const createdFrom = parseDateBoundary(
+    searchParams.get('from'),
+    'from',
+  );
+  const createdTo = parseDateBoundary(
+    searchParams.get('to'),
+    'to',
+    true,
+  );
+  if (
+    createdFrom != null &&
+    createdTo != null &&
+    Date.parse(createdFrom) > Date.parse(createdTo)
+  ) {
+    throw new InvalidAdminRequestError(
+      'from não pode ser posterior a to.',
+    );
+  }
+
   const rawCursor = searchParams.get('cursor')?.trim() ?? '';
 
   return {
     ...(states == null ? {} : { states }),
     ...(rawSearch ? { search: rawSearch } : {}),
+    ...(createdFrom == null ? {} : { createdFrom }),
+    ...(createdTo == null ? {} : { createdTo }),
     limit,
     ...(rawCursor
       ? { cursor: decodeAdminRideDirectoryCursor(rawCursor) }
