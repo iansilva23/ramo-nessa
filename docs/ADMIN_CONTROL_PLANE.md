@@ -45,6 +45,7 @@ Escopos atuais:
 - `rides:read`
 - `fleet:read`
 - `finance:read`
+- `finance:write`
 - `pricing:read`
 - `pricing:write`
 - `audit:read`
@@ -155,6 +156,22 @@ latitude ou longitude de embarque/destino.
 Escopo: `finance:read`. Retorna pagamentos recentes, resumo contábil,
 comissão reconhecida, saldos agregados, escrow e solicitações de saque.
 A rota é somente leitura e não executa movimentações financeiras.
+
+### Política futura de dinheiro
+
+`GET /v1/admin/payment-policy`
+
+Escopo: `finance:read`. Retorna a configuração persistente de dinheiro,
+prontidão de ativação e o limite futuro de dívida de comissão.
+
+`PATCH /v1/admin/payment-policy`
+
+Escopo: `finance:write`. O contrato já permite desligamento seguro, porém
+`cashEnabled: true` retorna `409 CASH_ACTIVATION_BLOCKED` até existir o fluxo
+cash completo de dívida de comissão, limite operacional e liquidação.
+
+A configuração nasce com `cashEnabled=false`. O app Passageiro continua sem
+oferecer dinheiro e o Core continua aceitando apenas Pix, cartão e carteira.
 
 ### Consultar autenticação de motorista
 
