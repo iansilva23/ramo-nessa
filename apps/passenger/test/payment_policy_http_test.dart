@@ -198,7 +198,7 @@ void main() {
       rideId: 'ride-card-http',
       idempotencyKey: 'card-http-idempotency-key',
       payerEmail: 'passageiro@example.com',
-      cardToken: 'secure-token-' + 'x' * 40,
+      cardToken: 'secure-token-${'x' * 40}',
       paymentMethodId: 'master',
       paymentMethodType: 'credit_card',
     );
