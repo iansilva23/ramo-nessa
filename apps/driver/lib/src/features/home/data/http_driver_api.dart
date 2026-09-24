@@ -84,6 +84,20 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<NearbyDriversSnapshot> nearbyDrivers() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/nearby'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return NearbyDriversSnapshot.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
   Future<DriverProfileSnapshot> profile() async {
     final response = await _client
         .get(
