@@ -17,6 +17,10 @@ abstract interface class DriverApi {
 
   Future<DriverDocumentsSnapshot> documents();
 
+  Future<DriverSecuritySnapshot> security();
+
+  Future<DriverSessionRevokeResult> revokeOtherSessions();
+
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
