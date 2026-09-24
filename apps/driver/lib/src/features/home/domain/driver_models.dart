@@ -280,6 +280,87 @@ class DriverFinanceSummary {
   final int cashCommissionDebtCents;
 }
 
+class DriverStatementItem {
+  const DriverStatementItem({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.availableDeltaCents,
+    required this.pendingDeltaCents,
+    required this.debtDeltaCents,
+    required this.platformFeeCents,
+    required this.balanceAfterCents,
+    required this.createdAt,
+    this.rideId,
+    this.payoutId,
+  });
+
+  factory DriverStatementItem.fromJson(Map<String, dynamic> json) {
+    return DriverStatementItem(
+      id: json['id'] as String,
+      kind: json['kind'] as String,
+      title: json['title'] as String? ?? 'Movimentação financeira',
+      availableDeltaCents:
+          (json['availableDeltaCents'] as num?)?.toInt() ?? 0,
+      pendingDeltaCents:
+          (json['pendingDeltaCents'] as num?)?.toInt() ?? 0,
+      debtDeltaCents:
+          (json['debtDeltaCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents:
+          (json['platformFeeCents'] as num?)?.toInt() ?? 0,
+      balanceAfterCents:
+          (json['balanceAfterCents'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      rideId: json['rideId'] as String?,
+      payoutId: json['payoutId'] as String?,
+    );
+  }
+
+  final String id;
+  final String kind;
+  final String title;
+  final int availableDeltaCents;
+  final int pendingDeltaCents;
+  final int debtDeltaCents;
+  final int platformFeeCents;
+  final int balanceAfterCents;
+  final DateTime createdAt;
+  final String? rideId;
+  final String? payoutId;
+
+  bool get isCredit => availableDeltaCents > 0;
+  bool get isDebit => availableDeltaCents < 0;
+}
+
+class DriverFinanceStatement {
+  const DriverFinanceStatement({
+    required this.generatedAt,
+    required this.finance,
+    required this.items,
+  });
+
+  factory DriverFinanceStatement.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    return DriverFinanceStatement(
+      generatedAt: DateTime.parse(json['generatedAt'] as String),
+      finance: DriverFinanceSummary.fromJson(
+        json['finance'] as Map<String, dynamic>,
+      ),
+      items: rawItems is List
+          ? rawItems
+              .whereType<Map<String, dynamic>>()
+              .map(DriverStatementItem.fromJson)
+              .toList(growable: false)
+          : const [],
+    );
+  }
+
+  final DateTime generatedAt;
+  final DriverFinanceSummary finance;
+  final List<DriverStatementItem> items;
+}
+
+
 class DriverPayoutReservation {
   const DriverPayoutReservation({
     required this.id,
