@@ -475,34 +475,54 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pagamento'),
+        title: const Text('Pague com'),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(RamoSpacing.lg),
           children: [
-            Text(
-              'Preço final',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: RamoSpacing.xs),
-            Text(
-              widget.ride.formattedTotal,
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+            Container(
+              padding: const EdgeInsets.all(RamoSpacing.lg),
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(RamoRadius.lg),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.route_rounded, size: 24),
+                  const SizedBox(width: RamoSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Valor da viagem',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: RamoColors.muted,
+                              ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.ride.formattedTotal,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const Icon(Icons.lock_rounded, size: 18),
+                ],
+              ),
             ),
-            const SizedBox(height: RamoSpacing.md),
-            _PriceRow(
-              label: 'Corrida',
-              cents: widget.ride.baseAmountCents,
-            ),
-            if (widget.ride.pickupCompensationCents > 0)
+            if (widget.ride.pickupCompensationCents > 0) ...[
+              const SizedBox(height: RamoSpacing.sm),
               _PriceRow(
                 label: 'Coleta distante · 100% motorista',
                 cents: widget.ride.pickupCompensationCents,
               ),
-            const Divider(height: RamoSpacing.xl),
+            ],
+            const SizedBox(height: RamoSpacing.md),
             Container(
               padding: const EdgeInsets.all(RamoSpacing.md),
               decoration: BoxDecoration(
@@ -525,10 +545,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.xl),
             Text(
-              'Como quer pagar?',
-              style: Theme.of(context).textTheme.titleLarge,
+              'Formas de pagamento',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
-            const SizedBox(height: RamoSpacing.sm),
+            const SizedBox(height: RamoSpacing.xs),
             _PaymentOption(
               key: const Key('payment-option-pix'),
               icon: Icons.pix_rounded,
@@ -1555,44 +1577,32 @@ class _PaymentOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 220),
-      opacity: enabled ? 1 : .58,
+      duration: RamoMotion.standard,
+      opacity: enabled ? 1 : .48,
       child: Material(
-        color: dark ? RamoColors.darkRaised : RamoColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
         child: InkWell(
+          borderRadius: BorderRadius.circular(RamoRadius.md),
           onTap: enabled ? onTap : null,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+          child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: RamoSpacing.md,
-              vertical: 15,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: enabled
-                    ? RamoColors.brandYellow.withValues(alpha: .42)
-                    : scheme.outlineVariant.withValues(alpha: .5),
-              ),
+              horizontal: RamoSpacing.xs,
+              vertical: RamoSpacing.md,
             ),
             child: Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
-                    color: enabled
-                        ? RamoColors.brandYellow
-                        : scheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(16),
+                    color: RamoColors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
                     icon,
+                    size: 23,
                     color: enabled
                         ? RamoColors.brandBlack
                         : scheme.onSurfaceVariant,
@@ -1606,15 +1616,16 @@ class _PaymentOption extends StatelessWidget {
                       Text(
                         title,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
                             ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                              height: 1.25,
+                              color: RamoColors.muted,
+                              height: 1.28,
                             ),
                       ),
                     ],
@@ -1622,14 +1633,14 @@ class _PaymentOption extends StatelessWidget {
                 ),
                 const SizedBox(width: RamoSpacing.sm),
                 AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: RamoMotion.standard,
                   child: trailing ??
                       Icon(
-                        Icons.arrow_forward_ios_rounded,
+                        Icons.chevron_right_rounded,
                         key: ValueKey(enabled),
-                        size: 17,
+                        size: 24,
                         color: enabled
-                            ? scheme.onSurface
+                            ? RamoColors.brandBlack
                             : scheme.onSurfaceVariant,
                       ),
                 ),
