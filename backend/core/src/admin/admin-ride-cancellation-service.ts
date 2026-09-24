@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { PaymentRecord } from '../payments/payment.js';
+import { notifyDefaultPushSubject } from '../notifications/push-notification-service.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import { transitionRide } from '../rides/ride-state.js';
 import type { RideRecord } from '../rides/ride.js';
@@ -202,6 +203,33 @@ export async function cancelRideFromAdmin(input: {
       : 'pending_external_gateway';
 
   if (!duplicateCancellation) {
+    notifyDefaultPushSubject({
+      subjectType: 'passenger',
+      subjectId: ride.passengerId,
+      message: {
+        type: 'passenger.ride.cancelled_by_admin',
+        title: 'Corrida cancelada',
+        body:
+          refundStatus === 'refunded'
+            ? 'Sua corrida foi cancelada e o valor foi estornado.'
+            : 'Sua corrida foi cancelada. O estorno está em processamento.',
+        data: { rideId: ride.id },
+      },
+    });
+
+    if (releasedDriverId != null) {
+      notifyDefaultPushSubject({
+        subjectType: 'driver',
+        subjectId: releasedDriverId,
+        message: {
+          type: 'driver.ride.cancelled_by_admin',
+          title: 'Corrida cancelada',
+          body: 'Esta corrida foi cancelada pelo suporte.',
+          data: { rideId: ride.id },
+        },
+      });
+    }
+
     await input.admin.appendAudit({
       id: randomUUID(),
       actor: input.actor,
