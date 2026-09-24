@@ -8,6 +8,8 @@ import {
   rejectDriverOffer,
 } from '../src/matching/offer-service.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
+import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
+import { InMemoryPaymentPolicySettingsRepository } from '../src/payments/repositories/in-memory-payment-policy-settings-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
 
 const now = new Date('2026-09-23T13:00:00.000Z');
@@ -188,4 +190,78 @@ test('sem motorista restante corrida vai para NO_DRIVER_FOUND', async () => {
 
   assert.equal(result.kind, 'NO_DRIVER_FOUND');
   assert.equal((await ctx.rides.findById(ride().id))?.state, 'NO_DRIVER_FOUND');
+});
+
+
+test('cash pula motorista cujo limite de dívida seria excedido', async () => {
+  const rides = new InMemoryRideRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
+  const matching = new InMemoryRideMatchingRepository(rides, drivers);
+  const finance = new InMemoryFinanceRepository();
+  const paymentPolicySettings =
+    new InMemoryPaymentPolicySettingsRepository();
+
+  const cashRide: RideRecord = {
+    ...ride(),
+    id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    paymentStatus: 'authorized',
+    paymentMethod: 'cash',
+  };
+  await rides.create(cashRide);
+
+  await drivers.upsert({
+    driverId: 'driver-near-cash-limit',
+    vehicleId: 'vehicle-near-cash-limit',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.8205,
+    longitude: -40.4145,
+    locationUpdatedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await drivers.upsert({
+    driverId: 'driver-next-cash-ok',
+    vehicleId: 'vehicle-next-cash-ok',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.83,
+    longitude: -40.42,
+    locationUpdatedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  await paymentPolicySettings.setCashEnabled(
+    true,
+    now.toISOString(),
+  );
+  await finance.settleCashRide({
+    rideId: 'cash-debt-near-driver',
+    driverId: 'driver-near-cash-limit',
+    platformCommissionCents: 12000,
+  });
+
+  const result = await dispatchNextDriver({
+    rides,
+    drivers,
+    matching,
+    finance,
+    paymentPolicySettings,
+    rideId: cashRide.id,
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    now,
+  });
+
+  assert.equal(result.kind, 'OFFER_CREATED');
+  if (result.kind === 'OFFER_CREATED') {
+    assert.equal(
+      result.offer.driverId,
+      'driver-next-cash-ok',
+    );
+  }
 });
