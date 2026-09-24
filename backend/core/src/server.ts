@@ -1348,6 +1348,61 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/auth/session'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      json(response, 200, {
+        id: session.id,
+        subjectType: session.subjectType,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/auth/session/revoke-others'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      const now = new Date().toISOString();
+      const revokedSessions =
+        await authSessionRepository.revokeOthersForSubject(
+          session.subjectType,
+          session.subjectId,
+          session.id,
+          now,
+        );
+
+      const devices =
+        await pushDeviceRepository.listEnabledForSubject(
+          session.subjectType,
+          session.subjectId,
+        );
+      let disabledDevices = 0;
+      for (const device of devices) {
+        if (device.sessionId === session.id) continue;
+        await pushDeviceRepository.disableDevice(device.id, now);
+        disabledDevices += 1;
+      }
+
+      json(response, 200, {
+        revokedSessions,
+        disabledDevices,
+      });
+      return;
+    }
+
+    if (
       request.method === 'DELETE' &&
       requestUrl.pathname === '/v1/auth/session'
     ) {
