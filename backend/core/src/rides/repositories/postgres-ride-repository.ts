@@ -25,6 +25,7 @@ interface RideRow {
   destination_zone_id: RideRecord['destination']['zoneId'];
   destination_locality_id: string | null;
   category: RideRecord['category'];
+  requires_four_by_four: boolean;
   price_period: RideRecord['period'];
   passengers: number;
   trip_distance_km: string | null;
@@ -80,6 +81,7 @@ function mapRow(row: RideRow): RideRecord {
         : {}),
     },
     category: row.category,
+    requiresFourByFour: row.requires_four_by_four,
     period: row.price_period,
     passengers: row.passengers,
     ...(row.trip_distance_km != null
@@ -119,7 +121,7 @@ const RETURNING = `
   dropoff_latitude, dropoff_longitude,
   origin_zone_id, origin_locality_id,
   destination_zone_id, destination_locality_id,
-  category, price_period, passengers,
+  category, requires_four_by_four, price_period, passengers,
   trip_distance_km, driver_pickup_distance_km,
   pricing_rule_id, pricing_catalog_label,
   pricing_catalog_version_id, pricing_catalog_version_number,
@@ -141,7 +143,7 @@ export class PostgresRideRepository implements RideRepository {
         dropoff_latitude, dropoff_longitude,
         origin_zone_id, origin_locality_id,
         destination_zone_id, destination_locality_id,
-        category, price_period, passengers,
+        category, requires_four_by_four, price_period, passengers,
         trip_distance_km, driver_pickup_distance_km,
         pricing_rule_id, pricing_catalog_label,
         pricing_catalog_version_id, pricing_catalog_version_number,
@@ -150,7 +152,7 @@ export class PostgresRideRepository implements RideRepository {
         created_at, updated_at
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
       )
       RETURNING ${RETURNING}
       `,
@@ -171,6 +173,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.destination.zoneId,
         ride.destination.localityId ?? null,
         ride.category,
+        ride.requiresFourByFour ?? false,
         ride.period,
         ride.passengers,
         ride.tripDistanceKm ?? null,
