@@ -190,6 +190,10 @@
             <span class="nav-icon">R$</span>
             Preços
           </button>
+          <button class="nav-item" type="button" data-view="finance">
+            <span class="nav-icon">₿</span>
+            Financeiro
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <span class="nav-icon">≡</span>
             Auditoria
@@ -1026,6 +1030,134 @@
                 Abra uma corrida na tabela para ver os detalhes.
               </div>
             </article>
+          </section>
+
+          <section id="view-finance" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">FINANCEIRO</span>
+                <h1>Pagamentos e comissões</h1>
+                <p>
+                  Visão contábil somente leitura derivada do ledger do Core.
+                </p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="finance-updated-at">Ainda não atualizado</small>
+                <button
+                  id="refresh-finance-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar financeiro
+                </button>
+              </div>
+            </div>
+
+            <div class="finance-readonly-note">
+              <strong>Somente leitura</strong>
+              <span>
+                O painel não força captura, estorno, comissão ou pagamento de saque.
+                Essas ações continuam bloqueadas até gateway, conciliação e repasse reais.
+              </span>
+            </div>
+
+            <div class="finance-summary-grid">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Pagamentos confirmados</span>
+                <strong id="finance-paid-total">R$ 0,00</strong>
+                <small id="finance-paid-count">0 pagamentos</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Comissão reconhecida</span>
+                <strong id="finance-platform-revenue">R$ 0,00</strong>
+                <small>Saldo real de platform:revenue</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">A pagar motoristas</span>
+                <strong id="finance-driver-payable">R$ 0,00</strong>
+                <small>Saldo disponível dos motoristas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Saques reservados</span>
+                <strong id="finance-payout-pending">R$ 0,00</strong>
+                <small id="finance-payout-count">0 solicitações abertas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Escrow de corridas</span>
+                <strong id="finance-ride-escrow">R$ 0,00</strong>
+                <small>Valor recebido ainda não liquidado</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Carteiras passageiros</span>
+                <strong id="finance-passenger-wallet">R$ 0,00</strong>
+                <small>Saldo contábil agregado</small>
+              </article>
+            </div>
+
+            <div class="finance-status-strip">
+              <span><strong id="finance-payments-total">0</strong> pagamentos</span>
+              <span><strong id="finance-payments-pending">0</strong> pendentes</span>
+              <span><strong id="finance-payments-failed">0</strong> falhos</span>
+              <span><strong id="finance-payments-cancelled">0</strong> cancelados</span>
+              <span><strong id="finance-payments-refunded">0</strong> estornados</span>
+            </div>
+
+            <div class="finance-columns">
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">PAGAMENTOS</span>
+                    <h2>Mais recentes</h2>
+                  </div>
+                  <span id="finance-payments-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Método</th>
+                        <th>Corrida</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payments-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payments-empty" class="empty-state">
+                  Nenhum pagamento registrado.
+                </div>
+              </article>
+
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">SAQUES</span>
+                    <h2>Solicitações recentes</h2>
+                  </div>
+                  <span id="finance-payouts-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Motorista</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payouts-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payouts-empty" class="empty-state">
+                  Nenhum saque solicitado.
+                </div>
+              </article>
+            </div>
           </section>
 
           <section id="view-pricing" class="view-panel" hidden>
