@@ -214,6 +214,17 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request(`/v1/admin/rides/${rideId}`, { token });
     },
 
+    cancelRide(token, { rideId, reason }) {
+      return request(
+        `/v1/admin/rides/${encodeURIComponent(rideId)}/cancel`,
+        {
+          method: 'POST',
+          token,
+          body: { reason },
+        },
+      );
+    },
+
     passengers(
       token,
       { query = '', status = '', limit = 25, cursor = null } = {},
