@@ -11,6 +11,8 @@ abstract interface class DriverApi {
 
   Future<DriverOffer?> currentOffer();
 
+  Future<NearbyDriversSnapshot> nearbyDrivers();
+
   Future<DriverProfileSnapshot> profile();
 
   Future<DriverActivitySnapshot> activity();
