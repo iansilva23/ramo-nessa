@@ -62,6 +62,11 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
 }
 
 export function rideRequiresFourByFour(ride: RideRecord): boolean {
+  if (ride.requiresFourByFour != null) {
+    return ride.requiresFourByFour;
+  }
+
+  // Compatibilidade com fixtures/corridas v1 anteriores ao snapshot explícito.
   const originIsJeri = ride.origin.zoneId === 'jericoacoara';
   const destinationIsJeri = ride.destination.zoneId === 'jericoacoara';
 
