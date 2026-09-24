@@ -97,6 +97,19 @@ function encryptPayload(payload: InspectionPayload, key: Buffer): string {
   ].join('.');
 }
 
+function decodeCanonicalBase64Url(value: string): Buffer {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error('invalid');
+  }
+
+  const decoded = Buffer.from(value, 'base64url');
+  if (decoded.toString('base64url') !== value) {
+    throw new Error('invalid');
+  }
+
+  return decoded;
+}
+
 function decryptPayload(token: string, key: Buffer): InspectionPayload {
   if (token.length < 80 || token.length > 4096) {
     throw new DriverDocumentInspectionError(
@@ -119,9 +132,11 @@ function decryptPayload(token: string, key: Buffer): InspectionPayload {
   }
 
   try {
-    const iv = Buffer.from(ivEncoded, 'base64url');
-    const tag = Buffer.from(tagEncoded, 'base64url');
-    const ciphertext = Buffer.from(ciphertextEncoded, 'base64url');
+    const iv = decodeCanonicalBase64Url(ivEncoded);
+    const tag = decodeCanonicalBase64Url(tagEncoded);
+    const ciphertext = decodeCanonicalBase64Url(
+      ciphertextEncoded,
+    );
     if (iv.length !== 12 || tag.length !== 16) throw new Error('invalid');
 
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
