@@ -410,7 +410,7 @@ class _DriverRatingPanel extends StatelessWidget {
               final value = index + 1;
               return IconButton(
                 tooltip:
-                    value == 1 ? '1 estrela' : value.toString() + ' estrelas',
+                    value == 1 ? '1 estrela' : '$value estrelas',
                 onPressed:
                     submitting || submitted ? null : () => onChanged(value),
                 icon: Icon(
@@ -523,7 +523,7 @@ class _AssignedDriverCard extends StatelessWidget {
                     if (driver.ratingCount > 0) ...[
                       const SizedBox(width: 4),
                       Text(
-                        '(' + driver.ratingCount.toString() + ')',
+                        '(${driver.ratingCount})',
                         style: const TextStyle(
                           color: RamoColors.muted,
                           fontSize: 12,
