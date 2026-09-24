@@ -42,6 +42,7 @@ Escopos atuais:
 - `drivers:documents:read`
 - `drivers:documents:write`
 - `passengers:auth:read`
+- `passengers:auth:write`
 - `rides:read`
 - `fleet:read`
 - `finance:read`
@@ -148,6 +149,19 @@ de acesso do app Passageiro com resumo real de `total`, `active` e `suspended`.
 Exige `passengers:auth:read` e `rides:read`. Retorna a identidade exata,
 resumo de corridas e histórico recente somente leitura. A resposta não expõe
 latitude ou longitude de embarque/destino.
+
+### Bloquear/desbloquear passageiro
+
+`PATCH /v1/admin/passengers/:passengerId/auth/status`
+
+Escopo: `passengers:auth:write`. Corpo: `{"status":"suspended"}` para bloquear
+ou `{"status":"active"}` para desbloquear.
+
+Ao bloquear, o Core revoga imediatamente todas as sessões ativas do passageiro.
+Ao desbloquear, sessões antigas **não** são restauradas: o passageiro precisa fazer
+novo login/OTP. Cadastro, viagens e histórico permanecem preservados. A mudança é
+registrada na auditoria com status anterior, novo status e quantidade de sessões
+revogadas.
 
 ### Financeiro read-only
 
