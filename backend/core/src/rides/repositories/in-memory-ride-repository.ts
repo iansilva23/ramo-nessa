@@ -146,6 +146,21 @@ export class InMemoryRideRepository implements RideRepository {
         );
       })
       .filter((ride) => {
+        if (
+          input.createdFrom != null &&
+          Date.parse(ride.createdAt) < Date.parse(input.createdFrom)
+        ) {
+          return false;
+        }
+        if (
+          input.createdTo != null &&
+          Date.parse(ride.createdAt) > Date.parse(input.createdTo)
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .filter((ride) => {
         if (input.cursor == null || cursorTime == null) return true;
         const time = Date.parse(ride.updatedAt);
         return (
