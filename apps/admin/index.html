@@ -964,6 +964,7 @@
                       <select id="pricing-edit-kind">
                         <option value="fixed_route">Rota fixa</option>
                         <option value="locality_price">Preço por localidade</option>
+                        <option value="category_policy">Categoria e elegibilidade</option>
                       </select>
                     </label>
 
@@ -1019,6 +1020,33 @@
                       </label>
                     </div>
 
+                    <div id="pricing-category-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-policy-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                          <option value="comfort_black">Comfort/Black</option>
+                          <option value="buggy">Buggy</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Ao cruzar Jeri</span>
+                        <select id="pricing-policy-four-by-four">
+                          <option value="false">Não exigir 4x4</option>
+                          <option value="true">Exigir 4x4</option>
+                        </select>
+                      </label>
+                    </div>
+
                     <button id="pricing-save-draft-button" class="button button--primary" type="submit">
                       Salvar no rascunho
                     </button>
@@ -1042,6 +1070,31 @@
                 </div>
               </article>
             </div>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CATEGORIAS</span>
+                  <h2>Disponibilidade e elegibilidade</h2>
+                </div>
+                <span id="pricing-category-count" class="pill">0 categorias</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Categoria</th>
+                      <th>Status</th>
+                      <th>Ao cruzar Jeri</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-category-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-category-policies-empty" class="empty-state">
+                Nenhuma política de categoria carregada.
+              </div>
+            </article>
 
             <article class="panel-card panel-card--table pricing-table-card">
               <div class="pricing-table-heading">
