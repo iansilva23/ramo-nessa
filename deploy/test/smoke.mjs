@@ -687,6 +687,38 @@ try {
     );
   }
 
+  const finance = await jsonRequest(
+    '/v1/admin/finance?limit=20',
+    { headers: authHeaders },
+  );
+  if (
+    finance.response.status !== 200 ||
+    finance.payload?.readOnly !== true ||
+    typeof finance.payload?.summary?.paymentsTotal !== 'number' ||
+    typeof finance.payload?.summary?.paymentsPaidCents !== 'number' ||
+    typeof finance.payload?.summary?.platformRevenueCents !== 'number' ||
+    typeof finance.payload?.summary?.driverPayableCents !== 'number' ||
+    typeof finance.payload?.summary?.driverPayoutPendingCents !== 'number' ||
+    typeof finance.payload?.summary?.rideEscrowCents !== 'number' ||
+    typeof finance.payload?.summary?.passengerWalletCents !== 'number' ||
+    !Array.isArray(finance.payload?.payments) ||
+    !Array.isArray(finance.payload?.payouts) ||
+    finance.payload.payments.some(
+      (payment) =>
+        'idempotencyKey' in payment ||
+        'processorPaymentId' in payment,
+    ) ||
+    finance.payload.payouts.some(
+      (payout) =>
+        'idempotencyKey' in payout ||
+        'processorPayoutId' in payout,
+    )
+  ) {
+    throw new Error(
+      'Financeiro administrativo read-only não foi confirmado.',
+    );
+  }
+
   const pricingCatalog = await jsonRequest(
     '/v1/admin/pricing/catalog',
     { headers: authHeaders },
