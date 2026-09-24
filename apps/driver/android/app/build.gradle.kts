@@ -3,6 +3,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val previewSigningEnabled =
+    providers.environmentVariable("RAMO_PREVIEW_SIGNING")
+        .orElse("false")
+        .get()
+        .trim()
+        .equals("true", ignoreCase = true)
+
 android {
     namespace = "br.com.ramonessa.driver"
     compileSdk = flutter.compileSdkVersion
@@ -21,10 +28,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("preview") {
+            // Chave pública de teste, isolada do package de produção.
+            // Nunca usar para publicação nas lojas.
+            storeFile =
+                rootProject.file(
+                    "../../../tooling/preview-signing/ramo-preview.keystore",
+                )
+            storePassword = "ramo-preview-only"
+            keyAlias = "ramo-preview"
+            keyPassword = "ramo-preview-only"
+        }
+    }
+
     buildTypes {
         release {
-            // Nunca assinar release com a chave debug. A assinatura oficial
-            // será injetada fora do repositório na etapa de publicação.
+            // Produção continua sem assinatura improvisada. A configuração
+            // abaixo só é ativada pelo workflow exclusivo de Preview.
+            if (previewSigningEnabled) {
+                signingConfig = signingConfigs.getByName("preview")
+                applicationIdSuffix = ".preview"
+                versionNameSuffix = "-preview"
+            }
         }
     }
 }
