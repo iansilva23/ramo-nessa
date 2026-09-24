@@ -36,7 +36,7 @@ A versão inicial implementa:
 - sessão mantida somente em memória;
 - visão dos escopos e expiração da sessão;
 - diretório paginado de motoristas com busca e filtro por status;
-- diretório paginado somente leitura de passageiros;
+- diretório paginado de passageiros, ficha operacional/histórico e bloqueio/desbloqueio de acesso com revogação de sessão;
 - indicadores reais de total/aprovados/suspensos;
 - dashboard operacional de corridas com estados reais e janela móvel de 24h;
 - mapa da frota ao vivo com GPS, veículo, categoria e estado operacional;
@@ -77,6 +77,6 @@ apps/admin/src/
 ```
 
 A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
-privado, ações financeiras após gateway real, bloqueios, cancelamentos e demais módulos. O painel atual
+privado, ações financeiras após gateway real, cancelamentos e demais módulos. O painel atual
 registra a decisão humana, mas não substitui a inspeção do arquivo no storage
 privado autorizado.
