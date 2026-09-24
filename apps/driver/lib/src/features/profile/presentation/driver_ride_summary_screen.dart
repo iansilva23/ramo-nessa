@@ -165,9 +165,8 @@ class _DriverRideSummaryScreenState
                                   CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  ride.origin.displayName +
-                                      ' → ' +
-                                      ride.destination.displayName,
+                                  '${ride.origin.displayName} → '
+                                      '${ride.destination.displayName}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -176,9 +175,8 @@ class _DriverRideSummaryScreenState
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  ride.categoryLabel +
-                                      ' · ' +
-                                      ride.stateLabel,
+                                  '${ride.categoryLabel} · '
+                                      '${ride.stateLabel}',
                                   style: const TextStyle(
                                     color: RamoColors.muted,
                                     fontSize: 12,
