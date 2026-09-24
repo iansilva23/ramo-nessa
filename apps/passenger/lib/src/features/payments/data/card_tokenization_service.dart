@@ -30,7 +30,9 @@ class CardTokenizationException implements Exception {
 }
 
 class NativeCardTokenizationService implements CardTokenizationService {
-  const NativeCardTokenizationService();
+  const NativeCardTokenizationService({required this.amountCents});
+
+  final int amountCents;
 
   static const _channel = MethodChannel(
     'br.com.ramonessa.passenger/payments',
@@ -38,6 +40,12 @@ class NativeCardTokenizationService implements CardTokenizationService {
 
   @override
   Future<CardTokenizationResult> tokenize() async {
+    if (amountCents <= 0) {
+      throw const CardTokenizationException(
+        'Valor da corrida inválido para pagamento por cartão.',
+      );
+    }
+
     if (!Platform.isAndroid) {
       throw const CardTokenizationException(
         'Cartão seguro ainda não está habilitado nesta plataforma.',
@@ -45,8 +53,10 @@ class NativeCardTokenizationService implements CardTokenizationService {
     }
 
     try {
-      final result =
-          await _channel.invokeMapMethod<String, dynamic>('tokenizeCard');
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'tokenizeCard',
+        {'amountCents': amountCents},
+      );
       if (result == null) {
         throw const CardTokenizationException(
           'A tokenização do cartão foi cancelada.',
