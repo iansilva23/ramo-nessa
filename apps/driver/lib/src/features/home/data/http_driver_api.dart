@@ -112,6 +112,26 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<String> updateProfilePhoto({
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/driver/me/photo'),
+          headers: _headers,
+          body: jsonEncode({
+            'mimeType': mimeType,
+            'dataBase64': base64Encode(bytes),
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    final decoded = _expectObject(response, expectedStatus: 200);
+    return decoded['photoPath'] as String;
+  }
+
+  @override
   Future<DriverActivitySnapshot> activity() async {
     final response = await _client
         .get(
