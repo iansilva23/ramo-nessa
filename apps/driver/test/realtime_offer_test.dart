@@ -155,6 +155,17 @@ class _NoOfferDriverApi implements DriverApi {
       );
 
   @override
+  Future<DriverFinanceStatement> financeStatement() async =>
+      DriverFinanceStatement(
+        generatedAt: DateTime(2026, 9, 24),
+        finance: const DriverFinanceSummary(
+          availableBalanceCents: 0,
+          payoutPendingCents: 0,
+        ),
+        items: const [],
+      );
+
+  @override
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
