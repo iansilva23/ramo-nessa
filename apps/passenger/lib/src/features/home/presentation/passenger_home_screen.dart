@@ -9,6 +9,7 @@ import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/agency_promotion_service.dart';
+import '../../map/data/core_route_service.dart';
 import '../../map/data/nominatim_place_search_service.dart';
 import '../../map/data/osrm_route_service.dart';
 import '../../map/data/place_search_service.dart';
@@ -83,7 +84,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   late final LocationService _locationService =
       widget.locationService ?? GeolocatorLocationService();
   late final RouteService _routeService =
-      widget.routeService ?? OsrmRouteService();
+      widget.routeService ??
+          (RamoCoreConfig.enabled
+              ? CoreRouteService(
+                  baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: _accessToken,
+                )
+              : OsrmRouteService());
   late final PlaceSearchService _placeSearchService =
       widget.placeSearchService ?? NominatimPlaceSearchService();
   late final PricingQuoteService? _pricingQuoteService =
