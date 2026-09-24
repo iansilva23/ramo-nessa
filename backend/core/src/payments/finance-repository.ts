@@ -43,6 +43,7 @@ export interface SettleCashRideInput {
 export interface SettleCashRideResult {
   ledgerTransaction: LedgerTransaction;
   duplicateSettlement: boolean;
+  cashCommissionRecoveredFromBalanceCents: number;
   cashDebtCents: number;
 }
 
