@@ -34,6 +34,7 @@ export class PhoneOtpError extends Error {
   constructor(
     public readonly code:
       | 'INVALID_PHONE'
+      | 'INVALID_EMAIL'
       | 'DRIVER_NOT_REGISTERED'
       | 'AUTH_IDENTITY_SUSPENDED'
       | 'OTP_RATE_LIMITED'
@@ -67,6 +68,21 @@ export function normalizeBrazilMobilePhone(value: string): string {
   }
 
   return `+55${national}`;
+}
+
+export function normalizeRegistrationEmail(value: string): string {
+  const email = value.trim().toLowerCase();
+  if (
+    email.length < 5 ||
+    email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  ) {
+    throw new PhoneOtpError(
+      'INVALID_EMAIL',
+      'Informe um e-mail válido.',
+    );
+  }
+  return email;
 }
 
 export function resolveOtpHashSecret(
@@ -207,6 +223,7 @@ async function resolveIdentity(input: {
   repository: AuthOtpRepository;
   subjectType: AuthSubjectType;
   phoneE164: string;
+  emailNormalized: string;
   now: Date;
 }): Promise<AuthIdentityRecord | null> {
   const existing = await input.repository.findIdentityByPhone(
@@ -231,6 +248,7 @@ async function resolveIdentity(input: {
     subjectId: id,
     subjectType: 'passenger',
     phoneE164: input.phoneE164,
+    emailNormalized: input.emailNormalized,
     status: 'active',
     createdAt: input.now.toISOString(),
     updatedAt: input.now.toISOString(),
@@ -249,6 +267,7 @@ export async function requestPhoneOtp(input: {
   delivery: OtpDeliveryProvider | null;
   subjectType: AuthSubjectType;
   phone: string;
+  email: string;
   context?: OtpRequestContext;
   now?: Date;
 }): Promise<RequestedPhoneOtp> {
@@ -261,6 +280,7 @@ export async function requestPhoneOtp(input: {
 
   const now = input.now ?? new Date();
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
+  const emailNormalized = normalizeRegistrationEmail(input.email);
 
   await enforceOtpRequestRateLimits({
     repository: input.repository,
@@ -274,6 +294,7 @@ export async function requestPhoneOtp(input: {
     repository: input.repository,
     subjectType: input.subjectType,
     phoneE164,
+    emailNormalized,
     now,
   });
 
@@ -293,6 +314,7 @@ export async function requestPhoneOtp(input: {
     codeDigest: otpDigest(challengeId, code),
     expiresAt: new Date(now.getTime() + OTP_TTL_MS).toISOString(),
     attemptCount: 0,
+    requestedEmailNormalized: emailNormalized,
     createdAt: now.toISOString(),
   };
 
@@ -352,6 +374,7 @@ export async function verifyPhoneOtp(input: {
   expiresAt: string;
   subjectId: string;
   subjectType: AuthSubjectType;
+  emailNormalized?: string;
 }> {
   const challengeId = input.challengeId.trim();
   const code = input.code.trim();
@@ -379,13 +402,26 @@ export async function verifyPhoneOtp(input: {
     );
   }
 
-  const identity =
+  let identity =
     await input.repository.findIdentityById(attempt.challenge.identityId);
   if (identity == null || identity.status !== 'active') {
     throw new PhoneOtpError(
       'AUTH_IDENTITY_SUSPENDED',
       'Esta conta está temporariamente indisponível.',
     );
+  }
+
+  const requestedEmail = attempt.challenge.requestedEmailNormalized;
+  if (requestedEmail != null && identity.emailNormalized !== requestedEmail) {
+    const updatedIdentity = await input.repository.setIdentityEmail({
+      subjectType: identity.subjectType,
+      subjectId: identity.subjectId,
+      emailNormalized: requestedEmail,
+      updatedAt: now.toISOString(),
+    });
+    if (updatedIdentity != null) {
+      identity = updatedIdentity;
+    }
   }
 
   const issued = await issueAuthSession({
@@ -401,5 +437,8 @@ export async function verifyPhoneOtp(input: {
     expiresAt: issued.session.expiresAt,
     subjectId: identity.subjectId,
     subjectType: identity.subjectType,
+    ...(identity.emailNormalized == null
+      ? {}
+      : { emailNormalized: identity.emailNormalized }),
   };
 }
