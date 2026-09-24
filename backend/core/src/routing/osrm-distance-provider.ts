@@ -4,6 +4,7 @@ import {
 } from './distance-provider.js';
 import type { GeoPoint } from '../matching/select-driver.js';
 import { resolveRoutingTimeoutMs } from '../config/runtime-config.js';
+import { ValhallaRoutingProvider } from './valhalla-route-provider.js';
 
 interface OsrmResponse {
   code?: string;
@@ -81,25 +82,38 @@ export class OsrmRoutingDistanceProvider
   }
 }
 
-export function createRoutingDistanceProviderFromEnv():
-  | RoutingDistanceProvider
-  | null {
-  const baseUrl = process.env.ROUTING_BASE_URL?.trim();
+export function createRoutingDistanceProviderFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): RoutingDistanceProvider | null {
+  const baseUrl = env.ROUTING_BASE_URL?.trim();
   if (!baseUrl) return null;
 
-  let parsed: URL;
-  try {
-    parsed = new URL(baseUrl);
-  } catch {
-    throw new Error('ROUTING_BASE_URL precisa ser uma URL válida.');
+  const provider = env.ROUTING_PROVIDER?.trim().toLowerCase() || 'valhalla';
+  const timeoutMs = resolveRoutingTimeoutMs(env);
+
+  if (provider === 'valhalla') {
+    return new ValhallaRoutingProvider(baseUrl, timeoutMs);
   }
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('ROUTING_BASE_URL deve usar http ou https.');
+  if (provider === 'osrm') {
+    let parsed: URL;
+    try {
+      parsed = new URL(baseUrl);
+    } catch {
+      throw new Error('ROUTING_BASE_URL precisa ser uma URL válida.');
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('ROUTING_BASE_URL deve usar http ou https.');
+    }
+
+    return new OsrmRoutingDistanceProvider(
+      parsed.toString(),
+      timeoutMs,
+    );
   }
 
-  return new OsrmRoutingDistanceProvider(
-    parsed.toString(),
-    resolveRoutingTimeoutMs(),
+  throw new Error(
+    'ROUTING_PROVIDER deve ser valhalla ou osrm.',
   );
 }
