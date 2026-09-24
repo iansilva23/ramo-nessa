@@ -2052,7 +2052,8 @@ const server = createServer(async (request, response) => {
         error.code === 'PRICING_VERSION_NOT_FOUND' ||
         error.code === 'PRICING_RULE_NOT_FOUND'
           ? 404
-          : error.code === 'PRICING_VERSION_NOT_DRAFT'
+          : error.code === 'PRICING_VERSION_NOT_DRAFT' ||
+              error.code === 'PRICING_STRUCTURE_CONFLICT'
             ? 409
             : 400;
       json(response, status, {
