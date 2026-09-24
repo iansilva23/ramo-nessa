@@ -1,0 +1,44 @@
+name: iOS Payment Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/ios-payment-audit.yml"
+      - "apps/passenger/ios/**"
+      - "apps/passenger/lib/src/features/payments/data/card_tokenization_service.dart"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-payment-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  passenger-ios-payment:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Passenger dependencies from lockfile
+        working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Passenger iOS simulator with Mercado Pago
+        working-directory: apps/passenger
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+        run: >
+          flutter build ios --simulator --debug
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
