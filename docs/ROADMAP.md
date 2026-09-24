@@ -165,7 +165,7 @@
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
 - [x] painel read-only de pagamentos/comissões, saldos contábeis e saques
 - [x] fundação persistente no Admin para política de dinheiro, desligada por padrão e com ativação protegida
-- [ ] fluxo cash end-to-end antes de liberar ativação (dívida de comissão, limite e liquidação)
+- [x] fluxo cash end-to-end com ativação manual no Admin, desligado por padrão (dívida, limite, compensação e liquidação)
 - [x] bloqueios de acesso de passageiros/motoristas com revogação imediata de sessão
 - [x] logs/auditoria administrativos persistentes com ator humano/API key e tela de consulta
 

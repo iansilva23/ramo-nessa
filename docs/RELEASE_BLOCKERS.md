@@ -40,7 +40,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 4. **Gateway financeiro real ainda não foi integrado**
    - Pix/cartão/carteira são a política aprovada e o ledger/carteira internos já existem;
    - o Admin já possui visão financeira somente leitura baseada no ledger, sem ações de mutação financeira;
-   - dinheiro está desativado no lançamento; a política de dinheiro também está persistida no Core/Admin, mas a ativação é bloqueada até existir fluxo cash de dívida de comissão, limite e liquidação;
+   - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
    - falta integrar gateway para Pix/cartão e confirmação real de recarga;
    - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão ficam em `REFUND_PENDING`; ainda faltam confirmação de estorno/chargeback do gateway externo, conciliação e repasse Pix real.
 

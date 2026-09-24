@@ -172,21 +172,23 @@ Escopo: `finance:read`. Retorna pagamentos recentes, resumo contábil,
 comissão reconhecida, saldos agregados, escrow e solicitações de saque.
 A rota é somente leitura e não executa movimentações financeiras.
 
-### Política futura de dinheiro
+### Política de dinheiro
 
 `GET /v1/admin/payment-policy`
 
 Escopo: `finance:read`. Retorna a configuração persistente de dinheiro,
-prontidão de ativação e o limite futuro de dívida de comissão.
+prontidão de ativação e o limite padrão de dívida de taxa do motorista.
 
 `PATCH /v1/admin/payment-policy`
 
-Escopo: `finance:write`. O contrato já permite desligamento seguro, porém
-`cashEnabled: true` retorna `409 CASH_ACTIVATION_BLOCKED` até existir o fluxo
-cash completo de dívida de comissão, limite operacional e liquidação.
+Escopo: `finance:write`. Aceita `{"cashEnabled":true}` ou
+`{"cashEnabled":false}`. A mudança é explícita, idempotente e auditada como
+`payment_policy.cash_enabled` ou `payment_policy.cash_disabled`.
 
-A configuração nasce com `cashEnabled=false`. O app Passageiro continua sem
-oferecer dinheiro e o Core continua aceitando apenas Pix, cartão e carteira.
+A configuração nasce com `cashEnabled=false`. Mesmo com todo o fluxo cash
+implementado, o Passageiro continua vendo **Dinheiro · Em breve** até um
+operador autorizado ativar manualmente a opção no Admin. Ao desativar novamente,
+novas autorizações cash deixam de ser aceitas imediatamente.
 
 ### Consultar autenticação de motorista
 
