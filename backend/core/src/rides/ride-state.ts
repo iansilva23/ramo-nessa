@@ -38,6 +38,7 @@ const TRANSITIONS: Readonly<Record<RideState, ReadonlySet<RideState>>> = {
   PAID: new Set([
     'SEARCHING_DRIVER',
     'CANCELLED_BY_PASSENGER',
+    'CANCELLED_BY_ADMIN',
     'REFUND_PENDING',
   ]),
   SEARCHING_DRIVER: new Set([
