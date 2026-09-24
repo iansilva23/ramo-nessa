@@ -1115,7 +1115,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _refreshOfferRoutes(DriverOffer? offer) async {
     final service = _routeService;
     final supply = _supply;
-    if (service == null || supply == null || offer == null) {
+    if (supply == null || offer == null) {
       if (mounted) {
         setState(() {
           _offerPickupRoute = null;
@@ -1160,7 +1160,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final service = _routeService;
     final supply = _supply;
     final ride = _activeRide;
-    if (service == null || supply == null || ride == null) {
+    if (supply == null || ride == null) {
       if (mounted && _activeRoute != null) {
         setState(() => _activeRoute = null);
       }
@@ -1367,7 +1367,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverStatementScreen(
-                            api: _api!,
+                            api: _api,
                           ),
                         ),
                       );
@@ -1537,7 +1537,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverRideSummaryScreen(
-                            api: _api!,
+                            api: _api,
                           ),
                         ),
                       );
@@ -1555,7 +1555,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       await Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverWalletScreen(
-                            api: _api!,
+                            api: _api,
                             initialFinance: _finance,
                           ),
                         ),
@@ -1575,7 +1575,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverStatementScreen(
-                            api: _api!,
+                            api: _api,
                           ),
                         ),
                       );
@@ -1591,7 +1591,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverDocumentsScreen(
-                            api: _api!,
+                            api: _api,
                           ),
                         ),
                       );
@@ -1648,7 +1648,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverSecurityScreen(
-                            api: _api!,
+                            api: _api,
                             profile: _profile,
                           ),
                         ),
@@ -1665,7 +1665,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => DriverSupportScreen(
-                            api: _api!,
+                            api: _api,
                           ),
                         ),
                       );
@@ -2143,7 +2143,7 @@ class _DriverProfileHero extends StatelessWidget {
                     if (ratingCount > 0) ...[
                       const SizedBox(width: 4),
                       Text(
-                        '(${ratingCount})',
+                        '($ratingCount)',
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 11,
