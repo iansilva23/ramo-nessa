@@ -125,6 +125,27 @@ class _NoOfferDriverApi implements DriverApi {
       );
 
   @override
+  Future<DriverDocumentItem> uploadDocument({
+    required String documentType,
+    required String mimeType,
+    required List<int> bytes,
+    String? expiresOn,
+  }) async {
+    final now = DateTime(2026, 9, 24, 20);
+    return DriverDocumentItem(
+      id: 'document-$documentType',
+      documentType: documentType,
+      status: 'pending',
+      effectiveStatus: 'pending',
+      mimeType: mimeType,
+      sizeBytes: bytes.length,
+      expiresOn: expiresOn,
+      submittedAt: now,
+      updatedAt: now,
+    );
+  }
+
+  @override
   Future<DriverSecuritySnapshot> security() async =>
       DriverSecuritySnapshot(
         sessionId: 'session-test',
