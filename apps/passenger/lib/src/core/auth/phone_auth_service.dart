@@ -39,7 +39,7 @@ class AuthSessionInfo {
 }
 
 abstract interface class PhoneAuthService {
-  Future<RequestedOtp> requestOtp({required String phone, required String email});
+  Future<RequestedOtp> requestOtp({required String phone});
   Future<AuthSession> verifyOtp({
     required String challengeId,
     required String code,
