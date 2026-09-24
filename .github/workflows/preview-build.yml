@@ -41,12 +41,21 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
+          --build-number=${{ github.run_number }}
           --dart-define=RAMO_PREVIEW_MODE=true
           --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
           --dart-define=RAMO_APP_VERSION=0.1.0-preview
-          --dart-define=RAMO_APP_BUILD=1
+          --dart-define=RAMO_APP_BUILD=${{ github.run_number }}
+
+      - name: Verify Passenger Preview APK signature
+        working-directory: apps/passenger
+        run: |
+          APKSIGNER="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Passenger Preview APK
         uses: actions/upload-artifact@v7.0.1
@@ -76,11 +85,21 @@ jobs:
 
       - name: Build Driver Preview APK
         working-directory: apps/driver
+        env:
+          RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
+          --build-number=${{ github.run_number }}
           --dart-define=RAMO_PREVIEW_MODE=true
           --dart-define=RAMO_APP_VERSION=0.1.0-preview
-          --dart-define=RAMO_APP_BUILD=1
+          --dart-define=RAMO_APP_BUILD=${{ github.run_number }}
+
+      - name: Verify Driver Preview APK signature
+        working-directory: apps/driver
+        run: |
+          APKSIGNER="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload Driver Preview APK
         uses: actions/upload-artifact@v7.0.1
