@@ -2394,3 +2394,55 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+
+.finance-cash-card {
+  margin-bottom: 18px;
+}
+
+.finance-cash-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+.finance-cash-grid > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.finance-cash-grid strong,
+.finance-cash-grid small {
+  display: block;
+}
+
+.finance-cash-grid strong {
+  margin-top: 5px;
+  font-size: 17px;
+}
+
+.finance-cash-grid small,
+.finance-cash-action span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.finance-cash-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .finance-cash-grid {
+    grid-template-columns: 1fr;
+  }
+}
