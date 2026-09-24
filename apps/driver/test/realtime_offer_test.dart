@@ -114,6 +114,14 @@ class _NoOfferDriverApi implements DriverApi {
       const DriverProfileSnapshot(driverId: 'driver-live');
 
   @override
+  Future<String> updateProfilePhoto({
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    return '/v1/drivers/test-driver/photo?v=test';
+  }
+
+  @override
   Future<DriverActivitySnapshot> activity() async =>
       const DriverActivitySnapshot(
         total: 0,
