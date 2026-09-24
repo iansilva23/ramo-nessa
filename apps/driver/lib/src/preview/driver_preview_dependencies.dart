@@ -188,6 +188,14 @@ final class _PreviewDriverApi implements DriverApi {
   }
 
   @override
+  Future<String> updateProfilePhoto({
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    return '/v1/drivers/preview-driver/photo?v=preview';
+  }
+
+  @override
   Future<DriverActivitySnapshot> activity() async {
     return DriverActivitySnapshot(
       total: _ride == null ? 12 : 13,
@@ -259,6 +267,15 @@ final class _PreviewDriverApi implements DriverApi {
 
   @override
   Future<DriverFinanceSummary> financeSummary() async => _finance;
+
+  @override
+  Future<DriverFinanceStatement> financeStatement() async {
+    return DriverFinanceStatement(
+      generatedAt: DateTime.now(),
+      finance: _finance,
+      items: const [],
+    );
+  }
 
   @override
   Future<DriverPayoutReservation> requestPayout({
