@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -95,6 +96,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   List<NearbyDriverPosition> _nearbyDrivers = const [];
   bool _nearbyRequestInFlight = false;
   bool _profileLoading = false;
+  bool _profilePhotoUpdating = false;
   bool _activityLoading = false;
   DriverRouteInfo? _activeRoute;
   DriverRouteInfo? _offerPickupRoute;
@@ -984,6 +986,105 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  String? _profilePhotoMimeType(XFile file) {
+    final mimeType = file.mimeType?.trim().toLowerCase();
+    if (mimeType == 'image/jpeg' ||
+        mimeType == 'image/png' ||
+        mimeType == 'image/webp') {
+      return mimeType;
+    }
+
+    final path = file.path.toLowerCase();
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (path.endsWith('.png')) return 'image/png';
+    if (path.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
+
+  Future<void> _changeProfilePhoto() async {
+    final api = _api;
+    if (api == null || _profilePhotoUpdating) return;
+
+    XFile? selected;
+    try {
+      selected = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 82,
+        requestFullMetadata: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _message =
+            'Não foi possível abrir sua galeria. Verifique a permissão de fotos.';
+      });
+      return;
+    }
+
+    if (selected == null || !mounted) return;
+
+    final mimeType = _profilePhotoMimeType(selected);
+    if (mimeType == null) {
+      setState(() {
+        _message = 'Escolha uma foto JPEG, PNG ou WebP.';
+      });
+      return;
+    }
+
+    try {
+      final bytes = await selected.readAsBytes();
+      if (bytes.length > 1500000) {
+        if (!mounted) return;
+        setState(() {
+          _message =
+              'A foto ficou maior que 1,5 MB. Escolha outra imagem.';
+        });
+        return;
+      }
+
+      setState(() {
+        _profilePhotoUpdating = true;
+        _message = null;
+      });
+
+      await api.updateProfilePhoto(
+        mimeType: mimeType,
+        bytes: bytes,
+      );
+      final profile = await api.profile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _profilePhotoUpdating = false;
+        _message = null;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Foto do perfil atualizada.'),
+          ),
+        );
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUpdating = false;
+        _message = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _profilePhotoUpdating = false;
+        _message = 'Não conseguimos atualizar sua foto agora.';
+      });
+    }
+  }
+
   Future<void> _refreshActivity() async {
     final api = _api;
     if (api == null || _activityLoading) return;
@@ -1390,7 +1491,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               online: supply.online,
               displayName: profile?.displayName,
               phone: profile?.phoneE164,
+              photoPath: profile?.photoPath,
+              ratingAverage: profile?.ratingAverage,
+              ratingCount: profile?.ratingCount ?? 0,
               loading: _profileLoading && profile == null,
+              changingPhoto: _profilePhotoUpdating,
+              onChangePhoto: _api == null ? null : _changeProfilePhoto,
             ),
             const SizedBox(height: RamoSpacing.lg),
             _ProfileOption(
@@ -1810,14 +1916,31 @@ class _DriverProfileHero extends StatelessWidget {
     required this.online,
     this.displayName,
     this.phone,
+    this.photoPath,
+    this.ratingAverage,
+    this.ratingCount = 0,
     this.loading = false,
+    this.changingPhoto = false,
+    this.onChangePhoto,
   });
 
   final String driverId;
   final bool online;
   final String? displayName;
   final String? phone;
+  final String? photoPath;
+  final double? ratingAverage;
+  final int ratingCount;
   final bool loading;
+  final bool changingPhoto;
+  final VoidCallback? onChangePhoto;
+
+  String? get _photoUrl {
+    final path = photoPath?.trim();
+    final base = DriverCoreConfig.baseUri;
+    if (path == null || path.isEmpty || base == null) return null;
+    return base.resolve(path).toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1829,11 +1952,48 @@ class _DriverProfileHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 32,
-            backgroundColor: RamoColors.brandYellow,
-            foregroundColor: RamoColors.brandBlack,
-            child: Icon(Icons.person_rounded, size: 34),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: RamoColors.brandYellow,
+                foregroundColor: RamoColors.brandBlack,
+                backgroundImage:
+                    _photoUrl == null ? null : NetworkImage(_photoUrl!),
+                child: _photoUrl == null
+                    ? const Icon(Icons.person_rounded, size: 34)
+                    : null,
+              ),
+              Positioned(
+                right: -5,
+                bottom: -5,
+                child: Material(
+                  color: RamoColors.brandYellow,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: changingPhoto ? null : onChangePhoto,
+                    child: SizedBox.square(
+                      dimension: 30,
+                      child: changingPhoto
+                          ? const Padding(
+                              padding: EdgeInsets.all(7),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: RamoColors.brandBlack,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.camera_alt_rounded,
+                              size: 17,
+                              color: RamoColors.brandBlack,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1858,6 +2018,37 @@ class _DriverProfileHero extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.star_rounded,
+                      color: RamoColors.brandYellow,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      ratingAverage == null
+                          ? 'Novo motorista'
+                          : ratingAverage!.toStringAsFixed(2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (ratingCount > 0) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '(' + ratingCount.toString() + ')',
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
