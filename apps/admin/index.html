@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#0D0D0D">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'"
     >
     <meta name="referrer" content="no-referrer">
     <title>Ramo Nessa — Admin</title>
@@ -614,12 +614,42 @@
               <div class="document-privacy-note">
                 <strong>Revisão segura</strong>
                 <span>
-                  A aprovação deve ocorrer somente após a inspeção do arquivo no fluxo privado autorizado. A visualização do arquivo ainda não é feita neste painel.
+                  A inspeção usa um token criptografado de curta duração e o arquivo é entregue pelo Core sem expor a referência privada do storage.
                 </span>
               </div>
 
               <div id="driver-documents-result" class="driver-documents-result empty-state">
                 Abra um motorista para consultar o status documental.
+              </div>
+
+              <div id="driver-document-inspection-panel" class="driver-document-inspection-panel" hidden>
+                <div class="driver-document-inspection-header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">ARQUIVO PRIVADO</span>
+                    <h3 id="driver-document-inspection-title">Inspeção documental</h3>
+                    <small id="driver-document-inspection-expiry">Link temporário</small>
+                  </div>
+                  <button
+                    id="driver-document-inspection-close"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Fechar arquivo
+                  </button>
+                </div>
+                <div class="driver-document-preview">
+                  <iframe
+                    id="driver-document-inspection-frame"
+                    title="Visualização segura do documento"
+                    sandbox
+                    hidden
+                  ></iframe>
+                  <img
+                    id="driver-document-inspection-image"
+                    alt="Visualização segura do documento"
+                    hidden
+                  >
+                </div>
               </div>
 
               <div id="driver-document-review-panel" class="driver-document-review-panel" hidden>
