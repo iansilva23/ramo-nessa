@@ -558,7 +558,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               icon: Icons.pix_rounded,
               title: 'Pix',
               subtitle:
-                  'Pagamento confirmado antes do motorista receber a corrida',
+                  'Confirmação rápida antes da corrida ser enviada',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
@@ -576,7 +576,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               key: const Key('payment-option-card'),
               icon: Icons.credit_card_rounded,
               title: 'Cartão',
-              subtitle: 'À vista · dados protegidos pelo Mercado Pago · 3DS quando necessário',
+              subtitle: 'À vista · protegido pelo Mercado Pago',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
@@ -1584,27 +1584,28 @@ class _PaymentOption extends StatelessWidget {
       duration: RamoMotion.standard,
       opacity: enabled ? 1 : .48,
       child: Material(
-        color: Colors.transparent,
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
         child: InkWell(
-          borderRadius: BorderRadius.circular(RamoRadius.md),
+          borderRadius: BorderRadius.circular(RamoRadius.lg),
           onTap: enabled ? onTap : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: RamoSpacing.xs,
-              vertical: RamoSpacing.md,
+              horizontal: RamoSpacing.md,
+              vertical: 13,
             ),
             child: Row(
               children: [
                 Container(
-                  width: 46,
-                  height: 46,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: RamoColors.surfaceRaised,
-                    borderRadius: BorderRadius.circular(15),
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(13),
                   ),
                   child: Icon(
                     icon,
-                    size: 23,
+                    size: 22,
                     color: enabled
                         ? RamoColors.brandBlack
                         : scheme.onSurfaceVariant,
@@ -1618,16 +1619,18 @@ class _PaymentOption extends StatelessWidget {
                       Text(
                         title,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.35,
                             ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: RamoColors.muted,
-                              height: 1.28,
+                              height: 1.24,
                             ),
                       ),
                     ],
@@ -1640,7 +1643,7 @@ class _PaymentOption extends StatelessWidget {
                       Icon(
                         Icons.chevron_right_rounded,
                         key: ValueKey(enabled),
-                        size: 24,
+                        size: 23,
                         color: enabled
                             ? RamoColors.brandBlack
                             : scheme.onSurfaceVariant,
