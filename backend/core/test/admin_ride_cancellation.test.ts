@@ -173,13 +173,19 @@ test('Pix/cartão cancelado fica aguardando estorno do gateway externo', async (
   const finance = new InMemoryFinanceRepository();
   const admin = new InMemoryAdminRepository();
 
-  const ride = preparedRide({
+  const pixPrepared = preparedRide({
     id: '22222222-2222-4222-8222-222222222222',
+  });
+  const {
+    reservedDriverId: _pixReservedDriverId,
+    driverHoldExpiresAt: _pixDriverHoldExpiresAt,
+    ...pixWithoutHold
+  } = pixPrepared;
+  const ride: RideRecord = {
+    ...pixWithoutHold,
     state: 'PAID',
     paymentStatus: 'paid',
-    reservedDriverId: undefined,
-    driverHoldExpiresAt: undefined,
-  });
+  };
   await rides.create(ride);
 
   await finance.createPayment({
@@ -227,14 +233,20 @@ test('Admin não cancela corrida já iniciada sem política de compensação', a
   const finance = new InMemoryFinanceRepository();
   const admin = new InMemoryAdminRepository();
 
-  const ride = preparedRide({
+  const progressPrepared = preparedRide({
     id: '44444444-4444-4444-8444-444444444444',
+  });
+  const {
+    reservedDriverId: _progressReservedDriverId,
+    driverHoldExpiresAt: _progressDriverHoldExpiresAt,
+    ...progressWithoutHold
+  } = progressPrepared;
+  const ride: RideRecord = {
+    ...progressWithoutHold,
     state: 'IN_PROGRESS',
     paymentStatus: 'paid',
     driverId: 'driver-in-progress',
-    reservedDriverId: undefined,
-    driverHoldExpiresAt: undefined,
-  });
+  };
   await rides.create(ride);
 
   await assert.rejects(
