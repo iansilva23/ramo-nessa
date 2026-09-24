@@ -504,6 +504,17 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverDocumentsSnapshot> documents() async =>
+      const DriverDocumentsSnapshot(
+        items: [],
+        requiredDocumentTypes: [
+          'driver_license',
+          'vehicle_registration',
+        ],
+        documentsApproved: false,
+      );
+
+  @override
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
