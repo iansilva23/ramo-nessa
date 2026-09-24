@@ -164,7 +164,8 @@
 - [x] edição estrutural versionada de localidades/zonas suportadas
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
 - [x] painel read-only de pagamentos/comissões, saldos contábeis e saques
-- [ ] habilitar/desabilitar dinheiro futuramente
+- [x] fundação persistente no Admin para política de dinheiro, desligada por padrão e com ativação protegida
+- [ ] fluxo cash end-to-end antes de liberar ativação (dívida de comissão, limite e liquidação)
 - [ ] bloqueios
 - [ ] logs administrativos
 
