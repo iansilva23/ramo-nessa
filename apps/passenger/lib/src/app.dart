@@ -93,7 +93,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         devBypass: RamoCoreConfig.devPassengerIdentityEnabled,
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
-            'Informe seu celular. Vamos enviar um código para confirmar sua conta.',
+            'Informe seu celular e e-mail. Vamos enviar um código por SMS para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => home(token, logout),
         onSessionReady: pushCoordinator?.bindSession,
         onSessionEnded: pushCoordinator?.unbindSession,
