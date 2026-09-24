@@ -160,6 +160,7 @@ import {
 import {
   AdminPassengerError,
   adminPassengerProfile,
+  setPassengerAuthStatusFromAdmin,
 } from './admin/admin-passenger-service.js';
 import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
@@ -1066,6 +1067,48 @@ const server = createServer(async (request, response) => {
         },
         createdAt: ride.createdAt,
         updatedAt: ride.updatedAt,
+      });
+      return;
+    }
+
+    const adminPassengerStatusMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/auth\/status$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminPassengerStatusMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'passengers:auth:write',
+      });
+      const body = await readJson(request);
+      const status =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        'status' in body
+          ? String((body as { status?: unknown }).status ?? '')
+          : '';
+      const result = await setPassengerAuthStatusFromAdmin({
+        identities: authOtpRepository,
+        sessions: authSessionRepository,
+        admin: adminRepository,
+        actor,
+        passengerId: adminPassengerStatusMatch[1]!,
+        status: status as 'active' | 'suspended',
+      });
+      json(response, 200, {
+        passenger: {
+          passengerId: result.identity.subjectId,
+          phoneE164: result.identity.phoneE164,
+          status: result.identity.status,
+          createdAt: result.identity.createdAt,
+          updatedAt: result.identity.updatedAt,
+        },
+        revokedSessions: result.revokedSessions,
       });
       return;
     }
@@ -2199,10 +2242,14 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof AdminPassengerError) {
-      json(response, 404, {
-        error: error.code,
-        message: error.message,
-      });
+      json(
+        response,
+        error.code === 'PASSENGER_NOT_FOUND' ? 404 : 422,
+        {
+          error: error.code,
+          message: error.message,
+        },
+      );
       return;
     }
 
