@@ -59,21 +59,57 @@ function identity(): AuthIdentityRecord {
   };
 }
 
-function gateway(requests: string[]) {
+function gateway(
+  requests: string[],
+  options: { refundCompletes?: boolean } = {},
+) {
+  let externalReference = '';
+  let refunded = false;
+
   return new MercadoPagoOrdersClient(
     'test-token-' + 'x'.repeat(32),
     async (url, init) => {
       requests.push(`${init?.method ?? 'GET'} ${url}`);
 
       if (url.endsWith('/refund')) {
+        refunded = options.refundCompletes !== false;
         return new Response(
           JSON.stringify({
             id: 'ORD01PIXTEST123456789',
-            status: 'refunded',
+            status: refunded ? 'refunded' : 'processed',
+            status_detail: refunded ? 'refunded' : 'accredited',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
+
+      if ((init?.method ?? 'GET') === 'GET') {
+        return new Response(
+          JSON.stringify({
+            id: 'ORD01PIXTEST123456789',
+            external_reference: externalReference,
+            status: refunded ? 'refunded' : 'processed',
+            status_detail: refunded ? 'refunded' : 'accredited',
+            total_amount: '120.00',
+            transactions: {
+              payments: [
+                {
+                  id: 'PAY01PIXTEST123456789',
+                  status: refunded ? 'refunded' : 'processed',
+                  status_detail: refunded ? 'refunded' : 'accredited',
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      const body =
+        typeof init?.body === 'string'
+          ? JSON.parse(init.body) as { external_reference?: string }
+          : {};
+      externalReference = body.external_reference ?? '';
 
       return new Response(
         JSON.stringify({
@@ -338,5 +374,76 @@ test('reembolso parcial não é confundido com pagamento aprovado', async () => 
   assert.equal(
     await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
     12000,
+  );
+});
+
+
+test('estorno externo pendente mantém corrida em REFUND_PENDING', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const rides = new InMemoryRideRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests, { refundCompletes: false });
+  const ride = await rides.create(preparedRide());
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-refund-pending',
+    now,
+  });
+
+  const applied = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(applied.kind, 'paid');
+
+  const paid = await confirmRidePayment(rides, {
+    rideId: ride.id,
+    payment: applied.payment,
+    confirmedAt: new Date('2026-09-24T08:01:01.000Z'),
+  });
+  const searching = await rides.save({
+    ...paid,
+    state: transitionRide(paid.state, 'SEARCHING_DRIVER'),
+    updatedAt: '2026-09-24T08:01:02.000Z',
+  });
+  const noDriver = await rides.save({
+    ...searching,
+    state: transitionRide(searching.state, 'NO_DRIVER_FOUND'),
+    updatedAt: '2026-09-24T08:01:03.000Z',
+  });
+
+  const result = await refundMercadoPagoRideAfterNoDriver({
+    rides,
+    finance,
+    gateway: mp,
+    rideId: noDriver.id,
+    paymentId: applied.payment.id,
+    passengerId: noDriver.passengerId,
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(result.ride.state, 'REFUND_PENDING');
+  assert.equal(result.payment.status, 'paid');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    12000,
+  );
+  assert.equal(
+    requests.filter((request) => request.endsWith('/refund')).length,
+    1,
   );
 });
