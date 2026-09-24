@@ -31,19 +31,62 @@ class AuthSessionInfo {
     required this.expiresAt,
     required this.subjectId,
     required this.subjectType,
+    this.email,
+    this.fullName,
   });
 
   final DateTime expiresAt;
   final String subjectId;
   final String subjectType;
+  final String? email;
+  final String? fullName;
+}
+
+class PassengerAccount {
+  const PassengerAccount({
+    required this.subjectId,
+    required this.phoneE164,
+    this.email,
+    this.fullName,
+    this.photoUrl,
+  });
+
+  final String subjectId;
+  final String phoneE164;
+  final String? email;
+  final String? fullName;
+  final String? photoUrl;
 }
 
 abstract interface class PhoneAuthService {
-  Future<RequestedOtp> requestOtp({required String phone});
+  Future<RequestedOtp> requestOtp({
+    required String phone,
+    String? email,
+  });
+
+  Future<RequestedOtp> requestPasswordResetOtp({
+    required String phone,
+  });
+
   Future<AuthSession> verifyOtp({
     required String challengeId,
     required String code,
   });
+
+  Future<AuthSession> loginWithPassword({
+    required String email,
+    required String password,
+  });
+
+  Future<PassengerAccount> passengerAccount(String accessToken);
+
+  Future<PassengerAccount> updatePassengerAccount({
+    required String accessToken,
+    String? fullName,
+    String? email,
+    String? password,
+  });
+
   Future<AuthSessionInfo?> currentSession(String accessToken);
   Future<void> logout(String accessToken);
 }
