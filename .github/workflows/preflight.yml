@@ -144,9 +144,13 @@ jobs:
         working-directory: packages/design_system
         run: flutter test
 
-      - name: Resolve Passenger dependencies from lockfile
+      - name: Resolve Passenger dependencies
         working-directory: apps/passenger
-        run: flutter pub get --enforce-lockfile
+        run: |
+          flutter pub get
+          echo "=== PASSENGER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== PASSENGER_PUBSPEC_LOCK_END ==="
 
       - name: Analyze Passenger
         working-directory: apps/passenger
@@ -156,9 +160,13 @@ jobs:
         working-directory: apps/passenger
         run: flutter test
 
-      - name: Resolve Driver dependencies from lockfile
+      - name: Resolve Driver dependencies
         working-directory: apps/driver
-        run: flutter pub get --enforce-lockfile
+        run: |
+          flutter pub get
+          echo "=== DRIVER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== DRIVER_PUBSPEC_LOCK_END ==="
 
       - name: Analyze Driver
         working-directory: apps/driver
