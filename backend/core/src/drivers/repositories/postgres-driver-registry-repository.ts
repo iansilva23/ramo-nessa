@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import type { ServiceCategory } from '../../pricing/types.js';
 import type {
   DriverProfileRecord,
+  DriverRatingResult,
   DriverRegistryRepository,
   DriverRegistryStatus,
   DriverVehicleRecord,
@@ -208,6 +209,105 @@ export class PostgresDriverRegistryRepository
       mimeType: row.photo_mime_type,
       updatedAt: row.photo_updated_at.toISOString(),
     };
+  }
+
+  async submitRating(input: {
+    rideId: string;
+    passengerId: string;
+    driverId: string;
+    stars: number;
+    createdAt: string;
+  }): Promise<DriverRatingResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const inserted = await client.query<{ stars: number }>(
+        `
+        INSERT INTO driver_ratings (
+          ride_id, passenger_id, driver_id, stars, created_at
+        ) VALUES ($1,$2,$3,$4,$5)
+        ON CONFLICT (ride_id) DO NOTHING
+        RETURNING stars
+        `,
+        [
+          input.rideId,
+          input.passengerId,
+          input.driverId,
+          input.stars,
+          input.createdAt,
+        ],
+      );
+
+      let stars = inserted.rows[0]?.stars;
+      let duplicate = false;
+
+      if (stars == null) {
+        duplicate = true;
+        const existing = await client.query<{
+          stars: number;
+          driver_id: string;
+        }>(
+          `
+          SELECT stars, driver_id
+          FROM driver_ratings
+          WHERE ride_id = $1
+          LIMIT 1
+          `,
+          [input.rideId],
+        );
+        const row = existing.rows[0];
+        if (row == null) {
+          throw new Error('Avaliação existente não encontrada.');
+        }
+        stars = row.stars;
+      } else {
+        await client.query(
+          `
+          UPDATE driver_profiles
+          SET
+            rating_sum = rating_sum + $2,
+            rating_count = rating_count + 1,
+            updated_at = $3
+          WHERE driver_id = $1
+          `,
+          [input.driverId, input.stars, input.createdAt],
+        );
+      }
+
+      const aggregate = await client.query<{
+        rating_sum: number;
+        rating_count: number;
+      }>(
+        `
+        SELECT rating_sum, rating_count
+        FROM driver_profiles
+        WHERE driver_id = $1
+        LIMIT 1
+        `,
+        [input.driverId],
+      );
+      const profile = aggregate.rows[0];
+      if (profile == null) {
+        throw new Error('Perfil do motorista não encontrado.');
+      }
+
+      await client.query('COMMIT');
+      return {
+        stars,
+        ratingAverage:
+          profile.rating_count === 0
+            ? 0
+            : profile.rating_sum / profile.rating_count,
+        ratingCount: profile.rating_count,
+        duplicate,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async findVehicleByDriverId(
