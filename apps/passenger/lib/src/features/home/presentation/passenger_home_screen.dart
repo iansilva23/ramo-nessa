@@ -9,6 +9,8 @@ import '../../../core/location/geolocator_location_service.dart';
 import '../../../core/location/location_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/agency_promotion_service.dart';
+import '../../account/data/passenger_self_service.dart';
+import '../../account/domain/passenger_account_models.dart';
 import '../../map/data/nominatim_place_search_service.dart';
 import '../../map/data/osrm_route_service.dart';
 import '../../map/data/place_search_service.dart';
@@ -48,6 +50,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.rideRealtimeService,
     this.releasePolicyService,
     this.agencyPromotionService,
+    this.selfService,
     this.networkTilesEnabled = true,
   });
 
@@ -63,6 +66,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final PassengerRideRealtimeService? rideRealtimeService;
   final AppReleasePolicyService? releasePolicyService;
   final AgencyPromotionService? agencyPromotionService;
+  final PassengerSelfService? selfService;
   final bool networkTilesEnabled;
 
   @override
@@ -148,6 +152,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 )
               : null);
 
+  late final PassengerSelfService? _selfService =
+      widget.selfService ??
+          (_authenticated && _accessToken.length >= 20
+              ? HttpPassengerSelfService(
+                  baseUrl: RamoCoreConfig.baseUri!,
+                  accessToken: _accessToken,
+                )
+              : null);
+
+  int _selectedTab = 0;
+  PassengerAccountSnapshot? _account;
+  PassengerActivitySnapshot? _activity;
+  bool _selfLoading = false;
+
   ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
@@ -174,6 +192,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locateUser(showErrors: false);
       _loadCommunicationContent();
+      _loadSelfData();
     });
   }
 
@@ -908,44 +927,181 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       );
   }
 
-  Future<void> _openProfileMenu() async {
+  Future<void> _loadSelfData() async {
+    final service = _selfService;
+    if (service == null || _selfLoading) return;
+    if (mounted) setState(() => _selfLoading = true);
+    try {
+      final results = await Future.wait<Object>([
+        service.account(),
+        service.activity(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _account = results[0] as PassengerAccountSnapshot;
+        _activity = results[1] as PassengerActivitySnapshot;
+        _selfLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _selfLoading = false);
+    }
+  }
+
+  Future<void> _logoutAccount() async {
     final logout = widget.onLogout;
     if (logout == null) return;
-
-    final shouldLogout = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: RamoSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(
-                leading: Icon(Icons.person_rounded),
-                title: Text('Conta Ramo Nessa'),
-                subtitle: Text('Sessão protegida neste aparelho'),
-              ),
-              ListTile(
-                key: const Key('passenger-logout'),
-                leading: const Icon(Icons.logout_rounded),
-                title: const Text('Sair da conta'),
-                onTap: () => Navigator.of(context).pop(true),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (shouldLogout != true) return;
     final success = await logout();
     if (!mounted || success) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
           'Não foi possível encerrar a sessão agora. Tente novamente.',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityTab() {
+    final activity = _activity;
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _loadSelfData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.xxl,
+          ),
+          children: [
+            Text(
+              'Atividade',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Suas corridas ficam organizadas aqui.',
+              style: TextStyle(color: RamoColors.muted),
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            if (_selfLoading && activity == null)
+              const Center(child: CircularProgressIndicator())
+            else if (activity == null)
+              const _PassengerEmptyState(
+                icon: Icons.history_rounded,
+                title: 'Histórico indisponível',
+                subtitle: 'Puxe para baixo para tentar novamente.',
+              )
+            else ...[
+              _PassengerActivitySummary(activity: activity),
+              const SizedBox(height: RamoSpacing.lg),
+              if (activity.rides.isEmpty)
+                const _PassengerEmptyState(
+                  icon: Icons.route_rounded,
+                  title: 'Nenhuma corrida ainda',
+                  subtitle: 'Suas próximas viagens aparecerão aqui.',
+                )
+              else
+                ...activity.rides.map(
+                  (ride) => Padding(
+                    padding: const EdgeInsets.only(bottom: RamoSpacing.sm),
+                    child: _PassengerRideHistoryCard(ride: ride),
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileTab() {
+    final account = _account;
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: _loadSelfData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.lg,
+            RamoSpacing.xxl,
+          ),
+          children: [
+            Text(
+              'Perfil',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                  ),
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            _PassengerProfileHero(
+              account: account,
+              loading: _selfLoading && account == null,
+            ),
+            const SizedBox(height: RamoSpacing.lg),
+            _PassengerProfileOption(
+              icon: Icons.badge_outlined,
+              title: 'Dados pessoais',
+              subtitle: account?.email ?? 'Nome, celular e e-mail',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        _PassengerPersonalDataScreen(account: account),
+                  ),
+                );
+              },
+            ),
+            _PassengerProfileOption(
+              icon: Icons.receipt_long_rounded,
+              title: 'Histórico de corridas',
+              subtitle: _activity == null
+                  ? 'Consultar atividade'
+                  : '${_activity!.completed} concluídas',
+              onTap: () => setState(() => _selectedTab = 1),
+            ),
+            _PassengerProfileOption(
+              icon: Icons.credit_card_rounded,
+              title: 'Formas de pagamento',
+              subtitle: 'Pix, cartão, carteira e dinheiro quando habilitado',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _PassengerPaymentMethodsScreen(),
+                  ),
+                );
+              },
+            ),
+            _PassengerProfileOption(
+              icon: Icons.security_rounded,
+              title: 'Segurança',
+              subtitle: 'Sessão protegida neste aparelho',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _PassengerSecurityScreen(),
+                  ),
+                );
+              },
+            ),
+            if (widget.onLogout != null)
+              _PassengerProfileOption(
+                key: const Key('passenger-logout'),
+                icon: Icons.logout_rounded,
+                title: 'Sair',
+                subtitle: 'Encerrar a sessão neste aparelho',
+                onTap: _logoutAccount,
+                destructive: true,
+              ),
+          ],
         ),
       ),
     );
@@ -971,9 +1127,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
-    return Scaffold(
-      body: Stack(
-        children: [
+    final homeMap = Stack(
+      children: [
           Positioned.fill(
             child: RamoLiveMap(
               controller: _mapController,
@@ -1000,9 +1155,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   Row(
                     children: [
                       _MapFloatingButton(
-                        tooltip: 'Menu',
-                        onPressed: _openProfileMenu,
-                        icon: const Icon(Icons.menu_rounded),
+                        tooltip: 'Perfil',
+                        onPressed: () => setState(() => _selectedTab = 2),
+                        icon: const Icon(Icons.person_rounded),
                       ),
                       const Spacer(),
                       DecoratedBox(
@@ -1100,6 +1255,39 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             availableServices: availableServices,
             onServiceChanged: _reloadQuoteForService,
             onRequestRide: _requestRide,
+          ),
+      ],
+    );
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedTab,
+        children: [
+          homeMap,
+          _buildActivityTab(),
+          _buildProfileTab(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (index) {
+          setState(() => _selectedTab = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Início',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long_rounded),
+            label: 'Atividade',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Perfil',
           ),
         ],
       ),
