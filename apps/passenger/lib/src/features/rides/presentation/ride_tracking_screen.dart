@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../../core/config/ramo_map_config.dart';
-import '../../rides/data/passenger_ride_realtime_service.dart';
-import '../../rides/data/passenger_ride_tracking_service.dart';
-import '../../rides/domain/passenger_ride_tracking_snapshot.dart';
-import '../../rides/domain/prepared_ride.dart';
+import '../../home/presentation/widgets/ramo_live_map.dart';
+import '../../map/domain/ramo_place.dart';
+import '../data/passenger_ride_realtime_service.dart';
+import '../data/passenger_ride_tracking_service.dart';
+import '../domain/passenger_ride_tracking_snapshot.dart';
+import '../domain/prepared_ride.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -36,7 +36,7 @@ class RideTrackingScreen extends StatefulWidget {
 }
 
 class _RideTrackingScreenState extends State<RideTrackingScreen> {
-  final MapController _mapController = MapController();
+  final RamoMapController _mapController = RamoMapController();
   Timer? _timer;
   StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
   PassengerRideTrackingSnapshot? _snapshot;
@@ -103,7 +103,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
             : null;
 
     if (_mapReady && center != null) {
-      _mapController.move(center, 15.5);
+      unawaited(_mapController.move(center, 15.5));
     }
   }
 
@@ -152,56 +152,37 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     };
   }
 
+  RamoPlace? _pickup(PassengerRideTrackingSnapshot? snapshot) {
+    final latitude = snapshot?.pickupLatitude;
+    final longitude = snapshot?.pickupLongitude;
+    if (latitude == null || longitude == null) return null;
+
+    return RamoPlace(
+      name: 'Embarque',
+      address: 'Ponto de embarque da corrida',
+      position: LatLng(latitude, longitude),
+    );
+  }
+
+  RamoPlace? _dropoff(PassengerRideTrackingSnapshot? snapshot) {
+    final latitude = snapshot?.dropoffLatitude;
+    final longitude = snapshot?.dropoffLongitude;
+    if (latitude == null || longitude == null) return null;
+
+    return RamoPlace(
+      name: 'Destino',
+      address: 'Destino da corrida',
+      position: LatLng(latitude, longitude),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
-    final markers = <Marker>[];
-
-    if (
-      snapshot?.pickupLatitude != null &&
-      snapshot?.pickupLongitude != null
-    ) {
-      markers.add(
-        Marker(
-          point: LatLng(
-            snapshot!.pickupLatitude!,
-            snapshot.pickupLongitude!,
-          ),
-          width: 44,
-          height: 44,
-          child: const _PickupMarker(),
-        ),
-      );
-    }
-
-    if (
-      snapshot?.dropoffLatitude != null &&
-      snapshot?.dropoffLongitude != null
-    ) {
-      markers.add(
-        Marker(
-          point: LatLng(
-            snapshot!.dropoffLatitude!,
-            snapshot.dropoffLongitude!,
-          ),
-          width: 44,
-          height: 44,
-          child: const _DropoffMarker(),
-        ),
-      );
-    }
-
     final driver = snapshot?.driverLocation;
-    if (driver != null) {
-      markers.add(
-        Marker(
-          point: LatLng(driver.latitude, driver.longitude),
-          width: 52,
-          height: 52,
-          child: _DriverMarker(stale: driver.stale),
-        ),
-      );
-    }
+    final driverPosition = driver == null
+        ? null
+        : LatLng(driver.latitude, driver.longitude);
 
     return Scaffold(
       appBar: AppBar(
@@ -210,32 +191,18 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: RamoMapConfig.fallbackCenter,
-                initialZoom: RamoMapConfig.fallbackZoom,
-                minZoom: 4,
-                maxZoom: 19,
-                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                onMapReady: () {
-                  _mapReady = true;
-                  _refresh();
-                },
-              ),
-              children: [
-                if (widget.networkTilesEnabled)
-                  TileLayer(
-                    urlTemplate: RamoMapConfig.osmTileUrl,
-                    userAgentPackageName: 'br.com.ramonessa.passenger',
-                    tileProvider: NetworkTileProvider(
-                      headers: const {
-                        'User-Agent': RamoMapConfig.userAgent,
-                      },
-                    ),
-                  ),
-                if (markers.isNotEmpty) MarkerLayer(markers: markers),
-              ],
+            child: RamoLiveMap(
+              controller: _mapController,
+              origin: _pickup(snapshot),
+              destination: _dropoff(snapshot),
+              routePoints: const [],
+              driverPosition: driverPosition,
+              driverPositionStale: driver?.stale ?? false,
+              networkTilesEnabled: widget.networkTilesEnabled,
+              onMapReady: () {
+                _mapReady = true;
+                _refresh();
+              },
             ),
           ),
           SafeArea(
@@ -324,66 +291,6 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PickupMarker extends StatelessWidget {
-  const _PickupMarker();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: RamoColors.signal,
-        shape: BoxShape.circle,
-        border: Border.all(color: RamoColors.ink, width: 3),
-      ),
-      child: const Icon(Icons.person_pin_circle_rounded, size: 24),
-    );
-  }
-}
-
-class _DropoffMarker extends StatelessWidget {
-  const _DropoffMarker();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: RamoColors.ink,
-        shape: BoxShape.circle,
-      ),
-      child: const Icon(
-        Icons.flag_rounded,
-        color: RamoColors.signal,
-        size: 24,
-      ),
-    );
-  }
-}
-
-class _DriverMarker extends StatelessWidget {
-  const _DriverMarker({required this.stale});
-
-  final bool stale;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: stale
-            ? Theme.of(context).colorScheme.outline
-            : RamoColors.ink,
-        shape: BoxShape.circle,
-        border: Border.all(color: RamoColors.signal, width: 4),
-        boxShadow: RamoElevation.floating(context),
-      ),
-      child: const Icon(
-        Icons.directions_car_filled_rounded,
-        color: RamoColors.signal,
-        size: 26,
       ),
     );
   }
