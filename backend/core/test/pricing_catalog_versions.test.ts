@@ -48,6 +48,10 @@ test('cria rascunho imutável do catálogo atual e registra auditoria', async ()
       (category) =>
         draft.snapshot.categoryPolicies[category].enabled,
     ).length,
+    enabledZones: draft.snapshot.zones.filter(
+      (zoneId) => draft.snapshot.zonePolicies[zoneId].enabled,
+    ).length,
+    externalLocalities: draft.snapshot.externalLocalities.length,
   });
 
   const audit = await admin.listAudit(10);
@@ -402,5 +406,189 @@ test('política de categoria fica no rascunho e pode desativar novas cotações'
         entry.metadata?.category === 'moto',
     ),
     true,
+  );
+});
+
+
+test('estrutura de localidades é editada somente no rascunho com proteções', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-location-structure',
+    name: 'Admin Location Structure',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+  });
+
+  const add = parsePricingCatalogDraftPatch({
+    kind: 'locality_structure',
+    operation: 'add',
+    scope: 'prea',
+    localityId: 'novo-destino-teste',
+  });
+  const added = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: add,
+  });
+
+  assert.deepEqual(
+    added.snapshot.localities.prea['novo-destino-teste'],
+    {},
+  );
+  assert.equal(
+    STATIC_PRICING_CATALOG_V1.localities.prea['novo-destino-teste'],
+    undefined,
+  );
+
+  const remove = parsePricingCatalogDraftPatch({
+    kind: 'locality_structure',
+    operation: 'remove',
+    scope: 'prea',
+    localityId: 'novo-destino-teste',
+  });
+  const removed = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: remove,
+  });
+  assert.equal(
+    removed.snapshot.localities.prea['novo-destino-teste'],
+    undefined,
+  );
+
+  await assert.rejects(
+    () =>
+      updatePricingCatalogDraft({
+        versions,
+        admin,
+        actor,
+        versionId: draft.id,
+        patch: parsePricingCatalogDraftPatch({
+          kind: 'locality_structure',
+          operation: 'remove',
+          scope: 'prea',
+          localityId: 'prea',
+        }),
+      }),
+    (error: unknown) =>
+      error instanceof PricingCatalogVersionError &&
+      error.code === 'PRICING_STRUCTURE_CONFLICT',
+  );
+
+  await assert.rejects(
+    () =>
+      updatePricingCatalogDraft({
+        versions,
+        admin,
+        actor,
+        versionId: draft.id,
+        patch: parsePricingCatalogDraftPatch({
+          kind: 'locality_structure',
+          operation: 'remove',
+          scope: 'external',
+          localityId: 'airport-jjd',
+        }),
+      }),
+    (error: unknown) =>
+      error instanceof PricingCatalogVersionError &&
+      error.code === 'PRICING_STRUCTURE_CONFLICT',
+  );
+});
+
+test('zona pode ser desativada por versão sem alterar o catálogo estático', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-zone-policy',
+    name: 'Admin Zone Policy',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+  });
+
+  const updated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'zone_policy',
+      zoneId: 'prea',
+      enabled: false,
+    }),
+  });
+
+  assert.equal(
+    STATIC_PRICING_CATALOG_V1.zonePolicies.prea.enabled,
+    true,
+  );
+  assert.equal(updated.snapshot.zonePolicies.prea.enabled, false);
+
+  const request = {
+    origin: { zoneId: 'prea' as const },
+    destination: { zoneId: 'jijoca' as const },
+    category: 'car' as const,
+    period: 'day' as const,
+  };
+
+  assert.equal(quoteFare(request).kind, 'exact');
+  assert.throws(
+    () => quoteFare(request, updated.snapshot),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes('desativada'),
+  );
+});
+
+test('destino externo adicionado no rascunho só é reconhecido por esse catálogo', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-external-locality',
+    name: 'Admin External Locality',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+  });
+
+  const updated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'add',
+      scope: 'external',
+      localityId: 'novo-destino-externo',
+    }),
+  });
+
+  assert.equal(
+    updated.snapshot.externalLocalities.includes(
+      'novo-destino-externo',
+    ),
+    true,
+  );
+  assert.equal(
+    STATIC_PRICING_CATALOG_V1.externalLocalities.includes(
+      'novo-destino-externo',
+    ),
+    false,
   );
 });
