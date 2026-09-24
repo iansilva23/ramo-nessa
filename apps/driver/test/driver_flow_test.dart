@@ -637,6 +637,14 @@ class _FakeDriverApi implements DriverApi {
   Future<DriverFinanceSummary> financeSummary() async => _finance;
 
   @override
+  Future<DriverFinanceStatement> financeStatement() async =>
+      DriverFinanceStatement(
+        generatedAt: DateTime(2026, 9, 24),
+        finance: _finance,
+        items: const [],
+      );
+
+  @override
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
