@@ -231,6 +231,8 @@ import {
   parsePricingCatalogDraftPatch,
 } from './pricing/pricing-catalog-version-validation.js';
 import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
+import { createValhallaRoutingProviderFromEnv } from './routing/valhalla-route-provider.js';
+import { RoutingRouteError } from './routing/route-provider.js';
 import {
   confirmRidePayment,
   RidePaymentConfirmationError,
@@ -318,6 +320,7 @@ const {
   close: closeRepositories,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
+const routingRouteProvider = createValhallaRoutingProviderFromEnv();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
@@ -372,6 +375,29 @@ function json(response: ServerResponse, status: number, body: unknown): void {
     'referrer-policy': 'no-referrer',
   });
   response.end(JSON.stringify(body));
+}
+
+function parseRoutePoint(value: unknown):
+  | { latitude: number; longitude: number }
+  | null {
+  if (value == null || typeof value !== 'object') return null;
+  const record = value as {
+    latitude?: unknown;
+    longitude?: unknown;
+  };
+  const latitude = Number(record.latitude);
+  const longitude = Number(record.longitude);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+  return { latitude, longitude };
 }
 
 function sendPushBestEffort(input: {
@@ -864,6 +890,75 @@ const server = createServer(async (request, response) => {
       const promotion =
         await adminCommunicationsRepository.getAgencyPromotion();
       json(response, 200, promotion);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/maps/route'
+    ) {
+      const authorization = headerValue(request, 'authorization');
+      if (process.env.NODE_ENV === 'production' || authorization != null) {
+        await authenticateBearer({
+          repository: authSessionRepository,
+          identities: authOtpRepository,
+          headers: request.headers,
+        });
+      }
+
+      if (routingRouteProvider == null) {
+        json(response, 503, {
+          error: 'ROUTING_NOT_CONFIGURED',
+          message: 'O serviço de rotas ainda não está configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const raw =
+        body != null && typeof body === 'object'
+          ? body as { origin?: unknown; destination?: unknown }
+          : {};
+      const origin = parseRoutePoint(raw.origin);
+      const destination = parseRoutePoint(raw.destination);
+      if (origin == null || destination == null) {
+        json(response, 422, {
+          error: 'INVALID_ROUTE_COORDINATES',
+          message: 'Origem e destino precisam ter coordenadas válidas.',
+        });
+        return;
+      }
+
+      try {
+        const route = await routingRouteProvider.route({
+          from: origin,
+          to: destination,
+        });
+        json(response, 200, {
+          provider: 'valhalla',
+          distanceMeters: route.distanceMeters,
+          durationSeconds: route.durationSeconds,
+          points: route.points,
+          maneuvers: route.maneuvers,
+        });
+      } catch (error) {
+        if (error instanceof RoutingRouteError) {
+          json(
+            response,
+            error.code === 'INVALID_COORDINATES'
+              ? 422
+              : error.code === 'ROUTE_NOT_FOUND'
+                ? 404
+                : 503,
+            {
+              error: error.code,
+              message: error.message,
+            },
+          );
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
