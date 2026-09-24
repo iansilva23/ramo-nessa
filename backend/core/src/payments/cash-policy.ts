@@ -58,10 +58,19 @@ export async function canDriverAcceptCashRide(input: {
 }): Promise<boolean> {
   const snapshot = await driverCashPolicySnapshot(input);
   if (!snapshot.cashEnabled) return false;
-  return (
-    snapshot.currentDebtCents + input.additionalCommissionCents <=
-    snapshot.effectiveDebtLimitCents
+  const availablePayableCents = Math.max(
+    0,
+    await input.finance.getAccountBalanceCents(
+      `driver:${input.driverId}:payable`,
+    ),
   );
+  const projectedDebtCents = Math.max(
+    0,
+    snapshot.currentDebtCents +
+      input.additionalCommissionCents -
+      availablePayableCents,
+  );
+  return projectedDebtCents <= snapshot.effectiveDebtLimitCents;
 }
 
 export async function assertDriverCashCapacity(input: {
@@ -79,8 +88,18 @@ export async function assertDriverCashCapacity(input: {
     );
   }
 
-  const projectedDebtCents =
-    snapshot.currentDebtCents + input.additionalCommissionCents;
+  const availablePayableCents = Math.max(
+    0,
+    await input.finance.getAccountBalanceCents(
+      `driver:${input.driverId}:payable`,
+    ),
+  );
+  const projectedDebtCents = Math.max(
+    0,
+    snapshot.currentDebtCents +
+      input.additionalCommissionCents -
+      availablePayableCents,
+  );
   if (projectedDebtCents > snapshot.effectiveDebtLimitCents) {
     throw new DriverCashPolicyError(
       'CASH_DEBT_LIMIT_EXCEEDED',
