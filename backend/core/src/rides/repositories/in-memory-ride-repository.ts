@@ -2,6 +2,7 @@ import type { RideRecord } from '../ride.js';
 import type {
   AdminRideListInput,
   AdminRideListPage,
+  AdminPassengerRideSummary,
   AdminRideOperationalSummary,
   RideRepository,
 } from '../ride-repository.js';
@@ -63,6 +64,59 @@ export class InMemoryRideRepository implements RideRepository {
       })
       .slice(0, limit)
       .map((ride) => structuredClone(ride));
+  }
+
+  async listAdminRecentByPassengerId(
+    passengerId: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    return [...this.rides.values()]
+      .filter((ride) => ride.passengerId === passengerId)
+      .sort((a, b) => {
+        const updatedDiff =
+          Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+        if (updatedDiff !== 0) return updatedDiff;
+        return b.id.localeCompare(a.id);
+      })
+      .slice(0, safeLimit)
+      .map((ride) => structuredClone(ride));
+  }
+
+  async getAdminPassengerRideSummary(
+    passengerId: string,
+  ): Promise<AdminPassengerRideSummary> {
+    const rides = [...this.rides.values()].filter(
+      (ride) => ride.passengerId === passengerId,
+    );
+    const activeStates = new Set<RideRecord['state']>([
+      'PAID',
+      'SEARCHING_DRIVER',
+      'DRIVER_ASSIGNED',
+      'DRIVER_ARRIVING',
+      'DRIVER_ARRIVED',
+      'IN_PROGRESS',
+    ]);
+    const cancelledStates = new Set<RideRecord['state']>([
+      'CANCELLED_BY_PASSENGER',
+      'CANCELLED_BY_DRIVER',
+      'CANCELLED_BY_ADMIN',
+    ]);
+
+    return {
+      total: rides.length,
+      active: rides.filter((ride) => activeStates.has(ride.state)).length,
+      completed: rides.filter((ride) => ride.state === 'COMPLETED').length,
+      cancelled: rides.filter((ride) =>
+        cancelledStates.has(ride.state),
+      ).length,
+      completedAmountCents: rides
+        .filter((ride) => ride.state === 'COMPLETED')
+        .reduce(
+          (total, ride) => total + ride.quote.totalAmountCents,
+          0,
+        ),
+    };
   }
 
   async listAdmin(
