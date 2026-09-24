@@ -227,11 +227,18 @@ export class MercadoPagoOrdersClient {
     return {
       orderId,
       paymentId,
-      status: typeof payload.status === 'string' ? payload.status : '',
+      status:
+        typeof payment.status === 'string'
+          ? payment.status
+          : typeof payload.status === 'string'
+              ? payload.status
+              : '',
       statusDetail:
-        typeof payload.status_detail === 'string'
-          ? payload.status_detail
-          : '',
+        typeof payment.status_detail === 'string'
+          ? payment.status_detail
+          : typeof payload.status_detail === 'string'
+              ? payload.status_detail
+              : '',
       ticketUrl,
       qrCode,
       qrCodeBase64,
