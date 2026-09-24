@@ -1,3 +1,4 @@
+# Android audit: rerun after Mercado Pago manifest compatibility fix.
 name: Mobile Build Audit
 
 on:
