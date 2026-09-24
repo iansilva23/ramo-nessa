@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type {
   AdminActor,
@@ -13,6 +13,10 @@ import type {
 import type {
   DriverRegistryRepository,
 } from './driver-registry-repository.js';
+import {
+  MAX_PRIVATE_DOCUMENT_BYTES,
+  type WritablePrivateDocumentStorage,
+} from './driver-document-private-storage.js';
 import type {
   ReviewDriverDocumentRequest,
   SubmitDriverDocumentRequest,
@@ -26,7 +30,9 @@ export class DriverDocumentError extends Error {
       | 'DOCUMENT_NOT_FOUND'
       | 'DOCUMENT_STORAGE_REFERENCE_INVALID'
       | 'DOCUMENT_ALREADY_EXPIRED'
-      | 'DOCUMENT_REVIEW_CONFLICT',
+      | 'DOCUMENT_REVIEW_CONFLICT'
+      | 'DOCUMENT_CONTENT_INVALID'
+      | 'DOCUMENT_EXPIRATION_INVALID',
     message: string,
   ) {
     super(message);
@@ -116,6 +122,138 @@ export async function getDriverDocumentsForAdmin(input: {
     requiredDocumentTypes: required,
     documentsApproved,
   };
+}
+
+function documentExtension(
+  mimeType: 'image/jpeg' | 'image/png' | 'application/pdf',
+): 'jpg' | 'png' | 'pdf' {
+  switch (mimeType) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/png':
+      return 'png';
+    case 'application/pdf':
+      return 'pdf';
+  }
+}
+
+function contentMatchesMimeType(
+  bytes: Buffer,
+  mimeType: 'image/jpeg' | 'image/png' | 'application/pdf',
+): boolean {
+  if (mimeType === 'image/jpeg') {
+    return bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+  }
+  if (mimeType === 'image/png') {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return bytes.length >= signature.length &&
+      signature.every((value, index) => bytes[index] === value);
+  }
+  return bytes.length >= 5 &&
+    bytes.subarray(0, 5).toString('ascii') === '%PDF-';
+}
+
+function cleanDriverDocumentExpiration(
+  value: string | undefined,
+): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized) return undefined;
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(normalized) ||
+    Number.isNaN(Date.parse(`${normalized}T00:00:00.000Z`))
+  ) {
+    throw new DriverDocumentError(
+      'DOCUMENT_EXPIRATION_INVALID',
+      'A validade deve usar o formato YYYY-MM-DD.',
+    );
+  }
+  return normalized;
+}
+
+export async function submitDriverDocumentFromDriverApp(input: {
+  registry: DriverRegistryRepository;
+  documents: DriverDocumentRepository;
+  storage: WritablePrivateDocumentStorage;
+  driverId: string;
+  documentType: DriverDocumentType;
+  bytes: Buffer;
+  mimeType: 'image/jpeg' | 'image/png' | 'application/pdf';
+  expiresOn?: string;
+  now?: Date;
+}) {
+  const [profile, vehicle] = await Promise.all([
+    input.registry.findProfile(input.driverId),
+    input.registry.findVehicleByDriverId(input.driverId),
+  ]);
+  if (profile == null) {
+    throw new DriverDocumentError(
+      'DRIVER_REGISTRY_NOT_FOUND',
+      'Perfil do motorista não encontrado.',
+    );
+  }
+  if (
+    input.documentType === 'vehicle_registration' &&
+    vehicle == null
+  ) {
+    throw new DriverDocumentError(
+      'DRIVER_VEHICLE_NOT_FOUND',
+      'Cadastre o veículo antes de enviar o CRLV.',
+    );
+  }
+  if (
+    input.bytes.length < 1 ||
+    input.bytes.length > MAX_PRIVATE_DOCUMENT_BYTES ||
+    !contentMatchesMimeType(input.bytes, input.mimeType)
+  ) {
+    throw new DriverDocumentError(
+      'DOCUMENT_CONTENT_INVALID',
+      'Envie um arquivo JPEG, PNG ou PDF válido de até 20 MB.',
+    );
+  }
+
+  const now = input.now ?? new Date();
+  const expiresOn = cleanDriverDocumentExpiration(input.expiresOn);
+  if (expirationIsPast(expiresOn, now)) {
+    throw new DriverDocumentError(
+      'DOCUMENT_ALREADY_EXPIRED',
+      'Não é possível enviar um documento já vencido.',
+    );
+  }
+
+  const instant = now.toISOString();
+  const extension = documentExtension(input.mimeType);
+  const storageKey =
+    `drivers/${input.driverId}/${input.documentType}/` +
+    `${randomUUID()}.${extension}`;
+  const contentSha256 = createHash('sha256')
+    .update(input.bytes)
+    .digest('hex');
+
+  await input.storage.write(storageKey, {
+    bytes: input.bytes,
+    contentType: input.mimeType,
+  });
+
+  const record = await input.documents.submitCurrent({
+    id: randomUUID(),
+    driverId: input.driverId,
+    documentType: input.documentType,
+    storageKey,
+    contentSha256,
+    mimeType: input.mimeType,
+    sizeBytes: input.bytes.length,
+    ...(expiresOn == null ? {} : { expiresOn }),
+    status: 'pending',
+    isCurrent: true,
+    submittedAt: instant,
+    createdAt: instant,
+    updatedAt: instant,
+  });
+
+  return safeDocumentView(record, now);
 }
 
 export async function submitDriverDocumentFromAdmin(input: {
