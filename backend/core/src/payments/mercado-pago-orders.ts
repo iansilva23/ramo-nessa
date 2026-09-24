@@ -247,7 +247,7 @@ export function verifyMercadoPagoWebhookSignature(input: {
   }
 
   const manifest =
-    `id:${input.dataId};request-id:${input.xRequestId};ts:${timestamp};`;
+    `id:${input.dataId.toLowerCase()};request-id:${input.xRequestId};ts:${timestamp};`;
   const expected = createHmac('sha256', input.secret)
     .update(manifest, 'utf8')
     .digest('hex');
