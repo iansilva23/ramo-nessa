@@ -106,6 +106,16 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/fleet', { token });
     },
 
+    finance(token, limit = 25) {
+      const safeLimit = Math.max(
+        1,
+        Math.min(100, Math.trunc(limit)),
+      );
+      return request(`/v1/admin/finance?limit=${safeLimit}`, {
+        token,
+      });
+    },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },
