@@ -16,6 +16,16 @@ import { DriverCashPolicyError } from './payments/cash-policy.js';
 import { createPaymentForRide } from './payments/create-payment.js';
 import { PaymentDomainError } from './payments/payment.js';
 import {
+  MercadoPagoOrdersError,
+  mercadoPagoOrdersClientFromEnv,
+  verifyMercadoPagoWebhookSignature,
+} from './payments/mercado-pago-orders.js';
+import {
+  applyMercadoPagoOrderStatus,
+  createMercadoPagoPixIntent,
+  MercadoPagoPaymentServiceError,
+} from './payments/mercado-pago-payment-service.js';
+import {
   InvalidPaymentRequestError,
   parseCreatePaymentRequest,
   readIdempotencyKey,
@@ -210,7 +220,12 @@ import {
   refundWalletRideAfterNoDriver,
   RideRefundError,
 } from './rides/refund-no-driver.js';
+import {
+  ExternalRideRefundError,
+  refundMercadoPagoRideAfterNoDriver,
+} from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
 import {
@@ -279,6 +294,7 @@ const {
   close: closeRepositories,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
+const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 const pushNotificationService = new PushNotificationService(
