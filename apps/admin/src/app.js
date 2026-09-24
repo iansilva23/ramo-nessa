@@ -3398,14 +3398,23 @@ async function handleRideCancel(event) {
       reason,
     });
 
-    const message =
-      result.refundStatus === 'refunded'
-        ? 'Corrida cancelada e reembolso concluído.'
-        : 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.';
+    if (
+      result.refundStatus !== 'refunded' &&
+      result.refundStatus !== 'pending_external_gateway'
+    ) {
+      throw new Error(
+        'Resposta de cancelamento retornou status de reembolso desconhecido.',
+      );
+    }
+    const pendingExternal =
+      result.refundStatus === 'pending_external_gateway';
+    const message = pendingExternal
+      ? 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.'
+      : 'Corrida cancelada e reembolso concluído.';
     setMessage(
       globalMessage,
-      result.refundStatus === 'refunded' ? message : message,
-      result.refundStatus === 'refunded' ? 'success' : 'warning',
+      message,
+      pendingExternal ? 'warning' : 'success',
     );
 
     await loadRideDirectory({
