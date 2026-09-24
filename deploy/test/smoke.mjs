@@ -719,6 +719,57 @@ try {
     );
   }
 
+  const cashPolicy = await jsonRequest(
+    '/v1/admin/payment-policy',
+    { headers: authHeaders },
+  );
+  if (
+    cashPolicy.response.status !== 200 ||
+    cashPolicy.payload?.cashEnabled !== false ||
+    cashPolicy.payload?.cashActivationReady !== false ||
+    cashPolicy.payload?.futureCashDebtLimitCents !== 12000 ||
+    !Array.isArray(cashPolicy.payload?.allowedDigitalMethods) ||
+    cashPolicy.payload.allowedDigitalMethods.join(',') !==
+      'pix,card,wallet'
+  ) {
+    throw new Error(
+      'Política administrativa de dinheiro não iniciou bloqueada.',
+    );
+  }
+
+  const cashActivation = await jsonRequest(
+    '/v1/admin/payment-policy',
+    {
+      method: 'PATCH',
+      headers: {
+        ...authHeaders,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ cashEnabled: true }),
+    },
+  );
+  if (
+    cashActivation.response.status !== 409 ||
+    cashActivation.payload?.error !== 'CASH_ACTIVATION_BLOCKED'
+  ) {
+    throw new Error(
+      'Ativação prematura de dinheiro não foi bloqueada pelo Core.',
+    );
+  }
+
+  const cashPolicyAfter = await jsonRequest(
+    '/v1/admin/payment-policy',
+    { headers: authHeaders },
+  );
+  if (
+    cashPolicyAfter.response.status !== 200 ||
+    cashPolicyAfter.payload?.cashEnabled !== false
+  ) {
+    throw new Error(
+      'Política de dinheiro mudou após tentativa bloqueada.',
+    );
+  }
+
   const pricingCatalog = await jsonRequest(
     '/v1/admin/pricing/catalog',
     { headers: authHeaders },
