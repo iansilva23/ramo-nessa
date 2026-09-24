@@ -250,16 +250,21 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
           ),
           SafeArea(
             top: false,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(RamoSpacing.lg),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: RamoElevation.floating(context),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * .64,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(RamoSpacing.lg),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  boxShadow: RamoElevation.floating(context),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Row(
                     children: [
                       const Icon(
@@ -348,7 +353,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       ),
                     ),
                   ],
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
