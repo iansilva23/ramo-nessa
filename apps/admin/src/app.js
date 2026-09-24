@@ -1535,6 +1535,10 @@ function syncPricingEditFields() {
     kind !== 'locality_price';
   byId('pricing-category-policy-fields').hidden =
     kind !== 'category_policy';
+  byId('pricing-zone-policy-fields').hidden =
+    kind !== 'zone_policy';
+  byId('pricing-locality-structure-fields').hidden =
+    kind !== 'locality_structure';
 }
 
 function syncPricingLocalityPriceFields() {
@@ -1564,6 +1568,12 @@ function renderPricingCatalog(payload = null) {
   const categoryPolicies = Array.isArray(payload?.categoryPolicies)
     ? payload.categoryPolicies
     : [];
+  const zonePolicies = Array.isArray(payload?.zonePolicies)
+    ? payload.zonePolicies
+    : [];
+  const externalLocalities = Array.isArray(payload?.externalLocalities)
+    ? payload.externalLocalities
+    : [];
 
   const versionLabel =
     payload?.versionNumber == null
@@ -1587,6 +1597,10 @@ function renderPricingCatalog(payload = null) {
     `${fixedRoutes.length} rota(s)`;
   byId('pricing-category-count').textContent =
     `${categoryPolicies.length} categoria(s)`;
+  byId('pricing-zone-count').textContent =
+    `${zonePolicies.length} zona(s)`;
+  byId('pricing-external-count').textContent =
+    `${externalLocalities.length} destino(s)`;
 
   const mode = byId('pricing-mode');
   if (payload == null) {
@@ -1605,6 +1619,40 @@ function renderPricingCatalog(payload = null) {
       `Catálogo ${payload.catalogVersion ?? '—'} · ` +
       'fallback estático';
   }
+
+  const zoneBody = byId('pricing-zone-policies-body');
+  zoneBody.replaceChildren();
+  for (const policy of zonePolicies) {
+    const row = document.createElement('tr');
+
+    const zone = document.createElement('td');
+    zone.textContent = pricingIdentifierLabel(policy.zoneId);
+
+    const status = document.createElement('td');
+    const pill = document.createElement('span');
+    pill.className =
+      `pill pill--${policy.enabled ? 'success' : 'danger'}`;
+    pill.textContent =
+      policy.enabled ? 'Ativa' : 'Desativada';
+    status.append(pill);
+
+    row.append(zone, status);
+    zoneBody.append(row);
+  }
+  byId('pricing-zone-policies-empty').hidden =
+    zonePolicies.length !== 0;
+
+  const externalBody = byId('pricing-external-localities-body');
+  externalBody.replaceChildren();
+  for (const localityId of externalLocalities) {
+    const row = document.createElement('tr');
+    const locality = document.createElement('td');
+    locality.textContent = localityId;
+    row.append(locality);
+    externalBody.append(row);
+  }
+  byId('pricing-external-localities-empty').hidden =
+    externalLocalities.length !== 0;
 
   const categoryBody = byId('pricing-category-policies-body');
   categoryBody.replaceChildren();
@@ -1821,6 +1869,30 @@ function buildPricingDraftPatch() {
       enabled: byId('pricing-policy-enabled').value === 'true',
       requiresFourByFourOnJeriBoundary:
         byId('pricing-policy-four-by-four').value === 'true',
+    };
+  }
+
+  if (kind === 'zone_policy') {
+    return {
+      kind: 'zone_policy',
+      zoneId: byId('pricing-zone-policy-id').value,
+      enabled: byId('pricing-zone-policy-enabled').value === 'true',
+    };
+  }
+
+  if (kind === 'locality_structure') {
+    const localityId =
+      byId('pricing-locality-structure-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+    return {
+      kind: 'locality_structure',
+      operation:
+        byId('pricing-locality-structure-operation').value,
+      scope:
+        byId('pricing-locality-structure-scope').value,
+      localityId,
     };
   }
 
