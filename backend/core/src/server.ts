@@ -120,6 +120,17 @@ import {
   parseReviewDriverDocumentRequest,
   parseSubmitDriverDocumentRequest,
 } from './drivers/driver-document-validation.js';
+import {
+  DriverDocumentInspectionError,
+  issueDriverDocumentInspection,
+  readDriverDocumentInspection,
+  resolveDocumentInspectionEncryptionKey,
+  resolveDocumentInspectionTtlSeconds,
+} from './drivers/driver-document-inspection.js';
+import {
+  PrivateDocumentStorageError,
+  createPrivateDocumentStorageFromEnv,
+} from './drivers/driver-document-private-storage.js';
 import type {
   DriverDocumentType,
 } from './drivers/driver-document-repository.js';
@@ -235,6 +246,15 @@ resolveOtpHashSecret();
 resolveOtpRateLimitSecret();
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
 const adminLoginRateLimitSecret = resolveAdminLoginRateLimitSecret();
+const privateDocumentStorage = createPrivateDocumentStorageFromEnv();
+const documentInspectionEncryptionKey =
+  privateDocumentStorage == null
+    ? null
+    : resolveDocumentInspectionEncryptionKey();
+const documentInspectionTtlSeconds =
+  privateDocumentStorage == null
+    ? 60
+    : resolveDocumentInspectionTtlSeconds();
 
 function headerValue(
   request: IncomingMessage,
@@ -1287,6 +1307,99 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const adminDriverDocumentInspectionIssueMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents\/(driver_license|vehicle_registration)\/inspection$/,
+      );
+    if (
+      request.method === 'POST' &&
+      adminDriverDocumentInspectionIssueMatch != null
+    ) {
+      if (
+        privateDocumentStorage == null ||
+        documentInspectionEncryptionKey == null
+      ) {
+        json(response, 503, {
+          error: 'DOCUMENT_STORAGE_NOT_CONFIGURED',
+          message:
+            'Storage privado de documentos ainda não está configurado.',
+        });
+        return;
+      }
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:read',
+      });
+      const result = await issueDriverDocumentInspection({
+        documents: driverDocumentRepository,
+        admin: adminRepository,
+        actor: {
+          kind: 'user',
+          id: authenticated.user.id,
+          name: authenticated.user.name,
+        },
+        driverId: adminDriverDocumentInspectionIssueMatch[1]!,
+        documentType:
+          adminDriverDocumentInspectionIssueMatch[2]! as DriverDocumentType,
+        encryptionKey: documentInspectionEncryptionKey,
+        ttlSeconds: documentInspectionTtlSeconds,
+      });
+      json(response, 201, result);
+      return;
+    }
+
+    const adminDriverDocumentInspectionReadMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/document-inspection\/(rn_doc_inspect_v1\.[A-Za-z0-9_.-]+)$/,
+      );
+    if (
+      request.method === 'GET' &&
+      adminDriverDocumentInspectionReadMatch != null
+    ) {
+      if (
+        privateDocumentStorage == null ||
+        documentInspectionEncryptionKey == null
+      ) {
+        json(response, 503, {
+          error: 'DOCUMENT_STORAGE_NOT_CONFIGURED',
+          message:
+            'Storage privado de documentos ainda não está configurado.',
+        });
+        return;
+      }
+      await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:read',
+      });
+      const inspected = await readDriverDocumentInspection({
+        token: adminDriverDocumentInspectionReadMatch[1]!,
+        encryptionKey: documentInspectionEncryptionKey,
+        storage: privateDocumentStorage,
+      });
+      const extension =
+        inspected.mimeType === 'application/pdf'
+          ? 'pdf'
+          : inspected.mimeType === 'image/png'
+            ? 'png'
+            : 'jpg';
+      response.writeHead(200, {
+        'content-type': inspected.mimeType,
+        'content-length': String(inspected.bytes.length),
+        'content-disposition':
+          `inline; filename="driver-document.${extension}"`,
+        'cache-control': 'private, no-store, max-age=0',
+        pragma: 'no-cache',
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'no-referrer',
+        'content-security-policy':
+          "default-src 'none'; sandbox; frame-ancestors 'none'",
+      });
+      response.end(inspected.bytes);
+      return;
+    }
+
     const adminDriverDocumentReviewMatch =
       requestUrl.pathname.match(
         /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents\/(driver_license|vehicle_registration)\/review$/,
@@ -2330,6 +2443,34 @@ const server = createServer(async (request, response) => {
           message: error.message,
         },
       );
+      return;
+    }
+
+    if (error instanceof DriverDocumentInspectionError) {
+      const status =
+        error.code === 'DOCUMENT_INSPECTION_TOKEN_EXPIRED'
+          ? 410
+          : error.code === 'DOCUMENT_INSPECTION_INTEGRITY_FAILED'
+            ? 502
+            : 400;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PrivateDocumentStorageError) {
+      const status =
+        error.code === 'DOCUMENT_STORAGE_NOT_FOUND'
+          ? 404
+          : error.code === 'DOCUMENT_STORAGE_OBJECT_TOO_LARGE'
+            ? 502
+            : 503;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
