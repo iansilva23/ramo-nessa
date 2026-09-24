@@ -116,6 +116,18 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    paymentPolicy(token) {
+      return request('/v1/admin/payment-policy', { token });
+    },
+
+    updatePaymentPolicy(token, { cashEnabled }) {
+      return request('/v1/admin/payment-policy', {
+        method: 'PATCH',
+        token,
+        body: { cashEnabled },
+      });
+    },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },
