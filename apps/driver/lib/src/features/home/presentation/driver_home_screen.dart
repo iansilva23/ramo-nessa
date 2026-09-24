@@ -89,6 +89,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
+  DriverProfileSnapshot? _profile;
+  DriverActivitySnapshot? _activity;
+  bool _profileLoading = false;
+  bool _activityLoading = false;
   DriverRouteInfo? _activeRoute;
   DriverRouteInfo? _offerPickupRoute;
   DriverRouteInfo? _offerTripRoute;
@@ -219,6 +223,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     });
 
     await _refreshFinance(showError: false);
+    unawaited(_refreshProfile());
+    unawaited(_refreshActivity());
 
     if (supply.online) {
       _startLocationTracking();
@@ -885,6 +891,40 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _refreshProfile() async {
+    final api = _api;
+    if (api == null || _profileLoading) return;
+    if (mounted) setState(() => _profileLoading = true);
+    try {
+      final profile = await api.profile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _profileLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _profileLoading = false);
+    }
+  }
+
+  Future<void> _refreshActivity() async {
+    final api = _api;
+    if (api == null || _activityLoading) return;
+    if (mounted) setState(() => _activityLoading = true);
+    try {
+      final activity = await api.activity();
+      if (!mounted) return;
+      setState(() {
+        _activity = activity;
+        _activityLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _activityLoading = false);
+    }
   }
 
   Future<void> _refreshOfferRoutes(DriverOffer? offer) async {
