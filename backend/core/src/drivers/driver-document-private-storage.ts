@@ -89,7 +89,7 @@ function objectUrl(baseUrl: URL, storageKey: string): URL {
 }
 
 function contentTypeFromStorageKey(storageKey: string): string {
-  return switch (extname(storageKey).toLowerCase()) {
+  switch (extname(storageKey).toLowerCase()) {
     case '.jpg':
     case '.jpeg':
       return 'image/jpeg';
