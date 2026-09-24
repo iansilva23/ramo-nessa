@@ -474,6 +474,15 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
+  Future<NearbyDriversSnapshot> nearbyDrivers() async {
+    return const NearbyDriversSnapshot(
+      enabled: false,
+      refreshAfterSeconds: 30,
+      drivers: [],
+    );
+  }
+
+  @override
   Future<DriverProfileSnapshot> profile() async {
     return const DriverProfileSnapshot(
       driverId: 'driver-test',
