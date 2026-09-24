@@ -19,6 +19,7 @@ export class InMemoryOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     showNearbyDrivers?: boolean;
+    mercadoPagoPublicKey?: string | null;
     updatedAt: string;
   }): Promise<OperationalSettingsRecord> {
     this.record = {
@@ -26,6 +27,14 @@ export class InMemoryOperationalSettingsRepository
         input.driverOfferTtlSeconds ?? this.record.driverOfferTtlSeconds,
       showNearbyDrivers:
         input.showNearbyDrivers ?? this.record.showNearbyDrivers,
+      ...(input.mercadoPagoPublicKey === undefined
+        ? (this.record.mercadoPagoPublicKey == null
+            ? {}
+            : { mercadoPagoPublicKey: this.record.mercadoPagoPublicKey })
+        : input.mercadoPagoPublicKey == null ||
+            input.mercadoPagoPublicKey.trim().isEmpty
+          ? {}
+          : { mercadoPagoPublicKey: input.mercadoPagoPublicKey.trim() }),
       updatedAt: input.updatedAt,
     };
     return structuredClone(this.record);
