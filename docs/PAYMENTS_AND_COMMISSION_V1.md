@@ -8,7 +8,7 @@ Data-base: 2026-09-22.
 Formas habilitadas:
 
 - Pix pelo app;
-- cartão pelo app;
+- cartão pelo app, sempre à vista (1x), sem parcelamento;
 - saldo da Carteira Ramo Nessa.
 
 Formas desabilitadas:
