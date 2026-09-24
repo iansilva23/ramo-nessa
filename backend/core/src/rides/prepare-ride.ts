@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import { rankEligibleDrivers, type GeoPoint } from '../matching/select-driver.js';
+import { STATIC_PRICING_CATALOG_V1 } from '../pricing/catalog-snapshot.js';
+import type { PricingCatalogContext } from '../pricing/effective-catalog.js';
 import { quoteFare } from '../pricing/quote-engine.js';
 import { pricingPeriodAt } from '../pricing/period.js';
 import type { QuoteRequest } from '../pricing/types.js';
@@ -64,6 +66,14 @@ export async function prepareRideForPayment(input: {
   }
 
   const now = input.now ?? new Date();
+  const pricing =
+    input.pricing ?? {
+      snapshot: STATIC_PRICING_CATALOG_V1,
+      reference: {
+        catalogVersion: STATIC_PRICING_CATALOG_V1.catalogVersion,
+      },
+      version: null,
+    };
 
   // Nunca confiar em horário, distância da viagem ou distância de coleta
   // enviados pelo cliente quando qualquer um deles altera dinheiro.
@@ -116,7 +126,10 @@ export async function prepareRideForPayment(input: {
     field: 'destination',
   });
 
-  const baseFare = quoteFare(trustedQuoteRequest);
+  const baseFare = quoteFare(
+    trustedQuoteRequest,
+    pricing.snapshot,
+  );
   if (baseFare.kind !== 'exact') {
     throw new RidePreparationError(
       'QUOTE_NOT_EXACT',
@@ -143,7 +156,7 @@ export async function prepareRideForPayment(input: {
     ...(trustedQuoteRequest.tripDistanceKm != null
       ? { tripDistanceKm: trustedQuoteRequest.tripDistanceKm }
       : {}),
-    quote: snapshotExactFare(baseFare),
+    quote: snapshotExactFare(baseFare, pricing.reference),
     createdAt: instant,
     updatedAt: instant,
   };
@@ -181,10 +194,13 @@ export async function prepareRideForPayment(input: {
       throw error;
     }
 
-    const finalFare = quoteFare({
-      ...trustedQuoteRequest,
-      driverPickupDistanceKm: routedPickupKm,
-    });
+    const finalFare = quoteFare(
+      {
+        ...trustedQuoteRequest,
+        driverPickupDistanceKm: routedPickupKm,
+      },
+      pricing.snapshot,
+    );
     if (finalFare.kind !== 'exact') {
       throw new RidePreparationError(
         'QUOTE_NOT_EXACT',
@@ -201,7 +217,10 @@ export async function prepareRideForPayment(input: {
       reservedDriverId: candidate.supply.driverId,
       driverHoldExpiresAt: holdExpiresAt,
       driverPickupDistanceKm: routedPickupKm,
-      quote: snapshotExactFare(finalFare),
+      quote: snapshotExactFare(
+        finalFare,
+        pricing.reference,
+      ),
     };
 
     try {
