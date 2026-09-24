@@ -1,0 +1,89 @@
+name: Preview APKs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/preview-build.yml"
+
+concurrency:
+  group: preview-apks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/preflight.yml
+
+  passenger-preview:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Passenger dependencies from lockfile
+        working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Passenger Preview APK
+        working-directory: apps/passenger
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_PREVIEW_MODE=true
+          --dart-define=RAMO_APP_VERSION=0.1.0-preview
+          --dart-define=RAMO_APP_BUILD=1
+
+      - name: Upload Passenger Preview APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-passenger-preview
+          path: apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  driver-preview:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build Driver Preview APK
+        working-directory: apps/driver
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_PREVIEW_MODE=true
+          --dart-define=RAMO_APP_VERSION=0.1.0-preview
+          --dart-define=RAMO_APP_BUILD=1
+
+      - name: Upload Driver Preview APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-driver-preview
+          path: apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
