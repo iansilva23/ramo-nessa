@@ -136,6 +136,7 @@ void main() {
     final result = await service.createPixRidePayment(
       rideId: 'ride-pix-http',
       idempotencyKey: 'pix-http-idempotency-key',
+      payerEmail: 'passageiro@example.com',
     );
 
     expect(captured.method, 'POST');
@@ -148,7 +149,10 @@ void main() {
       captured.headers['idempotency-key'],
       'pix-http-idempotency-key',
     );
-    expect(jsonDecode(captured.body), {'method': 'pix'});
+    expect(jsonDecode(captured.body), {
+      'method': 'pix',
+      'payerEmail': 'passageiro@example.com',
+    });
     expect(result.internalPaymentStatus, 'pending');
     expect(result.orderId, 'ORD01PIXHTTP123456789');
     expect(result.qrCode, '000201010212-test-pix');
