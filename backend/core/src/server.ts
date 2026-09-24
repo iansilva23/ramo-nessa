@@ -256,6 +256,10 @@ import {
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import {
+  DriverRatingError,
+  submitPassengerDriverRating,
+} from './rides/driver-rating-service.js';
 import { passengerActivityForApp } from './rides/passenger-activity-service.js';
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
@@ -3385,6 +3389,37 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const rideRatingMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/rating$/,
+    );
+    if (request.method === 'POST' && rideRatingMatch != null) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const record =
+        body != null && typeof body === 'object'
+          ? body as { stars?: unknown }
+          : {};
+      const result = await submitPassengerDriverRating({
+        rides: rideRepository,
+        registry: driverRegistryRepository,
+        rideId: rideRatingMatch[1]!,
+        passengerId,
+        stars: Number(record.stars),
+      });
+
+      json(response, 200, {
+        stars: result.stars,
+        ratingAverage: result.ratingAverage,
+        ratingCount: result.ratingCount,
+        duplicate: result.duplicate,
+      });
+      return;
+    }
+
     const rideTrackingMatch = requestUrl.pathname.match(
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/tracking$/,
     );
@@ -4009,6 +4044,20 @@ const server = createServer(async (request, response) => {
           message: error.message,
         },
       );
+      return;
+    }
+
+    if (error instanceof DriverRatingError) {
+      const status =
+        error.code === 'RIDE_NOT_FOUND'
+          ? 404
+          : error.code === 'INVALID_RATING'
+            ? 422
+            : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
