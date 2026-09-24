@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 
 import type { AdminActor } from '../../admin/admin-repository.js';
 import type { PricingCatalogSnapshot } from '../admin-catalog.js';
+import { normalizePricingCatalogSnapshot } from '../catalog-snapshot.js';
 import type {
   PricingCatalogVersionRecord,
   PricingCatalogVersionRepository,
@@ -34,7 +35,7 @@ function mapRow(row: PricingCatalogVersionRow): PricingCatalogVersionRecord {
     id: row.id,
     versionNumber: Number(row.version_number),
     status: row.status,
-    snapshot: row.snapshot,
+    snapshot: normalizePricingCatalogSnapshot(row.snapshot),
     createdBy: mapActor(
       row.created_by_kind,
       row.created_by_id,
