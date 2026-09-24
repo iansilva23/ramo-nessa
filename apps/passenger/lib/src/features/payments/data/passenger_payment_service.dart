@@ -1,7 +1,15 @@
+import '../domain/cash_ride_authorization_result.dart';
+import '../domain/passenger_payment_policy.dart';
 import '../domain/wallet_ride_payment_result.dart';
 
 abstract interface class PassengerPaymentService {
+  Future<PassengerPaymentPolicy> paymentPolicy();
+
   Future<int> walletBalanceCents();
+
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+  });
 
   Future<WalletRidePaymentResult> payRideWithWallet({
     required String rideId,
