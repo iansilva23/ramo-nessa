@@ -148,6 +148,7 @@ import UIKit
 
     let navigation = UINavigationController(rootViewController: controller)
     navigation.modalPresentationStyle = .formSheet
+    navigation.isModalInPresentation = true
     if #available(iOS 15.0, *) {
       navigation.sheetPresentationController?.detents = [.large()]
       navigation.sheetPresentationController?.prefersGrabberVisible = true
