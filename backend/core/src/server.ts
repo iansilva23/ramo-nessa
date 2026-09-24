@@ -151,6 +151,7 @@ import {
   RidePreparationError,
 } from './rides/prepare-ride.js';
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
+import { adminFinanceView } from './admin/admin-finance-service.js';
 import {
   AdminPassengerError,
   adminPassengerProfile,
@@ -699,6 +700,25 @@ const server = createServer(async (request, response) => {
         rides: rideRepository,
       });
       json(response, 200, fleet);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/finance'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      const rawLimit = Number(requestUrl.searchParams.get('limit') ?? '25');
+      const finance = await adminFinanceView({
+        finance: financeRepository,
+        limit: Number.isFinite(rawLimit) ? rawLimit : 25,
+      });
+      json(response, 200, finance);
       return;
     }
 
