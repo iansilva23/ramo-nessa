@@ -285,8 +285,29 @@ Escopo: `drivers:documents:write`. Transições permitidas:
 Uma nova submissão preserva o histórico e vira a única versão atual. Documento
 vencido não pode ser aprovado.
 
-Ainda faltam o provider de storage privado, upload real, validação do objeto e URL
-assinada de curta duração para visualização.
+A inspeção segura já está implementada:
+
+`POST /v1/admin/drivers/:driverId/documents/:documentType/inspection`
+
+- exige **sessão humana** Admin e `drivers:documents:read`;
+- API key server-to-server não pode solicitar inspeção visual;
+- emite token opaco criptografado AES-256-GCM com validade curta;
+- o token não contém `storageKey` em claro.
+
+`GET /v1/admin/document-inspection/:inspectionToken`
+
+- exige novamente sessão humana Admin;
+- lê o objeto no storage privado via credencial server-to-server;
+- valida SHA-256, MIME, tamanho e assinatura mágica do arquivo;
+- responde apenas PDF/JPEG/PNG com `Cache-Control: private, no-store`,
+  `X-Content-Type-Options: nosniff` e CSP restritiva;
+- o painel cria um `blob:` temporário, revoga o object URL ao fechar/expirar e
+  nunca recebe `storageKey` ou checksum.
+
+O stack E2E possui um storage privado HTTP de **teste** para validar todo esse
+caminho. Para produção ainda faltam o provider de object storage privado real,
+o serviço de upload autorizado e a integração final com o onboarding do
+motorista. O storage de teste não é infraestrutura de produção.
 
 ### Auditoria
 

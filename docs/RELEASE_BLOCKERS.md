@@ -70,8 +70,9 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core e o Admin já possuem cadastro separado de perfil do motorista + veículo, com aprovação explícita e auditoria;
    - o Core já possui metadados/revisão de CNH e CRLV com histórico de versões e sem expor referência privada ao browser;
    - o Admin já consulta somente metadados sanitizados e registra a decisão humana de aprovação/rejeição, sem receber storageKey ou hash do arquivo;
-   - ainda faltam storage privado, upload real, acesso/preview seguro do arquivo, validação do conteúdo e integração completa dessa aprovação com o onboarding final;
-   - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria e financeiro read-only; ainda faltam inspeção segura dos arquivos privados e a implantação operacional de produção;
+   - inspeção segura já existe no Core/Admin: sessão humana obrigatória, token criptografado curto, proxy `no-store`, validação de hash/MIME/tamanho/assinatura e preview temporário; o stack E2E usa um storage privado de teste;
+   - ainda faltam provider de storage privado de produção, upload real dos arquivos e integração completa dessa aprovação com o onboarding final;
+   - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria, financeiro read-only e inspeção segura de documentos; ainda falta a implantação operacional do storage/upload documental de produção e demais itens de Go-Live;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**

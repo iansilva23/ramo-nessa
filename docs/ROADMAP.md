@@ -156,7 +156,7 @@
 - [x] dashboard
 - [x] passageiros (diretório + ficha operacional + histórico recente read-only)
 - [x] motoristas (acesso + cadastro + veículo + aprovação + documentos sanitizados)
-- [ ] aprovação de documentos com inspeção segura do arquivo privado
+- [x] aprovação de documentos com inspeção segura do arquivo privado, token temporário, validação de integridade e preview no Admin
 - [x] viagens em andamento
 - [x] histórico administrativo de viagens com busca, estado, paginação, período e detalhe
 - [x] cancelamento administrativo antes do início da viagem, com liberação do motorista, reembolso imediato da carteira e REFUND_PENDING para Pix/cartão

@@ -52,6 +52,8 @@ A versão inicial implementa:
 - consulta de identidade de motorista;
 - cadastro de perfil + veículo com edição e aprovação explícita no painel;
 - consulta sanitizada de CNH/CRLV e revisão humana de documentos pendentes;
+- inspeção temporária do arquivo privado via token criptografado curto, sessão humana obrigatória e preview por `blob:` no navegador;
+- validação de hash, MIME, tamanho e assinatura antes do preview;
 - nenhuma referência privada de storage ou hash documental é entregue ao navegador;
 - provisionamento seguro (suspenso por padrão);
 - aprovação e suspensão;
@@ -76,7 +78,7 @@ apps/admin/styles.css
 apps/admin/src/
 ```
 
-A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
-privado, ações financeiras após gateway real e demais módulos. O painel atual
-registra a decisão humana, mas não substitui a inspeção do arquivo no storage
-privado autorizado.
+O acesso seguro ao arquivo documental já existe no software e no stack E2E. Para
+produção ainda é necessário conectar um provider de storage privado real e um
+serviço de upload autorizado; o storage de teste não deve ser usado fora do CI.
+Ações financeiras após gateway real e demais módulos permanecem nas próximas etapas.
