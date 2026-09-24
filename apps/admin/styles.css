@@ -2446,3 +2446,24 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+
+.passenger-access-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 22px 18px;
+}
+
+.passenger-access-actions small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 620px) {
+  .passenger-access-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
