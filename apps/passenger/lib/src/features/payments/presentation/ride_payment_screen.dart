@@ -558,7 +558,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               icon: Icons.pix_rounded,
               title: 'Pix',
               subtitle:
-                  'Confirmação rápida antes da corrida ser enviada',
+                  'Pagamento confirmado antes do motorista receber a corrida',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
@@ -576,7 +576,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               key: const Key('payment-option-card'),
               icon: Icons.credit_card_rounded,
               title: 'Cartão',
-              subtitle: 'À vista · protegido pelo Mercado Pago',
+              subtitle: 'À vista · protegido pelo Mercado Pago · 3DS quando necessário',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
