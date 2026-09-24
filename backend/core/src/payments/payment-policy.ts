@@ -10,6 +10,10 @@ export const PAYMENT_POLICY_V1 = {
 export type EnabledPaymentMethod =
   (typeof PAYMENT_POLICY_V1.allowedMethods)[number];
 
+export type RidePaymentMethod =
+  | EnabledPaymentMethod
+  | 'cash';
+
 export function isPaymentMethodEnabled(
   method: string,
 ): method is EnabledPaymentMethod {
