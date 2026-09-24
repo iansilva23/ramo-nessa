@@ -94,10 +94,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('R\$ 44,00'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Solicitar'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Solicitar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pagamento'), findsOneWidget);
+    expect(find.text('Pague com'), findsOneWidget);
     expect(find.text('Preço final'), findsOneWidget);
     expect(find.text('R\$ 45,00'), findsOneWidget);
     expect(find.text('Pix'), findsOneWidget);
