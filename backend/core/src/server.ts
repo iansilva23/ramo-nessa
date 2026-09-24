@@ -2936,6 +2936,7 @@ const server = createServer(async (request, response) => {
         const tracking = await passengerRideTracking({
           rides: rideRepository,
           drivers: driverSupplyRepository,
+          registry: driverRegistryRepository,
           rideId: activeRide.id,
           passengerId: activeRide.passengerId,
         });
@@ -3121,6 +3122,7 @@ const server = createServer(async (request, response) => {
         const tracking = await passengerRideTracking({
           rides: rideRepository,
           drivers: driverSupplyRepository,
+          registry: driverRegistryRepository,
           rideId,
           passengerId: ride.passengerId,
         });
@@ -3213,6 +3215,7 @@ const server = createServer(async (request, response) => {
           const tracking = await passengerRideTracking({
             rides: rideRepository,
             drivers: driverSupplyRepository,
+            registry: driverRegistryRepository,
             rideId: acceptedRide.id,
             passengerId: acceptedRide.passengerId,
           });
@@ -3394,6 +3397,7 @@ const server = createServer(async (request, response) => {
       const tracking = await passengerRideTracking({
         rides: rideRepository,
         drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
         rideId: rideTrackingMatch[1]!,
         passengerId,
       });
