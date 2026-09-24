@@ -105,11 +105,10 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
     if (
       typeof rawInstallments !== 'number' ||
       !Number.isInteger(rawInstallments) ||
-      rawInstallments < 1 ||
-      rawInstallments > 12
+      rawInstallments !== 1
     ) {
       throw new InvalidPaymentRequestError(
-        'Número de parcelas inválido.',
+        'O Ramo Nessa aceita pagamento com cartão somente à vista.',
       );
     }
 
