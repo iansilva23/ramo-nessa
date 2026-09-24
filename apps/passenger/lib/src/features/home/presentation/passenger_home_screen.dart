@@ -40,6 +40,7 @@ class PassengerHomeScreen extends StatefulWidget {
     super.key,
     this.accessToken,
     this.onLogout,
+    this.onOpenProfile,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -56,6 +57,7 @@ class PassengerHomeScreen extends StatefulWidget {
 
   final String? accessToken;
   final Future<bool> Function()? onLogout;
+  final VoidCallback? onOpenProfile;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
