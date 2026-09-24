@@ -13,6 +13,10 @@ x-core-environment: &core-environment
   OTP_RATE_LIMIT_SECRET: ${OTP_RATE_LIMIT_SECRET}
   ADMIN_MFA_ENCRYPTION_KEY: ${ADMIN_MFA_ENCRYPTION_KEY}
   ADMIN_LOGIN_RATE_LIMIT_SECRET: ${ADMIN_LOGIN_RATE_LIMIT_SECRET}
+  DOCUMENT_STORAGE_BASE_URL: "http://document-storage:8090/"
+  DOCUMENT_STORAGE_AUTH_TOKEN: ${DOCUMENT_STORAGE_AUTH_TOKEN}
+  DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY}
+  DOCUMENT_INSPECTION_TTL_SECONDS: "60"
   SHUTDOWN_TIMEOUT_MS: "10000"
 
 x-core-image: &core-image
@@ -46,6 +50,16 @@ services:
         condition: service_healthy
     restart: "no"
 
+  document-storage:
+    <<: *core-image
+    command: ["node", "dist/scripts/test-document-storage.js"]
+    environment:
+      DOCUMENT_STORAGE_PORT: "8090"
+      DOCUMENT_STORAGE_AUTH_TOKEN: ${DOCUMENT_STORAGE_AUTH_TOKEN}
+    expose:
+      - "8090"
+    restart: unless-stopped
+
   core:
     <<: *core-image
     environment: *core-environment
@@ -54,6 +68,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      document-storage:
+        condition: service_started
     expose:
       - "8080"
     restart: unless-stopped
