@@ -1,4 +1,5 @@
 import type { PaymentRecord } from '../payments/payment.js';
+import { notifyDefaultPushSubject } from '../notifications/push-notification-service.js';
 import type { RideRepository } from './ride-repository.js';
 import { markRidePaid } from './ride-state.js';
 import type { RideRecord } from './ride.js';
@@ -90,11 +91,24 @@ export async function confirmRidePayment(
   const state = markRidePaid(ride.state, input.payment);
   const updatedAt = (input.confirmedAt ?? new Date()).toISOString();
 
-  return repository.save({
+  const confirmed = await repository.save({
     ...ride,
     state,
     paymentStatus: input.payment.status,
     paymentMethod: input.payment.method,
     updatedAt,
   });
+
+  notifyDefaultPushSubject({
+    subjectType: 'passenger',
+    subjectId: confirmed.passengerId,
+    message: {
+      type: 'passenger.payment.confirmed',
+      title: 'Pagamento confirmado',
+      body: 'Pagamento aprovado. Estamos procurando seu motorista.',
+      data: { rideId: confirmed.id },
+    },
+  });
+
+  return confirmed;
 }
