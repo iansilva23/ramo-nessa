@@ -355,6 +355,119 @@ test(
 
 
 test(
+  'PostgreSQL estorna pagamento externo e zera o escrow sem duplicar ledger',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const paymentId = randomUUID();
+    const now = '2026-09-23T20:35:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'postgres-external-refund-passenger', 'AWAITING_PAYMENT', 'created',
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $2, $2
+        )
+        `,
+        [rideId, now],
+      );
+
+      await repository.createPayment({
+        id: paymentId,
+        rideId,
+        method: 'pix',
+        processor: 'mercado-pago-orders',
+        status: 'created',
+        amountCents: 12000,
+        idempotencyKey: `postgres-external-refund-${paymentId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await repository.markPaymentPending({
+        paymentId,
+        processorPaymentId: 'ORD01POSTGRESREFUND123456789',
+        pendingAt: new Date(now),
+      });
+
+      const captured = await repository.capturePayment({
+        paymentId,
+        processorEventId: `postgres-external-capture-${paymentId}`,
+        capturedAt: new Date('2026-09-23T20:35:30.000Z'),
+      });
+
+      assert.equal(captured.payment.status, 'paid');
+      assert.equal(
+        await repository.getAccountBalanceCents(`ride:${rideId}:escrow`),
+        12000,
+      );
+
+      const first = await repository.refundExternalPayment({
+        paymentId,
+        refundedAt: new Date('2026-09-23T20:36:00.000Z'),
+      });
+      assert.equal(first.payment.status, 'refunded');
+      assert.equal(first.duplicateRefund, false);
+      assert.equal(
+        await repository.getAccountBalanceCents(`ride:${rideId}:escrow`),
+        0,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          'processor:mercado-pago-orders:clearing',
+        ),
+        0,
+      );
+
+      const duplicate = await repository.refundExternalPayment({
+        paymentId,
+        refundedAt: new Date('2026-09-23T20:37:00.000Z'),
+      });
+      assert.equal(duplicate.duplicateRefund, true);
+      assert.equal(
+        await repository.getAccountBalanceCents(`ride:${rideId}:escrow`),
+        0,
+      );
+    } finally {
+      await pool.query(
+        `
+        DELETE FROM ledger_entries
+        WHERE transaction_id IN (
+          SELECT id FROM ledger_transactions WHERE ride_id = $1
+        )
+        `,
+        [rideId],
+      );
+      await pool.query(
+        'DELETE FROM ledger_transactions WHERE ride_id = $1',
+        [rideId],
+      );
+      await pool.query(
+        'DELETE FROM payment_events WHERE payment_id = $1',
+        [paymentId],
+      );
+      await pool.query('DELETE FROM payments WHERE id = $1', [paymentId]);
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
+
+
+test(
   'PostgreSQL serializa dois saques simultâneos com a mesma chave',
   { skip: !databaseUrl },
   async () => {
