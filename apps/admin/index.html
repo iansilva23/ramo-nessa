@@ -194,6 +194,14 @@
             <span class="nav-icon">₿</span>
             Financeiro
           </button>
+          <button class="nav-item" type="button" data-view="notifications">
+            <span class="nav-icon">✦</span>
+            Notificações
+          </button>
+          <button class="nav-item" type="button" data-view="agency">
+            <span class="nav-icon">◇</span>
+            Ramo Nessa Agência
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <span class="nav-icon">≡</span>
             Auditoria
@@ -1724,6 +1732,221 @@
                 Nenhuma rota fixa carregada.
               </div>
             </article>
+          </section>
+
+          <section id="view-notifications" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">COMUNICAÇÃO</span>
+                <h1>Notificações</h1>
+                <p>Envie avisos para passageiros, motoristas ou toda a base e controle versões dos aplicativos.</p>
+              </div>
+              <div class="communications-status">
+                <span>Provider</span>
+                <strong id="communications-provider" class="pill pill--neutral">—</strong>
+              </div>
+            </div>
+
+            <div class="communications-grid">
+              <article class="panel-card communications-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">AVISO MANUAL</span>
+                    <h2>Enviar notificação</h2>
+                  </div>
+                </div>
+                <form id="notification-form" class="communications-form">
+                  <label class="field">
+                    <span>Público</span>
+                    <select id="notification-audience">
+                      <option value="all">Todos</option>
+                      <option value="passenger">Somente passageiros</option>
+                      <option value="driver">Somente motoristas</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Tipo de aviso</span>
+                    <select id="notification-category">
+                      <option value="general">Aviso geral</option>
+                      <option value="event">Evento na cidade</option>
+                      <option value="service">Operação / serviço</option>
+                      <option value="maintenance">Manutenção programada</option>
+                      <option value="update">Atualização do app</option>
+                      <option value="promotion">Divulgação</option>
+                    </select>
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Título</span>
+                    <input id="notification-title" maxlength="80" placeholder="Ex.: Atenção em Jericoacoara" required>
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Mensagem</span>
+                    <textarea id="notification-body" maxlength="240" rows="4" placeholder="Escreva o aviso que aparecerá no celular." required></textarea>
+                  </label>
+                  <div class="communications-span-2 communications-actions">
+                    <small>O envio real só acontece quando o Firebase estiver ativo.</small>
+                    <button id="send-notification-button" class="button button--primary" type="submit">
+                      Enviar agora
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article class="panel-card communications-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">VERSÕES</span>
+                    <h2>Atualização automática</h2>
+                  </div>
+                </div>
+                <form id="release-policy-form" class="communications-form">
+                  <label class="field">
+                    <span>Aplicativo</span>
+                    <select id="release-app-kind">
+                      <option value="passenger">Passageiro</option>
+                      <option value="driver">Motorista</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Plataforma</span>
+                    <select id="release-platform">
+                      <option value="android">Android</option>
+                      <option value="ios">iPhone / iOS</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Versão mais recente</span>
+                    <input id="release-latest-version" maxlength="40" placeholder="0.2.0" required>
+                  </label>
+                  <label class="field">
+                    <span>Build mais recente</span>
+                    <input id="release-latest-build" type="number" min="1" step="1" required>
+                  </label>
+                  <label class="field">
+                    <span>Build mínimo permitido</span>
+                    <input id="release-minimum-build" type="number" min="1" step="1" required>
+                  </label>
+                  <label class="field">
+                    <span>Link da loja</span>
+                    <input id="release-store-url" type="url" maxlength="500" placeholder="https://...">
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Mensagem de atualização</span>
+                    <textarea id="release-update-message" maxlength="240" rows="3" required></textarea>
+                  </label>
+                  <div class="communications-span-2 release-policy-note">
+                    Ao salvar um build novo, aparelhos registrados com build inferior são identificados automaticamente. Quem já recebeu aviso daquele build não recebe duplicado.
+                  </div>
+                  <div class="communications-span-2 communications-actions">
+                    <span id="release-policy-meta" class="muted-copy">—</span>
+                    <button id="save-release-policy-button" class="button button--dark" type="submit">
+                      Salvar política
+                    </button>
+                  </div>
+                </form>
+              </article>
+            </div>
+
+            <article class="panel-card panel-card--table communications-history-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">HISTÓRICO</span>
+                  <h2>Últimos envios</h2>
+                </div>
+                <button id="refresh-communications-button" class="button button--ghost-dark" type="button">
+                  Atualizar
+                </button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Quando</th>
+                      <th>Público</th>
+                      <th>Tipo</th>
+                      <th>Mensagem</th>
+                      <th>Entrega</th>
+                    </tr>
+                  </thead>
+                  <tbody id="notification-history-body"></tbody>
+                </table>
+              </div>
+              <div id="notification-history-empty" class="empty-state">
+                Nenhuma notificação administrativa enviada ainda.
+              </div>
+            </article>
+          </section>
+
+          <section id="view-agency" class="view-panel" hidden>
+            <div class="page-heading">
+              <span class="eyebrow eyebrow--dark">MARKETING LOCAL</span>
+              <h1>Ramo Nessa Agência</h1>
+              <p>Controle a divulgação dos seus passeios dentro do ecossistema Ramo Nessa.</p>
+            </div>
+
+            <div class="communications-grid agency-admin-grid">
+              <article class="panel-card communications-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONTEÚDO</span>
+                    <h2>Divulgação no app</h2>
+                  </div>
+                </div>
+                <form id="agency-form" class="communications-form">
+                  <label class="toggle-row communications-span-2">
+                    <input id="agency-enabled" type="checkbox">
+                    <span>
+                      <strong>Divulgação ativa</strong>
+                      <small>Quando desligada, o app não mostra a promoção.</small>
+                    </span>
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Título</span>
+                    <input id="agency-title" maxlength="80" required>
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Subtítulo</span>
+                    <input id="agency-subtitle" maxlength="120" required>
+                  </label>
+                  <label class="field communications-span-2">
+                    <span>Descrição</span>
+                    <textarea id="agency-description" maxlength="600" rows="5" required></textarea>
+                  </label>
+                  <label class="field">
+                    <span>Texto do botão</span>
+                    <input id="agency-cta-label" maxlength="40" required>
+                  </label>
+                  <label class="field">
+                    <span>Link do botão</span>
+                    <input id="agency-cta-url" type="url" maxlength="500" placeholder="https://wa.me/...">
+                  </label>
+                  <div class="communications-span-2 communications-actions">
+                    <small id="agency-updated-at">—</small>
+                    <button id="save-agency-button" class="button button--primary" type="submit">
+                      Salvar divulgação
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article class="panel-card agency-preview-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">PRÉVIA</span>
+                    <h2>Como a oferta será apresentada</h2>
+                  </div>
+                  <span id="agency-preview-status" class="pill pill--neutral">Desativada</span>
+                </div>
+                <div class="agency-preview">
+                  <span class="agency-preview__badge">RAMO NESSA AGÊNCIA</span>
+                  <h3 id="agency-preview-title">Ramo Nessa Agência</h3>
+                  <strong id="agency-preview-subtitle">Passeios e experiências em Jericoacoara</strong>
+                  <p id="agency-preview-description">—</p>
+                  <div class="agency-preview__cta" id="agency-preview-cta">Conhecer passeios</div>
+                  <small id="agency-preview-url">Sem link configurado</small>
+                </div>
+              </article>
+            </div>
           </section>
 
           <section id="view-audit" class="view-panel" hidden>

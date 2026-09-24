@@ -170,6 +170,40 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    communications(token) {
+      return request('/v1/admin/communications', { token });
+    },
+
+    sendNotification(token, payload) {
+      return request('/v1/admin/notifications', {
+        method: 'POST',
+        token,
+        body: payload,
+      });
+    },
+
+    updateReleasePolicy(
+      token,
+      { appKind, platform, policy },
+    ) {
+      return request(
+        `/v1/admin/release-policy/${encodeURIComponent(appKind)}/${encodeURIComponent(platform)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: policy,
+        },
+      );
+    },
+
+    updateAgencyPromotion(token, promotion) {
+      return request('/v1/admin/agency-promotion', {
+        method: 'PATCH',
+        token,
+        body: promotion,
+      });
+    },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },

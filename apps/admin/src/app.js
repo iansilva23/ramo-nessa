@@ -123,6 +123,12 @@ const state = {
     targetType: '',
     query: '',
   },
+  communications: {
+    deliveryProvider: 'disabled',
+    campaigns: [],
+    releasePolicies: [],
+    agencyPromotion: null,
+  },
   sessionTimer: null,
 };
 
@@ -154,6 +160,8 @@ const scopeLabels = new Map([
   ['finance:write', 'Administrar políticas financeiras permitidas'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
+  ['communications:read', 'Consultar comunicação, versões e agência'],
+  ['communications:write', 'Enviar avisos e editar comunicação'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -330,6 +338,12 @@ function clearSession(message = '') {
     targetType: '',
     query: '',
   };
+  state.communications = {
+    deliveryProvider: 'disabled',
+    campaigns: [],
+    releasePolicies: [],
+    agencyPromotion: null,
+  };
   adminView.hidden = true;
   authView.hidden = false;
   document.body.classList.remove('nav-open');
@@ -433,6 +447,8 @@ function activateView(viewName) {
     'passengers',
     'pricing',
     'finance',
+    'notifications',
+    'agency',
     'audit',
   ]);
   const view = known.has(viewName) ? viewName : 'overview';
@@ -455,6 +471,8 @@ function activateView(viewName) {
     passengers: 'Passageiros',
     pricing: 'Preços',
     finance: 'Financeiro',
+    notifications: 'Notificações',
+    agency: 'Ramo Nessa Agência',
     audit: 'Auditoria',
   };
   byId('page-title').textContent = titles[view];
@@ -476,6 +494,12 @@ function activateView(viewName) {
   }
   if (view === 'finance') {
     void loadFinance({ announce: false });
+  }
+  if (
+    (view === 'notifications' || view === 'agency') &&
+    hasScope('communications:read')
+  ) {
+    void loadCommunications({ announce: false });
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
@@ -4140,6 +4164,269 @@ async function loadAudit({
   }
 }
 
+function communicationAudienceLabel(value) {
+  if (value === 'passenger') return 'Passageiros';
+  if (value === 'driver') return 'Motoristas';
+  return 'Todos';
+}
+
+function communicationCategoryLabel(value) {
+  const labels = {
+    general: 'Aviso geral',
+    event: 'Evento',
+    service: 'Operação',
+    maintenance: 'Manutenção',
+    update: 'Atualização',
+    promotion: 'Divulgação',
+  };
+  return labels[value] ?? value ?? '—';
+}
+
+function selectedReleasePolicy() {
+  const appKind = byId('release-app-kind')?.value;
+  const platform = byId('release-platform')?.value;
+  return state.communications.releasePolicies.find(
+    (policy) =>
+      policy.appKind === appKind &&
+      policy.platform === platform,
+  ) ?? null;
+}
+
+function syncReleasePolicyForm() {
+  const policy = selectedReleasePolicy();
+  if (policy == null) return;
+  byId('release-latest-version').value =
+    policy.latestVersion ?? '';
+  byId('release-latest-build').value =
+    String(policy.latestBuild ?? 1);
+  byId('release-minimum-build').value =
+    String(policy.minimumBuild ?? 1);
+  byId('release-store-url').value =
+    policy.storeUrl ?? '';
+  byId('release-update-message').value =
+    policy.updateMessage ?? '';
+  byId('release-policy-meta').textContent =
+    `Atualizada em ${formatDateTime(policy.updatedAt)}`;
+}
+
+function renderNotificationHistory() {
+  const body = byId('notification-history-body');
+  const empty = byId('notification-history-empty');
+  body.replaceChildren();
+
+  const campaigns = state.communications.campaigns;
+  empty.hidden = campaigns.length > 0;
+
+  for (const campaign of campaigns) {
+    const row = document.createElement('tr');
+
+    const when = document.createElement('td');
+    when.textContent = formatDateTime(campaign.createdAt);
+
+    const audience = document.createElement('td');
+    audience.textContent =
+      communicationAudienceLabel(campaign.audience);
+
+    const category = document.createElement('td');
+    category.textContent =
+      communicationCategoryLabel(campaign.category);
+
+    const message = document.createElement('td');
+    const title = document.createElement('strong');
+    title.textContent = campaign.title ?? '—';
+    const copy = document.createElement('small');
+    copy.className = 'table-subtext';
+    copy.textContent = campaign.body ?? '';
+    message.append(title, copy);
+
+    const delivery = document.createElement('td');
+    const delivered = Number(campaign.deliveredCount ?? 0);
+    const devices = Number(campaign.deviceCount ?? 0);
+    const summary = document.createElement('strong');
+    summary.textContent = `${delivered}/${devices}`;
+    const provider = document.createElement('small');
+    provider.className = 'table-subtext';
+    provider.textContent =
+      `${campaign.providerKind ?? '—'} · ${campaign.createdByName ?? 'Admin'}`;
+    delivery.append(summary, provider);
+
+    row.append(when, audience, category, message, delivery);
+    body.append(row);
+  }
+}
+
+function renderAgencyPromotion() {
+  const promotion = state.communications.agencyPromotion;
+  if (promotion == null) return;
+
+  byId('agency-enabled').checked = promotion.enabled === true;
+  byId('agency-title').value = promotion.title ?? '';
+  byId('agency-subtitle').value = promotion.subtitle ?? '';
+  byId('agency-description').value = promotion.description ?? '';
+  byId('agency-cta-label').value = promotion.ctaLabel ?? '';
+  byId('agency-cta-url').value = promotion.ctaUrl ?? '';
+  byId('agency-updated-at').textContent =
+    `Atualizada em ${formatDateTime(promotion.updatedAt)}`;
+
+  byId('agency-preview-title').textContent =
+    promotion.title ?? 'Ramo Nessa Agência';
+  byId('agency-preview-subtitle').textContent =
+    promotion.subtitle ?? '';
+  byId('agency-preview-description').textContent =
+    promotion.description ?? '';
+  byId('agency-preview-cta').textContent =
+    promotion.ctaLabel ?? 'Conhecer passeios';
+  byId('agency-preview-url').textContent =
+    promotion.ctaUrl ?? 'Sem link configurado';
+
+  const status = byId('agency-preview-status');
+  status.textContent = promotion.enabled ? 'Ativa' : 'Desativada';
+  status.className =
+    `pill ${promotion.enabled ? 'pill--success' : 'pill--neutral'}`;
+}
+
+function renderCommunications() {
+  const provider = state.communications.deliveryProvider || 'disabled';
+  const badge = byId('communications-provider');
+  badge.textContent =
+    provider === 'disabled' ? 'Firebase pendente' : provider.toUpperCase();
+  badge.className =
+    `pill ${provider === 'disabled' ? 'pill--neutral' : 'pill--success'}`;
+
+  renderNotificationHistory();
+  syncReleasePolicyForm();
+  renderAgencyPromotion();
+
+  const canWrite = hasScope('communications:write');
+  byId('send-notification-button').disabled = !canWrite;
+  byId('save-release-policy-button').disabled = !canWrite;
+  byId('save-agency-button').disabled = !canWrite;
+}
+
+async function loadCommunications({ announce = true } = {}) {
+  if (!state.token || !hasScope('communications:read')) return;
+  try {
+    const payload = await api.communications(state.token);
+    state.communications = {
+      deliveryProvider: payload?.deliveryProvider ?? 'disabled',
+      campaigns: Array.isArray(payload?.campaigns)
+        ? payload.campaigns
+        : [],
+      releasePolicies: Array.isArray(payload?.releasePolicies)
+        ? payload.releasePolicies
+        : [],
+      agencyPromotion: payload?.agencyPromotion ?? null,
+    };
+    renderCommunications();
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Centro de comunicação atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleNotificationSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const button = byId('send-notification-button');
+  button.disabled = true;
+  try {
+    const result = await api.sendNotification(state.token, {
+      audience: byId('notification-audience').value,
+      category: byId('notification-category').value,
+      title: byId('notification-title').value.trim(),
+      body: byId('notification-body').value.trim(),
+    });
+    byId('notification-title').value = '';
+    byId('notification-body').value = '';
+    const campaign = result?.campaign;
+    setMessage(
+      globalMessage,
+      campaign == null
+        ? 'Notificação enviada.'
+        : `Notificação processada: ${campaign.deliveredCount}/${campaign.deviceCount} aparelhos.`,
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+async function handleReleasePolicySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const latestBuild = Number(byId('release-latest-build').value);
+  const minimumBuild = Number(byId('release-minimum-build').value);
+  const button = byId('save-release-policy-button');
+  button.disabled = true;
+  try {
+    const result = await api.updateReleasePolicy(state.token, {
+      appKind: byId('release-app-kind').value,
+      platform: byId('release-platform').value,
+      policy: {
+        latestVersion:
+          byId('release-latest-version').value.trim(),
+        latestBuild,
+        minimumBuild,
+        storeUrl: byId('release-store-url').value.trim(),
+        updateMessage:
+          byId('release-update-message').value.trim(),
+      },
+    });
+    const auto = result?.automaticNotification;
+    setMessage(
+      globalMessage,
+      auto == null
+        ? 'Política de versão salva.'
+        : `Política salva. ${auto.outdatedDevices} aparelho(s) desatualizado(s); ${auto.delivered} aviso(s) entregue(s).`,
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+async function handleAgencySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const button = byId('save-agency-button');
+  button.disabled = true;
+  try {
+    await api.updateAgencyPromotion(state.token, {
+      enabled: byId('agency-enabled').checked,
+      title: byId('agency-title').value.trim(),
+      subtitle: byId('agency-subtitle').value.trim(),
+      description: byId('agency-description').value.trim(),
+      ctaLabel: byId('agency-cta-label').value.trim(),
+      ctaUrl: byId('agency-cta-url').value.trim(),
+    });
+    setMessage(
+      globalMessage,
+      'Divulgação da Ramo Nessa Agência salva.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
 function handleAuditFilter(event) {
   event.preventDefault();
   state.auditDirectory.actorKind =
@@ -4249,6 +4536,24 @@ byId('driver-document-review-form').addEventListener('submit', (event) => {
 byId('driver-document-review-status').addEventListener('change', () => {
   syncDocumentRejectionRequirement();
 });
+byId('notification-form').addEventListener('submit', (event) => {
+  void handleNotificationSubmit(event);
+});
+byId('release-policy-form').addEventListener('submit', (event) => {
+  void handleReleasePolicySubmit(event);
+});
+byId('agency-form').addEventListener('submit', (event) => {
+  void handleAgencySubmit(event);
+});
+byId('release-app-kind').addEventListener('change', () => {
+  syncReleasePolicyForm();
+});
+byId('release-platform').addEventListener('change', () => {
+  syncReleasePolicyForm();
+});
+byId('refresh-communications-button').addEventListener('click', () => {
+  void loadCommunications();
+});
 byId('audit-filter-form').addEventListener('submit', (event) => {
   handleAuditFilter(event);
 });
@@ -4292,6 +4597,8 @@ renderPaymentPolicy();
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
+renderNotificationHistory();
+renderAgencyPromotion();
 syncPricingEditFields();
 syncPricingLocalityPriceFields();
 syncDocumentRejectionRequirement();
