@@ -467,6 +467,39 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverProfileSnapshot> profile() async {
+    return const DriverProfileSnapshot(
+      driverId: 'driver-test',
+      phoneE164: '+5588999999999',
+      fullName: 'Motorista Teste',
+      preferredName: 'Teste',
+      profileStatus: 'approved',
+      vehicleId: 'SW4 TESTE',
+      vehiclePlate: 'TES1T23',
+      vehicleMake: 'Toyota',
+      vehicleModel: 'SW4',
+      vehicleYear: 2026,
+      vehicleColor: 'Preto',
+      vehicleStatus: 'approved',
+      vehicleCategories: ['car'],
+      vehicleFourByFour: true,
+      vehicleSeatCapacity: 6,
+    );
+  }
+
+  @override
+  Future<DriverActivitySnapshot> activity() async {
+    return const DriverActivitySnapshot(
+      total: 3,
+      completed: 2,
+      cancelled: 1,
+      inProgress: 0,
+      earningsCents: 22000,
+      rides: [],
+    );
+  }
+
+  @override
   Future<AcceptedDriverRide> acceptOffer(String offerId) async {
     acceptedOfferId = offerId;
     _offerAvailable = false;
