@@ -190,7 +190,6 @@ export class MercadoPagoOrdersClient {
       {
         method: 'POST',
         headers: { 'x-idempotency-key': idempotencyKey },
-        body: '{}',
       },
     );
   }
