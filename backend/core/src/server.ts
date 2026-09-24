@@ -167,6 +167,10 @@ import {
   currentDriverRide,
   performDriverRideAction,
 } from './drivers/driver-ride-service.js';
+import {
+  driverActivityForApp,
+  driverProfileForApp,
+} from './drivers/driver-self-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { passengerRideView } from './rides/passenger-ride-view.js';
@@ -2531,6 +2535,53 @@ const server = createServer(async (request, response) => {
         longitude: supply.longitude,
         locationUpdatedAt: supply.locationUpdatedAt,
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/profile'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await driverProfileForApp({
+          identities: authOtpRepository,
+          registry: driverRegistryRepository,
+          driverId,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/activity'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,2}$/.test(rawLimit)
+          ? 20
+          : Math.max(1, Math.min(50, Number(rawLimit)));
+      json(
+        response,
+        200,
+        await driverActivityForApp({
+          rides: rideRepository,
+          driverId,
+          limit,
+        }),
+      );
       return;
     }
 
