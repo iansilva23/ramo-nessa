@@ -173,11 +173,49 @@ export function parseAdminIdentityDirectoryQuery(
     }
   }
 
+  const parseDateBoundary = (
+    value: string | null,
+    field: 'from' | 'to',
+  ): string | undefined => {
+    const raw = value?.trim() ?? '';
+    if (!raw) return undefined;
+    if (
+      raw.length > 40 ||
+      /[\u0000-\u001f\u007f]/.test(raw) ||
+      !Number.isFinite(Date.parse(raw))
+    ) {
+      throw new InvalidAdminRequestError(
+        `${field} deve ser uma data ISO válida.`,
+      );
+    }
+    return new Date(raw).toISOString();
+  };
+
+  const createdFrom = parseDateBoundary(
+    searchParams.get('from'),
+    'from',
+  );
+  const createdTo = parseDateBoundary(
+    searchParams.get('to'),
+    'to',
+  );
+  if (
+    createdFrom != null &&
+    createdTo != null &&
+    Date.parse(createdFrom) > Date.parse(createdTo)
+  ) {
+    throw new InvalidAdminRequestError(
+      'from não pode ser posterior a to.',
+    );
+  }
+
   const rawCursor = searchParams.get('cursor')?.trim() ?? '';
 
   return {
     ...(status == null ? {} : { status }),
     ...(rawSearch ? { search: rawSearch } : {}),
+    ...(createdFrom == null ? {} : { createdFrom }),
+    ...(createdTo == null ? {} : { createdTo }),
     limit,
     ...(rawCursor
       ? { cursor: decodeAdminIdentityDirectoryCursor(rawCursor) }
@@ -194,6 +232,8 @@ export interface AdminRideDirectoryCursor {
 export interface AdminRideDirectoryQuery {
   states?: RideState[] | undefined;
   search?: string | undefined;
+  createdFrom?: string | undefined;
+  createdTo?: string | undefined;
   limit: number;
   cursor?: AdminRideDirectoryCursor | undefined;
 }
