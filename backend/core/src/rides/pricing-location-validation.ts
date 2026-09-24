@@ -1,9 +1,9 @@
 import type { GeoPoint } from '../matching/select-driver.js';
-import type { LocationRef } from '../pricing/types.js';
 import {
-  JIJOCA_LOCALITIES,
-  PREA_LOCALITIES,
-} from '../pricing/catalog.v1.js';
+  STATIC_PRICING_CATALOG_V1,
+  type PricingCatalogSnapshot,
+} from '../pricing/catalog-snapshot.js';
+import type { LocationRef } from '../pricing/types.js';
 
 interface CircleZone {
   id: 'jericoacoara' | 'jijoca' | 'prea' | 'airport-jjd';
@@ -39,23 +39,7 @@ const LOCAL_ZONES: readonly CircleZone[] = [
   },
 ];
 
-const APPROVED_EXTERNAL_LOCALITIES = new Set([
-  'airport-jjd',
-  'triangulo-do-marco',
-  'santana-do-acarau',
-  'bela-cruz',
-  'itapipoca',
-  'parazinha',
-  'morrinhos',
-  'amontada',
-  'camocim',
-  'itarema',
-  'acarau',
-  'granja',
-  'sobral',
-  'marco',
-  'cruz',
-]);
+
 
 export class PricingLocationMismatchError extends Error {
   constructor(message: string) {
@@ -100,17 +84,27 @@ function containingLocalZone(point: GeoPoint): CircleZone | null {
   return null;
 }
 
-function assertKnownLocality(ref: LocationRef, field: string): void {
+function assertKnownLocality(
+  ref: LocationRef,
+  field: string,
+  catalog: PricingCatalogSnapshot,
+): void {
   const localityId = ref.localityId;
   if (localityId == null) return;
 
-  if (ref.zoneId === 'prea' && PREA_LOCALITIES[localityId] == null) {
+  if (
+    ref.zoneId === 'prea' &&
+    catalog.localities.prea[localityId] == null
+  ) {
     throw new PricingLocationMismatchError(
       `${field}.localityId não pertence à tabela do Preá.`,
     );
   }
 
-  if (ref.zoneId === 'jijoca' && JIJOCA_LOCALITIES[localityId] == null) {
+  if (
+    ref.zoneId === 'jijoca' &&
+    catalog.localities.jijoca[localityId] == null
+  ) {
     throw new PricingLocationMismatchError(
       `${field}.localityId não pertence à tabela de Jijoca.`,
     );
@@ -118,7 +112,7 @@ function assertKnownLocality(ref: LocationRef, field: string): void {
 
   if (
     ref.zoneId === 'external' &&
-    !APPROVED_EXTERNAL_LOCALITIES.has(localityId)
+    !catalog.externalLocalities.includes(localityId)
   ) {
     throw new PricingLocationMismatchError(
       `${field}.localityId externo não é aprovado.`,
@@ -130,8 +124,17 @@ export function assertPricingLocationMatchesPoint(input: {
   ref: LocationRef;
   point: GeoPoint;
   field: 'origin' | 'destination';
+  catalog?: PricingCatalogSnapshot;
 }): void {
-  assertKnownLocality(input.ref, input.field);
+  const catalog = input.catalog ?? STATIC_PRICING_CATALOG_V1;
+
+  if (!catalog.zonePolicies[input.ref.zoneId].enabled) {
+    throw new PricingLocationMismatchError(
+      `${input.field}.zoneId está desativada no catálogo vigente.`,
+    );
+  }
+
+  assertKnownLocality(input.ref, input.field, catalog);
 
   const localZone = containingLocalZone(input.point);
 
