@@ -486,6 +486,104 @@ class DriverProfileSnapshot {
   }
 }
 
+class DriverDocumentItem {
+  const DriverDocumentItem({
+    required this.id,
+    required this.documentType,
+    required this.status,
+    required this.effectiveStatus,
+    required this.mimeType,
+    required this.sizeBytes,
+    required this.submittedAt,
+    required this.updatedAt,
+    this.expiresOn,
+    this.rejectionReason,
+    this.reviewedAt,
+  });
+
+  factory DriverDocumentItem.fromJson(Map<String, dynamic> json) {
+    return DriverDocumentItem(
+      id: json['id'] as String,
+      documentType: json['documentType'] as String,
+      status: json['status'] as String,
+      effectiveStatus:
+          json['effectiveStatus'] as String? ?? json['status'] as String,
+      mimeType: json['mimeType'] as String,
+      sizeBytes: (json['sizeBytes'] as num).toInt(),
+      expiresOn: json['expiresOn'] as String?,
+      rejectionReason: json['rejectionReason'] as String?,
+      submittedAt: DateTime.parse(json['submittedAt'] as String),
+      reviewedAt: json['reviewedAt'] == null
+          ? null
+          : DateTime.parse(json['reviewedAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  final String id;
+  final String documentType;
+  final String status;
+  final String effectiveStatus;
+  final String mimeType;
+  final int sizeBytes;
+  final String? expiresOn;
+  final String? rejectionReason;
+  final DateTime submittedAt;
+  final DateTime? reviewedAt;
+  final DateTime updatedAt;
+
+  String get title => switch (documentType) {
+        'driver_license' => 'CNH',
+        'vehicle_registration' => 'CRLV',
+        _ => documentType,
+      };
+
+  String get statusLabel => switch (effectiveStatus) {
+        'approved' => 'Aprovado',
+        'pending' => 'Em análise',
+        'rejected' => 'Rejeitado',
+        'expired' => 'Vencido',
+        _ => effectiveStatus,
+      };
+}
+
+class DriverDocumentsSnapshot {
+  const DriverDocumentsSnapshot({
+    required this.items,
+    required this.requiredDocumentTypes,
+    required this.documentsApproved,
+  });
+
+  factory DriverDocumentsSnapshot.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final rawRequired = json['requiredDocumentTypes'];
+    return DriverDocumentsSnapshot(
+      items: rawItems is List
+          ? rawItems
+              .whereType<Map<String, dynamic>>()
+              .map(DriverDocumentItem.fromJson)
+              .toList(growable: false)
+          : const [],
+      requiredDocumentTypes: rawRequired is List
+          ? rawRequired.whereType<String>().toList(growable: false)
+          : const [],
+      documentsApproved: json['documentsApproved'] as bool? ?? false,
+    );
+  }
+
+  final List<DriverDocumentItem> items;
+  final List<String> requiredDocumentTypes;
+  final bool documentsApproved;
+
+  DriverDocumentItem? byType(String type) {
+    for (final item in items) {
+      if (item.documentType == type) return item;
+    }
+    return null;
+  }
+}
+
+
 class DriverActivityRide {
   const DriverActivityRide({
     required this.id,
