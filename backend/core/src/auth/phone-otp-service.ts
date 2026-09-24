@@ -223,7 +223,6 @@ async function resolveIdentity(input: {
   repository: AuthOtpRepository;
   subjectType: AuthSubjectType;
   phoneE164: string;
-  emailNormalized: string;
   now: Date;
 }): Promise<AuthIdentityRecord | null> {
   const existing = await input.repository.findIdentityByPhone(
@@ -266,7 +265,7 @@ export async function requestPhoneOtp(input: {
   delivery: OtpDeliveryProvider | null;
   subjectType: AuthSubjectType;
   phone: string;
-  email: string;
+  email?: string;
   context?: OtpRequestContext;
   now?: Date;
 }): Promise<RequestedPhoneOtp> {
@@ -279,7 +278,11 @@ export async function requestPhoneOtp(input: {
 
   const now = input.now ?? new Date();
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
-  const emailNormalized = normalizeRegistrationEmail(input.email);
+  const rawEmail = input.email?.trim();
+  const emailNormalized =
+    rawEmail == null || rawEmail.length === 0
+      ? undefined
+      : normalizeRegistrationEmail(rawEmail);
 
   await enforceOtpRequestRateLimits({
     repository: input.repository,
@@ -293,7 +296,6 @@ export async function requestPhoneOtp(input: {
     repository: input.repository,
     subjectType: input.subjectType,
     phoneE164,
-    emailNormalized,
     now,
   });
 
@@ -313,7 +315,9 @@ export async function requestPhoneOtp(input: {
     codeDigest: otpDigest(challengeId, code),
     expiresAt: new Date(now.getTime() + OTP_TTL_MS).toISOString(),
     attemptCount: 0,
-    requestedEmailNormalized: emailNormalized,
+    ...(emailNormalized == null
+      ? {}
+      : { requestedEmailNormalized: emailNormalized }),
     createdAt: now.toISOString(),
   };
 
