@@ -180,6 +180,13 @@ import {
   driverProfileForApp,
 } from './drivers/driver-self-service.js';
 import {
+  DriverSupportError,
+  createDriverSupportTicket,
+  listDriverSupportTickets,
+  listSupportTicketsForAdmin,
+  respondToSupportTicket,
+} from './drivers/driver-support-service.js';
+import {
   DriverProfilePhotoError,
   MAX_DRIVER_PROFILE_PHOTO_JSON_BYTES,
   driverPhotoPath,
@@ -324,6 +331,7 @@ const {
   driverSupplyRepository,
   driverRegistryRepository,
   driverDocumentRepository,
+  driverSupportRepository,
   pricingCatalogVersionRepository,
   ridePreparationRepository,
   rideMatchingRepository,
@@ -2859,6 +2867,83 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/support'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,3}$/.test(rawLimit)
+          ? 50
+          : Math.max(1, Math.min(100, Number(rawLimit)));
+      json(
+        response,
+        200,
+        await listSupportTicketsForAdmin({
+          repository: driverSupportRepository,
+          limit,
+        }),
+      );
+      return;
+    }
+
+    const adminSupportMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/support\/([0-9a-fA-F-]+)$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminSupportMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const result = await respondToSupportTicket({
+        repository: driverSupportRepository,
+        id: adminSupportMatch[1]!,
+        response: value.response,
+        status: value.status,
+      });
+
+      await adminRepository.appendAudit({
+        id: randomUUID(),
+        actor,
+        action: 'driver.support.responded',
+        targetType: 'driver_support_ticket',
+        targetId: adminSupportMatch[1]!,
+        metadata: {
+          driverId: result.driverId,
+          status: result.ticket.status,
+        },
+        createdAt: new Date().toISOString(),
+      });
+
+      sendPushBestEffort({
+        subjectType: 'driver',
+        subjectId: result.driverId,
+        type: 'driver.support.updated',
+        title: 'Suporte Ramo Nessa',
+        body: 'Seu chamado recebeu uma atualização.',
+        data: { ticketId: adminSupportMatch[1]! },
+      });
+
+      json(response, 200, result.ticket);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/audit'
     ) {
       await authenticateAdminPrincipal({
@@ -2955,6 +3040,52 @@ const server = createServer(async (request, response) => {
         driverId,
       });
       json(response, 200, result);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/support'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await listDriverSupportTickets({
+          repository: driverSupportRepository,
+          driverId,
+          limit: 50,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/driver/me/support'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const ticket = await createDriverSupportTicket({
+        repository: driverSupportRepository,
+        driverId,
+        category: value.category,
+        subject: value.subject,
+        message: value.message,
+      });
+      json(response, 201, ticket);
       return;
     }
 
@@ -4045,6 +4176,16 @@ const server = createServer(async (request, response) => {
     if (error instanceof InvalidAdminRequestError) {
       json(response, 400, {
         error: 'INVALID_ADMIN_REQUEST',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof DriverSupportError) {
+      const status =
+        error.code === 'SUPPORT_TICKET_NOT_FOUND' ? 404 : 422;
+      json(response, status, {
+        error: error.code,
         message: error.message,
       });
       return;
