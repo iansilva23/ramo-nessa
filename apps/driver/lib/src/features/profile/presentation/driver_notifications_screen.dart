@@ -11,7 +11,7 @@ class DriverNotificationsScreen extends StatefulWidget {
     required this.coordinator,
   });
 
-  final FirebasePushCoordinator coordinator;
+  final FirebasePushCoordinator? coordinator;
 
   @override
   State<DriverNotificationsScreen> createState() =>
@@ -38,7 +38,17 @@ class _DriverNotificationsScreenState
     });
 
     try {
-      final status = await widget.coordinator.authorizationStatus();
+      final coordinator = widget.coordinator;
+      if (coordinator == null) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error =
+              'As notificações push não estão disponíveis neste aparelho agora.';
+        });
+        return;
+      }
+      final status = await coordinator.authorizationStatus();
       if (!mounted) return;
       setState(() {
         _status = status;
@@ -61,8 +71,18 @@ class _DriverNotificationsScreenState
     });
 
     try {
+      final coordinator = widget.coordinator;
+      if (coordinator == null) {
+        if (!mounted) return;
+        setState(() {
+          _requesting = false;
+          _error =
+              'As notificações push não estão disponíveis neste aparelho agora.';
+        });
+        return;
+      }
       final status =
-          await widget.coordinator.requestNotificationPermission();
+          await coordinator.requestNotificationPermission();
       if (!mounted) return;
       setState(() {
         _status = status;
