@@ -13,6 +13,7 @@ import 'core/navigation/driver_navigation_service.dart';
 import 'features/home/data/driver_api.dart';
 import 'features/home/data/driver_realtime_service.dart';
 import 'features/home/presentation/driver_home_screen.dart';
+import 'preview/driver_preview_dependencies.dart';
 
 class RamoNessaDriverApp extends StatelessWidget {
   const RamoNessaDriverApp({
@@ -37,6 +38,8 @@ class RamoNessaDriverApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final coreUri = DriverCoreConfig.baseUri;
+    final preview =
+        DriverCoreConfig.previewMode ? DriverPreviewDependencies() : null;
     final restoredToken = accessToken?.trim();
     final initialToken =
         restoredToken != null && restoredToken.length >= 20
@@ -50,14 +53,19 @@ class RamoNessaDriverApp extends StatelessWidget {
         DriverHomeScreen(
           accessToken: token,
           onLogout: logout,
-          api: api,
-          locationService: locationService,
-          navigationService: navigationService,
+          api: api ?? preview?.api,
+          locationService: locationService ?? preview?.location,
+          navigationService: navigationService ?? preview?.navigation,
           realtimeService: realtimeService,
         );
 
     final Widget homeWidget;
-    if (coreUri == null && kReleaseMode) {
+    if (DriverCoreConfig.previewMode) {
+      homeWidget = home(
+        null,
+        () async => true,
+      );
+    } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
     } else if (coreUri == null) {
       homeWidget = home(initialToken);
