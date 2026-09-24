@@ -111,6 +111,13 @@ const state = {
   },
   selectedRide: null,
   auditEntries: [],
+  auditDirectory: {
+    nextCursor: null,
+    actorKind: '',
+    action: '',
+    targetType: '',
+    query: '',
+  },
   sessionTimer: null,
 };
 
@@ -274,6 +281,13 @@ function clearSession(message = '') {
   };
   state.selectedRide = null;
   state.auditEntries = [];
+  state.auditDirectory = {
+    nextCursor: null,
+    actorKind: '',
+    action: '',
+    targetType: '',
+    query: '',
+  };
   adminView.hidden = true;
   authView.hidden = false;
   document.body.classList.remove('nav-open');
@@ -3519,6 +3533,12 @@ function metadataText(metadata) {
 function renderAudit(entries) {
   state.auditEntries = entries;
   byId('audit-count').textContent = String(entries.length);
+  byId('audit-directory-count').textContent =
+    `${entries.length} carregado(s)`;
+
+  const more = byId('audit-load-more');
+  more.hidden = !state.auditDirectory.nextCursor;
+  more.disabled = false;
 
   const body = byId('audit-table-body');
   const empty = byId('audit-empty');
@@ -3549,7 +3569,12 @@ function renderAudit(entries) {
     action.textContent = actionLabel(entry.action);
 
     const target = document.createElement('td');
-    target.textContent = entry.targetId ?? '—';
+    const targetId = document.createElement('strong');
+    targetId.textContent = entry.targetId ?? '—';
+    const targetType = document.createElement('small');
+    targetType.className = 'table-subtext';
+    targetType.textContent = entry.targetType ?? '—';
+    target.append(targetId, targetType);
 
     const metadata = document.createElement('td');
     metadata.className = 'table-metadata';
@@ -3560,20 +3585,75 @@ function renderAudit(entries) {
   }
 }
 
-async function loadAudit({ announce = true } = {}) {
+async function loadAudit({
+  announce = true,
+  reset = true,
+} = {}) {
   if (!state.token || !hasScope('audit:read')) {
+    state.auditDirectory.nextCursor = null;
     renderAudit([]);
     return;
   }
+
+  if (reset) {
+    state.auditDirectory.nextCursor = null;
+  }
+
+  const more = byId('audit-load-more');
+  more.disabled = true;
+
   try {
-    const payload = await api.audit(state.token, 50);
-    renderAudit(payload?.entries ?? []);
+    const payload = await api.audit(state.token, {
+      limit: 25,
+      actorKind: state.auditDirectory.actorKind,
+      action: state.auditDirectory.action,
+      targetType: state.auditDirectory.targetType,
+      query: state.auditDirectory.query,
+      cursor: reset ? null : state.auditDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.entries)
+      ? payload.entries
+      : [];
+
+    if (reset) {
+      state.auditEntries = incoming;
+    } else {
+      const known = new Set(
+        state.auditEntries.map((entry) => entry.id),
+      );
+      state.auditEntries.push(
+        ...incoming.filter((entry) => !known.has(entry.id)),
+      );
+    }
+
+    state.auditDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderAudit(state.auditEntries);
+
     if (announce) {
       setMessage(globalMessage, 'Auditoria atualizada.', 'success');
     }
   } catch (error) {
+    more.disabled = false;
     handleAuthenticatedError(error);
   }
+}
+
+function handleAuditFilter(event) {
+  event.preventDefault();
+  state.auditDirectory.actorKind =
+    byId('audit-actor-kind').value;
+  state.auditDirectory.action =
+    byId('audit-action').value.trim();
+  state.auditDirectory.targetType =
+    byId('audit-target-type').value.trim();
+  state.auditDirectory.query =
+    byId('audit-query').value.trim();
+  void loadAudit({ reset: true });
 }
 
 loginForm.addEventListener('submit', (event) => {
@@ -3657,8 +3737,14 @@ byId('driver-document-review-form').addEventListener('submit', (event) => {
 byId('driver-document-review-status').addEventListener('change', () => {
   syncDocumentRejectionRequirement();
 });
+byId('audit-filter-form').addEventListener('submit', (event) => {
+  handleAuditFilter(event);
+});
+byId('audit-load-more').addEventListener('click', () => {
+  void loadAudit({ reset: false, announce: false });
+});
 byId('refresh-audit-button').addEventListener('click', () => {
-  void loadAudit();
+  void loadAudit({ reset: true });
 });
 byId('mobile-menu-button').addEventListener('click', () => {
   document.body.classList.toggle('nav-open');
