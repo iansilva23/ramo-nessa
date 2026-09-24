@@ -158,7 +158,7 @@
 - [x] motoristas (acesso + cadastro + veículo + aprovação + documentos sanitizados)
 - [ ] aprovação de documentos com inspeção segura do arquivo privado
 - [x] viagens em andamento
-- [ ] histórico
+- [x] histórico administrativo de viagens com busca, estado, paginação, período e detalhe
 - [x] cancelamento administrativo antes do início da viagem, com liberação do motorista, reembolso imediato da carteira e REFUND_PENDING para Pix/cartão
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
 - [x] edição estrutural versionada de localidades/zonas suportadas
