@@ -378,7 +378,7 @@ void main() {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 2200)),
     );
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Copiar código Pix'), findsNothing);
     expect(
