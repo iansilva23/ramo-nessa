@@ -19,6 +19,7 @@ interface IdentityRow {
   subject_id: string;
   subject_type: AuthSubjectType;
   phone_e164: string;
+  email_normalized: string | null;
   status: AuthIdentityStatus;
   created_at: Date;
   updated_at: Date;
@@ -37,6 +38,7 @@ interface ChallengeRow {
   code_digest: string;
   expires_at: Date;
   attempt_count: number;
+  requested_email_normalized: string | null;
   consumed_at: Date | null;
   created_at: Date;
 }
@@ -47,6 +49,9 @@ function mapIdentity(row: IdentityRow): AuthIdentityRecord {
     subjectId: row.subject_id,
     subjectType: row.subject_type,
     phoneE164: row.phone_e164,
+    ...(row.email_normalized != null
+      ? { emailNormalized: row.email_normalized }
+      : {}),
     status: row.status,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -60,6 +65,9 @@ function mapChallenge(row: ChallengeRow): OtpChallengeRecord {
     codeDigest: row.code_digest,
     expiresAt: row.expires_at.toISOString(),
     attemptCount: row.attempt_count,
+    ...(row.requested_email_normalized != null
+      ? { requestedEmailNormalized: row.requested_email_normalized }
+      : {}),
     ...(row.consumed_at != null
       ? { consumedAt: row.consumed_at.toISOString() }
       : {}),
@@ -76,9 +84,9 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     const result = await this.pool.query<IdentityRow>(
       `
       INSERT INTO auth_identities (
-        id, subject_id, subject_type, phone_e164,
+        id, subject_id, subject_type, phone_e164, email_normalized,
         status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
       [
@@ -86,6 +94,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         identity.subjectId,
         identity.subjectType,
         identity.phoneE164,
+        identity.emailNormalized ?? null,
         identity.status,
         identity.createdAt,
         identity.updatedAt,
@@ -168,6 +177,29 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
   }
 
+  async setIdentityEmail(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    emailNormalized: string;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const result = await this.pool.query<IdentityRow>(
+      `
+      UPDATE auth_identities
+      SET email_normalized = $3, updated_at = $4
+      WHERE subject_type = $1 AND subject_id = $2
+      RETURNING *
+      `,
+      [
+        input.subjectType,
+        input.subjectId,
+        input.emailNormalized,
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
   async setIdentityStatus(input: {
     subjectType: AuthSubjectType;
     subjectId: string;
@@ -204,6 +236,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
           $3::text IS NULL
           OR strpos(lower(subject_id), lower($3)) > 0
           OR strpos(phone_e164, $3) > 0
+          OR strpos(lower(COALESCE(email_normalized, '')), lower($3)) > 0
         )
         AND (
           $4::timestamptz IS NULL
@@ -413,8 +446,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         `
         INSERT INTO auth_otp_challenges (
           id, identity_id, code_digest, expires_at,
-          attempt_count, consumed_at, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          attempt_count, requested_email_normalized, consumed_at, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
         `,
         [
@@ -423,6 +456,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
           input.challenge.codeDigest,
           input.challenge.expiresAt,
           input.challenge.attemptCount,
+          input.challenge.requestedEmailNormalized ?? null,
           input.challenge.consumedAt ?? null,
           input.challenge.createdAt,
         ],
@@ -449,8 +483,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       `
       INSERT INTO auth_otp_challenges (
         id, identity_id, code_digest, expires_at,
-        attempt_count, consumed_at, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        attempt_count, requested_email_normalized, consumed_at, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
       [
@@ -459,6 +493,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         challenge.codeDigest,
         challenge.expiresAt,
         challenge.attemptCount,
+        challenge.requestedEmailNormalized ?? null,
         challenge.consumedAt ?? null,
         challenge.createdAt,
       ],
