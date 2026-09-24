@@ -360,17 +360,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 20));
 
     await tester.tap(find.text('Pix'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Só falta seu e-mail'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const Key('payment-email-field')),
-      'passageiro@example.com',
-    );
-    await tester.tap(find.byKey(const Key('payment-email-confirm')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
+    expect(find.text('Só falta seu e-mail'), findsNothing);
+    expect(find.byKey(const Key('payment-email-field')), findsNothing);
     expect(find.text('Pagar com Pix'), findsOneWidget);
     expect(find.text('Copiar código Pix'), findsOneWidget);
     expect(
@@ -556,7 +550,6 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
@@ -569,7 +562,6 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -611,7 +603,6 @@ class _FakeCashPassengerPaymentService
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
@@ -624,7 +615,6 @@ class _FakeCashPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -703,7 +693,6 @@ class _FakeRefundedPassengerPaymentService
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
@@ -716,7 +705,6 @@ class _FakeRefundedPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   }) async {
     throw StateError('Pix não faz parte deste teste.');
   }
@@ -760,7 +748,6 @@ class _FakePixPassengerPaymentService
   Future<CardRidePaymentResult> createCardRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
     required String cardToken,
     required String paymentMethodId,
     required String paymentMethodType,
@@ -773,7 +760,6 @@ class _FakePixPassengerPaymentService
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
     required String idempotencyKey,
-    required String payerEmail,
   }) async {
     return const PixRidePaymentResult(
       internalPaymentId: 'payment-pix-ui',
