@@ -42,7 +42,7 @@ A versão inicial implementa:
 - mapa da frota ao vivo com GPS, veículo, categoria e estado operacional;
 - módulo Financeiro somente leitura derivado do ledger, com pagamentos, comissão, saldos e saques;
 - política persistente de dinheiro visível no Admin, desligada por padrão e com ativação bloqueada até o fluxo cash estar pronto;
-- módulo Viagens com filtros, busca, paginação e detalhe read-only;
+- módulo Viagens com filtros, busca, paginação, histórico por período, detalhe e cancelamento administrativo protegido antes do início da viagem;
 - catálogo ativo protegido de preços/zonas com histórico de versões;
 - criação e edição de rascunhos de preços para rotas fixas e localidades;
 - publicação auditada com vigência imediata ou programada;
@@ -77,6 +77,6 @@ apps/admin/src/
 ```
 
 A próxima evolução visual/funcional inclui acesso seguro ao arquivo documental
-privado, ações financeiras após gateway real, cancelamentos e demais módulos. O painel atual
+privado, ações financeiras após gateway real e demais módulos. O painel atual
 registra a decisão humana, mas não substitui a inspeção do arquivo no storage
 privado autorizado.
