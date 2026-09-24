@@ -176,6 +176,7 @@ import {
   driverActivityForApp,
   driverProfileForApp,
 } from './drivers/driver-self-service.js';
+import { nearbyDriversForApp } from './drivers/driver-nearby-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { passengerRideView } from './rides/passenger-ride-view.js';
@@ -306,6 +307,7 @@ const {
   rideMatchingRepository,
   pushDeviceRepository,
   adminCommunicationsRepository,
+  operationalSettingsRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -2695,6 +2697,27 @@ const server = createServer(async (request, response) => {
         longitude: supply.longitude,
         locationUpdatedAt: supply.locationUpdatedAt,
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/nearby'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await nearbyDriversForApp({
+          drivers: driverSupplyRepository,
+          settings: operationalSettingsRepository,
+          driverId,
+        }),
+      );
       return;
     }
 
