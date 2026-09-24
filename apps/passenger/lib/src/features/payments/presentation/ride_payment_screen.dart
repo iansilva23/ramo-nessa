@@ -1061,6 +1061,293 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   }
 }
 
+class _CardPaymentStatusScreen extends StatefulWidget {
+  const _CardPaymentStatusScreen({
+    required this.rideId,
+    required this.result,
+    required this.trackingService,
+    required this.realtimeService,
+    required this.networkTilesEnabled,
+  });
+
+  final String rideId;
+  final CardRidePaymentResult result;
+  final PassengerRideTrackingService? trackingService;
+  final PassengerRideRealtimeService? realtimeService;
+  final bool networkTilesEnabled;
+
+  @override
+  State<_CardPaymentStatusScreen> createState() =>
+      _CardPaymentStatusScreenState();
+}
+
+class _CardPaymentStatusScreenState
+    extends State<_CardPaymentStatusScreen> {
+  Timer? _pollTimer;
+  bool _checking = false;
+  bool _navigating = false;
+  bool _openingChallenge = false;
+  String? _error;
+  late String _statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _statusMessage = widget.result.paymentConfirmed
+        ? 'Pagamento confirmado.'
+        : widget.result.challengeUrl != null
+            ? 'Confirme a compra com seu banco para continuar.'
+            : 'Estamos confirmando seu pagamento…';
+
+    if (widget.trackingService != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkStatus());
+      _pollTimer = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => _checkStatus(),
+      );
+    }
+
+    if (widget.result.challengeUrl != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openChallenge());
+    }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _openChallenge() async {
+    final raw = widget.result.challengeUrl;
+    if (raw == null || _openingChallenge || !mounted) return;
+
+    final uri = Uri.tryParse(raw);
+    if (uri == null || uri.scheme != 'https') {
+      setState(() {
+        _error = 'Não conseguimos abrir a confirmação do banco.';
+      });
+      return;
+    }
+
+    setState(() {
+      _openingChallenge = true;
+      _error = null;
+    });
+
+    try {
+      var launched = await launchUrl(
+        uri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (!launched) {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      if (!launched && mounted) {
+        setState(() {
+          _error = 'Não conseguimos abrir a confirmação do banco.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Não conseguimos abrir a confirmação do banco.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingChallenge = false);
+      }
+    }
+  }
+
+  Future<void> _checkStatus() async {
+    final tracking = widget.trackingService;
+    if (tracking == null || _checking || _navigating || !mounted) return;
+
+    _checking = true;
+    try {
+      final snapshot = await tracking.tracking(widget.rideId);
+      if (!mounted) return;
+
+      if (snapshot.state == 'PAYMENT_FAILED') {
+        _pollTimer?.cancel();
+        setState(() {
+          _statusMessage =
+              'Pagamento não aprovado. Você pode voltar e tentar novamente.';
+        });
+        return;
+      }
+
+      const confirmedStates = {
+        'PAID',
+        'SEARCHING_DRIVER',
+        'DRIVER_ASSIGNED',
+        'DRIVER_ARRIVING',
+        'DRIVER_ARRIVED',
+        'IN_PROGRESS',
+        'COMPLETED',
+        'NO_DRIVER_FOUND',
+        'REFUND_PENDING',
+        'REFUNDED',
+      };
+
+      if (!confirmedStates.contains(snapshot.state)) {
+        setState(() {
+          _statusMessage = widget.result.challengeUrl != null
+              ? 'Aguardando a confirmação do seu banco…'
+              : 'Estamos confirmando seu pagamento…';
+        });
+        return;
+      }
+
+      _pollTimer?.cancel();
+      _navigating = true;
+      final dispatchStatus = const {
+        'NO_DRIVER_FOUND',
+        'REFUND_PENDING',
+        'REFUNDED',
+      }.contains(snapshot.state)
+          ? 'NO_DRIVER_FOUND'
+          : 'SEARCHING_DRIVER';
+
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => RideTrackingScreen(
+            rideId: widget.rideId,
+            remainingWalletCents: null,
+            paymentMethod: 'card',
+            trackingService: tracking,
+            realtimeService: widget.realtimeService,
+            initialDispatchStatus: dispatchStatus,
+            networkTilesEnabled: widget.networkTilesEnabled,
+          ),
+        ),
+      );
+    } on PassengerRideTrackingException {
+      if (mounted) {
+        setState(() {
+          _statusMessage =
+              'Pagamento enviado. A confirmação será atualizada automaticamente.';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _statusMessage =
+              'Pagamento enviado. A confirmação será atualizada automaticamente.';
+        });
+      }
+    } finally {
+      _checking = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final challenge = widget.result.challengeUrl != null;
+    final failed = _statusMessage.startsWith('Pagamento não aprovado');
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Pagamento com cartão')),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(RamoSpacing.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 320),
+                child: Icon(
+                  failed
+                      ? Icons.error_rounded
+                      : widget.result.paymentConfirmed
+                          ? Icons.check_circle_rounded
+                          : challenge
+                              ? Icons.verified_user_rounded
+                              : Icons.credit_card_rounded,
+                  key: ValueKey('$failed-${widget.result.paymentConfirmed}'),
+                  size: 82,
+                  color: failed
+                      ? Theme.of(context).colorScheme.error
+                      : RamoColors.brandYellow,
+                ),
+              ),
+              const SizedBox(height: RamoSpacing.lg),
+              Text(
+                failed
+                    ? 'Cartão não aprovado'
+                    : widget.result.paymentConfirmed
+                        ? 'Pagamento confirmado'
+                        : challenge
+                            ? 'Confirmação do banco'
+                            : 'Confirmando pagamento',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                _statusMessage,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              if (!failed && !widget.result.paymentConfirmed) ...[
+                const SizedBox(height: RamoSpacing.lg),
+                const Center(
+                  child: SizedBox.square(
+                    dimension: 28,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
+              if (challenge) ...[
+                const SizedBox(height: RamoSpacing.xl),
+                FilledButton.icon(
+                  onPressed: _openingChallenge ? null : _openChallenge,
+                  icon: const Icon(Icons.security_rounded),
+                  label: Text(
+                    _openingChallenge
+                        ? 'Abrindo banco…'
+                        : 'Confirmar com meu banco',
+                  ),
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: RamoSpacing.md),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+              if (widget.trackingService != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                TextButton.icon(
+                  onPressed: _checking ? null : _checkStatus,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Atualizar status'),
+                ),
+              ],
+              const SizedBox(height: RamoSpacing.md),
+              Text(
+                'Os dados do cartão são protegidos e tokenizados pelo '
+                'Mercado Pago. O Ramo Nessa não recebe número completo ou CVV.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CashAuthorizedScreen extends StatelessWidget {
   const _CashAuthorizedScreen({
     required this.amountCents,
