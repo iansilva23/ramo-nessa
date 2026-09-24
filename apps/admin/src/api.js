@@ -102,6 +102,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/dashboard', { token });
     },
 
+    fleet(token) {
+      return request('/v1/admin/fleet', { token });
+    },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },
