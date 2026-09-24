@@ -1,4 +1,4 @@
--- Migration 032: índices para diretório de logs administrativos.
+-- Migration 033: índices para diretório de logs administrativos.
 --
 -- A trilha continua append-only. Estes índices melhoram filtros frequentes
 -- por ação e por API key sem alterar o conteúdo dos eventos existentes.
