@@ -4,6 +4,7 @@ import { requestDriverPayout } from '../payments/request-payout.js';
 export interface DriverFinanceSummary {
   availableBalanceCents: number;
   payoutPendingCents: number;
+  cashCommissionDebtCents: number;
 }
 
 export async function driverFinanceSummary(
@@ -17,6 +18,8 @@ export async function driverFinanceSummary(
     payoutPendingCents: await repository.getAccountBalanceCents(
       `driver:${driverId}:payout_pending`,
     ),
+    cashCommissionDebtCents:
+      await repository.getDriverCashDebtCents(driverId),
   };
 }
 
