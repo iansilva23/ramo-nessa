@@ -1,3 +1,16 @@
+import {
+  mkdir,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  resolve,
+  sep,
+} from 'node:path';
+
 export const MAX_PRIVATE_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
 export class PrivateDocumentStorageError extends Error {
@@ -21,6 +34,23 @@ export interface PrivateDocumentObject {
 
 export interface PrivateDocumentStorage {
   read(storageKey: string): Promise<PrivateDocumentObject>;
+}
+
+export interface WritablePrivateDocumentStorage
+  extends PrivateDocumentStorage {
+  write(
+    storageKey: string,
+    object: PrivateDocumentObject,
+  ): Promise<void>;
+}
+
+function validateObjectSize(bytes: Buffer): void {
+  if (bytes.length > MAX_PRIVATE_DOCUMENT_BYTES) {
+    throw new PrivateDocumentStorageError(
+      'DOCUMENT_STORAGE_OBJECT_TOO_LARGE',
+      'Arquivo privado excede o limite de 20 MB.',
+    );
+  }
 }
 
 function cleanBaseUrl(raw: string, production: boolean): URL {
@@ -58,8 +88,22 @@ function objectUrl(baseUrl: URL, storageKey: string): URL {
   return new URL(encodedPath, baseUrl);
 }
 
+function contentTypeFromStorageKey(storageKey: string): string {
+  return switch (extname(storageKey).toLowerCase()) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.png':
+      return 'image/png';
+    case '.pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 export class HttpPrivateDocumentStorage
-  implements PrivateDocumentStorage
+  implements WritablePrivateDocumentStorage
 {
   constructor(
     private readonly baseUrl: URL,
@@ -111,12 +155,7 @@ export class HttpPrivateDocumentStorage
       }
 
       const bytes = Buffer.from(await response.arrayBuffer());
-      if (bytes.length > MAX_PRIVATE_DOCUMENT_BYTES) {
-        throw new PrivateDocumentStorageError(
-          'DOCUMENT_STORAGE_OBJECT_TOO_LARGE',
-          'Arquivo privado excede o limite de 20 MB.',
-        );
-      }
+      validateObjectSize(bytes);
       const contentType =
         response.headers
           .get('content-type')
@@ -135,12 +174,144 @@ export class HttpPrivateDocumentStorage
       clearTimeout(timeout);
     }
   }
+
+  async write(
+    storageKey: string,
+    object: PrivateDocumentObject,
+  ): Promise<void> {
+    validateObjectSize(object.bytes);
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.timeoutMs,
+    );
+    try {
+      const response = await fetch(objectUrl(this.baseUrl, storageKey), {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${this.authToken}`,
+          'content-type': object.contentType,
+          'content-length': String(object.bytes.length),
+        },
+        body: object.bytes,
+        redirect: 'error',
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new PrivateDocumentStorageError(
+          'DOCUMENT_STORAGE_UNAVAILABLE',
+          'Storage privado indisponível para gravação.',
+        );
+      }
+    } catch (error) {
+      if (error instanceof PrivateDocumentStorageError) throw error;
+      throw new PrivateDocumentStorageError(
+        'DOCUMENT_STORAGE_UNAVAILABLE',
+        'Não foi possível gravar no storage privado.',
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+export class LocalPrivateDocumentStorage
+  implements WritablePrivateDocumentStorage
+{
+  private readonly rootDirectory: string;
+
+  constructor(rootDirectory: string) {
+    this.rootDirectory = resolve(rootDirectory);
+  }
+
+  private objectPath(storageKey: string): string {
+    const target = resolve(this.rootDirectory, storageKey);
+    const prefix = this.rootDirectory.endsWith(sep)
+      ? this.rootDirectory
+      : this.rootDirectory + sep;
+    if (!target.startsWith(prefix)) {
+      throw new PrivateDocumentStorageError(
+        'DOCUMENT_STORAGE_UNAVAILABLE',
+        'Referência privada inválida para o storage local.',
+      );
+    }
+    return target;
+  }
+
+  async read(storageKey: string): Promise<PrivateDocumentObject> {
+    try {
+      const bytes = await readFile(this.objectPath(storageKey));
+      validateObjectSize(bytes);
+      return {
+        bytes,
+        contentType: contentTypeFromStorageKey(storageKey),
+      };
+    } catch (error) {
+      if (error instanceof PrivateDocumentStorageError) throw error;
+      const code =
+        error != null &&
+        typeof error === 'object' &&
+        'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      if (code === 'ENOENT') {
+        throw new PrivateDocumentStorageError(
+          'DOCUMENT_STORAGE_NOT_FOUND',
+          'Arquivo privado não encontrado no storage.',
+        );
+      }
+      throw new PrivateDocumentStorageError(
+        'DOCUMENT_STORAGE_UNAVAILABLE',
+        'Não foi possível ler o storage privado local.',
+      );
+    }
+  }
+
+  async write(
+    storageKey: string,
+    object: PrivateDocumentObject,
+  ): Promise<void> {
+    validateObjectSize(object.bytes);
+    try {
+      const target = this.objectPath(storageKey);
+      await mkdir(dirname(target), {
+        recursive: true,
+        mode: 0o700,
+      });
+      await writeFile(target, object.bytes, {
+        mode: 0o600,
+      });
+    } catch (error) {
+      if (error instanceof PrivateDocumentStorageError) throw error;
+      throw new PrivateDocumentStorageError(
+        'DOCUMENT_STORAGE_UNAVAILABLE',
+        'Não foi possível gravar no storage privado local.',
+      );
+    }
+  }
 }
 
 export function createPrivateDocumentStorageFromEnv(
   env: NodeJS.ProcessEnv = process.env,
-): PrivateDocumentStorage | null {
+): WritablePrivateDocumentStorage | null {
   const rawBaseUrl = env.DOCUMENT_STORAGE_BASE_URL?.trim();
+  const rawLocalDir = env.DOCUMENT_STORAGE_LOCAL_DIR?.trim();
+
+  if (rawBaseUrl && rawLocalDir) {
+    throw new Error(
+      'Configure apenas DOCUMENT_STORAGE_BASE_URL ou DOCUMENT_STORAGE_LOCAL_DIR.',
+    );
+  }
+
+  if (rawLocalDir) {
+    if (env.NODE_ENV === 'production' && !isAbsolute(rawLocalDir)) {
+      throw new Error(
+        'DOCUMENT_STORAGE_LOCAL_DIR deve ser absoluto em produção.',
+      );
+    }
+    return new LocalPrivateDocumentStorage(rawLocalDir);
+  }
+
   if (!rawBaseUrl) return null;
 
   const token = env.DOCUMENT_STORAGE_AUTH_TOKEN?.trim() ?? '';
