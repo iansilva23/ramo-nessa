@@ -23,6 +23,14 @@ export interface MercadoPagoPixOrder {
   qrCodeBase64: string;
 }
 
+export interface MercadoPagoCardOrder {
+  orderId: string;
+  paymentId: string;
+  status: string;
+  statusDetail: string;
+  challengeUrl?: string;
+}
+
 export interface MercadoPagoOrderStatus {
   orderId: string;
   externalReference: string;
@@ -227,6 +235,89 @@ export class MercadoPagoOrdersClient {
       ticketUrl,
       qrCode,
       qrCodeBase64,
+    };
+  }
+
+  async createCardOrder(input: {
+    paymentId: string;
+    amountCents: number;
+    payerEmail: string;
+    cardToken: string;
+    paymentMethodId: string;
+    paymentMethodType: 'credit_card' | 'debit_card';
+    installments: number;
+    idempotencyKey: string;
+  }): Promise<MercadoPagoCardOrder> {
+    const total = amount(input.amountCents);
+    const payload = await this.request('/v1/orders', {
+      method: 'POST',
+      headers: { 'x-idempotency-key': input.idempotencyKey },
+      body: JSON.stringify({
+        type: 'online',
+        total_amount: total,
+        external_reference: input.paymentId,
+        processing_mode: 'automatic',
+        capture_mode: 'automatic',
+        config: {
+          online: {
+            transaction_security: {
+              validation: 'on_fraud_risk',
+              liability_shift: 'required',
+            },
+          },
+        },
+        payer: { email: input.payerEmail },
+        transactions: {
+          payments: [{
+            amount: total,
+            payment_method: {
+              id: input.paymentMethodId,
+              type: input.paymentMethodType,
+              token: input.cardToken,
+              installments: input.installments,
+            },
+          }],
+        },
+      }),
+    });
+
+    const payment = firstPayment(payload);
+    const paymentMethod =
+      payment.payment_method != null &&
+      typeof payment.payment_method === 'object' &&
+      !Array.isArray(payment.payment_method)
+        ? payment.payment_method as Record<string, unknown>
+        : {};
+    const transactionSecurity =
+      paymentMethod.transaction_security != null &&
+      typeof paymentMethod.transaction_security === 'object' &&
+      !Array.isArray(paymentMethod.transaction_security)
+        ? paymentMethod.transaction_security as Record<string, unknown>
+        : {};
+
+    const orderId = typeof payload.id === 'string' ? payload.id : '';
+    const paymentId = typeof payment.id === 'string' ? payment.id : '';
+    if (!orderId || !paymentId) {
+      throw new MercadoPagoOrdersError(
+        'Mercado Pago não retornou os dados necessários do cartão.',
+      );
+    }
+
+    const challengeUrl =
+      typeof transactionSecurity.url === 'string' &&
+      transactionSecurity.url.startsWith('https://')
+        ? transactionSecurity.url
+        : undefined;
+
+    return {
+      orderId,
+      paymentId,
+      status: typeof payload.status === 'string' ? payload.status : '',
+      statusDetail:
+        typeof payload.status_detail === 'string'
+          ? payload.status_detail
+          : '',
+      ...(challengeUrl == null ? {} : { challengeUrl }),
     };
   }
 
