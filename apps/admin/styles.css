@@ -2807,3 +2807,105 @@ td strong {
     flex-direction: column;
   }
 }
+
+
+/* Configurações operacionais de corridas */
+.operational-settings-card {
+  margin-bottom: 18px;
+}
+
+.operational-settings-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(300px, 1.2fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: 18px 22px 22px;
+}
+
+.operational-settings-form .field {
+  margin: 0;
+}
+
+.operational-settings-form .field > small,
+.operational-settings-toggle small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.operational-settings-number {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.operational-settings-number input {
+  width: min(150px, 100%);
+}
+
+.operational-settings-number strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.operational-settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--raised);
+  cursor: pointer;
+}
+
+.operational-settings-toggle > span {
+  min-width: 0;
+}
+
+.operational-settings-toggle strong {
+  display: block;
+  font-size: 13px;
+}
+
+.operational-settings-toggle input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  accent-color: var(--yellow);
+}
+
+.operational-settings-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 2px;
+}
+
+.operational-settings-actions small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .operational-settings-form {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .operational-settings-actions {
+    grid-column: auto;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .operational-settings-actions .button {
+    width: 100%;
+  }
+}
