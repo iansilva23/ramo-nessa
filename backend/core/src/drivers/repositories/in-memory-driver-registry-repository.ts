@@ -1,5 +1,6 @@
 import type {
   DriverProfileRecord,
+  DriverRatingResult,
   DriverRegistryRepository,
   DriverRegistryStatus,
   DriverVehicleRecord,
@@ -9,6 +10,15 @@ export class InMemoryDriverRegistryRepository
   implements DriverRegistryRepository {
   private readonly profiles = new Map<string, DriverProfileRecord>();
   private readonly vehicles = new Map<string, DriverVehicleRecord>();
+  private readonly ratings = new Map<
+    string,
+    {
+      passengerId: string;
+      driverId: string;
+      stars: number;
+      createdAt: string;
+    }
+  >();
   private readonly photos = new Map<
     string,
     {
@@ -82,6 +92,60 @@ export class InMemoryDriverRegistryRepository
       bytes: Buffer.from(found.bytes),
       mimeType: found.mimeType,
       updatedAt: found.updatedAt,
+    };
+  }
+
+  async submitRating(input: {
+    rideId: string;
+    passengerId: string;
+    driverId: string;
+    stars: number;
+    createdAt: string;
+  }): Promise<DriverRatingResult> {
+    const existing = this.ratings.get(input.rideId);
+    if (existing != null) {
+      const profile = this.profiles.get(existing.driverId);
+      const ratings = [...this.ratings.values()].filter(
+        (rating) => rating.driverId === existing.driverId,
+      );
+      const sum = ratings.reduce((total, rating) => total + rating.stars, 0);
+      return {
+        stars: existing.stars,
+        ratingAverage: ratings.length === 0 ? 0 : sum / ratings.length,
+        ratingCount: ratings.length,
+        duplicate: true,
+      };
+    }
+
+    const profile = this.profiles.get(input.driverId);
+    if (profile == null) {
+      throw new Error('Perfil do motorista não encontrado.');
+    }
+
+    this.ratings.set(input.rideId, {
+      passengerId: input.passengerId,
+      driverId: input.driverId,
+      stars: input.stars,
+      createdAt: input.createdAt,
+    });
+
+    const ratings = [...this.ratings.values()].filter(
+      (rating) => rating.driverId === input.driverId,
+    );
+    const sum = ratings.reduce((total, rating) => total + rating.stars, 0);
+    const ratingAverage = sum / ratings.length;
+    this.profiles.set(input.driverId, {
+      ...profile,
+      ratingAverage,
+      ratingCount: ratings.length,
+      updatedAt: input.createdAt,
+    });
+
+    return {
+      stars: input.stars,
+      ratingAverage,
+      ratingCount: ratings.length,
+      duplicate: false,
     };
   }
 
