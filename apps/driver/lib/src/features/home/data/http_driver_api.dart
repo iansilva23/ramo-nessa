@@ -179,6 +179,43 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverSupportSnapshot> supportTickets() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/support'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverSupportSnapshot.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
+  Future<DriverSupportTicket> createSupportTicket({
+    required String category,
+    required String subject,
+    required String message,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/support'),
+          headers: _headers,
+          body: jsonEncode({
+            'category': category,
+            'subject': subject,
+            'message': message,
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverSupportTicket.fromJson(
+      _expectObject(response, expectedStatus: 201),
+    );
+  }
+
+  @override
   Future<String> updateProfilePhoto({
     required String mimeType,
     required List<int> bytes,
