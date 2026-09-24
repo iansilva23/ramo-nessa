@@ -66,6 +66,18 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     );
     return found == null ? null : structuredClone(found);
   }
+  async findIdentityByEmail(
+    subjectType: AuthSubjectType,
+    emailNormalized: string,
+  ): Promise<AuthIdentityRecord | null> {
+    const found = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === subjectType &&
+        candidate.emailNormalized === emailNormalized,
+    );
+    return found == null ? null : structuredClone(found);
+  }
+
 
   async findIdentityById(id: string): Promise<AuthIdentityRecord | null> {
     const found = this.identities.get(id);
@@ -100,6 +112,41 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     const updated = {
       ...identity,
       emailNormalized: input.emailNormalized,
+      updatedAt: input.updatedAt,
+    };
+    this.identities.set(updated.id, updated);
+    return structuredClone(updated);
+  }
+
+  async setPassengerAccount(input: {
+    subjectId: string;
+    fullName?: string;
+    emailNormalized?: string;
+    passwordHash?: string;
+    photoUrl?: string | null;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const identity = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === 'passenger' &&
+        candidate.subjectId === input.subjectId,
+    );
+    if (identity == null) return null;
+
+    const updated: AuthIdentityRecord = {
+      ...identity,
+      ...(input.fullName == null ? {} : { fullName: input.fullName }),
+      ...(input.emailNormalized == null
+        ? {}
+        : { emailNormalized: input.emailNormalized }),
+      ...(input.passwordHash == null
+        ? {}
+        : { passwordHash: input.passwordHash }),
+      ...(input.photoUrl === undefined
+        ? {}
+        : input.photoUrl == null
+          ? { photoUrl: undefined }
+          : { photoUrl: input.photoUrl }),
       updatedAt: input.updatedAt,
     };
     this.identities.set(updated.id, updated);
