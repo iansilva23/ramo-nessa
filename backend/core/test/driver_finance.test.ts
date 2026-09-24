@@ -92,6 +92,7 @@ test('solicitação idempotente não reserva saldo duas vezes', async () => {
   assert.deepEqual(repeated.finance, {
     availableBalanceCents: 5000,
     payoutPendingCents: 4000,
+    cashCommissionDebtCents: 0,
   });
 });
 
