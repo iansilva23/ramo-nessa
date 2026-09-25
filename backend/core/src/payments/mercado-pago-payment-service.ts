@@ -51,7 +51,7 @@ export async function createMercadoPagoPixIntent(input: {
   ride: RideRecord;
   identity: AuthIdentityRecord | null;
   payerEmail?: string;
-  pixPriceAdjustmentBps: number;
+  pixPriceAdjustmentBps?: number;
   idempotencyKey: string;
   now?: Date;
 }): Promise<MercadoPagoPixIntent> {
@@ -74,7 +74,7 @@ export async function createMercadoPagoPixIntent(input: {
 
   const pricing = pixPriceForBaseFare(
     input.ride.quote.totalAmountCents,
-    input.pixPriceAdjustmentBps,
+    input.pixPriceAdjustmentBps ?? 0,
   );
 
   let payment = await createPaymentForRide(input.finance, {
