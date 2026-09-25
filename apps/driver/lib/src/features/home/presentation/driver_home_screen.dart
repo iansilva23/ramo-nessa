@@ -1794,33 +1794,47 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           _buildProfile(supply),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          setState(() => _selectedTab = index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map_rounded),
-            label: 'Início',
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: .35),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-            label: 'Ganhos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded),
-            label: 'Atividade',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Perfil',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          height: 70,
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: RamoColors.brandYellow,
+          selectedIndex: _selectedTab,
+          onDestinationSelected: (index) {
+            setState(() => _selectedTab = index);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map_rounded),
+              label: 'Início',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+              label: 'Ganhos',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Atividade',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Perfil',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1948,102 +1962,163 @@ class _MapAvailabilityPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: RamoElevation.floating(context),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        child: online
-            ? Row(
+      child: online ? _onlineContent(context) : _offlineContent(context),
+    );
+  }
+
+  Widget _onlineContent(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: RamoColors.success.withValues(alpha: .12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: RamoColors.success,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 11),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox.square(
-                    dimension: 10,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: RamoColors.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Online',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 17,
-                          ),
-                        ),
-                        Text(
-                          'Procurando corridas por perto',
-                          style: TextStyle(
-                            color: RamoColors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Atualizar localização',
-                    onPressed: changing ? null : onUpdateLocation,
-                    icon: const Icon(Icons.my_location_rounded),
-                  ),
-                  TextButton(
-                    onPressed: changing ? null : () => onToggle(false),
-                    child: const Text('Ficar offline'),
-                  ),
-                ],
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Você está offline',
+                  Text(
+                    'Você está online',
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 18,
+                      fontSize: 17,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Entre online para começar a receber corridas.',
-                    style: TextStyle(color: RamoColors.muted),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: 112,
-                    height: 56,
-                    child: FilledButton(
-                      key: const Key('driver-go-online'),
-                      onPressed: changing ? null : () => onToggle(true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: RamoColors.brandYellow,
-                        foregroundColor: RamoColors.brandBlack,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: changing
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text(
-                              'INICIAR',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: .5,
-                              ),
-                            ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Procurando corridas próximas',
+                    style: TextStyle(
+                      color: RamoColors.muted,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
-      ),
+            ),
+            IconButton(
+              tooltip: 'Atualizar localização',
+              onPressed: changing ? null : onUpdateLocation,
+              icon: const Icon(Icons.my_location_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton(
+            key: const Key('driver-go-offline'),
+            onPressed: changing ? null : () => onToggle(false),
+            child: changing
+                ? const SizedBox.square(
+                    dimension: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    'Ficar offline',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _offlineContent(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.power_settings_new_rounded,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 11),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Você está offline',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Fique online quando estiver pronto para dirigir.',
+                    style: TextStyle(
+                      color: RamoColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton.icon(
+            key: const Key('driver-go-online'),
+            onPressed: changing ? null : () => onToggle(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: RamoColors.brandYellow,
+              foregroundColor: RamoColors.brandBlack,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: changing
+                ? const SizedBox.shrink()
+                : const Icon(Icons.power_settings_new_rounded),
+            label: changing
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    'Ficar online',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }
