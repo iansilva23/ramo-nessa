@@ -19,6 +19,7 @@ export interface GooglePlaceDetailsResult {
   address: string;
   latitude: number;
   longitude: number;
+  addressComponentNames: string[];
 }
 
 interface GooglePlacesPayload {
@@ -72,6 +73,11 @@ interface GooglePlaceDetailsPayload {
     latitude?: number;
     longitude?: number;
   };
+  addressComponents?: Array<{
+    longText?: string;
+    shortText?: string;
+    types?: string[];
+  }>;
   error?: {
     code?: number;
     message?: string;
@@ -324,7 +330,8 @@ export class GooglePlacesService {
         headers: {
           accept: 'application/json',
           'x-goog-api-key': this.apiKey,
-          'x-goog-fieldmask': 'id,formattedAddress,location',
+          'x-goog-fieldmask':
+            'id,formattedAddress,location,addressComponents',
         },
       });
     } catch {
@@ -385,11 +392,19 @@ export class GooglePlacesService {
       );
     }
 
+    const addressComponentNames = (payload.addressComponents ?? [])
+      .flatMap((component) => [
+        component.longText?.trim() ?? '',
+        component.shortText?.trim() ?? '',
+      ])
+      .filter((value) => value.length > 0);
+
     return {
       id,
       address,
       latitude,
       longitude,
+      addressComponentNames,
     };
   }
 
