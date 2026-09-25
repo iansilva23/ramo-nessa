@@ -165,6 +165,8 @@ class CorePlaceSearchService
             'placeId': suggestion.placeId,
             'sessionToken': sessionToken,
             'localOnly': suggestion.localOnly,
+            if (suggestion.approvedExternalId != null)
+              'externalLocalityId': suggestion.approvedExternalId,
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);
