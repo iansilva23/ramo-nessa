@@ -38,8 +38,8 @@ function preparedRide(): RideRecord {
 
 test('gross-up de 4,98% preserva R$ 150,00 de tarifa-base', () => {
   const result = cardPriceForBaseFare(15000, 498);
-  assert.equal(result.totalAmountCents, 15786);
-  assert.equal(result.priceAdjustmentCents, 786);
+  assert.equal(result.totalAmountCents, 15787);
+  assert.equal(result.priceAdjustmentCents, 787);
   assert.equal(result.baseFareAmountCents, 15000);
 });
 
