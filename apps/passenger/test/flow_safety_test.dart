@@ -101,7 +101,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('preço confirmado pelo Core', skipOffstage: false),
+      find.text('Valor confirmado antes do pagamento', skipOffstage: false),
       findsOneWidget,
     );
     expect(find.text('Buggy'), findsOneWidget);
