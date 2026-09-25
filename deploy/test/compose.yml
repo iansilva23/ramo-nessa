@@ -55,6 +55,16 @@ services:
         condition: service_healthy
     restart: "no"
 
+  google-maps-mock:
+    <<: *core-image
+    command: ["node", "dist/scripts/test-google-maps.js"]
+    environment:
+      GOOGLE_MAPS_MOCK_PORT: "8091"
+      GOOGLE_MAPS_SERVER_API_KEY: "test-google-server-key"
+    expose:
+      - "8091"
+    restart: unless-stopped
+
   document-storage:
     <<: *core-image
     command: ["node", "dist/scripts/test-document-storage.js"]
