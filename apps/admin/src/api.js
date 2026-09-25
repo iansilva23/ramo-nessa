@@ -168,7 +168,11 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
 
     updateOperationalSettings(
       token,
-      { driverOfferTtlSeconds, showNearbyDrivers },
+      {
+        driverOfferTtlSeconds,
+        showNearbyDrivers,
+        driverDocumentAutoEnforcement,
+      },
     ) {
       return request('/v1/admin/operational-settings', {
         method: 'PATCH',
@@ -176,6 +180,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         body: {
           driverOfferTtlSeconds,
           showNearbyDrivers,
+          driverDocumentAutoEnforcement,
         },
       });
     },
@@ -473,6 +478,34 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request(
         `/v1/admin/drivers/${driverId}/documents`,
         { token },
+      );
+    },
+
+    getDriverDocumentCompliance(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/document-compliance`,
+        { token },
+      );
+    },
+
+    decideDriverDocumentCompliance(token, { driverId, action }) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/document-compliance`,
+        {
+          method: 'PATCH',
+          token,
+          body: { action },
+        },
+      );
+    },
+
+    notifyDriverDocumentCompliance(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/document-compliance/notify`,
+        {
+          method: 'POST',
+          token,
+        },
       );
     },
 
