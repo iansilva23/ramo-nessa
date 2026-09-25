@@ -3152,3 +3152,58 @@ td strong {
     justify-self: start;
   }
 }
+
+
+/* Document compliance controls */
+.document-compliance-panel {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--raised);
+}
+
+.document-compliance-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.document-compliance-header h3 {
+  margin: 4px 0 6px;
+}
+
+.document-compliance-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.document-compliance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.document-compliance-panel > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .document-compliance-header {
+    flex-direction: column;
+  }
+
+  .document-compliance-actions {
+    flex-direction: column;
+  }
+
+  .document-compliance-actions .button {
+    width: 100%;
+  }
+}
