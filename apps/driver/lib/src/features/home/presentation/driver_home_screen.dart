@@ -2688,15 +2688,21 @@ class _OfferCard extends StatelessWidget {
     final remaining = offer.expiresAt.difference(DateTime.now());
     final seconds = remaining.isNegative ? 0 : remaining.inSeconds;
     final expired = seconds <= 0;
+    final pickupDistance = pickupRoute?.distanceLabel ??
+        '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km';
+    final pickupDuration = pickupRoute?.durationLabel;
+    final tripDistance = tripRoute?.distanceLabel ??
+        (offer.tripDistanceKm == null
+            ? null
+            : '${offer.tripDistanceKm!.toStringAsFixed(1)} km');
+    final tripDuration = tripRoute?.durationLabel;
 
     return Container(
-      padding: const EdgeInsets.all(RamoSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: .55),
-        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: RamoElevation.floating(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2705,149 +2711,156 @@ class _OfferCard extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: RamoSpacing.sm,
-                  vertical: 6,
+                  horizontal: 11,
+                  vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: RamoColors.brandYellow,
                   borderRadius: BorderRadius.circular(RamoRadius.pill),
                 ),
                 child: const Text(
-                  'Nova corrida',
+                  'NOVA CORRIDA',
                   style: TextStyle(
                     color: RamoColors.brandBlack,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: .6,
+                    letterSpacing: .8,
                   ),
                 ),
               ),
               const Spacer(),
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined, size: 17),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${seconds}s',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: expired
+                      ? Theme.of(context).colorScheme.errorContainer
+                      : RamoColors.brandBlack,
+                  borderRadius: BorderRadius.circular(RamoRadius.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 15,
+                      color: expired
+                          ? Theme.of(context).colorScheme.onErrorContainer
+                          : RamoColors.brandYellow,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 5),
+                    Text(
+                      '${seconds}s',
+                      style: TextStyle(
+                        color: expired
+                            ? Theme.of(context).colorScheme.onErrorContainer
+                            : Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: RamoSpacing.lg),
-          Text(
-            formatCents(offer.driverEarningsCents),
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.2,
-                ),
-          ),
-          Text(
-            'Você recebe',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: RamoColors.muted,
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: RamoSpacing.lg),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(RamoSpacing.md),
-            decoration: BoxDecoration(
-              color: RamoColors.surfaceRaised,
-              borderRadius: BorderRadius.circular(RamoRadius.md),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${offer.origin.displayName} → ${offer.destination.displayName}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.35,
-                      ),
-                ),
-                const SizedBox(height: RamoSpacing.xs),
-                Text(
-                  '${offer.categoryLabel} · ${offer.passengers} '
-                  '${offer.passengers == 1 ? 'passageiro' : 'passageiros'}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'VOCÊ RECEBE',
+                      style: TextStyle(
                         color: RamoColors.muted,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                        letterSpacing: .8,
                       ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      formatCents(offer.driverEarningsCents),
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.3,
+                          ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  pickupRoute == null
-                      ? 'Até o passageiro · '
-                          '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km'
-                      : 'Até o passageiro · '
-                          '${pickupRoute!.durationLabel} · '
-                          '${pickupRoute!.distanceLabel}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (tripRoute != null || offer.tripDistanceKm != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    tripRoute != null
-                        ? 'Viagem · ${tripRoute!.durationLabel} · '
-                            '${tripRoute!.distanceLabel}'
-                        : 'Viagem · '
-                            '${offer.tripDistanceKm!.toStringAsFixed(1)} km',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
+              ),
+              _DriverMetaPill(
+                icon: Icons.directions_car_filled_rounded,
+                label: offer.categoryLabel,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _DriverRouteTimeline(
+            origin: offer.origin.displayName,
+            destination: offer.destination.displayName,
+          ),
+          const SizedBox(height: 16),
+          _DriverTripMetrics(
+            pickupDuration: pickupDuration,
+            pickupDistance: pickupDistance,
+            tripDuration: tripDuration,
+            tripDistance: tripDistance,
+            passengers: offer.passengers,
           ),
           if (offer.pickupCompensationCents > 0) ...[
-            const SizedBox(height: RamoSpacing.sm),
-            Text(
-              '+ ${formatCents(offer.pickupCompensationCents)} '
-              'de coleta distante, integral para você',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
+            const SizedBox(height: 12),
+            _DriverNoticeStrip(
+              icon: Icons.add_road_rounded,
+              text:
+                  '+ ${formatCents(offer.pickupCompensationCents)} de coleta distante, integral para você',
             ),
           ],
           if (offer.isCash && offer.cashCollectionAmountCents != null) ...[
-            const SizedBox(height: RamoSpacing.xs),
-            Text(
-              'Pagamento em dinheiro · cobrar '
-              '${formatCents(offer.cashCollectionAmountCents!)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-              ),
+            const SizedBox(height: 8),
+            _DriverNoticeStrip(
+              icon: Icons.payments_outlined,
+              text:
+                  'Pagamento em dinheiro · cobrar ${formatCents(offer.cashCollectionAmountCents!)}',
             ),
           ],
-          const SizedBox(height: RamoSpacing.lg),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: busy || expired ? null : onReject,
-                  child: const Text('Recusar'),
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: busy || expired ? null : onReject,
+                    child: const Text('Recusar'),
+                  ),
                 ),
               ),
-              const SizedBox(width: RamoSpacing.sm),
+              const SizedBox(width: 10),
               Expanded(
                 flex: 2,
                 child: SizedBox(
-                  height: 50,
+                  height: 52,
                   child: FilledButton(
                     onPressed: busy || expired ? null : onAccept,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: RamoColors.brandBlack,
+                      foregroundColor: Colors.white,
+                    ),
                     child: busy
                         ? const SizedBox.square(
                             dimension: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Aceitar'),
+                        : const Text(
+                            'Aceitar corrida',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
                   ),
                 ),
               ),
@@ -2855,6 +2868,274 @@ class _OfferCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DriverRouteTimeline extends StatelessWidget {
+  const _DriverRouteTimeline({
+    required this.origin,
+    required this.destination,
+  });
+
+  final String origin;
+  final String destination;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+      ),
+      child: Column(
+        children: [
+          _DriverRouteStop(
+            icon: Icons.radio_button_checked_rounded,
+            label: 'EMBARQUE',
+            value: origin,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 9),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 2,
+                height: 18,
+                color: Theme.of(context).dividerColor.withValues(alpha: .7),
+              ),
+            ),
+          ),
+          _DriverRouteStop(
+            icon: Icons.location_on_rounded,
+            label: 'DESTINO',
+            value: destination,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverRouteStop extends StatelessWidget {
+  const _DriverRouteStop({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: RamoColors.brandBlack),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: RamoColors.muted,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 9,
+                  letterSpacing: .7,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DriverTripMetrics extends StatelessWidget {
+  const _DriverTripMetrics({
+    required this.pickupDuration,
+    required this.pickupDistance,
+    required this.tripDuration,
+    required this.tripDistance,
+    required this.passengers,
+  });
+
+  final String? pickupDuration;
+  final String pickupDistance;
+  final String? tripDuration;
+  final String? tripDistance;
+  final int passengers;
+
+  @override
+  Widget build(BuildContext context) {
+    final pickupText = pickupDuration == null
+        ? pickupDistance
+        : '$pickupDuration · $pickupDistance';
+    final tripText = switch ((tripDuration, tripDistance)) {
+      (final String duration, final String distance) =>
+        '$duration · $distance',
+      (final String duration, null) => duration,
+      (null, final String distance) => distance,
+      _ => 'Calculando',
+    };
+
+    return Row(
+      children: [
+        Expanded(
+          child: _DriverMetric(
+            icon: Icons.near_me_outlined,
+            label: 'Até buscar',
+            value: pickupText,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _DriverMetric(
+            icon: Icons.route_rounded,
+            label: 'Viagem',
+            value: tripText,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _DriverMetric(
+            icon: Icons.group_outlined,
+            label: 'Pessoas',
+            value: '$passengers',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DriverMetric extends StatelessWidget {
+  const _DriverMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      decoration: BoxDecoration(
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: RamoColors.brandBlack),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: RamoColors.muted,
+              fontWeight: FontWeight.w800,
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverMetaPill extends StatelessWidget {
+  const _DriverMetaPill({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverNoticeStrip extends StatelessWidget {
+  const _DriverNoticeStrip({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 17, color: RamoColors.brandBlack),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3024,6 +3305,14 @@ class _ActiveRideCard extends StatelessWidget {
         _ => 'Corrida ativa',
       };
 
+  String get _stageLabel => switch (ride.state) {
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'BUSCAR PASSAGEIRO',
+        'DRIVER_ARRIVED' => 'NO EMBARQUE',
+        'IN_PROGRESS' => 'EM VIAGEM',
+        'COMPLETED' => 'FINALIZADA',
+        _ => 'ATIVA',
+      };
+
   String? get _actionLabel => switch (ride.state) {
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Cheguei',
         'DRIVER_ARRIVED' => 'Iniciar corrida',
@@ -3039,91 +3328,162 @@ class _ActiveRideCard extends StatelessWidget {
         _ => null,
       };
 
+  String get _categoryLabel => switch (ride.category) {
+        'moto' => 'Moto',
+        'car' => 'Carro',
+        'comfort_black' => 'Comfort / Black',
+        'buggy' => 'Buggy',
+        'delivery' => 'Entrega',
+        _ => ride.category,
+      };
+
+  bool get _canNavigate =>
+      ((ride.state == 'DRIVER_ASSIGNED' ||
+              ride.state == 'DRIVER_ARRIVING') &&
+          ride.pickupLatitude != null &&
+          ride.pickupLongitude != null) ||
+      (ride.state == 'IN_PROGRESS' &&
+          ride.dropoffLatitude != null &&
+          ride.dropoffLongitude != null);
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(RamoSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
-        border: Border.all(color: RamoColors.success),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: RamoElevation.floating(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                color: RamoColors.success,
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: RamoColors.success,
+                  shape: BoxShape.circle,
+                ),
               ),
-              const SizedBox(width: RamoSpacing.sm),
-              Text(
-                _title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  _title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    letterSpacing: -.3,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: RamoColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(RamoRadius.pill),
+                ),
+                child: Text(
+                  _stageLabel,
+                  style: const TextStyle(
+                    color: RamoColors.muted,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
+                    letterSpacing: .6,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: RamoSpacing.md),
-          Text(
-            '${ride.origin.displayName} → ${ride.destination.displayName}',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+          const SizedBox(height: 16),
+          _DriverRouteTimeline(
+            origin: ride.origin.displayName,
+            destination: ride.destination.displayName,
           ),
-          const SizedBox(height: RamoSpacing.xs),
-          if (route != null)
-            Text(
-              '${route!.durationLabel} · ${route!.distanceLabel}',
-              style: const TextStyle(
-                color: RamoColors.muted,
-                fontWeight: FontWeight.w700,
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _DriverMetric(
+                  icon: Icons.schedule_rounded,
+                  label: 'Tempo',
+                  value: route?.durationLabel ?? 'Calculando',
+                ),
               ),
-            ),
-          if (route?.nextManeuver != null) ...[
-            const SizedBox(height: RamoSpacing.sm),
-            Text(
-              route!.nextManeuver!.instruction,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
+              const SizedBox(width: 8),
+              Expanded(
+                child: _DriverMetric(
+                  icon: Icons.route_rounded,
+                  label: 'Distância',
+                  value: route?.distanceLabel ?? 'Calculando',
+                ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _DriverMetric(
+                  icon: Icons.group_outlined,
+                  label: 'Pessoas',
+                  value: '${ride.passengers}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _DriverMetaPill(
+                icon: Icons.directions_car_filled_rounded,
+                label: _categoryLabel,
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'SEU GANHO',
+                    style: TextStyle(
+                      color: RamoColors.muted,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 9,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                  Text(
+                    formatCents(ride.driverEarningsCents),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (ride.isCash && ride.cashCollectionAmountCents != null) ...[
+            const SizedBox(height: 12),
+            _DriverNoticeStrip(
+              icon: Icons.payments_outlined,
+              text:
+                  'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}',
             ),
           ],
-          if (route != null) const SizedBox(height: 4),
-          Text('Seu ganho: ${formatCents(ride.driverEarningsCents)}'),
-          if (ride.isCash &&
-              ride.cashCollectionAmountCents != null) ...[
-            const SizedBox(height: RamoSpacing.xs),
-            Text(
-              'Receber em dinheiro: '
-              '${formatCents(ride.cashCollectionAmountCents!)}',
-              style: const TextStyle(fontWeight: FontWeight.w800),
+          if (route?.nextManeuver != null && navigationActive) ...[
+            const SizedBox(height: 12),
+            _DriverNoticeStrip(
+              icon: Icons.navigation_rounded,
+              text: route!.nextManeuver!.instruction,
             ),
           ],
-          if (ride.pickupLatitude != null && ride.pickupLongitude != null)
-            Padding(
-              padding: const EdgeInsets.only(top: RamoSpacing.sm),
-              child: Text(
-                'Embarque: '
-                '${ride.pickupLatitude!.toStringAsFixed(5)}, '
-                '${ride.pickupLongitude!.toStringAsFixed(5)}',
-              ),
-            ),
-          if (
-            ((ride.state == 'DRIVER_ASSIGNED' ||
-                    ride.state == 'DRIVER_ARRIVING') &&
-                ride.pickupLatitude != null &&
-                ride.pickupLongitude != null) ||
-            (ride.state == 'IN_PROGRESS' &&
-                ride.dropoffLatitude != null &&
-                ride.dropoffLongitude != null)
-          ) ...[
-            const SizedBox(height: RamoSpacing.lg),
+          if (_canNavigate) ...[
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
+              height: 48,
               child: OutlinedButton.icon(
                 onPressed:
                     navigationActive ? onStopNavigation : onNavigate,
@@ -3142,7 +3502,7 @@ class _ActiveRideCard extends StatelessWidget {
               ),
             ),
             if (navigationActive) ...[
-              const SizedBox(height: RamoSpacing.xs),
+              const SizedBox(height: 4),
               SizedBox(
                 width: double.infinity,
                 child: TextButton.icon(
@@ -3154,17 +3514,28 @@ class _ActiveRideCard extends StatelessWidget {
             ],
           ],
           if (_actionLabel != null) ...[
-            const SizedBox(height: RamoSpacing.md),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
+              height: 54,
               child: FilledButton(
                 onPressed: busy ? null : _action,
+                style: FilledButton.styleFrom(
+                  backgroundColor: RamoColors.brandBlack,
+                  foregroundColor: Colors.white,
+                ),
                 child: busy
                     ? const SizedBox.square(
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Text(_actionLabel!),
+                    : Text(
+                        _actionLabel!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
+                      ),
               ),
             ),
           ],
