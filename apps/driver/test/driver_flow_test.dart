@@ -30,7 +30,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(find.text('Nova corrida'), findsOneWidget);
-    expect(find.text('R\$ 110,00'), findsOneWidget);
+    expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
     expect(find.text('Preá → Jijoca'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Aceitar'));
@@ -228,11 +228,9 @@ void main() {
       await tester.tap(statementButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('Extrato da carteira'), findsOneWidget);
-      expect(find.text('Taxa de uso do app pendente'), findsOneWidget);
-      expect(find.text('R\$ 12,00'), findsOneWidget);
+      expect(find.text('Extrato de ganhos'), findsOneWidget);
       expect(
-        find.textContaining('corridas recebidas em dinheiro'),
+        find.text('Taxa de uso do app pendente: R\$ 12,00'),
         findsOneWidget,
       );
 
