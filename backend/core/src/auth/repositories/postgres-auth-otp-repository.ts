@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
 
 import type {
+  AuthFederatedIdentityRecord,
+  AuthFederatedProvider,
   AuthIdentityListInput,
   AuthIdentityListPage,
   AuthIdentityRecord,
@@ -25,6 +27,15 @@ interface IdentityRow {
   photo_url: string | null;
   photo_updated_at: Date | null;
   status: AuthIdentityStatus;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface FederatedIdentityRow {
+  provider: AuthFederatedProvider;
+  provider_subject: string;
+  identity_id: string;
+  email_normalized: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -65,6 +76,21 @@ function mapIdentity(row: IdentityRow): AuthIdentityRecord {
       ? { photoUpdatedAt: row.photo_updated_at.toISOString() }
       : {}),
     status: row.status,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapFederatedIdentity(
+  row: FederatedIdentityRow,
+): AuthFederatedIdentityRecord {
+  return {
+    provider: row.provider,
+    providerSubject: row.provider_subject,
+    identityId: row.identity_id,
+    ...(row.email_normalized == null
+      ? {}
+      : { emailNormalized: row.email_normalized }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -213,6 +239,82 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       [subjectType, subjectId],
     );
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async findFederatedIdentity(
+    provider: AuthFederatedProvider,
+    providerSubject: string,
+  ): Promise<AuthFederatedIdentityRecord | null> {
+    const result = await this.pool.query<FederatedIdentityRow>(
+      `
+      SELECT *
+      FROM auth_federated_identities
+      WHERE provider = $1 AND provider_subject = $2
+      LIMIT 1
+      `,
+      [provider, providerSubject],
+    );
+    return result.rows[0] == null
+      ? null
+      : mapFederatedIdentity(result.rows[0]);
+  }
+
+  async findFederatedIdentityForAccount(input: {
+    provider: AuthFederatedProvider;
+    identityId: string;
+  }): Promise<AuthFederatedIdentityRecord | null> {
+    const result = await this.pool.query<FederatedIdentityRow>(
+      `
+      SELECT *
+      FROM auth_federated_identities
+      WHERE provider = $1 AND identity_id = $2
+      LIMIT 1
+      `,
+      [input.provider, input.identityId],
+    );
+    return result.rows[0] == null
+      ? null
+      : mapFederatedIdentity(result.rows[0]);
+  }
+
+  async linkFederatedIdentity(
+    record: AuthFederatedIdentityRecord,
+  ): Promise<AuthFederatedIdentityRecord> {
+    const result = await this.pool.query<FederatedIdentityRow>(
+      `
+      INSERT INTO auth_federated_identities (
+        provider,
+        provider_subject,
+        identity_id,
+        email_normalized,
+        created_at,
+        updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6)
+      ON CONFLICT (provider, provider_subject)
+      DO UPDATE SET
+        email_normalized = EXCLUDED.email_normalized,
+        updated_at = EXCLUDED.updated_at
+      WHERE
+        auth_federated_identities.identity_id =
+          EXCLUDED.identity_id
+      RETURNING *
+      `,
+      [
+        record.provider,
+        record.providerSubject,
+        record.identityId,
+        record.emailNormalized ?? null,
+        record.createdAt,
+        record.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error(
+        'Identidade social já vinculada a outra conta.',
+      );
+    }
+    return mapFederatedIdentity(row);
   }
 
   async setIdentityEmail(input: {
