@@ -137,6 +137,65 @@ try {
   requireOk(up, 'docker compose up');
   await waitForReady();
 
+  const googleRoute = await jsonRequest('/v1/maps/route', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      origin: {
+        latitude: -2.7956,
+        longitude: -40.5142,
+      },
+      destination: {
+        latitude: -2.8157,
+        longitude: -40.4126,
+      },
+    }),
+  });
+  if (
+    googleRoute.response.status !== 200 ||
+    googleRoute.payload?.provider !== 'google' ||
+    !Number.isFinite(
+      Number(googleRoute.payload?.distanceMeters),
+    ) ||
+    Number(googleRoute.payload?.distanceMeters) <= 0 ||
+    !Number.isFinite(
+      Number(googleRoute.payload?.durationSeconds),
+    ) ||
+    !Array.isArray(googleRoute.payload?.points) ||
+    googleRoute.payload.points.length < 2
+  ) {
+    throw new Error(
+      'Integração Google Routes do Core não foi confirmada.',
+    );
+  }
+
+  const googlePlaces = await jsonRequest(
+    '/v1/maps/places/search',
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: 'Jericoacoara',
+        localOnly: true,
+      }),
+    },
+  );
+  if (
+    googlePlaces.response.status !== 200 ||
+    googlePlaces.payload?.provider !== 'google' ||
+    !Array.isArray(googlePlaces.payload?.places) ||
+    googlePlaces.payload.places.length < 1 ||
+    googlePlaces.payload.places[0]?.name !== 'Jericoacoara'
+  ) {
+    throw new Error(
+      'Integração Google Places do Core não foi confirmada.',
+    );
+  }
+
   const adminPage = await fetch(`${baseUrl}/admin/`, {
     cache: 'no-store',
   });
