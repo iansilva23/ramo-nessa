@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../map/data/nominatim_place_search_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../map/domain/ramo_place.dart';
 
@@ -27,7 +26,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   final _controller = TextEditingController();
 
   late final PlaceSearchService _searchService =
-      widget.searchService ?? NominatimPlaceSearchService();
+      widget.searchService ?? const _MissingPlaceSearchService();
 
   List<RamoPlace> _results = const [];
   bool _loading = false;
@@ -305,6 +304,20 @@ class _SearchHint extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+class _MissingPlaceSearchService implements PlaceSearchService {
+  const _MissingPlaceSearchService();
+
+  @override
+  Future<List<RamoPlace>> search(String query) {
+    return Future<List<RamoPlace>>.error(
+      StateError(
+        'A busca de destinos precisa ser fornecida pelo app.',
       ),
     );
   }
