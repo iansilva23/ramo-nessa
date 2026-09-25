@@ -438,6 +438,19 @@
                   <input id="show-nearby-drivers" type="checkbox">
                 </label>
 
+                <label class="operational-settings-toggle">
+                  <span>
+                    <strong>Bloqueio automático por documentos</strong>
+                    <small>
+                      Desligado por padrão. Quando desligado, CNH/CRLV irregular
+                      apenas gera alerta e você decide se bloqueia novas corridas.
+                      Quando ligado, o sistema bloqueia automaticamente novas corridas,
+                      sem interromper viagens já em andamento.
+                    </small>
+                  </span>
+                  <input id="driver-document-auto-enforcement" type="checkbox">
+                </label>
+
                 <div class="operational-settings-actions">
                   <small id="operational-settings-updated-at">
                     Ainda não carregado
@@ -740,6 +753,69 @@
 
               <div id="driver-documents-result" class="driver-documents-result empty-state">
                 Abra um motorista para consultar o status documental.
+              </div>
+
+              <div
+                id="driver-document-compliance-panel"
+                class="document-compliance-panel"
+                hidden
+              >
+                <div class="document-compliance-header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONTROLE OPERACIONAL</span>
+                    <h3>Decisão sobre novas corridas</h3>
+                    <p id="driver-document-compliance-message" class="muted-copy">
+                      Nenhuma pendência carregada.
+                    </p>
+                  </div>
+                  <span
+                    id="driver-document-compliance-status"
+                    class="pill pill--neutral"
+                  >
+                    Não carregado
+                  </span>
+                </div>
+
+                <div
+                  id="driver-document-compliance-issues"
+                  class="document-compliance-issues"
+                ></div>
+
+                <div class="document-compliance-actions">
+                  <button
+                    id="driver-document-notify-button"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Avisar motorista
+                  </button>
+                  <button
+                    id="driver-document-keep-active-button"
+                    class="button button--primary"
+                    type="button"
+                  >
+                    Manter ativo
+                  </button>
+                  <button
+                    id="driver-document-block-button"
+                    class="button button--danger"
+                    type="button"
+                  >
+                    Bloquear novas corridas
+                  </button>
+                  <button
+                    id="driver-document-unblock-button"
+                    class="button button--ghost-dark"
+                    type="button"
+                    hidden
+                  >
+                    Liberar novas corridas
+                  </button>
+                </div>
+
+                <small id="driver-document-compliance-meta">
+                  A decisão fica registrada na auditoria.
+                </small>
               </div>
 
               <div id="driver-document-inspection-panel" class="driver-document-inspection-panel" hidden>
