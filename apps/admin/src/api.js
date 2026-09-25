@@ -474,6 +474,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    driverDocumentComplianceAlerts(token) {
+      return request(
+        '/v1/admin/driver-document-compliance-alerts',
+        { token },
+      );
+    },
+
     getDriverDocuments(token, driverId) {
       return request(
         `/v1/admin/drivers/${driverId}/documents`,
