@@ -136,6 +136,9 @@ import {
   updateDriverSupplyFromApp,
 } from './drivers/driver-app-service.js';
 import {
+  canDriverReceiveNewWork,
+} from './drivers/driver-operational-eligibility.js';
+import {
   InvalidDriverRequestError,
   parseUpdateDriverSupplyRequest,
 } from './drivers/driver-validation.js';
@@ -3695,6 +3698,7 @@ const server = createServer(async (request, response) => {
       const supply = await updateDriverSupplyFromApp({
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
         driverId,
         ...body,
       });
@@ -3937,6 +3941,7 @@ const server = createServer(async (request, response) => {
         rides: rideRepository,
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
         matching: rideMatchingRepository,
         finance: financeRepository,
         paymentPolicySettings: paymentPolicySettingsRepository,
@@ -3963,6 +3968,7 @@ const server = createServer(async (request, response) => {
         const result = await acceptOfferFromDriverApp({
           rides: rideRepository,
           registry: driverRegistryRepository,
+          documents: driverDocumentRepository,
           matching: rideMatchingRepository,
           offerId,
           driverId,
@@ -4019,6 +4025,12 @@ const server = createServer(async (request, response) => {
         finance: financeRepository,
         paymentPolicySettings: paymentPolicySettingsRepository,
         operationalSettings: operationalSettingsRepository,
+        canOfferDriver: (candidateDriverId) =>
+          canDriverReceiveNewWork({
+            registry: driverRegistryRepository,
+            documents: driverDocumentRepository,
+            driverId: candidateDriverId,
+          }),
         offerId,
         driverId,
       });
@@ -4121,6 +4133,13 @@ const server = createServer(async (request, response) => {
         pricing,
         pickup: body.pickup,
         dropoff: body.dropoff,
+        canUseDriver: (candidateDriverId) =>
+          canDriverReceiveNewWork({
+            registry: driverRegistryRepository,
+            documents: driverDocumentRepository,
+            driverId: candidateDriverId,
+            now,
+          }),
         now,
       });
 
@@ -5068,7 +5087,8 @@ const server = createServer(async (request, response) => {
         error.code === 'DRIVER_NOT_REGISTERED' ||
         error.code === 'RIDE_NOT_FOUND'
           ? 404
-          : error.code === 'DRIVER_REGISTRY_NOT_APPROVED'
+          : error.code === 'DRIVER_REGISTRY_NOT_APPROVED' ||
+              error.code === 'DRIVER_DOCUMENTS_NOT_APPROVED'
             ? 403
             : error.code === 'DRIVER_SUPPLY_NOT_INITIALIZED' ||
                 error.code === 'RIDE_NOT_ASSIGNED_TO_DRIVER' ||
