@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -193,6 +194,30 @@ class HttpPhoneAuthService implements PhoneAuthService {
   }
 
   @override
+  Future<PassengerAccount> updatePassengerPhoto({
+    required String accessToken,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/passenger/me/photo'),
+          headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer ${accessToken.trim()}',
+          },
+          body: jsonEncode({
+            'mimeType': mimeType,
+            'dataBase64': base64Encode(bytes),
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+    return _accountFromJson(json);
+  }
+
+  @override
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
     final response = await _client
         .get(
@@ -326,8 +351,16 @@ class HttpPhoneAuthService implements PhoneAuthService {
       phoneE164: phoneE164,
       email: json['email'] as String?,
       fullName: json['fullName'] as String?,
-      photoUrl: json['photoUrl'] as String?,
+      photoUrl: _resolvePhotoUrl(json['photoUrl']),
     );
+  }
+
+  String? _resolvePhotoUrl(Object? raw) {
+    if (raw is! String || raw.trim().isEmpty) return null;
+    final value = raw.trim();
+    final uri = Uri.tryParse(value);
+    if (uri == null) return null;
+    return uri.hasScheme ? value : _baseUrl.resolveUri(uri).toString();
   }
 
   Map<String, dynamic> _decodeObject(http.Response response) {
