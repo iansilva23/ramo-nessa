@@ -11,6 +11,13 @@ val mercadoPagoPublicKey =
         .get()
         .trim()
 
+val googleMapsAndroidApiKey =
+    providers.gradleProperty("RAMO_GOOGLE_MAPS_ANDROID_API_KEY")
+        .orElse(providers.environmentVariable("RAMO_GOOGLE_MAPS_ANDROID_API_KEY"))
+        .orElse("")
+        .get()
+        .trim()
+
 val previewSigningEnabled =
     providers.environmentVariable("RAMO_PREVIEW_SIGNING")
         .orElse("false")
@@ -40,6 +47,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsAndroidApiKey
 
         val escapedPublicKey =
             mercadoPagoPublicKey.replace("\\", "\\\\").replace("\"", "\\\"")
