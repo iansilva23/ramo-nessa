@@ -56,6 +56,7 @@ class DriverLiveMap extends StatefulWidget {
     required this.supply,
     required this.activeRide,
     required this.route,
+    this.navigationMode = false,
     this.nearbyDrivers = const [],
     this.onMapReady,
     this.networkTilesEnabled = true,
@@ -65,6 +66,7 @@ class DriverLiveMap extends StatefulWidget {
   final DriverSupplySnapshot? supply;
   final AcceptedDriverRide? activeRide;
   final DriverRouteInfo? route;
+  final bool navigationMode;
   final List<NearbyDriverPosition> nearbyDrivers;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
@@ -257,7 +259,7 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
       tiltGesturesEnabled: false,
       buildingsEnabled: true,
       indoorViewEnabled: false,
-      trafficEnabled: false,
+      trafficEnabled: widget.navigationMode,
     );
   }
 }
