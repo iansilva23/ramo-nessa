@@ -10,6 +10,7 @@ import {
   type MercadoPagoPixOrder,
 } from './mercado-pago-orders.js';
 import { PaymentDomainError, type PaymentRecord } from './payment.js';
+import { cardPriceForBaseFare } from './card-price-adjustment.js';
 
 export class MercadoPagoPaymentServiceError extends Error {
   constructor(
@@ -107,6 +108,7 @@ export async function createMercadoPagoPixIntent(input: {
 export interface MercadoPagoCardIntent {
   payment: PaymentRecord;
   card: MercadoPagoCardOrder;
+  pricing: ReturnType<typeof cardPriceForBaseFare>;
 }
 
 export async function createMercadoPagoCardIntent(input: {
@@ -119,6 +121,7 @@ export async function createMercadoPagoCardIntent(input: {
   paymentMethodId: string;
   paymentMethodType: 'credit_card' | 'debit_card';
   installments: number;
+  cardPriceAdjustmentBps: number;
   idempotencyKey: string;
   now?: Date;
 }): Promise<MercadoPagoCardIntent> {
@@ -139,11 +142,17 @@ export async function createMercadoPagoCardIntent(input: {
     );
   }
 
+  const pricing = cardPriceForBaseFare(
+    input.ride.quote.totalAmountCents,
+    input.cardPriceAdjustmentBps,
+  );
+
   let payment = await createPaymentForRide(input.finance, {
     ride: input.ride,
     method: 'card',
     processor: 'mercado-pago-orders',
     idempotencyKey: input.idempotencyKey,
+    amountCents: pricing.totalAmountCents,
     ...(input.now != null ? { now: input.now } : {}),
   });
 
@@ -176,7 +185,7 @@ export async function createMercadoPagoCardIntent(input: {
     ...(input.now != null ? { pendingAt: input.now } : {}),
   });
 
-  return { payment, card };
+  return { payment, card, pricing };
 }
 
 export type MercadoPagoOrderApplication =

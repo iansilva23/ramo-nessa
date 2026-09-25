@@ -227,6 +227,8 @@ export function rideSettlementLedger(input: {
   paymentId: string;
   driverId: string;
   totalAmountCents: number;
+  fareAmountCents: number;
+  paymentAdjustmentCents: number;
   platformCommissionCents: number;
   driverNetCents: number;
   cashDebtRecoveryCents?: number;
@@ -234,10 +236,14 @@ export function rideSettlementLedger(input: {
 }): LedgerTransaction {
   if (
     input.platformCommissionCents + input.driverNetCents !==
-    input.totalAmountCents
+    input.fareAmountCents ||
+    input.fareAmountCents + input.paymentAdjustmentCents !==
+      input.totalAmountCents ||
+    !Number.isInteger(input.paymentAdjustmentCents) ||
+    input.paymentAdjustmentCents < 0
   ) {
     throw new LedgerError(
-      'Liquidação não fecha com o valor total da corrida.',
+      'Liquidação não fecha entre tarifa-base, ajuste de pagamento e total cobrado.',
     );
   }
 
@@ -266,6 +272,15 @@ export function rideSettlementLedger(input: {
       direction: 'credit',
       amountCents: input.platformCommissionCents,
     },
+    ...(input.paymentAdjustmentCents > 0
+      ? [
+          {
+            accountKey: 'platform:payment_fee_recovery',
+            direction: 'credit' as const,
+            amountCents: input.paymentAdjustmentCents,
+          },
+        ]
+      : []),
     ...(cashDebtRecoveryCents > 0
       ? [
           {

@@ -2470,18 +2470,54 @@ const server = createServer(async (request, response) => {
       if (
         body == null ||
         typeof body !== 'object' ||
-        Array.isArray(body) ||
-        typeof (body as { cashEnabled?: unknown }).cashEnabled !== 'boolean'
+        Array.isArray(body)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Política de pagamento inválida.',
+        );
+      }
+      const payload = body as {
+        cashEnabled?: unknown;
+        cardPriceAdjustmentBps?: unknown;
+      };
+      if (
+        payload.cashEnabled != null &&
+        typeof payload.cashEnabled !== 'boolean'
       ) {
         throw new InvalidAdminRequestError(
           'cashEnabled deve ser booleano.',
+        );
+      }
+      const cardPriceAdjustmentBps =
+        payload.cardPriceAdjustmentBps == null
+          ? undefined
+          : Number(payload.cardPriceAdjustmentBps);
+      if (
+        cardPriceAdjustmentBps != null &&
+        !Number.isInteger(cardPriceAdjustmentBps)
+      ) {
+        throw new InvalidAdminRequestError(
+          'cardPriceAdjustmentBps deve ser inteiro.',
+        );
+      }
+      if (
+        payload.cashEnabled == null &&
+        cardPriceAdjustmentBps == null
+      ) {
+        throw new InvalidAdminRequestError(
+          'Informe ao menos uma configuração de pagamento.',
         );
       }
       const policy = await updateAdminPaymentPolicy({
         repository: paymentPolicySettingsRepository,
         admin: adminRepository,
         actor,
-        cashEnabled: (body as { cashEnabled: boolean }).cashEnabled,
+        ...(payload.cashEnabled == null
+          ? {}
+          : { cashEnabled: payload.cashEnabled }),
+        ...(cardPriceAdjustmentBps == null
+          ? {}
+          : { cardPriceAdjustmentBps }),
       });
       json(response, 200, policy);
       return;
@@ -4274,6 +4310,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ...PAYMENT_POLICY_V1,
         cashEnabled: settings.cashEnabled,
+        cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
         allowedMethods: [
           ...PAYMENT_POLICY_V1.allowedMethods,
           ...(settings.cashEnabled ? ['cash'] : []),
@@ -4743,6 +4780,8 @@ const server = createServer(async (request, response) => {
             passengerId,
           );
 
+        const paymentSettings =
+          await paymentPolicySettingsRepository.get();
         const result = await createMercadoPagoCardIntent({
           finance: financeRepository,
           gateway: mercadoPagoOrdersClient,
@@ -4756,6 +4795,8 @@ const server = createServer(async (request, response) => {
           paymentMethodType:
             body.paymentMethodType ?? 'credit_card',
           installments: body.installments ?? 1,
+          cardPriceAdjustmentBps:
+            paymentSettings.cardPriceAdjustmentBps,
           idempotencyKey,
         });
 
@@ -4797,6 +4838,7 @@ const server = createServer(async (request, response) => {
 
         json(response, 201, {
           payment: responsePayment,
+          pricing: result.pricing,
           card: {
             orderId: result.card.orderId,
             paymentId: result.card.paymentId,

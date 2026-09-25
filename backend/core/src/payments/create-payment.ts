@@ -14,8 +14,9 @@ export interface CreatePaymentInput {
   method: EnabledPaymentMethod;
   processor: string;
   idempotencyKey: string;
+  amountCents?: number;
   now?: Date;
-}
+
 
 export async function createPaymentForRide(
   repository: FinanceRepository,
@@ -50,8 +51,14 @@ export async function createPaymentForRide(
     );
   }
 
-  const amountCents = input.ride.quote.totalAmountCents;
-  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+  const baseFareAmountCents = input.ride.quote.totalAmountCents;
+  const amountCents = input.amountCents ?? baseFareAmountCents;
+  if (
+    !Number.isInteger(amountCents) ||
+    amountCents <= 0 ||
+    amountCents < baseFareAmountCents ||
+    (input.method !== 'card' && amountCents !== baseFareAmountCents)
+  ) {
     throw new PaymentDomainError(
       'INVALID_PAYMENT_AMOUNT',
       'Valor da corrida inválido para pagamento.',

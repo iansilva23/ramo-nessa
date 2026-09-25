@@ -56,10 +56,15 @@ export async function confirmRidePayment(
     );
   }
 
-  if (input.payment.amountCents !== ride.quote.totalAmountCents) {
+  const baseFareAmountCents = ride.quote.totalAmountCents;
+  const validPaymentAmount =
+    input.payment.method === 'card'
+      ? input.payment.amountCents >= baseFareAmountCents
+      : input.payment.amountCents === baseFareAmountCents;
+  if (!validPaymentAmount) {
     throw new RidePaymentConfirmationError(
       'PAYMENT_AMOUNT_MISMATCH',
-      'Pagamento não confere com o preço congelado da corrida.',
+      'Pagamento não confere com o preço aplicável à forma de pagamento.',
     );
   }
 

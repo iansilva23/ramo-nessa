@@ -56,18 +56,27 @@ export async function settleCompletedRide(
     );
   }
 
-  if (input.payment.amountCents !== input.ride.quote.totalAmountCents) {
+  const fareAmountCents = input.ride.quote.totalAmountCents;
+  const validPaymentAmount =
+    input.payment.method === 'card'
+      ? input.payment.amountCents >= fareAmountCents
+      : input.payment.amountCents === fareAmountCents;
+  if (!validPaymentAmount) {
     throw new SettlementError(
       'PAYMENT_AMOUNT_MISMATCH',
-      'Valor pago não confere com o valor congelado da corrida.',
+      'Valor pago não confere com o preço aplicável à forma de pagamento.',
     );
   }
+  const paymentAdjustmentCents =
+    input.payment.amountCents - fareAmountCents;
 
   return repository.settleRide({
     rideId: input.ride.id,
     paymentId: input.payment.id,
     driverId,
-    totalAmountCents: input.ride.quote.totalAmountCents,
+    totalAmountCents: input.payment.amountCents,
+    fareAmountCents,
+    paymentAdjustmentCents,
     platformCommissionCents: input.ride.quote.platformCommissionCents,
     driverNetCents: input.ride.quote.driverNetCents,
     ...(input.settledAt != null ? { settledAt: input.settledAt } : {}),

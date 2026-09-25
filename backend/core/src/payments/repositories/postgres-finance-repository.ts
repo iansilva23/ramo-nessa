@@ -1339,6 +1339,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
         paymentId: input.paymentId,
         driverId: input.driverId,
         totalAmountCents: input.totalAmountCents,
+        fareAmountCents: input.fareAmountCents,
+        paymentAdjustmentCents: input.paymentAdjustmentCents,
         platformCommissionCents: input.platformCommissionCents,
         driverNetCents: input.driverNetCents,
         cashDebtRecoveryCents: cashDebtRecoveredCents,

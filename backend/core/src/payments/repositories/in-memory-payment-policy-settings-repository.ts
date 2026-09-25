@@ -9,6 +9,7 @@ export class InMemoryPaymentPolicySettingsRepository
 {
   private record: PaymentPolicySettingsRecord = {
     cashEnabled: false,
+    cardPriceAdjustmentBps: 498,
     updatedAt: '1970-01-01T00:00:00.000Z',
   };
 
@@ -24,7 +25,20 @@ export class InMemoryPaymentPolicySettingsRepository
     updatedAt: string,
   ): Promise<PaymentPolicySettingsRecord> {
     this.record = {
+      ...this.record,
       cashEnabled: enabled,
+      updatedAt,
+    };
+    return structuredClone(this.record);
+  }
+
+  async setCardPriceAdjustmentBps(
+    bps: number,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    this.record = {
+      ...this.record,
+      cardPriceAdjustmentBps: bps,
       updatedAt,
     };
     return structuredClone(this.record);

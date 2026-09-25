@@ -1,5 +1,6 @@
 export interface PaymentPolicySettingsRecord {
   cashEnabled: boolean;
+  cardPriceAdjustmentBps: number;
   updatedAt: string;
 }
 
@@ -13,6 +14,10 @@ export interface PaymentPolicySettingsRepository {
   get(): Promise<PaymentPolicySettingsRecord>;
   setCashEnabled(
     enabled: boolean,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord>;
+  setCardPriceAdjustmentBps(
+    bps: number,
     updatedAt: string,
   ): Promise<PaymentPolicySettingsRecord>;
   getDriverCashDebtLimitOverride(
