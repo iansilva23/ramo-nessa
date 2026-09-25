@@ -369,10 +369,10 @@ class HttpPhoneAuthService implements PhoneAuthService {
     try {
       decoded = jsonDecode(response.body);
     } catch (_) {
-      throw const FormatException('Resposta inválida do Core.');
+      throw const FormatException('Resposta inválida do servidor.');
     }
     if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Resposta inválida do Core.');
+      throw const FormatException('Resposta inválida do servidor.');
     }
     return decoded;
   }
