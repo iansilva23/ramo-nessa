@@ -217,6 +217,7 @@ import {
 } from './rides/prepare-ride.js';
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminFinanceView } from './admin/admin-finance-service.js';
+import { adminIntegrationSetupView } from './admin/admin-integrations-service.js';
 import {
   AdminPaymentPolicyError,
   adminPaymentPolicyView,
@@ -2008,6 +2009,20 @@ const server = createServer(async (request, response) => {
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
       });
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/integrations'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'rides:read',
+      });
+      json(response, 200, adminIntegrationSetupView());
       return;
     }
 
