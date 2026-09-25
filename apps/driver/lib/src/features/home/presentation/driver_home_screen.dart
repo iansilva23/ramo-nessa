@@ -39,6 +39,7 @@ class DriverHomeScreen extends StatefulWidget {
     this.api,
     this.locationService,
     this.navigationService,
+    this.routeService,
     this.realtimeService,
     this.releasePolicyService,
     this.pushCoordinator,
@@ -49,6 +50,7 @@ class DriverHomeScreen extends StatefulWidget {
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
+  final DriverRouteService? routeService;
   final DriverRealtimeService? realtimeService;
   final AppReleasePolicyService? releasePolicyService;
   final FirebasePushCoordinator? pushCoordinator;
@@ -116,12 +118,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DateTime? _lastRouteRefreshAt;
   int _selectedTab = 0;
   late final DriverRouteService _routeService =
-      DriverCoreConfig.enabled
-          ? CoreDriverRouteService(
-              baseUrl: DriverCoreConfig.baseUri!,
-              accessToken: _accessToken,
-            )
-          : OsrmDriverRouteService();
+      widget.routeService ??
+          (DriverCoreConfig.enabled
+              ? CoreDriverRouteService(
+                  baseUrl: DriverCoreConfig.baseUri!,
+                  accessToken: _accessToken,
+                )
+              : const _UnavailableDriverRouteService());
   bool _loading = true;
   bool _changingStatus = false;
   bool _offerAction = false;
@@ -3067,6 +3070,23 @@ class _WaitingCard extends StatelessWidget {
           const SizedBox(height: RamoSpacing.xs),
           Text(subtitle, textAlign: TextAlign.center),
         ],
+      ),
+    );
+  }
+}
+
+
+class _UnavailableDriverRouteService implements DriverRouteService {
+  const _UnavailableDriverRouteService();
+
+  @override
+  Future<DriverRouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) {
+    return Future<DriverRouteInfo>.error(
+      StateError(
+        'O serviço de rotas exige conexão com o Core do Ramo Nessa.',
       ),
     );
   }
