@@ -73,6 +73,29 @@ class FirebasePushCoordinator {
     });
   }
 
+  Future<AuthorizationStatus> authorizationStatus() async {
+    final settings = await _messaging.getNotificationSettings();
+    return settings.authorizationStatus;
+  }
+
+  Future<AuthorizationStatus> requestNotificationPermission() async {
+    final settings = await _messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+    if (settings.authorizationStatus != AuthorizationStatus.denied &&
+        settings.authorizationStatus !=
+            AuthorizationStatus.deniedPermanently) {
+      await _registerCurrentToken();
+    }
+    return settings.authorizationStatus;
+  }
+
   Future<void> bindSession(String accessToken) async {
     final normalized = accessToken.trim();
     if (normalized.length < 20) return;
