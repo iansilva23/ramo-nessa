@@ -241,6 +241,80 @@ const server = createServer(async (request, response) => {
 
   if (
     request.method === 'POST' &&
+    url.pathname === '/v1/places:autocomplete'
+  ) {
+    const body = await readJson(request);
+    const input =
+      typeof body.input === 'string' ? body.input.trim() : '';
+
+    if (input.length < 3) {
+      json(response, 400, {
+        error: {
+          code: 400,
+          status: 'INVALID_ARGUMENT',
+          message: 'input is required',
+        },
+      });
+      return;
+    }
+
+    const normalized = input.toLowerCase();
+    const prea = normalized.includes('preá') ||
+      normalized.includes('prea');
+    const placeId = prea ? 'mock-prea' : 'mock-jericoacoara';
+    const mainText = prea ? 'Preá' : 'Jericoacoara';
+    const secondaryText = prea
+      ? 'Cruz - CE, Brasil'
+      : 'Jijoca de Jericoacoara - CE, Brasil';
+
+    json(response, 200, {
+      suggestions: [
+        {
+          placePrediction: {
+            place: `places/${placeId}`,
+            placeId,
+            text: {
+              text: `${mainText}, ${secondaryText}`,
+            },
+            structuredFormat: {
+              mainText: { text: mainText },
+              secondaryText: { text: secondaryText },
+            },
+          },
+        },
+      ],
+    });
+    return;
+  }
+
+  if (
+    request.method === 'GET' &&
+    (
+      url.pathname === '/v1/places/mock-prea' ||
+      url.pathname === '/v1/places/mock-jericoacoara'
+    )
+  ) {
+    const prea = url.pathname.endsWith('mock-prea');
+    json(response, 200, {
+      id: prea ? 'mock-prea' : 'mock-jericoacoara',
+      formattedAddress: prea
+        ? 'Preá, Cruz - CE, Brasil'
+        : 'Jericoacoara, Jijoca de Jericoacoara - CE, Brasil',
+      location: prea
+        ? {
+            latitude: -2.8157,
+            longitude: -40.4126,
+          }
+        : {
+            latitude: -2.7956,
+            longitude: -40.5142,
+          },
+    });
+    return;
+  }
+
+  if (
+    request.method === 'POST' &&
     url.pathname === '/v1/places:searchText'
   ) {
     const body = await readJson(request);
