@@ -197,7 +197,7 @@ test('cartão preserva 90/10 da tarifa-base e separa o ajuste de pagamento', asy
     ...paidPayment(),
     id: '43333333-3333-4333-8333-333333333333',
     method: 'card',
-    amountCents: 15786,
+    amountCents: 15787,
     idempotencyKey: 'settlement-card-adjustment',
   };
 
@@ -225,7 +225,7 @@ test('cartão preserva 90/10 da tarifa-base e separa o ajuste de pagamento', asy
   );
   assert.equal(
     await repository.getAccountBalanceCents('platform:payment_fee_recovery'),
-    786,
+    787,
   );
   assert.equal(
     await repository.getAccountBalanceCents(`ride:${ride.id}:escrow`),
