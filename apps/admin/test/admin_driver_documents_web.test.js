@@ -242,6 +242,12 @@ test('ADM mantém decisão humana por padrão e expõe controles documentais', a
 
   for (const id of [
     'driver-document-auto-enforcement',
+    'driver-document-alerts-summary',
+    'driver-document-alerts-decision-count',
+    'driver-document-alerts-blocked-count',
+    'driver-document-alerts-mode',
+    'driver-document-alerts-list',
+    'driver-document-alerts-empty',
     'driver-document-compliance-panel',
     'driver-document-compliance-status',
     'driver-document-compliance-message',
@@ -330,4 +336,52 @@ test('cliente Admin consulta, avisa e decide conformidade sem suspender login', 
       `Bearer ${token}`,
     );
   }
+});
+
+
+test('ADM carrega lista proativa de pendências documentais', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      mode: 'manual',
+      total: 1,
+      decisionRequired: 1,
+      blocked: 0,
+      items: [
+        {
+          driverId: 'driver-alert',
+          phoneE164: '+5588999999999',
+          documentsApproved: false,
+          decisionRequired: true,
+          effectiveBlocked: false,
+          manualBlocked: false,
+          automaticBlock: false,
+          issues: [
+            {
+              documentType: 'driver_license',
+              status: 'expired',
+              label: 'CNH vencida',
+            },
+          ],
+        },
+      ],
+    });
+  };
+
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_document_alerts_secret';
+  const payload = await api.driverDocumentComplianceAlerts(token);
+
+  assert.equal(payload.total, 1);
+  assert.equal(payload.decisionRequired, 1);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/driver-document-compliance-alerts',
+  );
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
 });
