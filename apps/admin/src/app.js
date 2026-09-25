@@ -459,6 +459,7 @@ function activateView(viewName) {
     'finance',
     'notifications',
     'agency',
+    'integrations',
     'audit',
   ]);
   const view = known.has(viewName) ? viewName : 'overview';
@@ -483,6 +484,7 @@ function activateView(viewName) {
     finance: 'Financeiro',
     notifications: 'Notificações',
     agency: 'Ramo Nessa Agência',
+    integrations: 'Integrações',
     audit: 'Auditoria',
   };
   byId('page-title').textContent = titles[view];
@@ -504,6 +506,9 @@ function activateView(viewName) {
   }
   if (view === 'finance') {
     void loadFinance({ announce: false });
+  }
+  if (view === 'integrations') {
+    void loadIntegrations({ announce: false });
   }
   if (
     (view === 'notifications' || view === 'agency') &&
@@ -3527,6 +3532,190 @@ async function handlePassengerAccessChange() {
   }
 }
 
+async function copyIntegrationValue(value, button) {
+  const text = String(value ?? '').trim();
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = button.textContent;
+    button.textContent = 'Copiado';
+    button.disabled = true;
+    window.setTimeout(() => {
+      button.textContent = original;
+      button.disabled = false;
+    }, 1200);
+  } catch {
+    setMessage(
+      globalMessage,
+      'Não foi possível copiar automaticamente. Selecione o texto manualmente.',
+      'danger',
+    );
+  }
+}
+
+function integrationCredentialCard({
+  title,
+  destination,
+  identifierLabel,
+  identifier,
+  secretName,
+  allowedApi,
+  extra,
+}) {
+  const card = document.createElement('article');
+  card.className = 'integration-credential-card';
+
+  const heading = document.createElement('div');
+  heading.className = 'integration-credential-card__heading';
+  const titleElement = document.createElement('strong');
+  titleElement.textContent = title;
+  const badge = document.createElement('span');
+  badge.className = 'pill pill--neutral';
+  badge.textContent = destination;
+  heading.append(titleElement, badge);
+
+  const rows = document.createElement('div');
+  rows.className = 'integration-credential-values';
+
+  const addRow = (label, value, copyable = true) => {
+    const row = document.createElement('div');
+    const labelElement = document.createElement('span');
+    labelElement.textContent = label;
+    const code = document.createElement('code');
+    code.textContent = value;
+    row.append(labelElement, code);
+    if (copyable) {
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'button button--tiny button--ghost-dark';
+      copy.textContent = 'Copiar';
+      copy.addEventListener('click', () => {
+        void copyIntegrationValue(value, copy);
+      });
+      row.append(copy);
+    }
+    rows.append(row);
+  };
+
+  addRow(identifierLabel, identifier);
+  addRow('Nome do Secret', secretName);
+  addRow('API permitida', allowedApi, false);
+  if (extra) addRow(extra.label, extra.value, false);
+
+  card.append(heading, rows);
+  return card;
+}
+
+function renderIntegrations(payload) {
+  const googleMaps = payload?.googleMaps;
+  const server = googleMaps?.server;
+  const configured = server?.configured === true;
+  const providerValid = server?.routingProviderValid !== false;
+
+  const status = byId('google-server-status');
+  status.textContent = configured && providerValid
+    ? 'Configurado'
+    : configured
+      ? 'Provider precisa de correção'
+      : 'Aguardando chave privada';
+  status.className = configured && providerValid
+    ? 'integration-status-ok'
+    : 'integration-status-pending';
+
+  const detail = byId('google-server-detail');
+  detail.textContent = server
+    ? `${server.runtimeEnvironmentVariable} · Routes + Places`
+    : 'GOOGLE_MAPS_SERVER_API_KEY';
+
+  byId('integrations-updated-at').textContent =
+    payload ? `Verificado em ${new Date().toLocaleTimeString('pt-BR')}` : 'Ainda não verificado';
+
+  const target = byId('google-credential-cards');
+  target.replaceChildren();
+
+  if (!googleMaps) {
+    const empty = document.createElement('p');
+    empty.className = 'muted-copy';
+    empty.textContent =
+      'Entre com uma conta autorizada e clique em “Verificar configuração”.';
+    target.append(empty);
+    return;
+  }
+
+  for (const item of googleMaps.android ?? []) {
+    target.append(
+      integrationCredentialCard({
+        title: item.label,
+        destination: 'GitHub',
+        identifierLabel: 'Package',
+        identifier: item.packageName,
+        secretName: item.githubSecretName,
+        allowedApi: item.allowedApi,
+        extra: {
+          label: 'Restrição',
+          value: 'Package + SHA-1 da assinatura de produção',
+        },
+      }),
+    );
+  }
+
+  for (const item of googleMaps.ios ?? []) {
+    target.append(
+      integrationCredentialCard({
+        title: item.label,
+        destination: 'GitHub',
+        identifierLabel: 'Bundle ID',
+        identifier: item.bundleId,
+        secretName: item.githubSecretName,
+        allowedApi: item.allowedApi,
+      }),
+    );
+  }
+
+  target.append(
+    integrationCredentialCard({
+      title: 'Core / servidor',
+      destination: 'Servidor',
+      identifierLabel: 'Variável runtime',
+      identifier: server.runtimeEnvironmentVariable,
+      secretName: server.deploymentSecretName,
+      allowedApi: server.allowedApis.join(' + '),
+      extra: {
+        label: 'Regra',
+        value: 'Nunca colocar esta chave no APK ou no navegador',
+      },
+    }),
+  );
+}
+
+async function loadIntegrations({ announce = true } = {}) {
+  const button = byId('refresh-integrations-button');
+
+  if (!state.token || !hasScope('rides:read')) {
+    renderIntegrations(null);
+    button.disabled = true;
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const payload = await api.integrations(state.token);
+    renderIntegrations(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Configuração do Google Maps verificada sem expor segredos.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('rides:read');
+  }
+}
+
 function formatKm(value) {
   const number = Number(value);
   return Number.isFinite(number)
@@ -4584,6 +4773,9 @@ byId('refresh-fleet-button').addEventListener('click', () => {
 byId('refresh-finance-button').addEventListener('click', () => {
   void loadFinance();
 });
+byId('refresh-integrations-button').addEventListener('click', () => {
+  void loadIntegrations();
+});
 byId('finance-enable-cash-button').addEventListener('click', () => {
   void handleEnableCash();
 });
@@ -4704,6 +4896,7 @@ renderFleet();
 renderFinance();
 renderPaymentPolicy();
 renderOperationalSettings();
+renderIntegrations(null);
 renderPricingCatalog();
 renderPricingVersions();
 renderPricingEditor();
