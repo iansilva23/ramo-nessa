@@ -35,6 +35,7 @@ function encodePolyline5(
 test('Google Routes normaliza rota, ETA e manobras', async () => {
   const points = [
     { latitude: -2.7956, longitude: -40.5142 },
+    { latitude: -2.7980, longitude: -40.5070 },
     { latitude: -2.8, longitude: -40.5 },
   ];
   let capturedUrl = '';
@@ -62,9 +63,29 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
                   {
                     distanceMeters: 800,
                     staticDuration: '90s',
+                    polyline: {
+                      encodedPolyline: encodePolyline5([
+                        points[0]!,
+                        points[1]!,
+                      ]),
+                    },
                     navigationInstruction: {
                       maneuver: 'TURN_LEFT',
                       instructions: 'Vire à esquerda na Rua Principal.',
+                    },
+                  },
+                  {
+                    distanceMeters: 1700,
+                    staticDuration: '330s',
+                    polyline: {
+                      encodedPolyline: encodePolyline5([
+                        points[1]!,
+                        points[2]!,
+                      ]),
+                    },
+                    navigationInstruction: {
+                      maneuver: 'TURN_RIGHT',
+                      instructions: 'Vire à direita e siga até o destino.',
                     },
                   },
                 ],
@@ -99,6 +120,10 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
     headers.get('x-goog-fieldmask') ?? '',
     /routes\.polyline\.encodedPolyline/,
   );
+  assert.match(
+    headers.get('x-goog-fieldmask') ?? '',
+    /routes\.legs\.steps\.polyline\.encodedPolyline/,
+  );
   assert.deepEqual(capturedBody, {
     origin: {
       location: {
@@ -127,7 +152,7 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
   assert.equal(route.distanceMeters, 2500);
   assert.equal(route.durationSeconds, 420);
   assert.deepEqual(route.points, points);
-  assert.equal(route.maneuvers.length, 1);
+  assert.equal(route.maneuvers.length, 2);
   assert.equal(
     route.maneuvers[0]?.instruction,
     'Vire à esquerda na Rua Principal.',
@@ -135,6 +160,10 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
   assert.equal(route.maneuvers[0]?.type, 7);
   assert.equal(route.maneuvers[0]?.distanceMeters, 800);
   assert.equal(route.maneuvers[0]?.durationSeconds, 90);
+  assert.equal(route.maneuvers[0]?.beginShapeIndex, 0);
+  assert.equal(route.maneuvers[0]?.endShapeIndex, 1);
+  assert.equal(route.maneuvers[1]?.beginShapeIndex, 1);
+  assert.equal(route.maneuvers[1]?.endShapeIndex, 2);
 });
 
 test('Google Routes fornece distância roteada ao matching', async () => {
