@@ -45,7 +45,7 @@ jobs:
 
       - name: Validate Passenger Google Maps key
         env:
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
         run: |
           if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
             echo "::error::RAMO_GOOGLE_MAPS_ANDROID_API_KEY não está configurada. O APK seria gerado com o Google Maps quebrado."
@@ -56,7 +56,7 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
           RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
@@ -107,7 +107,7 @@ jobs:
 
       - name: Validate Driver Google Maps key
         env:
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
         run: |
           if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
             echo "::error::RAMO_GOOGLE_MAPS_ANDROID_API_KEY não está configurada. O APK seria gerado com o Google Maps quebrado."
@@ -117,7 +117,7 @@ jobs:
       - name: Build Driver Preview APK
         working-directory: apps/driver
         env:
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
           RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
