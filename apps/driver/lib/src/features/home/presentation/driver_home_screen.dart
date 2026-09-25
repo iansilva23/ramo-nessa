@@ -1479,7 +1479,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               _ActiveRideCard(
                 ride: _activeRide!,
                 busy: _rideAction,
-                onNavigate: _navigateActiveRide,
+                navigationActive: _navigationMode,
+                onNavigate: _startInAppNavigation,
+                onStopNavigation: _stopInAppNavigation,
+                onExternalNavigation: _openExternalNavigation,
                 onArrived: _markArrived,
                 onStart: _startRide,
                 onComplete: _completeRide,
