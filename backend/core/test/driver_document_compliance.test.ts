@@ -4,8 +4,10 @@ import test from 'node:test';
 import {
   adminDriverDocumentComplianceView,
   decideDriverDocumentCompliance,
+  listAdminDriverDocumentComplianceAlerts,
 } from '../src/admin/admin-driver-document-compliance-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
+import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
 import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import {
   DriverAppError,
@@ -290,4 +292,85 @@ test('bloqueio manual impede ficar online quando não há corrida ativa', async 
       error instanceof DriverAppError &&
       error.code === 'DRIVER_DOCUMENTS_NOT_APPROVED',
   );
+});
+
+
+test('lista do ADM respeita decisão de manter ativo até a pendência mudar', async () => {
+  const identities = new InMemoryAuthOtpRepository();
+  const documents = new InMemoryDriverDocumentRepository();
+  const controls = new InMemoryDriverDocumentComplianceRepository();
+  const settings = new InMemoryOperationalSettingsRepository();
+  const admin = new InMemoryAdminRepository();
+  const driverId = 'driver-alert-decision';
+
+  await identities.createIdentity({
+    id: 'identity-driver-alert-decision',
+    subjectId: driverId,
+    subjectType: 'driver',
+    phoneE164: '+5588999999999',
+    status: 'active',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  let alerts = await listAdminDriverDocumentComplianceAlerts({
+    identities,
+    documents,
+    controls,
+    settings,
+    now,
+  });
+  assert.equal(alerts.total, 1);
+  assert.equal(alerts.decisionRequired, 1);
+  assert.equal(alerts.items[0]?.decisionRequired, true);
+
+  await decideDriverDocumentCompliance({
+    documents,
+    controls,
+    settings,
+    admin,
+    actor,
+    driverId,
+    action: 'keep_active',
+    now: new Date('2026-09-25T12:05:00.000Z'),
+  });
+
+  alerts = await listAdminDriverDocumentComplianceAlerts({
+    identities,
+    documents,
+    controls,
+    settings,
+    now: new Date('2026-09-25T12:06:00.000Z'),
+  });
+  assert.equal(alerts.total, 1);
+  assert.equal(alerts.decisionRequired, 0);
+  assert.equal(alerts.items[0]?.decisionRequired, false);
+  assert.equal(alerts.items[0]?.effectiveBlocked, false);
+
+  await documents.submitCurrent({
+    id: 'driver-alert-decision-driver-license',
+    driverId,
+    documentType: 'driver_license',
+    storageKey:
+      'drivers/driver-alert-decision/driver_license/new.pdf',
+    contentSha256: 'c'.repeat(64),
+    mimeType: 'application/pdf',
+    sizeBytes: 1000,
+    expiresOn: '2028-09-25',
+    status: 'pending',
+    isCurrent: true,
+    submittedAt: '2026-09-25T12:10:00.000Z',
+    createdAt: '2026-09-25T12:10:00.000Z',
+    updatedAt: '2026-09-25T12:10:00.000Z',
+  });
+
+  alerts = await listAdminDriverDocumentComplianceAlerts({
+    identities,
+    documents,
+    controls,
+    settings,
+    now: new Date('2026-09-25T12:11:00.000Z'),
+  });
+  assert.equal(alerts.decisionRequired, 1);
+  assert.equal(alerts.items[0]?.decisionRequired, true);
 });
