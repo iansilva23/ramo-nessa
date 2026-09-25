@@ -48,6 +48,14 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Navegar até o embarque'));
     await tester.pump();
+    expect(find.text('Parar navegação'), findsOneWidget);
+    expect(find.text('Abrir no Google Maps'), findsOneWidget);
+    expect(navigation.lastLatitude, isNull);
+    expect(navigation.lastLongitude, isNull);
+
+    await tester.ensureVisible(find.text('Abrir no Google Maps'));
+    await tester.tap(find.text('Abrir no Google Maps'));
+    await tester.pump();
     expect(navigation.lastLatitude, -2.82017);
     expect(navigation.lastLongitude, -40.41467);
 
@@ -64,11 +72,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
-    expect(find.text('Navegar até o destino'), findsOneWidget);
+    expect(find.text('Parar navegação'), findsOneWidget);
+    expect(find.text('Abrir no Google Maps'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Navegar até o destino'));
+    await tester.ensureVisible(find.text('Abrir no Google Maps'));
     await tester.pump();
-    await tester.tap(find.text('Navegar até o destino'));
+    await tester.tap(find.text('Abrir no Google Maps'));
     await tester.pump();
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
