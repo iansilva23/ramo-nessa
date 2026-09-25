@@ -9,7 +9,10 @@ import 'passenger_notifications_screen.dart';
 import 'passenger_ride_history_screen.dart';
 import 'passenger_security_screen.dart';
 import 'passenger_settings_screen.dart';
+import '../../map/data/place_search_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
+import '../data/passenger_saved_place_service.dart';
+import 'passenger_saved_places_screen.dart';
 import '../../payments/domain/passenger_payment_policy.dart';
 
 class PassengerProfileScreen extends StatefulWidget {
@@ -20,6 +23,8 @@ class PassengerProfileScreen extends StatefulWidget {
     required this.onOpenActivity,
     this.activityService,
     this.paymentService,
+    this.savedPlaceService,
+    this.placeSearchService,
     this.pushCoordinator,
     this.onLogout,
     this.previewMode = false,
@@ -30,6 +35,8 @@ class PassengerProfileScreen extends StatefulWidget {
   final VoidCallback onOpenActivity;
   final PassengerActivityService? activityService;
   final PassengerPaymentService? paymentService;
+  final PassengerSavedPlaceService? savedPlaceService;
+  final PlaceSearchService? placeSearchService;
   final FirebasePushCoordinator? pushCoordinator;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
@@ -219,6 +226,34 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                     MaterialPageRoute<void>(
                       builder: (_) => PassengerRideHistoryScreen(
                         service: widget.activityService,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-saved-places'),
+                icon: Icons.bookmark_outline_rounded,
+                title: 'Endereços favoritos',
+                subtitle: 'Casa, trabalho e locais salvos',
+                onTap: () {
+                  final service = widget.savedPlaceService;
+                  final searchService = widget.placeSearchService;
+                  if (service == null || searchService == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Endereços favoritos indisponíveis neste modo.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerSavedPlacesScreen(
+                        service: service,
+                        searchService: searchService,
                       ),
                     ),
                   );
