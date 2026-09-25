@@ -12,6 +12,7 @@ import 'core/notifications/push_foreground_listener.dart';
 import 'core/navigation/driver_navigation_service.dart';
 import 'features/home/data/driver_api.dart';
 import 'features/home/data/driver_realtime_service.dart';
+import 'features/home/data/driver_route_service.dart';
 import 'features/home/presentation/driver_home_screen.dart';
 import 'preview/driver_preview_dependencies.dart';
 
@@ -23,6 +24,7 @@ class RamoNessaDriverApp extends StatelessWidget {
     this.api,
     this.locationService,
     this.navigationService,
+    this.routeService,
     this.realtimeService,
     this.pushCoordinator,
   });
@@ -32,6 +34,7 @@ class RamoNessaDriverApp extends StatelessWidget {
   final DriverApi? api;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
+  final DriverRouteService? routeService;
   final DriverRealtimeService? realtimeService;
   final FirebasePushCoordinator? pushCoordinator;
 
@@ -56,6 +59,7 @@ class RamoNessaDriverApp extends StatelessWidget {
           api: api ?? preview?.api,
           locationService: locationService ?? preview?.location,
           navigationService: navigationService ?? preview?.navigation,
+          routeService: routeService ?? preview?.route,
           realtimeService: realtimeService,
           pushCoordinator: pushCoordinator,
         );
