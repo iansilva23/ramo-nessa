@@ -59,11 +59,11 @@ class RideBottomSheet extends StatelessWidget {
         !pricingLoading;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.64 : 0.42,
-      minChildSize: hasTrip ? 0.46 : 0.36,
+      initialChildSize: hasTrip ? 0.62 : 0.39,
+      minChildSize: hasTrip ? 0.46 : 0.34,
       maxChildSize: 0.91,
       snap: true,
-      snapSizes: hasTrip ? const [0.64, 0.91] : const [0.42, 0.80],
+      snapSizes: hasTrip ? const [0.62, 0.91] : const [0.39, 0.80],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -73,15 +73,18 @@ class RideBottomSheet extends StatelessWidget {
             ),
             boxShadow: RamoElevation.floating(context),
           ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              RamoSpacing.md,
-              RamoSpacing.xs,
-              RamoSpacing.md,
-              RamoSpacing.xxl,
-            ),
+          child: Column(
             children: [
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(
+                    RamoSpacing.md,
+                    RamoSpacing.xs,
+                    RamoSpacing.md,
+                    RamoSpacing.md,
+                  ),
+                  children: [
               Center(
                 child: Container(
                   width: 36,
@@ -183,24 +186,47 @@ class RideBottomSheet extends StatelessWidget {
                 const SizedBox(height: RamoSpacing.sm),
                 _PricingNotice(message: pricingMessage!),
               ],
-              if (hasTrip) ...[
-                const SizedBox(height: RamoSpacing.lg),
-                AnimatedSwitcher(
-                  duration: RamoMotion.standard,
-                  child: _PriceAction(
-                    key: ValueKey((
-                      selectedService,
-                      estimatedFare,
-                      pricingLoading,
-                    )),
-                    estimatedFare: estimatedFare,
-                    fareCaption: fareCaption,
-                    pricingLoading: pricingLoading,
-                    canRequest: canRequest,
-                    onRequestRide: onRequestRide,
+                  ],
+                ),
+              ),
+              if (hasTrip)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(
+                    RamoSpacing.md,
+                    RamoSpacing.sm,
+                    RamoSpacing.md,
+                    RamoSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context)
+                            .dividerColor
+                            .withValues(alpha: .35),
+                      ),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: AnimatedSwitcher(
+                      duration: RamoMotion.standard,
+                      child: _PriceAction(
+                        key: ValueKey((
+                          selectedService,
+                          estimatedFare,
+                          pricingLoading,
+                        )),
+                        estimatedFare: estimatedFare,
+                        fareCaption: fareCaption,
+                        pricingLoading: pricingLoading,
+                        priceIsFinal: priceIsFinal,
+                        canRequest: canRequest,
+                        onRequestRide: onRequestRide,
+                      ),
+                    ),
                   ),
                 ),
-              ],
             ],
           ),
         );
@@ -288,6 +314,7 @@ class _PriceAction extends StatelessWidget {
     required this.estimatedFare,
     required this.fareCaption,
     required this.pricingLoading,
+    required this.priceIsFinal,
     required this.canRequest,
     required this.onRequestRide,
   });
@@ -295,67 +322,74 @@ class _PriceAction extends StatelessWidget {
   final String? estimatedFare;
   final String? fareCaption;
   final bool pricingLoading;
+  final bool priceIsFinal;
   final bool canRequest;
   final VoidCallback onRequestRide;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(RamoSpacing.md),
-      decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(RamoRadius.lg),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Total estimado',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: RamoColors.muted,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      fareCaption ?? 'Preço calculado pelo Ramo Nessa',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: RamoColors.muted,
-                          ),
-                    ),
-                  ],
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    priceIsFinal ? 'Preço final' : 'Estimativa',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: RamoColors.muted,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    fareCaption ?? 'Valor da sua corrida',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: RamoColors.muted,
+                        ),
+                  ),
+                ],
               ),
-              const SizedBox(width: RamoSpacing.sm),
-              Text(
-                pricingLoading ? 'Calculando…' : estimatedFare ?? '—',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8,
-                    ),
+            ),
+            const SizedBox(width: RamoSpacing.sm),
+            Text(
+              pricingLoading ? 'Calculando…' : estimatedFare ?? '—',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.8,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: RamoSpacing.sm),
+        SizedBox(
+          height: 54,
+          child: FilledButton(
+            key: const Key('request-ride-button'),
+            onPressed: canRequest ? onRequestRide : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: RamoColors.brandBlack,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
-          ),
-          const SizedBox(height: RamoSpacing.md),
-          SizedBox(
-            height: 52,
-            child: FilledButton(
-              key: const Key('request-ride-button'),
-              onPressed: canRequest ? onRequestRide : null,
-              child: const Text('Solicitar'),
+            ),
+            child: const Text(
+              'Solicitar corrida',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
