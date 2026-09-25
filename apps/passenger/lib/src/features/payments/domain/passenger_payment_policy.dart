@@ -4,7 +4,7 @@ class PassengerPaymentPolicy {
     required this.allowedMethods,
     required this.paymentRequiredBeforeDispatch,
     required this.passengerWalletEnabled,
-    required this.cardPriceAdjustmentBps,
+    this.cardPriceAdjustmentBps = 498,
   });
 
   factory PassengerPaymentPolicy.fromJson(Map<String, dynamic> json) {
