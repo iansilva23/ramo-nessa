@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/core_place_search_service.dart';
+import 'package:ramo_nessa_passenger/src/features/map/data/place_autocomplete_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/core_route_service.dart';
 
 void main() {
@@ -247,6 +248,47 @@ void main() {
     expect(captured.body, contains('Sobral'));
     expect(captured.body, contains('"localOnly":false'));
     expect(suggestions.single.approvedExternalId, 'sobral');
+  });
+
+
+  test('detalhes externos enviam o locality id aprovado ao Core', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        '{"provider":"google","place":{'
+        '"id":"sobral","address":"Sobral - CE, Brasil",'
+        '"latitude":-3.6880,"longitude":-40.3499}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      client: client,
+    );
+
+    const suggestion = PlaceAutocompleteSuggestion(
+      placeId: 'sobral',
+      mainText: 'Sobral',
+      secondaryText: 'Ceará, Brasil',
+      localOnly: false,
+      approvedExternalId: 'sobral',
+    );
+
+    final place = await service.resolve(
+      suggestion,
+      sessionToken: '3519edfe-0f75-4a30-bfe4-7cbd89340b2c',
+    );
+
+    expect(captured.url.path, '/v1/maps/places/details');
+    expect(captured.body, contains('"localOnly":false'));
+    expect(
+      captured.body,
+      contains('"externalLocalityId":"sobral"'),
+    );
+    expect(place.name, 'Sobral');
   });
 
 }
