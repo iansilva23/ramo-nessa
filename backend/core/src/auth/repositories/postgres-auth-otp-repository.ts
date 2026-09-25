@@ -23,6 +23,7 @@ interface IdentityRow {
   full_name: string | null;
   password_hash: string | null;
   photo_url: string | null;
+  photo_updated_at: Date | null;
   status: AuthIdentityStatus;
   created_at: Date;
   updated_at: Date;
@@ -60,6 +61,9 @@ function mapIdentity(row: IdentityRow): AuthIdentityRecord {
       ? { passwordHash: row.password_hash }
       : {}),
     ...(row.photo_url != null ? { photoUrl: row.photo_url } : {}),
+    ...(row.photo_updated_at != null
+      ? { photoUpdatedAt: row.photo_updated_at.toISOString() }
+      : {}),
     status: row.status,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -272,6 +276,76 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       ],
     );
     return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async updatePassengerProfilePhoto(input: {
+    subjectId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const result = await this.pool.query<IdentityRow>(
+      `
+      UPDATE auth_identities
+      SET
+        photo_bytes = $2,
+        photo_mime_type = $3,
+        photo_updated_at = $4,
+        photo_url = NULL,
+        updated_at = $4
+      WHERE subject_type = 'passenger'
+        AND subject_id = $1
+      RETURNING *
+      `,
+      [
+        input.subjectId,
+        input.bytes,
+        input.mimeType,
+        input.updatedAt,
+      ],
+    );
+    return result.rows[0] == null ? null : mapIdentity(result.rows[0]);
+  }
+
+  async findPassengerProfilePhoto(subjectId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null> {
+    const result = await this.pool.query<{
+      photo_bytes: Buffer | null;
+      photo_mime_type: string | null;
+      photo_updated_at: Date | null;
+    }>(
+      `
+      SELECT photo_bytes, photo_mime_type, photo_updated_at
+      FROM auth_identities
+      WHERE subject_type = 'passenger'
+        AND subject_id = $1
+      LIMIT 1
+      `,
+      [subjectId],
+    );
+    const row = result.rows[0];
+    if (
+      row?.photo_bytes == null ||
+      row.photo_mime_type == null ||
+      row.photo_updated_at == null
+    ) {
+      return null;
+    }
+    if (
+      row.photo_mime_type !== 'image/jpeg' &&
+      row.photo_mime_type !== 'image/png' &&
+      row.photo_mime_type !== 'image/webp'
+    ) {
+      return null;
+    }
+    return {
+      bytes: row.photo_bytes,
+      mimeType: row.photo_mime_type,
+      updatedAt: row.photo_updated_at.toISOString(),
+    };
   }
 
   async setIdentityStatus(input: {
