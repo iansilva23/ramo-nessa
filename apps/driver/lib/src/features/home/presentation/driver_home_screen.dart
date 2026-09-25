@@ -114,6 +114,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverRouteInfo? _activeRoute;
   DriverRouteInfo? _offerPickupRoute;
   DriverRouteInfo? _offerTripRoute;
+  String? _offerRouteAttemptOfferId;
+  String? _offerRoutesReadyForOfferId;
+  DateTime? _lastOfferRouteAttemptAt;
   final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
@@ -1169,6 +1172,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final service = _routeService;
     final supply = _supply;
     if (supply == null || offer == null) {
+      _offerRouteAttemptOfferId = null;
+      _offerRoutesReadyForOfferId = null;
+      _lastOfferRouteAttemptAt = null;
       if (mounted) {
         setState(() {
           _offerPickupRoute = null;
@@ -1178,10 +1184,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       return;
     }
 
+    final isNewOffer = _offerRouteAttemptOfferId != offer.id;
+    if (isNewOffer) {
+      _offerRouteAttemptOfferId = offer.id;
+      _offerRoutesReadyForOfferId = null;
+      _lastOfferRouteAttemptAt = null;
+      if (mounted) {
+        setState(() {
+          _offerPickupRoute = null;
+          _offerTripRoute = null;
+        });
+      }
+    }
+
+    if (_offerRoutesReadyForOfferId == offer.id) return;
+
+    final now = DateTime.now();
+    if (
+      _lastOfferRouteAttemptAt != null &&
+      now.difference(_lastOfferRouteAttemptAt!) <
+          const Duration(seconds: 15)
+    ) {
+      return;
+    }
+
     final pickupLat = offer.pickupLatitude;
     final pickupLng = offer.pickupLongitude;
     if (pickupLat == null || pickupLng == null) return;
 
+    _lastOfferRouteAttemptAt = now;
     try {
       final pickup = LatLng(pickupLat, pickupLng);
       final pickupRoute = await service.route(
@@ -1203,9 +1234,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       setState(() {
         _offerPickupRoute = pickupRoute;
         _offerTripRoute = tripRoute;
+        _offerRoutesReadyForOfferId = offer.id;
       });
     } catch (_) {
-      // O card mantém as distâncias já calculadas pelo Core como fallback.
+      // A oferta mantém as distâncias autoritativas do Core. Se o
+      // provedor falhar, a próxima tentativa só acontece após a janela
+      // de proteção para não gerar rajadas de chamadas.
     }
   }
 
