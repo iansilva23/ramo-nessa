@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/config/ramo_core_config.dart';
 import '../../../core/notifications/firebase_push_coordinator.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import 'passenger_help_screen.dart';
@@ -49,6 +51,7 @@ class PassengerProfileScreen extends StatefulWidget {
 class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
   PassengerAccount? _account;
   bool _loading = true;
+  bool _photoUpdating = false;
   String? _error;
 
   @override
@@ -139,6 +142,124 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
     }
   }
 
+  String? _profilePhotoMimeType(XFile file) {
+    final mimeType = file.mimeType?.trim().toLowerCase();
+    if (mimeType == 'image/jpeg' ||
+        mimeType == 'image/png' ||
+        mimeType == 'image/webp') {
+      return mimeType;
+    }
+
+    final path = file.path.toLowerCase();
+    if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
+    if (path.endsWith('.png')) return 'image/png';
+    if (path.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
+
+  Future<void> _changeProfilePhoto() async {
+    final service = widget.authService;
+    final token = widget.accessToken?.trim();
+    if (_photoUpdating) return;
+
+    if (
+      widget.previewMode ||
+      service == null ||
+      token == null ||
+      token.length < 20
+    ) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Alteração de foto indisponível neste modo.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    XFile? selected;
+    try {
+      selected = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 82,
+        requestFullMetadata: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível abrir sua galeria. Verifique a permissão de fotos.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (selected == null || !mounted) return;
+
+    final mimeType = _profilePhotoMimeType(selected);
+    if (mimeType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Escolha uma foto JPEG, PNG ou WebP.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final bytes = await selected.readAsBytes();
+      if (bytes.length > 1500000) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'A foto ficou maior que 1,5 MB. Escolha outra imagem.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      setState(() => _photoUpdating = true);
+      final updated = await service.updatePassengerPhoto(
+        accessToken: token,
+        bytes: bytes,
+        mimeType: mimeType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _account = updated;
+        _photoUpdating = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Foto do perfil atualizada.'),
+          ),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _photoUpdating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     final logout = widget.onLogout;
     if (logout == null) return;
@@ -192,7 +313,12 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
             else if (_error != null && account == null)
               _ProfileInfoMessage(message: _error!)
             else if (account != null) ...[
-              _ProfileHero(account: account),
+              _ProfileHero(
+                account: account,
+                accessToken: widget.accessToken,
+                changingPhoto: _photoUpdating,
+                onChangePhoto: _changeProfilePhoto,
+              ),
               const SizedBox(height: RamoSpacing.lg),
               _ProfileOption(
                 key: const Key('passenger-personal-data'),
@@ -336,9 +462,43 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
 }
 
 class _ProfileHero extends StatelessWidget {
-  const _ProfileHero({required this.account});
+  const _ProfileHero({
+    required this.account,
+    required this.accessToken,
+    required this.changingPhoto,
+    required this.onChangePhoto,
+  });
 
   final PassengerAccount account;
+  final String? accessToken;
+  final bool changingPhoto;
+  final VoidCallback onChangePhoto;
+
+  Map<String, String>? get _photoHeaders {
+    final rawUrl = account.photoUrl?.trim();
+    final token = accessToken?.trim();
+    final base = RamoCoreConfig.baseUri;
+    if (
+      rawUrl == null ||
+      rawUrl.isEmpty ||
+      token == null ||
+      token.length < 20 ||
+      base == null
+    ) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(rawUrl);
+    if (
+      uri == null ||
+      uri.scheme != base.scheme ||
+      uri.host != base.host ||
+      uri.port != base.port
+    ) {
+      return null;
+    }
+    return {'authorization': 'Bearer $token'};
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -354,22 +514,56 @@ class _ProfileHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: RamoColors.brandYellow,
-            foregroundColor: RamoColors.brandBlack,
-            child: account.photoUrl == null
-                ? const Icon(Icons.person_rounded, size: 34)
-                : ClipOval(
-                    child: Image.network(
-                      account.photoUrl!,
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.person_rounded, size: 34),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: RamoColors.brandYellow,
+                foregroundColor: RamoColors.brandBlack,
+                child: account.photoUrl == null
+                    ? const Icon(Icons.person_rounded, size: 34)
+                    : ClipOval(
+                        child: Image.network(
+                          account.photoUrl!,
+                          headers: _photoHeaders,
+                          width: 64,
+                          height: 64,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.person_rounded, size: 34),
+                        ),
+                      ),
+              ),
+              Positioned(
+                right: -5,
+                bottom: -5,
+                child: Material(
+                  color: RamoColors.brandYellow,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: changingPhoto ? null : onChangePhoto,
+                    child: SizedBox.square(
+                      dimension: 30,
+                      child: changingPhoto
+                          ? const Padding(
+                              padding: EdgeInsets.all(7),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: RamoColors.brandBlack,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.camera_alt_rounded,
+                              size: 17,
+                              color: RamoColors.brandBlack,
+                            ),
                     ),
                   ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: RamoSpacing.md),
           Expanded(
