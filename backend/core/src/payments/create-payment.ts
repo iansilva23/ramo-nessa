@@ -16,7 +16,7 @@ export interface CreatePaymentInput {
   idempotencyKey: string;
   amountCents?: number;
   now?: Date;
-
+}
 
 export async function createPaymentForRide(
   repository: FinanceRepository,
