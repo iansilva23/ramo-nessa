@@ -647,6 +647,12 @@ async function processConfirmedMercadoPagoRide(
       finance: financeRepository,
       paymentPolicySettings: paymentPolicySettingsRepository,
       operationalSettings: operationalSettingsRepository,
+      canOfferDriver: (candidateDriverId) =>
+        canDriverReceiveNewWork({
+          registry: driverRegistryRepository,
+          documents: driverDocumentRepository,
+          driverId: candidateDriverId,
+        }),
     });
   } catch (dispatchError) {
     logError('ride.dispatch.after_gateway_payment.failed', {
@@ -4349,6 +4355,12 @@ const server = createServer(async (request, response) => {
             paymentPolicySettings:
               paymentPolicySettingsRepository,
             operationalSettings: operationalSettingsRepository,
+            canOfferDriver: (candidateDriverId) =>
+              canDriverReceiveNewWork({
+                registry: driverRegistryRepository,
+                documents: driverDocumentRepository,
+                driverId: candidateDriverId,
+              }),
           });
           dispatchStatus =
             dispatch.kind === 'OFFER_CREATED' ||
@@ -4461,6 +4473,12 @@ const server = createServer(async (request, response) => {
                 drivers: driverSupplyRepository,
                 matching: rideMatchingRepository,
                 operationalSettings: operationalSettingsRepository,
+                canOfferDriver: (candidateDriverId) =>
+                  canDriverReceiveNewWork({
+                    registry: driverRegistryRepository,
+                    documents: driverDocumentRepository,
+                    driverId: candidateDriverId,
+                  }),
               });
             } catch (dispatchError) {
               logError('ride.dispatch.failed', {
