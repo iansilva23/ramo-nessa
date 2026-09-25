@@ -1,6 +1,16 @@
 import type { AuthSubjectType } from './auth-session-repository.js';
 
 export type AuthIdentityStatus = 'active' | 'suspended';
+export type AuthFederatedProvider = 'google' | 'apple';
+
+export interface AuthFederatedIdentityRecord {
+  provider: AuthFederatedProvider;
+  providerSubject: string;
+  identityId: string;
+  emailNormalized?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AuthIdentityRecord {
   id: string;
@@ -90,6 +100,18 @@ export interface AuthOtpRepository {
     subjectType: AuthSubjectType,
     subjectId: string,
   ): Promise<AuthIdentityRecord | null>;
+  findFederatedIdentity(
+    provider: AuthFederatedProvider,
+    providerSubject: string,
+  ): Promise<AuthFederatedIdentityRecord | null>;
+  findFederatedIdentityForAccount(input: {
+    provider: AuthFederatedProvider;
+    identityId: string;
+  }): Promise<AuthFederatedIdentityRecord | null>;
+  linkFederatedIdentity(
+    record: AuthFederatedIdentityRecord,
+  ): Promise<AuthFederatedIdentityRecord>;
+
   setIdentityEmail(input: {
     subjectType: AuthSubjectType;
     subjectId: string;
