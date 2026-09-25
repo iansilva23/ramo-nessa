@@ -1,4 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:latlong2/latlong.dart';
+
+abstract final class MathUtils {
+  static double cosDegrees(double degrees) =>
+      math.cos(degrees * math.pi / 180);
+}
 
 class DriverRouteManeuver {
   const DriverRouteManeuver({
@@ -7,12 +14,16 @@ class DriverRouteManeuver {
     required this.duration,
     this.verbalInstruction,
     this.type,
+    this.beginShapeIndex,
+    this.endShapeIndex,
     this.streetNames = const [],
   });
 
   final String instruction;
   final String? verbalInstruction;
   final int? type;
+  final int? beginShapeIndex;
+  final int? endShapeIndex;
   final double distanceMeters;
   final Duration duration;
   final List<String> streetNames;
@@ -40,6 +51,39 @@ class DriverRouteInfo {
 
   DriverRouteManeuver? get nextManeuver =>
       maneuvers.isEmpty ? null : maneuvers.first;
+
+  DriverRouteManeuver? nextManeuverFor(LatLng position) {
+    if (maneuvers.isEmpty) return null;
+    if (points.isEmpty) return maneuvers.first;
+
+    var nearestIndex = 0;
+    var bestScore = double.infinity;
+    final longitudeScale =
+        MathUtils.cosDegrees(position.latitude).abs();
+
+    for (var index = 0; index < points.length; index += 1) {
+      final point = points[index];
+      final latitudeDelta = point.latitude - position.latitude;
+      final longitudeDelta =
+          (point.longitude - position.longitude) * longitudeScale;
+      final score =
+          latitudeDelta * latitudeDelta +
+          longitudeDelta * longitudeDelta;
+      if (score < bestScore) {
+        bestScore = score;
+        nearestIndex = index;
+      }
+    }
+
+    for (final maneuver in maneuvers) {
+      final endIndex = maneuver.endShapeIndex;
+      if (endIndex == null || endIndex >= nearestIndex) {
+        return maneuver;
+      }
+    }
+
+    return maneuvers.last;
+  }
 
   String get distanceLabel {
     if (distanceMeters < 1000) {
