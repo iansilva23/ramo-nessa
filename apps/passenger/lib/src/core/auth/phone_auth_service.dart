@@ -42,6 +42,30 @@ class AuthSessionInfo {
   final String? fullName;
 }
 
+class AuthSecuritySession {
+  const AuthSecuritySession({
+    required this.id,
+    required this.subjectType,
+    required this.createdAt,
+    required this.expiresAt,
+  });
+
+  final String id;
+  final String subjectType;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+}
+
+class RevokeOtherSessionsResult {
+  const RevokeOtherSessionsResult({
+    required this.revokedSessions,
+    required this.disabledDevices,
+  });
+
+  final int revokedSessions;
+  final int disabledDevices;
+}
+
 class PassengerAccount {
   const PassengerAccount({
     required this.subjectId,
@@ -88,5 +112,10 @@ abstract interface class PhoneAuthService {
   });
 
   Future<AuthSessionInfo?> currentSession(String accessToken);
+
+  Future<AuthSecuritySession> securitySession(String accessToken);
+
+  Future<RevokeOtherSessionsResult> revokeOtherSessions(String accessToken);
+
   Future<void> logout(String accessToken);
 }
