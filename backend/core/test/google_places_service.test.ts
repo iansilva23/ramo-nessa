@@ -303,8 +303,9 @@ test('Place Details bloqueia resultado fora da área quando localOnly', async ()
       localOnly: true,
     }),
     (error: unknown) =>
-      error instanceof Error &&
+      typeof error === 'object' &&
+      error != null &&
       'code' in error &&
-      error.code === 'OUTSIDE_LOCAL_AREA',
+      (error as { code?: unknown }).code === 'OUTSIDE_LOCAL_AREA',
   );
 });
