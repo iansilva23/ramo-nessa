@@ -1,5 +1,6 @@
 import CoreMethods
 import Flutter
+import GoogleMaps
 import UIKit
 
 @main
@@ -16,6 +17,18 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     FLTFirebaseMessagingPlugin.configureNotificationCenterDelegate()
+
+    if let rawMapsApiKey = Bundle.main.object(
+      forInfoDictionaryKey: "GOOGLE_MAPS_API_KEY"
+    ) as? String {
+      let mapsApiKey = rawMapsApiKey.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      if !mapsApiKey.isEmpty && !mapsApiKey.hasPrefix("$(") {
+        GMSServices.provideAPIKey(mapsApiKey)
+      }
+    }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
