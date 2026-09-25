@@ -29,7 +29,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Nova corrida'), findsOneWidget);
+    expect(find.text('NOVA CORRIDA'), findsOneWidget);
     expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
     expect(find.text('Preá'), findsOneWidget);
     expect(find.text('Jijoca'), findsOneWidget);
@@ -142,7 +142,7 @@ void main() {
     expect(api.currentRideCalls, 1);
     expect(find.text('A caminho do embarque'), findsOneWidget);
     expect(find.text('Cheguei'), findsOneWidget);
-    expect(find.text('Nova corrida'), findsNothing);
+    expect(find.text('NOVA CORRIDA'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -311,7 +311,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Nova corrida'), findsOneWidget);
+    expect(find.text('NOVA CORRIDA'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Recusar'));
     await tester.pumpAndSettle();
