@@ -2324,6 +2324,38 @@ function renderPaymentPolicy(policy = null) {
       ? 'Estrutura pronta. O Passageiro continuará vendo “Em breve” até você ativar aqui.'
       : 'A ativação está temporariamente indisponível.';
 
+  const pixBps = Math.max(
+    0,
+    Math.min(2000, numericMetric(policy?.pixPriceAdjustmentBps)),
+  );
+  const pixPercent = pixBps / 100;
+  const pixStatus = byId('finance-pix-price-status');
+  pixStatus.className =
+    pixBps > 0 ? 'pill pill--info' : 'pill pill--neutral';
+  pixStatus.textContent =
+    pixBps > 0
+      ? `${pixPercent.toFixed(2).replace('.', ',')}%`
+      : 'Sem diferença';
+
+  const pixInput = byId('finance-pix-price-percent');
+  pixInput.value = pixPercent.toFixed(2);
+  pixInput.disabled = !canWrite;
+  byId('finance-pix-price-save').disabled = !canWrite;
+
+  const pixDenominator = 10000 - pixBps;
+  const sampleBaseCents = 15000;
+  const samplePixCents =
+    pixBps <= 0
+      ? sampleBaseCents
+      : Math.ceil((sampleBaseCents * 10000) / pixDenominator);
+  byId('finance-pix-price-example').textContent =
+    `${formatCurrencyCents(sampleBaseCents)} → ` +
+    formatCurrencyCents(samplePixCents);
+  byId('finance-pix-price-note').textContent =
+    pixBps > 0
+      ? 'O Passageiro verá o preço final do Pix antes de confirmar.'
+      : 'Pix está sem acréscimo de processamento.';
+
   const cardBps = Math.max(
     0,
     Math.min(2000, numericMetric(policy?.cardPriceAdjustmentBps)),
@@ -2343,7 +2375,6 @@ function renderPaymentPolicy(policy = null) {
   byId('finance-card-price-save').disabled = !canWrite;
 
   const denominator = 10000 - cardBps;
-  const sampleBaseCents = 15000;
   const sampleCardCents =
     cardBps <= 0
       ? sampleBaseCents
@@ -2354,7 +2385,7 @@ function renderPaymentPolicy(policy = null) {
   byId('finance-card-price-note').textContent =
     cardBps > 0
       ? 'O Passageiro verá o preço final do cartão antes de confirmar.'
-      : 'Cartão e Pix estão com o mesmo preço.';
+      : 'Cartão está sem acréscimo de processamento.';
 }
 
 function renderFinance(payload = null) {
@@ -2571,6 +2602,49 @@ async function handleEnableCash() {
     handleAuthenticatedError(error);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function handlePixPricePolicySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('finance:write')) return;
+
+  const input = byId('finance-pix-price-percent');
+  const percent = Number(input.value);
+  const bps = Math.round(percent * 100);
+  if (
+    !Number.isFinite(percent) ||
+    percent < 0 ||
+    percent > 20 ||
+    !Number.isInteger(bps)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um percentual Pix entre 0% e 20%.',
+      'error',
+    );
+    return;
+  }
+
+  const button = byId('finance-pix-price-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      pixPriceAdjustmentBps: bps,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Preço do Pix atualizado. O Passageiro verá o novo total antes de pagar.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('finance:write');
   }
 }
 
@@ -5198,6 +5272,9 @@ byId('finance-enable-cash-button').addEventListener('click', () => {
 });
 byId('finance-disable-cash-button').addEventListener('click', () => {
   void handleDisableCash();
+});
+byId('finance-pix-price-form').addEventListener('submit', (event) => {
+  void handlePixPricePolicySubmit(event);
 });
 byId('finance-card-price-form').addEventListener('submit', (event) => {
   void handleCardPricePolicySubmit(event);

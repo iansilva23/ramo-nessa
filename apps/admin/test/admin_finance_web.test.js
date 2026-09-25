@@ -74,6 +74,7 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
         : 200,
       {
         cashEnabled: false,
+        pixPriceAdjustmentBps: 99,
         cardPriceAdjustmentBps: 498,
         cashActivationReady: true,
         futureCashDebtLimitCents: 12000,
@@ -86,6 +87,7 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
   const token = 'rn_admin_session_cash_policy_secret';
   const policy = await api.paymentPolicy(token);
   assert.equal(policy.cashEnabled, false);
+  assert.equal(policy.pixPriceAdjustmentBps, 99);
   assert.equal(policy.cardPriceAdjustmentBps, 498);
 
   await api.updatePaymentPolicy(token, { cashEnabled: true });
@@ -153,6 +155,12 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     'finance-enable-cash-button',
     'finance-disable-cash-button',
     'finance-cash-note',
+    'finance-pix-price-status',
+    'finance-pix-price-form',
+    'finance-pix-price-percent',
+    'finance-pix-price-example',
+    'finance-pix-price-save',
+    'finance-pix-price-note',
     'finance-card-price-status',
     'finance-card-price-form',
     'finance-card-price-percent',
@@ -175,6 +183,8 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   assert.equal(html.includes('Ativar dinheiro'), true);
   assert.match(app, /handleEnableCash/);
   assert.match(app, /cashEnabled: true/);
+  assert.match(app, /handlePixPricePolicySubmit/);
+  assert.match(app, /pixPriceAdjustmentBps/);
   assert.match(app, /handleCardPricePolicySubmit/);
   assert.match(app, /cardPriceAdjustmentBps/);
   assert.equal(api.includes('financeUpdate('), false);

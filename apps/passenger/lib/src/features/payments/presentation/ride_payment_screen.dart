@@ -171,6 +171,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool get _cashAvailable =>
       _paymentPolicy?.cashAvailable == true;
 
+  int get _pixTotalAmountCents =>
+      _paymentPolicy?.pixTotalAmountCents(
+        widget.ride.totalAmountCents,
+      ) ??
+      widget.ride.totalAmountCents;
+
+  int get _pixAdjustmentCents =>
+      _paymentPolicy?.pixAdjustmentCents(
+        widget.ride.totalAmountCents,
+      ) ??
+      0;
+
   int get _cardTotalAmountCents =>
       _paymentPolicy?.cardTotalAmountCents(
         widget.ride.totalAmountCents,
@@ -185,7 +197,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   Future<void> _startPix() async {
     final service = widget.paymentService;
-    if (service == null || _creatingPix || _remaining == Duration.zero) return;
+    if (
+      service == null ||
+      _creatingPix ||
+      _remaining == Duration.zero ||
+      _paymentPolicyLoading ||
+      _paymentPolicy == null
+    ) {
+      return;
+    }
 
     setState(() {
       _creatingPix = true;
@@ -464,8 +484,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ? 'Pague diretamente ao motorista no fim da corrida'
             : 'Em breve · será liberado pelo Ramo Nessa';
 
-    final pixPrice =
-        PreparedRide.formatCents(widget.ride.totalAmountCents);
+    final pixPrice = PreparedRide.formatCents(_pixTotalAmountCents);
+    final pixAdjustment =
+        PreparedRide.formatCents(_pixAdjustmentCents);
+    final pixSubtitle = _paymentPolicyLoading
+        ? 'Calculando preço final no Pix…'
+        : _paymentPolicy == null
+            ? 'Preço indisponível até atualizar as formas de pagamento'
+            : _pixAdjustmentCents > 0
+                ? 'À vista · diferença de $pixAdjustment já incluída no preço final'
+                : 'À vista · sem diferença no Pix';
     final cardPrice = PreparedRide.formatCents(_cardTotalAmountCents);
     final cardAdjustment =
         PreparedRide.formatCents(_cardAdjustmentCents);
@@ -571,13 +599,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             _PaymentOption(
               key: const Key('payment-option-pix'),
               icon: Icons.pix_rounded,
-              title: 'Pix · $pixPrice',
-              subtitle:
-                  'Preço à vista via Pix · sem ajuste do cartão',
+              title: _paymentPolicy == null
+                  ? 'Pix'
+                  : 'Pix · $pixPrice',
+              subtitle: pixSubtitle,
               enabled:
                   !expired &&
                   widget.paymentService != null &&
-                  !_creatingPix,
+                  !_creatingPix &&
+                  !_paymentPolicyLoading &&
+                  _paymentPolicy != null,
               trailing: _creatingPix
                   ? const SizedBox.square(
                       dimension: 22,
