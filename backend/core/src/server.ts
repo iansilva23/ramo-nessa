@@ -293,6 +293,7 @@ import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
 import {
+  assertGoogleMapsProductionConfig,
   assertMercadoPagoProductionConfig,
   resolveCorePort,
   resolveShutdownTimeoutMs,
@@ -365,6 +366,7 @@ const {
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
 const googlePlacesService = createGooglePlacesServiceFromEnv();
+assertGoogleMapsProductionConfig();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
