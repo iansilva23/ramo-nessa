@@ -36,9 +36,9 @@
 - [ ] splash/onboarding final
 - [x] autenticação por telefone/OTP + sessão Bearer + armazenamento seguro
 - [x] tela base de pagamento com preço final
-- [ ] cobrança Pix real
+- [x] cobrança Pix real via Mercado Pago Orders API
 - [x] endpoint de desenvolvimento para criar registro de pagamento
-- [ ] cobrança cartão real
+- [x] cobrança cartão real tokenizada via SDK nativo Mercado Pago
 - [ ] interface completa da Carteira Ramo Nessa no app
 - [x] consulta de saldo e pagamento da corrida com Carteira
 - [x] Core da Carteira: recarga, saldo e pagamento de corrida
@@ -121,7 +121,7 @@
 - [x] validação de zona local declarada contra GPS
 - [ ] catálogo geoespacial autoritativo por localidade/destino externo
 - [x] máquina de estados inicial de corrida/pagamento
-- [ ] adapter de gateway Pix/cartão
+- [x] adapter de gateway Pix/cartão via Mercado Pago Orders API
 - [x] ledger financeiro base e escrow de pagamento
 - [x] liquidação 10%/90% sobre tarifa-base + compensação de coleta 100% para motorista
 - [x] Carteira do passageiro no Core
@@ -179,7 +179,7 @@
 - [x] compilação iOS Simulator validada em CI
 - [x] stack Docker de teste com gateway same-origin e Core privado
 - [ ] deploy seguro do Core
-- [ ] provedor comercial de mapas/geocoding/rotas
+- [x] Google Maps SDK + Google Places API (New) + Google Routes API via Core
 - [ ] testes reais com dois celulares
 - [ ] internet ruim/reconexão
 - [ ] testes de background do Motorista
