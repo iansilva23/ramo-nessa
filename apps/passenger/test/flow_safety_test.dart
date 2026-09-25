@@ -133,7 +133,7 @@ void main() {
     expect(find.text('R\$ 45,00'), findsOneWidget);
     expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
     expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
-    expect(find.text('Pix · R\$ 45,00'), findsOneWidget);
+    expect(find.text('Pix · R\$ 45,45'), findsOneWidget);
     expect(find.text('Cartão · R\$ 47,36'), findsOneWidget);
     expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
     expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
