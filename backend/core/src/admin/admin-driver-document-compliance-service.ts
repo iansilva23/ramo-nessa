@@ -341,7 +341,12 @@ export async function listAdminDriverDocumentComplianceAlerts(input: {
           driverId: identity.subjectId,
           now,
         });
-        if (compliance.documentsApproved) return null;
+        if (
+          compliance.documentsApproved &&
+          !compliance.manualBlocked
+        ) {
+          return null;
+        }
         return {
           ...compliance,
           phoneE164: identity.phoneE164,
