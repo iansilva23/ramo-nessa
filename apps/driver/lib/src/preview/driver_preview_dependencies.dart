@@ -1,7 +1,11 @@
+import 'package:latlong2/latlong.dart';
+
 import '../core/location/driver_location_service.dart';
 import '../core/navigation/driver_navigation_service.dart';
 import '../features/home/data/driver_api.dart';
+import '../features/home/data/driver_route_service.dart';
 import '../features/home/domain/driver_models.dart';
+import '../features/home/domain/driver_route_info.dart';
 
 /// Dados interativos usados apenas em RAMO_PREVIEW_MODE=true.
 final class DriverPreviewDependencies {
@@ -12,6 +16,8 @@ final class DriverPreviewDependencies {
       const _PreviewDriverLocationService();
   final DriverNavigationService navigation =
       const _PreviewDriverNavigationService();
+  final DriverRouteService route =
+      const _PreviewDriverRouteService();
 }
 
 final class _PreviewDriverLocationService
@@ -42,6 +48,27 @@ final class _PreviewDriverNavigationService
     required double latitude,
     required double longitude,
   }) async {}
+}
+
+final class _PreviewDriverRouteService
+    implements DriverRouteService {
+  const _PreviewDriverRouteService();
+
+  @override
+  Future<DriverRouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final distanceMeters =
+        const Distance().as(LengthUnit.Meter, origin, destination);
+    final seconds = (distanceMeters / 8.33).round().clamp(60, 7200);
+
+    return DriverRouteInfo(
+      points: [origin, destination],
+      distanceMeters: distanceMeters,
+      duration: Duration(seconds: seconds),
+    );
+  }
 }
 
 final class _PreviewDriverApi implements DriverApi {
