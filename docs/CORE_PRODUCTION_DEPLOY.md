@@ -75,7 +75,8 @@ Nunca colocar no Git:
 - `OTP_RATE_LIMIT_SECRET`;
 - `OTP_WEBHOOK_TOKEN`;
 - tokens administrativos;
-- chaves de gateway/pagamento.
+- chaves de gateway/pagamento;
+- `GOOGLE_MAPS_SERVER_API_KEY`.
 
 ## TLS e proxy
 
@@ -109,6 +110,32 @@ monte-o como volume/secret somente-leitura em
 A configuração por `FIREBASE_PROJECT_ID`,
 `FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continua aceita como
 alternativa, mas o arquivo montado é preferível.
+
+
+
+## Google Maps Platform
+
+O Core usa **Google Routes API** e **Google Places API (New)**. Os apps móveis
+não recebem a chave de servidor; eles chamam os endpoints do próprio Core.
+
+Produção:
+
+```bash
+ROUTING_PROVIDER=google
+ROUTING_TIMEOUT_MS=5000
+GOOGLE_MAPS_SERVER_API_KEY=<secret>
+GOOGLE_ROUTES_BASE_URL=https://routes.googleapis.com/
+GOOGLE_PLACES_BASE_URL=https://places.googleapis.com/v1/
+```
+
+Em `NODE_ENV=production`, o Core não inicia sem
+`GOOGLE_MAPS_SERVER_API_KEY` válida. Restrinja essa credencial no Google Cloud
+às APIs de Routes e Places usadas pelo servidor e mantenha billing, quotas e
+alertas de consumo habilitados.
+
+As chaves dos mapas visuais Android/iOS são separadas da chave de servidor e
+devem ser restritas pelos respectivos package/bundle IDs e credenciais de
+assinatura.
 
 
 ## Mercado Pago
