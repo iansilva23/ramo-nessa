@@ -29,6 +29,7 @@ import '../data/http_driver_api.dart';
 import '../data/io_driver_realtime_service.dart';
 import '../domain/driver_models.dart';
 import '../domain/driver_route_info.dart';
+import 'driver_route_refresh_policy.dart';
 import 'widgets/driver_live_map.dart';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -1220,12 +1221,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     final now = DateTime.now();
-    final minimumRefreshInterval = _navigationMode
-        ? const Duration(seconds: 8)
-        : const Duration(seconds: 20);
-    if (!force &&
-        _lastRouteRefreshAt != null &&
-        now.difference(_lastRouteRefreshAt!) < minimumRefreshInterval) {
+    final currentPosition = LatLng(
+      supply.latitude,
+      supply.longitude,
+    );
+    if (
+      !DriverRouteRefreshPolicy.shouldRefresh(
+        now: now,
+        currentPosition: currentPosition,
+        currentRoute: _activeRoute,
+        lastAttemptAt: _lastRouteRefreshAt,
+        force: force,
+      )
+    ) {
       return;
     }
 
@@ -1239,14 +1247,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _lastRouteRefreshAt = now;
     try {
       final route = await service.route(
-        origin: LatLng(supply.latitude, supply.longitude),
+        origin: currentPosition,
         destination: LatLng(latitude, longitude),
       );
       if (!mounted) return;
       setState(() => _activeRoute = route);
     } catch (_) {
       // A navegação externa continua disponível mesmo quando a rota
-      // embutida não puder ser recalculada.
+      // embutida não puder ser recalculada. O timestamp do último
+      // intento impede rajadas contra o provedor quando ele está instável.
     }
   }
 
