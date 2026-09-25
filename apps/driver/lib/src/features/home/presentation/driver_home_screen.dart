@@ -2109,7 +2109,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: RamoColors.surfaceRaised,
                 shape: BoxShape.circle,
               ),
