@@ -12,6 +12,7 @@ import '../../../core/location/location_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/agency_promotion_service.dart';
 import '../../map/data/core_place_search_service.dart';
+import '../../map/data/place_autocomplete_service.dart';
 import '../../map/data/core_route_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../map/data/route_service.dart';
@@ -452,6 +453,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       MaterialPageRoute(
         builder: (_) => DestinationSearchScreen(
           searchService: _placeSearchService,
+          autocompleteService:
+              _placeSearchService is PlaceAutocompleteService
+                  ? _placeSearchService as PlaceAutocompleteService
+                  : null,
           title: title,
           emptyTitle: emptyTitle,
         ),
