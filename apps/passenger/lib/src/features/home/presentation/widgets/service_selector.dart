@@ -107,28 +107,7 @@ class _ServiceRow extends StatelessWidget {
                                 ),
                           ),
                         ),
-                        if (selected) ...[
-                          const SizedBox(width: RamoSpacing.xs),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: RamoColors.brandBlack,
-                              borderRadius: BorderRadius.circular(RamoRadius.pill),
-                            ),
-                            child: const Text(
-                              'Selecionado',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: .15,
-                              ),
-                            ),
-                          ),
-                        ],
+
                       ],
                     ),
                     const SizedBox(height: 2),
