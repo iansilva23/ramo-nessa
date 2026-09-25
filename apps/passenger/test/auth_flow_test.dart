@@ -124,6 +124,26 @@ class _FakeAuthService implements PhoneAuthService {
   }
 
   @override
+  Future<AuthSecuritySession> securitySession(String accessToken) async {
+    return AuthSecuritySession(
+      id: 'session-auth-test',
+      subjectType: subjectType,
+      createdAt: DateTime(2026, 9, 23, 12),
+      expiresAt: DateTime(2026, 10, 23, 12),
+    );
+  }
+
+  @override
+  Future<RevokeOtherSessionsResult> revokeOtherSessions(
+    String accessToken,
+  ) async {
+    return const RevokeOtherSessionsResult(
+      revokedSessions: 0,
+      disabledDevices: 0,
+    );
+  }
+
+  @override
   Future<void> logout(String accessToken) async {
     logoutCalls += 1;
   }
