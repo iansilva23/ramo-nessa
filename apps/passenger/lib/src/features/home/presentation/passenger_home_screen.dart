@@ -704,7 +704,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _pricingQuote = null;
         _pricingLoading = false;
         _pricingMessage =
-            'Core não configurado neste build. Nenhum preço local será inventado.';
+            'Não conseguimos confirmar o valor desta corrida agora. Tente novamente em instantes.';
       });
       return;
     }
@@ -756,7 +756,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       setState(() {
         _pricingQuote = null;
         _pricingLoading = false;
-        _pricingMessage = 'Não conseguimos obter a cotação do Core agora.';
+        _pricingMessage = 'Não conseguimos atualizar o valor da corrida agora.';
       });
     }
   }
@@ -868,7 +868,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     if (_pricingQuote == null || !_pricingQuote!.isExact) {
       _showMessage(
-        _pricingMessage ?? 'Aguardando preço confirmado pelo Ramo Nessa Core.',
+        _pricingMessage ?? 'Aguardando confirmação do valor da corrida.',
       );
       return;
     }
@@ -876,9 +876,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     final preparation = _ridePreparationService;
     if (preparation == null) {
       _showMessage(
-        'Prepare RAMO_CORE_BASE_URL e RAMO_DEV_PASSENGER_ID para testar '
-        'a criação real da corrida. Em produção isso será substituído '
-        'pela autenticação do passageiro.',
+        'Não conseguimos iniciar esta corrida agora. Atualize o app ou tente novamente mais tarde.',
       );
       return;
     }
@@ -1142,7 +1140,7 @@ class _UnavailableRouteService implements RouteService {
   }) {
     return Future<RouteInfo>.error(
       StateError(
-        'O serviço de rotas exige conexão com o Core do Ramo Nessa.',
+        'Não conseguimos acessar o serviço de rotas agora.',
       ),
     );
   }
@@ -1155,7 +1153,7 @@ class _UnavailablePlaceSearchService implements PlaceSearchService {
   Future<List<RamoPlace>> search(String query) {
     return Future<List<RamoPlace>>.error(
       StateError(
-        'A busca de destinos exige conexão com o Core do Ramo Nessa.',
+        'Não conseguimos acessar a busca de destinos agora.',
       ),
     );
   }
