@@ -99,3 +99,25 @@ export function assertMercadoPagoProductionConfig(
     );
   }
 }
+
+
+export function assertGoogleMapsProductionConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (env.NODE_ENV !== 'production') return;
+
+  const provider =
+    env.ROUTING_PROVIDER?.trim().toLowerCase() || 'google';
+  if (provider !== 'google') {
+    throw new Error(
+      'ROUTING_PROVIDER deve ser google em ambiente de produção.',
+    );
+  }
+
+  const apiKey = env.GOOGLE_MAPS_SERVER_API_KEY?.trim() ?? '';
+  if (apiKey.length < 20) {
+    throw new Error(
+      'GOOGLE_MAPS_SERVER_API_KEY é obrigatória em produção.',
+    );
+  }
+}
