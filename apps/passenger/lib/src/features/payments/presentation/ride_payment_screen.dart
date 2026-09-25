@@ -312,7 +312,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         setState(() {
           _authorizingCash = false;
           _cashMessage =
-              'O Core ainda não autorizou o pagamento em dinheiro.';
+              'O pagamento em dinheiro ainda não pôde ser autorizado.';
         });
         return;
       }
@@ -396,7 +396,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           _payingWallet = false;
           _walletBalanceCents = result.walletBalanceCents;
           _walletMessage =
-              'O Core ainda não confirmou o pagamento da corrida.';
+              'Ainda não conseguimos confirmar o pagamento da corrida.';
         });
         return;
       }
@@ -1261,8 +1261,8 @@ class _CashAuthorizedScreen extends StatelessWidget {
       'SEARCHING_DRIVER' =>
         'Sua corrida já foi enviada ao motorista.',
       'PENDING_RETRY' =>
-        'O Core vai repetir a tentativa de encontrar motorista.',
-      _ => 'A corrida foi liberada para o matching.',
+        'Estamos tentando encontrar outro motorista para você.',
+      _ => 'Sua corrida foi liberada e estamos procurando um motorista.',
     };
 
     return Scaffold(
@@ -1327,8 +1327,8 @@ class _PaymentConfirmedScreen extends StatelessWidget {
         'NO_DRIVER_FOUND' =>
           'Pagamento confirmado. Não encontramos motorista nesta rodada.',
         'PENDING_RETRY' =>
-          'Pagamento confirmado. O Core vai repetir a tentativa de despacho.',
-        _ => 'Pagamento confirmado e corrida liberada para o matching.',
+          'Pagamento confirmado. Estamos tentando encontrar outro motorista para você.',
+        _ => 'Pagamento confirmado. Estamos procurando um motorista para sua corrida.',
       };
 
   @override
