@@ -1058,8 +1058,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             routeSummary: routeSummary,
             estimatedFare: _pricingQuote?.formatted,
             fareCaption: _pricingQuote?.isExact == true
-                ? 'preço confirmado pelo Core'
-                : 'cotação do Ramo Nessa Core',
+                ? 'Valor confirmado antes do pagamento'
+                : 'Estimativa atualizada da corrida',
             priceIsFinal: _pricingQuote?.isExact == true,
             pricingMessage: _pricingMessage,
             pricingLoading: _pricingLoading,
