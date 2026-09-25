@@ -466,6 +466,42 @@
               </form>
             </article>
 
+            <article class="panel-card document-alerts-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ATENÇÃO DOCUMENTAL</span>
+                  <h2>Pendências que precisam de acompanhamento</h2>
+                  <p class="muted-copy">
+                    No modo manual, ninguém é bloqueado automaticamente.
+                    Abra a ficha, avise o motorista e registre sua decisão.
+                  </p>
+                </div>
+                <span id="driver-document-alerts-summary" class="pill pill--neutral">
+                  0 pendências
+                </span>
+              </div>
+
+              <div class="document-alerts-metrics">
+                <div>
+                  <span>Precisam da sua decisão</span>
+                  <strong id="driver-document-alerts-decision-count">0</strong>
+                </div>
+                <div>
+                  <span>Bloqueados</span>
+                  <strong id="driver-document-alerts-blocked-count">0</strong>
+                </div>
+                <div>
+                  <span>Modo</span>
+                  <strong id="driver-document-alerts-mode">Manual</strong>
+                </div>
+              </div>
+
+              <div id="driver-document-alerts-list" class="document-alerts-list"></div>
+              <div id="driver-document-alerts-empty" class="empty-state">
+                Nenhuma pendência documental entre motoristas ativos.
+              </div>
+            </article>
+
             <article class="panel-card panel-card--directory">
               <div class="panel-card__header directory-header">
                 <div>
