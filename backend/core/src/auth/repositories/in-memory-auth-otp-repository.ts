@@ -20,6 +20,14 @@ interface MemoryRateLimit {
 export class InMemoryAuthOtpRepository implements AuthOtpRepository {
   private readonly identities = new Map<string, AuthIdentityRecord>();
   private readonly challenges = new Map<string, OtpChallengeRecord>();
+  private readonly passengerPhotos = new Map<
+    string,
+    {
+      bytes: Buffer;
+      mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+      updatedAt: string;
+    }
+  >();
   private readonly rateLimits = new Map<string, MemoryRateLimit>();
 
   async createIdentity(
@@ -152,6 +160,49 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     }
     this.identities.set(updated.id, updated);
     return structuredClone(updated);
+  }
+
+  async updatePassengerProfilePhoto(input: {
+    subjectId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null> {
+    const identity = [...this.identities.values()].find(
+      (candidate) =>
+        candidate.subjectType === 'passenger' &&
+        candidate.subjectId === input.subjectId,
+    );
+    if (identity == null) return null;
+
+    this.passengerPhotos.set(input.subjectId, {
+      bytes: Buffer.from(input.bytes),
+      mimeType: input.mimeType,
+      updatedAt: input.updatedAt,
+    });
+
+    const updated: AuthIdentityRecord = {
+      ...identity,
+      photoUpdatedAt: input.updatedAt,
+      updatedAt: input.updatedAt,
+    };
+    delete updated.photoUrl;
+    this.identities.set(updated.id, updated);
+    return structuredClone(updated);
+  }
+
+  async findPassengerProfilePhoto(subjectId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null> {
+    const found = this.passengerPhotos.get(subjectId);
+    if (found == null) return null;
+    return {
+      bytes: Buffer.from(found.bytes),
+      mimeType: found.mimeType,
+      updatedAt: found.updatedAt,
+    };
   }
 
   async setIdentityStatus(input: {
