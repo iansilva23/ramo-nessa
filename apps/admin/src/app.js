@@ -31,6 +31,7 @@ const state = {
   currentDriver: null,
   currentDriverRegistry: null,
   currentDriverDocuments: null,
+  currentDriverDocumentCompliance: null,
   currentDriverCashPolicy: null,
   documentInspectionObjectUrl: null,
   documentInspectionTimer: null,
@@ -117,6 +118,7 @@ const state = {
   operationalSettings: {
     driverOfferTtlSeconds: 35,
     showNearbyDrivers: false,
+    driverDocumentAutoEnforcement: false,
     updatedAt: null,
   },
   selectedRide: null,
@@ -251,6 +253,7 @@ function clearSession(message = '') {
   state.currentDriver = null;
   state.currentDriverRegistry = null;
   state.currentDriverDocuments = null;
+  state.currentDriverDocumentCompliance = null;
   state.currentDriverCashPolicy = null;
   state.pricingCatalog = null;
   state.pricingVersions = {
@@ -337,6 +340,7 @@ function clearSession(message = '') {
   state.operationalSettings = {
     driverOfferTtlSeconds: 35,
     showNearbyDrivers: false,
+    driverDocumentAutoEnforcement: false,
     updatedAt: null,
   };
   state.selectedRide = null;
@@ -925,6 +929,12 @@ async function handleDriverCashPolicySubmit(event) {
       'Limite individual cash atualizado e auditado.',
       'success',
     );
+    if (state.currentDriver?.driverId) {
+      void loadDriverDocumentCompliance(
+        state.currentDriver.driverId,
+        { announce: false },
+      );
+    }
     if (hasScope('audit:read')) {
       void loadAudit({ announce: false });
     }
@@ -1403,11 +1413,204 @@ function renderDriverDocuments(payload) {
   setDocumentReviewControlsVisible(payload);
 }
 
+function renderDriverDocumentCompliance(payload) {
+  state.currentDriverDocumentCompliance = payload;
+  const panel = byId('driver-document-compliance-panel');
+  const status = byId('driver-document-compliance-status');
+  const message = byId('driver-document-compliance-message');
+  const issuesTarget = byId('driver-document-compliance-issues');
+  const notify = byId('driver-document-notify-button');
+  const keepActive = byId('driver-document-keep-active-button');
+  const block = byId('driver-document-block-button');
+  const unblock = byId('driver-document-unblock-button');
+  const meta = byId('driver-document-compliance-meta');
+
+  panel.hidden = false;
+  issuesTarget.replaceChildren();
+
+  const approved = payload?.documentsApproved === true;
+  const manualBlocked = payload?.manualBlocked === true;
+  const automaticBlock = payload?.automaticBlock === true;
+  const autoEnabled = payload?.autoEnforcementEnabled === true;
+  const decisionRequired = payload?.decisionRequired === true;
+  const issues = Array.isArray(payload?.issues) ? payload.issues : [];
+
+  if (approved) {
+    status.className = 'pill pill--success';
+    status.textContent = 'Regular';
+    message.textContent =
+      'CNH e CRLV estão regulares. Nenhuma decisão operacional é necessária.';
+  } else if (manualBlocked) {
+    status.className = 'pill pill--danger';
+    status.textContent = 'Bloqueado por você';
+    message.textContent =
+      'Novas corridas estão bloqueadas manualmente. O motorista continua com acesso ao app para regularizar os documentos.';
+  } else if (automaticBlock) {
+    status.className = 'pill pill--danger';
+    status.textContent = 'Bloqueio automático';
+    message.textContent =
+      'O modo automático está ligado e a pendência documental bloqueia novas corridas. Viagens já iniciadas não são interrompidas.';
+  } else if (decisionRequired) {
+    status.className = 'pill pill--warning';
+    status.textContent = 'Aguardando sua decisão';
+    message.textContent =
+      'Há pendência documental, mas o motorista continua ativo. Avise primeiro e decida se deseja bloquear novas corridas.';
+  } else {
+    status.className = 'pill pill--warning';
+    status.textContent = 'Mantido ativo';
+    message.textContent =
+      'A pendência foi reconhecida e o motorista continua recebendo novas corridas até você decidir diferente.';
+  }
+
+  for (const issue of issues) {
+    const chip = document.createElement('span');
+    chip.className = 'pill pill--warning';
+    chip.textContent = issue.label ?? issue.status ?? 'Pendência';
+    issuesTarget.append(chip);
+  }
+
+  const canWrite = hasScope('drivers:documents:write');
+  notify.hidden = approved;
+  notify.disabled = !canWrite || approved;
+  block.hidden = approved || manualBlocked || automaticBlock;
+  block.disabled = !canWrite;
+  keepActive.hidden =
+    approved || manualBlocked || automaticBlock || autoEnabled;
+  keepActive.disabled = !canWrite;
+  unblock.hidden = !manualBlocked;
+  unblock.disabled = !canWrite;
+
+  const details = [];
+  details.push(
+    autoEnabled
+      ? 'Modo global: automático'
+      : 'Modo global: decisão manual',
+  );
+  if (payload?.notifiedAt) {
+    details.push(`Avisado em ${formatDateTime(payload.notifiedAt)}`);
+  }
+  if (payload?.acknowledgedAt) {
+    details.push(
+      `Última decisão em ${formatDateTime(payload.acknowledgedAt)}`,
+    );
+  }
+  meta.textContent = details.join(' · ');
+}
+
+function renderDriverDocumentComplianceUnavailable() {
+  state.currentDriverDocumentCompliance = null;
+  const panel = byId('driver-document-compliance-panel');
+  if (panel != null) panel.hidden = true;
+}
+
+async function loadDriverDocumentCompliance(
+  driverId,
+  { announce = false } = {},
+) {
+  if (!state.token || !hasScope('drivers:documents:read')) {
+    renderDriverDocumentComplianceUnavailable();
+    return;
+  }
+  try {
+    const payload = await api.getDriverDocumentCompliance(
+      state.token,
+      driverId,
+    );
+    renderDriverDocumentCompliance(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Controle documental atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    renderDriverDocumentComplianceUnavailable();
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverDocumentComplianceAction(action, button) {
+  if (
+    !state.token ||
+    !state.currentDriver?.driverId ||
+    !hasScope('drivers:documents:write')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const payload = await api.decideDriverDocumentCompliance(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        action,
+      },
+    );
+    renderDriverDocumentCompliance(payload);
+    setMessage(
+      globalMessage,
+      action === 'block'
+        ? 'Novas corridas bloqueadas. O motorista continua com acesso ao app.'
+        : action === 'unblock'
+          ? 'Novas corridas liberadas novamente.'
+          : 'Pendência reconhecida. O motorista foi mantido ativo.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+    if (hasScope('fleet:read')) {
+      void loadFleet({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleDriverDocumentComplianceNotify(button) {
+  if (
+    !state.token ||
+    !state.currentDriver?.driverId ||
+    !hasScope('drivers:documents:write')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const payload = await api.notifyDriverDocumentCompliance(
+      state.token,
+      state.currentDriver.driverId,
+    );
+    renderDriverDocumentCompliance(payload);
+    const delivered = payload?.notification?.delivered ?? 0;
+    setMessage(
+      globalMessage,
+      delivered > 0
+        ? 'Motorista avisado pelo app.'
+        : 'Aviso registrado, mas nenhum aparelho recebeu a notificação.',
+      delivered > 0 ? 'success' : 'neutral',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderDriverDocumentsUnavailable(
   message = 'Abra um motorista para consultar os documentos.',
 ) {
   closeDriverDocumentInspection();
   state.currentDriverDocuments = null;
+  renderDriverDocumentComplianceUnavailable();
   const target = byId('driver-documents-result');
   target.replaceChildren();
   target.className = 'driver-documents-result empty-state';
@@ -1437,11 +1640,12 @@ async function loadDriverDocuments(driverId) {
   }
 
   try {
-    const payload = await api.getDriverDocuments(
-      state.token,
-      driverId,
-    );
+    const [payload, compliance] = await Promise.all([
+      api.getDriverDocuments(state.token, driverId),
+      api.getDriverDocumentCompliance(state.token, driverId),
+    ]);
     renderDriverDocuments(payload);
+    renderDriverDocumentCompliance(compliance);
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -3729,25 +3933,30 @@ function renderOperationalSettings(payload = state.operationalSettings) {
     ? ttl
     : 35;
   const showNearbyDrivers = payload?.showNearbyDrivers === true;
+  const driverDocumentAutoEnforcement =
+    payload?.driverDocumentAutoEnforcement === true;
   const updatedAt =
     typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
 
   state.operationalSettings = {
     driverOfferTtlSeconds: safeTtl,
     showNearbyDrivers,
+    driverDocumentAutoEnforcement,
     updatedAt,
   };
 
   byId('driver-offer-ttl-seconds').value = String(safeTtl);
   byId('show-nearby-drivers').checked = showNearbyDrivers;
+  byId('driver-document-auto-enforcement').checked =
+    driverDocumentAutoEnforcement;
 
   const status = byId('operational-settings-status');
-  status.className = showNearbyDrivers
+  status.className = driverDocumentAutoEnforcement
     ? 'pill pill--success'
     : 'pill pill--neutral';
-  status.textContent = showNearbyDrivers
-    ? 'Motoristas no mapa: ativo'
-    : 'Motoristas no mapa: oculto';
+  status.textContent = driverDocumentAutoEnforcement
+    ? 'Documentos: automático'
+    : 'Documentos: decisão manual';
 
   byId('operational-settings-updated-at').textContent = updatedAt
     ? `Atualizado em ${formatDateTime(updatedAt)}`
@@ -3756,6 +3965,7 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
   byId('show-nearby-drivers').disabled = !canWrite;
+  byId('driver-document-auto-enforcement').disabled = !canWrite;
   byId('save-operational-settings-button').disabled = !canWrite;
 }
 
@@ -3786,6 +3996,8 @@ async function handleOperationalSettingsSubmit(event) {
 
   const ttl = Number(byId('driver-offer-ttl-seconds').value);
   const showNearbyDrivers = byId('show-nearby-drivers').checked;
+  const driverDocumentAutoEnforcement =
+    byId('driver-document-auto-enforcement').checked;
   if (!Number.isInteger(ttl) || ttl < 5 || ttl > 120) {
     setMessage(
       globalMessage,
@@ -3801,6 +4013,7 @@ async function handleOperationalSettingsSubmit(event) {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
       showNearbyDrivers,
+      driverDocumentAutoEnforcement,
     });
     renderOperationalSettings(settings);
     setMessage(
@@ -4837,6 +5050,18 @@ byId('driver-document-review-form').addEventListener('submit', (event) => {
 byId('driver-document-review-status').addEventListener('change', () => {
   syncDocumentRejectionRequirement();
 });
+byId('driver-document-notify-button').addEventListener('click', (event) => {
+  void handleDriverDocumentComplianceNotify(event.currentTarget);
+});
+byId('driver-document-keep-active-button').addEventListener('click', (event) => {
+  void handleDriverDocumentComplianceAction('keep_active', event.currentTarget);
+});
+byId('driver-document-block-button').addEventListener('click', (event) => {
+  void handleDriverDocumentComplianceAction('block', event.currentTarget);
+});
+byId('driver-document-unblock-button').addEventListener('click', (event) => {
+  void handleDriverDocumentComplianceAction('unblock', event.currentTarget);
+});
 byId('notification-form').addEventListener('submit', (event) => {
   void handleNotificationSubmit(event);
 });
@@ -4890,6 +5115,7 @@ setMessage(loginMessage);
 setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
+renderDriverDocumentComplianceUnavailable();
 renderDriverCashPolicyUnavailable();
 renderPassengerDetailEmpty();
 renderFleet();
