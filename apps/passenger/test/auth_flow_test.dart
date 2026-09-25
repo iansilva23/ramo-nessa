@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/core/auth/auth_token_store.dart';
@@ -107,6 +109,21 @@ class _FakeAuthService implements PhoneAuthService {
       phoneE164: '+5588999991234',
       email: email ?? 'passageiro@example.com',
       fullName: fullName ?? 'Passageiro Teste',
+    );
+  }
+
+  @override
+  Future<PassengerAccount> updatePassengerPhoto({
+    required String accessToken,
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    return const PassengerAccount(
+      subjectId: 'subject-auth-test',
+      phoneE164: '+5588999991234',
+      email: 'passageiro@example.com',
+      fullName: 'Passageiro Teste',
+      photoUrl: 'https://core.test/v1/passenger/me/photo?v=1',
     );
   }
 
