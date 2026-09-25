@@ -7,6 +7,7 @@ import type {
 import type {
   OperationalSettingsRepository,
 } from '../config/operational-settings-repository.js';
+import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
 import type {
   DriverDocumentRepository,
   DriverDocumentType,
@@ -267,5 +268,91 @@ export async function notifyDriverDocumentCompliance(input: {
     ...status,
     notification: stats,
     notifiedAt: instant,
+  };
+}
+
+
+export async function listAdminDriverDocumentComplianceAlerts(input: {
+  identities: AuthOtpRepository;
+  documents: DriverDocumentRepository;
+  controls: DriverDocumentComplianceRepository;
+  settings: OperationalSettingsRepository;
+  now?: Date;
+  maxDrivers?: number;
+}) {
+  const now = input.now ?? new Date();
+  const maxDrivers = Math.max(
+    1,
+    Math.min(1000, input.maxDrivers ?? 500),
+  );
+  const identities = [];
+  let cursor:
+    | { updatedAt: string; id: string }
+    | undefined;
+
+  while (identities.length < maxDrivers) {
+    const page = await input.identities.listIdentities({
+      subjectType: 'driver',
+      status: 'active',
+      limit: Math.min(100, maxDrivers - identities.length),
+      ...(cursor == null ? {} : { cursor }),
+    });
+    identities.push(...page.identities);
+    if (!page.hasMore || page.identities.length === 0) break;
+    const last = page.identities[page.identities.length - 1]!;
+    cursor = {
+      updatedAt: last.updatedAt,
+      id: last.id,
+    };
+  }
+
+  const alerts = (
+    await Promise.all(
+      identities.map(async (identity) => {
+        const compliance = await adminDriverDocumentComplianceView({
+          documents: input.documents,
+          controls: input.controls,
+          settings: input.settings,
+          driverId: identity.subjectId,
+          now,
+        });
+        if (compliance.documentsApproved) return null;
+        return {
+          driverId: identity.subjectId,
+          phoneE164: identity.phoneE164,
+          ...compliance,
+        };
+      }),
+    )
+  )
+    .filter((item): item is NonNullable<typeof item> => item != null)
+    .sort((a, b) => {
+      const rank = (item: {
+        effectiveBlocked: boolean;
+        decisionRequired: boolean;
+        notifiedAt: string | null;
+      }) => {
+        if (item.decisionRequired) return 0;
+        if (item.effectiveBlocked) return 1;
+        if (item.notifiedAt == null) return 2;
+        return 3;
+      };
+      return rank(a) - rank(b) ||
+        a.driverId.localeCompare(b.driverId);
+    });
+
+  return {
+    mode:
+      (await input.settings.get()).driverDocumentAutoEnforcement
+        ? 'automatic'
+        : 'manual',
+    total: alerts.length,
+    decisionRequired: alerts.filter(
+      (item) => item.decisionRequired,
+    ).length,
+    blocked: alerts.filter(
+      (item) => item.effectiveBlocked,
+    ).length,
+    items: alerts,
   };
 }
