@@ -90,19 +90,21 @@ abstract final class RamoTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        toolbarHeight: 64,
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
+        titleSpacing: RamoSpacing.lg,
         titleTextStyle: TextStyle(
           color: scheme.onSurface,
-          fontSize: 22,
+          fontSize: 21,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.6,
+          letterSpacing: -0.55,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(58),
+          minimumSize: const Size.fromHeight(54),
           backgroundColor: RamoColors.brandBlack,
           foregroundColor: Colors.white,
           disabledBackgroundColor: RamoColors.border,
@@ -120,8 +122,27 @@ abstract final class RamoTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
+        color: scheme.surface,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(RamoRadius.md),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: RamoColors.brandBlack,
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(RamoRadius.md),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(44),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
@@ -129,10 +150,22 @@ abstract final class RamoTheme {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
       ),
-      listTileTheme: const ListTileThemeData(
-        iconColor: RamoColors.ink,
-        textColor: RamoColors.ink,
-        contentPadding: EdgeInsets.symmetric(horizontal: 4),
+      listTileTheme: ListTileThemeData(
+        iconColor: scheme.onSurface,
+        textColor: scheme.onSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        minVerticalPadding: 10,
+        titleTextStyle: TextStyle(
+          color: scheme.onSurface,
+          fontSize: 15.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.15,
+        ),
+        subtitleTextStyle: const TextStyle(
+          color: RamoColors.muted,
+          fontSize: 13,
+          height: 1.3,
+        ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
@@ -183,13 +216,31 @@ abstract final class RamoTheme {
     required Color foreground,
   }) {
     return NavigationBarThemeData(
+      height: 68,
       elevation: 0,
       backgroundColor: background,
       indicatorColor: indicator,
-      labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(
-          color: foreground,
-          fontWeight: FontWeight.w600,
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(RamoRadius.pill),
+      ),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          color: states.contains(WidgetState.selected)
+              ? RamoColors.brandBlack
+              : RamoColors.muted,
+          size: states.contains(WidgetState.selected) ? 24 : 22,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          color: states.contains(WidgetState.selected)
+              ? foreground
+              : RamoColors.muted,
+          fontSize: 11.5,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w800
+              : FontWeight.w600,
+          letterSpacing: -0.1,
         ),
       ),
     );
