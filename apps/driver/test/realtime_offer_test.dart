@@ -22,7 +22,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Procurando corridas por perto'), findsOneWidget);
+    expect(find.text('Procurando corridas próximas'), findsOneWidget);
 
     realtime.add(
       DriverRealtimeUpdate(
@@ -44,7 +44,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Nova corrida'), findsOneWidget);
+    expect(find.text('NOVA CORRIDA'), findsOneWidget);
     expect(find.text('R\$ 108,00'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
