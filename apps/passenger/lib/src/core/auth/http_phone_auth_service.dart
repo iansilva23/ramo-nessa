@@ -227,6 +227,55 @@ class HttpPhoneAuthService implements PhoneAuthService {
   }
 
   @override
+  Future<AuthSecuritySession> securitySession(String accessToken) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/auth/session'),
+          headers: {'authorization': 'Bearer ${accessToken.trim()}'},
+        )
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+
+    final id = json['id'];
+    final subjectType = json['subjectType'];
+    final createdAt = json['createdAt'];
+    final expiresAt = json['expiresAt'];
+    if (id is! String ||
+        subjectType is! String ||
+        createdAt is! String ||
+        expiresAt is! String) {
+      throw const FormatException('Sessão de segurança inválida.');
+    }
+
+    return AuthSecuritySession(
+      id: id,
+      subjectType: subjectType,
+      createdAt: DateTime.parse(createdAt),
+      expiresAt: DateTime.parse(expiresAt),
+    );
+  }
+
+  @override
+  Future<RevokeOtherSessionsResult> revokeOtherSessions(
+    String accessToken,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/auth/session/revoke-others'),
+          headers: {'authorization': 'Bearer ${accessToken.trim()}'},
+        )
+        .timeout(const Duration(seconds: 10));
+    final json = _decodeObject(response);
+    _throwIfError(response, json);
+
+    return RevokeOtherSessionsResult(
+      revokedSessions: (json['revokedSessions'] as num?)?.toInt() ?? 0,
+      disabledDevices: (json['disabledDevices'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  @override
   Future<void> logout(String accessToken) async {
     final response = await _client
         .delete(
