@@ -158,6 +158,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    integrations(token) {
+      return request('/v1/admin/integrations', { token });
+    },
+
     operationalSettings(token) {
       return request('/v1/admin/operational-settings', { token });
     },
