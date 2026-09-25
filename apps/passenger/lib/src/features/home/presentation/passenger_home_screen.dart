@@ -12,8 +12,6 @@ import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/agency_promotion_service.dart';
 import '../../map/data/core_place_search_service.dart';
 import '../../map/data/core_route_service.dart';
-import '../../map/data/nominatim_place_search_service.dart';
-import '../../map/data/osrm_route_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
@@ -92,7 +90,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   baseUrl: RamoCoreConfig.baseUri!,
                   accessToken: _accessToken,
                 )
-              : OsrmRouteService());
+              : const _UnavailableRouteService());
   late final PlaceSearchService _placeSearchService =
       widget.placeSearchService ??
           (RamoCoreConfig.enabled
@@ -100,7 +98,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   baseUrl: RamoCoreConfig.baseUri!,
                   accessToken: _accessToken,
                 )
-              : NominatimPlaceSearchService());
+              : const _UnavailablePlaceSearchService());
   late final PricingQuoteService? _pricingQuoteService =
       widget.pricingQuoteService ??
           (RamoCoreConfig.enabled
@@ -1122,6 +1120,36 @@ class _MapFloatingButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+class _UnavailableRouteService implements RouteService {
+  const _UnavailableRouteService();
+
+  @override
+  Future<RouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) {
+    return Future<RouteInfo>.error(
+      StateError(
+        'O serviço de rotas exige conexão com o Core do Ramo Nessa.',
+      ),
+    );
+  }
+}
+
+class _UnavailablePlaceSearchService implements PlaceSearchService {
+  const _UnavailablePlaceSearchService();
+
+  @override
+  Future<List<RamoPlace>> search(String query) {
+    return Future<List<RamoPlace>>.error(
+      StateError(
+        'A busca de destinos exige conexão com o Core do Ramo Nessa.',
       ),
     );
   }
