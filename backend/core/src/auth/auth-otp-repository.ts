@@ -11,6 +11,7 @@ export interface AuthIdentityRecord {
   fullName?: string;
   passwordHash?: string;
   photoUrl?: string;
+  photoUpdatedAt?: string;
   status: AuthIdentityStatus;
   createdAt: string;
   updatedAt: string;
@@ -103,6 +104,17 @@ export interface AuthOtpRepository {
     photoUrl?: string | null;
     updatedAt: string;
   }): Promise<AuthIdentityRecord | null>;
+  updatePassengerProfilePhoto(input: {
+    subjectId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  findPassengerProfilePhoto(subjectId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null>;
   setIdentityStatus(input: {
     subjectType: AuthSubjectType;
     subjectId: string;
