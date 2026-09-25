@@ -424,6 +424,47 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(JSON.stringify(body));
 }
 
+function placesLocalityId(value: string): string {
+  const label = value.split(',')[0]?.trim() ?? '';
+  return label
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function resolvePlacesLocalOnly(input: {
+  query: string;
+  requestedLocalOnly: boolean;
+}): Promise<boolean | null> {
+  if (input.requestedLocalOnly) return true;
+
+  const localityId = placesLocalityId(input.query);
+  if (!localityId) return null;
+
+  const pricing = await resolvePricingCatalogContext({
+    versions: pricingCatalogVersionRepository,
+    at: new Date(),
+  });
+  return pricing.snapshot.externalLocalities.includes(localityId)
+    ? false
+    : null;
+}
+
+async function externalPlacesLocalityAllowed(
+  localityId: string,
+): Promise<boolean> {
+  const normalized = localityId.trim();
+  if (!normalized) return false;
+
+  const pricing = await resolvePricingCatalogContext({
+    versions: pricingCatalogVersionRepository,
+    at: new Date(),
+  });
+  return pricing.snapshot.externalLocalities.includes(normalized);
+}
+
 function parseRoutePoint(value: unknown):
   | { latitude: number; longitude: number }
   | null {
@@ -1004,13 +1045,28 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        const query =
+          typeof value.input === 'string' ? value.input : '';
+        const localOnly = await resolvePlacesLocalOnly({
+          query,
+          requestedLocalOnly: value.localOnly !== false,
+        });
+        if (localOnly == null) {
+          json(response, 422, {
+            error: 'EXTERNAL_DESTINATION_NOT_APPROVED',
+            message:
+              'Essa busca externa não pertence ao catálogo comercial vigente.',
+          });
+          return;
+        }
+
         const suggestions = await googlePlacesService.autocomplete({
-          query: typeof value.input === 'string' ? value.input : '',
+          query,
           sessionToken:
             typeof value.sessionToken === 'string'
               ? value.sessionToken
               : '',
-          localOnly: value.localOnly !== false,
+          localOnly,
         });
         json(response, 200, {
           provider: 'google',
@@ -1065,6 +1121,24 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        const localOnly = value.localOnly !== false;
+        if (!localOnly) {
+          const externalLocalityId =
+            typeof value.externalLocalityId === 'string'
+              ? value.externalLocalityId
+              : '';
+          if (
+            !(await externalPlacesLocalityAllowed(externalLocalityId))
+          ) {
+            json(response, 422, {
+              error: 'EXTERNAL_DESTINATION_NOT_APPROVED',
+              message:
+                'Esse destino externo não pertence ao catálogo comercial vigente.',
+            });
+            return;
+          }
+        }
+
         const place = await googlePlacesService.placeDetails({
           placeId:
             typeof value.placeId === 'string' ? value.placeId : '',
@@ -1072,7 +1146,7 @@ const server = createServer(async (request, response) => {
             typeof value.sessionToken === 'string'
               ? value.sessionToken
               : '',
-          localOnly: value.localOnly !== false,
+          localOnly,
         });
         json(response, 200, {
           provider: 'google',
@@ -1127,9 +1201,24 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        const query =
+          typeof value.query === 'string' ? value.query : '';
+        const localOnly = await resolvePlacesLocalOnly({
+          query,
+          requestedLocalOnly: value.localOnly !== false,
+        });
+        if (localOnly == null) {
+          json(response, 422, {
+            error: 'EXTERNAL_DESTINATION_NOT_APPROVED',
+            message:
+              'Essa busca externa não pertence ao catálogo comercial vigente.',
+          });
+          return;
+        }
+
         const places = await googlePlacesService.searchText({
-          query: typeof value.query === 'string' ? value.query : '',
-          localOnly: value.localOnly !== false,
+          query,
+          localOnly,
         });
         json(response, 200, {
           provider: 'google',
