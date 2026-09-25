@@ -1437,16 +1437,17 @@ function renderDriverDocumentCompliance(payload) {
   const decisionRequired = payload?.decisionRequired === true;
   const issues = Array.isArray(payload?.issues) ? payload.issues : [];
 
-  if (approved) {
+  if (manualBlocked) {
+    status.className = 'pill pill--danger';
+    status.textContent = 'Bloqueado por você';
+    message.textContent = approved
+      ? 'Os documentos já estão regulares, mas novas corridas continuam bloqueadas até você liberar manualmente.'
+      : 'Novas corridas estão bloqueadas manualmente. O motorista continua com acesso ao app para regularizar os documentos.';
+  } else if (approved) {
     status.className = 'pill pill--success';
     status.textContent = 'Regular';
     message.textContent =
       'CNH e CRLV estão regulares. Nenhuma decisão operacional é necessária.';
-  } else if (manualBlocked) {
-    status.className = 'pill pill--danger';
-    status.textContent = 'Bloqueado por você';
-    message.textContent =
-      'Novas corridas estão bloqueadas manualmente. O motorista continua com acesso ao app para regularizar os documentos.';
   } else if (automaticBlock) {
     status.className = 'pill pill--danger';
     status.textContent = 'Bloqueio automático';
@@ -4477,9 +4478,13 @@ function renderDriverDocumentAlerts(payload) {
     const phone = document.createElement('small');
     phone.textContent = item.phoneE164 ?? 'Telefone indisponível';
     const issues = document.createElement('p');
-    issues.textContent = (item.issues ?? [])
+    const issueText = (item.issues ?? [])
       .map((issue) => issue.label)
       .join(' · ');
+    issues.textContent = issueText ||
+      (item.manualBlocked && item.documentsApproved
+        ? 'Documentos regularizados. Falta liberar novas corridas.'
+        : 'Sem detalhe documental.');
     content.append(title, phone, issues);
 
     const stateWrap = document.createElement('div');
@@ -4487,7 +4492,9 @@ function renderDriverDocumentAlerts(payload) {
     const pill = document.createElement('span');
     if (item.manualBlocked) {
       pill.className = 'pill pill--danger';
-      pill.textContent = 'Bloqueado por você';
+      pill.textContent = item.documentsApproved
+        ? 'Regularizado · liberar'
+        : 'Bloqueado por você';
     } else if (item.automaticBlock) {
       pill.className = 'pill pill--danger';
       pill.textContent = 'Automático';
