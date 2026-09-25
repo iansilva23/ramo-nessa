@@ -129,10 +129,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pague com'), findsOneWidget);
-    expect(find.text('Preço final'), findsOneWidget);
+    expect(find.text('Tarifa-base da corrida'), findsOneWidget);
     expect(find.text('R\$ 45,00'), findsOneWidget);
-    expect(find.text('Pix'), findsOneWidget);
-    expect(find.text('Cartão'), findsOneWidget);
+    expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
+    expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
+    expect(find.text('Pix · R\$ 45,00'), findsOneWidget);
+    expect(find.text('Cartão · R\$ 47,36'), findsOneWidget);
     expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
     expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
 
@@ -366,7 +368,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    await tester.tap(find.text('Pix'));
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -402,7 +404,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
 
-    await tester.tap(find.text('Pix'));
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
