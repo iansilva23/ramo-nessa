@@ -1315,6 +1315,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           supply: supply,
           activeRide: _activeRide,
           route: _activeRoute,
+          navigationMode: _navigationMode,
           nearbyDrivers:
               _activeRide == null ? _nearbyDrivers : const [],
           networkTilesEnabled:
