@@ -59,11 +59,11 @@ class RideBottomSheet extends StatelessWidget {
         !pricingLoading;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.62 : 0.39,
-      minChildSize: hasTrip ? 0.46 : 0.34,
+      initialChildSize: hasTrip ? 0.62 : 0.44,
+      minChildSize: hasTrip ? 0.46 : 0.38,
       maxChildSize: 0.91,
       snap: true,
-      snapSizes: hasTrip ? const [0.62, 0.91] : const [0.39, 0.80],
+      snapSizes: hasTrip ? const [0.62, 0.91] : const [0.44, 0.80],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
