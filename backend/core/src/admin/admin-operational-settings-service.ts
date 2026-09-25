@@ -30,6 +30,7 @@ export async function updateAdminOperationalSettings(input: {
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
   showNearbyDrivers?: boolean;
+  driverDocumentAutoEnforcement?: boolean;
   mercadoPagoPublicKey?: string | null;
   now?: Date;
 }) {
@@ -70,6 +71,9 @@ export async function updateAdminOperationalSettings(input: {
     input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds;
   const nextNearby =
     input.showNearbyDrivers ?? current.showNearbyDrivers;
+  const nextDocumentAutoEnforcement =
+    input.driverDocumentAutoEnforcement ??
+    current.driverDocumentAutoEnforcement;
   const nextPublicKey =
     normalizedPublicKey === undefined
       ? current.mercadoPagoPublicKey
@@ -80,6 +84,8 @@ export async function updateAdminOperationalSettings(input: {
   if (
     nextTtl === current.driverOfferTtlSeconds &&
     nextNearby === current.showNearbyDrivers &&
+    nextDocumentAutoEnforcement ===
+      current.driverDocumentAutoEnforcement &&
     nextPublicKey === current.mercadoPagoPublicKey
   ) {
     return current;
@@ -89,6 +95,8 @@ export async function updateAdminOperationalSettings(input: {
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
     showNearbyDrivers: nextNearby,
+    driverDocumentAutoEnforcement:
+      nextDocumentAutoEnforcement,
     mercadoPagoPublicKey: nextPublicKey ?? null,
     updatedAt,
   });
@@ -104,6 +112,10 @@ export async function updateAdminOperationalSettings(input: {
       driverOfferTtlSeconds: updated.driverOfferTtlSeconds,
       previousShowNearbyDrivers: current.showNearbyDrivers,
       showNearbyDrivers: updated.showNearbyDrivers,
+      previousDriverDocumentAutoEnforcement:
+        current.driverDocumentAutoEnforcement,
+      driverDocumentAutoEnforcement:
+        updated.driverDocumentAutoEnforcement,
       mercadoPagoPublicKeyChanged:
         current.mercadoPagoPublicKey !== updated.mercadoPagoPublicKey,
     },
