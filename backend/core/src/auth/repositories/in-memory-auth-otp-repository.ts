@@ -1,4 +1,6 @@
 import type {
+  AuthFederatedIdentityRecord,
+  AuthFederatedProvider,
   AuthIdentityListInput,
   AuthIdentityListPage,
   AuthIdentityRecord,
@@ -20,6 +22,8 @@ interface MemoryRateLimit {
 export class InMemoryAuthOtpRepository implements AuthOtpRepository {
   private readonly identities = new Map<string, AuthIdentityRecord>();
   private readonly challenges = new Map<string, OtpChallengeRecord>();
+  private readonly federatedIdentities =
+      new Map<string, AuthFederatedIdentityRecord>();
   private readonly passengerPhotos = new Map<
     string,
     {
@@ -102,6 +106,62 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
         candidate.subjectId === subjectId,
     );
     return found == null ? null : structuredClone(found);
+  }
+
+  async findFederatedIdentity(
+    provider: AuthFederatedProvider,
+    providerSubject: string,
+  ): Promise<AuthFederatedIdentityRecord | null> {
+    const found = this.federatedIdentities.get(
+      provider + ':' + providerSubject,
+    );
+    return found == null ? null : structuredClone(found);
+  }
+
+  async findFederatedIdentityForAccount(input: {
+    provider: AuthFederatedProvider;
+    identityId: string;
+  }): Promise<AuthFederatedIdentityRecord | null> {
+    const found = [...this.federatedIdentities.values()].find(
+      (candidate) =>
+        candidate.provider === input.provider &&
+        candidate.identityId === input.identityId,
+    );
+    return found == null ? null : structuredClone(found);
+  }
+
+  async linkFederatedIdentity(
+    record: AuthFederatedIdentityRecord,
+  ): Promise<AuthFederatedIdentityRecord> {
+    const key = record.provider + ':' + record.providerSubject;
+    const current = this.federatedIdentities.get(key);
+    if (
+      current != null &&
+      current.identityId !== record.identityId
+    ) {
+      throw new Error(
+        'Identidade social já vinculada a outra conta.',
+      );
+    }
+
+    const duplicateForAccount =
+      [...this.federatedIdentities.values()].find(
+        (candidate) =>
+          candidate.provider === record.provider &&
+          candidate.identityId === record.identityId &&
+          candidate.providerSubject !== record.providerSubject,
+      );
+    if (duplicateForAccount != null) {
+      throw new Error(
+        'Conta já possui outro vínculo com este provedor.',
+      );
+    }
+
+    this.federatedIdentities.set(
+      key,
+      structuredClone(record),
+    );
+    return structuredClone(record);
   }
 
   async setIdentityEmail(input: {
