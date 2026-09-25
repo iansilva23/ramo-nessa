@@ -36,6 +36,8 @@ void main() {
     );
     expect(captured.headers['content-type'], 'application/json');
     expect(captured.body, isNot(contains('"email"')));
+  });
+
   test('foto do passageiro usa endpoint autenticado e URL do Core', () async {
     late http.Request captured;
     final client = MockClient((request) async {
@@ -77,6 +79,5 @@ void main() {
       'https://core.example.test/v1/passenger/me/photo'
       '?v=2026-09-25T00%3A00%3A00.000Z',
     );
-  });
   });
 }
