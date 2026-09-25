@@ -20,6 +20,7 @@ test('política de dinheiro nasce desligada mas pronta para ativação manual', 
 
   assert.equal(view.cashEnabled, false);
   assert.equal(view.cashActivationReady, true);
+  assert.equal(view.cardPriceAdjustmentBps, 498);
   assert.equal(view.futureCashDebtLimitCents, 12000);
 });
 
@@ -62,4 +63,30 @@ test('Admin ativa e desativa cash explicitamente com auditoria', async () => {
   assert.equal(audit.length, 2);
   assert.equal(audit[0]?.action, 'payment_policy.cash_disabled');
   assert.equal(audit[1]?.action, 'payment_policy.cash_enabled');
+});
+
+
+test('Admin altera ajuste do preço no cartão sem alterar cash', async () => {
+  const repository = new InMemoryPaymentPolicySettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  const updated = await updateAdminPaymentPolicy({
+    repository,
+    admin,
+    actor,
+    cardPriceAdjustmentBps: 449,
+    now: new Date('2026-09-25T12:00:00.000Z'),
+  });
+
+  assert.equal(updated.cardPriceAdjustmentBps, 449);
+  assert.equal(updated.cashEnabled, false);
+  const stored = await repository.get();
+  assert.equal(stored.cardPriceAdjustmentBps, 449);
+  assert.equal(stored.cashEnabled, false);
+
+  const audit = await admin.listAudit(10);
+  assert.equal(
+    audit[0]?.action,
+    'payment_policy.card_price_adjustment_updated',
+  );
 });

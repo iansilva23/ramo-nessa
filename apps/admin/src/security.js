@@ -170,6 +170,8 @@ export function actionLabel(action) {
     'driver.document_compliance.kept_active': 'Motorista mantido ativo',
     'driver.document_compliance.notified': 'Motorista avisado sobre documentos',
     'operational_settings.updated': 'Configuração operacional alterada',
+    'payment_policy.card_price_adjustment_updated': 'Preço no cartão alterado',
+    'payment_policy.updated': 'Política de pagamento alterada',
     'pricing.catalog_version.created': 'Versão de preços criada',
     'pricing.catalog_version.updated': 'Rascunho de preços alterado',
     'pricing.catalog_version.published': 'Versão de preços publicada',

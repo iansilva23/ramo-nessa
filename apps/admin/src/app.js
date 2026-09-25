@@ -2323,6 +2323,38 @@ function renderPaymentPolicy(policy = null) {
     : activationReady
       ? 'Estrutura pronta. O Passageiro continuará vendo “Em breve” até você ativar aqui.'
       : 'A ativação está temporariamente indisponível.';
+
+  const cardBps = Math.max(
+    0,
+    Math.min(2000, numericMetric(policy?.cardPriceAdjustmentBps)),
+  );
+  const cardPercent = cardBps / 100;
+  const cardStatus = byId('finance-card-price-status');
+  cardStatus.className =
+    cardBps > 0 ? 'pill pill--info' : 'pill pill--neutral';
+  cardStatus.textContent =
+    cardBps > 0
+      ? `${cardPercent.toFixed(2).replace('.', ',')}%`
+      : 'Sem diferença';
+
+  const cardInput = byId('finance-card-price-percent');
+  cardInput.value = cardPercent.toFixed(2);
+  cardInput.disabled = !canWrite;
+  byId('finance-card-price-save').disabled = !canWrite;
+
+  const denominator = 10000 - cardBps;
+  const sampleBaseCents = 15000;
+  const sampleCardCents =
+    cardBps <= 0
+      ? sampleBaseCents
+      : Math.ceil((sampleBaseCents * 10000) / denominator);
+  byId('finance-card-price-example').textContent =
+    `${formatCurrencyCents(sampleBaseCents)} → ` +
+    formatCurrencyCents(sampleCardCents);
+  byId('finance-card-price-note').textContent =
+    cardBps > 0
+      ? 'O Passageiro verá o preço final do cartão antes de confirmar.'
+      : 'Cartão e Pix estão com o mesmo preço.';
 }
 
 function renderFinance(payload = null) {
@@ -2539,6 +2571,49 @@ async function handleEnableCash() {
     handleAuthenticatedError(error);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function handleCardPricePolicySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('finance:write')) return;
+
+  const input = byId('finance-card-price-percent');
+  const percent = Number(input.value);
+  const bps = Math.round(percent * 100);
+  if (
+    !Number.isFinite(percent) ||
+    percent < 0 ||
+    percent > 20 ||
+    !Number.isInteger(bps)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um percentual entre 0% e 20%.',
+      'error',
+    );
+    return;
+  }
+
+  const button = byId('finance-card-price-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cardPriceAdjustmentBps: bps,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Preço do cartão atualizado. O Passageiro verá o novo total antes de pagar.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('finance:write');
   }
 }
 
@@ -5123,6 +5198,9 @@ byId('finance-enable-cash-button').addEventListener('click', () => {
 });
 byId('finance-disable-cash-button').addEventListener('click', () => {
   void handleDisableCash();
+});
+byId('finance-card-price-form').addEventListener('submit', (event) => {
+  void handleCardPricePolicySubmit(event);
 });
 byId('refresh-pricing-button').addEventListener('click', () => {
   void Promise.all([

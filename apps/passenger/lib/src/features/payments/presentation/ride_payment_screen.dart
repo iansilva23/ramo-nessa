@@ -171,6 +171,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool get _cashAvailable =>
       _paymentPolicy?.cashAvailable == true;
 
+  int get _cardTotalAmountCents =>
+      _paymentPolicy?.cardTotalAmountCents(
+        widget.ride.totalAmountCents,
+      ) ??
+      widget.ride.totalAmountCents;
+
+  int get _cardAdjustmentCents =>
+      _paymentPolicy?.cardAdjustmentCents(
+        widget.ride.totalAmountCents,
+      ) ??
+      0;
+
   Future<void> _startPix() async {
     final service = widget.paymentService;
     if (service == null || _creatingPix || _remaining == Duration.zero) return;
@@ -218,7 +230,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   Future<void> _startCard() async {
     final service = widget.paymentService;
-    if (service == null || _creatingCard || _remaining == Duration.zero) return;
+    if (
+      service == null ||
+      _creatingCard ||
+      _remaining == Duration.zero ||
+      _paymentPolicyLoading ||
+      _paymentPolicy == null
+    ) {
+      return;
+    }
 
     setState(() {
       _creatingCard = true;
@@ -229,7 +249,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       final tokenizer =
           widget.cardTokenizationService ??
           NativeCardTokenizationService(
-            amountCents: widget.ride.totalAmountCents,
+            amountCents: _cardTotalAmountCents,
           );
       final tokenized = await tokenizer.tokenize();
       if (!mounted) return;
@@ -444,6 +464,19 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ? 'Pague diretamente ao motorista no fim da corrida'
             : 'Em breve · será liberado pelo Ramo Nessa';
 
+    final pixPrice =
+        PreparedRide.formatCents(widget.ride.totalAmountCents);
+    final cardPrice = PreparedRide.formatCents(_cardTotalAmountCents);
+    final cardAdjustment =
+        PreparedRide.formatCents(_cardAdjustmentCents);
+    final cardSubtitle = _paymentPolicyLoading
+        ? 'Calculando preço final no cartão…'
+        : _paymentPolicy == null
+            ? 'Preço indisponível até atualizar as formas de pagamento'
+            : _cardAdjustmentCents > 0
+                ? 'À vista · diferença de $cardAdjustment já incluída no preço final'
+                : 'À vista · mesmo preço do Pix';
+
     final walletSubtitle = switch ((
       widget.paymentService,
       _walletLoading,
@@ -480,7 +513,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Preço final',
+                          'Tarifa-base da corrida',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: RamoColors.muted,
                               ),
@@ -538,9 +571,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             _PaymentOption(
               key: const Key('payment-option-pix'),
               icon: Icons.pix_rounded,
-              title: 'Pix',
+              title: 'Pix · $pixPrice',
               subtitle:
-                  'Pagamento confirmado antes do motorista receber a corrida',
+                  'Preço à vista via Pix · sem ajuste do cartão',
               enabled:
                   !expired &&
                   widget.paymentService != null &&
@@ -557,12 +590,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             _PaymentOption(
               key: const Key('payment-option-card'),
               icon: Icons.credit_card_rounded,
-              title: 'Cartão',
-              subtitle: 'À vista · protegido pelo Mercado Pago · 3DS quando necessário',
+              title: _paymentPolicy == null
+                  ? 'Cartão'
+                  : 'Cartão · $cardPrice',
+              subtitle: cardSubtitle,
               enabled:
                   !expired &&
                   widget.paymentService != null &&
-                  !_creatingCard,
+                  !_creatingCard &&
+                  !_paymentPolicyLoading &&
+                  _paymentPolicy != null,
               trailing: _creatingCard
                   ? const SizedBox.square(
                       dimension: 22,
@@ -570,6 +607,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     )
                   : null,
               onTap: _startCard,
+            ),
+            const SizedBox(height: RamoSpacing.xs),
+            Text(
+              'Os preços podem variar conforme a forma de pagamento. '
+              'O total exibido em cada opção é o valor cobrado.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: RamoColors.muted,
+                  ),
             ),
             const SizedBox(height: RamoSpacing.sm),
             _PaymentOption(

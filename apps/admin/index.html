@@ -1572,6 +1572,61 @@
               </div>
             </article>
 
+            <article class="panel-card finance-card-price-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Preço no cartão</h2>
+                  <p class="muted-copy">
+                    O passageiro vê o preço final antes de confirmar.
+                    Pix continua no preço-base; cartão usa o percentual abaixo.
+                  </p>
+                </div>
+                <span id="finance-card-price-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-card-price-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Ajuste do preço no cartão</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="finance-card-price-percent"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.01"
+                      value="4.98"
+                      required
+                    >
+                    <strong>%</strong>
+                  </div>
+                  <small>
+                    O Core aplica gross-up para preservar a tarifa-base da corrida.
+                  </small>
+                </label>
+                <div>
+                  <span class="metric-label">Exemplo</span>
+                  <strong id="finance-card-price-example">R$ 150,00 → —</strong>
+                  <small>
+                    O acréscimo fica separado da comissão 10%/90%.
+                  </small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-card-price-save"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar preço no cartão
+                  </button>
+                  <span id="finance-card-price-note">
+                    Alterar aqui não exige mudança de código.
+                  </span>
+                </div>
+              </form>
+            </article>
+
             <div class="finance-summary-grid">
               <article class="metric-card metric-card--signal">
                 <span class="metric-label">Pagamentos confirmados</span>

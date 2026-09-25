@@ -74,6 +74,7 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
         : 200,
       {
         cashEnabled: false,
+        cardPriceAdjustmentBps: 498,
         cashActivationReady: true,
         futureCashDebtLimitCents: 12000,
         allowedDigitalMethods: ['pix', 'card', 'wallet'],
@@ -85,6 +86,7 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
   const token = 'rn_admin_session_cash_policy_secret';
   const policy = await api.paymentPolicy(token);
   assert.equal(policy.cashEnabled, false);
+  assert.equal(policy.cardPriceAdjustmentBps, 498);
 
   await api.updatePaymentPolicy(token, { cashEnabled: true });
 
@@ -92,7 +94,12 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
   assert.equal(calls[0].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].options.method, 'PATCH');
-  assert.equal(calls[1].options.body, JSON.stringify({ cashEnabled: true }));
+  assert.equal(
+    calls[1].options.body,
+    JSON.stringify({
+      cashEnabled: true,
+    }),
+  );
   for (const call of calls) {
     assert.equal(call.url.includes(token), false);
     assert.equal(
@@ -146,6 +153,12 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     'finance-enable-cash-button',
     'finance-disable-cash-button',
     'finance-cash-note',
+    'finance-card-price-status',
+    'finance-card-price-form',
+    'finance-card-price-percent',
+    'finance-card-price-example',
+    'finance-card-price-save',
+    'finance-card-price-note',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -162,6 +175,8 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   assert.equal(html.includes('Ativar dinheiro'), true);
   assert.match(app, /handleEnableCash/);
   assert.match(app, /cashEnabled: true/);
+  assert.match(app, /handleCardPricePolicySubmit/);
+  assert.match(app, /cardPriceAdjustmentBps/);
   assert.equal(api.includes('financeUpdate('), false);
   assert.equal(api.includes('refundPayment('), false);
   assert.equal(api.includes('approvePayout('), false);

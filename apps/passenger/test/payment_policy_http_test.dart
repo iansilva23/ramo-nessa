@@ -15,6 +15,7 @@ void main() {
           'cashEnabled': false,
           'paymentRequiredBeforeDispatch': true,
           'passengerWalletEnabled': true,
+          'cardPriceAdjustmentBps': 498,
           'allowedMethods': ['pix', 'card', 'wallet'],
         }),
         200,
@@ -39,6 +40,9 @@ void main() {
     );
     expect(policy.cashEnabled, isFalse);
     expect(policy.cashAvailable, isFalse);
+    expect(policy.cardPriceAdjustmentBps, 498);
+    expect(policy.cardTotalAmountCents(15000), 15787);
+    expect(policy.cardAdjustmentCents(15000), 787);
     expect(policy.allowedMethods, containsAll(['pix', 'card', 'wallet']));
     expect(policy.allowedMethods, isNot(contains('cash')));
   });
