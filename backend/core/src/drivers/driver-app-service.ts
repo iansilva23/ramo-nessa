@@ -4,6 +4,11 @@ import type {
   DriverRegistryRepository,
   DriverVehicleRecord,
 } from './driver-registry-repository.js';
+import type { DriverDocumentRepository } from './driver-document-repository.js';
+import {
+  canDriverReceiveNewWork,
+  driverOperationalEligibility,
+} from './driver-operational-eligibility.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
 import {
   acceptDriverOffer,
@@ -20,6 +25,7 @@ export class DriverAppError extends Error {
     public readonly code:
       | 'DRIVER_NOT_REGISTERED'
       | 'DRIVER_REGISTRY_NOT_APPROVED'
+      | 'DRIVER_DOCUMENTS_NOT_APPROVED'
       | 'DRIVER_SUPPLY_NOT_INITIALIZED'
       | 'DRIVER_BUSY'
       | 'RIDE_NOT_FOUND'
@@ -56,6 +62,26 @@ async function requireApprovedDriverRegistry(input: {
   }
 
   return vehicle;
+}
+
+async function requireOperationalDriver(input: {
+  registry: DriverRegistryRepository;
+  documents: DriverDocumentRepository;
+  driverId: string;
+  now?: Date;
+}): Promise<DriverVehicleRecord> {
+  const eligibility = await driverOperationalEligibility(input);
+  if (!eligibility.eligible) {
+    throw new DriverAppError(
+      eligibility.reason === 'registry'
+        ? 'DRIVER_REGISTRY_NOT_APPROVED'
+        : 'DRIVER_DOCUMENTS_NOT_APPROVED',
+      eligibility.reason === 'registry'
+        ? 'Seu perfil e veículo ainda precisam ser aprovados antes de você ficar online.'
+        : 'Sua CNH e seu CRLV precisam estar aprovados e válidos antes de você receber novas corridas.',
+    );
+  }
+  return eligibility.vehicle;
 }
 
 function supplyView(
@@ -105,16 +131,13 @@ export async function getDriverSupplyForApp(input: {
 export async function updateDriverSupplyFromApp(input: {
   drivers: DriverSupplyRepository;
   registry: DriverRegistryRepository;
+  documents: DriverDocumentRepository;
   driverId: string;
   online?: boolean;
   latitude?: number;
   longitude?: number;
   now?: Date;
 }) {
-  const vehicle = await requireApprovedDriverRegistry({
-    registry: input.registry,
-    driverId: input.driverId,
-  });
   const current = await input.drivers.findByDriverId(input.driverId);
 
   if (current?.busy && input.online === false) {
@@ -124,7 +147,53 @@ export async function updateDriverSupplyFromApp(input: {
     );
   }
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  const instant = now.toISOString();
+
+  // Uma corrida já ativa continua enviando localização mesmo se uma
+  // aprovação expirar ou for suspensa durante o trajeto. A trava vale
+  // para novo trabalho, nunca para interromper o acompanhamento atual.
+  if (current?.busy) {
+    return input.drivers.upsert({
+      ...current,
+      ...(input.latitude != null && input.longitude != null
+        ? {
+            latitude: input.latitude,
+            longitude: input.longitude,
+            locationUpdatedAt: instant,
+          }
+        : {}),
+      updatedAt: instant,
+    });
+  }
+
+  const willBeOnline = input.online ?? current?.online ?? false;
+  let vehicle: DriverVehicleRecord;
+
+  if (willBeOnline) {
+    try {
+      vehicle = await requireOperationalDriver({
+        registry: input.registry,
+        documents: input.documents,
+        driverId: input.driverId,
+        now,
+      });
+    } catch (error) {
+      if (current?.online) {
+        await input.drivers.upsert({
+          ...current,
+          online: false,
+          updatedAt: instant,
+        });
+      }
+      throw error;
+    }
+  } else {
+    vehicle = await requireApprovedDriverRegistry({
+      registry: input.registry,
+      driverId: input.driverId,
+    });
+  }
 
   if (current == null) {
     if (input.latitude == null || input.longitude == null) {
@@ -205,6 +274,7 @@ export async function currentDriverOffer(input: {
   rides: RideRepository;
   drivers: DriverSupplyRepository;
   registry: DriverRegistryRepository;
+  documents: DriverDocumentRepository;
   matching: RideMatchingRepository;
   driverId: string;
   finance?: FinanceRepository;
@@ -212,11 +282,13 @@ export async function currentDriverOffer(input: {
   operationalSettings?: OperationalSettingsRepository;
   now?: Date;
 }) {
-  await requireApprovedDriverRegistry({
-    registry: input.registry,
-    driverId: input.driverId,
-  });
   const now = input.now ?? new Date();
+  await requireOperationalDriver({
+    registry: input.registry,
+    documents: input.documents,
+    driverId: input.driverId,
+    now,
+  });
   const offer = await input.matching.findLatestOfferedForDriver(
     input.driverId,
   );
@@ -262,6 +334,13 @@ export async function currentDriverOffer(input: {
         ...(input.operationalSettings != null
           ? { operationalSettings: input.operationalSettings }
           : {}),
+        canOfferDriver: (driverId) =>
+          canDriverReceiveNewWork({
+            registry: input.registry,
+            documents: input.documents,
+            driverId,
+            now,
+          }),
         now,
       });
     }
@@ -275,20 +354,24 @@ export async function currentDriverOffer(input: {
 export async function acceptOfferFromDriverApp(input: {
   rides: RideRepository;
   registry: DriverRegistryRepository;
+  documents: DriverDocumentRepository;
   matching: RideMatchingRepository;
   offerId: string;
   driverId: string;
   now?: Date;
 }) {
-  await requireApprovedDriverRegistry({
+  const now = input.now ?? new Date();
+  await requireOperationalDriver({
     registry: input.registry,
+    documents: input.documents,
     driverId: input.driverId,
+    now,
   });
   const result = await acceptDriverOffer({
     repository: input.matching,
     offerId: input.offerId,
     driverId: input.driverId,
-    ...(input.now != null ? { now: input.now } : {}),
+    now,
   });
 
   return {
@@ -329,6 +412,7 @@ export async function rejectOfferFromDriverApp(input: {
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
   operationalSettings?: OperationalSettingsRepository;
+  canOfferDriver?: (driverId: string) => Promise<boolean>;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
@@ -377,6 +461,9 @@ export async function rejectOfferFromDriverApp(input: {
       : {}),
     ...(input.operationalSettings != null
       ? { operationalSettings: input.operationalSettings }
+      : {}),
+    ...(input.canOfferDriver != null
+      ? { canOfferDriver: input.canOfferDriver }
       : {}),
     now,
   });
