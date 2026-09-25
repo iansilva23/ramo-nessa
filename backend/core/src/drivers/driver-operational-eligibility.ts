@@ -14,7 +14,7 @@ export type DriverOperationalEligibility =
     }
   | {
       eligible: false;
-      reason: 'registry' | 'documents';
+      reason: 'registry' | 'documents' | 'manual_document_block';
     };
 
 const REQUIRED_DOCUMENTS: readonly DriverDocumentType[] = [
@@ -35,6 +35,8 @@ export async function driverOperationalEligibility(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
+  enforceDocuments?: boolean;
+  manualDocumentBlocked?: boolean;
   now?: Date;
 }): Promise<DriverOperationalEligibility> {
   const [profile, vehicle, documentRecords] = await Promise.all([
@@ -55,20 +57,29 @@ export async function driverOperationalEligibility(input: {
     };
   }
 
-  const today = (input.now ?? new Date()).toISOString().slice(0, 10);
-  const byType = new Map(
-    documentRecords.map((record) => [record.documentType, record]),
-  );
-
-  const documentsApproved = REQUIRED_DOCUMENTS.every(
-    (type) => documentIsApproved(byType.get(type) ?? null, today),
-  );
-
-  if (!documentsApproved) {
+  if (input.manualDocumentBlocked === true) {
     return {
       eligible: false,
-      reason: 'documents',
+      reason: 'manual_document_block',
     };
+  }
+
+  if (input.enforceDocuments === true) {
+    const today = (input.now ?? new Date()).toISOString().slice(0, 10);
+    const byType = new Map(
+      documentRecords.map((record) => [record.documentType, record]),
+    );
+
+    const documentsApproved = REQUIRED_DOCUMENTS.every(
+      (type) => documentIsApproved(byType.get(type) ?? null, today),
+    );
+
+    if (!documentsApproved) {
+      return {
+        eligible: false,
+        reason: 'documents',
+      };
+    }
   }
 
   return {
@@ -81,6 +92,8 @@ export async function canDriverReceiveNewWork(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
+  enforceDocuments?: boolean;
+  manualDocumentBlocked?: boolean;
   now?: Date;
 }): Promise<boolean> {
   return (
