@@ -2,6 +2,8 @@ import 'package:latlong2/latlong.dart';
 
 import '../core/location/location_service.dart';
 import '../features/home/domain/service_type.dart';
+import '../features/map/data/place_search_service.dart';
+import '../features/map/data/route_service.dart';
 import '../features/map/domain/ramo_place.dart';
 import '../features/map/domain/route_info.dart';
 import '../features/payments/data/passenger_payment_service.dart';
@@ -27,6 +29,8 @@ final class PassengerPreviewDependencies {
   PassengerPreviewDependencies();
 
   final LocationService location = const _PreviewLocationService();
+  final RouteService route = const _PreviewRouteService();
+  final PlaceSearchService places = const _PreviewPlaceSearchService();
   final PricingQuoteService pricing = const _PreviewPricingService();
   final RidePreparationService ridePreparation =
       const _PreviewRidePreparationService();
@@ -43,6 +47,62 @@ final class _PreviewLocationService implements LocationService {
   @override
   Future<LatLng> getCurrentLocation() async =>
       const LatLng(-2.7956, -40.5142);
+}
+
+final class _PreviewRouteService implements RouteService {
+  const _PreviewRouteService();
+
+  @override
+  Future<RouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    final distanceMeters =
+        const Distance().as(LengthUnit.Meter, origin, destination);
+    final seconds = (distanceMeters / 8.33).round().clamp(60, 7200);
+
+    return RouteInfo(
+      points: [origin, destination],
+      distanceMeters: distanceMeters,
+      duration: Duration(seconds: seconds),
+    );
+  }
+}
+
+final class _PreviewPlaceSearchService implements PlaceSearchService {
+  const _PreviewPlaceSearchService();
+
+  static const _places = <RamoPlace>[
+    RamoPlace(
+      name: 'Jericoacoara',
+      address: 'Vila de Jericoacoara, Jijoca de Jericoacoara - CE',
+      position: LatLng(-2.7956, -40.5142),
+    ),
+    RamoPlace(
+      name: 'Preá',
+      address: 'Preá, Cruz - CE',
+      position: LatLng(-2.8157, -40.4126),
+    ),
+    RamoPlace(
+      name: 'Jijoca de Jericoacoara',
+      address: 'Jijoca de Jericoacoara - CE',
+      position: LatLng(-2.8994, -40.4519),
+    ),
+  ];
+
+  @override
+  Future<List<RamoPlace>> search(String query) async {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.length < 2) return const [];
+
+    return _places
+        .where(
+          (place) =>
+              place.name.toLowerCase().contains(normalized) ||
+              place.address.toLowerCase().contains(normalized),
+        )
+        .toList(growable: false);
+  }
 }
 
 final class _PreviewPricingService implements PricingQuoteService {
