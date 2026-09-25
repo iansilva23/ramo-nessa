@@ -247,8 +247,10 @@ import {
   InvalidPricingCatalogPatchError,
   parsePricingCatalogDraftPatch,
 } from './pricing/pricing-catalog-version-validation.js';
-import { createRoutingDistanceProviderFromEnv } from './routing/osrm-distance-provider.js';
-import { createValhallaRoutingProviderFromEnv } from './routing/valhalla-route-provider.js';
+import {
+  createRoutingDistanceProviderFromEnv,
+  createRoutingRouteProviderFromEnv,
+} from './routing/routing-provider-factory.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
   confirmRidePayment,
@@ -343,7 +345,7 @@ const {
   close: closeRepositories,
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
-const routingRouteProvider = createValhallaRoutingProviderFromEnv();
+const routingRouteProvider = createRoutingRouteProviderFromEnv();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
@@ -995,7 +997,9 @@ const server = createServer(async (request, response) => {
           to: destination,
         });
         json(response, 200, {
-          provider: 'valhalla',
+          provider:
+            process.env.ROUTING_PROVIDER?.trim().toLowerCase() ||
+            'google',
           distanceMeters: route.distanceMeters,
           durationSeconds: route.durationSeconds,
           points: route.points,
