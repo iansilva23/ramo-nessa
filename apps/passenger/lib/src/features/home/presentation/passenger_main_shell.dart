@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/auth/phone_auth_service.dart';
 import '../../../core/notifications/firebase_push_coordinator.dart';
 import '../../payments/data/passenger_payment_service.dart';
+import '../../map/data/place_search_service.dart';
+import '../../profile/data/passenger_saved_place_service.dart';
 import '../../profile/presentation/passenger_profile_screen.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import '../../rides/presentation/passenger_activity_screen.dart';
@@ -14,6 +16,8 @@ class PassengerMainShell extends StatefulWidget {
     required this.activityService,
     required this.authService,
     required this.paymentService,
+    required this.savedPlaceService,
+    required this.placeSearchService,
     required this.accessToken,
     this.pushCoordinator,
     this.onLogout,
@@ -24,6 +28,8 @@ class PassengerMainShell extends StatefulWidget {
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
+  final PassengerSavedPlaceService? savedPlaceService;
+  final PlaceSearchService? placeSearchService;
   final String? accessToken;
   final FirebasePushCoordinator? pushCoordinator;
   final Future<bool> Function()? onLogout;
@@ -54,6 +60,8 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
             onOpenActivity: () => _select(1),
             activityService: widget.activityService,
             paymentService: widget.paymentService,
+            savedPlaceService: widget.savedPlaceService,
+            placeSearchService: widget.placeSearchService,
             pushCoordinator: widget.pushCoordinator,
             onLogout: widget.onLogout,
             previewMode: widget.previewMode,
