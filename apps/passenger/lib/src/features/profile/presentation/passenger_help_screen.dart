@@ -40,7 +40,7 @@ class PassengerHelpScreen extends StatelessWidget {
             title: 'E se nenhum motorista aceitar?',
             body:
                 'O aplicativo informa que não encontrou motorista. Quando houver '
-                'pagamento antecipado, o fluxo de estorno segue as regras do Core.',
+                'pagamento antecipado, o estorno é processado conforme a forma de pagamento usada.',
           ),
           _HelpItem(
             title: 'Como protejo minha conta?',
