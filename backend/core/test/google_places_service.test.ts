@@ -235,6 +235,18 @@ test('Place Details encerra a mesma sessão com campos Essentials', async () => 
           latitude: -2.7956,
           longitude: -40.5142,
         },
+        addressComponents: [
+          {
+            longText: 'Jericoacoara',
+            shortText: 'Jericoacoara',
+            types: ['locality'],
+          },
+          {
+            longText: 'Ceará',
+            shortText: 'CE',
+            types: ['administrative_area_level_1'],
+          },
+        ],
       }),
       { status: 200 },
     );
@@ -265,13 +277,19 @@ test('Place Details encerra a mesma sessão com campos Essentials', async () => 
   const headers = new Headers(capturedHeaders);
   assert.equal(
     headers.get('x-goog-fieldmask'),
-    'id,formattedAddress,location',
+    'id,formattedAddress,location,addressComponents',
   );
   assert.deepEqual(result, {
     id: 'jeri-place',
     address: 'Jericoacoara, Jijoca de Jericoacoara - CE, Brasil',
     latitude: -2.7956,
     longitude: -40.5142,
+    addressComponentNames: [
+      'Jericoacoara',
+      'Jericoacoara',
+      'Ceará',
+      'CE',
+    ],
   });
 });
 
