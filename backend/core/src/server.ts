@@ -276,6 +276,12 @@ import {
   submitPassengerDriverRating,
 } from './rides/driver-rating-service.js';
 import { passengerActivityForApp } from './rides/passenger-activity-service.js';
+import {
+  PassengerSavedPlaceError,
+  deletePassengerSavedPlace,
+  listPassengerSavedPlaces,
+  savePassengerSavedPlace,
+} from './passengers/passenger-saved-place-service.js';
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
@@ -344,6 +350,7 @@ const {
   pushDeviceRepository,
   adminCommunicationsRepository,
   operationalSettingsRepository,
+  passengerSavedPlaceRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -1385,6 +1392,83 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/saved-places'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      json(
+        response,
+        200,
+        await listPassengerSavedPlaces({
+          repository: passengerSavedPlaceRepository,
+          passengerId: session.subjectId,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/passenger/me/saved-places'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+
+      json(
+        response,
+        200,
+        await savePassengerSavedPlace({
+          repository: passengerSavedPlaceRepository,
+          passengerId: session.subjectId,
+          kind: value.kind,
+          label: value.label,
+          name: value.name,
+          address: value.address,
+          latitude: value.latitude,
+          longitude: value.longitude,
+        }),
+      );
+      return;
+    }
+
+    const passengerSavedPlaceMatch = requestUrl.pathname.match(
+      /^\/v1\/passenger\/me\/saved-places\/([0-9a-fA-F-]+)$/,
+    );
+    if (
+      request.method === 'DELETE' &&
+      passengerSavedPlaceMatch != null
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      await deletePassengerSavedPlace({
+        repository: passengerSavedPlaceRepository,
+        passengerId: session.subjectId,
+        id: passengerSavedPlaceMatch[1]!,
+      });
+      response.writeHead(204);
+      response.end();
+      return;
+    }
 
     if (
       request.method === 'PUT' &&
@@ -4537,6 +4621,20 @@ const server = createServer(async (request, response) => {
         ...(error.retryAfterSeconds == null
           ? {}
           : { retryAfterSeconds: error.retryAfterSeconds }),
+      });
+      return;
+    }
+
+    if (error instanceof PassengerSavedPlaceError) {
+      const status =
+        error.code === 'SAVED_PLACE_NOT_FOUND'
+          ? 404
+          : error.code === 'SAVED_PLACE_LIMIT'
+            ? 409
+            : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
       });
       return;
     }
