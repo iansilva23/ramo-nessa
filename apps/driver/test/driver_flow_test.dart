@@ -31,17 +31,22 @@ void main() {
 
     expect(find.text('Nova corrida'), findsOneWidget);
     expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
-    expect(find.text('Preá → Jijoca'), findsOneWidget);
+    expect(find.text('Preá'), findsOneWidget);
+    expect(find.text('Jijoca'), findsOneWidget);
+    expect(find.text('EMBARQUE'), findsOneWidget);
+    expect(find.text('DESTINO'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Aceitar'));
+    await tester.ensureVisible(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Aceitar'));
+    await tester.tap(find.text('Aceitar corrida'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(find.text('A caminho do embarque'), findsOneWidget);
     expect(find.text('Cheguei'), findsOneWidget);
     expect(find.text('Navegar até o embarque'), findsOneWidget);
+    expect(find.textContaining('-2.82017'), findsNothing);
+    expect(find.textContaining('-40.41467'), findsNothing);
     expect(api.acceptedOfferId, 'offer-1');
 
     await tester.ensureVisible(find.text('Navegar até o embarque'));
