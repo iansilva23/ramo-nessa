@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/app.dart';
 import 'package:ramo_nessa_driver/src/core/location/driver_location_service.dart';
 import 'package:ramo_nessa_driver/src/core/navigation/driver_navigation_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/driver_route_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
+import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
 
 void main() {
   testWidgets('motorista fica online, recebe oferta e aceita', (tester) async {
@@ -299,6 +302,39 @@ void main() {
     },
   );
 
+  testWidgets(
+    'mesma oferta reutiliza rotas sem repetir chamadas do provedor',
+    (tester) async {
+      final api = _FakeDriverApi(
+        initialOnline: true,
+        offerCoordinates: true,
+      );
+      final routes = _CountingRouteService();
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+          routeService: routes,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(routes.calls, 2);
+
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(seconds: 11));
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(routes.calls, 2);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('motorista pode recusar oferta', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
 
@@ -337,6 +373,23 @@ class _FakeNavigationService implements DriverNavigationService {
   }) async {
     lastLatitude = latitude;
     lastLongitude = longitude;
+  }
+}
+
+class _CountingRouteService implements DriverRouteService {
+  int calls = 0;
+
+  @override
+  Future<DriverRouteInfo> route({
+    required LatLng origin,
+    required LatLng destination,
+  }) async {
+    calls++;
+    return DriverRouteInfo(
+      points: [origin, destination],
+      distanceMeters: 1500,
+      duration: const Duration(minutes: 4),
+    );
   }
 }
 
@@ -379,6 +432,7 @@ class _FakeDriverApi implements DriverApi {
     this.failFirstPayoutUnexpectedly = false,
     this.missingSupplyOnFirstLoad = false,
     this.cashCommissionDebtCents = 0,
+    this.offerCoordinates = false,
   })  : _finance = DriverFinanceSummary(
           availableBalanceCents: 11000,
           payoutPendingCents: 0,
@@ -416,6 +470,7 @@ class _FakeDriverApi implements DriverApi {
   final bool failFirstPayoutUnexpectedly;
   final bool missingSupplyOnFirstLoad;
   final int cashCommissionDebtCents;
+  final bool offerCoordinates;
   DriverSupplySnapshot _supply;
   int getSupplyCalls = 0;
   bool _offerAvailable = true;
@@ -435,6 +490,10 @@ class _FakeDriverApi implements DriverApi {
         rideId: 'ride-1',
         expiresAt: DateTime.now().add(const Duration(minutes: 2)),
         approximatePickupDistanceKm: 1.1,
+        pickupLatitude: offerCoordinates ? -2.82017 : null,
+        pickupLongitude: offerCoordinates ? -40.41467 : null,
+        dropoffLatitude: offerCoordinates ? -2.7956 : null,
+        dropoffLongitude: offerCoordinates ? -40.5142 : null,
         category: 'car',
         passengers: 2,
         origin: const DriverLocationRef(zoneId: 'prea'),
