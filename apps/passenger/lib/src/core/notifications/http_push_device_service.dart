@@ -35,7 +35,7 @@ class RegisteredPushDevice {
         enabled is! bool ||
         updatedAt is! String) {
       throw const FormatException(
-        'Cadastro push retornado pelo Core é inválido.',
+        'O serviço de notificações retornou um cadastro inválido.',
       );
     }
 
@@ -128,10 +128,10 @@ class HttpPushDeviceService {
     try {
       decoded = jsonDecode(response.body);
     } catch (_) {
-      throw const FormatException('Resposta inválida do Core.');
+      throw const FormatException('Resposta inválida do servidor.');
     }
     if (decoded is! Map<String, dynamic>) {
-      throw const FormatException('Resposta inválida do Core.');
+      throw const FormatException('Resposta inválida do servidor.');
     }
     return decoded;
   }
