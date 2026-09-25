@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
+import { InMemoryDriverDocumentRepository } from '../src/drivers/repositories/in-memory-driver-document-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import {
   acceptOfferFromDriverApp,
@@ -22,6 +23,34 @@ import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride
 import type { RideRecord } from '../src/rides/ride.js';
 
 const now = new Date('2026-09-23T17:00:00.000Z');
+
+async function approveRequiredDocuments(
+  documents: InMemoryDriverDocumentRepository,
+  driverId: string,
+  expiresOn = '2028-09-23',
+) {
+  const instant = now.toISOString();
+  for (const documentType of [
+    'driver_license',
+    'vehicle_registration',
+  ] as const) {
+    await documents.submitCurrent({
+      id: `${driverId}-${documentType}`,
+      driverId,
+      documentType,
+      storageKey: `drivers/${driverId}/${documentType}/approved.pdf`,
+      contentSha256: 'a'.repeat(64),
+      mimeType: 'application/pdf',
+      sizeBytes: 120_000,
+      expiresOn,
+      status: 'approved',
+      isCurrent: true,
+      submittedAt: instant,
+      createdAt: instant,
+      updatedAt: instant,
+    });
+  }
+}
 
 function ride(): RideRecord {
   return {
@@ -55,6 +84,7 @@ async function setup() {
   const rides = new InMemoryRideRepository();
   const drivers = new InMemoryDriverSupplyRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const documents = new InMemoryDriverDocumentRepository();
   const matching = new InMemoryRideMatchingRepository(rides, drivers);
   const currentRide = await rides.create(ride());
 
@@ -92,6 +122,7 @@ async function setup() {
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     });
+    await approveRequiredDocuments(documents, driver.driverId);
   }
 
   await drivers.upsert({
@@ -143,6 +174,7 @@ async function setup() {
     rides,
     drivers,
     registry,
+    documents,
     matching,
     currentRide,
     offer: offer.offer,
@@ -155,6 +187,7 @@ test('app só altera online/localização e preserva regras aprovadas', async ()
   const updated = await updateDriverSupplyFromApp({
     drivers: ctx.drivers,
     registry: ctx.registry,
+    documents: ctx.documents,
     driverId: 'driver-one',
     online: true,
     latitude: -2.822,
@@ -172,6 +205,7 @@ test('app só altera online/localização e preserva regras aprovadas', async ()
 test('cadastro aprovado inicializa supply somente com GPS real e regras do veículo', async () => {
   const drivers = new InMemoryDriverSupplyRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const documents = new InMemoryDriverDocumentRepository();
   const driverId = 'driver-first-location';
 
   await registry.upsertProfile({
@@ -200,6 +234,7 @@ test('cadastro aprovado inicializa supply somente com GPS real e regras do veíc
   const initialized = await updateDriverSupplyFromApp({
     drivers,
     registry,
+    documents,
     driverId,
     online: false,
     latitude: -2.82017,
@@ -219,6 +254,7 @@ test('cadastro aprovado inicializa supply somente com GPS real e regras do veíc
 test('cadastro pendente impede inicialização operacional', async () => {
   const drivers = new InMemoryDriverSupplyRepository();
   const registry = new InMemoryDriverRegistryRepository();
+  const documents = new InMemoryDriverDocumentRepository();
   const driverId = 'driver-pending-registry';
 
   await registry.upsertProfile({
@@ -276,6 +312,7 @@ test('oferta não pode ser aceita depois que o cadastro perde aprovação', asyn
       acceptOfferFromDriverApp({
         rides: ctx.rides,
         registry: ctx.registry,
+        documents: ctx.documents,
         matching: ctx.matching,
         offerId: ctx.offer.id,
         driverId: 'driver-one',
@@ -294,6 +331,7 @@ test('motorista recebe somente a própria oferta ativa', async () => {
     rides: ctx.rides,
     drivers: ctx.drivers,
     registry: ctx.registry,
+    documents: ctx.documents,
     matching: ctx.matching,
     driverId: 'driver-one',
     now: new Date('2026-09-23T17:00:03.000Z'),
@@ -310,6 +348,7 @@ test('aceite limpa hold, atribui corrida e deixa motorista ocupado', async () =>
   const accepted = await acceptOfferFromDriverApp({
     rides: ctx.rides,
     registry: ctx.registry,
+    documents: ctx.documents,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
@@ -374,6 +413,7 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
   await acceptOfferFromDriverApp({
     rides: ctx.rides,
     registry: ctx.registry,
+    documents: ctx.documents,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
@@ -453,6 +493,7 @@ test('motorista não pode iniciar corrida antes de marcar chegada', async () => 
   await acceptOfferFromDriverApp({
     rides: ctx.rides,
     registry: ctx.registry,
+    documents: ctx.documents,
     matching: ctx.matching,
     offerId: ctx.offer.id,
     driverId: 'driver-one',
