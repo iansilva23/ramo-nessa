@@ -2402,6 +2402,14 @@ const server = createServer(async (request, response) => {
           'driverDocumentAutoEnforcement deve ser booleano.',
         );
       }
+      if (driverDocumentAutoEnforcement != null) {
+        await authenticateAdminPrincipal({
+          apiKeys: adminRepository,
+          humanAuth: adminHumanAuthRepository,
+          headers: request.headers,
+          requiredScope: 'drivers:documents:write',
+        });
+      }
       if (
         driverOfferTtlSeconds == null &&
         showNearbyDrivers == null &&
