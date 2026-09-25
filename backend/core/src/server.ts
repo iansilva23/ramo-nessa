@@ -232,6 +232,12 @@ import {
   updateAdminOperationalSettings,
 } from './admin/admin-operational-settings-service.js';
 import {
+  AdminDriverDocumentComplianceError,
+  adminDriverDocumentComplianceView,
+  decideDriverDocumentCompliance,
+  notifyDriverDocumentCompliance,
+} from './admin/admin-driver-document-compliance-service.js';
+import {
   AdminDriverCashPolicyError,
   adminDriverCashPolicyView,
   setAdminDriverCashDebtLimit,
@@ -360,6 +366,7 @@ const {
   driverSupplyRepository,
   driverRegistryRepository,
   driverDocumentRepository,
+  driverDocumentComplianceRepository,
   driverSupportRepository,
   pricingCatalogVersionRepository,
   ridePreparationRepository,
@@ -397,6 +404,36 @@ const documentInspectionTtlSeconds =
   privateDocumentStorage == null
     ? 60
     : resolveDocumentInspectionTtlSeconds();
+
+async function driverDocumentPolicy(
+  driverId: string,
+): Promise<{
+  enforceDocuments: boolean;
+  manualDocumentBlocked: boolean;
+}> {
+  const [settings, control] = await Promise.all([
+    operationalSettingsRepository.get(),
+    driverDocumentComplianceRepository.get(driverId),
+  ]);
+  return {
+    enforceDocuments: settings.driverDocumentAutoEnforcement === true,
+    manualDocumentBlocked: control?.manualBlocked === true,
+  };
+}
+
+async function canDriverReceiveNewWorkUnderPolicy(
+  driverId: string,
+  now?: Date,
+): Promise<boolean> {
+  const policy = await driverDocumentPolicy(driverId);
+  return canDriverReceiveNewWork({
+    registry: driverRegistryRepository,
+    documents: driverDocumentRepository,
+    driverId,
+    ...policy,
+    ...(now == null ? {} : { now }),
+  });
+}
 
 function headerValue(
   request: IncomingMessage,
@@ -2329,6 +2366,7 @@ const server = createServer(async (request, response) => {
       const payload = body as {
         driverOfferTtlSeconds?: unknown;
         showNearbyDrivers?: unknown;
+        driverDocumentAutoEnforcement?: unknown;
       };
       const driverOfferTtlSeconds =
         payload.driverOfferTtlSeconds == null
@@ -2338,6 +2376,10 @@ const server = createServer(async (request, response) => {
         payload.showNearbyDrivers == null
           ? undefined
           : payload.showNearbyDrivers;
+      const driverDocumentAutoEnforcement =
+        payload.driverDocumentAutoEnforcement == null
+          ? undefined
+          : payload.driverDocumentAutoEnforcement;
 
       if (
         driverOfferTtlSeconds != null &&
@@ -2356,8 +2398,17 @@ const server = createServer(async (request, response) => {
         );
       }
       if (
+        driverDocumentAutoEnforcement != null &&
+        typeof driverDocumentAutoEnforcement !== 'boolean'
+      ) {
+        throw new InvalidAdminRequestError(
+          'driverDocumentAutoEnforcement deve ser booleano.',
+        );
+      }
+      if (
         driverOfferTtlSeconds == null &&
-        showNearbyDrivers == null
+        showNearbyDrivers == null &&
+        driverDocumentAutoEnforcement == null
       ) {
         throw new InvalidAdminRequestError(
           'Informe ao menos uma configuração operacional.',
@@ -2374,6 +2425,9 @@ const server = createServer(async (request, response) => {
         ...(showNearbyDrivers == null
           ? {}
           : { showNearbyDrivers }),
+        ...(driverDocumentAutoEnforcement == null
+          ? {}
+          : { driverDocumentAutoEnforcement }),
       });
       json(response, 200, settings);
       return;
@@ -3070,6 +3124,115 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const adminDriverDocumentComplianceNotifyMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/document-compliance\/notify$/,
+      );
+    if (
+      request.method === 'POST' &&
+      adminDriverDocumentComplianceNotifyMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:write',
+      });
+      const result = await notifyDriverDocumentCompliance({
+        documents: driverDocumentRepository,
+        controls: driverDocumentComplianceRepository,
+        settings: operationalSettingsRepository,
+        admin: adminRepository,
+        actor,
+        push: pushNotificationService,
+        driverId: adminDriverDocumentComplianceNotifyMatch[1]!,
+      });
+      json(response, 200, result);
+      return;
+    }
+
+    const adminDriverDocumentComplianceMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/document-compliance$/,
+      );
+    if (
+      request.method === 'GET' &&
+      adminDriverDocumentComplianceMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:read',
+      });
+      json(
+        response,
+        200,
+        await adminDriverDocumentComplianceView({
+          documents: driverDocumentRepository,
+          controls: driverDocumentComplianceRepository,
+          settings: operationalSettingsRepository,
+          driverId: adminDriverDocumentComplianceMatch[1]!,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      adminDriverDocumentComplianceMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:write',
+      });
+      const body = await readJson(request);
+      const action =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        typeof (body as { action?: unknown }).action === 'string'
+          ? (body as { action: string }).action
+          : '';
+      if (
+        action !== 'block' &&
+        action !== 'keep_active' &&
+        action !== 'unblock'
+      ) {
+        throw new InvalidAdminRequestError(
+          'action deve ser block, keep_active ou unblock.',
+        );
+      }
+
+      const result = await decideDriverDocumentCompliance({
+        documents: driverDocumentRepository,
+        controls: driverDocumentComplianceRepository,
+        settings: operationalSettingsRepository,
+        admin: adminRepository,
+        actor,
+        driverId: adminDriverDocumentComplianceMatch[1]!,
+        action,
+      });
+
+      if (result.effectiveBlocked) {
+        const supply = await driverSupplyRepository.findByDriverId(
+          adminDriverDocumentComplianceMatch[1]!,
+        );
+        if (supply != null && !supply.busy && supply.online) {
+          await driverSupplyRepository.upsert({
+            ...supply,
+            online: false,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
+
+      json(response, 200, result);
+      return;
+    }
+
     const adminDriverDocumentReviewMatch =
       requestUrl.pathname.match(
         /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/documents\/(driver_license|vehicle_registration)\/review$/,
@@ -3701,11 +3864,13 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
       });
       const body = parseUpdateDriverSupplyRequest(await readJson(request));
+      const documentPolicy = await driverDocumentPolicy(driverId);
       const supply = await updateDriverSupplyFromApp({
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
         documents: driverDocumentRepository,
         driverId,
+        ...documentPolicy,
         ...body,
       });
 
@@ -3971,11 +4136,13 @@ const server = createServer(async (request, response) => {
       const action = driverOfferAction[2]!;
 
       if (action === 'accept') {
+        const documentPolicy = await driverDocumentPolicy(driverId);
         const result = await acceptOfferFromDriverApp({
           rides: rideRepository,
           registry: driverRegistryRepository,
           documents: driverDocumentRepository,
           matching: rideMatchingRepository,
+          ...documentPolicy,
           offerId,
           driverId,
         });
@@ -4032,11 +4199,7 @@ const server = createServer(async (request, response) => {
         paymentPolicySettings: paymentPolicySettingsRepository,
         operationalSettings: operationalSettingsRepository,
         canOfferDriver: (candidateDriverId) =>
-          canDriverReceiveNewWork({
-            registry: driverRegistryRepository,
-            documents: driverDocumentRepository,
-            driverId: candidateDriverId,
-          }),
+          canDriverReceiveNewWorkUnderPolicy(candidateDriverId),
         offerId,
         driverId,
       });
@@ -4140,12 +4303,10 @@ const server = createServer(async (request, response) => {
         pickup: body.pickup,
         dropoff: body.dropoff,
         canUseDriver: (candidateDriverId) =>
-          canDriverReceiveNewWork({
-            registry: driverRegistryRepository,
-            documents: driverDocumentRepository,
-            driverId: candidateDriverId,
+          canDriverReceiveNewWorkUnderPolicy(
+            candidateDriverId,
             now,
-          }),
+          ),
         now,
       });
 
@@ -4738,6 +4899,14 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof AdminCommunicationsError) {
+      json(response, 409, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof AdminDriverDocumentComplianceError) {
       json(response, 409, {
         error: error.code,
         message: error.message,
