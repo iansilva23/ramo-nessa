@@ -204,7 +204,7 @@ class _CoreConfigurationError extends StatelessWidget {
                 ),
                 SizedBox(height: 10),
                 Text(
-                  'Instalação de produção sem configuração segura do Core.',
+                  'Não foi possível concluir a configuração necessária para iniciar o app.',
                   textAlign: TextAlign.center,
                 ),
               ],
