@@ -235,6 +235,7 @@ import {
   AdminDriverDocumentComplianceError,
   adminDriverDocumentComplianceView,
   decideDriverDocumentCompliance,
+  listAdminDriverDocumentComplianceAlerts,
   notifyDriverDocumentCompliance,
 } from './admin/admin-driver-document-compliance-service.js';
 import {
@@ -3117,6 +3118,35 @@ const server = createServer(async (request, response) => {
           "default-src 'none'; sandbox; frame-ancestors 'none'",
       });
       response.end(inspected.bytes);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/driver-document-compliance-alerts'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:documents:read',
+      });
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:auth:read',
+      });
+      json(
+        response,
+        200,
+        await listAdminDriverDocumentComplianceAlerts({
+          identities: authOtpRepository,
+          documents: driverDocumentRepository,
+          controls: driverDocumentComplianceRepository,
+          settings: operationalSettingsRepository,
+        }),
+      );
       return;
     }
 
