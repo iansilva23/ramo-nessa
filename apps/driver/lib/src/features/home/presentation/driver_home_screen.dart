@@ -1841,12 +1841,20 @@ class _MapCircleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      elevation: 5,
+      elevation: 0,
       shape: const CircleBorder(),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: RamoElevation.floating(context),
+        ),
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, size: 23),
+        ),
       ),
     );
   }
@@ -1865,19 +1873,26 @@ class _EarningsPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: RamoColors.brandBlack,
-      elevation: 6,
+      elevation: 0,
       borderRadius: BorderRadius.circular(RamoRadius.pill),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(RamoRadius.pill),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          child: Text(
-            formatCents(amountCents),
-            style: const TextStyle(
-              color: RamoColors.brandYellow,
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(RamoRadius.pill),
+          boxShadow: RamoElevation.floating(context),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(RamoRadius.pill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Text(
+              formatCents(amountCents),
+              style: const TextStyle(
+                color: RamoColors.brandYellow,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                letterSpacing: -0.25,
+              ),
             ),
           ),
         ),
@@ -1932,10 +1947,12 @@ class _MapAvailabilityPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(24),
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
+        boxShadow: RamoElevation.floating(context),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
         child: online
