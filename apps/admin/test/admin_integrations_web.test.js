@@ -16,7 +16,7 @@ test('admin exposes Google Maps production setup center', async () => {
   assert.match(html, /GOOGLE_MAPS_SERVER_API_KEY/);
 
   assert.match(app, /loadIntegrations/);
-  assert.match(app, /RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY/);
+  assert.match(app, /item\.githubSecretName/);
   assert.match(app, /google-credential-cards/);
   assert.match(api, /\/v1\/admin\/integrations/);
 
