@@ -263,6 +263,9 @@ import {
   GooglePlacesError,
   createGooglePlacesServiceFromEnv,
 } from './places/google-places-service.js';
+import {
+  isApprovedExternalPlacesQuery,
+} from './places/places-access-policy.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
   confirmRidePayment,
@@ -424,30 +427,20 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   response.end(JSON.stringify(body));
 }
 
-function placesLocalityId(value: string): string {
-  const label = value.split(',')[0]?.trim() ?? '';
-  return label
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 async function resolvePlacesLocalOnly(input: {
   query: string;
   requestedLocalOnly: boolean;
 }): Promise<boolean | null> {
   if (input.requestedLocalOnly) return true;
 
-  const localityId = placesLocalityId(input.query);
-  if (!localityId) return null;
-
   const pricing = await resolvePricingCatalogContext({
     versions: pricingCatalogVersionRepository,
     at: new Date(),
   });
-  return pricing.snapshot.externalLocalities.includes(localityId)
+  return isApprovedExternalPlacesQuery({
+    query: input.query,
+    externalLocalities: pricing.snapshot.externalLocalities,
+  })
     ? false
     : null;
 }
