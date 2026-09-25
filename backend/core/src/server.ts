@@ -84,6 +84,13 @@ import {
   PassengerPasswordAuthError,
   updatePassengerAccount,
 } from './auth/passenger-password-auth-service.js';
+import {
+  MAX_PASSENGER_PROFILE_PHOTO_JSON_BYTES,
+  PassengerProfilePhotoError,
+  passengerPhotoPath,
+  readPassengerProfilePhoto,
+  updatePassengerProfilePhoto,
+} from './auth/passenger-profile-photo-service.js';
 import { resolveOtpDeliveryProviderFromEnv } from './auth/otp-delivery-provider.js';
 import {
   AdminAuthenticationError,
@@ -1326,6 +1333,76 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/photo'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const photo = await readPassengerProfilePhoto({
+        identities: authOtpRepository,
+        subjectId: session.subjectId,
+      });
+      if (photo == null) {
+        json(response, 404, {
+          error: 'PASSENGER_PHOTO_NOT_FOUND',
+          message: 'Foto do passageiro não encontrada.',
+        });
+        return;
+      }
+
+      response.writeHead(200, {
+        'content-type': photo.mimeType,
+        'content-length': String(photo.bytes.length),
+        'cache-control': 'private, max-age=86400, immutable',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(photo.bytes);
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/passenger/me/photo'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+        requiredType: 'passenger',
+      });
+      const body = await readJson(
+        request,
+        MAX_PASSENGER_PROFILE_PHOTO_JSON_BYTES,
+      );
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const identity = await updatePassengerProfilePhoto({
+        identities: authOtpRepository,
+        subjectId: session.subjectId,
+        mimeType: value.mimeType,
+        dataBase64: value.dataBase64,
+      });
+
+      json(response, 200, {
+        subjectId: identity.subjectId,
+        phoneE164: identity.phoneE164,
+        email: identity.emailNormalized ?? null,
+        fullName: identity.fullName ?? null,
+        photoUrl:
+          passengerPhotoPath(identity.photoUpdatedAt) ??
+          identity.photoUrl ??
+          null,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/passenger/me/account'
     ) {
       const session = await authenticateBearer({
@@ -1349,7 +1426,10 @@ const server = createServer(async (request, response) => {
         phoneE164: identity.phoneE164,
         email: identity.emailNormalized ?? null,
         fullName: identity.fullName ?? null,
-        photoUrl: identity.photoUrl ?? null,
+        photoUrl:
+          passengerPhotoPath(identity.photoUpdatedAt) ??
+          identity.photoUrl ??
+          null,
       });
       return;
     }
@@ -1378,17 +1458,26 @@ const server = createServer(async (request, response) => {
           ? String((body as { password?: unknown }).password ?? '')
           : undefined;
 
-      json(
-        response,
-        200,
-        await updatePassengerAccount({
-          identities: authOtpRepository,
-          subjectId: session.subjectId,
-          ...(fullName == null ? {} : { fullName }),
-          ...(email == null ? {} : { email }),
-          ...(password == null ? {} : { password }),
-        }),
-      );
+      const account = await updatePassengerAccount({
+        identities: authOtpRepository,
+        subjectId: session.subjectId,
+        ...(fullName == null ? {} : { fullName }),
+        ...(email == null ? {} : { email }),
+        ...(password == null ? {} : { password }),
+      });
+      const updatedIdentity =
+        await authOtpRepository.findIdentityBySubject(
+          'passenger',
+          session.subjectId,
+        );
+
+      json(response, 200, {
+        ...account,
+        photoUrl:
+          passengerPhotoPath(updatedIdentity?.photoUpdatedAt) ??
+          account.photoUrl ??
+          null,
+      });
       return;
     }
 
@@ -4473,6 +4562,20 @@ const server = createServer(async (request, response) => {
           : error.code === 'INVALID_RATING'
             ? 422
             : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PassengerProfilePhotoError) {
+      const status =
+        error.code === 'PASSENGER_IDENTITY_NOT_FOUND'
+          ? 404
+          : error.code === 'PHOTO_TOO_LARGE'
+            ? 413
+            : 422;
       json(response, status, {
         error: error.code,
         message: error.message,
