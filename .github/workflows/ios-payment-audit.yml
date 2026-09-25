@@ -35,6 +35,12 @@ jobs:
         working-directory: apps/passenger
         run: flutter pub get --enforce-lockfile
 
+      - name: Configure Passenger Google Maps iOS key
+        working-directory: apps/passenger/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
+
       - name: Build Passenger iOS simulator with Mercado Pago
         working-directory: apps/passenger
         env:
