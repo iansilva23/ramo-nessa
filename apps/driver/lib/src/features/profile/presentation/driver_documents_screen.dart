@@ -108,7 +108,8 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
 
     try {
       final reportedLength = file.lengthSync();
-      if (reportedLength > 20 * 1024 * 1024) {
+      if (reportedLength != null &&
+          reportedLength > 20 * 1024 * 1024) {
         if (!mounted) return;
         setState(() {
           _error = 'O documento precisa ter no máximo 20 MB.';
