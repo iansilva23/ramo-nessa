@@ -19,11 +19,14 @@ import { InMemoryRideMatchingRepository } from '../matching/in-memory-ride-match
 import { PostgresRideMatchingRepository } from '../matching/postgres-ride-matching-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { DriverDocumentRepository } from '../drivers/driver-document-repository.js';
+import type { DriverDocumentComplianceRepository } from '../drivers/driver-document-compliance-repository.js';
 import type { DriverSupportRepository } from '../drivers/driver-support-repository.js';
 import { InMemoryDriverSupportRepository } from '../drivers/repositories/in-memory-driver-support-repository.js';
 import { PostgresDriverSupportRepository } from '../drivers/repositories/postgres-driver-support-repository.js';
 import { InMemoryDriverDocumentRepository } from '../drivers/repositories/in-memory-driver-document-repository.js';
 import { PostgresDriverDocumentRepository } from '../drivers/repositories/postgres-driver-document-repository.js';
+import { InMemoryDriverDocumentComplianceRepository } from '../drivers/repositories/in-memory-driver-document-compliance-repository.js';
+import { PostgresDriverDocumentComplianceRepository } from '../drivers/repositories/postgres-driver-document-compliance-repository.js';
 import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import { InMemoryDriverRegistryRepository } from '../drivers/repositories/in-memory-driver-registry-repository.js';
 import { PostgresDriverRegistryRepository } from '../drivers/repositories/postgres-driver-registry-repository.js';
@@ -65,6 +68,7 @@ export interface RepositoryBundle {
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
   driverDocumentRepository: DriverDocumentRepository;
+  driverDocumentComplianceRepository: DriverDocumentComplianceRepository;
   driverSupportRepository: DriverSupportRepository;
   pricingCatalogVersionRepository: PricingCatalogVersionRepository;
   rideMatchingRepository: RideMatchingRepository;
@@ -102,6 +106,8 @@ export function createRepositories(): RepositoryBundle {
         new PostgresDriverRegistryRepository(pool),
       driverDocumentRepository:
         new PostgresDriverDocumentRepository(pool),
+      driverDocumentComplianceRepository:
+        new PostgresDriverDocumentComplianceRepository(pool),
       driverSupportRepository:
         new PostgresDriverSupportRepository(pool),
       pricingCatalogVersionRepository:
@@ -150,6 +156,8 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryDriverRegistryRepository(),
     driverDocumentRepository:
       new InMemoryDriverDocumentRepository(),
+    driverDocumentComplianceRepository:
+      new InMemoryDriverDocumentComplianceRepository(),
     driverSupportRepository:
       new InMemoryDriverSupportRepository(),
     pricingCatalogVersionRepository:
