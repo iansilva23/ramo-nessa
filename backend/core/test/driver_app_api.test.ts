@@ -285,6 +285,7 @@ test('cadastro pendente impede inicialização operacional', async () => {
       updateDriverSupplyFromApp({
         drivers,
         registry,
+        documents,
         driverId,
         online: true,
         latitude: -2.82017,
