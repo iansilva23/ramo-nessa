@@ -9,11 +9,15 @@ import type { PaymentPolicySettingsRepository } from '../payments/payment-policy
 import {
   MAX_CARD_PRICE_ADJUSTMENT_BPS,
 } from '../payments/card-price-adjustment.js';
+import {
+  MAX_PIX_PRICE_ADJUSTMENT_BPS,
+} from '../payments/pix-price-adjustment.js';
 
 export class AdminPaymentPolicyError extends Error {
   constructor(
     public readonly code:
       | 'CASH_ACTIVATION_BLOCKED'
+      | 'INVALID_PIX_PRICE_ADJUSTMENT'
       | 'INVALID_CARD_PRICE_ADJUSTMENT',
     message: string,
   ) {
@@ -28,6 +32,7 @@ export async function adminPaymentPolicyView(
   const settings = await repository.get();
   return {
     cashEnabled: settings.cashEnabled,
+    pixPriceAdjustmentBps: settings.pixPriceAdjustmentBps,
     cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
     cashActivationReady: true,
     futureCashDebtLimitCents:
@@ -48,9 +53,22 @@ export async function updateAdminPaymentPolicy(input: {
   admin: AdminRepository;
   actor: AdminActor;
   cashEnabled?: boolean;
+  pixPriceAdjustmentBps?: number;
   cardPriceAdjustmentBps?: number;
   now?: Date;
 }) {
+  if (
+    input.pixPriceAdjustmentBps != null &&
+    (!Number.isInteger(input.pixPriceAdjustmentBps) ||
+      input.pixPriceAdjustmentBps < 0 ||
+      input.pixPriceAdjustmentBps > MAX_PIX_PRICE_ADJUSTMENT_BPS)
+  ) {
+    throw new AdminPaymentPolicyError(
+      'INVALID_PIX_PRICE_ADJUSTMENT',
+      `O ajuste do preço no Pix deve ficar entre 0 e ${MAX_PIX_PRICE_ADJUSTMENT_BPS / 100}%.`,
+    );
+  }
+
   if (
     input.cardPriceAdjustmentBps != null &&
     (!Number.isInteger(input.cardPriceAdjustmentBps) ||
@@ -65,11 +83,14 @@ export async function updateAdminPaymentPolicy(input: {
 
   const current = await input.repository.get();
   const nextCashEnabled = input.cashEnabled ?? current.cashEnabled;
+  const nextPixPriceAdjustmentBps =
+    input.pixPriceAdjustmentBps ?? current.pixPriceAdjustmentBps;
   const nextCardPriceAdjustmentBps =
     input.cardPriceAdjustmentBps ?? current.cardPriceAdjustmentBps;
 
   if (
     current.cashEnabled === nextCashEnabled &&
+    current.pixPriceAdjustmentBps === nextPixPriceAdjustmentBps &&
     current.cardPriceAdjustmentBps === nextCardPriceAdjustmentBps
   ) {
     return adminPaymentPolicyView(input.repository);
@@ -79,6 +100,12 @@ export async function updateAdminPaymentPolicy(input: {
   if (current.cashEnabled !== nextCashEnabled) {
     await input.repository.setCashEnabled(nextCashEnabled, updatedAt);
   }
+  if (current.pixPriceAdjustmentBps !== nextPixPriceAdjustmentBps) {
+    await input.repository.setPixPriceAdjustmentBps(
+      nextPixPriceAdjustmentBps,
+      updatedAt,
+    );
+  }
   if (current.cardPriceAdjustmentBps !== nextCardPriceAdjustmentBps) {
     await input.repository.setCardPriceAdjustmentBps(
       nextCardPriceAdjustmentBps,
@@ -87,24 +114,36 @@ export async function updateAdminPaymentPolicy(input: {
   }
 
   const cashChanged = current.cashEnabled !== nextCashEnabled;
+  const pixChanged =
+    current.pixPriceAdjustmentBps !== nextPixPriceAdjustmentBps;
   const cardChanged =
     current.cardPriceAdjustmentBps !== nextCardPriceAdjustmentBps;
   await input.admin.appendAudit({
     id: randomUUID(),
     actor: input.actor,
     action:
-      cashChanged && !cardChanged
+      cashChanged && !pixChanged && !cardChanged
         ? nextCashEnabled
           ? 'payment_policy.cash_enabled'
           : 'payment_policy.cash_disabled'
-        : cardChanged && !cashChanged
-          ? 'payment_policy.card_price_adjustment_updated'
-          : 'payment_policy.updated',
+        : pixChanged && !cashChanged && !cardChanged
+          ? 'payment_policy.pix_price_adjustment_updated'
+          : cardChanged && !cashChanged && !pixChanged
+            ? 'payment_policy.card_price_adjustment_updated'
+            : 'payment_policy.updated',
     targetType: 'payment_policy',
-    targetId: cardChanged && !cashChanged ? 'card' : 'payments',
+    targetId:
+      pixChanged && !cashChanged && !cardChanged
+        ? 'pix'
+        : cardChanged && !cashChanged && !pixChanged
+          ? 'card'
+          : 'payments',
     metadata: {
       previousCashEnabled: current.cashEnabled,
       cashEnabled: nextCashEnabled,
+      previousPixPriceAdjustmentBps:
+        current.pixPriceAdjustmentBps,
+      pixPriceAdjustmentBps: nextPixPriceAdjustmentBps,
       previousCardPriceAdjustmentBps:
         current.cardPriceAdjustmentBps,
       cardPriceAdjustmentBps: nextCardPriceAdjustmentBps,

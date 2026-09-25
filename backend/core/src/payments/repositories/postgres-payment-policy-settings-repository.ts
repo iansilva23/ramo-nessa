@@ -8,6 +8,7 @@ import type {
 
 interface PaymentPolicySettingsRow {
   cash_enabled: boolean;
+  pix_price_adjustment_bps: number;
   card_price_adjustment_bps: number;
   updated_at: Date;
 }
@@ -25,7 +26,7 @@ export class PostgresPaymentPolicySettingsRepository
 
   async get(): Promise<PaymentPolicySettingsRecord> {
     const result = await this.pool.query<PaymentPolicySettingsRow>(
-      `SELECT cash_enabled, card_price_adjustment_bps, updated_at
+      `SELECT cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at
        FROM payment_policy_settings
        WHERE id = 1
        LIMIT 1`,
@@ -36,6 +37,7 @@ export class PostgresPaymentPolicySettingsRepository
     }
     return {
       cashEnabled: row.cash_enabled,
+      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
       cardPriceAdjustmentBps: row.card_price_adjustment_bps,
       updatedAt: row.updated_at.toISOString(),
     };
@@ -49,7 +51,7 @@ export class PostgresPaymentPolicySettingsRepository
       `UPDATE payment_policy_settings
        SET cash_enabled = $1, updated_at = $2
        WHERE id = 1
-       RETURNING cash_enabled, card_price_adjustment_bps, updated_at`,
+       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
       [enabled, updatedAt],
     );
     const row = result.rows[0];
@@ -58,6 +60,30 @@ export class PostgresPaymentPolicySettingsRepository
     }
     return {
       cashEnabled: row.cash_enabled,
+      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
+      cardPriceAdjustmentBps: row.card_price_adjustment_bps,
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  async setPixPriceAdjustmentBps(
+    bps: number,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    const result = await this.pool.query<PaymentPolicySettingsRow>(
+      `UPDATE payment_policy_settings
+       SET pix_price_adjustment_bps = $1, updated_at = $2
+       WHERE id = 1
+       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
+      [bps, updatedAt],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error('Configuração de pagamentos não encontrada.');
+    }
+    return {
+      cashEnabled: row.cash_enabled,
+      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
       cardPriceAdjustmentBps: row.card_price_adjustment_bps,
       updatedAt: row.updated_at.toISOString(),
     };
@@ -71,7 +97,7 @@ export class PostgresPaymentPolicySettingsRepository
       `UPDATE payment_policy_settings
        SET card_price_adjustment_bps = $1, updated_at = $2
        WHERE id = 1
-       RETURNING cash_enabled, card_price_adjustment_bps, updated_at`,
+       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
       [bps, updatedAt],
     );
     const row = result.rows[0];
@@ -80,6 +106,7 @@ export class PostgresPaymentPolicySettingsRepository
     }
     return {
       cashEnabled: row.cash_enabled,
+      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
       cardPriceAdjustmentBps: row.card_price_adjustment_bps,
       updatedAt: row.updated_at.toISOString(),
     };

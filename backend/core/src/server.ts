@@ -2478,6 +2478,7 @@ const server = createServer(async (request, response) => {
       }
       const payload = body as {
         cashEnabled?: unknown;
+        pixPriceAdjustmentBps?: unknown;
         cardPriceAdjustmentBps?: unknown;
       };
       if (
@@ -2488,10 +2489,22 @@ const server = createServer(async (request, response) => {
           'cashEnabled deve ser booleano.',
         );
       }
+      const pixPriceAdjustmentBps =
+        payload.pixPriceAdjustmentBps == null
+          ? undefined
+          : Number(payload.pixPriceAdjustmentBps);
       const cardPriceAdjustmentBps =
         payload.cardPriceAdjustmentBps == null
           ? undefined
           : Number(payload.cardPriceAdjustmentBps);
+      if (
+        pixPriceAdjustmentBps != null &&
+        !Number.isInteger(pixPriceAdjustmentBps)
+      ) {
+        throw new InvalidAdminRequestError(
+          'pixPriceAdjustmentBps deve ser inteiro.',
+        );
+      }
       if (
         cardPriceAdjustmentBps != null &&
         !Number.isInteger(cardPriceAdjustmentBps)
@@ -2502,6 +2515,7 @@ const server = createServer(async (request, response) => {
       }
       if (
         payload.cashEnabled == null &&
+        pixPriceAdjustmentBps == null &&
         cardPriceAdjustmentBps == null
       ) {
         throw new InvalidAdminRequestError(
@@ -2515,6 +2529,9 @@ const server = createServer(async (request, response) => {
         ...(payload.cashEnabled == null
           ? {}
           : { cashEnabled: payload.cashEnabled }),
+        ...(pixPriceAdjustmentBps == null
+          ? {}
+          : { pixPriceAdjustmentBps }),
         ...(cardPriceAdjustmentBps == null
           ? {}
           : { cardPriceAdjustmentBps }),
@@ -4310,6 +4327,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ...PAYMENT_POLICY_V1,
         cashEnabled: settings.cashEnabled,
+        pixPriceAdjustmentBps: settings.pixPriceAdjustmentBps,
         cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
         allowedMethods: [
           ...PAYMENT_POLICY_V1.allowedMethods,
@@ -4863,6 +4881,8 @@ const server = createServer(async (request, response) => {
             passengerId,
           );
 
+        const paymentSettings =
+          await paymentPolicySettingsRepository.get();
         const result = await createMercadoPagoPixIntent({
           finance: financeRepository,
           gateway: mercadoPagoOrdersClient,
@@ -4871,11 +4891,14 @@ const server = createServer(async (request, response) => {
           ...(body.payerEmail == null
             ? {}
             : { payerEmail: body.payerEmail }),
+          pixPriceAdjustmentBps:
+            paymentSettings.pixPriceAdjustmentBps,
           idempotencyKey,
         });
 
         json(response, 201, {
           payment: result.payment,
+          pricing: result.pricing,
           pix: {
             orderId: result.pix.orderId,
             paymentId: result.pix.paymentId,

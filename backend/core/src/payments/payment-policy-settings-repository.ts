@@ -1,5 +1,6 @@
 export interface PaymentPolicySettingsRecord {
   cashEnabled: boolean;
+  pixPriceAdjustmentBps: number;
   cardPriceAdjustmentBps: number;
   updatedAt: string;
 }
@@ -14,6 +15,10 @@ export interface PaymentPolicySettingsRepository {
   get(): Promise<PaymentPolicySettingsRecord>;
   setCashEnabled(
     enabled: boolean,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord>;
+  setPixPriceAdjustmentBps(
+    bps: number,
     updatedAt: string,
   ): Promise<PaymentPolicySettingsRecord>;
   setCardPriceAdjustmentBps(

@@ -57,7 +57,8 @@ export async function createPaymentForRide(
     !Number.isInteger(amountCents) ||
     amountCents <= 0 ||
     amountCents < baseFareAmountCents ||
-    (input.method !== 'card' && amountCents !== baseFareAmountCents)
+    (!['pix', 'card'].includes(input.method) &&
+      amountCents !== baseFareAmountCents)
   ) {
     throw new PaymentDomainError(
       'INVALID_PAYMENT_AMOUNT',

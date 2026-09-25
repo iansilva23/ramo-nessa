@@ -57,10 +57,11 @@ export async function settleCompletedRide(
   }
 
   const fareAmountCents = input.ride.quote.totalAmountCents;
-  const validPaymentAmount =
-    input.payment.method === 'card'
-      ? input.payment.amountCents >= fareAmountCents
-      : input.payment.amountCents === fareAmountCents;
+  const allowsPaymentAdjustment =
+    input.payment.method === 'pix' || input.payment.method === 'card';
+  const validPaymentAmount = allowsPaymentAdjustment
+    ? input.payment.amountCents >= fareAmountCents
+    : input.payment.amountCents === fareAmountCents;
   if (!validPaymentAmount) {
     throw new SettlementError(
       'PAYMENT_AMOUNT_MISMATCH',

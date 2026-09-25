@@ -49,7 +49,7 @@ test('ajuste zero mantém o mesmo preço', () => {
   assert.equal(result.priceAdjustmentCents, 0);
 });
 
-test('somente cartão pode criar pagamento acima da tarifa-base', async () => {
+test('Pix e cartão podem cobrar acima da tarifa-base; carteira não pode', async () => {
   const ride = preparedRide();
   const repository = new InMemoryFinanceRepository();
   const card = await createPaymentForRide(repository, {
@@ -62,13 +62,26 @@ test('somente cartão pode criar pagamento acima da tarifa-base', async () => {
   });
   assert.equal(card.amountCents, 15786);
 
-  await assert.rejects(() =>
-    createPaymentForRide(new InMemoryFinanceRepository(), {
+  const pix = await createPaymentForRide(
+    new InMemoryFinanceRepository(),
+    {
       ride,
       method: 'pix',
       processor: 'test',
       idempotencyKey: 'pix-price-adjustment-1',
-      amountCents: 15786,
+      amountCents: 15150,
+      now: new Date('2026-09-25T12:01:00.000Z'),
+    },
+  );
+  assert.equal(pix.amountCents, 15150);
+
+  await assert.rejects(() =>
+    createPaymentForRide(new InMemoryFinanceRepository(), {
+      ride,
+      method: 'wallet',
+      processor: 'internal',
+      idempotencyKey: 'wallet-price-adjustment-1',
+      amountCents: 15150,
       now: new Date('2026-09-25T12:01:00.000Z'),
     }),
   );

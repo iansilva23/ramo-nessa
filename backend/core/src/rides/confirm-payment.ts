@@ -57,10 +57,11 @@ export async function confirmRidePayment(
   }
 
   const baseFareAmountCents = ride.quote.totalAmountCents;
-  const validPaymentAmount =
-    input.payment.method === 'card'
-      ? input.payment.amountCents >= baseFareAmountCents
-      : input.payment.amountCents === baseFareAmountCents;
+  const allowsPaymentAdjustment =
+    input.payment.method === 'pix' || input.payment.method === 'card';
+  const validPaymentAmount = allowsPaymentAdjustment
+    ? input.payment.amountCents >= baseFareAmountCents
+    : input.payment.amountCents === baseFareAmountCents;
   if (!validPaymentAmount) {
     throw new RidePaymentConfirmationError(
       'PAYMENT_AMOUNT_MISMATCH',
