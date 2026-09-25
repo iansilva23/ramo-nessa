@@ -16,6 +16,9 @@ type FetchLike = typeof fetch;
 interface GoogleRoutesStep {
   distanceMeters?: number;
   staticDuration?: string;
+  polyline?: {
+    encodedPolyline?: string;
+  };
   navigationInstruction?: {
     maneuver?: string;
     instructions?: string;
@@ -48,6 +51,7 @@ const GOOGLE_ROUTES_FIELD_MASK = [
   'routes.polyline.encodedPolyline',
   'routes.legs.steps.distanceMeters',
   'routes.legs.steps.staticDuration',
+  'routes.legs.steps.polyline.encodedPolyline',
   'routes.legs.steps.navigationInstruction.instructions',
   'routes.legs.steps.navigationInstruction.maneuver',
 ].join(',');
@@ -146,6 +150,36 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
   }
 
   return points;
+}
+
+function nearestRoutePointIndex(
+  routePoints: GeoPoint[],
+  target: GeoPoint,
+  startIndex: number,
+): number {
+  const safeStart = Math.max(
+    0,
+    Math.min(startIndex, routePoints.length - 1),
+  );
+  const longitudeScale = Math.cos(target.latitude * Math.PI / 180);
+  let bestIndex = safeStart;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let index = safeStart; index < routePoints.length; index += 1) {
+    const point = routePoints[index]!;
+    const latitudeDelta = point.latitude - target.latitude;
+    const longitudeDelta =
+      (point.longitude - target.longitude) * longitudeScale;
+    const score =
+      latitudeDelta * latitudeDelta +
+      longitudeDelta * longitudeDelta;
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
 }
 
 function googleManeuverType(value: string | undefined): number | undefined {
@@ -297,6 +331,7 @@ export class GoogleRoutesProvider
     }
 
     const maneuvers: RouteManeuver[] = [];
+    let shapeSearchFrom = 0;
     for (const leg of route.legs ?? []) {
       for (const step of leg.steps ?? []) {
         const distanceMeters =
@@ -312,12 +347,37 @@ export class GoogleRoutesProvider
           step.navigationInstruction?.maneuver,
         );
 
+        let beginShapeIndex: number | undefined;
+        let endShapeIndex: number | undefined;
+        const stepEncodedPolyline = step.polyline?.encodedPolyline;
+        if (
+          typeof stepEncodedPolyline === 'string' &&
+          stepEncodedPolyline.length > 0
+        ) {
+          const stepPoints = decodeGooglePolyline(stepEncodedPolyline);
+          if (stepPoints.length >= 2) {
+            beginShapeIndex = nearestRoutePointIndex(
+              points,
+              stepPoints[0]!,
+              shapeSearchFrom,
+            );
+            endShapeIndex = nearestRoutePointIndex(
+              points,
+              stepPoints[stepPoints.length - 1]!,
+              beginShapeIndex,
+            );
+            shapeSearchFrom = endShapeIndex;
+          }
+        }
+
         maneuvers.push({
           instruction,
           verbalInstruction: instruction,
           ...(mappedType == null ? {} : { type: mappedType }),
           distanceMeters,
           durationSeconds: parseDurationSeconds(step.staticDuration),
+          ...(beginShapeIndex == null ? {} : { beginShapeIndex }),
+          ...(endShapeIndex == null ? {} : { endShapeIndex }),
           streetNames: [],
         });
       }
