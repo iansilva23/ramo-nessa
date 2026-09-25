@@ -48,6 +48,7 @@ export async function prepareRideForPayment(input: {
   now?: Date;
   holdSeconds?: number;
   maxCandidates?: number;
+  canUseDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<RideRecord> {
   const passengerId = input.passengerId.trim();
   if (passengerId.length < 3) {
@@ -171,12 +172,22 @@ export async function prepareRideForPayment(input: {
     updatedAt: instant,
   };
 
-  const ranked = rankEligibleDrivers({
+  let ranked = rankEligibleDrivers({
     ride: provisionalRide,
     pickup: input.pickup,
     candidates: await input.drivers.listOnline(),
     now,
   }).slice(0, Math.max(1, input.maxCandidates ?? 5));
+
+  if (input.canUseDriver != null) {
+    const allowed = [];
+    for (const candidate of ranked) {
+      if (await input.canUseDriver(candidate.supply.driverId)) {
+        allowed.push(candidate);
+      }
+    }
+    ranked = allowed;
+  }
 
   if (ranked.length === 0) {
     throw new RidePreparationError(
