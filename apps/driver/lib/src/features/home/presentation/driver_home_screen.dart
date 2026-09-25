@@ -2840,9 +2840,17 @@ class _OfferCard extends StatelessWidget {
 }
 
 class _NavigationInstructionBanner extends StatelessWidget {
-  const _NavigationInstructionBanner({required this.route});
+  const _NavigationInstructionBanner({
+    required this.route,
+    required this.targetLabel,
+    required this.onStop,
+    required this.onExternal,
+  });
 
-  final DriverRouteInfo route;
+  final DriverRouteInfo? route;
+  final String targetLabel;
+  final VoidCallback onStop;
+  final VoidCallback onExternal;
 
   IconData _iconForType(int? type) {
     return switch (type) {
@@ -2857,69 +2865,103 @@ class _NavigationInstructionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maneuver = route.nextManeuver;
-    if (maneuver == null) return const SizedBox.shrink();
+    final maneuver = route?.nextManeuver;
+    final instruction =
+        maneuver?.instruction ?? 'Calculando a próxima instrução…';
+    final distanceLabel =
+        maneuver?.distanceLabel ?? 'Navegação ativa';
 
     return Material(
       color: RamoColors.brandBlack,
       elevation: 8,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: RamoSpacing.md,
-          vertical: RamoSpacing.sm,
-        ),
-        child: Row(
+        padding: const EdgeInsets.all(RamoSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: const BoxDecoration(
-                color: RamoColors.brandYellow,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _iconForType(maneuver.type),
-                color: RamoColors.brandBlack,
-                size: 28,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    color: RamoColors.brandYellow,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _iconForType(maneuver?.type),
+                    color: RamoColors.brandBlack,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: RamoSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        distanceLabel,
+                        style: const TextStyle(
+                          color: RamoColors.brandYellow,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        instruction,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          height: 1.15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: RamoSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    maneuver.distanceLabel,
+            const SizedBox(height: RamoSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    route == null
+                        ? 'Destino: $targetLabel'
+                        : '${route!.durationLabel} · '
+                            '${route!.distanceLabel} · $targetLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: RamoColors.brandYellow,
-                      fontWeight: FontWeight.w900,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w800,
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    maneuver.instruction,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                      height: 1.15,
-                    ),
+                ),
+                IconButton(
+                  tooltip: 'Abrir no Google Maps',
+                  onPressed: onExternal,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.open_in_new_rounded,
+                    color: Colors.white,
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: RamoSpacing.sm),
-            Text(
-              route.durationLabel,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
+                ),
+                IconButton(
+                  tooltip: 'Encerrar navegação',
+                  onPressed: onStop,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2933,7 +2975,10 @@ class _ActiveRideCard extends StatelessWidget {
     super.key,
     required this.ride,
     required this.busy,
+    required this.navigationActive,
     required this.onNavigate,
+    required this.onStopNavigation,
+    required this.onExternalNavigation,
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
@@ -2942,7 +2987,10 @@ class _ActiveRideCard extends StatelessWidget {
 
   final AcceptedDriverRide ride;
   final bool busy;
+  final bool navigationActive;
   final VoidCallback onNavigate;
+  final VoidCallback onStopNavigation;
+  final VoidCallback onExternalNavigation;
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
@@ -3045,34 +3093,45 @@ class _ActiveRideCard extends StatelessWidget {
               ),
             ),
           if (
-            (ride.state == 'DRIVER_ASSIGNED' ||
-                ride.state == 'DRIVER_ARRIVING') &&
-            ride.pickupLatitude != null &&
-            ride.pickupLongitude != null
+            ((ride.state == 'DRIVER_ASSIGNED' ||
+                    ride.state == 'DRIVER_ARRIVING') &&
+                ride.pickupLatitude != null &&
+                ride.pickupLongitude != null) ||
+            (ride.state == 'IN_PROGRESS' &&
+                ride.dropoffLatitude != null &&
+                ride.dropoffLongitude != null)
           ) ...[
             const SizedBox(height: RamoSpacing.lg),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: onNavigate,
-                icon: const Icon(Icons.navigation_rounded),
-                label: const Text('Navegar até o embarque'),
+                onPressed:
+                    navigationActive ? onStopNavigation : onNavigate,
+                icon: Icon(
+                  navigationActive
+                      ? Icons.close_rounded
+                      : Icons.navigation_rounded,
+                ),
+                label: Text(
+                  navigationActive
+                      ? 'Parar navegação'
+                      : ride.state == 'IN_PROGRESS'
+                          ? 'Navegar até o destino'
+                          : 'Navegar até o embarque',
+                ),
               ),
             ),
-          ] else if (
-            ride.state == 'IN_PROGRESS' &&
-            ride.dropoffLatitude != null &&
-            ride.dropoffLongitude != null
-          ) ...[
-            const SizedBox(height: RamoSpacing.lg),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onNavigate,
-                icon: const Icon(Icons.navigation_rounded),
-                label: const Text('Navegar até o destino'),
+            if (navigationActive) ...[
+              const SizedBox(height: RamoSpacing.xs),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: onExternalNavigation,
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Abrir no Google Maps'),
+                ),
               ),
-            ),
+            ],
           ],
           if (_actionLabel != null) ...[
             const SizedBox(height: RamoSpacing.md),
