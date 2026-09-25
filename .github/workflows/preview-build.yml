@@ -26,7 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up Java 21 for MapLibre
+      - name: Set up Java 21 for Android build
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -47,6 +47,7 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
           RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
@@ -78,7 +79,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up Java 21 for MapLibre
+      - name: Set up Java 21 for Android build
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -98,6 +99,7 @@ jobs:
       - name: Build Driver Preview APK
         working-directory: apps/driver
         env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
           RAMO_PREVIEW_SIGNING: "true"
         run: >
           flutter build apk --release
