@@ -522,6 +522,8 @@ function activateView(viewName) {
   }
   if (view === 'drivers' && hasScope('drivers:auth:read')) {
     void loadDriverDirectory({ reset: true, announce: false });
+    void loadOperationalSettings({ announce: false });
+    void loadDriverDocumentAlerts({ announce: false });
   }
   if (view === 'rides' && hasScope('rides:read')) {
     void loadRideDirectory({ reset: true, announce: false });
@@ -1558,6 +1560,7 @@ async function handleDriverDocumentComplianceAction(action, button) {
           : 'Pendência reconhecida. O motorista foi mantido ativo.',
       'success',
     );
+    void loadDriverDocumentAlerts({ announce: false });
     if (hasScope('audit:read')) {
       void loadAudit({ announce: false });
     }
@@ -1595,6 +1598,7 @@ async function handleDriverDocumentComplianceNotify(button) {
         : 'Aviso registrado, mas nenhum aparelho recebeu a notificação.',
       delivered > 0 ? 'success' : 'neutral',
     );
+    void loadDriverDocumentAlerts({ announce: false });
     if (hasScope('audit:read')) {
       void loadAudit({ announce: false });
     }
@@ -1830,6 +1834,7 @@ async function handleDriverDocumentReview(event) {
       ...(status === 'rejected' ? { rejectionReason } : {}),
     });
     await loadDriverDocuments(state.currentDriver.driverId);
+    void loadDriverDocumentAlerts({ announce: false });
     setMessage(
       globalMessage,
       status === 'approved'
@@ -4021,6 +4026,13 @@ async function handleOperationalSettingsSubmit(event) {
       `Configurações salvas. Novas ofertas usarão ${settings.driverOfferTtlSeconds}s.`,
       'success',
     );
+    if (state.currentDriver?.driverId) {
+      void loadDriverDocumentCompliance(
+        state.currentDriver.driverId,
+        { announce: false },
+      );
+    }
+    void loadDriverDocumentAlerts({ announce: false });
     if (hasScope('audit:read')) {
       void loadAudit({ announce: false });
     }
@@ -4426,6 +4438,113 @@ async function loadRideDirectory({
     }
   } catch (error) {
     more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderDriverDocumentAlerts(payload) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const summary = byId('driver-document-alerts-summary');
+  const list = byId('driver-document-alerts-list');
+  const empty = byId('driver-document-alerts-empty');
+
+  byId('driver-document-alerts-decision-count').textContent =
+    String(payload?.decisionRequired ?? 0);
+  byId('driver-document-alerts-blocked-count').textContent =
+    String(payload?.blocked ?? 0);
+  byId('driver-document-alerts-mode').textContent =
+    payload?.mode === 'automatic' ? 'Automático' : 'Manual';
+
+  summary.className =
+    Number(payload?.decisionRequired ?? 0) > 0
+      ? 'pill pill--warning'
+      : Number(payload?.blocked ?? 0) > 0
+        ? 'pill pill--danger'
+        : 'pill pill--neutral';
+  summary.textContent =
+    `${Number(payload?.total ?? items.length)} pendência(s)`;
+
+  list.replaceChildren();
+  empty.hidden = items.length !== 0;
+
+  for (const item of items) {
+    const row = document.createElement('article');
+    row.className = 'document-alert-item';
+
+    const content = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = item.driverId;
+    const phone = document.createElement('small');
+    phone.textContent = item.phoneE164 ?? 'Telefone indisponível';
+    const issues = document.createElement('p');
+    issues.textContent = (item.issues ?? [])
+      .map((issue) => issue.label)
+      .join(' · ');
+    content.append(title, phone, issues);
+
+    const stateWrap = document.createElement('div');
+    stateWrap.className = 'document-alert-item__state';
+    const pill = document.createElement('span');
+    if (item.manualBlocked) {
+      pill.className = 'pill pill--danger';
+      pill.textContent = 'Bloqueado por você';
+    } else if (item.automaticBlock) {
+      pill.className = 'pill pill--danger';
+      pill.textContent = 'Automático';
+    } else if (item.decisionRequired) {
+      pill.className = 'pill pill--warning';
+      pill.textContent = 'Sua decisão';
+    } else {
+      pill.className = 'pill pill--neutral';
+      pill.textContent = 'Mantido ativo';
+    }
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir motorista';
+    open.addEventListener('click', () => {
+      byId('driver-search-id').value = item.driverId;
+      void lookupDriver(item.driverId);
+    });
+    stateWrap.append(pill, open);
+
+    row.append(content, stateWrap);
+    list.append(row);
+  }
+}
+
+async function loadDriverDocumentAlerts({ announce = false } = {}) {
+  if (
+    !state.token ||
+    !hasScope('drivers:documents:read') ||
+    !hasScope('drivers:auth:read')
+  ) {
+    renderDriverDocumentAlerts({
+      mode: state.operationalSettings?.driverDocumentAutoEnforcement
+        ? 'automatic'
+        : 'manual',
+      total: 0,
+      decisionRequired: 0,
+      blocked: 0,
+      items: [],
+    });
+    return;
+  }
+
+  try {
+    const payload = await api.driverDocumentComplianceAlerts(
+      state.token,
+    );
+    renderDriverDocumentAlerts(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Pendências documentais atualizadas.',
+        'success',
+      );
+    }
+  } catch (error) {
     handleAuthenticatedError(error);
   }
 }
@@ -5116,6 +5235,13 @@ setMessage(globalMessage);
 renderDriverRegistryUnavailable();
 renderDriverDocumentsUnavailable();
 renderDriverDocumentComplianceUnavailable();
+renderDriverDocumentAlerts({
+  mode: 'manual',
+  total: 0,
+  decisionRequired: 0,
+  blocked: 0,
+  items: [],
+});
 renderDriverCashPolicyUnavailable();
 renderPassengerDetailEmpty();
 renderFleet();
