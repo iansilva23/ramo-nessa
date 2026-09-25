@@ -1362,6 +1362,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             child: SafeArea(
               child: _NavigationInstructionBanner(
                 route: _activeRoute,
+                currentPosition: LatLng(
+                  supply.latitude,
+                  supply.longitude,
+                ),
                 targetLabel: _activeRide!.state == 'IN_PROGRESS'
                     ? _activeRide!.destination.displayName
                     : _activeRide!.origin.displayName,
@@ -1426,6 +1430,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           onStart: _startRide,
                           onComplete: _completeRide,
                           route: _activeRoute,
+                          currentPosition: LatLng(
+                            supply.latitude,
+                            supply.longitude,
+                          ),
                         )
                       : _MapAvailabilityPanel(
                           key: ValueKey('availability-${supply.online}'),
@@ -1531,6 +1539,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onStart: _startRide,
                 onComplete: _completeRide,
                 route: _activeRoute,
+                currentPosition: LatLng(
+                  supply.latitude,
+                  supply.longitude,
+                ),
               ),
               const SizedBox(height: RamoSpacing.xl),
             ],
@@ -3262,12 +3274,14 @@ class _DriverNoticeStrip extends StatelessWidget {
 class _NavigationInstructionBanner extends StatelessWidget {
   const _NavigationInstructionBanner({
     required this.route,
+    required this.currentPosition,
     required this.targetLabel,
     required this.onStop,
     required this.onExternal,
   });
 
   final DriverRouteInfo? route;
+  final LatLng currentPosition;
   final String targetLabel;
   final VoidCallback onStop;
   final VoidCallback onExternal;
@@ -3285,7 +3299,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maneuver = route?.nextManeuver;
+    final maneuver = route?.nextManeuverFor(currentPosition);
     final instruction =
         maneuver?.instruction ?? 'Calculando a próxima instrução…';
     final distanceLabel =
@@ -3402,6 +3416,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
+    required this.currentPosition,
     this.route,
   });
 
@@ -3414,6 +3429,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
+  final LatLng currentPosition;
   final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
@@ -3591,11 +3607,15 @@ class _ActiveRideCard extends StatelessWidget {
                   'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}',
             ),
           ],
-          if (route?.nextManeuver != null && navigationActive) ...[
+          if (
+            route?.nextManeuverFor(currentPosition) != null &&
+            navigationActive
+          ) ...[
             const SizedBox(height: 12),
             _DriverNoticeStrip(
               icon: Icons.navigation_rounded,
-              text: route!.nextManeuver!.instruction,
+              text:
+                  route!.nextManeuverFor(currentPosition)!.instruction,
             ),
           ],
           if (_canNavigate) ...[
