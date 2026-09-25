@@ -114,6 +114,10 @@ class CoreDriverRouteService implements DriverRouteService {
                 verbalInstruction:
                     (raw['verbalInstruction'] as String?)?.trim(),
                 type: (raw['type'] as num?)?.toInt(),
+                beginShapeIndex:
+                    (raw['beginShapeIndex'] as num?)?.toInt(),
+                endShapeIndex:
+                    (raw['endShapeIndex'] as num?)?.toInt(),
                 distanceMeters:
                     (raw['distanceMeters'] as num?)?.toDouble() ?? 0,
                 duration: Duration(
