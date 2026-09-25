@@ -979,6 +979,129 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'POST' &&
+      requestUrl.pathname === '/v1/maps/places/autocomplete'
+    ) {
+      const authorization = headerValue(request, 'authorization');
+      if (process.env.NODE_ENV === 'production' || authorization != null) {
+        await authenticateBearer({
+          repository: authSessionRepository,
+          identities: authOtpRepository,
+          headers: request.headers,
+        });
+      }
+
+      if (googlePlacesService == null) {
+        json(response, 503, {
+          error: 'PLACES_NOT_CONFIGURED',
+          message: 'O serviço de busca de lugares ainda não está configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      try {
+        const suggestions = await googlePlacesService.autocomplete({
+          query: typeof value.input === 'string' ? value.input : '',
+          sessionToken:
+            typeof value.sessionToken === 'string'
+              ? value.sessionToken
+              : '',
+          localOnly: value.localOnly !== false,
+        });
+        json(response, 200, {
+          provider: 'google',
+          suggestions,
+        });
+      } catch (error) {
+        if (error instanceof GooglePlacesError) {
+          const invalidRequest =
+            error.code === 'INVALID_QUERY' ||
+            error.code === 'INVALID_SESSION' ||
+            error.code === 'INVALID_PLACE_ID' ||
+            error.code === 'OUTSIDE_LOCAL_AREA';
+          json(
+            response,
+            invalidRequest ? 422 : 503,
+            {
+              error: error.code,
+              message: error.message,
+            },
+          );
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/maps/places/details'
+    ) {
+      const authorization = headerValue(request, 'authorization');
+      if (process.env.NODE_ENV === 'production' || authorization != null) {
+        await authenticateBearer({
+          repository: authSessionRepository,
+          identities: authOtpRepository,
+          headers: request.headers,
+        });
+      }
+
+      if (googlePlacesService == null) {
+        json(response, 503, {
+          error: 'PLACES_NOT_CONFIGURED',
+          message: 'O serviço de busca de lugares ainda não está configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      try {
+        const place = await googlePlacesService.placeDetails({
+          placeId:
+            typeof value.placeId === 'string' ? value.placeId : '',
+          sessionToken:
+            typeof value.sessionToken === 'string'
+              ? value.sessionToken
+              : '',
+          localOnly: value.localOnly !== false,
+        });
+        json(response, 200, {
+          provider: 'google',
+          place,
+        });
+      } catch (error) {
+        if (error instanceof GooglePlacesError) {
+          const invalidRequest =
+            error.code === 'INVALID_QUERY' ||
+            error.code === 'INVALID_SESSION' ||
+            error.code === 'INVALID_PLACE_ID' ||
+            error.code === 'OUTSIDE_LOCAL_AREA';
+          json(
+            response,
+            invalidRequest ? 422 : 503,
+            {
+              error: error.code,
+              message: error.message,
+            },
+          );
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
       requestUrl.pathname === '/v1/maps/places/search'
     ) {
       const authorization = headerValue(request, 'authorization');
