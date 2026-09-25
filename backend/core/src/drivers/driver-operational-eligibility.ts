@@ -35,8 +35,8 @@ export async function driverOperationalEligibility(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
-  enforceDocuments?: boolean;
-  manualDocumentBlocked?: boolean;
+  enforceDocuments?: boolean | undefined;
+  manualDocumentBlocked?: boolean | undefined;
   now?: Date;
 }): Promise<DriverOperationalEligibility> {
   const [profile, vehicle, documentRecords] = await Promise.all([
@@ -92,8 +92,8 @@ export async function canDriverReceiveNewWork(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
-  enforceDocuments?: boolean;
-  manualDocumentBlocked?: boolean;
+  enforceDocuments?: boolean | undefined;
+  manualDocumentBlocked?: boolean | undefined;
   now?: Date;
 }): Promise<boolean> {
   return (
