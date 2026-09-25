@@ -264,7 +264,9 @@ import {
   createGooglePlacesServiceFromEnv,
 } from './places/google-places-service.js';
 import {
+  isApprovedExternalPlaceDetails,
   isApprovedExternalPlacesQuery,
+  placesLocalityId,
 } from './places/places-access-policy.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
@@ -445,17 +447,20 @@ async function resolvePlacesLocalOnly(input: {
     : null;
 }
 
+async function externalPlacesCatalog(): Promise<string[]> {
+  const pricing = await resolvePricingCatalogContext({
+    versions: pricingCatalogVersionRepository,
+    at: new Date(),
+  });
+  return pricing.snapshot.externalLocalities;
+}
+
 async function externalPlacesLocalityAllowed(
   localityId: string,
 ): Promise<boolean> {
   const normalized = localityId.trim();
   if (!normalized) return false;
-
-  const pricing = await resolvePricingCatalogContext({
-    versions: pricingCatalogVersionRepository,
-    at: new Date(),
-  });
-  return pricing.snapshot.externalLocalities.includes(normalized);
+  return (await externalPlacesCatalog()).includes(normalized);
 }
 
 function parseRoutePoint(value: unknown):
@@ -1061,9 +1066,16 @@ const server = createServer(async (request, response) => {
               : '',
           localOnly,
         });
+        const safeSuggestions = localOnly
+          ? suggestions
+          : suggestions.filter(
+              (suggestion) =>
+                placesLocalityId(suggestion.mainText) ===
+                placesLocalityId(query),
+            );
         json(response, 200, {
           provider: 'google',
-          suggestions,
+          suggestions: safeSuggestions,
         });
       } catch (error) {
         if (error instanceof GooglePlacesError) {
@@ -1115,13 +1127,17 @@ const server = createServer(async (request, response) => {
           : {};
       try {
         const localOnly = value.localOnly !== false;
+        const externalLocalityId =
+          typeof value.externalLocalityId === 'string'
+            ? value.externalLocalityId.trim()
+            : '';
+        let externalLocalities: string[] = [];
+
         if (!localOnly) {
-          const externalLocalityId =
-            typeof value.externalLocalityId === 'string'
-              ? value.externalLocalityId
-              : '';
+          externalLocalities = await externalPlacesCatalog();
           if (
-            !(await externalPlacesLocalityAllowed(externalLocalityId))
+            !externalLocalityId ||
+            !externalLocalities.includes(externalLocalityId)
           ) {
             json(response, 422, {
               error: 'EXTERNAL_DESTINATION_NOT_APPROVED',
@@ -1141,9 +1157,32 @@ const server = createServer(async (request, response) => {
               : '',
           localOnly,
         });
+
+        if (
+          !localOnly &&
+          !isApprovedExternalPlaceDetails({
+            localityId: externalLocalityId,
+            formattedAddress: place.address,
+            addressComponentNames: place.addressComponentNames,
+            externalLocalities,
+          })
+        ) {
+          json(response, 422, {
+            error: 'EXTERNAL_PLACE_MISMATCH',
+            message:
+              'O lugar selecionado não corresponde ao destino externo aprovado.',
+          });
+          return;
+        }
+
         json(response, 200, {
           provider: 'google',
-          place,
+          place: {
+            id: place.id,
+            address: place.address,
+            latitude: place.latitude,
+            longitude: place.longitude,
+          },
         });
       } catch (error) {
         if (error instanceof GooglePlacesError) {
@@ -1213,9 +1252,15 @@ const server = createServer(async (request, response) => {
           query,
           localOnly,
         });
+        const safePlaces = localOnly
+          ? places
+          : places.filter(
+              (place) =>
+                placesLocalityId(place.name) === placesLocalityId(query),
+            );
         json(response, 200, {
           provider: 'google',
-          places,
+          places: safePlaces,
         });
       } catch (error) {
         if (error instanceof GooglePlacesError) {
