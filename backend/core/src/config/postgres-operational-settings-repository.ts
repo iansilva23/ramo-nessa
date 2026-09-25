@@ -8,6 +8,7 @@ import type {
 interface OperationalSettingsRow {
   driver_offer_ttl_seconds: number;
   show_nearby_drivers: boolean;
+  driver_document_auto_enforcement: boolean;
   mercado_pago_public_key: string | null;
   updated_at: Date;
 }
@@ -16,6 +17,8 @@ function mapRow(row: OperationalSettingsRow): OperationalSettingsRecord {
   return {
     driverOfferTtlSeconds: row.driver_offer_ttl_seconds,
     showNearbyDrivers: row.show_nearby_drivers,
+    driverDocumentAutoEnforcement:
+      row.driver_document_auto_enforcement,
     ...(row.mercado_pago_public_key == null
       ? {}
       : { mercadoPagoPublicKey: row.mercado_pago_public_key }),
@@ -31,6 +34,7 @@ export class PostgresOperationalSettingsRepository
   async get(): Promise<OperationalSettingsRecord> {
     const result = await this.pool.query<OperationalSettingsRow>(
       `SELECT driver_offer_ttl_seconds, show_nearby_drivers,
+              driver_document_auto_enforcement,
               mercado_pago_public_key, updated_at
        FROM operational_settings
        WHERE id = 1
@@ -46,6 +50,7 @@ export class PostgresOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     showNearbyDrivers?: boolean;
+    driverDocumentAutoEnforcement?: boolean;
     mercadoPagoPublicKey?: string | null;
     updatedAt: string;
   }): Promise<OperationalSettingsRecord> {
@@ -54,14 +59,18 @@ export class PostgresOperationalSettingsRepository
       `UPDATE operational_settings
        SET driver_offer_ttl_seconds = $1,
            show_nearby_drivers = $2,
-           mercado_pago_public_key = $3,
-           updated_at = $4
+           driver_document_auto_enforcement = $3,
+           mercado_pago_public_key = $4,
+           updated_at = $5
        WHERE id = 1
        RETURNING driver_offer_ttl_seconds, show_nearby_drivers,
+                 driver_document_auto_enforcement,
                  mercado_pago_public_key, updated_at`,
       [
         input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds,
         input.showNearbyDrivers ?? current.showNearbyDrivers,
+        input.driverDocumentAutoEnforcement ??
+          current.driverDocumentAutoEnforcement,
         input.mercadoPagoPublicKey === undefined
           ? current.mercadoPagoPublicKey ?? null
           : input.mercadoPagoPublicKey,
