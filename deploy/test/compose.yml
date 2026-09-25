@@ -18,9 +18,11 @@ x-core-environment: &core-environment
   DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY}
   DOCUMENT_INSPECTION_TTL_SECONDS: "60"
   SHUTDOWN_TIMEOUT_MS: "10000"
-  ROUTING_PROVIDER: "valhalla"
-  ROUTING_BASE_URL: "https://valhalla.openstreetmap.de"
+  ROUTING_PROVIDER: "google"
   ROUTING_TIMEOUT_MS: "5000"
+  GOOGLE_MAPS_SERVER_API_KEY: "test-google-server-key"
+  GOOGLE_ROUTES_BASE_URL: "http://google-maps-mock:8091/"
+  GOOGLE_PLACES_BASE_URL: "http://google-maps-mock:8091/v1/"
 
 x-core-image: &core-image
   image: ramo-nessa-core:test
@@ -72,6 +74,8 @@ services:
       migrate:
         condition: service_completed_successfully
       document-storage:
+        condition: service_started
+      google-maps-mock:
         condition: service_started
     expose:
       - "8080"
