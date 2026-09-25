@@ -68,6 +68,8 @@ async function requireOperationalDriver(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
+  enforceDocuments?: boolean | undefined;
+  manualDocumentBlocked?: boolean | undefined;
   now?: Date;
 }): Promise<DriverVehicleRecord> {
   const eligibility = await driverOperationalEligibility(input);
