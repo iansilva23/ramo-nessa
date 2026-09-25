@@ -3971,7 +3971,8 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
   byId('show-nearby-drivers').disabled = !canWrite;
-  byId('driver-document-auto-enforcement').disabled = !canWrite;
+  byId('driver-document-auto-enforcement').disabled =
+    !canWrite || !hasScope('drivers:documents:write');
   byId('save-operational-settings-button').disabled = !canWrite;
 }
 
@@ -4019,7 +4020,9 @@ async function handleOperationalSettingsSubmit(event) {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
       showNearbyDrivers,
-      driverDocumentAutoEnforcement,
+      ...(hasScope('drivers:documents:write')
+        ? { driverDocumentAutoEnforcement }
+        : {}),
     });
     renderOperationalSettings(settings);
     setMessage(
