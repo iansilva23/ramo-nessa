@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class RequestedOtp {
   const RequestedOtp({
     required this.challengeId,
@@ -109,6 +111,12 @@ abstract interface class PhoneAuthService {
     String? fullName,
     String? email,
     String? password,
+  });
+
+  Future<PassengerAccount> updatePassengerPhoto({
+    required String accessToken,
+    required Uint8List bytes,
+    required String mimeType,
   });
 
   Future<AuthSessionInfo?> currentSession(String accessToken);
