@@ -96,7 +96,7 @@ export class GooglePlacesService {
       );
     }
 
-    const url = new URL('places:searchText', this.baseUrl);
+    const url = new URL('./places:searchText', this.baseUrl);
     let response: Response;
 
     try {
