@@ -56,6 +56,10 @@ const GOOGLE_ROUTES_FIELD_MASK = [
   'routes.legs.steps.navigationInstruction.maneuver',
 ].join(',');
 
+const GOOGLE_DISTANCE_FIELD_MASK = 'routes.distanceMeters';
+const GOOGLE_DISTANCE_CACHE_TTL_MS = 15_000;
+const GOOGLE_DISTANCE_CACHE_MAX_ENTRIES = 500;
+
 function assertPoint(point: GeoPoint): void {
   if (
     !Number.isFinite(point.latitude) ||
@@ -212,6 +216,10 @@ function googleManeuverType(value: string | undefined): number | undefined {
 export class GoogleRoutesProvider
     implements RoutingRouteProvider, RoutingDistanceProvider {
   private readonly baseUrl: URL;
+  private readonly distanceCache = new Map<
+    string,
+    { expiresAt: number; value: Promise<number> }
+  >();
 
   constructor(
     private readonly apiKey: string,
@@ -396,14 +404,137 @@ export class GoogleRoutesProvider
     to: GeoPoint;
   }): Promise<number> {
     try {
-      const route = await this.route(input);
-      return route.distanceMeters / 1000;
+      assertPoint(input.from);
+      assertPoint(input.to);
     } catch (error) {
       if (error instanceof RoutingRouteError) {
         throw new RoutingDistanceError(error.message);
       }
       throw error;
     }
+
+    const key = [
+      input.from.latitude,
+      input.from.longitude,
+      input.to.latitude,
+      input.to.longitude,
+    ].join(':');
+    const now = Date.now();
+    const cached = this.distanceCache.get(key);
+    if (cached != null && cached.expiresAt > now) {
+      return cached.value;
+    }
+
+    if (cached != null) this.distanceCache.delete(key);
+    if (this.distanceCache.size >= GOOGLE_DISTANCE_CACHE_MAX_ENTRIES) {
+      for (const [cacheKey, entry] of this.distanceCache) {
+        if (entry.expiresAt <= now) {
+          this.distanceCache.delete(cacheKey);
+        }
+      }
+      if (this.distanceCache.size >= GOOGLE_DISTANCE_CACHE_MAX_ENTRIES) {
+        const oldestKey = this.distanceCache.keys().next().value as
+          | string
+          | undefined;
+        if (oldestKey != null) this.distanceCache.delete(oldestKey);
+      }
+    }
+
+    const value = this.fetchDistanceKm(input);
+    this.distanceCache.set(key, {
+      expiresAt: now + GOOGLE_DISTANCE_CACHE_TTL_MS,
+      value,
+    });
+
+    try {
+      return await value;
+    } catch (error) {
+      const current = this.distanceCache.get(key);
+      if (current?.value === value) this.distanceCache.delete(key);
+      throw error;
+    }
+  }
+
+  private async fetchDistanceKm(input: {
+    from: GeoPoint;
+    to: GeoPoint;
+  }): Promise<number> {
+    const url = new URL('directions/v2:computeRoutes', this.baseUrl);
+    let response: Response;
+
+    try {
+      response = await this.fetcher(url, {
+        method: 'POST',
+        signal: AbortSignal.timeout(this.timeoutMs),
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+          'x-goog-fieldmask': GOOGLE_DISTANCE_FIELD_MASK,
+        },
+        body: JSON.stringify({
+          origin: {
+            location: {
+              latLng: {
+                latitude: input.from.latitude,
+                longitude: input.from.longitude,
+              },
+            },
+          },
+          destination: {
+            location: {
+              latLng: {
+                latitude: input.to.latitude,
+                longitude: input.to.longitude,
+              },
+            },
+          },
+          travelMode: 'DRIVE',
+          routingPreference: 'TRAFFIC_UNAWARE',
+          units: 'METRIC',
+        }),
+      });
+    } catch {
+      throw new RoutingDistanceError(
+        'O Google Routes não respondeu a tempo.',
+      );
+    }
+
+    if (!response.ok) {
+      let providerMessage = '';
+      try {
+        const body = (await response.json()) as GoogleRoutesResponse;
+        providerMessage = body.error?.message?.trim() ?? '';
+      } catch {
+        // Mantém mensagem segura abaixo.
+      }
+      throw new RoutingDistanceError(
+        providerMessage ||
+          `Google Routes respondeu HTTP ${response.status}.`,
+      );
+    }
+
+    let payload: GoogleRoutesResponse;
+    try {
+      payload = (await response.json()) as GoogleRoutesResponse;
+    } catch {
+      throw new RoutingDistanceError(
+        'Google Routes retornou uma resposta de distância inválida.',
+      );
+    }
+
+    const distanceMeters = payload.routes?.[0]?.distanceMeters;
+    if (
+      typeof distanceMeters !== 'number' ||
+      !Number.isFinite(distanceMeters) ||
+      distanceMeters < 0
+    ) {
+      throw new RoutingDistanceError(
+        'Não encontramos uma distância roteada válida entre esses pontos.',
+      );
+    }
+
+    return distanceMeters / 1000;
   }
 }
 
