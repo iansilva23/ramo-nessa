@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  assertGoogleMapsProductionConfig,
   assertMercadoPagoProductionConfig,
   parseIntegerSetting,
   resolveCorePort,
@@ -87,6 +88,45 @@ test('produção exige configuração completa do Mercado Pago', () => {
         'APP_USR-production-token-with-safe-length',
       MERCADO_PAGO_WEBHOOK_SECRET:
         'production-webhook-secret-safe-length',
+    }),
+  );
+});
+
+
+test('Google Maps não é obrigatório fora de produção', () => {
+  assert.doesNotThrow(() =>
+    assertGoogleMapsProductionConfig({
+      NODE_ENV: 'development',
+    }),
+  );
+});
+
+test('produção exige Google Maps server configurado', () => {
+  assert.throws(
+    () =>
+      assertGoogleMapsProductionConfig({
+        NODE_ENV: 'production',
+      }),
+    /GOOGLE_MAPS_SERVER_API_KEY/,
+  );
+
+  assert.throws(
+    () =>
+      assertGoogleMapsProductionConfig({
+        NODE_ENV: 'production',
+        ROUTING_PROVIDER: 'osrm',
+        GOOGLE_MAPS_SERVER_API_KEY:
+          'test-google-server-key-with-safe-length',
+      }),
+    /ROUTING_PROVIDER/,
+  );
+
+  assert.doesNotThrow(() =>
+    assertGoogleMapsProductionConfig({
+      NODE_ENV: 'production',
+      ROUTING_PROVIDER: 'google',
+      GOOGLE_MAPS_SERVER_API_KEY:
+        'test-google-server-key-with-safe-length',
     }),
   );
 });
