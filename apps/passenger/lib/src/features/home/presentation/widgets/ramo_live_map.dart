@@ -1,44 +1,36 @@
-import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
-import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
 import '../../../../core/config/ramo_map_config.dart';
 import '../../../map/domain/ramo_place.dart';
 
 class RamoMapController {
-  ml.MapLibreMapController? _nativeController;
-  bool _styleReady = false;
+  gm.GoogleMapController? _nativeController;
   bool _disposed = false;
 
-  bool get ready =>
-      !_disposed && _nativeController != null && _styleReady;
+  bool get ready => !_disposed && _nativeController != null;
 
-  void attach(ml.MapLibreMapController controller) {
+  void attach(gm.GoogleMapController controller) {
     if (_disposed) return;
     _nativeController = controller;
   }
 
-  void markStyleReady() {
-    if (_disposed) return;
-    _styleReady = true;
-  }
-
   void detach() {
     _nativeController = null;
-    _styleReady = false;
   }
 
   Future<void> move(domain.LatLng point, double zoom) async {
     final controller = _nativeController;
     if (!ready || controller == null) return;
+
     await controller.animateCamera(
-      ml.CameraUpdate.newLatLngZoom(
-        ml.LatLng(point.latitude, point.longitude),
+      gm.CameraUpdate.newLatLngZoom(
+        gm.LatLng(point.latitude, point.longitude),
         zoom,
       ),
-      duration: const Duration(milliseconds: 450),
     );
   }
 
@@ -71,25 +63,25 @@ class RamoMapController {
           point.longitude > maxLongitude ? point.longitude : maxLongitude;
     }
 
-    await controller.animateCamera(
-      ml.CameraUpdate.newLatLngBounds(
-        ml.LatLngBounds(
-          southwest: ml.LatLng(minLatitude, minLongitude),
-          northeast: ml.LatLng(maxLatitude, maxLongitude),
-        ),
-        left: padding.left,
-        top: padding.top,
-        right: padding.right,
-        bottom: padding.bottom,
-      ),
-      duration: const Duration(milliseconds: 550),
+    final uniformPadding = math.max(
+      math.max(padding.left, padding.right),
+      math.max(padding.top, padding.bottom),
     );
 
-    final currentZoom = controller.cameraPosition?.zoom;
-    if (currentZoom != null && currentZoom > maxZoom) {
+    await controller.animateCamera(
+      gm.CameraUpdate.newLatLngBounds(
+        gm.LatLngBounds(
+          southwest: gm.LatLng(minLatitude, minLongitude),
+          northeast: gm.LatLng(maxLatitude, maxLongitude),
+        ),
+        uniformPadding,
+      ),
+    );
+
+    final currentZoom = await controller.getZoomLevel();
+    if (currentZoom > maxZoom) {
       await controller.animateCamera(
-        ml.CameraUpdate.zoomTo(maxZoom),
-        duration: const Duration(milliseconds: 180),
+        gm.CameraUpdate.zoomTo(maxZoom),
       );
     }
   }
@@ -127,9 +119,7 @@ class RamoLiveMap extends StatefulWidget {
 }
 
 class _RamoLiveMapState extends State<RamoLiveMap> {
-  ml.MapLibreMapController? _nativeController;
-  bool _styleReady = false;
-  int _annotationGeneration = 0;
+  gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
 
   @override
@@ -141,37 +131,16 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
   @override
   void didUpdateWidget(covariant RamoLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.detach();
       final native = _nativeController;
       if (native != null) widget.controller.attach(native);
-      if (_styleReady) widget.controller.markStyleReady();
     }
 
     if (oldWidget.networkTilesEnabled != widget.networkTilesEnabled) {
       _notifyPlaceholderReadyIfNeeded();
     }
-
-    if (_styleReady &&
-        (oldWidget.origin != widget.origin ||
-            oldWidget.destination != widget.destination ||
-            oldWidget.driverPosition != widget.driverPosition ||
-            oldWidget.driverPositionStale != widget.driverPositionStale ||
-            !_samePoints(oldWidget.routePoints, widget.routePoints))) {
-      unawaited(_syncAnnotations());
-    }
-  }
-
-  bool _samePoints(
-    List<domain.LatLng> first,
-    List<domain.LatLng> second,
-  ) {
-    if (identical(first, second)) return true;
-    if (first.length != second.length) return false;
-    for (var index = 0; index < first.length; index += 1) {
-      if (first[index] != second[index]) return false;
-    }
-    return true;
   }
 
   void _notifyPlaceholderReadyIfNeeded() {
@@ -183,89 +152,101 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
     });
   }
 
-  void _onMapCreated(ml.MapLibreMapController controller) {
+  void _onMapCreated(gm.GoogleMapController controller) {
     _nativeController = controller;
     widget.controller.attach(controller);
-  }
-
-  void _onStyleLoaded() {
-    _styleReady = true;
-    widget.controller.markStyleReady();
-    unawaited(_syncAnnotations());
     widget.onMapReady?.call();
   }
 
-  Future<void> _syncAnnotations() async {
-    final controller = _nativeController;
-    if (!_styleReady || controller == null) return;
+  Set<gm.Marker> get _markers {
+    final markers = <gm.Marker>{};
 
-    final generation = ++_annotationGeneration;
-    await controller.clearLines();
-    await controller.clearCircles();
-    if (!mounted || generation != _annotationGeneration) return;
-
-    if (widget.routePoints.length >= 2) {
-      await controller.addLine(
-        ml.LineOptions(
-          geometry: widget.routePoints
-              .map(
-                (point) =>
-                    ml.LatLng(point.latitude, point.longitude),
-              )
-              .toList(growable: false),
-          lineColor: '#111111',
-          lineWidth: 6,
-          lineOpacity: 0.96,
-          lineJoin: 'round',
+    final origin = widget.origin;
+    if (origin != null) {
+      markers.add(
+        gm.Marker(
+          markerId: const gm.MarkerId('origin'),
+          position: gm.LatLng(
+            origin.position.latitude,
+            origin.position.longitude,
+          ),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            gm.BitmapDescriptor.hueYellow,
+          ),
+          infoWindow: gm.InfoWindow(
+            title: 'Embarque',
+            snippet: origin.name,
+          ),
         ),
       );
     }
 
-    final circles = <ml.CircleOptions>[
-      if (widget.origin != null)
-        ml.CircleOptions(
-          geometry: ml.LatLng(
-            widget.origin!.position.latitude,
-            widget.origin!.position.longitude,
+    final destination = widget.destination;
+    if (destination != null) {
+      markers.add(
+        gm.Marker(
+          markerId: const gm.MarkerId('destination'),
+          position: gm.LatLng(
+            destination.position.latitude,
+            destination.position.longitude,
           ),
-          circleRadius: 9,
-          circleColor: '#F7C600',
-          circleStrokeWidth: 4,
-          circleStrokeColor: '#111111',
-        ),
-      if (widget.destination != null)
-        ml.CircleOptions(
-          geometry: ml.LatLng(
-            widget.destination!.position.latitude,
-            widget.destination!.position.longitude,
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            gm.BitmapDescriptor.hueRed,
           ),
-          circleRadius: 10,
-          circleColor: '#111111',
-          circleStrokeWidth: 4,
-          circleStrokeColor: '#F7C600',
-        ),
-      if (widget.driverPosition != null)
-        ml.CircleOptions(
-          geometry: ml.LatLng(
-            widget.driverPosition!.latitude,
-            widget.driverPosition!.longitude,
+          infoWindow: gm.InfoWindow(
+            title: 'Destino',
+            snippet: destination.name,
           ),
-          circleRadius: 11,
-          circleColor:
-              widget.driverPositionStale ? '#777777' : '#111111',
-          circleStrokeWidth: 5,
-          circleStrokeColor: '#F7C600',
         ),
-    ];
-
-    if (circles.isNotEmpty) {
-      await controller.addCircles(circles);
+      );
     }
+
+    final driver = widget.driverPosition;
+    if (driver != null) {
+      markers.add(
+        gm.Marker(
+          markerId: const gm.MarkerId('driver'),
+          position: gm.LatLng(driver.latitude, driver.longitude),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            widget.driverPositionStale
+                ? gm.BitmapDescriptor.hueRose
+                : gm.BitmapDescriptor.hueAzure,
+          ),
+          infoWindow: gm.InfoWindow(
+            title: widget.driverPositionStale
+                ? 'Última posição do motorista'
+                : 'Seu motorista',
+          ),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Set<gm.Polyline> get _polylines {
+    if (widget.routePoints.length < 2) return const {};
+
+    return {
+      gm.Polyline(
+        polylineId: const gm.PolylineId('ride-route'),
+        points: widget.routePoints
+            .map(
+              (point) => gm.LatLng(
+                point.latitude,
+                point.longitude,
+              ),
+            )
+            .toList(growable: false),
+        color: const Color(0xFF111111),
+        width: 6,
+        geodesic: false,
+      ),
+    };
   }
 
   @override
   void dispose() {
-    _annotationGeneration += 1;
     widget.controller.detach();
     _nativeController = null;
     super.dispose();
@@ -279,23 +260,28 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
       );
     }
 
-    return ml.MapLibreMap(
-      initialCameraPosition: ml.CameraPosition(
-        target: ml.LatLng(
+    return gm.GoogleMap(
+      initialCameraPosition: gm.CameraPosition(
+        target: gm.LatLng(
           RamoMapConfig.fallbackCenter.latitude,
           RamoMapConfig.fallbackCenter.longitude,
         ),
         zoom: RamoMapConfig.fallbackZoom,
       ),
-      styleString: RamoMapConfig.openFreeMapStyleUrl,
       onMapCreated: _onMapCreated,
-      onStyleLoadedCallback: _onStyleLoaded,
-      minMaxZoomPreference: const ml.MinMaxZoomPreference(4, 19),
+      markers: _markers,
+      polylines: _polylines,
+      minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
       compassEnabled: false,
+      zoomControlsEnabled: false,
+      mapToolbarEnabled: false,
+      myLocationEnabled: false,
+      myLocationButtonEnabled: false,
       rotateGesturesEnabled: true,
       tiltGesturesEnabled: false,
-      trackCameraPosition: true,
-      myLocationEnabled: false,
+      buildingsEnabled: true,
+      indoorViewEnabled: false,
+      trafficEnabled: false,
     );
   }
 }
