@@ -166,26 +166,32 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
   assert.equal(route.maneuvers[1]?.endShapeIndex, 2);
 });
 
-test('Google Routes fornece distância roteada ao matching', async () => {
+test('Google Routes usa Essentials e cache curto na distância financeira', async () => {
   const points = [
     { latitude: -2.7956, longitude: -40.5142 },
     { latitude: -2.81, longitude: -40.45 },
   ];
-  const fetcher = (async () =>
-    new Response(
+  let calls = 0;
+  let capturedHeaders: HeadersInit | undefined;
+  let capturedBody: unknown;
+
+  const fetcher = (async (_input, init) => {
+    calls += 1;
+    capturedHeaders = init?.headers;
+    capturedBody =
+      typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+
+    return new Response(
       JSON.stringify({
         routes: [
           {
             distanceMeters: 3125,
-            duration: '500s',
-            polyline: {
-              encodedPolyline: encodePolyline5(points),
-            },
           },
         ],
       }),
       { status: 200 },
-    )) as typeof fetch;
+    );
+  }) as typeof fetch;
 
   const provider = new GoogleRoutesProvider(
     'server-key',
@@ -194,11 +200,86 @@ test('Google Routes fornece distância roteada ao matching', async () => {
     fetcher,
   );
 
+  const first = await provider.routeDistanceKm({
+    from: points[0]!,
+    to: points[1]!,
+  });
+  const repeated = await provider.routeDistanceKm({
+    from: points[0]!,
+    to: points[1]!,
+  });
+
+  assert.equal(first, 3.125);
+  assert.equal(repeated, 3.125);
+  assert.equal(calls, 1);
+
+  const headers = new Headers(capturedHeaders);
   assert.equal(
-    await provider.routeDistanceKm({
-      from: points[0]!,
-      to: points[1]!,
-    }),
-    3.125,
+    headers.get('x-goog-fieldmask'),
+    'routes.distanceMeters',
   );
+  assert.deepEqual(capturedBody, {
+    origin: {
+      location: {
+        latLng: {
+          latitude: points[0]!.latitude,
+          longitude: points[0]!.longitude,
+        },
+      },
+    },
+    destination: {
+      location: {
+        latLng: {
+          latitude: points[1]!.latitude,
+          longitude: points[1]!.longitude,
+        },
+      },
+    },
+    travelMode: 'DRIVE',
+    routingPreference: 'TRAFFIC_UNAWARE',
+    units: 'METRIC',
+  });
+});
+
+test('falha de distância não fica presa no cache', async () => {
+  const from = { latitude: -2.7956, longitude: -40.5142 };
+  const to = { latitude: -2.81, longitude: -40.45 };
+  let calls = 0;
+
+  const fetcher = (async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: 'temporary failure',
+          },
+        }),
+        { status: 503 },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        routes: [{ distanceMeters: 2500 }],
+      }),
+      { status: 200 },
+    );
+  }) as typeof fetch;
+
+  const provider = new GoogleRoutesProvider(
+    'server-key',
+    'https://routes.example.test/',
+    5_000,
+    fetcher,
+  );
+
+  await assert.rejects(
+    provider.routeDistanceKm({ from, to }),
+    /temporary failure/,
+  );
+  assert.equal(
+    await provider.routeDistanceKm({ from, to }),
+    2.5,
+  );
+  assert.equal(calls, 2);
 });
