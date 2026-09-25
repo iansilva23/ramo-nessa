@@ -144,4 +144,109 @@ void main() {
     expect(route.distanceLabel, '4,2 km');
     expect(route.durationLabel, '10 min');
   });
+
+  test('Core gera UUID v4 diferente para cada sessão Places', () {
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+    );
+
+    final first = service.beginSession();
+    final second = service.beginSession();
+    final uuidV4 = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    );
+
+    expect(uuidV4.hasMatch(first), isTrue);
+    expect(uuidV4.hasMatch(second), isTrue);
+    expect(second, isNot(first));
+  });
+
+  test('Core usa a mesma sessão em autocomplete e detalhes', () async {
+    final requests = <http.Request>[];
+    final client = MockClient((request) async {
+      requests.add(request);
+
+      if (request.url.path == '/v1/maps/places/autocomplete') {
+        return http.Response(
+          '{"provider":"google","suggestions":['
+          '{"placeId":"jeri","mainText":"Jericoacoara",'
+          '"secondaryText":"Jijoca de Jericoacoara - CE"}]}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
+      if (request.url.path == '/v1/maps/places/details') {
+        return http.Response(
+          '{"provider":"google","place":{'
+          '"id":"jeri","address":"Jericoacoara, CE",'
+          '"latitude":-2.7956,"longitude":-40.5142}}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response('{}', 404);
+    });
+
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-place-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+    const token = '3519edfe-0f75-4a30-bfe4-7cbd89340b2c';
+
+    final suggestions = await service.suggestions(
+      'Jeri',
+      sessionToken: token,
+    );
+    expect(suggestions, hasLength(1));
+    expect(suggestions.first.mainText, 'Jericoacoara');
+
+    final place = await service.resolve(
+      suggestions.first,
+      sessionToken: token,
+    );
+
+    expect(requests, hasLength(2));
+    expect(requests[0].url.path, '/v1/maps/places/autocomplete');
+    expect(requests[0].body, contains('"sessionToken":"$token"'));
+    expect(requests[0].body, contains('"localOnly":true'));
+    expect(requests[1].url.path, '/v1/maps/places/details');
+    expect(requests[1].body, contains('"sessionToken":"$token"'));
+    expect(requests[1].body, contains('"placeId":"jeri"'));
+    expect(place.name, 'Jericoacoara');
+    expect(place.address, 'Jericoacoara, CE');
+    expect(place.position.latitude, closeTo(-2.7956, 0.0001));
+  });
+
+  test('autocomplete só abre área externa para destino aprovado único', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        '{"provider":"google","suggestions":['
+        '{"placeId":"sobral","mainText":"Sobral",'
+        '"secondaryText":"Ceará, Brasil"}]}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      client: client,
+    );
+
+    final suggestions = await service.suggestions(
+      'sob',
+      sessionToken: '3519edfe-0f75-4a30-bfe4-7cbd89340b2c',
+    );
+
+    expect(captured.url.path, '/v1/maps/places/autocomplete');
+    expect(captured.body, contains('Sobral'));
+    expect(captured.body, contains('"localOnly":false'));
+    expect(suggestions.single.approvedExternalId, 'sobral');
+  });
+
 }
