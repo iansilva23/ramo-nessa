@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/notifications/firebase_push_coordinator.dart';
+import '../../rides/data/passenger_activity_service.dart';
+import 'passenger_help_screen.dart';
+import 'passenger_notifications_screen.dart';
+import 'passenger_ride_history_screen.dart';
+import 'passenger_security_screen.dart';
+import 'passenger_settings_screen.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../payments/domain/passenger_payment_policy.dart';
 
@@ -11,7 +18,9 @@ class PassengerProfileScreen extends StatefulWidget {
     required this.authService,
     required this.accessToken,
     required this.onOpenActivity,
+    this.activityService,
     this.paymentService,
+    this.pushCoordinator,
     this.onLogout,
     this.previewMode = false,
   });
@@ -19,7 +28,9 @@ class PassengerProfileScreen extends StatefulWidget {
   final PhoneAuthService? authService;
   final String? accessToken;
   final VoidCallback onOpenActivity;
+  final PassengerActivityService? activityService;
   final PassengerPaymentService? paymentService;
+  final FirebasePushCoordinator? pushCoordinator;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -203,7 +214,74 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                 icon: Icons.receipt_long_rounded,
                 title: 'Histórico de corridas',
                 subtitle: 'Veja suas viagens e valores',
-                onTap: widget.onOpenActivity,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerRideHistoryScreen(
+                        service: widget.activityService,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-security'),
+                icon: Icons.shield_outlined,
+                title: 'Segurança',
+                subtitle: 'Sessões, acessos e proteção da conta',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerSecurityScreen(
+                        service: widget.authService,
+                        accessToken: widget.accessToken,
+                        account: account,
+                        previewMode: widget.previewMode,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-notifications'),
+                icon: Icons.notifications_none_rounded,
+                title: 'Notificações',
+                subtitle: 'Permissões e avisos do Ramo Nessa',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerNotificationsScreen(
+                        coordinator: widget.pushCoordinator,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-help'),
+                icon: Icons.help_outline_rounded,
+                title: 'Ajuda',
+                subtitle: 'Orientações para corridas, conta e pagamentos',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PassengerHelpScreen(),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-settings'),
+                icon: Icons.settings_outlined,
+                title: 'Configurações',
+                subtitle: 'Permissões, localização e informações do app',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PassengerSettingsScreen(),
+                    ),
+                  );
+                },
               ),
               if (widget.onLogout != null)
                 _ProfileOption(
