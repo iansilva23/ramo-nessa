@@ -116,12 +116,7 @@ void main() {
 
     final requestRideButton =
         find.byKey(const Key('request-ride-button'));
-    await tester.scrollUntilVisible(
-      requestRideButton,
-      240,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.pumpAndSettle();
+    expect(requestRideButton, findsOneWidget);
     await tester.tap(requestRideButton);
     await tester.pumpAndSettle();
 
@@ -317,12 +312,7 @@ void main() {
     await tester.pumpAndSettle();
     final requestRideButton =
         find.byKey(const Key('request-ride-button'));
-    await tester.scrollUntilVisible(
-      requestRideButton,
-      240,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.pumpAndSettle();
+    expect(requestRideButton, findsOneWidget);
     await tester.tap(requestRideButton);
     await tester.pumpAndSettle();
     final walletOption =
