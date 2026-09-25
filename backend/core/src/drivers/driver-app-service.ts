@@ -133,6 +133,8 @@ export async function updateDriverSupplyFromApp(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   driverId: string;
+  enforceDocuments?: boolean;
+  manualDocumentBlocked?: boolean;
   online?: boolean;
   latitude?: number;
   longitude?: number;
@@ -176,6 +178,8 @@ export async function updateDriverSupplyFromApp(input: {
         registry: input.registry,
         documents: input.documents,
         driverId: input.driverId,
+        enforceDocuments: input.enforceDocuments,
+        manualDocumentBlocked: input.manualDocumentBlocked,
         now,
       });
     } catch (error) {
@@ -277,6 +281,8 @@ export async function currentDriverOffer(input: {
   documents: DriverDocumentRepository;
   matching: RideMatchingRepository;
   driverId: string;
+  enforceDocuments?: boolean;
+  manualDocumentBlocked?: boolean;
   finance?: FinanceRepository;
   paymentPolicySettings?: PaymentPolicySettingsRepository;
   operationalSettings?: OperationalSettingsRepository;
@@ -287,6 +293,8 @@ export async function currentDriverOffer(input: {
     registry: input.registry,
     documents: input.documents,
     driverId: input.driverId,
+    enforceDocuments: input.enforceDocuments,
+    manualDocumentBlocked: input.manualDocumentBlocked,
     now,
   });
   const offer = await input.matching.findLatestOfferedForDriver(
@@ -339,6 +347,8 @@ export async function currentDriverOffer(input: {
             registry: input.registry,
             documents: input.documents,
             driverId,
+            enforceDocuments: input.enforceDocuments,
+            manualDocumentBlocked: input.manualDocumentBlocked,
             now,
           }),
         now,
@@ -356,6 +366,8 @@ export async function acceptOfferFromDriverApp(input: {
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   matching: RideMatchingRepository;
+  enforceDocuments?: boolean;
+  manualDocumentBlocked?: boolean;
   offerId: string;
   driverId: string;
   now?: Date;
@@ -365,6 +377,8 @@ export async function acceptOfferFromDriverApp(input: {
     registry: input.registry,
     documents: input.documents,
     driverId: input.driverId,
+    enforceDocuments: input.enforceDocuments,
+    manualDocumentBlocked: input.manualDocumentBlocked,
     now,
   });
   const result = await acceptDriverOffer({
