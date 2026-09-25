@@ -343,9 +343,8 @@ export async function listAdminDriverDocumentComplianceAlerts(input: {
         });
         if (compliance.documentsApproved) return null;
         return {
-          driverId: identity.subjectId,
-          phoneE164: identity.phoneE164,
           ...compliance,
+          phoneE164: identity.phoneE164,
         };
       }),
     )
