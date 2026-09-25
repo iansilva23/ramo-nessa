@@ -1,56 +1,45 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
-import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
 import '../../../../core/config/driver_map_config.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
 
 class DriverMapController {
-  ml.MapLibreMapController? _nativeController;
-  bool _styleReady = false;
+  gm.GoogleMapController? _nativeController;
   bool _disposed = false;
+  double _currentZoom = DriverMapConfig.fallbackZoom;
 
-  bool get ready =>
-      !_disposed && _nativeController != null && _styleReady;
+  bool get ready => !_disposed && _nativeController != null;
 
-  double get currentZoom =>
-      _nativeController?.cameraPosition?.zoom ??
-      DriverMapConfig.fallbackZoom;
+  double get currentZoom => _currentZoom;
 
-  void attach(ml.MapLibreMapController controller) {
+  void attach(gm.GoogleMapController controller) {
     if (_disposed) return;
     _nativeController = controller;
   }
 
-  void markStyleReady() {
-    if (_disposed) return;
-    _styleReady = true;
+  void updateCamera(gm.CameraPosition position) {
+    _currentZoom = position.zoom;
   }
 
   void detach() {
     _nativeController = null;
-    _styleReady = false;
   }
 
   Future<void> move(domain.LatLng point, [double? zoom]) async {
     final controller = _nativeController;
     if (!ready || controller == null) return;
 
-    final update = zoom == null
-        ? ml.CameraUpdate.newLatLng(
-            ml.LatLng(point.latitude, point.longitude),
-          )
-        : ml.CameraUpdate.newLatLngZoom(
-            ml.LatLng(point.latitude, point.longitude),
-            zoom,
-          );
+    final targetZoom = zoom ?? _currentZoom;
+    _currentZoom = targetZoom;
 
     await controller.animateCamera(
-      update,
-      duration: const Duration(milliseconds: 380),
+      gm.CameraUpdate.newLatLngZoom(
+        gm.LatLng(point.latitude, point.longitude),
+        targetZoom,
+      ),
     );
   }
 
@@ -85,9 +74,7 @@ class DriverLiveMap extends StatefulWidget {
 }
 
 class _DriverLiveMapState extends State<DriverLiveMap> {
-  ml.MapLibreMapController? _nativeController;
-  bool _styleReady = false;
-  int _annotationGeneration = 0;
+  gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
 
   domain.LatLng get _driverPoint {
@@ -110,42 +97,11 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
       oldWidget.controller.detach();
       final native = _nativeController;
       if (native != null) widget.controller.attach(native);
-      if (_styleReady) widget.controller.markStyleReady();
     }
 
     if (oldWidget.networkTilesEnabled != widget.networkTilesEnabled) {
       _notifyPlaceholderReadyIfNeeded();
     }
-
-    if (_styleReady &&
-        (oldWidget.supply != widget.supply ||
-            oldWidget.activeRide != widget.activeRide ||
-            oldWidget.route != widget.route ||
-            !_sameNearbyDrivers(
-              oldWidget.nearbyDrivers,
-              widget.nearbyDrivers,
-            ))) {
-      unawaited(_syncAnnotations());
-    }
-  }
-
-  bool _sameNearbyDrivers(
-    List<NearbyDriverPosition> first,
-    List<NearbyDriverPosition> second,
-  ) {
-    if (identical(first, second)) return true;
-    if (first.length != second.length) return false;
-    for (var index = 0; index < first.length; index += 1) {
-      final a = first[index];
-      final b = second[index];
-      if (a.latitude != b.latitude ||
-          a.longitude != b.longitude ||
-          a.busy != b.busy ||
-          a.locationAgeSeconds != b.locationAgeSeconds) {
-        return false;
-      }
-    }
-    return true;
   }
 
   void _notifyPlaceholderReadyIfNeeded() {
@@ -157,107 +113,114 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
     });
   }
 
-  void _onMapCreated(ml.MapLibreMapController controller) {
+  void _onMapCreated(gm.GoogleMapController controller) {
     _nativeController = controller;
     widget.controller.attach(controller);
-  }
-
-  void _onStyleLoaded() {
-    _styleReady = true;
-    widget.controller.markStyleReady();
-    unawaited(_syncAnnotations());
     widget.onMapReady?.call();
   }
 
-  Future<void> _syncAnnotations() async {
-    final controller = _nativeController;
-    if (!_styleReady || controller == null) return;
+  Set<gm.Marker> get _markers {
+    final markers = <gm.Marker>{};
 
-    final generation = ++_annotationGeneration;
-    await controller.clearLines();
-    await controller.clearCircles();
-    if (!mounted || generation != _annotationGeneration) return;
-
-    final route = widget.route;
-    if (route != null && route.points.length >= 2) {
-      await controller.addLine(
-        ml.LineOptions(
-          geometry: route.points
-              .map(
-                (point) =>
-                    ml.LatLng(point.latitude, point.longitude),
-              )
-              .toList(growable: false),
-          lineColor: '#111111',
-          lineWidth: 7,
-          lineOpacity: 0.96,
-          lineJoin: 'round',
+    for (var index = 0; index < widget.nearbyDrivers.length; index += 1) {
+      final driver = widget.nearbyDrivers[index];
+      markers.add(
+        gm.Marker(
+          markerId: gm.MarkerId('nearby-driver-$index'),
+          position: gm.LatLng(driver.latitude, driver.longitude),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            driver.busy
+                ? gm.BitmapDescriptor.hueRose
+                : gm.BitmapDescriptor.hueAzure,
+          ),
+          infoWindow: gm.InfoWindow(
+            title: driver.busy ? 'Motorista ocupado' : 'Motorista disponível',
+          ),
         ),
       );
     }
 
-    final pickup = widget.activeRide?.pickupLatitude == null ||
-            widget.activeRide?.pickupLongitude == null
-        ? null
-        : ml.LatLng(
-            widget.activeRide!.pickupLatitude!,
-            widget.activeRide!.pickupLongitude!,
-          );
-
-    final dropoff = widget.activeRide?.dropoffLatitude == null ||
-            widget.activeRide?.dropoffLongitude == null
-        ? null
-        : ml.LatLng(
-            widget.activeRide!.dropoffLatitude!,
-            widget.activeRide!.dropoffLongitude!,
-          );
-
-    final circles = <ml.CircleOptions>[
-      ...widget.nearbyDrivers.map(
-        (driver) => ml.CircleOptions(
-          geometry: ml.LatLng(driver.latitude, driver.longitude),
-          circleRadius: 7,
-          circleColor: driver.busy ? '#9A9A9A' : '#FFFFFF',
-          circleStrokeWidth: 3,
-          circleStrokeColor:
-              driver.busy ? '#666666' : '#111111',
-          circleOpacity: 0.94,
+    final driverPoint = _driverPoint;
+    markers.add(
+      gm.Marker(
+        markerId: const gm.MarkerId('current-driver'),
+        position: gm.LatLng(
+          driverPoint.latitude,
+          driverPoint.longitude,
+        ),
+        icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+          gm.BitmapDescriptor.hueYellow,
+        ),
+        infoWindow: const gm.InfoWindow(
+          title: 'Você',
         ),
       ),
-      ml.CircleOptions(
-        geometry: ml.LatLng(
-          _driverPoint.latitude,
-          _driverPoint.longitude,
-        ),
-        circleRadius: 11,
-        circleColor: '#111111',
-        circleStrokeWidth: 5,
-        circleStrokeColor: '#F7C600',
-      ),
-      if (pickup != null)
-        ml.CircleOptions(
-          geometry: pickup,
-          circleRadius: 9,
-          circleColor: '#FFFFFF',
-          circleStrokeWidth: 4,
-          circleStrokeColor: '#111111',
-        ),
-      if (dropoff != null)
-        ml.CircleOptions(
-          geometry: dropoff,
-          circleRadius: 10,
-          circleColor: '#F7C600',
-          circleStrokeWidth: 4,
-          circleStrokeColor: '#111111',
-        ),
-    ];
+    );
 
-    await controller.addCircles(circles);
+    final ride = widget.activeRide;
+    if (ride?.pickupLatitude != null && ride?.pickupLongitude != null) {
+      markers.add(
+        gm.Marker(
+          markerId: const gm.MarkerId('pickup'),
+          position: gm.LatLng(
+            ride!.pickupLatitude!,
+            ride.pickupLongitude!,
+          ),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            gm.BitmapDescriptor.hueGreen,
+          ),
+          infoWindow: const gm.InfoWindow(
+            title: 'Embarque',
+          ),
+        ),
+      );
+    }
+
+    if (ride?.dropoffLatitude != null && ride?.dropoffLongitude != null) {
+      markers.add(
+        gm.Marker(
+          markerId: const gm.MarkerId('dropoff'),
+          position: gm.LatLng(
+            ride!.dropoffLatitude!,
+            ride.dropoffLongitude!,
+          ),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
+            gm.BitmapDescriptor.hueRed,
+          ),
+          infoWindow: const gm.InfoWindow(
+            title: 'Destino',
+          ),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Set<gm.Polyline> get _polylines {
+    final route = widget.route;
+    if (route == null || route.points.length < 2) return const {};
+
+    return {
+      gm.Polyline(
+        polylineId: const gm.PolylineId('driver-route'),
+        points: route.points
+            .map(
+              (point) => gm.LatLng(
+                point.latitude,
+                point.longitude,
+              ),
+            )
+            .toList(growable: false),
+        color: const Color(0xFF111111),
+        width: 7,
+        geodesic: false,
+      ),
+    };
   }
 
   @override
   void dispose() {
-    _annotationGeneration += 1;
     widget.controller.detach();
     _nativeController = null;
     super.dispose();
@@ -272,23 +235,29 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
     }
 
     final driverPoint = _driverPoint;
-    return ml.MapLibreMap(
-      initialCameraPosition: ml.CameraPosition(
-        target: ml.LatLng(
+    return gm.GoogleMap(
+      initialCameraPosition: gm.CameraPosition(
+        target: gm.LatLng(
           driverPoint.latitude,
           driverPoint.longitude,
         ),
         zoom: DriverMapConfig.fallbackZoom,
       ),
-      styleString: DriverMapConfig.openFreeMapStyleUrl,
       onMapCreated: _onMapCreated,
-      onStyleLoadedCallback: _onStyleLoaded,
-      minMaxZoomPreference: const ml.MinMaxZoomPreference(4, 19),
+      onCameraMove: widget.controller.updateCamera,
+      markers: _markers,
+      polylines: _polylines,
+      minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
       compassEnabled: false,
+      zoomControlsEnabled: false,
+      mapToolbarEnabled: false,
+      myLocationEnabled: false,
+      myLocationButtonEnabled: false,
       rotateGesturesEnabled: true,
       tiltGesturesEnabled: false,
-      trackCameraPosition: true,
-      myLocationEnabled: false,
+      buildingsEnabled: true,
+      indoorViewEnabled: false,
+      trafficEnabled: false,
     );
   }
 }
