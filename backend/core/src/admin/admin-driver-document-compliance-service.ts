@@ -90,10 +90,15 @@ export async function adminDriverDocumentComplianceView(input: {
     .map((documentType) => {
       const record = byType.get(documentType) ?? null;
       const status = effectiveStatus(record, today);
+      const statusChangedAt =
+        status === 'expired' && record?.expiresOn != null
+          ? `${record.expiresOn}T00:00:00.000Z`
+          : record?.updatedAt ?? '1970-01-01T00:00:00.000Z';
       return {
         documentType,
         status,
         label: issueLabel(documentType, status),
+        statusChangedAt,
         ...(record?.expiresOn == null
           ? {}
           : { expiresOn: record.expiresOn }),
@@ -111,6 +116,25 @@ export async function adminDriverDocumentComplianceView(input: {
   const automaticBlock =
     autoEnforcementEnabled && !documentsApproved;
   const effectiveBlocked = manualBlocked || automaticBlock;
+  const latestIssueAt = issues.reduce<string | null>(
+    (latest, issue) => {
+      if (
+        latest == null ||
+        Date.parse(issue.statusChangedAt) > Date.parse(latest)
+      ) {
+        return issue.statusChangedAt;
+      }
+      return latest;
+    },
+    null,
+  );
+  const acknowledgedAt = control?.acknowledgedAt ?? null;
+  const issueChangedAfterDecision =
+    latestIssueAt != null &&
+    (
+      acknowledgedAt == null ||
+      Date.parse(latestIssueAt) > Date.parse(acknowledgedAt)
+    );
 
   return {
     driverId: input.driverId,
@@ -124,9 +148,10 @@ export async function adminDriverDocumentComplianceView(input: {
     decisionRequired:
       !documentsApproved &&
       !effectiveBlocked &&
-      !autoEnforcementEnabled,
+      !autoEnforcementEnabled &&
+      issueChangedAfterDecision,
     notifiedAt: control?.notifiedAt ?? null,
-    acknowledgedAt: control?.acknowledgedAt ?? null,
+    acknowledgedAt,
     updatedAt: control?.updatedAt ?? null,
   };
 }
