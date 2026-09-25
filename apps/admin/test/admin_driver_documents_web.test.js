@@ -228,3 +228,106 @@ test('frontend documental mantém metadados sanitizados e preview temporário', 
   assert.match(html, /frame-src blob:/);
   assert.match(html, /object-src 'none'/);
 });
+
+
+test('ADM mantém decisão humana por padrão e expõe controles documentais', async () => {
+  const html = readFileSync(
+    new URL('../index.html', import.meta.url),
+    'utf8',
+  );
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  for (const id of [
+    'driver-document-auto-enforcement',
+    'driver-document-compliance-panel',
+    'driver-document-compliance-status',
+    'driver-document-compliance-message',
+    'driver-document-compliance-issues',
+    'driver-document-notify-button',
+    'driver-document-keep-active-button',
+    'driver-document-block-button',
+    'driver-document-unblock-button',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(
+    html,
+    /Desligado por padrão.*você decide/s,
+  );
+  assert.match(app, /Aguardando sua decisão/);
+  assert.match(app, /Bloqueado por você/);
+  assert.match(app, /handleDriverDocumentComplianceNotify/);
+  assert.match(app, /handleDriverDocumentComplianceAction/);
+});
+
+test('cliente Admin consulta, avisa e decide conformidade sem suspender login', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      driverId: 'driver-documents-web',
+      mode: 'manual',
+      documentsApproved: false,
+      manualBlocked: false,
+      effectiveBlocked: false,
+      decisionRequired: true,
+      issues: [],
+    });
+  };
+
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_document_compliance_secret';
+  const driverId = 'driver-documents-web';
+
+  await api.getDriverDocumentCompliance(token, driverId);
+  await api.notifyDriverDocumentCompliance(token, driverId);
+  await api.decideDriverDocumentCompliance(token, {
+    driverId,
+    action: 'keep_active',
+  });
+  await api.decideDriverDocumentCompliance(token, {
+    driverId,
+    action: 'block',
+  });
+
+  assert.deepEqual(
+    calls.map((call) => [call.url, call.options.method]),
+    [
+      [
+        '/v1/admin/drivers/driver-documents-web/document-compliance',
+        'GET',
+      ],
+      [
+        '/v1/admin/drivers/driver-documents-web/document-compliance/notify',
+        'POST',
+      ],
+      [
+        '/v1/admin/drivers/driver-documents-web/document-compliance',
+        'PATCH',
+      ],
+      [
+        '/v1/admin/drivers/driver-documents-web/document-compliance',
+        'PATCH',
+      ],
+    ],
+  );
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    action: 'keep_active',
+  });
+  assert.deepEqual(JSON.parse(calls[3].options.body), {
+    action: 'block',
+  });
+
+  for (const call of calls) {
+    assert.equal(call.url.includes('/auth/status'), false);
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+  }
+});
