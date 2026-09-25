@@ -99,8 +99,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
           onLogout: logout,
           onOpenProfile: openProfile,
           locationService: locationService ?? preview?.location,
-          routeService: routeService,
-          placeSearchService: placeSearchService,
+          routeService: routeService ?? preview?.route,
+          placeSearchService: placeSearchService ?? preview?.places,
           pricingQuoteService: pricingQuoteService ?? preview?.pricing,
           ridePreparationService:
               ridePreparationService ?? preview?.ridePreparation,
