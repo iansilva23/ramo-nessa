@@ -189,12 +189,45 @@ const server = createServer(async (request, response) => {
             {
               steps: [
                 {
-                  distanceMeters,
-                  staticDuration: `${durationSeconds}s`,
+                  distanceMeters: Math.max(
+                    1,
+                    Math.round(distanceMeters * 0.52),
+                  ),
+                  staticDuration: `${Math.max(
+                    30,
+                    Math.round(durationSeconds * 0.52),
+                  )}s`,
+                  polyline: {
+                    encodedPolyline: encodePolyline([
+                      origin,
+                      mid,
+                    ]),
+                  },
                   navigationInstruction: {
                     maneuver: 'STRAIGHT',
                     instructions:
-                      'Siga pela rota indicada até o destino.',
+                      'Siga em frente pela rota indicada.',
+                  },
+                },
+                {
+                  distanceMeters: Math.max(
+                    1,
+                    Math.round(distanceMeters * 0.48),
+                  ),
+                  staticDuration: `${Math.max(
+                    30,
+                    Math.round(durationSeconds * 0.48),
+                  )}s`,
+                  polyline: {
+                    encodedPolyline: encodePolyline([
+                      mid,
+                      destination,
+                    ]),
+                  },
+                  navigationInstruction: {
+                    maneuver: 'TURN_RIGHT',
+                    instructions:
+                      'Vire à direita e siga até o destino.',
                   },
                 },
               ],
