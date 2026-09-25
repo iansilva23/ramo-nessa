@@ -47,6 +47,9 @@ import type { AdminCommunicationsRepository } from '../admin/admin-communication
 import { InMemoryAdminCommunicationsRepository } from '../admin/repositories/in-memory-admin-communications-repository.js';
 import { PostgresAdminCommunicationsRepository } from '../admin/repositories/postgres-admin-communications-repository.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
+import type { PassengerSavedPlaceRepository } from '../passengers/passenger-saved-place-repository.js';
+import { InMemoryPassengerSavedPlaceRepository } from '../passengers/repositories/in-memory-passenger-saved-place-repository.js';
+import { PostgresPassengerSavedPlaceRepository } from '../passengers/repositories/postgres-passenger-saved-place-repository.js';
 import { InMemoryOperationalSettingsRepository } from '../config/in-memory-operational-settings-repository.js';
 import { PostgresOperationalSettingsRepository } from '../config/postgres-operational-settings-repository.js';
 import { createPostgresPool } from './postgres.js';
@@ -69,6 +72,7 @@ export interface RepositoryBundle {
   pushDeviceRepository: PushDeviceRepository;
   adminCommunicationsRepository: AdminCommunicationsRepository;
   operationalSettingsRepository: OperationalSettingsRepository;
+  passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -110,6 +114,8 @@ export function createRepositories(): RepositoryBundle {
         new PostgresAdminCommunicationsRepository(pool),
       operationalSettingsRepository:
         new PostgresOperationalSettingsRepository(pool),
+      passengerSavedPlaceRepository:
+        new PostgresPassengerSavedPlaceRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -161,6 +167,8 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryAdminCommunicationsRepository(),
     operationalSettingsRepository:
       new InMemoryOperationalSettingsRepository(),
+    passengerSavedPlaceRepository:
+      new InMemoryPassengerSavedPlaceRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
