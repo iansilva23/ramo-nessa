@@ -116,6 +116,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
+  bool _navigationMode = false;
   int _selectedTab = 0;
   late final DriverRouteService _routeService =
       widget.routeService ??
@@ -368,7 +369,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         unawaited(
           _mapController.move(
             LatLng(updated.latitude, updated.longitude),
-            _mapController.currentZoom,
+            _navigationMode ? 17.2 : _mapController.currentZoom,
           ),
         );
       }
@@ -688,7 +689,48 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
-  Future<void> _navigateActiveRide() async {
+  Future<void> _startInAppNavigation() async {
+    final ride = _activeRide;
+    final supply = _supply;
+    if (ride == null || supply == null) return;
+
+    final useDropoff = ride.state == 'IN_PROGRESS';
+    final latitude =
+        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude =
+        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+
+    if (latitude == null || longitude == null) {
+      if (!mounted) return;
+      setState(() {
+        _message = useDropoff
+            ? 'O destino exato desta corrida não está disponível.'
+            : 'O ponto de embarque desta corrida não está disponível.';
+      });
+      return;
+    }
+
+    setState(() {
+      _navigationMode = true;
+      _selectedTab = 0;
+      _message = null;
+    });
+
+    if (_mapReady) {
+      await _mapController.move(
+        LatLng(supply.latitude, supply.longitude),
+        17.2,
+      );
+    }
+    await _refreshActiveRoute(force: true);
+  }
+
+  void _stopInAppNavigation() {
+    if (!_navigationMode) return;
+    setState(() => _navigationMode = false);
+  }
+
+  Future<void> _openExternalNavigation() async {
     final ride = _activeRide;
     if (ride == null) return;
 
@@ -719,7 +761,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _message = 'Não foi possível abrir a navegação agora.';
+        _message = 'Não foi possível abrir o Google Maps agora.';
       });
     }
   }
@@ -1171,9 +1213,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     final now = DateTime.now();
+    final minimumRefreshInterval = _navigationMode
+        ? const Duration(seconds: 8)
+        : const Duration(seconds: 20);
     if (!force &&
         _lastRouteRefreshAt != null &&
-        now.difference(_lastRouteRefreshAt!) < const Duration(seconds: 20)) {
+        now.difference(_lastRouteRefreshAt!) < minimumRefreshInterval) {
       return;
     }
 
