@@ -188,3 +188,47 @@ test('registro paid sem saldo no escrow não pode liquidar', async () => {
     0,
   );
 });
+
+
+test('cartão preserva 90/10 da tarifa-base e separa o ajuste de pagamento', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const ride = completedRide();
+  const payment: PaymentRecord = {
+    ...paidPayment(),
+    id: '43333333-3333-4333-8333-333333333333',
+    method: 'card',
+    amountCents: 15786,
+    idempotencyKey: 'settlement-card-adjustment',
+  };
+
+  await repository.createPayment({
+    ...payment,
+    status: 'pending',
+  });
+  const capture = await repository.capturePayment({
+    paymentId: payment.id,
+    processorEventId: 'settlement-card-adjustment-capture',
+  });
+
+  await settleCompletedRide(repository, {
+    ride,
+    payment: capture.payment,
+  });
+
+  assert.equal(
+    await repository.getAccountBalanceCents('platform:revenue'),
+    1500,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents('driver:driver-77:payable'),
+    13500,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents('platform:payment_fee_recovery'),
+    786,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+});

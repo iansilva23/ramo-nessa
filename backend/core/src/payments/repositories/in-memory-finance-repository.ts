@@ -652,8 +652,10 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       paymentId: input.paymentId,
       driverId: input.driverId,
       totalAmountCents: input.totalAmountCents,
-      fareAmountCents: input.fareAmountCents,
-      paymentAdjustmentCents: input.paymentAdjustmentCents,
+      fareAmountCents:
+        input.fareAmountCents ?? input.totalAmountCents,
+      paymentAdjustmentCents:
+        input.paymentAdjustmentCents ?? 0,
       platformCommissionCents: input.platformCommissionCents,
       driverNetCents: input.driverNetCents,
       cashDebtRecoveryCents: cashDebtRecoveredCents,
