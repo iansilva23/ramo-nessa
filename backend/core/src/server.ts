@@ -251,6 +251,10 @@ import {
   createRoutingDistanceProviderFromEnv,
   createRoutingRouteProviderFromEnv,
 } from './routing/routing-provider-factory.js';
+import {
+  GooglePlacesError,
+  createGooglePlacesServiceFromEnv,
+} from './places/google-places-service.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
   confirmRidePayment,
@@ -346,6 +350,7 @@ const {
 } = createRepositories();
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
+const googlePlacesService = createGooglePlacesServiceFromEnv();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const realtimeHub = new RealtimeHub();
@@ -952,6 +957,58 @@ const server = createServer(async (request, response) => {
       const promotion =
         await adminCommunicationsRepository.getAgencyPromotion();
       json(response, 200, promotion);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/maps/places/search'
+    ) {
+      const authorization = headerValue(request, 'authorization');
+      if (process.env.NODE_ENV === 'production' || authorization != null) {
+        await authenticateBearer({
+          repository: authSessionRepository,
+          identities: authOtpRepository,
+          headers: request.headers,
+        });
+      }
+
+      if (googlePlacesService == null) {
+        json(response, 503, {
+          error: 'PLACES_NOT_CONFIGURED',
+          message: 'O serviço de busca de lugares ainda não está configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      try {
+        const places = await googlePlacesService.searchText({
+          query: typeof value.query === 'string' ? value.query : '',
+          localOnly: value.localOnly !== false,
+        });
+        json(response, 200, {
+          provider: 'google',
+          places,
+        });
+      } catch (error) {
+        if (error instanceof GooglePlacesError) {
+          json(
+            response,
+            error.code === 'INVALID_QUERY' ? 422 : 503,
+            {
+              error: error.code,
+              message: error.message,
+            },
+          );
+          return;
+        }
+        throw error;
+      }
       return;
     }
 
