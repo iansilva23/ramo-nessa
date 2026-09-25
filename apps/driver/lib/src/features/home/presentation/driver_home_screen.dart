@@ -405,6 +405,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           }
           if (update.rideUpdated) {
             _activeRide = update.ride;
+            if (update.ride == null) {
+              _navigationMode = false;
+              _activeRoute = null;
+            }
           }
         });
 
@@ -777,6 +781,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted) return;
       setState(() {
         _activeRide = updated;
+        _navigationMode = false;
         _rideAction = false;
         _message = null;
       });
@@ -807,6 +812,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!mounted) return;
       setState(() {
         _activeRide = updated;
+        _navigationMode = true;
         _rideAction = false;
         _message = null;
       });
@@ -938,6 +944,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       setState(() {
         _activeRide = null;
         _activeRoute = null;
+        _navigationMode = false;
         _supply = supply;
         _rideAction = false;
         _message = null;
