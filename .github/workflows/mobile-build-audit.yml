@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up Java 21 for MapLibre
+      - name: Set up Java 21 for Android build
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -43,6 +43,7 @@ jobs:
         working-directory: apps/passenger
         env:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
         run: >
           flutter build apk --release
           --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
@@ -62,7 +63,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7.0.1
 
-      - name: Set up Java 21 for MapLibre
+      - name: Set up Java 21 for Android build
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -81,6 +82,8 @@ jobs:
 
       - name: Build Driver Android release
         working-directory: apps/driver
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
         run: flutter build apk --release
 
       - name: Upload Driver APK
@@ -109,6 +112,12 @@ jobs:
       - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
         run: flutter pub get --enforce-lockfile
+
+      - name: Configure Passenger Google Maps iOS key
+        working-directory: apps/passenger/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
       - name: Build Passenger iOS simulator
         working-directory: apps/passenger
@@ -139,6 +148,12 @@ jobs:
       - name: Resolve Driver dependencies from lockfile
         working-directory: apps/driver
         run: flutter pub get --enforce-lockfile
+
+      - name: Configure Driver Google Maps iOS key
+        working-directory: apps/driver/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
       - name: Build Driver iOS simulator
         working-directory: apps/driver
