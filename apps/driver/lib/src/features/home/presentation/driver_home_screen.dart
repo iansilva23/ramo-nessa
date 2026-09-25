@@ -1310,23 +1310,26 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             ),
           ),
         ),
-        if (_activeRide != null &&
-            _activeRoute?.nextManeuver != null)
+        if (_navigationMode && _activeRide != null)
           Positioned(
             top: 78,
             left: 14,
             right: 14,
             child: SafeArea(
               child: _NavigationInstructionBanner(
-                route: _activeRoute!,
+                route: _activeRoute,
+                targetLabel: _activeRide!.state == 'IN_PROGRESS'
+                    ? _activeRide!.destination.displayName
+                    : _activeRide!.origin.displayName,
+                onStop: _stopInAppNavigation,
+                onExternal: _openExternalNavigation,
               ),
             ),
           ),
         if (_message != null)
           Positioned(
-            top: _activeRide != null &&
-                    _activeRoute?.nextManeuver != null
-                ? 158
+            top: _navigationMode && _activeRide != null
+                ? 198
                 : 86,
             left: 16,
             right: 16,
@@ -1371,7 +1374,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           ),
                           ride: _activeRide!,
                           busy: _rideAction,
-                          onNavigate: _navigateActiveRide,
+                          navigationActive: _navigationMode,
+                          onNavigate: _startInAppNavigation,
+                          onStopNavigation: _stopInAppNavigation,
+                          onExternalNavigation: _openExternalNavigation,
                           onArrived: _markArrived,
                           onStart: _startRide,
                           onComplete: _completeRide,
