@@ -43,6 +43,15 @@ jobs:
         working-directory: apps/passenger
         run: flutter pub get --enforce-lockfile
 
+      - name: Validate Passenger Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
+            echo "::error::RAMO_GOOGLE_MAPS_ANDROID_API_KEY não está configurada. O APK seria gerado com o Google Maps quebrado."
+            exit 1
+          fi
+
       - name: Build Passenger Preview APK
         working-directory: apps/passenger
         env:
@@ -95,6 +104,15 @@ jobs:
       - name: Resolve Driver dependencies from lockfile
         working-directory: apps/driver
         run: flutter pub get --enforce-lockfile
+
+      - name: Validate Driver Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
+            echo "::error::RAMO_GOOGLE_MAPS_ANDROID_API_KEY não está configurada. O APK seria gerado com o Google Maps quebrado."
+            exit 1
+          fi
 
       - name: Build Driver Preview APK
         working-directory: apps/driver
