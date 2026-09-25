@@ -12,6 +12,8 @@ import 'core/notifications/push_foreground_listener.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
+import 'features/profile/data/http_passenger_saved_place_service.dart';
+import 'features/map/data/core_place_search_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
@@ -86,12 +88,36 @@ class RamoNessaPassengerApp extends StatelessWidget {
                 )
               : null;
 
+      final resolvedPlaceSearchService =
+          placeSearchService ??
+              preview?.places ??
+              (coreUri != null &&
+                      normalizedToken != null &&
+                      normalizedToken.length >= 20
+                  ? CorePlaceSearchService(
+                      baseUrl: coreUri,
+                      accessToken: normalizedToken,
+                    )
+                  : null);
+
+      final savedPlaceService =
+          coreUri != null &&
+                  normalizedToken != null &&
+                  normalizedToken.length >= 20
+              ? HttpPassengerSavedPlaceService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
+              : null;
+
       return PassengerMainShell(
         accessToken: normalizedToken,
         onLogout: logout,
         authService: authService,
         paymentService: paymentService ?? preview?.payments,
         activityService: activityService,
+        savedPlaceService: savedPlaceService,
+        placeSearchService: resolvedPlaceSearchService,
         pushCoordinator: pushCoordinator,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
@@ -100,7 +126,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
           onOpenProfile: openProfile,
           locationService: locationService ?? preview?.location,
           routeService: routeService ?? preview?.route,
-          placeSearchService: placeSearchService ?? preview?.places,
+          placeSearchService: resolvedPlaceSearchService,
           pricingQuoteService: pricingQuoteService ?? preview?.pricing,
           ridePreparationService:
               ridePreparationService ?? preview?.ridePreparation,
