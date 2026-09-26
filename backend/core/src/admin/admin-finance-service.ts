@@ -17,7 +17,9 @@ export async function adminFinanceView(input: {
   ]);
 
   return {
-    readOnly: true,
+    readOnly: false,
+    paymentsReadOnly: true,
+    payoutManagementEnabled: true,
     generatedAt: new Date().toISOString(),
     summary,
     payments: payments.map((payment) => ({
