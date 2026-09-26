@@ -294,13 +294,22 @@ final class _PreviewDriverApi implements DriverApi {
   }
 
   @override
-  Future<DriverActivitySnapshot> activity() async {
+  Future<DriverActivitySnapshot> activity({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     return DriverActivitySnapshot(
       total: _ride == null ? 12 : 13,
       completed: 11,
       cancelled: 1,
       inProgress: _ride == null ? 0 : 1,
       earningsCents: 82600,
+      grossCents: 91800,
+      platformFeeCents: 9200,
+      averageEarningsCents: 7509,
+      payoutsRequestedCents: 30000,
+      payoutsPaidCents: 20000,
+      availableBalanceCents: _finance.availableBalanceCents,
       rides: [
         DriverActivityRide(
           id: 'preview-history-1',
@@ -309,6 +318,8 @@ final class _PreviewDriverApi implements DriverApi {
           origin: const DriverLocationRef(zoneId: 'jericoacoara'),
           destination: const DriverLocationRef(zoneId: 'prea'),
           driverEarningsCents: 7200,
+          totalAmountCents: 8000,
+          platformFeeCents: 800,
           updatedAt: DateTime(2026, 9, 23, 18, 30),
           paymentMethod: 'pix',
         ),
