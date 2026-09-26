@@ -1,0 +1,151 @@
+<section id="view-integrations" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">INTEGRAÇÕES</span>
+                <h1>Google Maps Platform</h1>
+                <p>
+                  Assistente de produção para configurar as credenciais sem expor
+                  chaves privadas no painel.
+                </p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="integrations-updated-at">Ainda não verificado</small>
+                <button
+                  id="refresh-integrations-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Verificar configuração
+                </button>
+              </div>
+            </div>
+
+            <div class="integration-security-note">
+              <strong>Segurança primeiro</strong>
+              <span>
+                O ADM mostra onde cada credencial deve ser colocada, mas nunca
+                exibe a chave privada do servidor. Chaves dos apps ficam em
+                GitHub Secrets e entram somente no build.
+              </span>
+            </div>
+
+            <div class="integration-summary-grid">
+              <article class="panel-card integration-status-card">
+                <span class="metric-label">Core / Routes + Places</span>
+                <strong id="google-server-status">Verificando…</strong>
+                <small id="google-server-detail">GOOGLE_MAPS_SERVER_API_KEY</small>
+              </article>
+              <article class="panel-card integration-status-card">
+                <span class="metric-label">Passageiro Android</span>
+                <strong>Secret separado</strong>
+                <small>Maps SDK for Android</small>
+              </article>
+              <article class="panel-card integration-status-card">
+                <span class="metric-label">Motorista Android</span>
+                <strong>Secret separado</strong>
+                <small>Maps SDK for Android</small>
+              </article>
+              <article class="panel-card integration-status-card">
+                <span class="metric-label">iPhone / iOS</span>
+                <strong>2 chaves separadas</strong>
+                <small>Maps SDK for iOS</small>
+              </article>
+            </div>
+
+            <article class="panel-card integration-wizard">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">TUTORIAL GUIADO</span>
+                  <h2>Como configurar sem errar</h2>
+                </div>
+                <span class="pill pill--info">Produção</span>
+              </div>
+
+              <ol class="integration-steps">
+                <li>
+                  <div class="integration-step-number">1</div>
+                  <div>
+                    <strong>Crie o projeto no Google Cloud</strong>
+                    <p>
+                      Use um projeto exclusivo, por exemplo
+                      <code>ramo-nessa-prod</code>, e ative o faturamento.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <div class="integration-step-number">2</div>
+                  <div>
+                    <strong>Ative somente as 4 APIs necessárias</strong>
+                    <div class="integration-chip-row">
+                      <code>Maps SDK for Android</code>
+                      <code>Maps SDK for iOS</code>
+                      <code>Routes API</code>
+                      <code>Places API (New)</code>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="integration-step-number">3</div>
+                  <div>
+                    <strong>Crie 5 chaves separadas</strong>
+                    <p>
+                      Duas Android, duas iOS e uma privada para o Core.
+                      Não reutilize a mesma chave entre os aplicativos.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <div class="integration-step-number">4</div>
+                  <div>
+                    <strong>Restrinja cada chave corretamente</strong>
+                    <div id="google-credential-cards" class="integration-credential-grid">
+                      <p class="muted-copy">Carregando dados do projeto…</p>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                  <div class="integration-step-number">5</div>
+                  <div>
+                    <strong>Coloque cada valor no lugar indicado</strong>
+                    <p>
+                      No GitHub abra <b>Settings → Secrets and variables → Actions</b>.
+                      Para o Core, o secret de deploy vira a variável
+                      <code>GOOGLE_MAPS_SERVER_API_KEY</code> no servidor.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <div class="integration-step-number">6</div>
+                  <div>
+                    <strong>Volte aqui e valide</strong>
+                    <p>
+                      O status do Core ficará verde quando a chave privada estiver
+                      disponível. Os APKs também falham no CI se a chave Android
+                      correspondente estiver ausente.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            </article>
+
+            <article class="panel-card integration-production-checklist">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ANTES DE PUBLICAR</span>
+                  <h2>Checklist de produção</h2>
+                </div>
+              </div>
+              <div class="integration-checklist-grid">
+                <label><input type="checkbox" disabled /> Billing e alertas configurados</label>
+                <label><input type="checkbox" disabled /> APIs restritas por chave</label>
+                <label><input type="checkbox" disabled /> SHA-1 Android de produção conferido</label>
+                <label><input type="checkbox" disabled /> Bundle IDs iOS conferidos</label>
+                <label><input type="checkbox" disabled /> Quotas do Routes/Places definidas</label>
+                <label><input type="checkbox" disabled /> Teste físico Passageiro + Motorista concluído</label>
+              </div>
+              <p class="integration-checklist-note">
+                Estes itens são lembretes operacionais. O painel não marca como
+                concluído automaticamente sem uma validação externa confiável.
+              </p>
+            </article>
+          </section>

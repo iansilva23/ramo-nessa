@@ -1,0 +1,174 @@
+import type { AuthSubjectType } from './auth-session-repository.js';
+
+export type AuthIdentityStatus = 'active' | 'suspended';
+export type AuthFederatedProvider = 'google' | 'apple';
+
+export interface AuthFederatedIdentityRecord {
+  provider: AuthFederatedProvider;
+  providerSubject: string;
+  identityId: string;
+  emailNormalized?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthIdentityRecord {
+  id: string;
+  subjectId: string;
+  subjectType: AuthSubjectType;
+  phoneE164: string;
+  emailNormalized?: string;
+  fullName?: string;
+  passwordHash?: string;
+  photoUrl?: string;
+  photoUpdatedAt?: string;
+  status: AuthIdentityStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthIdentityCursor {
+  updatedAt: string;
+  id: string;
+}
+
+export interface AuthIdentityListInput {
+  subjectType: AuthSubjectType;
+  status?: AuthIdentityStatus | undefined;
+  search?: string | undefined;
+  limit: number;
+  cursor?: AuthIdentityCursor | undefined;
+}
+
+export interface AuthIdentityListPage {
+  identities: AuthIdentityRecord[];
+  hasMore: boolean;
+}
+
+export interface AuthIdentityStatusCounts {
+  total: number;
+  active: number;
+  suspended: number;
+}
+
+export interface OtpChallengeRecord {
+  id: string;
+  identityId: string;
+  codeDigest: string;
+  expiresAt: string;
+  attemptCount: number;
+  requestedEmailNormalized?: string;
+  consumedAt?: string;
+  createdAt: string;
+}
+
+export interface OtpAttemptResult {
+  challenge: OtpChallengeRecord;
+  matched: boolean;
+}
+
+export interface AuthRateLimitRule {
+  key: string;
+  limit: number;
+  windowMs: number;
+}
+
+export interface AuthRateLimitResult {
+  allowed: boolean;
+  retryAfterMs: number;
+}
+
+export type OtpChallengeCreationResult =
+  | { created: true; challenge: OtpChallengeRecord }
+  | { created: false; retryAfterMs: number };
+
+export interface AuthOtpRepository {
+  createIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord>;
+  findOrCreatePassengerIdentity(
+    identity: AuthIdentityRecord,
+  ): Promise<AuthIdentityRecord>;
+  findIdentityByPhone(
+    subjectType: AuthSubjectType,
+    phoneE164: string,
+  ): Promise<AuthIdentityRecord | null>;
+  findIdentityByEmail(
+    subjectType: AuthSubjectType,
+    emailNormalized: string,
+  ): Promise<AuthIdentityRecord | null>;
+  findIdentityById(id: string): Promise<AuthIdentityRecord | null>;
+  findIdentityBySubject(
+    subjectType: AuthSubjectType,
+    subjectId: string,
+  ): Promise<AuthIdentityRecord | null>;
+  findFederatedIdentity(
+    provider: AuthFederatedProvider,
+    providerSubject: string,
+  ): Promise<AuthFederatedIdentityRecord | null>;
+  findFederatedIdentityForAccount(input: {
+    provider: AuthFederatedProvider;
+    identityId: string;
+  }): Promise<AuthFederatedIdentityRecord | null>;
+  linkFederatedIdentity(
+    record: AuthFederatedIdentityRecord,
+  ): Promise<AuthFederatedIdentityRecord>;
+
+  setIdentityEmail(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    emailNormalized: string;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  setPassengerAccount(input: {
+    subjectId: string;
+    fullName?: string;
+    emailNormalized?: string;
+    passwordHash?: string;
+    photoUrl?: string | null;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  updatePassengerProfilePhoto(input: {
+    subjectId: string;
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  findPassengerProfilePhoto(subjectId: string): Promise<{
+    bytes: Buffer;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    updatedAt: string;
+  } | null>;
+  setIdentityStatus(input: {
+    subjectType: AuthSubjectType;
+    subjectId: string;
+    status: AuthIdentityStatus;
+    updatedAt: string;
+  }): Promise<AuthIdentityRecord | null>;
+  listIdentities(
+    input: AuthIdentityListInput,
+  ): Promise<AuthIdentityListPage>;
+  countIdentitiesByStatus(
+    subjectType: AuthSubjectType,
+  ): Promise<AuthIdentityStatusCounts>;
+  consumeRateLimits(input: {
+    rules: AuthRateLimitRule[];
+    now: string;
+  }): Promise<AuthRateLimitResult>;
+  createChallengeWithCooldown(input: {
+    challenge: OtpChallengeRecord;
+    now: string;
+    cooldownMs: number;
+  }): Promise<OtpChallengeCreationResult>;
+  createChallenge(
+    challenge: OtpChallengeRecord,
+  ): Promise<OtpChallengeRecord>;
+  findLatestChallengeByIdentityId(
+    identityId: string,
+  ): Promise<OtpChallengeRecord | null>;
+  cancelChallenge(challengeId: string, canceledAt: string): Promise<void>;
+  attemptChallenge(input: {
+    challengeId: string;
+    codeDigest: string;
+    attemptedAt: string;
+    maxAttempts: number;
+  }): Promise<OtpAttemptResult | null>;
+}

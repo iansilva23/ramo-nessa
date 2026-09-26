@@ -1,0 +1,148 @@
+<section id="view-rides" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">VIAGENS</span>
+                <h1>Operação de corridas</h1>
+                <p>Listagem paginada e detalhe somente leitura diretamente do Core.</p>
+              </div>
+              <span class="pill">Somente leitura</span>
+            </div>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Corridas</h2>
+                </div>
+                <span id="ride-directory-summary" class="pill">0 carregadas</span>
+              </div>
+
+              <form id="ride-directory-form" class="ride-directory-toolbar">
+                <label class="field ride-directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="ride-directory-query"
+                    maxlength="120"
+                    placeholder="ID da corrida, passageiro ou motorista"
+                  >
+                </label>
+                <label class="field">
+                  <span>Escopo</span>
+                  <select id="ride-directory-scope">
+                    <option value="active" selected>Ativas</option>
+                    <option value="all">Todas</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>De</span>
+                  <input id="ride-directory-from" type="date">
+                </label>
+                <label class="field">
+                  <span>Até</span>
+                  <input id="ride-directory-to" type="date">
+                </label>
+                <label class="field">
+                  <span>Estado</span>
+                  <select id="ride-directory-state">
+                    <option value="">Todos do escopo</option>
+                    <option value="CREATED">Criada</option>
+                    <option value="AWAITING_PAYMENT">Aguardando pagamento</option>
+                    <option value="PAID">Paga</option>
+                    <option value="SEARCHING_DRIVER">Buscando motorista</option>
+                    <option value="DRIVER_ASSIGNED">Motorista definido</option>
+                    <option value="DRIVER_ARRIVING">Motorista a caminho</option>
+                    <option value="DRIVER_ARRIVED">Motorista chegou</option>
+                    <option value="IN_PROGRESS">Em andamento</option>
+                    <option value="COMPLETED">Concluída</option>
+                    <option value="PAYMENT_FAILED">Pagamento falhou</option>
+                    <option value="NO_DRIVER_FOUND">Sem motorista</option>
+                    <option value="CANCELLED_BY_PASSENGER">Cancelada pelo passageiro</option>
+                    <option value="CANCELLED_BY_DRIVER">Cancelada pelo motorista</option>
+                    <option value="CANCELLED_BY_ADMIN">Cancelada pelo Admin</option>
+                    <option value="REFUND_PENDING">Reembolso pendente</option>
+                    <option value="REFUNDED">Reembolsada</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table ride-directory-table">
+                  <thead>
+                    <tr>
+                      <th>Estado</th>
+                      <th>Rota</th>
+                      <th>Categoria</th>
+                      <th>Passageiro</th>
+                      <th>Motorista</th>
+                      <th>Valor</th>
+                      <th>Atualizada</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="ride-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="ride-directory-empty" class="empty-state" hidden>
+                Nenhuma corrida corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="ride-directory-count">0 carregadas</span>
+                <button
+                  id="ride-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
+
+            <article class="panel-card ride-detail-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DETALHE</span>
+                  <h2>Corrida selecionada</h2>
+                </div>
+                <span id="ride-detail-status" class="pill pill--neutral">Nenhuma</span>
+              </div>
+              <div id="ride-detail-content" class="ride-detail-content empty-state">
+                Abra uma corrida na tabela para ver os detalhes.
+              </div>
+
+              <div id="ride-cancel-panel" class="ride-cancel-panel" hidden>
+                <div>
+                  <span class="eyebrow eyebrow--dark">CANCELAMENTO ADMINISTRATIVO</span>
+                  <h3>Cancelar corrida</h3>
+                  <p id="ride-cancel-note">
+                    Disponível apenas antes do início da viagem.
+                  </p>
+                </div>
+                <form id="ride-cancel-form" class="ride-cancel-form">
+                  <label class="field">
+                    <span>Motivo</span>
+                    <textarea
+                      id="ride-cancel-reason"
+                      rows="3"
+                      minlength="3"
+                      maxlength="500"
+                      required
+                      placeholder="Explique o motivo operacional do cancelamento"
+                    ></textarea>
+                  </label>
+                  <button
+                    id="ride-cancel-button"
+                    class="button button--danger"
+                    type="submit"
+                  >
+                    Cancelar corrida
+                  </button>
+                </form>
+              </div>
+            </article>
+          </section>

@@ -1,0 +1,38 @@
+{
+  auto_https off
+  admin off
+}
+
+:8080 {
+  encode zstd gzip
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    X-Frame-Options "DENY"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Cross-Origin-Opener-Policy "same-origin"
+    Cross-Origin-Resource-Policy "same-origin"
+  }
+
+  @api path /v1/* /health /ready
+  handle @api {
+    reverse_proxy core:8080
+  }
+
+  redir / /admin/ 302
+  redir /admin /admin/ 308
+
+  handle_path /admin/* {
+    root * /srv/admin
+    header Cache-Control "no-store"
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    try_files {path} /index.html
+    file_server
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+}

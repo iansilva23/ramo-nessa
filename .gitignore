@@ -54,3 +54,4 @@ redis-data/
 # Generated
 *.g.dart
 *.freezed.dart
+**/ios/Flutter/GoogleMaps.local.xcconfig

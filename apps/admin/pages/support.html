@@ -1,0 +1,69 @@
+<section id="view-support" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">SUPORTE</span>
+      <h1>Chamados dos motoristas</h1>
+      <p>Consulte, responda e encerre chamados enviados pelo app do Motorista.</p>
+    </div>
+    <button id="refresh-support-button" class="button button--ghost-dark" type="button">
+      Atualizar
+    </button>
+  </div>
+
+  <article class="panel-card">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">FILA</span>
+        <h2>Chamados recentes</h2>
+      </div>
+      <span id="support-summary" class="pill">0 chamados</span>
+    </div>
+
+    <div id="support-list" class="support-list"></div>
+    <div id="support-empty" class="empty-state">
+      Nenhum chamado de suporte foi encontrado.
+    </div>
+  </article>
+
+  <article id="support-response-card" class="panel-card" hidden>
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">RESPOSTA</span>
+        <h2 id="support-response-title">Responder chamado</h2>
+        <p id="support-response-meta" class="muted-copy"></p>
+      </div>
+      <span id="support-response-status" class="pill pill--neutral">Aberto</span>
+    </div>
+
+    <div class="support-message-box">
+      <strong>Mensagem do motorista</strong>
+      <p id="support-driver-message"></p>
+    </div>
+
+    <form id="support-response-form" class="stack-form">
+      <input id="support-ticket-id" type="hidden">
+      <label class="field">
+        <span>Status</span>
+        <select id="support-ticket-status" required>
+          <option value="in_progress">Em atendimento</option>
+          <option value="resolved">Resolvido</option>
+          <option value="closed">Fechado</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Resposta</span>
+        <textarea
+          id="support-ticket-response"
+          rows="5"
+          minlength="3"
+          maxlength="2000"
+          required
+          placeholder="Digite a resposta que será enviada ao motorista"
+        ></textarea>
+      </label>
+      <button id="support-response-button" class="button button--primary" type="submit">
+        Salvar resposta
+      </button>
+    </form>
+  </article>
+</section>

@@ -1,0 +1,151 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
+import '../domain/passenger_ride_tracking_snapshot.dart';
+import 'passenger_ride_tracking_service.dart';
+
+class HttpPassengerRideTrackingService
+    implements PassengerRideTrackingService {
+  HttpPassengerRideTrackingService({
+    required Uri baseUrl,
+    String? accessToken,
+    String? passengerId,
+    http.Client? client,
+  })  : _baseUrl = baseUrl,
+        _accessToken = accessToken ?? '',
+        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
+        _client = client ?? http.Client();
+
+  final Uri _baseUrl;
+  final String _accessToken;
+  final String _passengerId;
+  final http.Client _client;
+
+  Map<String, String> get _identityHeaders => {
+        'content-type': 'application/json',
+        if (_accessToken.trim().isNotEmpty)
+          'authorization': 'Bearer ${_accessToken.trim()}'
+        else if (_passengerId.trim().isNotEmpty)
+          'x-dev-passenger-id': _passengerId.trim(),
+      };
+
+  @override
+  Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/rides/$rideId/tracking'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerRideTrackingSnapshot.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerRideTrackingException(
+          'O servidor retornou um rastreamento inválido.',
+        );
+      }
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos atualizar sua corrida agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/rides/$rideId/messages'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final raw = decoded['messages'];
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(PassengerRideChatMessage.fromJson)
+          .toList(growable: false);
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos carregar as mensagens agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/messages'),
+          headers: _identityHeaders,
+          body: jsonEncode({'body': body}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      final message = decoded['message'];
+      if (message is Map<String, dynamic>) {
+        return PassengerRideChatMessage.fromJson(message);
+      }
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos enviar sua mensagem agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerDriverRatingResult> rateDriver(
+    String rideId,
+    int stars,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/rating'),
+          headers: _identityHeaders,
+          body: jsonEncode({'stars': stars}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerDriverRatingResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerRideTrackingException(
+          'O servidor retornou uma avaliação inválida.',
+        );
+      }
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos enviar sua avaliação agora.',
+      ),
+    );
+  }
+
+}

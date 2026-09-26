@@ -3,11 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/app.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
+import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/destination_search_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/card_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
   testWidgets('digitar destino não faz autocomplete no Nominatim', (tester) async {
@@ -28,10 +42,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(search.calls, 1);
-    expect(find.widgetWithText(ListTile, 'Jericoacoara'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('rota real calcula preço e matching fake continua bloqueado',
+  testWidgets('rota prepara preço final e abre pagamento sem matching fake',
       (tester) async {
     final search = _FakePlaceSearchService();
 
@@ -40,6 +60,9 @@ void main() {
         locationService: _FakeLocationService(),
         routeService: _FakeRouteService(),
         placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
+        ridePreparationService: _FakeRidePreparationService(),
+        paymentService: _FakePassengerPaymentService(),
         networkTilesEnabled: false,
       ),
     );
@@ -57,10 +80,15 @@ void main() {
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ListTile, 'Jericoacoara'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
+    expect(find.text('2,5 km · 7 min'), findsOneWidget);
 
     await tester.drag(
       find.byType(ListView).last,
@@ -68,28 +96,171 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('R\$ 16,00'), findsOneWidget);
-    expect(find.text('estimativa pela rota'), findsOneWidget);
-
-    await tester.tap(find.text('Solicitar'));
-    await tester.pump();
-
     expect(
-      find.textContaining('O matching com motoristas será conectado'),
+      find.text('R\$ 42,00', skipOffstage: false),
       findsOneWidget,
     );
-    expect(find.textContaining('Procurando carro'), findsNothing);
+    expect(
+      find.text('Valor confirmado antes do pagamento', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.text('Buggy'), findsOneWidget);
+    expect(find.text('Carro'), findsNothing);
+
+    final addPassengerButton =
+        find.byTooltip('Adicionar passageiro');
+    await tester.scrollUntilVisible(
+      addPassengerButton,
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(addPassengerButton);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('R\$ 44,00', skipOffstage: false),
+      findsOneWidget,
+    );
+
+    final requestRideButton =
+        find.byKey(const Key('request-ride-button'));
+    expect(requestRideButton, findsOneWidget);
+    await tester.tap(requestRideButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pague com'), findsOneWidget);
+    expect(find.text('Tarifa-base da corrida'), findsOneWidget);
+    expect(find.text('R\$ 45,00'), findsOneWidget);
+    expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
+    expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
+    expect(find.text('Pix · R\$ 45,45'), findsOneWidget);
+    expect(find.text('Cartão · R\$ 47,36'), findsOneWidget);
+    expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
+    expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+
+    await tester.drag(
+      find.byType(ListView).last,
+      const Offset(0, -260),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dinheiro'), findsOneWidget);
+    expect(find.text('Em breve'), findsOneWidget);
+    await tester.tap(find.text('Dinheiro'), warnIfMissed: false);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('Procurando buggy'), findsNothing);
+
+    await tester.drag(
+      find.byType(ListView).last,
+      const Offset(0, 260),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carteira Ramo Nessa'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pagamento confirmado'), findsOneWidget);
+    expect(find.text('Saldo restante: R\$ 55,00'), findsOneWidget);
   });
+
+  testWidgets(
+    'dinheiro aparece ativo quando a política central libera cash',
+    (tester) async {
+      final service = _FakeCashPassengerPaymentService();
+      final ride = PreparedRide(
+        id: 'ride-cash-enabled',
+        state: 'AWAITING_PAYMENT',
+        baseAmountCents: 4500,
+        pickupCompensationCents: 0,
+        totalAmountCents: 4500,
+        holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RidePaymentScreen(
+            ride: ride,
+            paymentService: service,
+            networkTilesEnabled: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.drag(
+        find.byType(ListView),
+        const Offset(0, -280),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dinheiro'), findsOneWidget);
+      expect(find.text('Em breve'), findsNothing);
+      await tester.ensureVisible(find.text('Dinheiro'));
+      await tester.tap(find.text('Dinheiro'));
+      await tester.pumpAndSettle();
+
+      expect(service.cashAuthorizations, 1);
+      expect(find.text('Pagamento em dinheiro'), findsOneWidget);
+      expect(
+        find.textContaining('Pague R\$ 45,00 diretamente ao motorista'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'sem motorista o valor volta para a carteira e a tela explica o estorno',
+    (tester) async {
+      final ride = PreparedRide(
+        id: 'ride-refunded',
+        state: 'AWAITING_PAYMENT',
+        baseAmountCents: 4500,
+        pickupCompensationCents: 0,
+        totalAmountCents: 4500,
+        holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RidePaymentScreen(
+            ride: ride,
+            paymentService: _FakeRefundedPassengerPaymentService(),
+            networkTilesEnabled: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+      await tester.tap(find.text('Carteira Ramo Nessa'));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byType(ListView),
+        const Offset(0, -320),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('O valor voltou integralmente'),
+        findsOneWidget,
+      );
+      expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+      expect(find.text('Pagamento confirmado'), findsNothing);
+    },
+  );
 
   testWidgets('passageiro consegue trocar a origem manualmente', (tester) async {
     final search = _FakePlaceSearchService();
-    final route = _FakeRouteService();
 
     await tester.pumpWidget(
       RamoNessaPassengerApp(
         locationService: _FakeLocationService(),
-        routeService: route,
+        routeService: _FakeRouteService(),
         placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
         networkTilesEnabled: false,
       ),
     );
@@ -107,11 +278,158 @@ void main() {
     await tester.tap(find.byTooltip('Buscar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ListTile, 'Preá'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Preá'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Preá'), findsOneWidget);
   });
+  testWidgets('após pagamento mostra motorista no acompanhamento da corrida',
+      (tester) async {
+    final search = _FakePlaceSearchService();
+
+    await tester.pumpWidget(
+      RamoNessaPassengerApp(
+        locationService: _FakeLocationService(),
+        routeService: _FakeRouteService(),
+        placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
+        ridePreparationService: _FakeRidePreparationService(),
+        paymentService: _FakePassengerPaymentService(),
+        rideTrackingService: _FakeRideTrackingService(),
+        networkTilesEnabled: false,
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Pra onde vamos?'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Jericoacoara');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Buscar'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.text('Jericoacoara'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final requestRideButton =
+        find.byKey(const Key('request-ride-button'));
+    expect(requestRideButton, findsOneWidget);
+    await tester.tap(requestRideButton);
+    await tester.pumpAndSettle();
+    final walletOption =
+        find.byKey(const Key('payment-option-wallet'));
+    await tester.scrollUntilVisible(
+      walletOption,
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(walletOption);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Sua corrida'), findsOneWidget);
+    expect(find.text('Seu motorista está a caminho'), findsOneWidget);
+    expect(find.text('Motorista Teste'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+
+  testWidgets('Pix abre checkout real com copia e cola', (tester) async {
+    final ride = PreparedRide(
+      id: 'ride-pix-ui',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4500,
+      pickupCompensationCents: 0,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RidePaymentScreen(
+          ride: ride,
+          paymentService: _FakePixPassengerPaymentService(),
+          networkTilesEnabled: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Só falta seu e-mail'), findsNothing);
+    expect(find.byKey(const Key('payment-email-field')), findsNothing);
+    expect(find.text('Pagar com Pix'), findsOneWidget);
+    expect(find.text('Copiar código Pix'), findsOneWidget);
+    expect(
+      find.textContaining('A corrida só será enviada ao motorista'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Pix desativa QR quando a reserva expira', (tester) async {
+    final ride = PreparedRide(
+      id: 'ride-pix-expiry-ui',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4500,
+      pickupCompensationCents: 0,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(seconds: 2)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RidePaymentScreen(
+          ride: ride,
+          paymentService: _FakePixPassengerPaymentService(),
+          networkTilesEnabled: false,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Copiar código Pix'), findsOneWidget);
+    expect(
+      find.textContaining('Reserva do motorista:'),
+      findsOneWidget,
+    );
+
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2200)),
+    );
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('Copiar código Pix'), findsNothing);
+    expect(
+      find.text('Reserva expirada · não faça mais este Pix'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+
 }
 
 class _FakeLocationService implements LocationService {
@@ -132,6 +450,31 @@ class _FakeRouteService implements RouteService {
       distanceMeters: 2500,
       duration: const Duration(minutes: 7),
     );
+  }
+}
+
+class _FakePricingQuoteService implements PricingQuoteService {
+  @override
+  Future<PricingQuote> quote({
+    required ServiceType service,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required String originZoneId,
+    required String destinationZoneId,
+    required RouteInfo route,
+    int passengers = 1,
+    DateTime? now,
+  }) async {
+    final amount = service == ServiceType.buggy
+        ? 4000 + passengers * 200
+        : 4200;
+    return PricingQuote.fromJson({
+      'kind': 'exact',
+      'ruleId': 'test-exact',
+      'totalAmountCents': amount,
+      'platformCommissionCents': (amount * 0.10).round(),
+      'driverNetCents': (amount * 0.90).round(),
+    });
   }
 }
 
@@ -159,5 +502,332 @@ class _FakePlaceSearchService implements PlaceSearchService {
         position: LatLng(-2.7956, -40.5142),
       ),
     ];
+  }
+}
+
+
+class _FakeRidePreparationService implements RidePreparationService {
+  @override
+  Future<PreparedRide> prepare({
+    required ServiceType service,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required String originZoneId,
+    required String destinationZoneId,
+    required RouteInfo route,
+    int passengers = 1,
+    DateTime? now,
+  }) async {
+    return PreparedRide(
+      id: 'ride-test',
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4400,
+      pickupCompensationCents: 100,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 2)),
+    );
+  }
+}
+
+
+class _FakePassengerPaymentService implements PassengerPaymentService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const WalletRidePaymentResult(
+      rideState: 'SEARCHING_DRIVER',
+      walletBalanceCents: 5500,
+      duplicatePayment: false,
+      paymentConfirmed: true,
+      dispatchStatus: 'SEARCHING_DRIVER',
+    );
+  }
+}
+
+
+class _FakeCashPassengerPaymentService
+    implements PassengerPaymentService {
+  int cashAuthorizations = 0;
+
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: true,
+      allowedMethods: {'pix', 'card', 'wallet', 'cash'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    cashAuthorizations++;
+    return const CashRideAuthorizationResult(
+      rideState: 'SEARCHING_DRIVER',
+      amountCents: 4500,
+      duplicateAuthorization: false,
+      authorized: true,
+      dispatchStatus: 'SEARCHING_DRIVER',
+    );
+  }
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Carteira não faz parte deste teste cash.');
+  }
+}
+
+
+class _FakeRideTrackingService implements PassengerRideTrackingService {
+
+  @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async =>
+      const [];
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    return PassengerRideChatMessage(
+      id: 'test-message',
+      rideId: rideId,
+      senderType: 'passenger',
+      senderId: 'test-passenger',
+      body: body,
+      createdAt: DateTime(2026, 9, 26),
+    );
+  }
+  @override
+  Future<PassengerDriverRatingResult> rateDriver(
+    String rideId,
+    int stars,
+  ) async {
+    return PassengerDriverRatingResult(
+      stars: stars,
+      ratingAverage: stars.toDouble(),
+      ratingCount: 1,
+      duplicate: false,
+    );
+  }
+
+  @override
+  Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
+    return PassengerRideTrackingSnapshot(
+      rideId: rideId,
+      state: 'DRIVER_ARRIVING',
+      category: 'buggy',
+      pickupLatitude: -2.7956,
+      pickupLongitude: -40.5142,
+      dropoffLatitude: -2.82017,
+      dropoffLongitude: -40.41467,
+      driverLocation: PassengerDriverLocation(
+        latitude: -2.8001,
+        longitude: -40.5001,
+        updatedAt: DateTime.now(),
+        stale: false,
+      ),
+      driver: const PassengerDriverProfile(
+        id: 'driver-test',
+        displayName: 'Motorista Teste',
+        ratingAverage: 4.9,
+        ratingCount: 12,
+      ),
+    );
+  }
+}
+
+
+class _FakeRefundedPassengerPaymentService
+    implements PassengerPaymentService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Cash não deveria ser chamado com política desligada.');
+  }
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Pix não faz parte deste teste.');
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 10000;
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const WalletRidePaymentResult(
+      rideState: 'REFUNDED',
+      walletBalanceCents: 10000,
+      duplicatePayment: false,
+      paymentConfirmed: false,
+      paymentRefunded: true,
+      dispatchStatus: 'NO_DRIVER_FOUND',
+    );
+  }
+}
+
+
+class _FakePixPassengerPaymentService
+    implements PassengerPaymentService {
+  @override
+  Future<PassengerPaymentPolicy> paymentPolicy() async {
+    return const PassengerPaymentPolicy(
+      cashEnabled: false,
+      allowedMethods: {'pix', 'card', 'wallet'},
+      paymentRequiredBeforeDispatch: true,
+      passengerWalletEnabled: true,
+    );
+  }
+
+  @override
+  Future<int> walletBalanceCents() async => 0;
+
+  @override
+  Future<CardRidePaymentResult> createCardRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+    required String cardToken,
+    required String paymentMethodId,
+    required String paymentMethodType,
+    int installments = 1,
+  }) async {
+    throw StateError('Cartão não faz parte deste teste.');
+  }
+
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    return const PixRidePaymentResult(
+      internalPaymentId: 'payment-pix-ui',
+      internalPaymentStatus: 'pending',
+      orderId: 'ORD01PIXUI123456789',
+      gatewayPaymentId: 'PAY01PIXUI123456789',
+      status: 'created',
+      statusDetail: 'waiting_payment',
+      ticketUrl: 'https://example.test/pix',
+      qrCode: '000201010212-test-pix-ui',
+      qrCodeBase64: '',
+    );
+  }
+
+  @override
+  Future<CashRideAuthorizationResult> authorizeCashRide({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Cash não faz parte deste teste Pix.');
+  }
+
+  @override
+  Future<WalletRidePaymentResult> payRideWithWallet({
+    required String rideId,
+    required String idempotencyKey,
+  }) async {
+    throw StateError('Carteira não faz parte deste teste Pix.');
   }
 }

@@ -1,22 +1,45 @@
 # Ramo Nessa Motorista
 
-Aplicativo Flutter do motorista.
+Aplicativo Flutter do motorista, separado do Passageiro.
 
-Identidade reservada:
+## Estado atual
+- Android Flutter buildável;
+- identidade visual compartilhada Ramo Nessa;
+- leitura do cadastro operacional aprovado;
+- online/offline;
+- atualização manual de localização em foreground;
+- tracking contínuo Android enquanto online via foreground service;
+- notificação persistente de localização durante o tracking;
+- polling temporário de ofertas;
+- oferta mostra ganho, rota, passageiros e coleta aproximada;
+- aceitar/recusar integrado ao Core;
+- aceite mostra ponto de embarque e deixa motorista ocupado;
+- corrida ativa é recuperada após reabrir o app;
+- Cheguei / Iniciar / Finalizar integrados ao Core;
+- finalização exibe saldo disponível do motorista;
+- painel de ganhos mostra saldo disponível e saque em processamento;
+- solicitação de saque integrada ao Core com reserva idempotente;
+- embarque e destino exatos ficam disponíveis para o fluxo de navegação;
+- botão abre navegação externa para embarque antes da corrida;
+- após iniciar, botão abre navegação externa para o destino exato;
+- APK debug publicado como artefato do Driver CI.
 
-- nome do produto: **Ramo Nessa Motorista**
-- futuro bundle/application id: `br.com.ramonessa.driver`
-- ícone oficial: versão amarela/preta com a faixa **MOTORISTA**
-- mesma família visual do Passageiro, com diferenciação explícita no ícone
+## Segurança
+O app não pode alterar categoria, 4x4, capacidade ou veículo. Esses dados
+vêm do cadastro aprovado no Core.
 
-Escopo inicial:
-- cadastro e documentos
-- veículo
-- online/offline
-- GPS em background
-- ofertas de serviço
-- aceitar/recusar
-- coleta e viagem
-- ganhos
-- histórico
-- avaliações
+## Desenvolvimento
+Use:
+- RAMO_CORE_BASE_URL
+- RAMO_DEV_DRIVER_ID
+
+A identidade de desenvolvimento é recusada pelo Core em produção.
+
+## Ainda falta
+- autenticação real;
+- onboarding/documentos;
+- realtime/push;
+- validar tracking em background em celular Android real;
+- navegação interna/turn-by-turn própria;
+- ganhos, saque, histórico e avaliações;
+- iOS e assinatura de release.

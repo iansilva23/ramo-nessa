@@ -1,0 +1,159 @@
+<section id="view-passengers" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">PASSAGEIROS</span>
+                <h1>Diretório de passageiros</h1>
+                <p>Consulta de identidade, histórico e controle de acesso do app Passageiro.</p>
+              </div>
+              <span class="pill">Acesso controlado</span>
+            </div>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Passageiros cadastrados</h2>
+                </div>
+                <span id="passenger-directory-summary" class="pill">0 passageiros</span>
+              </div>
+
+              <form id="passenger-directory-form" class="directory-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="passenger-directory-query"
+                    maxlength="80"
+                    placeholder="ID ou telefone"
+                  >
+                </label>
+                <label class="field directory-status">
+                  <span>Status</span>
+                  <select id="passenger-directory-status">
+                    <option value="">Todos</option>
+                    <option value="active">Ativos</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="passenger-summary-grid" aria-label="Resumo de passageiros">
+                <div>
+                  <span>Total</span>
+                  <strong id="passengers-total">0</strong>
+                </div>
+                <div>
+                  <span>Ativos</span>
+                  <strong id="passengers-active">0</strong>
+                </div>
+                <div>
+                  <span>Suspensos</span>
+                  <strong id="passengers-suspended">0</strong>
+                </div>
+              </div>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table">
+                  <thead>
+                    <tr>
+                      <th>Passageiro</th>
+                      <th>Telefone</th>
+                      <th>Status</th>
+                      <th>Criado</th>
+                      <th>Atualizado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="passenger-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="passenger-directory-empty" class="empty-state" hidden>
+                Nenhum passageiro corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="passenger-directory-count">0 carregados</span>
+                <button
+                  id="passenger-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
+            <article class="panel-card passenger-detail-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">FICHA</span>
+                  <h2>Passageiro</h2>
+                </div>
+                <span id="passenger-detail-status" class="pill pill--neutral">Nenhum</span>
+              </div>
+
+              <div id="passenger-detail-content" class="passenger-detail-content empty-state">
+                Abra um passageiro na tabela para ver identidade e histórico recente.
+              </div>
+
+              <div id="passenger-access-actions" class="passenger-access-actions" hidden>
+                <button
+                  id="passenger-access-button"
+                  class="button button--danger"
+                  type="button"
+                >
+                  Bloquear acesso
+                </button>
+                <small id="passenger-access-note">
+                  O bloqueio revoga imediatamente todas as sessões do passageiro.
+                </small>
+              </div>
+
+              <div id="passenger-detail-history" hidden>
+                <div class="passenger-detail-summary">
+                  <div>
+                    <span>Corridas</span>
+                    <strong id="passenger-detail-total-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Ativas</span>
+                    <strong id="passenger-detail-active-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Concluídas</span>
+                    <strong id="passenger-detail-completed-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Canceladas</span>
+                    <strong id="passenger-detail-cancelled-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Valor concluído</span>
+                    <strong id="passenger-detail-completed-amount">R$ 0,00</strong>
+                  </div>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="passenger-history-table">
+                    <thead>
+                      <tr>
+                        <th>Estado</th>
+                        <th>Rota</th>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                        <th>Atualizada</th>
+                      </tr>
+                    </thead>
+                    <tbody id="passenger-detail-rides-body"></tbody>
+                  </table>
+                </div>
+                <div id="passenger-detail-rides-empty" class="empty-state">
+                  Nenhuma corrida encontrada para este passageiro.
+                </div>
+              </div>
+            </article>
+
+          </section>

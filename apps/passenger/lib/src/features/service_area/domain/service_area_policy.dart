@@ -1,6 +1,18 @@
 import 'package:latlong2/latlong.dart';
 
+import '../../map/domain/ramo_place.dart';
+import 'approved_destination_catalog.dart';
 import 'service_zone.dart';
+
+class ServiceAreaEndpoint {
+  const ServiceAreaEndpoint({
+    required this.id,
+    required this.label,
+  });
+
+  final String id;
+  final String label;
+}
 
 class ServiceAreaCheck {
   const ServiceAreaCheck({
@@ -8,8 +20,8 @@ class ServiceAreaCheck {
     required this.destinationZone,
   });
 
-  final ServiceZone? originZone;
-  final ServiceZone? destinationZone;
+  final ServiceAreaEndpoint? originZone;
+  final ServiceAreaEndpoint? destinationZone;
 
   bool get isSupported => originZone != null && destinationZone != null;
 
@@ -27,12 +39,6 @@ class ServiceAreaCheck {
   }
 }
 
-/// Geofences operacionais iniciais do MVP.
-///
-/// Os raios são configuração de produto, não limites administrativos.
-/// Eles foram dimensionados para cobrir Jeri, Jijoca, Preá e o corredor local
-/// entre essas regiões. Antes do lançamento comercial podem ser substituídos
-/// por polígonos vindos do backend/admin sem alterar o fluxo do app.
 abstract final class RamoServiceArea {
   static const zones = <ServiceZone>[
     ServiceZone(
@@ -53,6 +59,12 @@ abstract final class RamoServiceArea {
       center: LatLng(-2.82017, -40.41467),
       radiusMeters: 6500,
     ),
+    ServiceZone(
+      id: 'airport-jjd',
+      label: 'Aeroporto JJD',
+      center: LatLng(-2.906425, -40.357338),
+      radiusMeters: 3000,
+    ),
   ];
 
   static ServiceZone? zoneFor(LatLng point) {
@@ -64,15 +76,55 @@ abstract final class RamoServiceArea {
     return null;
   }
 
+  static ServiceAreaEndpoint? endpointForPlace(RamoPlace place) {
+    final local = zoneFor(place.position);
+    if (local != null) {
+      return ServiceAreaEndpoint(id: local.id, label: local.label);
+    }
+
+    final external = ApprovedDestinationCatalog.matchPlace(place);
+    if (external != null) {
+      return ServiceAreaEndpoint(
+        id: 'external',
+        label: external.label,
+      );
+    }
+
+    return null;
+  }
+
   static bool contains(LatLng point) => zoneFor(point) != null;
 
   static ServiceAreaCheck checkTrip({
     required LatLng origin,
     required LatLng destination,
   }) {
+    final originZone = zoneFor(origin);
+    final destinationZone = zoneFor(destination);
+
     return ServiceAreaCheck(
-      originZone: zoneFor(origin),
-      destinationZone: zoneFor(destination),
+      originZone: originZone == null
+          ? null
+          : ServiceAreaEndpoint(
+              id: originZone.id,
+              label: originZone.label,
+            ),
+      destinationZone: destinationZone == null
+          ? null
+          : ServiceAreaEndpoint(
+              id: destinationZone.id,
+              label: destinationZone.label,
+            ),
+    );
+  }
+
+  static ServiceAreaCheck checkPlaceTrip({
+    required RamoPlace origin,
+    required RamoPlace destination,
+  }) {
+    return ServiceAreaCheck(
+      originZone: endpointForPlace(origin),
+      destinationZone: endpointForPlace(destination),
     );
   }
 }

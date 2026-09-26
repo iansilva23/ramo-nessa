@@ -1,52 +1,91 @@
-# Zonas e preço — MVP Passageiro
+# Zonas e preço — Passageiro + Core
+
+## Fonte comercial vigente
+
+A especificação aprovada está em:
+
+- `docs/COMMERCIAL_RULES_V1.md`
+- `docs/PAYMENTS_AND_COMMISSION_V1.md`
+
+Esses documentos são a referência comercial da v1.
+
+## Estado implementado
+
+O Passageiro já possui:
+
+- origem por GPS e origem manual;
+- destino manual;
+- busca local limitada a Jeri/Jijoca/Preá e entorno;
+- busca externa liberada somente para destinos longos presentes na tabela aprovada;
+- Aeroporto JJD;
+- rota, distância e ETA em ambiente de desenvolvimento;
+- Carro, Moto, Entrega, Comfort/Black e Buggy;
+- filtro de categorias por elegibilidade comercial da rota;
+- contador de 1 a 4 passageiros no Buggy;
+- cotação HTTP pelo Ramo Nessa Core;
+- bloqueio de despacho quando a cotação não é exata;
+- nenhum preço comercial autoritativo calculado localmente no Flutter.
+
+O Core já implementa:
+
+- catálogo comercial v1;
+- preços fixos por localidade/corredor;
+- regras após 22h aprovadas;
+- Comfort/Black quando permitido;
+- compensação de coleta distante;
+- comissão de 10%;
+- política de pagamentos digitais;
+- endpoint de cotação;
+- testes e CI.
 
 ## Área operacional
 
-O app valida origem e destino antes de chamar a rota.
+As geofences locais do cliente continuam sendo raios operacionais do MVP, não limites administrativos.
 
-Zonas configuradas no cliente para o MVP:
+A cobertura inicial reconhecida pelo app inclui:
 
-- Jericoacoara
-- Jijoca
-- Preá
+- Jericoacoara;
+- Jijoca;
+- Preá;
+- Aeroporto JJD;
+- destinos longos explicitamente aprovados na tabela comercial, quando pesquisados por nome.
 
-As geofences atuais são raios operacionais que se sobrepõem para cobrir a região local. Elas não representam limites administrativos. A evolução prevista é mover essas zonas para o backend/Admin e usar polígonos configuráveis sem precisar publicar uma nova versão do app.
+Um ponto externo aleatório não vira rota atendida apenas por estar no Ceará.
 
-A busca do Nominatim também fica limitada ao recorte de Jeri/Jijoca/Preá e entorno, evitando que o passageiro receba resultados do restante do Brasil no fluxo normal.
+## Modelo comercial
 
-## Origem
+A v1 não usa uma fórmula simples de `base + km + minuto` como autoridade.
 
-A origem pode ser:
+O Core resolve a tarifa por:
 
-1. a localização GPS atual; ou
-2. um lugar escolhido manualmente pela mesma busca usada para o destino.
+1. origem/destino/localidade;
+2. categoria permitida;
+3. janela de horário;
+4. regra 4x4 quando aplicável;
+5. quantidade de passageiros no Buggy;
+6. compensação por coleta distante;
+7. comissão da plataforma;
+8. regra comercial identificável pelo `ruleId`.
 
-Trocar a origem invalida a rota anterior e força novo cálculo.
+Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são retornadas como faixa e não podem ser despachadas como se fossem um preço exato.
 
-## Estimativa de preço
+## Elegibilidade
 
-O valor agora é calculado a partir da rota retornada pelo OSRM:
+Preço não equivale a autorização operacional.
 
-```text
-estimativa = tarifa_base
-           + distancia_km * valor_por_km
-           + duracao_min * valor_por_minuto
-```
+O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou ainda validação entre zona local declarada e coordenadas antes de congelar a tarifa. A validação geográfica exata de cada localidade específica continua dependendo de um catálogo geoespacial autoritativo.
 
-Depois é aplicada a tarifa mínima da categoria e o resultado é arredondado para dezenas de centavos.
+## Próximas implementações
 
-As três categorias possuem cartões de tarifa independentes:
+Ainda faltam:
 
-- Carro
-- Moto
-- Entrega
+- persistência/versionamento das tabelas comerciais e sua vigência;
+- Admin para alterar preços e vigência;
+- catálogo geoespacial autoritativo para todas as localidades específicas e destinos externos;
+- autenticação/autorização real;
+- gateway Pix/cartão e confirmação real de recargas;
+- estornos/chargebacks, repasse Pix e conciliação com provedor;
+- deploy seguro e observabilidade do Core;
+- provedor comercial de mapas/geocoding/rotas.
 
-### Importante
-
-Os coeficientes atuais são configuração técnica de desenvolvimento do MVP. Eles ainda não são uma tabela comercial aprovada.
-
-Antes de produção, os valores devem ser controlados pelo backend/Admin, versionados e associados à área/horário/regras comerciais. O aplicativo deve receber a cotação pronta ou assinada pelo servidor para impedir manipulação no cliente.
-
-## Regra de segurança futura
-
-A estimativa local serve para UX durante o desenvolvimento. O preço definitivo de uma corrida nunca deve ser autoritativo no Flutter. Quando o Core estiver conectado, o servidor recalculará a cotação com a mesma versão de tabela e devolverá o valor válido para a solicitação.
+O preço, a comissão e a elegibilidade final devem continuar sob autoridade do Core.

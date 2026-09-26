@@ -2,9 +2,6 @@ name: Mobile Build Audit
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
   group: mobile-build-audit-${{ github.ref }}
@@ -14,62 +11,186 @@ permissions:
   contents: read
 
 jobs:
-  android-release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+  preflight:
+    uses: ./.github/workflows/preflight.yml
 
+  passenger-android-release:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21 for Android build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/passenger
-        run: flutter analyze
+      - name: Validate Passenger Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
+            echo "::error::Configure RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY before building Passenger."
+            exit 1
+          fi
 
-      - name: Test
+      - name: Build Passenger Android release
         working-directory: apps/passenger
-        run: flutter test
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
 
-      - name: Build Android release
-        working-directory: apps/passenger
+      - name: Upload Passenger APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-passenger-release
+          path: apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  driver-android-release:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21 for Android build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Validate Driver Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
+            echo "::error::Configure RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY before building Driver."
+            exit 1
+          fi
+
+      - name: Build Driver Android release
+        working-directory: apps/driver
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
         run: flutter build apk --release
 
-  ios-simulator:
-    runs-on: macos-latest
-    timeout-minutes: 30
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-driver-release
+          path: apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
+  passenger-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/passenger
-        run: flutter analyze
+      - name: Validate Passenger Google Maps iOS key
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_IOS_API_KEY" ]; then
+            echo "::error::Configure RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY before building Passenger iOS."
+            exit 1
+          fi
 
-      - name: Test
-        working-directory: apps/passenger
-        run: flutter test
+      - name: Configure Passenger Google Maps iOS key
+        working-directory: apps/passenger/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
-      - name: Build iOS simulator
+      - name: Build Passenger iOS simulator
         working-directory: apps/passenger
+        env:
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          SWIFT_VERSION: "5.0"
+        run: >
+          flutter build ios --simulator --debug
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
+
+
+  driver-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Validate Driver Google Maps iOS key
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: |
+          if [ -z "$RAMO_GOOGLE_MAPS_IOS_API_KEY" ]; then
+            echo "::error::Configure RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY before building Driver iOS."
+            exit 1
+          fi
+
+      - name: Configure Driver Google Maps iOS key
+        working-directory: apps/driver/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
+
+      - name: Build Driver iOS simulator
+        working-directory: apps/driver
         run: flutter build ios --simulator --debug

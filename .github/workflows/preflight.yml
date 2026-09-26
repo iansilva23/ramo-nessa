@@ -1,0 +1,177 @@
+name: Preflight
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/core/**"
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "apps/admin/**"
+      - "deploy/test/**"
+      - ".github/workflows/test-stack-audit.yml"
+      - "packages/design_system/**"
+      - ".github/workflows/preflight.yml"
+      - ".github/workflows/mobile-build-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/core/**"
+      - "apps/passenger/**"
+      - "apps/driver/**"
+      - "apps/admin/**"
+      - "deploy/test/**"
+      - ".github/workflows/test-stack-audit.yml"
+      - "packages/design_system/**"
+      - ".github/workflows/preflight.yml"
+      - ".github/workflows/mobile-build-audit.yml"
+
+concurrency:
+  # github.workflow is the caller name for reusable workflows. This keeps
+  # standalone PR Preflight and Mobile Build Audit Preflight from cancelling
+  # each other while still cancelling obsolete runs of the same workflow.
+  group: preflight-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: "false"
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ramonessa -d ramonessa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+
+      - name: Install Core dependencies from lockfile
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+
+      - name: Core typecheck
+        working-directory: backend/core
+        run: npm run typecheck
+
+      - name: Apply PostgreSQL migrations
+        working-directory: backend/core
+        run: npm run db:migrate
+
+      - name: Verify migrations are idempotent
+        working-directory: backend/core
+        run: npm run db:migrate
+
+      - name: Core tests
+        working-directory: backend/core
+        run: npm test
+
+      - name: Build Core production output
+        working-directory: backend/core
+        run: npm run build
+
+      - name: Check Admin web syntax
+        working-directory: apps/admin
+        run: npm run check
+
+      - name: Test Admin web
+        working-directory: apps/admin
+        run: npm test
+
+      - name: Check test-stack scripts
+        run: |
+          node --check deploy/test/env.mjs
+          node --check deploy/test/generate-env.mjs
+          node --check deploy/test/start.mjs
+          node --check deploy/test/create-admin.mjs
+          node --check deploy/test/smoke.mjs
+
+      - name: Validate test-stack Compose
+        env:
+          POSTGRES_PASSWORD: ci-compose-only
+          DATABASE_URL: postgresql://ramonessa:ci-compose-only@postgres:5432/ramonessa
+          OTP_HASH_SECRET: 1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET: 2222222222222222222222222222222222222222222222222222222222222222
+          ADMIN_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET: 3333333333333333333333333333333333333333333333333333333333333333
+        run: docker compose -f deploy/test/compose.yml config > /dev/null
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve design system dependencies
+        working-directory: packages/design_system
+        run: flutter pub get
+
+      - name: Analyze design system
+        working-directory: packages/design_system
+        run: flutter analyze
+
+      - name: Test design system
+        working-directory: packages/design_system
+        run: flutter test
+
+      - name: Resolve Passenger dependencies
+        working-directory: apps/passenger
+        run: |
+          flutter pub get
+          echo "=== PASSENGER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== PASSENGER_PUBSPEC_LOCK_END ==="
+
+      - name: Analyze Passenger
+        working-directory: apps/passenger
+        run: flutter analyze
+
+      - name: Test Passenger
+        working-directory: apps/passenger
+        run: flutter test
+
+      - name: Resolve Driver dependencies
+        working-directory: apps/driver
+        run: |
+          flutter pub get
+          echo "=== DRIVER_PUBSPEC_LOCK_BEGIN ==="
+          cat pubspec.lock
+          echo "=== DRIVER_PUBSPEC_LOCK_END ==="
+
+      - name: Analyze Driver
+        working-directory: apps/driver
+        run: flutter analyze
+
+      - name: Test Driver
+        working-directory: apps/driver
+        run: flutter test

@@ -1,0 +1,89 @@
+RAMO NESSA PROPRIETARY SOURCE LICENSE
+Version 1.0 — 2026
+
+Copyright © 2026 Ian Silva. All rights reserved.
+
+This repository and its contents, including source code, object code, application
+logic, documentation, database schemas, designs, visual assets, text, and other
+materials (collectively, the "Software"), are proprietary.
+
+1. OWNERSHIP
+
+All copyright and other rights in the Software that are owned by the author remain
+reserved. Publication or public visibility of this repository does not make the
+Software open source and does not place it in the public domain.
+
+2. LIMITED GITHUB VISIBILITY
+
+To the extent required by GitHub's Terms of Service, users may view this repository
+and use GitHub features made available for a public repository, such as viewing or
+forking within GitHub. No broader license is granted by this file.
+
+3. NO LICENSE TO USE
+
+Except with prior express written permission from the copyright owner, you may not:
+
+- copy or reproduce the Software, in whole or in substantial part;
+- download and use the Software to operate, deploy, host, publish, or provide a
+  product or service;
+- modify, adapt, translate, port, or create derivative works based on protected
+  expression from the Software;
+- redistribute, publish, sublicense, sell, rent, lease, transfer, or otherwise make
+  the Software available to third parties;
+- use the Software, or substantial protected portions of it, as the code base,
+  template, implementation reference, or foundation of a competing or commercial
+  product or service;
+- remove, hide, or alter copyright, ownership, license, or attribution notices;
+- use repository contents as a dataset or training corpus for a commercial machine
+  learning or generative-AI system without prior express written permission.
+
+4. NO COMMERCIAL USE
+
+No commercial use is authorized. This includes operating a transportation,
+delivery, mobility, marketplace, SaaS, white-label, licensing, consulting, or other
+commercial service based on the Software or a derivative of protected expression
+from the Software.
+
+5. BRAND AND TRADEMARK RIGHTS
+
+"Ramo Nessa", associated logos, icons, visual identity, trade dress, slogans, and
+brand assets are reserved to their respective owner(s). No trademark, brand, or
+trade-name license is granted by access to this repository.
+
+You may not represent that any copied, forked, modified, or independently operated
+project is official, affiliated with, sponsored by, approved by, or endorsed by
+Ramo Nessa or Ian Silva without prior express written permission.
+
+6. CONTRIBUTIONS
+
+This is not an open-source project. External contributions are not accepted unless
+the repository owner has expressly authorized the contribution and its applicable
+rights in writing. See CONTRIBUTING.md.
+
+7. NO IMPLIED RIGHTS
+
+No patent, trademark, copyright, trade-secret, database, or other intellectual
+property license is granted by implication, estoppel, publication, availability,
+or otherwise, except for the limited GitHub-platform rights described above.
+
+8. INDEPENDENT DEVELOPMENT
+
+This license does not claim ownership of ideas, general concepts, methods,
+functionality, or other subject matter that applicable law does not protect.
+Independent software developed without copying protected expression from this
+Software is not licensed by this file merely because it performs similar functions.
+
+9. ENFORCEMENT
+
+Any permission not expressly granted is reserved. Unauthorized use may result in
+requests for removal, suspension, preservation of evidence, and other remedies
+available under applicable law and platform rules.
+
+10. NO WARRANTY
+
+If access to the Software is provided, it is provided "AS IS", without warranties
+of any kind. The copyright owner is not liable for unauthorized third-party use,
+operation, modification, or distribution of the Software.
+
+For licensing or written authorization, contact the repository owner through the
+official GitHub account associated with this repository.
