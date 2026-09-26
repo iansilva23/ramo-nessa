@@ -40,7 +40,7 @@ test('ADM não possui IDs duplicados em shell ou páginas', async () => {
     ['index.html', index],
     ...pages.map((page) => [page.name, page.source]),
   ]) {
-    const ids = [...source.matchAll(/\\bid=["']([^"']+)["']/g)]
+    const ids = [...source.matchAll(/\bid=["']([^"']+)["']/g)]
       .map((match) => match[1]);
     const seen = new Set();
 
@@ -62,7 +62,7 @@ test('todo controle identificado nas páginas possui ligação no controlador', 
   for (const page of pages) {
     const interactiveIds = [
       ...page.source.matchAll(
-        /<(?:button|form|input|select|textarea)\\b[^>]*\\bid=["']([^"']+)["']/g,
+        /<(?:button|form|input|select|textarea)\b[^>]*\bid=["']([^"']+)["']/g,
       ),
     ].map((match) => match[1]);
 
@@ -81,12 +81,12 @@ test('rotas do menu correspondem às páginas registradas', async () => {
   const { index, app } = await adminSource();
   const pages = await pageSources();
   const pageNames = new Set(
-    pages.map((page) => page.name.replace(/\\.html$/, '')),
+    pages.map((page) => page.name.replace(/\.html$/, '')),
   );
 
   const nav = [
     ...index.matchAll(
-      /href=["'](\\/admin\\/[^"']+)["'][^>]*data-view=["']([^"']+)["']/g,
+      /href=["'](\/admin\/[^"']+)["'][^>]*data-view=["']([^"']+)["']/g,
     ),
   ].map((match) => ({
     path: match[1],
@@ -120,8 +120,8 @@ test('ADM evita execução HTML inline e innerHTML', async () => {
   const pages = await pageSources();
   const html = [index, ...pages.map((page) => page.source)].join('\n');
 
-  assert.equal(/\\son(?:click|change|submit|input|load)=/i.test(html), false);
-  assert.equal(/<script\\b/i.test(html), false);
+  assert.equal(/\son(?:click|change|submit|input|load)=/i.test(html), false);
+  assert.equal(/<script\b/i.test(html), false);
   assert.equal(app.includes('.innerHTML'), false);
   assert.equal(app.includes('insertAdjacentHTML'), false);
 });
