@@ -253,6 +253,44 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(app, /pixPriceAdjustmentBps/);
   assert.match(app, /handleCardPricePolicySubmit/);
   assert.match(app, /cardPriceAdjustmentBps/);
+
+  // Nunca renderizar ou liberar valores comerciais de fallback
+  // antes da política real do Core chegar.
+  assert.equal(html.includes('R$ 120,00'), false);
+  assert.equal(html.includes('value="0.99"'), false);
+  assert.equal(html.includes('value="4.98"'), false);
+  assert.match(
+    html,
+    /id=["']finance-pix-enabled["'][^>]*disabled/,
+  );
+  assert.match(
+    html,
+    /id=["']finance-card-enabled["'][^>]*disabled/,
+  );
+  assert.match(
+    html,
+    /id=["']finance-wallet-enabled["'][^>]*disabled/,
+  );
+  assert.match(
+    html,
+    /id=["']finance-pix-price-percent["'][^>]*disabled/,
+  );
+  assert.match(
+    html,
+    /id=["']finance-card-price-percent["'][^>]*disabled/,
+  );
+  assert.match(
+    app,
+    /if \(!loaded\) \{[\s\S]*finance-methods-save[\s\S]*disabled = true/,
+  );
+  assert.match(app, /Aguardando a política real do Core/);
+  assert.equal(
+    app.includes(
+      'policy?.futureCashDebtLimitCents ?? 12000',
+    ),
+    false,
+  );
+
   assert.equal(api.includes('financeUpdate('), false);
   assert.equal(api.includes('refundPayment('), false);
   assert.match(api, /financePayout\(/);
