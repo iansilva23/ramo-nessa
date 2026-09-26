@@ -3687,3 +3687,38 @@ td strong {
     grid-column: auto;
   }
 }
+
+
+.finance-payment-method-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-height: 76px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.finance-payment-method-toggle input {
+  width: 19px;
+  height: 19px;
+  margin: 2px 0 0;
+  accent-color: var(--yellow);
+}
+
+.finance-payment-method-toggle span {
+  display: grid;
+  gap: 4px;
+}
+
+.finance-payment-method-toggle strong {
+  font-size: 13px;
+}
+
+.finance-payment-method-toggle small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
