@@ -52,6 +52,36 @@ export interface SocialLinksRecord {
   updatedAt: string;
 }
 
+export interface AgencyTourRecord {
+  slug: string;
+  enabled: boolean;
+  sortOrder: number;
+  title: string;
+  badge: string;
+  shortDescription: string;
+  description: string;
+  highlights: string[];
+  included: string[];
+  excluded: string[];
+  duration?: string;
+  schedule?: string;
+  departure?: string;
+  priceLabel: string;
+  priceCents?: number;
+  priceSuffix?: string;
+  whatsappPhone: string;
+  whatsappMessage: string;
+  coverImageVersion: number;
+  coverImageMimeType?: string;
+  updatedAt: string;
+}
+
+export interface AgencyTourCover {
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  bytes: Uint8Array;
+  version: number;
+}
+
 export interface AdminCommunicationsRepository {
   createCampaign(
     record: AdminNotificationCampaignRecord,
@@ -73,4 +103,14 @@ export interface AdminCommunicationsRepository {
   saveSocialLinks(
     record: SocialLinksRecord,
   ): Promise<SocialLinksRecord>;
+  listTours(includeDisabled: boolean): Promise<AgencyTourRecord[]>;
+  getTour(slug: string): Promise<AgencyTourRecord | null>;
+  saveTour(record: AgencyTourRecord): Promise<AgencyTourRecord>;
+  readTourCover(slug: string): Promise<AgencyTourCover | null>;
+  saveTourCover(input: {
+    slug: string;
+    mimeType: AgencyTourCover['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AgencyTourRecord | null>;
 }
