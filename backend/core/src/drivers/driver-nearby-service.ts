@@ -58,6 +58,8 @@ export async function nearbyDriversForApp(input: {
       return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= MAX_LOCATION_AGE_MS;
     })
     .map((candidate) => ({
+      driverId: candidate.driverId,
+      category: candidate.categories[0] ?? 'car',
       latitude: candidate.latitude,
       longitude: candidate.longitude,
       busy: candidate.busy,
@@ -75,7 +77,16 @@ export async function nearbyDriversForApp(input: {
     .filter((candidate) => candidate.distanceKm <= MAX_NEARBY_DISTANCE_KM)
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, 40)
-    .map(({ latitude, longitude, busy, locationAgeSeconds }) => ({
+    .map(({
+      driverId,
+      category,
+      latitude,
+      longitude,
+      busy,
+      locationAgeSeconds,
+    }) => ({
+      driverId,
+      category,
       latitude,
       longitude,
       busy,
