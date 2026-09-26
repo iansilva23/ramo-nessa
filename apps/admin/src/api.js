@@ -637,6 +637,27 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    support(token, limit = 50) {
+      const safeLimit = Math.max(
+        1,
+        Math.min(100, Math.trunc(limit)),
+      );
+      return request(`/v1/admin/support?limit=${safeLimit}`, {
+        token,
+      });
+    },
+
+    respondSupportTicket(token, { ticketId, response, status }) {
+      return request(
+        `/v1/admin/support/${encodeURIComponent(ticketId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: { response, status },
+        },
+      );
+    },
+
     audit(token, options = 50) {
       const config =
         typeof options === 'number'
