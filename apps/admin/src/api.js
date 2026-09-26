@@ -228,13 +228,18 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
 
     updatePaymentPolicy(
       token,
-      { cashEnabled, cardPriceAdjustmentBps },
+      {
+        cashEnabled,
+        pixPriceAdjustmentBps,
+        cardPriceAdjustmentBps,
+      },
     ) {
       return request('/v1/admin/payment-policy', {
         method: 'PATCH',
         token,
         body: {
           cashEnabled,
+          pixPriceAdjustmentBps,
           cardPriceAdjustmentBps,
         },
       });
