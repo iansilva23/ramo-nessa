@@ -299,13 +299,30 @@ test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () =
     false,
     'provisionamento não pode oferecer criação já ativa',
   );
-  const provisionForm =
-    html.match(
-      /<form[^>]*id=["']driver-provision-form["'][^>]*>[\\s\\S]*?<\\/form>/,
-    )?.[0] ?? '';
-  assert.ok(
-    provisionForm,
+  const provisionAnchorIndex = Math.max(
+    html.indexOf('id="driver-provision-form"'),
+    html.indexOf("id='driver-provision-form'"),
+  );
+  assert.notEqual(
+    provisionAnchorIndex,
+    -1,
     'formulário de provisionamento do motorista deve existir',
+  );
+  const provisionFormStart = html.lastIndexOf(
+    '<form',
+    provisionAnchorIndex,
+  );
+  const provisionFormEnd = html.indexOf(
+    '</form>',
+    provisionAnchorIndex,
+  );
+  assert.ok(
+    provisionFormStart >= 0 && provisionFormEnd > provisionFormStart,
+    'formulário de provisionamento precisa estar íntegro',
+  );
+  const provisionForm = html.slice(
+    provisionFormStart,
+    provisionFormEnd + '</form>'.length,
   );
   assert.equal(
     /value=["']active["']/.test(provisionForm),
