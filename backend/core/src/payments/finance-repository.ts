@@ -1,6 +1,6 @@
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
-import type { DriverPayoutRecord } from './payout.js';
+import type { DriverPayoutDestination, DriverPayoutRecord } from './payout.js';
 import type { WalletTopupRecord } from './wallet.js';
 
 export interface MarkPaymentPendingInput {
@@ -167,6 +167,12 @@ export interface FinanceRepository {
   reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
+  getDriverPayoutDestination(
+    driverId: string,
+  ): Promise<DriverPayoutDestination | null>;
+  upsertDriverPayoutDestination(
+    destination: DriverPayoutDestination,
+  ): Promise<DriverPayoutDestination>;
 
   getAccountBalanceCents(accountKey: string): Promise<number>;
   getDriverCashDebtCents(driverId: string): Promise<number>;
