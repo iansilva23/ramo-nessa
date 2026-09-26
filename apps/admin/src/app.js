@@ -447,6 +447,12 @@ function clearSession(message = '') {
     socialLinks: null,
     tours: [],
   };
+  routeLoadSequence += 1;
+  currentView = null;
+  fleetMap = null;
+  routeLoading.hidden = true;
+  routeOutlet.removeAttribute('aria-busy');
+  routeOutlet.replaceChildren();
   adminView.hidden = true;
   authView.hidden = false;
   document.body.classList.remove('nav-open');
