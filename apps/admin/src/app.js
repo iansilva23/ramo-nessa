@@ -2446,31 +2446,98 @@ function paymentMethodLabel(method) {
 function renderPaymentPolicy(policy = null) {
   state.finance.policy = policy;
 
-  const cashEnabled = policy?.cashEnabled === true;
-  const activationReady = policy?.cashActivationReady === true;
+  const loaded =
+    policy != null && typeof policy === 'object';
+  const canWrite =
+    loaded && hasScope('finance:write');
+
   const status = byId('finance-cash-status');
+  const methodsStatus = byId('finance-methods-status');
+  const cashLimitStatus = byId('finance-cash-limit-status');
+  const cashLimitInput = byId('finance-cash-limit-input');
+  const pixInput = byId('finance-pix-price-percent');
+  const cardInput = byId('finance-card-price-percent');
+  const enableButton = byId('finance-enable-cash-button');
+  const disableButton = byId('finance-disable-cash-button');
+
+  if (!loaded) {
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Carregando';
+    byId('finance-cash-debt-limit').textContent = '—';
+    byId('finance-cash-readiness').textContent = '—';
+    byId('finance-cash-updated-at').textContent =
+      'Aguardando política';
+
+    methodsStatus.className = 'pill pill--neutral';
+    methodsStatus.textContent = 'Carregando';
+    for (const id of [
+      'finance-pix-enabled',
+      'finance-card-enabled',
+      'finance-wallet-enabled',
+    ]) {
+      const input = byId(id);
+      input.checked = false;
+      input.disabled = true;
+    }
+    byId('finance-methods-save').disabled = true;
+
+    cashLimitStatus.className = 'pill pill--neutral';
+    cashLimitStatus.textContent = 'Carregando';
+    cashLimitInput.value = '';
+    cashLimitInput.disabled = true;
+    byId('finance-cash-limit-save').disabled = true;
+
+    enableButton.hidden = true;
+    enableButton.disabled = true;
+    disableButton.hidden = true;
+    disableButton.disabled = true;
+    byId('finance-cash-note').textContent =
+      'Aguardando a política real do Core.';
+
+    for (const [prefix, input] of [
+      ['pix', pixInput],
+      ['card', cardInput],
+    ]) {
+      const priceStatus = byId(
+        `finance-${prefix}-price-status`,
+      );
+      priceStatus.className = 'pill pill--neutral';
+      priceStatus.textContent = 'Carregando';
+      input.value = '';
+      input.disabled = true;
+      byId(`finance-${prefix}-price-save`).disabled = true;
+      byId(`finance-${prefix}-price-example`).textContent =
+        'R$ 150,00 → —';
+      byId(`finance-${prefix}-price-note`).textContent =
+        'Aguardando a política real do Core.';
+    }
+    return;
+  }
+
+  const cashEnabled = policy.cashEnabled === true;
+  const activationReady =
+    policy.cashActivationReady === true;
   status.className = cashEnabled
     ? 'pill pill--danger'
     : 'pill pill--success';
   status.textContent = cashEnabled ? 'Ativado' : 'Desativado';
 
+  const defaultCashLimitCents = Math.max(
+    0,
+    numericMetric(policy.futureCashDebtLimitCents),
+  );
   byId('finance-cash-debt-limit').textContent =
-    formatCurrencyCents(
-      numericMetric(policy?.futureCashDebtLimitCents ?? 12000),
-    );
+    formatCurrencyCents(defaultCashLimitCents);
   byId('finance-cash-readiness').textContent =
     activationReady ? 'Pronta' : 'Bloqueada';
   byId('finance-cash-updated-at').textContent =
-    policy?.updatedAt
+    policy.updatedAt
       ? `Atualizada em ${formatDateTime(policy.updatedAt)}`
-      : 'Aguardando política';
+      : 'Política carregada';
 
-  const canWrite = hasScope('finance:write');
-
-  const pixEnabled = policy?.pixEnabled !== false;
-  const cardEnabled = policy?.cardEnabled !== false;
-  const walletEnabled = policy?.walletEnabled !== false;
-  const methodsStatus = byId('finance-methods-status');
+  const pixEnabled = policy.pixEnabled === true;
+  const cardEnabled = policy.cardEnabled === true;
+  const walletEnabled = policy.walletEnabled === true;
   const activeDigitalCount = [
     pixEnabled,
     cardEnabled,
@@ -2494,28 +2561,20 @@ function renderPaymentPolicy(policy = null) {
   }
   byId('finance-methods-save').disabled = !canWrite;
 
-  const defaultCashLimitCents = Math.max(
-    0,
-    numericMetric(policy?.futureCashDebtLimitCents ?? 12000),
-  );
-  const cashLimitStatus = byId('finance-cash-limit-status');
   cashLimitStatus.className = 'pill pill--info';
   cashLimitStatus.textContent =
     formatCurrencyCents(defaultCashLimitCents);
-  const cashLimitInput = byId('finance-cash-limit-input');
   cashLimitInput.value =
     (defaultCashLimitCents / 100).toFixed(2);
   cashLimitInput.disabled = !canWrite;
   byId('finance-cash-limit-save').disabled = !canWrite;
 
-  const enableButton = byId('finance-enable-cash-button');
   enableButton.hidden =
     cashEnabled || !activationReady || !canWrite;
-  enableButton.disabled = false;
+  enableButton.disabled = !canWrite;
 
-  const disableButton = byId('finance-disable-cash-button');
   disableButton.hidden = !cashEnabled || !canWrite;
-  disableButton.disabled = false;
+  disableButton.disabled = !canWrite;
 
   byId('finance-cash-note').textContent = cashEnabled
     ? 'Dinheiro está ativo. O Passageiro pode selecionar essa forma de pagamento.'
@@ -2525,7 +2584,7 @@ function renderPaymentPolicy(policy = null) {
 
   const pixBps = Math.max(
     0,
-    Math.min(2000, numericMetric(policy?.pixPriceAdjustmentBps)),
+    Math.min(2000, numericMetric(policy.pixPriceAdjustmentBps)),
   );
   const pixPercent = pixBps / 100;
   const pixStatus = byId('finance-pix-price-status');
@@ -2536,7 +2595,6 @@ function renderPaymentPolicy(policy = null) {
       ? `${pixPercent.toFixed(2).replace('.', ',')}%`
       : 'Sem diferença';
 
-  const pixInput = byId('finance-pix-price-percent');
   pixInput.value = pixPercent.toFixed(2);
   pixInput.disabled = !canWrite;
   byId('finance-pix-price-save').disabled = !canWrite;
@@ -2557,7 +2615,7 @@ function renderPaymentPolicy(policy = null) {
 
   const cardBps = Math.max(
     0,
-    Math.min(2000, numericMetric(policy?.cardPriceAdjustmentBps)),
+    Math.min(2000, numericMetric(policy.cardPriceAdjustmentBps)),
   );
   const cardPercent = cardBps / 100;
   const cardStatus = byId('finance-card-price-status');
@@ -2568,7 +2626,6 @@ function renderPaymentPolicy(policy = null) {
       ? `${cardPercent.toFixed(2).replace('.', ',')}%`
       : 'Sem diferença';
 
-  const cardInput = byId('finance-card-price-percent');
   cardInput.value = cardPercent.toFixed(2);
   cardInput.disabled = !canWrite;
   byId('finance-card-price-save').disabled = !canWrite;
