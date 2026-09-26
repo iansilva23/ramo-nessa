@@ -187,10 +187,16 @@ test('cliente Admin consulta e altera limite cash individual sem vazar Bearer', 
 });
 
 test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/drivers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
 
   for (const id of [
     'driver-registry-result',
