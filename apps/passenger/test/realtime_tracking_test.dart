@@ -99,6 +99,25 @@ class _RatingTrackingService implements PassengerRideTrackingService {
   int? ratedStars;
 
   @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async =>
+      const [];
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    return PassengerRideChatMessage(
+      id: 'test-message',
+      rideId: rideId,
+      senderType: 'passenger',
+      senderId: 'test-passenger',
+      body: body,
+      createdAt: DateTime(2026, 9, 26),
+    );
+  }
+
+  @override
   Future<PassengerDriverRatingResult> rateDriver(
     String rideId,
     int stars,
@@ -130,6 +149,25 @@ class _RatingTrackingService implements PassengerRideTrackingService {
 }
 
 class _FakeTrackingService implements PassengerRideTrackingService {
+
+  @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async =>
+      const [];
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    return PassengerRideChatMessage(
+      id: 'test-message',
+      rideId: rideId,
+      senderType: 'passenger',
+      senderId: 'test-passenger',
+      body: body,
+      createdAt: DateTime(2026, 9, 26),
+    );
+  }
   @override
   Future<PassengerDriverRatingResult> rateDriver(
     String rideId,
