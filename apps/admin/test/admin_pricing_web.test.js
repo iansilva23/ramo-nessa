@@ -171,6 +171,28 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-locality-structure-operation',
     'pricing-locality-structure-scope',
     'pricing-locality-structure-id',
+    'pricing-commission-policy-fields',
+    'pricing-commission-percent',
+    'pricing-period-policy-fields',
+    'pricing-night-start-hour',
+    'pricing-day-start-hour',
+    'pricing-pickup-policy-fields',
+    'pricing-pickup-free-km',
+    'pricing-fuel-price-reais',
+    'pricing-moto-km-liter',
+    'pricing-car-km-liter',
+    'pricing-surcharge-policy-fields',
+    'pricing-prea-comfort-surcharge',
+    'pricing-prea-night-surcharge',
+    'pricing-prea-night-localities',
+    'pricing-buggy-policy-fields',
+    'pricing-buggy-min-passengers',
+    'pricing-buggy-max-passengers',
+    'pricing-buggy-day-price',
+    'pricing-buggy-night-price',
+    'pricing-buggy-passenger-price',
+    'pricing-delivery-bands-fields',
+    'pricing-delivery-bands',
     'pricing-versions-body',
     'pricing-create-draft-button',
     'pricing-editor-status',
@@ -206,6 +228,14 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /pricing-policy-four-by-four/);
   assert.match(app, /zone_policy/);
   assert.match(app, /locality_structure/);
+  assert.match(app, /commission_policy/);
+  assert.match(app, /period_policy/);
+  assert.match(app, /pickup_policy/);
+  assert.match(app, /surcharge_policy/);
+  assert.match(app, /buggy_policy/);
+  assert.match(app, /delivery_bands/);
+  assert.match(app, /pricing-commission-percent/);
+  assert.match(app, /pricing-delivery-bands/);
   assert.match(app, /pricing-zone-policies-body/);
   assert.match(app, /pricing-external-localities-body/);
   assert.match(
