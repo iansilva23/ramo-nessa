@@ -40,6 +40,13 @@ async function fundedFinance() {
     driverNetCents: 9000,
     settledAt: now,
   });
+  await finance.upsertDriverPayoutDestination({
+    driverId: 'driver-finance',
+    pixKeyType: 'random',
+    pixKey: '11111111-1111-4111-8111-111111111111',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
 
   return finance;
 }
