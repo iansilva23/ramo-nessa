@@ -28,6 +28,8 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
     return jsonResponse(200, {
       driverOfferTtlSeconds: 35,
       driverPaymentHoldSeconds: 120,
+      driverLocationMaxAgeSeconds: 75,
+      nearbyDriverMaxDistanceKm: 8.5,
       showNearbyDrivers: false,
       driverDocumentAutoEnforcement: false,
       updatedAt: '2026-09-26T18:56:00.000Z',
@@ -39,6 +41,8 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
   await api.updateOperationalSettings(token, {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 120,
+    driverLocationMaxAgeSeconds: 75,
+    nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
   });
@@ -54,6 +58,8 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
   assert.deepEqual(JSON.parse(calls[0].options.body), {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 120,
+    driverLocationMaxAgeSeconds: 75,
+    nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
   });
@@ -81,4 +87,16 @@ test('página Motoristas expõe e valida a reserva durante pagamento', () => {
   assert.match(app, /paymentHoldSeconds < 30/);
   assert.match(app, /paymentHoldSeconds > 300/);
   assert.match(app, /driver-payment-hold-seconds/);
+  assert.match(
+    html,
+    /id=["']driver-location-max-age-seconds["'][^>]*min=["']15["'][^>]*max=["']600["']/,
+  );
+  assert.match(
+    html,
+    /id=["']nearby-driver-max-distance-km["'][^>]*min=["']0\.5["'][^>]*max=["']100["']/,
+  );
+  assert.match(app, /driverLocationMaxAgeSeconds/);
+  assert.match(app, /nearbyDriverMaxDistanceKm/);
+  assert.match(app, /locationMaxAgeSeconds < 15/);
+  assert.match(app, /nearbyMaxDistanceKm < 0\.5/);
 });
