@@ -7,8 +7,18 @@ import type {
   AdminPassengerRideSummary,
   AdminRideOperationalSummary,
   DriverRideSummary,
+  RideChatMessageRecord,
   RideRepository,
 } from '../ride-repository.js';
+
+interface RideChatMessageRow {
+  id: string;
+  ride_id: string;
+  sender_type: 'passenger' | 'driver';
+  sender_id: string;
+  body: string;
+  created_at: Date;
+}
 
 interface RideRow {
   id: string;
@@ -499,6 +509,66 @@ export class PostgresRideRepository implements RideRepository {
       inProgress: 0,
       completedLast24h: 0,
       cancelledLast24h: 0,
+    };
+  }
+
+  async listChatMessages(
+    rideId: string,
+    limit: number,
+  ): Promise<RideChatMessageRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<RideChatMessageRow>(
+      `
+      SELECT id, ride_id, sender_type, sender_id, body, created_at
+      FROM ride_chat_messages
+      WHERE ride_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2
+      `,
+      [rideId, safeLimit],
+    );
+    return result.rows
+      .reverse()
+      .map((row) => ({
+        id: row.id,
+        rideId: row.ride_id,
+        senderType: row.sender_type,
+        senderId: row.sender_id,
+        body: row.body,
+        createdAt: row.created_at.toISOString(),
+      }));
+  }
+
+  async appendChatMessage(
+    message: RideChatMessageRecord,
+  ): Promise<RideChatMessageRecord> {
+    const result = await this.pool.query<RideChatMessageRow>(
+      `
+      INSERT INTO ride_chat_messages (
+        id, ride_id, sender_type, sender_id, body, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6)
+      RETURNING id, ride_id, sender_type, sender_id, body, created_at
+      `,
+      [
+        message.id,
+        message.rideId,
+        message.senderType,
+        message.senderId,
+        message.body,
+        message.createdAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error('Mensagem da corrida não foi persistida.');
+    }
+    return {
+      id: row.id,
+      rideId: row.ride_id,
+      senderType: row.sender_type,
+      senderId: row.sender_id,
+      body: row.body,
+      createdAt: row.created_at.toISOString(),
     };
   }
 
