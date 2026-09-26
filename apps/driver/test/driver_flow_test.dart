@@ -127,6 +127,33 @@ void main() {
     },
   );
 
+  testWidgets(
+    'motorista pendente fica fora da operação e vê status cadastral',
+    (tester) async {
+      final api = _FakeDriverApi(registryPending: true);
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(find.text('Cadastro em análise'), findsOneWidget);
+      expect(find.text('Perfil do motorista'), findsOneWidget);
+      expect(find.text('Veículo'), findsOneWidget);
+      expect(find.text('Em análise'), findsNWidgets(2));
+      expect(find.byKey(const Key('driver-approval-retry')), findsOneWidget);
+      expect(find.text('Você está offline'), findsNothing);
+      expect(find.text('Ganhos'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('corrida ativa é recuperada ao reabrir o app', (tester) async {
     final api = _FakeDriverApi(
       initialOnline: true,
@@ -431,6 +458,8 @@ class _FakeDriverApi implements DriverApi {
     bool initialBusy = false,
     this.failFirstPayoutUnexpectedly = false,
     this.missingSupplyOnFirstLoad = false,
+    this.registryPending = false,
+    this.registrySuspended = false,
     this.cashCommissionDebtCents = 0,
     this.offerCoordinates = false,
   })  : _finance = DriverFinanceSummary(
@@ -469,6 +498,8 @@ class _FakeDriverApi implements DriverApi {
 
   final bool failFirstPayoutUnexpectedly;
   final bool missingSupplyOnFirstLoad;
+  final bool registryPending;
+  final bool registrySuspended;
   final int cashCommissionDebtCents;
   final bool offerCoordinates;
   DriverSupplySnapshot _supply;
@@ -505,6 +536,13 @@ class _FakeDriverApi implements DriverApi {
   @override
   Future<DriverSupplySnapshot> getSupply() async {
     getSupplyCalls++;
+    if (registryPending || registrySuspended) {
+      throw const DriverApiException(
+        'Seu perfil e veículo ainda precisam ser aprovados antes de você ficar online.',
+        code: 'DRIVER_REGISTRY_NOT_APPROVED',
+        statusCode: 409,
+      );
+    }
     if (missingSupplyOnFirstLoad && getSupplyCalls == 1) {
       throw const DriverApiException(
         'Cadastro aprovado. Ative a localização para concluir a configuração operacional.',
@@ -555,20 +593,28 @@ class _FakeDriverApi implements DriverApi {
 
   @override
   Future<DriverProfileSnapshot> profile() async {
-    return const DriverProfileSnapshot(
+    return DriverProfileSnapshot(
       driverId: 'driver-test',
       phoneE164: '+5588999999999',
       fullName: 'Motorista Teste',
       preferredName: 'Teste',
-      profileStatus: 'approved',
+      profileStatus: registrySuspended
+          ? 'suspended'
+          : registryPending
+              ? 'pending'
+              : 'approved',
       vehicleId: 'SW4 TESTE',
       vehiclePlate: 'TES1T23',
       vehicleMake: 'Toyota',
       vehicleModel: 'SW4',
       vehicleYear: 2026,
       vehicleColor: 'Preto',
-      vehicleStatus: 'approved',
-      vehicleCategories: ['car'],
+      vehicleStatus: registrySuspended
+          ? 'suspended'
+          : registryPending
+              ? 'pending'
+              : 'approved',
+      vehicleCategories: const ['car'],
       vehicleFourByFour: true,
       vehicleSeatCapacity: 6,
     );
