@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/driver_core_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
@@ -12,6 +13,7 @@ import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
 import '../../../core/communications/app_release_policy_service.dart';
+import '../../../core/communications/social_links_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
@@ -43,6 +45,7 @@ class DriverHomeScreen extends StatefulWidget {
     this.routeService,
     this.realtimeService,
     this.releasePolicyService,
+    this.socialLinksService,
   });
 
   final String? accessToken;
@@ -53,6 +56,7 @@ class DriverHomeScreen extends StatefulWidget {
   final DriverRouteService? routeService;
   final DriverRealtimeService? realtimeService;
   final AppReleasePolicyService? releasePolicyService;
+  final SocialLinksService? socialLinksService;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -98,12 +102,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 )
               : null);
 
+  late final SocialLinksService? _socialLinksService =
+      widget.socialLinksService ??
+          (DriverCoreConfig.enabled
+              ? HttpSocialLinksService(
+                  baseUrl: DriverCoreConfig.baseUri!,
+                )
+              : null);
+
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
   DriverActivitySnapshot? _activity;
+  AppSocialLinks? _socialLinks;
   List<NearbyDriverPosition> _nearbyDrivers = const [];
   bool _nearbyRequestInFlight = false;
   bool _profileLoading = false;
@@ -151,6 +164,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void initState() {
     super.initState();
     _load();
+    unawaited(_loadSocialLinks());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkReleasePolicy();
     });
@@ -1069,6 +1083,43 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
+  Future<void> _loadSocialLinks() async {
+    final service = _socialLinksService;
+    if (service == null) return;
+    try {
+      final links = await service.load();
+      if (!mounted) return;
+      setState(() => _socialLinks = links);
+    } catch (_) {
+      // Rede social é conteúdo auxiliar e não bloqueia a operação.
+    }
+  }
+
+  Future<void> _refreshProfileAndSocial() async {
+    await Future.wait([
+      _refreshProfile(),
+      _loadSocialLinks(),
+    ]);
+  }
+
+  Future<void> _openInstagram() async {
+    final rawUrl = _socialLinks?.instagramUrl?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) return;
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) return;
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Não foi possível abrir o Instagram agora.'),
+      ),
+    );
+  }
+
   Future<void> _refreshProfile() async {
     final api = _api;
     if (api == null || _profileLoading) return;
@@ -1668,7 +1719,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: _refreshProfile,
+        onRefresh: _refreshProfileAndSocial,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
@@ -1857,6 +1908,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       );
                     },
             ),
+            if (_socialLinks?.instagramUrl?.isNotEmpty == true)
+              _ProfileOption(
+                icon: Icons.alternate_email_rounded,
+                title: 'Siga o Ramo Nessa no Instagram',
+                subtitle:
+                    _socialLinks?.instagramHandle ?? 'Instagram oficial',
+                onTap: _openInstagram,
+              ),
             _ProfileOption(
               icon: Icons.settings_outlined,
               title: 'Configurações',
