@@ -121,6 +121,43 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     return { bytes, contentType };
   }
 
+  async function uploadBinary(path, { token, bytes, contentType }) {
+    const headers = {
+      accept: 'application/json',
+      'content-type': contentType,
+    };
+    if (token) headers.authorization = `Bearer ${token}`;
+
+    let response;
+    try {
+      response = await fetchImpl(path, {
+        method: 'PUT',
+        headers,
+        body: bytes,
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+      });
+    } catch {
+      throw new AdminApiError(
+        'Não foi possível enviar o arquivo para o Core Ramo Nessa.',
+        { code: 'NETWORK_ERROR' },
+      );
+    }
+
+    const payload = await parseResponse(response);
+    if (!response.ok) {
+      throw new AdminApiError(
+        payload?.message || defaultErrorMessage(response.status),
+        {
+          status: response.status,
+          code: payload?.error || 'ADMIN_API_ERROR',
+        },
+      );
+    }
+    return payload;
+  }
+
   return {
     login({ email, password, totpCode }) {
       return request('/v1/admin/auth/login', {
@@ -243,6 +280,28 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         token,
         body: socialLinks,
       });
+    },
+
+    saveAgencyTour(token, slug, tour) {
+      return request(
+        `/v1/admin/tours/${encodeURIComponent(slug)}`,
+        {
+          method: 'PUT',
+          token,
+          body: tour,
+        },
+      );
+    },
+
+    uploadAgencyTourCover(
+      token,
+      slug,
+      { bytes, contentType },
+    ) {
+      return uploadBinary(
+        `/v1/admin/tours/${encodeURIComponent(slug)}/cover`,
+        { token, bytes, contentType },
+      );
     },
 
     pricingCatalog(token) {
