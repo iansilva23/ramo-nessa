@@ -166,8 +166,10 @@ export async function updatePassengerProfileFromAdmin(input: {
   try {
     updated = await input.identities.setPassengerAccount({
       subjectId: passengerId,
-      ...(fullNameChanged ? { fullName } : {}),
-      ...(emailChanged ? { emailNormalized } : {}),
+      ...(fullNameChanged ? { fullName: fullName! } : {}),
+      ...(emailChanged
+        ? { emailNormalized: emailNormalized! }
+        : {}),
       updatedAt,
     });
   } catch (error) {
