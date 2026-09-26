@@ -20,6 +20,7 @@ import 'features/rides/data/http_passenger_activity_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
+import 'features/tours/data/agency_tour_service.dart';
 import 'preview/passenger_preview_dependencies.dart';
 import 'preview/preview_auth.dart';
 
@@ -65,6 +66,11 @@ class RamoNessaPassengerApp extends StatelessWidget {
     final socialLinksService = coreUri == null
         ? null
         : HttpSocialLinksService(baseUrl: coreUri);
+
+    final AgencyTourService tourService =
+        RamoCoreConfig.previewMode || coreUri == null
+            ? const PreviewAgencyTourService()
+            : HttpAgencyTourService(baseUrl: coreUri);
 
     final authService = coreUri == null
         ? null
@@ -121,6 +127,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         savedPlaceService: savedPlaceService,
         placeSearchService: resolvedPlaceSearchService,
         socialLinksService: socialLinksService,
+        tourService: tourService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
           accessToken: normalizedToken,
