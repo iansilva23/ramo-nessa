@@ -5,11 +5,14 @@ import type {
   AdminPassengerRideSummary,
   AdminRideOperationalSummary,
   DriverRideSummary,
+  RideChatMessageRecord,
   RideRepository,
 } from '../ride-repository.js';
 
 export class InMemoryRideRepository implements RideRepository {
   private readonly rides = new Map<string, RideRecord>();
+  private readonly chatMessages =
+      new Map<string, RideChatMessageRecord[]>();
 
   async create(ride: RideRecord): Promise<RideRecord> {
     if (this.rides.has(ride.id)) {
@@ -275,6 +278,29 @@ export class InMemoryRideRepository implements RideRepository {
           ),
       ).length,
     };
+  }
+
+  async listChatMessages(
+    rideId: string,
+    limit: number,
+  ): Promise<RideChatMessageRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const messages = this.chatMessages.get(rideId) ?? [];
+    return messages
+      .slice(-safeLimit)
+      .map((message) => structuredClone(message));
+  }
+
+  async appendChatMessage(
+    message: RideChatMessageRecord,
+  ): Promise<RideChatMessageRecord> {
+    if (!this.rides.has(message.rideId)) {
+      throw new Error('Ride not found.');
+    }
+    const messages = this.chatMessages.get(message.rideId) ?? [];
+    messages.push(structuredClone(message));
+    this.chatMessages.set(message.rideId, messages);
+    return structuredClone(message);
   }
 
   async save(ride: RideRecord): Promise<RideRecord> {
