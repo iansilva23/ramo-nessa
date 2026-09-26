@@ -2749,17 +2749,29 @@ const server = createServer(async (request, response) => {
       }
       const payload = body as {
         cashEnabled?: unknown;
+        pixEnabled?: unknown;
+        cardEnabled?: unknown;
+        walletEnabled?: unknown;
+        defaultCashDebtLimitCents?: unknown;
         pixPriceAdjustmentBps?: unknown;
         cardPriceAdjustmentBps?: unknown;
       };
-      if (
-        payload.cashEnabled != null &&
-        typeof payload.cashEnabled !== 'boolean'
-      ) {
-        throw new InvalidAdminRequestError(
-          'cashEnabled deve ser booleano.',
-        );
+      for (const [field, value] of [
+        ['cashEnabled', payload.cashEnabled],
+        ['pixEnabled', payload.pixEnabled],
+        ['cardEnabled', payload.cardEnabled],
+        ['walletEnabled', payload.walletEnabled],
+      ] as const) {
+        if (value != null && typeof value !== 'boolean') {
+          throw new InvalidAdminRequestError(
+            `${field} deve ser booleano.`,
+          );
+        }
       }
+      const defaultCashDebtLimitCents =
+        payload.defaultCashDebtLimitCents == null
+          ? undefined
+          : Number(payload.defaultCashDebtLimitCents);
       const pixPriceAdjustmentBps =
         payload.pixPriceAdjustmentBps == null
           ? undefined
@@ -2768,24 +2780,23 @@ const server = createServer(async (request, response) => {
         payload.cardPriceAdjustmentBps == null
           ? undefined
           : Number(payload.cardPriceAdjustmentBps);
-      if (
-        pixPriceAdjustmentBps != null &&
-        !Number.isInteger(pixPriceAdjustmentBps)
-      ) {
-        throw new InvalidAdminRequestError(
-          'pixPriceAdjustmentBps deve ser inteiro.',
-        );
-      }
-      if (
-        cardPriceAdjustmentBps != null &&
-        !Number.isInteger(cardPriceAdjustmentBps)
-      ) {
-        throw new InvalidAdminRequestError(
-          'cardPriceAdjustmentBps deve ser inteiro.',
-        );
+      for (const [field, value] of [
+        ['defaultCashDebtLimitCents', defaultCashDebtLimitCents],
+        ['pixPriceAdjustmentBps', pixPriceAdjustmentBps],
+        ['cardPriceAdjustmentBps', cardPriceAdjustmentBps],
+      ] as const) {
+        if (value != null && !Number.isInteger(value)) {
+          throw new InvalidAdminRequestError(
+            `${field} deve ser inteiro.`,
+          );
+        }
       }
       if (
         payload.cashEnabled == null &&
+        payload.pixEnabled == null &&
+        payload.cardEnabled == null &&
+        payload.walletEnabled == null &&
+        defaultCashDebtLimitCents == null &&
         pixPriceAdjustmentBps == null &&
         cardPriceAdjustmentBps == null
       ) {
@@ -2800,6 +2811,18 @@ const server = createServer(async (request, response) => {
         ...(payload.cashEnabled == null
           ? {}
           : { cashEnabled: payload.cashEnabled }),
+        ...(payload.pixEnabled == null
+          ? {}
+          : { pixEnabled: payload.pixEnabled }),
+        ...(payload.cardEnabled == null
+          ? {}
+          : { cardEnabled: payload.cardEnabled }),
+        ...(payload.walletEnabled == null
+          ? {}
+          : { walletEnabled: payload.walletEnabled }),
+        ...(defaultCashDebtLimitCents == null
+          ? {}
+          : { defaultCashDebtLimitCents }),
         ...(pixPriceAdjustmentBps == null
           ? {}
           : { pixPriceAdjustmentBps }),
@@ -4742,10 +4765,18 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ...PAYMENT_POLICY_V1,
         cashEnabled: settings.cashEnabled,
+        pixEnabled: settings.pixEnabled,
+        cardEnabled: settings.cardEnabled,
+        walletEnabled: settings.walletEnabled,
+        passengerWalletEnabled: settings.walletEnabled,
+        futureCashDebtLimitCents:
+          settings.defaultCashDebtLimitCents,
         pixPriceAdjustmentBps: settings.pixPriceAdjustmentBps,
         cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
         allowedMethods: [
-          ...PAYMENT_POLICY_V1.allowedMethods,
+          ...(settings.pixEnabled ? ['pix'] : []),
+          ...(settings.cardEnabled ? ['card'] : []),
+          ...(settings.walletEnabled ? ['wallet'] : []),
           ...(settings.cashEnabled ? ['cash'] : []),
         ],
       });
@@ -5018,6 +5049,23 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
       });
       const body = parseCreateWalletTopupRequest(await readJson(request));
+      const paymentSettings =
+        await paymentPolicySettingsRepository.get();
+      if (!paymentSettings.walletEnabled) {
+        throw new PaymentDomainError(
+          'PAYMENT_METHOD_DISABLED',
+          'Carteira está desativada pelo administrador.',
+        );
+      }
+      if (
+        (body.method === 'pix' && !paymentSettings.pixEnabled) ||
+        (body.method === 'card' && !paymentSettings.cardEnabled)
+      ) {
+        throw new PaymentDomainError(
+          'PAYMENT_METHOD_DISABLED',
+          'A forma de pagamento escolhida está desativada pelo administrador.',
+        );
+      }
       const topup = await createWalletTopup(financeRepository, {
         passengerId,
         method: body.method,
@@ -5055,6 +5103,23 @@ const server = createServer(async (request, response) => {
 
       const body = parseCreatePaymentRequest(await readJson(request));
       const idempotencyKey = readIdempotencyKey(request.headers);
+      const paymentSettings =
+        await paymentPolicySettingsRepository.get();
+
+      const methodEnabled =
+        body.method === 'cash'
+          ? paymentSettings.cashEnabled
+          : body.method === 'pix'
+            ? paymentSettings.pixEnabled
+            : body.method === 'card'
+              ? paymentSettings.cardEnabled
+              : paymentSettings.walletEnabled;
+      if (!methodEnabled) {
+        throw new PaymentDomainError(
+          'PAYMENT_METHOD_DISABLED',
+          'A forma de pagamento escolhida está desativada pelo administrador.',
+        );
+      }
 
       if (body.method === 'cash') {
         const result = await authorizeCashRide({
@@ -5285,8 +5350,6 @@ const server = createServer(async (request, response) => {
             passengerId,
           );
 
-        const paymentSettings =
-          await paymentPolicySettingsRepository.get();
         const result = await createMercadoPagoCardIntent({
           finance: financeRepository,
           gateway: mercadoPagoOrdersClient,
@@ -5368,8 +5431,6 @@ const server = createServer(async (request, response) => {
             passengerId,
           );
 
-        const paymentSettings =
-          await paymentPolicySettingsRepository.get();
         const result = await createMercadoPagoPixIntent({
           finance: financeRepository,
           gateway: mercadoPagoOrdersClient,
