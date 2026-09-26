@@ -12,7 +12,7 @@ import 'firebase_push_config.dart';
 class DriverFirebasePushRegistrationService {
   DriverFirebasePushRegistrationService._();
 
-  static final FirebasePushRegistrationService instance =
+  static final DriverFirebasePushRegistrationService instance =
       DriverFirebasePushRegistrationService._();
 
   StreamSubscription<String>? _refreshSubscription;
