@@ -193,6 +193,30 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _openReleaseStore(
+    AppReleasePolicy policy,
+  ) async {
+    final rawUrl = policy.storeUrl?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) return;
+
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) return;
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível abrir a loja agora.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _checkReleasePolicy() async {
     final service = _releasePolicyService;
     final platform = _platformName;
@@ -212,43 +236,79 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       );
       if (!mounted || !policy.updateAvailable) return;
       _releaseDialogShown = true;
+      final hasStoreUrl =
+          policy.storeUrl?.trim().isNotEmpty == true;
 
       await showDialog<void>(
         context: context,
         barrierDismissible: !policy.updateRequired,
-        builder: (context) => AlertDialog(
-          icon: const Icon(Icons.system_update_alt_rounded),
-          title: Text(
-            policy.updateRequired
-                ? 'Atualização necessária'
-                : 'Atualização disponível',
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(policy.updateMessage),
-              const SizedBox(height: 10),
-              Text(
-                'Versão disponível: ${policy.latestVersion}',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              if (policy.storeUrl != null) ...[
+        builder: (dialogContext) => PopScope(
+          canPop: !policy.updateRequired,
+          child: AlertDialog(
+            icon: const Icon(Icons.system_update_alt_rounded),
+            title: Text(
+              policy.updateRequired
+                  ? 'Atualização necessária'
+                  : 'Atualização disponível',
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(policy.updateMessage),
                 const SizedBox(height: 10),
-                const Text('Abra a loja pelo endereço:'),
-                const SizedBox(height: 4),
-                SelectableText(policy.storeUrl!),
+                Text(
+                  'Versão disponível: ${policy.latestVersion}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (hasStoreUrl) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Toque em “Atualizar agora” para abrir a loja.',
+                  ),
+                ] else if (policy.updateRequired) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'O link da atualização ainda não está disponível. '
+                    'Tente novamente mais tarde.',
+                  ),
+                ],
               ],
+            ),
+            actions: [
+              if (!policy.updateRequired)
+                TextButton(
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(),
+                  child: const Text('Agora não'),
+                ),
+              TextButton(
+                onPressed: hasStoreUrl
+                    ? () async {
+                        await _openReleaseStore(policy);
+                        if (
+                          !policy.updateRequired &&
+                          dialogContext.mounted
+                        ) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      }
+                    : policy.updateRequired
+                        ? null
+                        : () =>
+                            Navigator.of(dialogContext).pop(),
+                child: Text(
+                  hasStoreUrl
+                      ? 'Atualizar agora'
+                      : policy.updateRequired
+                          ? 'Atualização indisponível'
+                          : 'Entendi',
+                ),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                policy.updateRequired ? 'Atualizar agora' : 'Entendi',
-              ),
-            ),
-          ],
         ),
       );
     } catch (_) {
