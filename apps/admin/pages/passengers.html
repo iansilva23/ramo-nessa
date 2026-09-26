@@ -99,6 +99,59 @@
                 Abra um passageiro na tabela para ver identidade e histórico recente.
               </div>
 
+              <form
+                id="passenger-profile-edit-form"
+                class="passenger-profile-edit-form"
+                hidden
+              >
+                <div class="form-section-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">DADOS DA CONTA</span>
+                    <h3>Editar passageiro</h3>
+                  </div>
+                  <small>
+                    Senha e credenciais de autenticação não ficam disponíveis no ADM.
+                  </small>
+                </div>
+
+                <div class="passenger-profile-edit-grid">
+                  <label class="field">
+                    <span>Nome completo</span>
+                    <input
+                      id="passenger-profile-full-name"
+                      type="text"
+                      minlength="3"
+                      maxlength="100"
+                      autocomplete="off"
+                      required
+                    >
+                  </label>
+                  <label class="field">
+                    <span>E-mail</span>
+                    <input
+                      id="passenger-profile-email"
+                      type="email"
+                      maxlength="254"
+                      autocomplete="off"
+                      required
+                    >
+                  </label>
+                </div>
+
+                <div class="passenger-profile-edit-actions">
+                  <button
+                    id="passenger-profile-save-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar dados
+                  </button>
+                  <small id="passenger-profile-edit-note">
+                    Alterações ficam registradas na auditoria.
+                  </small>
+                </div>
+              </form>
+
               <div id="passenger-access-actions" class="passenger-access-actions" hidden>
                 <button
                   id="passenger-access-button"
