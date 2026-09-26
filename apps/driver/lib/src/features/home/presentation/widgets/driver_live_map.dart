@@ -78,10 +78,16 @@ class DriverLiveMap extends StatefulWidget {
   State<DriverLiveMap> createState() => _DriverLiveMapState();
 }
 
-class _DriverLiveMapState extends State<DriverLiveMap> {
+class _DriverLiveMapState extends State<DriverLiveMap>
+    with SingleTickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
   double _driverBearing = 0;
+  double _displayDriverBearing = 0;
+  domain.LatLng? _displayDriverPoint;
+  domain.LatLng? _driverAnimationFrom;
+  domain.LatLng? _driverAnimationTo;
+  late final AnimationController _driverMoveController;
   gm.BitmapDescriptor _passengerIcon =
       gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon =
@@ -89,6 +95,8 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
   final Map<String, gm.BitmapDescriptor> _vehicleIcons = {};
 
   domain.LatLng get _driverPoint {
+    final animated = _displayDriverPoint;
+    if (animated != null) return animated;
     final supply = widget.supply;
     if (supply == null) return DriverMapConfig.fallbackCenter;
     return domain.LatLng(supply.latitude, supply.longitude);
@@ -97,8 +105,78 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
   @override
   void initState() {
     super.initState();
+    final supply = widget.supply;
+    if (supply != null) {
+      _displayDriverPoint =
+          domain.LatLng(supply.latitude, supply.longitude);
+    }
+    _driverMoveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    )..addListener(_tickDriverMovement);
     _notifyPlaceholderReadyIfNeeded();
     _loadMarkerIcons();
+  }
+
+  void _tickDriverMovement() {
+    final from = _driverAnimationFrom;
+    final to = _driverAnimationTo;
+    if (from == null || to == null || !mounted) return;
+
+    final t = Curves.easeInOutCubic.transform(
+      _driverMoveController.value,
+    );
+    final latitude =
+        from.latitude + (to.latitude - from.latitude) * t;
+    final longitude =
+        from.longitude + (to.longitude - from.longitude) * t;
+    final bearingDelta =
+        ((_driverBearing - _displayDriverBearing + 540) % 360) - 180;
+
+    setState(() {
+      _displayDriverPoint = domain.LatLng(latitude, longitude);
+      _displayDriverBearing =
+          (_displayDriverBearing + bearingDelta * t + 360) % 360;
+    });
+  }
+
+  double _distanceMeters(domain.LatLng from, domain.LatLng to) {
+    const earthRadius = 6371000.0;
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final deltaLat =
+        (to.latitude - from.latitude) * math.pi / 180;
+    final deltaLon =
+        (to.longitude - from.longitude) * math.pi / 180;
+    final a = math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(deltaLon / 2) *
+            math.sin(deltaLon / 2);
+    return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  void _moveDriverSmoothly(
+    domain.LatLng from,
+    domain.LatLng to,
+    double targetBearing,
+  ) {
+    final current = _displayDriverPoint ?? from;
+    final distance = _distanceMeters(current, to);
+    _driverBearing = targetBearing;
+
+    if (distance > 2500) {
+      _driverMoveController.stop();
+      setState(() {
+        _displayDriverPoint = to;
+        _displayDriverBearing = targetBearing;
+      });
+      return;
+    }
+
+    _driverAnimationFrom = current;
+    _driverAnimationTo = to;
+    _driverMoveController.forward(from: 0);
   }
 
   Future<void> _loadMarkerIcons() async {
@@ -180,20 +258,24 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
 
     final previousSupply = oldWidget.supply;
     final nextSupply = widget.supply;
-    if (previousSupply != null &&
-        nextSupply != null &&
-        (previousSupply.latitude != nextSupply.latitude ||
-            previousSupply.longitude != nextSupply.longitude)) {
-      _driverBearing = _bearingBetween(
-        domain.LatLng(
-          previousSupply.latitude,
-          previousSupply.longitude,
-        ),
-        domain.LatLng(
-          nextSupply.latitude,
-          nextSupply.longitude,
-        ),
+    if (nextSupply == null) {
+      _driverMoveController.stop();
+      _displayDriverPoint = null;
+    } else if (previousSupply == null) {
+      _driverMoveController.stop();
+      _displayDriverPoint =
+          domain.LatLng(nextSupply.latitude, nextSupply.longitude);
+    } else if (previousSupply.latitude != nextSupply.latitude ||
+        previousSupply.longitude != nextSupply.longitude) {
+      final from = domain.LatLng(
+        previousSupply.latitude,
+        previousSupply.longitude,
       );
+      final to = domain.LatLng(
+        nextSupply.latitude,
+        nextSupply.longitude,
+      );
+      _moveDriverSmoothly(from, to, _bearingBetween(from, to));
     }
   }
 
@@ -246,7 +328,7 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
         icon: _vehicleIcon(_currentVehicleCategory()),
         anchor: const Offset(.5, .5),
         flat: true,
-        rotation: _driverBearing,
+        rotation: _displayDriverBearing,
         infoWindow: const gm.InfoWindow(
           title: 'Você',
         ),
@@ -315,6 +397,7 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
 
   @override
   void dispose() {
+    _driverMoveController.dispose();
     widget.controller.detach();
     _nativeController = null;
     super.dispose();
