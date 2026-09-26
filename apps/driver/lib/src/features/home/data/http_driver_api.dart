@@ -236,12 +236,23 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
-  Future<DriverActivitySnapshot> activity() async {
+  Future<DriverActivitySnapshot> activity({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final query = <String, String>{'limit': '50'};
+    if (from != null) {
+      query['from'] = from.toUtc().toIso8601String();
+    }
+    if (to != null) {
+      query['to'] = to.toUtc().toIso8601String();
+    }
+
+    final uri = _baseUrl.resolve('/v1/driver/me/activity').replace(
+      queryParameters: query,
+    );
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/activity?limit=30'),
-          headers: _headers,
-        )
+        .get(uri, headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverActivitySnapshot.fromJson(
