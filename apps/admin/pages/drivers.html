@@ -1,0 +1,539 @@
+<section id="view-drivers" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">MOTORISTAS</span>
+                <h1>Acesso e aprovação</h1>
+                <p>Consulte, provisione, aprove ou suspenda o acesso de um motorista.</p>
+              </div>
+            </div>
+
+            <article class="panel-card operational-settings-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO OPERACIONAL</span>
+                  <h2>Chamadas e mapa do motorista</h2>
+                </div>
+                <span id="operational-settings-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <form id="operational-settings-form" class="operational-settings-form">
+                <label class="field">
+                  <span>Tempo para aceitar corrida</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="driver-offer-ttl-seconds"
+                      type="number"
+                      min="5"
+                      max="120"
+                      step="1"
+                      value="35"
+                      required
+                    >
+                    <strong>segundos</strong>
+                  </div>
+                  <small>
+                    Quando o tempo termina, a oferta expira no Core e pode seguir
+                    para o próximo motorista elegível.
+                  </small>
+                </label>
+
+                <label class="operational-settings-toggle">
+                  <span>
+                    <strong>Mostrar outros motoristas no mapa</strong>
+                    <small>
+                      Exibe somente posições anônimas e recentes para motoristas
+                      online. Nome, telefone, placa e ID não são compartilhados.
+                    </small>
+                  </span>
+                  <input id="show-nearby-drivers" type="checkbox">
+                </label>
+
+                <label class="operational-settings-toggle">
+                  <span>
+                    <strong>Bloqueio automático por documentos</strong>
+                    <small>
+                      Desligado por padrão. Quando desligado, CNH/CRLV irregular
+                      apenas gera alerta e você decide se bloqueia novas corridas.
+                      Quando ligado, o sistema bloqueia automaticamente novas corridas,
+                      sem interromper viagens já em andamento.
+                    </small>
+                  </span>
+                  <input id="driver-document-auto-enforcement" type="checkbox">
+                </label>
+
+                <div class="operational-settings-actions">
+                  <small id="operational-settings-updated-at">
+                    Ainda não carregado
+                  </small>
+                  <button
+                    id="save-operational-settings-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar configurações
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card document-alerts-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ATENÇÃO DOCUMENTAL</span>
+                  <h2>Pendências que precisam de acompanhamento</h2>
+                  <p class="muted-copy">
+                    No modo manual, ninguém é bloqueado automaticamente.
+                    Abra a ficha, avise o motorista e registre sua decisão.
+                  </p>
+                </div>
+                <span id="driver-document-alerts-summary" class="pill pill--neutral">
+                  0 pendências
+                </span>
+              </div>
+
+              <div class="document-alerts-metrics">
+                <div>
+                  <span>Precisam da sua decisão</span>
+                  <strong id="driver-document-alerts-decision-count">0</strong>
+                </div>
+                <div>
+                  <span>Bloqueados</span>
+                  <strong id="driver-document-alerts-blocked-count">0</strong>
+                </div>
+                <div>
+                  <span>Modo</span>
+                  <strong id="driver-document-alerts-mode">Manual</strong>
+                </div>
+              </div>
+
+              <div id="driver-document-alerts-list" class="document-alerts-list"></div>
+              <div id="driver-document-alerts-empty" class="empty-state">
+                Nenhuma pendência documental entre motoristas ativos.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Motoristas provisionados</h2>
+                </div>
+                <span id="driver-directory-summary" class="pill">0 motoristas</span>
+              </div>
+
+              <form id="driver-directory-form" class="directory-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="driver-directory-query"
+                    maxlength="80"
+                    placeholder="ID ou telefone"
+                  >
+                </label>
+                <label class="field directory-status">
+                  <span>Status</span>
+                  <select id="driver-directory-status">
+                    <option value="">Todos</option>
+                    <option value="active">Aprovados</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table">
+                  <thead>
+                    <tr>
+                      <th>Motorista</th>
+                      <th>Telefone</th>
+                      <th>Status</th>
+                      <th>Atualizado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="driver-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="driver-directory-empty" class="empty-state" hidden>
+                Nenhum motorista corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="driver-directory-count">0 carregados</span>
+                <button
+                  id="driver-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
+
+            <div class="driver-layout">
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONSULTA</span>
+                    <h2>Buscar motorista</h2>
+                  </div>
+                </div>
+                <form id="driver-search-form" class="inline-form">
+                  <label class="field field--grow">
+                    <span>ID do motorista</span>
+                    <input id="driver-search-id" required maxlength="120" placeholder="driver-001">
+                  </label>
+                  <button class="button button--dark" type="submit">Consultar</button>
+                </form>
+                <div id="driver-result" class="driver-result empty-state">
+                  Informe o ID para consultar o cadastro de autenticação.
+                </div>
+              </article>
+
+              <article class="panel-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">NOVO ACESSO</span>
+                    <h2>Provisionar motorista</h2>
+                  </div>
+                  <span class="pill">Seguro por padrão</span>
+                </div>
+                <form id="driver-provision-form" class="stack-form">
+                  <label class="field">
+                    <span>ID do motorista</span>
+                    <input id="provision-driver-id" required maxlength="120" placeholder="driver-001">
+                  </label>
+                  <label class="field">
+                    <span>Telefone</span>
+                    <input id="provision-phone" required inputmode="tel" maxlength="24" placeholder="(88) 99999-9999">
+                  </label>
+                  <label class="field">
+                    <span>Status inicial</span>
+                    <select id="provision-status">
+                      <option value="suspended" selected>Suspenso — aprovar depois</option>
+                      <option value="active">Aprovado — liberar OTP</option>
+                    </select>
+                  </label>
+                  <button class="button button--primary" type="submit">
+                    Criar acesso
+                  </button>
+                </form>
+              </article>
+            </div>
+
+            <article class="panel-card driver-registry-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CADASTRO OPERACIONAL</span>
+                  <h2>Perfil e veículo</h2>
+                  <p class="muted-copy">
+                    Cadastro separado do acesso OTP. Aprovação do perfil e do veículo é explícita.
+                  </p>
+                </div>
+                <span id="driver-registry-overall" class="pill">Não carregado</span>
+              </div>
+
+              <div id="driver-registry-result" class="driver-registry-result empty-state">
+                Abra um motorista para consultar o perfil e o veículo.
+              </div>
+
+              <div id="driver-registry-write-controls" class="driver-registry-write-controls">
+                <form id="driver-registry-form" class="registry-form">
+                  <div class="registry-grid">
+                    <label class="field registry-span-2">
+                      <span>Nome completo</span>
+                      <input id="registry-full-name" required maxlength="120" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Nome preferido</span>
+                      <input id="registry-preferred-name" maxlength="80" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Placa</span>
+                      <input id="registry-plate" required maxlength="10" autocomplete="off" placeholder="ABC1D23">
+                    </label>
+                    <label class="field">
+                      <span>Marca</span>
+                      <input id="registry-make" required maxlength="60" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Modelo</span>
+                      <input id="registry-model" required maxlength="80" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Ano</span>
+                      <input id="registry-model-year" required type="number" min="1980" max="2100" inputmode="numeric">
+                    </label>
+                    <label class="field">
+                      <span>Cor</span>
+                      <input id="registry-color" required maxlength="40" autocomplete="off">
+                    </label>
+                    <label class="field">
+                      <span>Lugares</span>
+                      <input id="registry-seat-capacity" required type="number" min="1" max="12" inputmode="numeric">
+                    </label>
+                    <label class="registry-check">
+                      <input id="registry-four-by-four" type="checkbox">
+                      <span>Veículo 4x4</span>
+                    </label>
+                  </div>
+
+                  <fieldset class="registry-categories">
+                    <legend>Categorias habilitadas</legend>
+                    <label><input type="checkbox" name="registry-category" value="moto"> Moto</label>
+                    <label><input type="checkbox" name="registry-category" value="delivery"> Entrega</label>
+                    <label><input type="checkbox" name="registry-category" value="car"> Carro</label>
+                    <label><input type="checkbox" name="registry-category" value="comfort_black"> Comfort/Black</label>
+                    <label><input type="checkbox" name="registry-category" value="buggy"> Buggy</label>
+                  </fieldset>
+
+                  <button id="registry-save-button" class="button button--primary" type="submit">
+                    Salvar perfil e veículo
+                  </button>
+                </form>
+
+                <div class="registry-status-panel">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">APROVAÇÃO</span>
+                    <h3>Status cadastral</h3>
+                    <p class="muted-copy">
+                      Editar dados não aprova silenciosamente. Os dois status são controlados aqui.
+                    </p>
+                  </div>
+                  <label class="field">
+                    <span>Perfil</span>
+                    <select id="registry-profile-status">
+                      <option value="pending">Pendente</option>
+                      <option value="approved">Aprovado</option>
+                      <option value="suspended">Suspenso</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Veículo</span>
+                    <select id="registry-vehicle-status">
+                      <option value="pending">Pendente</option>
+                      <option value="approved">Aprovado</option>
+                      <option value="suspended">Suspenso</option>
+                    </select>
+                  </label>
+                  <button id="registry-status-button" class="button button--dark" type="button">
+                    Atualizar aprovação
+                  </button>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel-card driver-cash-policy-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DINHEIRO · MOTORISTA</span>
+                  <h2>Limite individual de comissão</h2>
+                  <p class="muted-copy">
+                    O padrão é R$ 120. Um override maior vale somente para este motorista e só tem efeito quando dinheiro estiver ativado.
+                  </p>
+                </div>
+                <span id="driver-cash-policy-status" class="pill">Não carregado</span>
+              </div>
+
+              <div id="driver-cash-policy-summary" class="driver-cash-policy-summary empty-state">
+                Abra um motorista para consultar a política cash.
+              </div>
+
+              <form id="driver-cash-policy-form" class="driver-cash-policy-form" hidden>
+                <label class="field">
+                  <span>Limite individual (R$)</span>
+                  <input
+                    id="driver-cash-limit-reais"
+                    type="number"
+                    min="120"
+                    step="1"
+                    inputmode="numeric"
+                    placeholder="120"
+                  >
+                </label>
+                <div class="driver-cash-policy-actions">
+                  <button
+                    id="driver-cash-limit-save"
+                    class="button button--primary"
+                    type="submit"
+                  >
+                    Salvar limite
+                  </button>
+                  <button
+                    id="driver-cash-limit-reset"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Usar padrão R$ 120
+                  </button>
+                </div>
+                <small id="driver-cash-policy-note">
+                  A edição será liberada somente quando dinheiro estiver ativado.
+                </small>
+              </form>
+            </article>
+
+            <article class="panel-card driver-documents-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DOCUMENTOS</span>
+                  <h2>CNH e CRLV</h2>
+                  <p class="muted-copy">
+                    O navegador recebe somente metadados sanitizados. Referência privada e hash do arquivo não são expostos.
+                  </p>
+                </div>
+                <span id="driver-documents-overall" class="pill">Não carregado</span>
+              </div>
+
+              <div class="document-privacy-note">
+                <strong>Revisão segura</strong>
+                <span>
+                  A inspeção usa um token criptografado de curta duração e o arquivo é entregue pelo Core sem expor a referência privada do storage.
+                </span>
+              </div>
+
+              <div id="driver-documents-result" class="driver-documents-result empty-state">
+                Abra um motorista para consultar o status documental.
+              </div>
+
+              <div
+                id="driver-document-compliance-panel"
+                class="document-compliance-panel"
+                hidden
+              >
+                <div class="document-compliance-header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONTROLE OPERACIONAL</span>
+                    <h3>Decisão sobre novas corridas</h3>
+                    <p id="driver-document-compliance-message" class="muted-copy">
+                      Nenhuma pendência carregada.
+                    </p>
+                  </div>
+                  <span
+                    id="driver-document-compliance-status"
+                    class="pill pill--neutral"
+                  >
+                    Não carregado
+                  </span>
+                </div>
+
+                <div
+                  id="driver-document-compliance-issues"
+                  class="document-compliance-issues"
+                ></div>
+
+                <div class="document-compliance-actions">
+                  <button
+                    id="driver-document-notify-button"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Avisar motorista
+                  </button>
+                  <button
+                    id="driver-document-keep-active-button"
+                    class="button button--primary"
+                    type="button"
+                  >
+                    Manter ativo
+                  </button>
+                  <button
+                    id="driver-document-block-button"
+                    class="button button--danger"
+                    type="button"
+                  >
+                    Bloquear novas corridas
+                  </button>
+                  <button
+                    id="driver-document-unblock-button"
+                    class="button button--ghost-dark"
+                    type="button"
+                    hidden
+                  >
+                    Liberar novas corridas
+                  </button>
+                </div>
+
+                <small id="driver-document-compliance-meta">
+                  A decisão fica registrada na auditoria.
+                </small>
+              </div>
+
+              <div id="driver-document-inspection-panel" class="driver-document-inspection-panel" hidden>
+                <div class="driver-document-inspection-header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">ARQUIVO PRIVADO</span>
+                    <h3 id="driver-document-inspection-title">Inspeção documental</h3>
+                    <small id="driver-document-inspection-expiry">Link temporário</small>
+                  </div>
+                  <button
+                    id="driver-document-inspection-close"
+                    class="button button--ghost-dark"
+                    type="button"
+                  >
+                    Fechar arquivo
+                  </button>
+                </div>
+                <div class="driver-document-preview">
+                  <iframe
+                    id="driver-document-inspection-frame"
+                    title="Visualização segura do documento"
+                    sandbox
+                    hidden
+                  ></iframe>
+                  <img
+                    id="driver-document-inspection-image"
+                    alt="Visualização segura do documento"
+                    hidden
+                  >
+                </div>
+              </div>
+
+              <div id="driver-document-review-panel" class="driver-document-review-panel" hidden>
+                <div>
+                  <span class="eyebrow eyebrow--dark">DECISÃO HUMANA</span>
+                  <h3>Revisar documento pendente</h3>
+                  <p class="muted-copy">
+                    Esta ação registra somente a decisão administrativa e fica na trilha de auditoria.
+                  </p>
+                </div>
+
+                <form id="driver-document-review-form" class="document-review-form">
+                  <label class="field">
+                    <span>Documento</span>
+                    <select id="driver-document-review-type"></select>
+                  </label>
+                  <label class="field">
+                    <span>Decisão</span>
+                    <select id="driver-document-review-status">
+                      <option value="approved">Aprovar</option>
+                      <option value="rejected">Rejeitar</option>
+                    </select>
+                  </label>
+                  <label class="field document-review-reason">
+                    <span>Motivo da rejeição</span>
+                    <textarea
+                      id="driver-document-rejection-reason"
+                      maxlength="240"
+                      rows="3"
+                      placeholder="Obrigatório apenas ao rejeitar"
+                    ></textarea>
+                  </label>
+                  <button
+                    id="driver-document-review-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Registrar decisão
+                  </button>
+                </form>
+              </div>
+            </article>
+          </section>
