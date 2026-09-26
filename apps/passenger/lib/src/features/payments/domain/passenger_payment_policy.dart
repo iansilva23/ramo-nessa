@@ -43,6 +43,13 @@ class PassengerPaymentPolicy {
   final int pixPriceAdjustmentBps;
   final int cardPriceAdjustmentBps;
 
+  bool get pixAvailable => allowedMethods.contains('pix');
+
+  bool get cardAvailable => allowedMethods.contains('card');
+
+  bool get walletAvailable =>
+      passengerWalletEnabled && allowedMethods.contains('wallet');
+
   bool get cashAvailable =>
       cashEnabled && allowedMethods.contains('cash');
 
