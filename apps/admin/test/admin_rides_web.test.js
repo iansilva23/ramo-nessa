@@ -141,7 +141,7 @@ test('labels da viagem seguem estados oficiais do Core', () => {
   assert.equal(paymentStatusLabel('paid'), 'Pago');
   assert.equal(paymentStatusLabel('refunded'), 'Reembolsado');
   assert.equal(pricePeriodLabel('day'), 'Diurno');
-  assert.equal(pricePeriodLabel('after_22'), 'Após 22h');
+  assert.equal(pricePeriodLabel('after_22'), 'Noturno');
 });
 
 test('HTML de Viagens contém histórico e cancelamento administrativo protegido', () => {
