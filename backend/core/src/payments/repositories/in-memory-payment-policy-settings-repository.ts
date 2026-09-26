@@ -9,6 +9,10 @@ export class InMemoryPaymentPolicySettingsRepository
 {
   private record: PaymentPolicySettingsRecord = {
     cashEnabled: false,
+    pixEnabled: true,
+    cardEnabled: true,
+    walletEnabled: true,
+    defaultCashDebtLimitCents: 12000,
     pixPriceAdjustmentBps: 99,
     cardPriceAdjustmentBps: 498,
     updatedAt: '1970-01-01T00:00:00.000Z',
@@ -52,6 +56,42 @@ export class InMemoryPaymentPolicySettingsRepository
     this.record = {
       ...this.record,
       cardPriceAdjustmentBps: bps,
+      updatedAt,
+    };
+    return structuredClone(this.record);
+  }
+
+  async setDigitalMethods(
+    input: {
+      pixEnabled?: boolean;
+      cardEnabled?: boolean;
+      walletEnabled?: boolean;
+    },
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    this.record = {
+      ...this.record,
+      ...(input.pixEnabled == null
+        ? {}
+        : { pixEnabled: input.pixEnabled }),
+      ...(input.cardEnabled == null
+        ? {}
+        : { cardEnabled: input.cardEnabled }),
+      ...(input.walletEnabled == null
+        ? {}
+        : { walletEnabled: input.walletEnabled }),
+      updatedAt,
+    };
+    return structuredClone(this.record);
+  }
+
+  async setDefaultCashDebtLimitCents(
+    cents: number,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    this.record = {
+      ...this.record,
+      defaultCashDebtLimitCents: cents,
       updatedAt,
     };
     return structuredClone(this.record);
