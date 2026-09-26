@@ -54,6 +54,8 @@ export class InMemoryFinanceRepository implements FinanceRepository {
 
   private readonly payouts = new Map<string, DriverPayoutRecord>();
   private readonly payoutIdempotencyIndex = new Map<string, string>();
+  private readonly payoutDestinations =
+      new Map<string, DriverPayoutDestination>();
 
   private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
@@ -727,6 +729,28 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       cashCommissionRecoveredFromBalanceCents: recovered,
       cashDebtCents: await this.getDriverCashDebtCents(input.driverId),
     };
+  }
+
+  async getDriverPayoutDestination(
+    driverId: string,
+  ): Promise<DriverPayoutDestination | null> {
+    const destination = this.payoutDestinations.get(driverId);
+    return destination == null ? null : structuredClone(destination);
+  }
+
+  async upsertDriverPayoutDestination(
+    destination: DriverPayoutDestination,
+  ): Promise<DriverPayoutDestination> {
+    const existing = this.payoutDestinations.get(destination.driverId);
+    const stored: DriverPayoutDestination = {
+      ...destination,
+      createdAt: existing?.createdAt ?? destination.createdAt,
+    };
+    this.payoutDestinations.set(
+      destination.driverId,
+      structuredClone(stored),
+    );
+    return structuredClone(stored);
   }
 
   async reserveDriverPayout(
