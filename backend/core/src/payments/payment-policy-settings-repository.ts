@@ -1,5 +1,9 @@
 export interface PaymentPolicySettingsRecord {
   cashEnabled: boolean;
+  pixEnabled: boolean;
+  cardEnabled: boolean;
+  walletEnabled: boolean;
+  defaultCashDebtLimitCents: number;
   pixPriceAdjustmentBps: number;
   cardPriceAdjustmentBps: number;
   updatedAt: string;
@@ -23,6 +27,18 @@ export interface PaymentPolicySettingsRepository {
   ): Promise<PaymentPolicySettingsRecord>;
   setCardPriceAdjustmentBps(
     bps: number,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord>;
+  setDigitalMethods(
+    input: {
+      pixEnabled?: boolean;
+      cardEnabled?: boolean;
+      walletEnabled?: boolean;
+    },
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord>;
+  setDefaultCashDebtLimitCents(
+    cents: number,
     updatedAt: string,
   ): Promise<PaymentPolicySettingsRecord>;
   getDriverCashDebtLimitOverride(
