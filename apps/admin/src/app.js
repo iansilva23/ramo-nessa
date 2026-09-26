@@ -927,6 +927,7 @@ function renderDriverRegistry(payload, driverId) {
   target.append(summary);
   byId('registry-status-button').disabled =
     !profile || !vehicle || !hasScope('drivers:profile:write');
+  syncDriverAuthActionAvailability();
 }
 
 function renderDriverCashPolicyUnavailable(
@@ -1141,6 +1142,7 @@ function renderDriverRegistryUnavailable(
   overall.className = 'pill';
   overall.textContent = 'Não carregado';
   byId('registry-status-button').disabled = true;
+  syncDriverAuthActionAvailability();
 }
 
 async function loadDriverRegistry(driverId) {
@@ -1366,15 +1368,16 @@ async function handleDriverRegistryStatus() {
         vehicleStatus,
       },
     );
-    renderDriverRegistry(
-      result,
-      state.currentDriver.driverId,
-    );
+    const driverId = state.currentDriver.driverId;
+    await lookupDriver(driverId);
     setMessage(
       globalMessage,
       result.registryApproved
-        ? 'Perfil e veículo aprovados administrativamente.'
-        : 'Status cadastral atualizado.',
+        ? 'Perfil e veículo aprovados. O acesso OTP pode ser liberado.'
+        : result.authStatus === 'suspended' &&
+            Number(result.revokedSessions ?? 0) > 0
+          ? `Status cadastral atualizado. Acesso suspenso e ${result.revokedSessions} sessão(ões) revogada(s).`
+          : 'Status cadastral atualizado. O acesso permanece suspenso.',
       'success',
     );
     if (hasScope('audit:read')) {
@@ -2006,6 +2009,25 @@ async function handleDriverDocumentReview(event) {
   }
 }
 
+function syncDriverAuthActionAvailability() {
+  const button = byId('driver-auth-status-action');
+  const driver = state.currentDriver;
+  if (button == null || driver == null) return;
+
+  if (driver.status === 'active') {
+    button.disabled = false;
+    button.title = 'Suspender o acesso e revogar as sessões do motorista.';
+    return;
+  }
+
+  const registryApproved =
+    state.currentDriverRegistry?.registryApproved === true;
+  button.disabled = !registryApproved;
+  button.title = registryApproved
+    ? 'Liberar o login OTP para este motorista.'
+    : 'Aprove o perfil e o veículo antes de liberar o login OTP.';
+}
+
 function renderDriver(driver) {
   const target = byId('driver-result');
   target.replaceChildren();
@@ -2047,6 +2069,7 @@ function renderDriver(driver) {
 
     const button = document.createElement('button');
     button.type = 'button';
+    button.id = 'driver-auth-status-action';
     button.className =
       driver.status === 'active'
         ? 'button button--danger'
@@ -2054,7 +2077,7 @@ function renderDriver(driver) {
     button.textContent =
       driver.status === 'active'
         ? 'Suspender acesso'
-        : 'Aprovar motorista';
+        : 'Liberar acesso OTP';
     button.addEventListener('click', () => {
       void changeDriverStatus(
         driver.driverId,
@@ -2064,6 +2087,7 @@ function renderDriver(driver) {
     });
     actions.append(button);
     target.append(actions);
+    syncDriverAuthActionAvailability();
   }
 }
 
@@ -5763,7 +5787,7 @@ async function handleDriverProvision(event) {
   try {
     const driverId = validateDriverId(byId('provision-driver-id').value);
     const phone = validatePhone(byId('provision-phone').value);
-    const status = validateDriverStatus(byId('provision-status').value);
+    const status = 'suspended';
 
     button.disabled = true;
     const result = await api.provisionDriver(state.token, {
@@ -5785,7 +5809,6 @@ async function handleDriverProvision(event) {
       'success',
     );
     event.currentTarget.reset();
-    byId('provision-status').value = 'suspended';
     if (hasScope('drivers:auth:read')) {
       await loadDriverDirectory({ reset: true, announce: false });
     }
@@ -5812,7 +5835,7 @@ async function changeDriverStatus(driverId, status, button) {
     setMessage(
       globalMessage,
       status === 'active'
-        ? 'Motorista aprovado. O login OTP está liberado.'
+        ? 'Acesso OTP liberado para motorista com cadastro aprovado.'
         : `Motorista suspenso. ${result.revokedSessions ?? 0} sessão(ões) revogada(s).`,
       'success',
     );
