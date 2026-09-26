@@ -24,6 +24,11 @@ test('Admin usa shell + rotas próprias em vez de uma página monolítica', asyn
 
   assert.match(index, /id=["']route-outlet["']/);
   assert.match(index, /id=["']mobile-menu-button["']/);
+  assert.equal(
+    (index.match(/id=["']mobile-nav-backdrop["']/g) ?? []).length,
+    1,
+    'o menu móvel deve ter um único backdrop',
+  );
 
   for (const [view, path] of routes) {
     assert.match(
@@ -53,7 +58,11 @@ test('cada módulo administrativo possui um arquivo de página isolado', async (
       ),
     );
     assert.equal(
-      (html.match(/class=["'][^"']*view-panel/g) ?? []).length,
+      (
+        html.match(
+          /<section\b[^>]*class=["'][^"']*\bview-panel\b[^"']*["'][^>]*>/g,
+        ) ?? []
+      ).length,
       1,
       `${view} deve montar apenas um painel principal`,
     );
