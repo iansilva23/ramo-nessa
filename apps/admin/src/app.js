@@ -444,6 +444,7 @@ function clearSession(message = '') {
   };
   state.operationalSettings = {
     driverOfferTtlSeconds: 35,
+    driverPaymentHoldSeconds: 90,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
     updatedAt: null,
@@ -1118,7 +1119,7 @@ async function handleDriverCashPolicyReset() {
     renderDriverCashPolicy(policy);
     setMessage(
       globalMessage,
-      'Limite individual removido. O motorista voltou ao padrão de R$ 120.',
+      `Limite individual removido. O motorista voltou ao padrão de ${formatCurrencyCents(policy.defaultDebtLimitCents)}.`,
       'success',
     );
     if (hasScope('audit:read')) {
@@ -3617,7 +3618,7 @@ function buildPricingDraftPatch() {
       ),
       after22Cents: pricingMoneyToCents(
         byId('pricing-route-night').value,
-        'Preço após 22h',
+        'Preço noturno',
       ),
     };
   }
