@@ -1036,11 +1036,17 @@ td strong {
     overflow: hidden;
   }
 
+  body.nav-open {
+    overflow: hidden;
+  }
+
   body.nav-open .sidebar {
     transform: translateX(0);
   }
 
   .sidebar {
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding-top: max(24px, env(safe-area-inset-top));
     padding-bottom: max(18px, env(safe-area-inset-bottom));
   }
