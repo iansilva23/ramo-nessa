@@ -8,6 +8,7 @@ import { isIP } from 'node:net';
 
 import { quoteFare } from './pricing/quote-engine.js';
 import { publicFareQuoteView } from './pricing/public-fare-view.js';
+import { publicPricingPolicyView } from './pricing/public-pricing-policy.js';
 import { PricingError } from './pricing/types.js';
 import { InvalidQuoteRequestError, parseQuoteRequest } from './pricing/validation.js';
 import { pricingPeriodAt } from './pricing/period.js';
@@ -4805,6 +4806,14 @@ const server = createServer(async (request, response) => {
           ...(settings.cashEnabled ? ['cash'] : []),
         ],
       });
+      return;
+    }
+
+    if (request.method === 'GET' && request.url === '/v1/pricing/policy') {
+      const pricing = await resolvePricingCatalogContext({
+        versions: pricingCatalogVersionRepository,
+      });
+      json(response, 200, publicPricingPolicyView(pricing));
       return;
     }
 
