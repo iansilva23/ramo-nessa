@@ -145,10 +145,16 @@ test('labels da viagem seguem estados oficiais do Core', () => {
 });
 
 test('HTML de Viagens contém histórico e cancelamento administrativo protegido', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/rides.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
 
   for (const id of [
     'view-rides',
