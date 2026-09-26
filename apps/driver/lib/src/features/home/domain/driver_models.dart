@@ -257,6 +257,37 @@ class DriverRideCompletion {
 }
 
 
+class DriverRideChatMessage {
+  const DriverRideChatMessage({
+    required this.id,
+    required this.rideId,
+    required this.senderType,
+    required this.senderId,
+    required this.body,
+    required this.createdAt,
+  });
+
+  factory DriverRideChatMessage.fromJson(Map<String, dynamic> json) {
+    return DriverRideChatMessage(
+      id: json['id'] as String,
+      rideId: json['rideId'] as String,
+      senderType: json['senderType'] as String,
+      senderId: json['senderId'] as String,
+      body: json['body'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+
+  final String id;
+  final String rideId;
+  final String senderType;
+  final String senderId;
+  final String body;
+  final DateTime createdAt;
+
+  bool get fromDriver => senderType == 'driver';
+}
+
 class DriverFinanceSummary {
   const DriverFinanceSummary({
     required this.availableBalanceCents,
