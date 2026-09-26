@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   AdminPassengerError,
   adminPassengerProfile,
+  updatePassengerProfileFromAdmin,
 } from '../src/admin/admin-passenger-service.js';
+import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
@@ -132,5 +134,122 @@ test('ficha Admin retorna erro explícito para passageiro inexistente', async ()
     (error: unknown) =>
       error instanceof AdminPassengerError &&
       error.code === 'PASSENGER_NOT_FOUND',
+  );
+});
+
+
+test('Admin edita nome e e-mail do passageiro com validação e auditoria', async () => {
+  const identities = new InMemoryAuthOtpRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-passenger-profile-edit',
+    name: 'Admin Passenger Profile Edit',
+  };
+
+  await identities.createIdentity({
+    id: '55555555-5555-4555-8555-555555555551',
+    subjectId: 'passenger-edit-001',
+    subjectType: 'passenger',
+    phoneE164: '+5588999992001',
+    fullName: 'Nome Antigo',
+    emailNormalized: 'antigo@example.com',
+    status: 'active',
+    createdAt: '2026-09-26T18:00:00.000Z',
+    updatedAt: '2026-09-26T18:00:00.000Z',
+  });
+  await identities.createIdentity({
+    id: '55555555-5555-4555-8555-555555555552',
+    subjectId: 'passenger-edit-002',
+    subjectType: 'passenger',
+    phoneE164: '+5588999992002',
+    fullName: 'Outro Passageiro',
+    emailNormalized: 'ocupado@example.com',
+    status: 'active',
+    createdAt: '2026-09-26T18:00:00.000Z',
+    updatedAt: '2026-09-26T18:00:00.000Z',
+  });
+
+  const updated = await updatePassengerProfileFromAdmin({
+    identities,
+    admin,
+    actor,
+    passengerId: 'passenger-edit-001',
+    fullName: '  Maria da Silva  ',
+    email: '  MARIA@Example.COM ',
+    now: new Date('2026-09-26T19:55:00.000Z'),
+  });
+
+  assert.equal(updated.fullName, 'Maria da Silva');
+  assert.equal(updated.email, 'maria@example.com');
+  assert.equal(updated.phoneE164, '+5588999992001');
+
+  const stored = await identities.findIdentityBySubject(
+    'passenger',
+    'passenger-edit-001',
+  );
+  assert.equal(stored?.fullName, 'Maria da Silva');
+  assert.equal(stored?.emailNormalized, 'maria@example.com');
+
+  const audit = await admin.listAudit(10);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0]?.action, 'passenger.profile.updated');
+  assert.equal(audit[0]?.targetId, 'passenger-edit-001');
+  assert.deepEqual(audit[0]?.metadata, {
+    fullNameChanged: true,
+    emailChanged: true,
+  });
+
+  const same = await updatePassengerProfileFromAdmin({
+    identities,
+    admin,
+    actor,
+    passengerId: 'passenger-edit-001',
+    fullName: 'Maria da Silva',
+    email: 'maria@example.com',
+  });
+  assert.equal(same.fullName, 'Maria da Silva');
+  assert.equal((await admin.listAudit(10)).length, 1);
+
+  await assert.rejects(
+    () =>
+      updatePassengerProfileFromAdmin({
+        identities,
+        admin,
+        actor,
+        passengerId: 'passenger-edit-001',
+        email: 'ocupado@example.com',
+      }),
+    (error: unknown) =>
+      error instanceof AdminPassengerError &&
+      error.code === 'PASSENGER_EMAIL_IN_USE',
+  );
+
+  await assert.rejects(
+    () =>
+      updatePassengerProfileFromAdmin({
+        identities,
+        admin,
+        actor,
+        passengerId: 'passenger-edit-001',
+        fullName: 'X',
+      }),
+    (error: unknown) =>
+      error instanceof AdminPassengerError &&
+      error.code === 'INVALID_PASSENGER_NAME',
+  );
+
+  await assert.rejects(
+    () =>
+      updatePassengerProfileFromAdmin({
+        identities,
+        admin,
+        actor,
+        passengerId: 'passenger-edit-001',
+        email: 'email-invalido',
+      }),
+    (error: unknown) =>
+      error instanceof AdminPassengerError &&
+      error.code === 'INVALID_PASSENGER_EMAIL',
   );
 });
