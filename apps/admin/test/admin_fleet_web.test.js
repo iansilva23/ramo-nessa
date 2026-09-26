@@ -121,6 +121,12 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
     /window\.addEventListener\('pagehide'[\s\S]*destroyFleetMap\(\)/,
   );
   assert.match(app, /state\.fleet\.staleAfterSeconds/);
+  assert.equal(
+    /staleAfterSeconds:\s*120/.test(app),
+    false,
+    'a UI não pode assumir 120s antes de carregar o Core',
+  );
+  assert.match(app, /Aguardando a política de validade do GPS do Core/);
   assert.match(app, /GPS acima de \$\{staleLabel\}/);
   assert.equal(/GPS com mais de 2 minutos/.test(html), false);
   assert.match(map, /https:\/\/tile\.openstreetmap\.org/);
