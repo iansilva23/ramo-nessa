@@ -110,6 +110,16 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
   assert.match(app, /setInterval\(\(\) => \{/);
   assert.match(app, /5_000/);
   assert.match(app, /createFleetMap/);
+  assert.match(app, /function destroyFleetMap\(\)/);
+  assert.match(app, /fleetMap\.destroy\(\)/);
+  assert.match(
+    app,
+    /currentView === 'fleet'[\s\S]*destroyFleetMap\(\)/,
+  );
+  assert.match(
+    app,
+    /window\.addEventListener\('pagehide'[\s\S]*destroyFleetMap\(\)/,
+  );
   assert.match(app, /state\.fleet\.staleAfterSeconds/);
   assert.match(app, /GPS acima de \$\{staleLabel\}/);
   assert.equal(/GPS com mais de 2 minutos/.test(html), false);
