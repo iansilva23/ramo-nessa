@@ -320,6 +320,12 @@ function stopFleetPolling() {
   }
 }
 
+function destroyFleetMap() {
+  if (fleetMap == null) return;
+  fleetMap.destroy();
+  fleetMap = null;
+}
+
 function closeDriverDocumentInspection() {
   if (state.documentInspectionTimer != null) {
     clearTimeout(state.documentInspectionTimer);
@@ -469,7 +475,7 @@ function clearSession(message = '') {
   };
   routeLoadSequence += 1;
   currentView = null;
-  fleetMap = null;
+  destroyFleetMap();
   routeLoading.hidden = true;
   routeOutlet.removeAttribute('aria-busy');
   routeOutlet.replaceChildren();
@@ -657,7 +663,7 @@ async function activateView(
   stopFleetPolling();
   closeDriverDocumentInspection();
   if (currentView === 'fleet') {
-    fleetMap = null;
+    destroyFleetMap();
   }
 
   setMessage(globalMessage);
@@ -7392,7 +7398,7 @@ function initializeRouteView(view) {
   }
 
   if (view === 'fleet') {
-    fleetMap = null;
+    destroyFleetMap();
     renderFleet(state.fleet);
     void loadFleet({ announce: false });
     startFleetPolling();
@@ -7544,6 +7550,7 @@ window.addEventListener('popstate', () => {
 
 window.addEventListener('pagehide', () => {
   stopFleetPolling();
+  destroyFleetMap();
   closeDriverDocumentInspection();
   state.token = null;
 });
