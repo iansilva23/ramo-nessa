@@ -2557,10 +2557,14 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'fleet:read',
       });
+      const operationalSettings =
+        await operationalSettingsRepository.get();
       const fleet = await adminFleetSnapshot({
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
         rides: rideRepository,
+        staleAfterSeconds:
+          operationalSettings.driverLocationMaxAgeSeconds,
       });
       json(response, 200, fleet);
       return;
