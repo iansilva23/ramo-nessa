@@ -224,6 +224,12 @@ import {
 } from './rides/prepare-ride.js';
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminFinanceView } from './admin/admin-finance-service.js';
+import {
+  AdminPayoutError,
+  cancelAdminPayout,
+  completeAdminPayout,
+  getAdminPayoutDetail,
+} from './admin/admin-payout-service.js';
 import { adminIntegrationSetupView } from './admin/admin-integrations-service.js';
 import {
   AdminPaymentPolicyError,
@@ -2575,6 +2581,110 @@ const server = createServer(async (request, response) => {
       });
       json(response, 200, finance);
       return;
+    }
+
+    const adminPayoutMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/finance\/payouts\/([0-9a-fA-F-]{36})$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminPayoutMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      json(
+        response,
+        200,
+        await getAdminPayoutDetail({
+          finance: financeRepository,
+          payoutId: adminPayoutMatch[1]!,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      adminPayoutMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      const body = await readJson(request);
+      if (
+        body == null ||
+        typeof body !== 'object' ||
+        Array.isArray(body)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Atualização do saque inválida.',
+        );
+      }
+      const payload = body as {
+        action?: unknown;
+        processor?: unknown;
+        processorPayoutId?: unknown;
+      };
+      const action =
+        typeof payload.action === 'string'
+          ? payload.action.trim()
+          : '';
+
+      if (action === 'paid') {
+        if (typeof payload.processor !== 'string') {
+          throw new InvalidAdminRequestError(
+            'processor é obrigatório para concluir o repasse.',
+          );
+        }
+        if (
+          payload.processorPayoutId != null &&
+          typeof payload.processorPayoutId !== 'string'
+        ) {
+          throw new InvalidAdminRequestError(
+            'processorPayoutId deve ser texto.',
+          );
+        }
+        json(
+          response,
+          200,
+          await completeAdminPayout({
+            finance: financeRepository,
+            admin: adminRepository,
+            actor,
+            payoutId: adminPayoutMatch[1]!,
+            processor: payload.processor,
+            ...(payload.processorPayoutId == null
+              ? {}
+              : { processorPayoutId: payload.processorPayoutId }),
+          }),
+        );
+        return;
+      }
+
+      if (action === 'cancelled') {
+        json(
+          response,
+          200,
+          await cancelAdminPayout({
+            finance: financeRepository,
+            admin: adminRepository,
+            actor,
+            payoutId: adminPayoutMatch[1]!,
+          }),
+        );
+        return;
+      }
+
+      throw new InvalidAdminRequestError(
+        'action deve ser paid ou cancelled.',
+      );
     }
 
     if (
@@ -5974,6 +6084,15 @@ const server = createServer(async (request, response) => {
     if (error instanceof RideOfferError) {
       const status = error.code === 'OFFER_NOT_FOUND' ? 404 : 409;
       json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof AdminPayoutError) {
+      const status = error.code === 'PAYOUT_NOT_FOUND' ? 404 : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
