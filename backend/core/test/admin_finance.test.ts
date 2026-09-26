@@ -55,6 +55,8 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
     amountCents: 3000,
     status: 'requested',
     idempotencyKey: 'admin-finance-payout',
+    pixKeyType: 'cpf',
+    pixKey: '12345678909',
     createdAt: '2026-09-24T01:04:00.000Z',
     updatedAt: '2026-09-24T01:04:00.000Z',
   };
