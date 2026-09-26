@@ -2768,6 +2768,22 @@ const server = createServer(async (request, response) => {
           );
         }
       }
+      const cashEnabled =
+        typeof payload.cashEnabled === 'boolean'
+          ? payload.cashEnabled
+          : undefined;
+      const pixEnabled =
+        typeof payload.pixEnabled === 'boolean'
+          ? payload.pixEnabled
+          : undefined;
+      const cardEnabled =
+        typeof payload.cardEnabled === 'boolean'
+          ? payload.cardEnabled
+          : undefined;
+      const walletEnabled =
+        typeof payload.walletEnabled === 'boolean'
+          ? payload.walletEnabled
+          : undefined;
       const defaultCashDebtLimitCents =
         payload.defaultCashDebtLimitCents == null
           ? undefined
@@ -2792,10 +2808,10 @@ const server = createServer(async (request, response) => {
         }
       }
       if (
-        payload.cashEnabled == null &&
-        payload.pixEnabled == null &&
-        payload.cardEnabled == null &&
-        payload.walletEnabled == null &&
+        cashEnabled == null &&
+        pixEnabled == null &&
+        cardEnabled == null &&
+        walletEnabled == null &&
         defaultCashDebtLimitCents == null &&
         pixPriceAdjustmentBps == null &&
         cardPriceAdjustmentBps == null
@@ -2808,18 +2824,10 @@ const server = createServer(async (request, response) => {
         repository: paymentPolicySettingsRepository,
         admin: adminRepository,
         actor,
-        ...(payload.cashEnabled == null
-          ? {}
-          : { cashEnabled: payload.cashEnabled }),
-        ...(payload.pixEnabled == null
-          ? {}
-          : { pixEnabled: payload.pixEnabled }),
-        ...(payload.cardEnabled == null
-          ? {}
-          : { cardEnabled: payload.cardEnabled }),
-        ...(payload.walletEnabled == null
-          ? {}
-          : { walletEnabled: payload.walletEnabled }),
+        ...(cashEnabled == null ? {} : { cashEnabled }),
+        ...(pixEnabled == null ? {} : { pixEnabled }),
+        ...(cardEnabled == null ? {} : { cardEnabled }),
+        ...(walletEnabled == null ? {} : { walletEnabled }),
         ...(defaultCashDebtLimitCents == null
           ? {}
           : { defaultCashDebtLimitCents }),
