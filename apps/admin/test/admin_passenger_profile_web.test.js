@@ -99,10 +99,16 @@ test('cliente Admin altera acesso do passageiro sem vazar Bearer', async () => {
 });
 
 test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/passengers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
