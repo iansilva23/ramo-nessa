@@ -223,6 +223,46 @@ class _NoOfferDriverApi implements DriverApi {
   Future<DriverRideCompletion> completeRide(String rideId) =>
       throw UnimplementedError();
 
+
+  @override
+  Future<List<DriverRideChatMessage>> rideMessages(String rideId) async =>
+      const [];
+
+  @override
+  Future<DriverRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    return DriverRideChatMessage(
+      id: 'test-chat',
+      rideId: rideId,
+      senderType: 'driver',
+      senderId: 'driver-test',
+      body: body,
+      createdAt: DateTime(2026, 9, 26),
+    );
+  }
+
+  @override
+  Future<DriverPayoutDestination> payoutDestination() async =>
+      const DriverPayoutDestination(
+        configured: true,
+        pixKeyType: 'cpf',
+        pixKeyMasked: '••••0000',
+      );
+
+  @override
+  Future<DriverPayoutDestination> savePayoutDestination({
+    required String pixKeyType,
+    required String pixKey,
+  }) async =>
+      DriverPayoutDestination(
+        configured: true,
+        pixKeyType: pixKeyType,
+        pixKeyMasked: '••••0000',
+        updatedAt: DateTime(2026, 9, 26),
+      );
+
   @override
   Future<DriverFinanceSummary> financeSummary() async =>
       const DriverFinanceSummary(
