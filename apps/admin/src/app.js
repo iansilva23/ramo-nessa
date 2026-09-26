@@ -6177,32 +6177,7 @@ window.addEventListener('pagehide', () => {
 
 authView.hidden = false;
 adminView.hidden = true;
+routeLoading.hidden = true;
+routeOutlet.replaceChildren();
 setMessage(loginMessage);
 setMessage(globalMessage);
-renderDriverRegistryUnavailable();
-renderDriverDocumentsUnavailable();
-renderDriverDocumentComplianceUnavailable();
-renderDriverDocumentAlerts({
-  mode: 'manual',
-  total: 0,
-  decisionRequired: 0,
-  blocked: 0,
-  items: [],
-});
-renderDriverCashPolicyUnavailable();
-renderPassengerDetailEmpty();
-renderFleet();
-renderFinance();
-renderPaymentPolicy();
-renderOperationalSettings();
-renderIntegrations(null);
-renderPricingCatalog();
-renderPricingVersions();
-renderPricingEditor();
-renderNotificationHistory();
-renderAgencyPromotion();
-renderSocialLinks();
-renderTourCatalog();
-syncPricingEditFields();
-syncPricingLocalityPriceFields();
-syncDocumentRejectionRequirement();
