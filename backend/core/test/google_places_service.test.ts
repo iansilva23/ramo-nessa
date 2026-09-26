@@ -171,7 +171,7 @@ test('Google Places Autocomplete usa sessão e restrição local', async () => {
   );
 
   const results = await service.autocomplete({
-    query: 'Jeri',
+    query: 'J',
     sessionToken: '3519edfe-0f75-4a30-bfe4-7cbd89340b2c',
     localOnly: true,
   });
@@ -191,7 +191,7 @@ test('Google Places Autocomplete usa sessão e restrição local', async () => {
     /structuredFormat\.mainText\.text/,
   );
   assert.deepEqual(capturedBody, {
-    input: 'Jeri',
+    input: 'J',
     sessionToken: '3519edfe-0f75-4a30-bfe4-7cbd89340b2c',
     languageCode: 'pt-BR',
     regionCode: 'BR',
