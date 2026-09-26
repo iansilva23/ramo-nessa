@@ -129,6 +129,7 @@ const state = {
     query: '',
   },
   communications: {
+    loaded: false,
     deliveryProvider: 'disabled',
     campaigns: [],
     releasePolicies: [],
@@ -454,6 +455,7 @@ function clearSession(message = '') {
     query: '',
   };
   state.communications = {
+    loaded: false,
     deliveryProvider: 'disabled',
     campaigns: [],
     releasePolicies: [],
@@ -6334,37 +6336,70 @@ function renderTourCatalog() {
     fillTourForm(null);
   }
 
-  const canWrite = hasScope('communications:write');
+  const canWrite =
+    state.communications.loaded === true &&
+    hasScope('communications:write');
   byId('save-tour-button').disabled = !canWrite;
   byId('upload-tour-cover-button').disabled = !canWrite;
   byId('tour-new-button').disabled = !canWrite;
 }
 
 function renderCommunications() {
+  const loaded = state.communications.loaded === true;
   const provider = state.communications.deliveryProvider || 'disabled';
 
   const providerPill = byId('communications-provider');
   if (providerPill != null) {
-    providerPill.textContent =
-      provider === 'disabled' ? 'Push desligado' : provider;
-    providerPill.className =
-      provider === 'disabled'
-        ? 'pill pill--warning'
-        : 'pill pill--success';
+    if (!loaded) {
+      providerPill.textContent = 'Carregando';
+      providerPill.className = 'pill pill--neutral';
+    } else {
+      providerPill.textContent =
+        provider === 'disabled' ? 'Push desligado' : provider;
+      providerPill.className =
+        provider === 'disabled'
+          ? 'pill pill--warning'
+          : 'pill pill--success';
+    }
   }
 
   if (byId('notification-history-body') != null) {
     renderNotificationHistory();
-    syncReleasePolicyForm();
+    if (loaded) {
+      syncReleasePolicyForm();
+    } else {
+      byId('release-latest-version').value = '';
+      byId('release-latest-build').value = '';
+      byId('release-minimum-build').value = '';
+      byId('release-store-url').value = '';
+      byId('release-update-message').value = '';
+      byId('release-policy-meta').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+    }
   }
 
   if (byId('agency-form') != null) {
-    renderAgencyPromotion();
-    renderSocialLinks();
-    renderTourCatalog();
+    if (loaded) {
+      renderAgencyPromotion();
+      renderSocialLinks();
+      renderTourCatalog();
+    } else {
+      byId('agency-updated-at').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+      byId('social-links-updated-at').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+      byId('tour-admin-summary').textContent = '—';
+    }
   }
 
-  const canWrite = hasScope('communications:write');
+  const canWrite =
+    loaded && hasScope('communications:write');
   const sendButton = byId('send-notification-button');
   const releaseButton = byId('save-release-policy-button');
   const agencyButton = byId('save-agency-button');
@@ -6373,13 +6408,40 @@ function renderCommunications() {
   if (releaseButton != null) releaseButton.disabled = !canWrite;
   if (agencyButton != null) agencyButton.disabled = !canWrite;
   if (socialButton != null) socialButton.disabled = !canWrite;
+
+  if (byId('save-tour-button') != null) {
+    byId('save-tour-button').disabled = !canWrite;
+  }
+  if (byId('upload-tour-cover-button') != null) {
+    byId('upload-tour-cover-button').disabled = !canWrite;
+  }
+  if (byId('tour-new-button') != null) {
+    byId('tour-new-button').disabled = !canWrite;
+  }
 }
 
 async function loadCommunications({ announce = true } = {}) {
-  if (!state.token || !hasScope('communications:read')) return;
+  if (!state.token || !hasScope('communications:read')) {
+    state.communications = {
+      loaded: false,
+      deliveryProvider: 'disabled',
+      campaigns: [],
+      releasePolicies: [],
+      agencyPromotion: null,
+      socialLinks: null,
+      tours: [],
+    };
+    renderCommunications();
+    return;
+  }
+
+  state.communications.loaded = false;
+  renderCommunications();
+
   try {
     const payload = await api.communications(state.token);
     state.communications = {
+      loaded: true,
       deliveryProvider: payload?.deliveryProvider ?? 'disabled',
       campaigns: Array.isArray(payload?.campaigns)
         ? payload.campaigns
@@ -6400,13 +6462,21 @@ async function loadCommunications({ announce = true } = {}) {
       );
     }
   } catch (error) {
+    state.communications.loaded = false;
+    renderCommunications();
     handleAuthenticatedError(error);
   }
 }
 
 async function handleNotificationSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
 
   const audience = byId('notification-audience').value;
   const category = byId('notification-category').value;
@@ -6446,13 +6516,21 @@ async function handleNotificationSubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
 async function handleReleasePolicySubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
 
   const latestBuild = Number(byId('release-latest-build').value);
   const minimumBuild = Number(byId('release-minimum-build').value);
@@ -6506,13 +6584,21 @@ async function handleReleasePolicySubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
 async function handleAgencySubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
 
   const payload = {
     enabled: byId('agency-enabled').checked,
@@ -6546,13 +6632,21 @@ async function handleAgencySubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
 async function handleSocialLinksSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
 
   const button = byId('save-social-links-button');
   button.disabled = true;
@@ -6569,12 +6663,19 @@ async function handleSocialLinksSubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
 function handleTourNew() {
-  if (!hasScope('communications:write')) return;
+  if (
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
   state.selectedTourSlug = null;
   fillTourForm(null);
   document.querySelectorAll('.tour-admin-item').forEach((button) => {
@@ -6598,7 +6699,13 @@ function tourPriceCentsFromInput() {
 
 async function handleTourSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
 
   const slug = byId('tour-slug').value
     .trim()
@@ -6651,7 +6758,9 @@ async function handleTourSubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
@@ -6666,7 +6775,13 @@ function previewSelectedTourCover(file) {
 }
 
 async function handleTourCoverUpload() {
-  if (!state.token || !hasScope('communications:write')) return;
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
   const slug = state.selectedTourSlug;
   const file = byId('tour-cover-file').files?.[0] ?? null;
   if (!slug) {
@@ -6718,7 +6833,9 @@ async function handleTourCoverUpload() {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
@@ -6908,7 +7025,9 @@ async function handleSupportResponse(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
   }
 }
 
