@@ -2594,7 +2594,7 @@ const server = createServer(async (request, response) => {
         apiKeys: adminRepository,
         humanAuth: adminHumanAuthRepository,
         headers: request.headers,
-        requiredScope: 'finance:read',
+        requiredScope: 'finance:write',
       });
       json(
         response,
