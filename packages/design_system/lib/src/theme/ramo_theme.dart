@@ -66,6 +66,16 @@ abstract final class RamoTheme {
     return base.copyWith(
       // InkRipple is deterministic across platforms and widget tests.
       splashFactory: InkRipple.splashFactory,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: FadeUpwardsPageTransitionsBuilder(),
+        },
+      ),
       textTheme: base.textTheme.copyWith(
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontWeight: FontWeight.w800,
@@ -217,6 +227,7 @@ abstract final class RamoTheme {
   }) {
     return NavigationBarThemeData(
       height: 68,
+      animationDuration: RamoMotion.standard,
       elevation: 0,
       backgroundColor: background,
       indicatorColor: indicator,
