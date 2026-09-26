@@ -11,6 +11,7 @@ import { issueAuthSession, hashBearerToken } from '../src/auth/auth-service.js';
 import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
 import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memory-auth-session-repository.js';
 import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
+import type { ServiceCategory } from '../src/pricing/types.js';
 
 const actor = {
   kind: 'user' as const,
@@ -39,7 +40,7 @@ function approvedVehicle(now: string) {
     model: 'Hilux',
     modelYear: 2020,
     color: 'Prata',
-    categories: ['comfort_black'] as const,
+    categories: ['comfort_black'] as ServiceCategory[],
     fourByFour: true,
     seatCapacity: 5,
     status: 'approved' as const,
