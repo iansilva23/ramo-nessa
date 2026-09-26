@@ -143,17 +143,46 @@ export async function updatePassengerProfileFromAdmin(input: {
     }
   }
 
-  if (fullName == null && emailNormalized == null) {
-    return current;
+  const fullNameChanged =
+    fullName != null && fullName !== current.fullName;
+  const emailChanged =
+    emailNormalized != null &&
+    emailNormalized !== current.emailNormalized;
+
+  if (!fullNameChanged && !emailChanged) {
+    return {
+      passengerId: current.subjectId,
+      phoneE164: current.phoneE164,
+      fullName: current.fullName ?? null,
+      email: current.emailNormalized ?? null,
+      status: current.status,
+      createdAt: current.createdAt,
+      updatedAt: current.updatedAt,
+    };
   }
 
   const updatedAt = (input.now ?? new Date()).toISOString();
-  const updated = await input.identities.setPassengerAccount({
-    subjectId: passengerId,
-    ...(fullName == null ? {} : { fullName }),
-    ...(emailNormalized == null ? {} : { emailNormalized }),
-    updatedAt,
-  });
+  let updated;
+  try {
+    updated = await input.identities.setPassengerAccount({
+      subjectId: passengerId,
+      ...(fullNameChanged ? { fullName } : {}),
+      ...(emailChanged ? { emailNormalized } : {}),
+      updatedAt,
+    });
+  } catch (error) {
+    const code =
+      typeof error === 'object' && error != null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : '';
+    if (code === '23505') {
+      throw new AdminPassengerError(
+        'PASSENGER_EMAIL_IN_USE',
+        'Este e-mail já está vinculado a outro passageiro.',
+      );
+    }
+    throw error;
+  }
   if (updated == null) {
     throw new AdminPassengerError(
       'PASSENGER_NOT_FOUND',
@@ -168,11 +197,8 @@ export async function updatePassengerProfileFromAdmin(input: {
     targetType: 'passenger',
     targetId: passengerId,
     metadata: {
-      fullNameChanged:
-        fullName != null && fullName !== current.fullName,
-      emailChanged:
-        emailNormalized != null &&
-        emailNormalized !== current.emailNormalized,
+      fullNameChanged,
+      emailChanged,
     },
     createdAt: updatedAt,
   });
