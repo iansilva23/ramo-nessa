@@ -74,6 +74,9 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
         : 200,
       {
         cashEnabled: false,
+        pixEnabled: true,
+        cardEnabled: true,
+        walletEnabled: true,
         pixPriceAdjustmentBps: 99,
         cardPriceAdjustmentBps: 498,
         cashActivationReady: true,
@@ -95,8 +98,14 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
     pixPriceAdjustmentBps: 125,
     cardPriceAdjustmentBps: 525,
   });
+  await api.updatePaymentPolicy(token, {
+    pixEnabled: false,
+    cardEnabled: true,
+    walletEnabled: false,
+    defaultCashDebtLimitCents: 18000,
+  });
 
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.equal(calls[0].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].options.method, 'PATCH');
@@ -112,6 +121,16 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
     JSON.stringify({
       pixPriceAdjustmentBps: 125,
       cardPriceAdjustmentBps: 525,
+    }),
+  );
+  assert.equal(calls[3].options.method, 'PATCH');
+  assert.equal(
+    calls[3].options.body,
+    JSON.stringify({
+      pixEnabled: false,
+      cardEnabled: true,
+      walletEnabled: false,
+      defaultCashDebtLimitCents: 18000,
     }),
   );
   for (const call of calls) {
@@ -173,6 +192,16 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     'finance-enable-cash-button',
     'finance-disable-cash-button',
     'finance-cash-note',
+    'finance-methods-status',
+    'finance-methods-form',
+    'finance-pix-enabled',
+    'finance-card-enabled',
+    'finance-wallet-enabled',
+    'finance-methods-save',
+    'finance-cash-limit-status',
+    'finance-cash-limit-form',
+    'finance-cash-limit-input',
+    'finance-cash-limit-save',
     'finance-pix-price-status',
     'finance-pix-price-form',
     'finance-pix-price-percent',
@@ -201,6 +230,11 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   assert.equal(html.includes('Ativar dinheiro'), true);
   assert.match(app, /handleEnableCash/);
   assert.match(app, /cashEnabled: true/);
+  assert.match(app, /handlePaymentMethodsSubmit/);
+  assert.match(app, /pixEnabled/);
+  assert.match(app, /walletEnabled/);
+  assert.match(app, /handleDefaultCashLimitSubmit/);
+  assert.match(app, /defaultCashDebtLimitCents/);
   assert.match(app, /handlePixPricePolicySubmit/);
   assert.match(app, /pixPriceAdjustmentBps/);
   assert.match(app, /handleCardPricePolicySubmit/);
