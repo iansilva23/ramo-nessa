@@ -5,7 +5,6 @@ import type {
   AdminRepository,
 } from './admin-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
-import { PAYMENT_POLICY_V1 } from '../payments/payment-policy.js';
 import type { PaymentPolicySettingsRepository } from '../payments/payment-policy-settings-repository.js';
 import { driverCashPolicySnapshot } from '../payments/cash-policy.js';
 
@@ -48,7 +47,7 @@ export async function setAdminDriverCashDebtLimit(input: {
   }
 
   const defaultLimit =
-    PAYMENT_POLICY_V1.futureCashDebtLimitCents;
+    currentSettings.defaultCashDebtLimitCents;
   if (
     input.debtLimitCents != null &&
     (!Number.isInteger(input.debtLimitCents) ||
