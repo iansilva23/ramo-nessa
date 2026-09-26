@@ -5,7 +5,10 @@ import type {
   AdminRepository,
 } from './admin-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
-import type { DriverPayoutRecord } from '../payments/payout.js';
+import {
+  PayoutDomainError,
+  type DriverPayoutRecord,
+} from '../payments/payout.js';
 
 export class AdminPayoutError extends Error {
   constructor(
@@ -87,12 +90,26 @@ export async function completeAdminPayout(input: {
   const processorPayoutId = normalizeReference(
     input.processorPayoutId,
   );
-  const result = await input.finance.completeDriverPayout({
-    payoutId: input.payoutId,
-    processor,
-    ...(processorPayoutId == null ? {} : { processorPayoutId }),
-    ...(input.now == null ? {} : { completedAt: input.now }),
-  });
+  let result;
+  try {
+    result = await input.finance.completeDriverPayout({
+      payoutId: input.payoutId,
+      processor,
+      ...(processorPayoutId == null ? {} : { processorPayoutId }),
+      ...(input.now == null ? {} : { completedAt: input.now }),
+    });
+  } catch (error) {
+    if (
+      error instanceof PayoutDomainError &&
+      error.code === 'PAYOUT_NOT_FOUND'
+    ) {
+      throw new AdminPayoutError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+    throw error;
+  }
 
   if (!result.duplicateCompletion) {
     await input.admin.appendAudit({
@@ -124,10 +141,24 @@ export async function cancelAdminPayout(input: {
   payoutId: string;
   now?: Date;
 }) {
-  const result = await input.finance.cancelDriverPayout({
-    payoutId: input.payoutId,
-    ...(input.now == null ? {} : { cancelledAt: input.now }),
-  });
+  let result;
+  try {
+    result = await input.finance.cancelDriverPayout({
+      payoutId: input.payoutId,
+      ...(input.now == null ? {} : { cancelledAt: input.now }),
+    });
+  } catch (error) {
+    if (
+      error instanceof PayoutDomainError &&
+      error.code === 'PAYOUT_NOT_FOUND'
+    ) {
+      throw new AdminPayoutError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+    throw error;
+  }
 
   if (!result.duplicateCancellation) {
     await input.admin.appendAudit({
