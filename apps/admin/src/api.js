@@ -230,6 +230,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       token,
       {
         cashEnabled,
+        pixEnabled,
+        cardEnabled,
+        walletEnabled,
+        defaultCashDebtLimitCents,
         pixPriceAdjustmentBps,
         cardPriceAdjustmentBps,
       },
@@ -239,6 +243,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         token,
         body: {
           cashEnabled,
+          pixEnabled,
+          cardEnabled,
+          walletEnabled,
+          defaultCashDebtLimitCents,
           pixPriceAdjustmentBps,
           cardPriceAdjustmentBps,
         },
