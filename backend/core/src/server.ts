@@ -257,6 +257,7 @@ import {
   AdminPassengerError,
   adminPassengerProfile,
   setPassengerAuthStatusFromAdmin,
+  updatePassengerProfileFromAdmin,
 } from './admin/admin-passenger-service.js';
 import {
   AdminRideCancellationError,
@@ -3392,6 +3393,73 @@ const server = createServer(async (request, response) => {
         createdAt: ride.createdAt,
         updatedAt: ride.updatedAt,
       });
+      return;
+    }
+
+    const adminPassengerProfileUpdateMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/profile$/,
+      );
+    if (
+      request.method === 'PATCH' &&
+      adminPassengerProfileUpdateMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'passengers:auth:write',
+      });
+      const body = await readJson(request);
+      if (
+        body == null ||
+        typeof body !== 'object' ||
+        Array.isArray(body)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Atualização do passageiro inválida.',
+        );
+      }
+      const payload = body as {
+        fullName?: unknown;
+        email?: unknown;
+      };
+      if (
+        payload.fullName != null &&
+        typeof payload.fullName !== 'string'
+      ) {
+        throw new InvalidAdminRequestError(
+          'fullName deve ser texto.',
+        );
+      }
+      if (
+        payload.email != null &&
+        typeof payload.email !== 'string'
+      ) {
+        throw new InvalidAdminRequestError(
+          'email deve ser texto.',
+        );
+      }
+      if (
+        payload.fullName == null &&
+        payload.email == null
+      ) {
+        throw new InvalidAdminRequestError(
+          'Informe ao menos nome ou e-mail.',
+        );
+      }
+
+      const passenger = await updatePassengerProfileFromAdmin({
+        identities: authOtpRepository,
+        admin: adminRepository,
+        actor,
+        passengerId: adminPassengerProfileUpdateMatch[1]!,
+        ...(payload.fullName == null
+          ? {}
+          : { fullName: payload.fullName }),
+        ...(payload.email == null ? {} : { email: payload.email }),
+      });
+      json(response, 200, { passenger });
       return;
     }
 
