@@ -8,6 +8,7 @@ export class InMemoryOperationalSettingsRepository
 {
   private record: OperationalSettingsRecord = {
     driverOfferTtlSeconds: 35,
+    driverPaymentHoldSeconds: 90,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
     updatedAt: '1970-01-01T00:00:00.000Z',
@@ -19,6 +20,7 @@ export class InMemoryOperationalSettingsRepository
 
   async update(input: {
     driverOfferTtlSeconds?: number;
+    driverPaymentHoldSeconds?: number;
     showNearbyDrivers?: boolean;
     driverDocumentAutoEnforcement?: boolean;
     mercadoPagoPublicKey?: string | null;
@@ -27,6 +29,9 @@ export class InMemoryOperationalSettingsRepository
     this.record = {
       driverOfferTtlSeconds:
         input.driverOfferTtlSeconds ?? this.record.driverOfferTtlSeconds,
+      driverPaymentHoldSeconds:
+        input.driverPaymentHoldSeconds ??
+        this.record.driverPaymentHoldSeconds,
       showNearbyDrivers:
         input.showNearbyDrivers ?? this.record.showNearbyDrivers,
       driverDocumentAutoEnforcement:
