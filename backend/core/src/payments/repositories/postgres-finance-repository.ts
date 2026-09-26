@@ -77,8 +77,18 @@ interface DriverPayoutRow {
   amount_cents: number;
   status: DriverPayoutRecord['status'];
   idempotency_key: string;
+  pix_key_type: DriverPayoutRecord['pixKeyType'] | null;
+  pix_key: string | null;
   processor: string | null;
   processor_payout_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DriverPayoutDestinationRow {
+  driver_id: string;
+  pix_key_type: DriverPayoutDestination['pixKeyType'];
+  pix_key: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -141,6 +151,8 @@ function mapPayout(row: DriverPayoutRow): DriverPayoutRecord {
     amountCents: row.amount_cents,
     status: row.status,
     idempotencyKey: row.idempotency_key,
+    pixKeyType: row.pix_key_type ?? 'random',
+    pixKey: row.pix_key ?? '',
     ...(row.processor != null ? { processor: row.processor } : {}),
     ...(row.processor_payout_id != null
       ? { processorPayoutId: row.processor_payout_id }
@@ -162,6 +174,7 @@ const TOPUP_COLUMNS = `
 
 const PAYOUT_COLUMNS = `
   id, driver_id, amount_cents, status, idempotency_key,
+  pix_key_type, pix_key,
   processor, processor_payout_id, created_at, updated_at
 `;
 
@@ -1449,6 +1462,65 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async getDriverPayoutDestination(
+    driverId: string,
+  ): Promise<DriverPayoutDestination | null> {
+    const result = await this.pool.query<DriverPayoutDestinationRow>(
+      `
+      SELECT driver_id, pix_key_type, pix_key, created_at, updated_at
+      FROM driver_payout_destinations
+      WHERE driver_id = $1
+      LIMIT 1
+      `,
+      [driverId],
+    );
+    const row = result.rows[0];
+    if (row == null) return null;
+    return {
+      driverId: row.driver_id,
+      pixKeyType: row.pix_key_type,
+      pixKey: row.pix_key,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  async upsertDriverPayoutDestination(
+    destination: DriverPayoutDestination,
+  ): Promise<DriverPayoutDestination> {
+    const result = await this.pool.query<DriverPayoutDestinationRow>(
+      `
+      INSERT INTO driver_payout_destinations (
+        driver_id, pix_key_type, pix_key, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (driver_id)
+      DO UPDATE SET
+        pix_key_type = EXCLUDED.pix_key_type,
+        pix_key = EXCLUDED.pix_key,
+        updated_at = EXCLUDED.updated_at
+      RETURNING driver_id, pix_key_type, pix_key, created_at, updated_at
+      `,
+      [
+        destination.driverId,
+        destination.pixKeyType,
+        destination.pixKey,
+        destination.createdAt,
+        destination.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error('Destino Pix do motorista não foi persistido.');
+    }
+    return {
+      driverId: row.driver_id,
+      pixKeyType: row.pix_key_type,
+      pixKey: row.pix_key,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
   async reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult> {
@@ -1519,8 +1591,9 @@ export class PostgresFinanceRepository implements FinanceRepository {
         `
         INSERT INTO driver_payouts (
           id, driver_id, amount_cents, status, idempotency_key,
+          pix_key_type, pix_key,
           processor, processor_payout_id, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         RETURNING ${PAYOUT_COLUMNS}
         `,
         [
@@ -1529,6 +1602,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
           payout.amountCents,
           payout.status,
           payout.idempotencyKey,
+          payout.pixKeyType,
+          payout.pixKey,
           payout.processor ?? null,
           payout.processorPayoutId ?? null,
           payout.createdAt,
