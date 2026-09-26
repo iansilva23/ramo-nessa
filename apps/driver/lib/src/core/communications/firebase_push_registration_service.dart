@@ -139,9 +139,7 @@ class DriverFirebasePushRegistrationService {
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw StateError(
-          'Core recusou cadastro push (' +
-              response.statusCode.toString() +
-              ').',
+          'Core recusou cadastro push (${response.statusCode}).',
         );
       }
     } catch (_) {
