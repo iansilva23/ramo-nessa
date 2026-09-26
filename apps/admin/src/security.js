@@ -173,8 +173,6 @@ export function actionLabel(action) {
     'payment_policy.pix_price_adjustment_updated': 'Preço do Pix atualizado',
     'payment_policy.card_price_adjustment_updated': 'Preço do cartão atualizado',
     'payment_policy.updated': 'Política de pagamento atualizada',
-    'payment_policy.card_price_adjustment_updated': 'Preço no cartão alterado',
-    'payment_policy.updated': 'Política de pagamento alterada',
     'pricing.catalog_version.created': 'Versão de preços criada',
     'pricing.catalog_version.updated': 'Rascunho de preços alterado',
     'pricing.catalog_version.published': 'Versão de preços publicada',
@@ -267,7 +265,7 @@ export function paymentStatusLabel(status) {
 export function pricePeriodLabel(period) {
   const labels = {
     day: 'Diurno',
-    after_22: 'Após 22h',
+    after_22: 'Noturno',
   };
   return labels[period] ?? String(period ?? '—');
 }
