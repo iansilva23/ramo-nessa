@@ -13,6 +13,7 @@ import 'features/home/data/driver_realtime_service.dart';
 import 'features/home/data/driver_route_service.dart';
 import 'features/home/presentation/driver_home_screen.dart';
 import 'preview/driver_preview_dependencies.dart';
+import 'preview/preview_auth.dart';
 
 class RamoNessaDriverApp extends StatelessWidget {
   const RamoNessaDriverApp({
@@ -61,9 +62,16 @@ class RamoNessaDriverApp extends StatelessWidget {
 
     final Widget homeWidget;
     if (DriverCoreConfig.previewMode) {
-      homeWidget = home(
-        null,
-        () async => true,
+      homeWidget = MobileAuthGate(
+        subjectType: 'driver',
+        service: PreviewPhoneAuthService(subjectType: 'driver'),
+        tokenStore: PreviewAuthTokenStore(),
+        initialAccessToken: initialToken,
+        devBypass: false,
+        loginTitle: 'Ramo Nessa Motorista',
+        loginSubtitle:
+            'Entre para testar o app. No Preview, o código é exibido na própria tela.',
+        authenticatedBuilder: (token, logout) => home(token, logout),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
