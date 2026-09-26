@@ -598,3 +598,193 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL serializa pagar e cancelar o mesmo saque sem duplicar saldo',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const paymentId = randomUUID();
+    const driverId = `postgres-payout-terminal-${randomUUID()}`;
+    const now = '2026-09-26T19:50:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status, driver_id,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'postgres-payout-terminal-passenger',
+          'COMPLETED', 'paid', $2,
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $3, $3
+        )
+        `,
+        [rideId, driverId, now],
+      );
+
+      await repository.createPayment({
+        id: paymentId,
+        rideId,
+        method: 'pix',
+        processor: 'audit-gateway',
+        status: 'pending',
+        amountCents: 12000,
+        idempotencyKey: `postgres-terminal-payment-${paymentId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const capture = await repository.capturePayment({
+        paymentId,
+        processorEventId: `postgres-terminal-capture-${paymentId}`,
+        capturedAt: new Date(now),
+      });
+      await repository.settleRide({
+        rideId,
+        paymentId: capture.payment.id,
+        driverId,
+        totalAmountCents: 12000,
+        platformCommissionCents: 1200,
+        driverNetCents: 10800,
+        settledAt: new Date(now),
+      });
+      await repository.upsertDriverPayoutDestination({
+        driverId,
+        pixKeyType: 'random',
+        pixKey: '44444444-4444-4444-8444-444444444444',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const requested = await requestDriverPayout(repository, {
+        driverId,
+        amountCents: 5000,
+        idempotencyKey: `postgres-terminal-payout-${randomUUID()}`,
+        now: new Date('2026-09-26T19:51:00.000Z'),
+      });
+
+      const results = await Promise.allSettled([
+        repository.completeDriverPayout({
+          payoutId: requested.payout.id,
+          processor: 'Pix manual',
+          processorPayoutId: 'postgres-race-receipt',
+          completedAt: new Date('2026-09-26T19:52:00.000Z'),
+        }),
+        repository.cancelDriverPayout({
+          payoutId: requested.payout.id,
+          cancelledAt: new Date('2026-09-26T19:52:00.000Z'),
+        }),
+      ]);
+
+      assert.equal(
+        results.filter((result) => result.status === 'fulfilled').length,
+        1,
+      );
+      assert.equal(
+        results.filter((result) => result.status === 'rejected').length,
+        1,
+      );
+
+      const rejected = results.find(
+        (result) => result.status === 'rejected',
+      );
+      assert.ok(rejected != null && rejected.status === 'rejected');
+      assert.equal(
+        rejected.reason instanceof PayoutDomainError,
+        true,
+      );
+      assert.equal(
+        (rejected.reason as PayoutDomainError).code,
+        'INVALID_PAYOUT_TRANSITION',
+      );
+
+      const payout = await repository.findDriverPayoutById(
+        requested.payout.id,
+      );
+      assert.ok(payout != null);
+      assert.ok(
+        payout.status === 'paid' || payout.status === 'cancelled',
+      );
+
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `driver:${driverId}:payout_pending`,
+        ),
+        0,
+      );
+
+      const payable = await repository.getAccountBalanceCents(
+        `driver:${driverId}:payable`,
+      );
+      assert.equal(
+        payable,
+        payout.status === 'paid' ? 5800 : 10800,
+      );
+
+      const terminalLedgers = await pool.query<{ kind: string }>(
+        `
+        SELECT kind
+        FROM ledger_transactions
+        WHERE payout_id = $1
+          AND kind IN ('DRIVER_PAYOUT_PAID', 'DRIVER_PAYOUT_CANCELLED')
+        `,
+        [requested.payout.id],
+      );
+      assert.equal(terminalLedgers.rows.length, 1);
+    } finally {
+      await pool.query(
+        `
+        DELETE FROM ledger_entries
+        WHERE transaction_id IN (
+          SELECT id
+          FROM ledger_transactions
+          WHERE ride_id = $1
+             OR payout_id IN (
+               SELECT id
+               FROM driver_payouts
+               WHERE driver_id = $2
+             )
+        )
+        `,
+        [rideId, driverId],
+      );
+      await pool.query(
+        `
+        DELETE FROM ledger_transactions
+        WHERE ride_id = $1
+           OR payout_id IN (
+             SELECT id
+             FROM driver_payouts
+             WHERE driver_id = $2
+           )
+        `,
+        [rideId, driverId],
+      );
+      await pool.query(
+        'DELETE FROM driver_payouts WHERE driver_id = $1',
+        [driverId],
+      );
+      await pool.query(
+        'DELETE FROM driver_payout_destinations WHERE driver_id = $1',
+        [driverId],
+      );
+      await pool.query(
+        'DELETE FROM payment_events WHERE payment_id = $1',
+        [paymentId],
+      );
+      await pool.query('DELETE FROM payments WHERE id = $1', [paymentId]);
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
