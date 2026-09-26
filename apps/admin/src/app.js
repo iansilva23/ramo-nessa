@@ -7025,9 +7025,7 @@ async function handleSupportResponse(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled =
-      state.communications.loaded !== true ||
-      !hasScope('communications:write');
+    button.disabled = !hasScope('communications:write');
   }
 }
 
