@@ -6,12 +6,15 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../../map/data/place_autocomplete_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../map/domain/ramo_place.dart';
+import '../../profile/data/passenger_saved_place_service.dart';
+import '../../profile/presentation/passenger_saved_places_screen.dart';
 
 class DestinationSearchScreen extends StatefulWidget {
   const DestinationSearchScreen({
     super.key,
     this.searchService,
     this.autocompleteService,
+    this.savedPlaceService,
     this.title = 'Escolher destino',
     this.hintText = 'Busque rua, pousada ou lugar',
     this.emptyTitle = 'Busque seu destino',
@@ -19,6 +22,7 @@ class DestinationSearchScreen extends StatefulWidget {
 
   final PlaceSearchService? searchService;
   final PlaceAutocompleteService? autocompleteService;
+  final PassengerSavedPlaceService? savedPlaceService;
   final String title;
   final String hintText;
   final String emptyTitle;
@@ -43,6 +47,11 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   bool _loading = false;
   String? _error;
   int _requestId = 0;
+  bool _savedExpanded = false;
+  bool _savedLoading = false;
+  bool _savedLoaded = false;
+  String? _savedError;
+  List<PassengerSavedPlace> _savedPlaces = const [];
 
   @override
   void initState() {
@@ -58,6 +67,84 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     _debounce?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleSavedPlaces() async {
+    final service = widget.savedPlaceService;
+    if (service == null) return;
+
+    final next = !_savedExpanded;
+    setState(() => _savedExpanded = next);
+    if (next && !_savedLoaded && !_savedLoading) {
+      await _loadSavedPlaces();
+    }
+  }
+
+  Future<void> _loadSavedPlaces() async {
+    final service = widget.savedPlaceService;
+    if (service == null || _savedLoading) return;
+
+    setState(() {
+      _savedLoading = true;
+      _savedError = null;
+    });
+    try {
+      final items = await service.list();
+      if (!mounted) return;
+      setState(() {
+        _savedPlaces = items;
+        _savedLoaded = true;
+        _savedLoading = false;
+      });
+    } on PassengerSavedPlaceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _savedLoading = false;
+        _savedLoaded = true;
+        _savedError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _savedLoading = false;
+        _savedLoaded = true;
+        _savedError = 'Não conseguimos carregar seus endereços agora.';
+      });
+    }
+  }
+
+  Future<void> _openSavedPlacesManager() async {
+    final service = widget.savedPlaceService;
+    if (service == null) return;
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PassengerSavedPlacesScreen(
+          service: service,
+          searchService: _searchService,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _loadSavedPlaces();
+  }
+
+  void _selectSavedPlace(PassengerSavedPlace place) {
+    Navigator.of(context).pop(
+      RamoPlace(
+        name: place.name,
+        address: place.address,
+        position: place.position,
+      ),
+    );
+  }
+
+  IconData _savedPlaceIcon(PassengerSavedPlace place) {
+    return switch (place.kind) {
+      'home' => Icons.home_rounded,
+      'work' => Icons.work_rounded,
+      _ => Icons.bookmark_rounded,
+    };
   }
 
   void _onQueryChanged(String value) {
@@ -283,6 +370,202 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                       ),
                 ),
               ),
+              if (widget.savedPlaceService != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                Material(
+                  color: RamoColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(RamoRadius.md),
+                  child: Column(
+                    children: [
+                      InkWell(
+                        borderRadius:
+                            BorderRadius.circular(RamoRadius.md),
+                        onTap: _toggleSavedPlaces,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: RamoSpacing.md,
+                            vertical: RamoSpacing.sm,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.bookmarks_outlined,
+                                size: 21,
+                              ),
+                              const SizedBox(width: RamoSpacing.sm),
+                              const Expanded(
+                                child: Text(
+                                  'Meus endereços',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: _savedExpanded
+                                    ? 'Ocultar meus endereços'
+                                    : 'Mostrar meus endereços',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: _toggleSavedPlaces,
+                                icon: Icon(
+                                  _savedExpanded
+                                      ? Icons.remove_rounded
+                                      : Icons.add_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        child: !_savedExpanded
+                            ? const SizedBox.shrink()
+                            : Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  RamoSpacing.sm,
+                                  0,
+                                  RamoSpacing.sm,
+                                  RamoSpacing.sm,
+                                ),
+                                child: _savedLoading
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(
+                                          RamoSpacing.md,
+                                        ),
+                                        child: Center(
+                                          child:
+                                              CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    : _savedError != null
+                                        ? Column(
+                                            children: [
+                                              Text(
+                                                _savedError!,
+                                                textAlign:
+                                                    TextAlign.center,
+                                                style: const TextStyle(
+                                                  color:
+                                                      RamoColors.muted,
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed:
+                                                    _loadSavedPlaces,
+                                                child: const Text(
+                                                  'Tentar novamente',
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : _savedPlaces.isEmpty
+                                            ? Column(
+                                                children: [
+                                                  const Padding(
+                                                    padding:
+                                                        EdgeInsets.all(
+                                                      RamoSpacing.md,
+                                                    ),
+                                                    child: Text(
+                                                      'Você ainda não possui endereços salvos.',
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style: TextStyle(
+                                                        color: RamoColors
+                                                            .muted,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  FilledButton.tonalIcon(
+                                                    key: const Key(
+                                                      'destination-add-saved-place',
+                                                    ),
+                                                    onPressed:
+                                                        _openSavedPlacesManager,
+                                                    icon: const Icon(
+                                                      Icons.add_rounded,
+                                                    ),
+                                                    label: const Text(
+                                                      'Cadastrar endereço',
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : Column(
+                                                children: [
+                                                  ConstrainedBox(
+                                                    constraints:
+                                                        const BoxConstraints(
+                                                      maxHeight: 190,
+                                                    ),
+                                                    child: ListView.builder(
+                                                      shrinkWrap: true,
+                                                      itemCount:
+                                                          _savedPlaces.length,
+                                                      itemBuilder:
+                                                          (context, index) {
+                                                        final place =
+                                                            _savedPlaces[
+                                                                index];
+                                                        return ListTile(
+                                                          dense: true,
+                                                          contentPadding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 6,
+                                                          ),
+                                                          leading: Icon(
+                                                            _savedPlaceIcon(
+                                                              place,
+                                                            ),
+                                                          ),
+                                                          title: Text(
+                                                            place.label,
+                                                            style:
+                                                                const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w800,
+                                                            ),
+                                                          ),
+                                                          subtitle: Text(
+                                                            place.name,
+                                                            maxLines: 1,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                          trailing:
+                                                              const Icon(
+                                                            Icons
+                                                                .north_west_rounded,
+                                                            size: 17,
+                                                          ),
+                                                          onTap: () =>
+                                                              _selectSavedPlace(
+                                                            place,
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed:
+                                                        _openSavedPlacesManager,
+                                                    child: const Text(
+                                                      'Gerenciar endereços',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_loading) ...[
                 const SizedBox(height: RamoSpacing.sm),
                 const ClipRRect(
