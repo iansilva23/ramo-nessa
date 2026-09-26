@@ -90,9 +90,9 @@ class _PassengerSavedPlacesScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remover favorito?'),
+        title: const Text('Remover endereço?'),
         content: Text(
-          '“${place.label}” será removido dos seus endereços salvos.',
+          '“${place.label}” será removido dos seus endereços.',
         ),
         actions: [
           TextButton(
@@ -129,7 +129,7 @@ class _PassengerSavedPlacesScreenState
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Endereços favoritos')),
+      appBar: AppBar(title: const Text('Meus endereços')),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -174,7 +174,7 @@ class _PassengerSavedPlacesScreenState
               children: [
                 const Expanded(
                   child: Text(
-                    'Outros favoritos',
+                    'Outros endereços',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
@@ -213,7 +213,7 @@ class _PassengerSavedPlacesScreenState
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
                 child: const Text(
-                  'Salve pousadas, praias, restaurantes ou qualquer local que você usa com frequência.',
+                  'Salve pousadas, praias, restaurantes ou qualquer endereço que você usa com frequência.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: RamoColors.muted),
                 ),
@@ -367,8 +367,8 @@ class _SavedPlaceEditorScreenState
         'home' => 'Casa',
         'work' => 'Trabalho',
         _ => widget.existing == null
-            ? 'Novo favorito'
-            : 'Editar favorito',
+            ? 'Novo endereço'
+            : 'Editar endereço',
       };
 
   @override
@@ -433,7 +433,7 @@ class _SavedPlaceEditorScreenState
       _labelController.text.trim().length < 2
     ) {
       setState(() {
-        _error = 'Dê um nome para este favorito.';
+        _error = 'Dê um nome para este endereço.';
       });
       return;
     }
@@ -490,7 +490,7 @@ class _SavedPlaceEditorScreenState
               enabled: !_saving,
               maxLength: 40,
               decoration: const InputDecoration(
-                labelText: 'Nome do favorito',
+                labelText: 'Nome do endereço',
                 hintText: 'Ex.: Praia favorita',
               ),
             ),
