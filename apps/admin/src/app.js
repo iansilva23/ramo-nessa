@@ -43,7 +43,7 @@ const state = {
   selectedPricingVersion: null,
   fleet: {
     generatedAt: null,
-    staleAfterSeconds: 120,
+    staleAfterSeconds: null,
     summary: {
       totalOnline: 0,
       free: 0,
@@ -370,7 +370,7 @@ function clearSession(message = '') {
   state.selectedPricingVersion = null;
   state.fleet = {
     generatedAt: null,
-    staleAfterSeconds: 120,
+    staleAfterSeconds: null,
     summary: {
       totalOnline: 0,
       free: 0,
@@ -2332,9 +2332,11 @@ function renderFleet(payload = null) {
       typeof payload?.generatedAt === 'string'
         ? payload.generatedAt
         : null,
-    staleAfterSeconds: numericMetric(
-      payload?.staleAfterSeconds ?? 120,
-    ),
+    staleAfterSeconds:
+      Number.isFinite(Number(payload?.staleAfterSeconds)) &&
+      Number(payload?.staleAfterSeconds) >= 15
+        ? Math.trunc(Number(payload.staleAfterSeconds))
+        : null,
     summary,
     items,
   };
@@ -2354,16 +2356,18 @@ function renderFleet(payload = null) {
         : 'Sem permissão fleet:read'
       : `Atualizado em ${formatDateTime(state.fleet.generatedAt)}`;
 
-  const staleSeconds = Math.max(
-    15,
-    numericMetric(state.fleet.staleAfterSeconds),
-  );
-  const staleLabel =
-    staleSeconds % 60 === 0
-      ? `${staleSeconds / 60} min`
-      : `${staleSeconds}s`;
-  byId('fleet-live-note').textContent =
-    `Atualização automática a cada 5 segundos enquanto esta tela estiver aberta. GPS acima de ${staleLabel} aparece como atrasado.`;
+  const staleSeconds = state.fleet.staleAfterSeconds;
+  if (staleSeconds == null) {
+    byId('fleet-live-note').textContent =
+      'Atualização automática a cada 5 segundos. Aguardando a política de validade do GPS do Core.';
+  } else {
+    const staleLabel =
+      staleSeconds % 60 === 0
+        ? `${staleSeconds / 60} min`
+        : `${staleSeconds}s`;
+    byId('fleet-live-note').textContent =
+      `Atualização automática a cada 5 segundos enquanto esta tela estiver aberta. GPS acima de ${staleLabel} aparece como atrasado.`;
+  }
 
   const roster = byId('fleet-roster');
   const empty = byId('fleet-roster-empty');
