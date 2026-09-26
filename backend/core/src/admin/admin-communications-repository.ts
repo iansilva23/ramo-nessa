@@ -46,6 +46,12 @@ export interface AgencyPromotionRecord {
   updatedAt: string;
 }
 
+export interface SocialLinksRecord {
+  instagramHandle?: string;
+  instagramUrl?: string;
+  updatedAt: string;
+}
+
 export interface AdminCommunicationsRepository {
   createCampaign(
     record: AdminNotificationCampaignRecord,
@@ -63,4 +69,8 @@ export interface AdminCommunicationsRepository {
   saveAgencyPromotion(
     record: AgencyPromotionRecord,
   ): Promise<AgencyPromotionRecord>;
+  getSocialLinks(): Promise<SocialLinksRecord>;
+  saveSocialLinks(
+    record: SocialLinksRecord,
+  ): Promise<SocialLinksRecord>;
 }
