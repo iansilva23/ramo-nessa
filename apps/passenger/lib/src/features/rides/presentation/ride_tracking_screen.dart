@@ -252,6 +252,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               destination: _dropoff(snapshot),
               routePoints: const [],
               driverPosition: driverPosition,
+              driverCategory: snapshot?.category,
               driverPositionStale: driver?.stale ?? false,
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
