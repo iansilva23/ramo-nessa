@@ -78,6 +78,7 @@ const state = {
     payments: [],
     payouts: [],
     policy: null,
+    selectedPayout: null,
   },
   dashboard: {
     generatedAt: null,
@@ -402,6 +403,7 @@ function clearSession(message = '') {
     payments: [],
     payouts: [],
     policy: null,
+    selectedPayout: null,
   };
   if (fleetMap != null) {
     fleetMap.update([]);
@@ -2623,6 +2625,7 @@ function renderFinance(payload = null) {
     payments,
     payouts,
     policy: state.finance.policy,
+    selectedPayout: state.finance.selectedPayout ?? null,
   };
 
   const current = state.finance.summary;
@@ -2723,12 +2726,200 @@ function renderFinance(payload = null) {
     const created = document.createElement('td');
     created.textContent = formatDateTime(payout.createdAt);
 
-    row.append(statusCell, driver, amount, processor, created);
+    const actions = document.createElement('td');
+    const manageButton = document.createElement('button');
+    manageButton.type = 'button';
+    manageButton.className = 'button button--ghost-dark button--compact';
+    manageButton.textContent = 'Gerenciar';
+    manageButton.disabled = !hasScope('finance:read');
+    manageButton.addEventListener('click', () => {
+      void openFinancePayout(payout.id);
+    });
+    actions.append(manageButton);
+
+    row.append(
+      statusCell,
+      driver,
+      amount,
+      processor,
+      created,
+      actions,
+    );
     payoutBody.append(row);
   }
   byId('finance-payouts-visible').textContent =
     `${payouts.length} item(ns)`;
   byId('finance-payouts-empty').hidden = payouts.length !== 0;
+}
+
+function renderFinancePayoutDetail(payout = null) {
+  state.finance.selectedPayout = payout;
+  const panel = byId('finance-payout-detail');
+  if (panel == null) return;
+
+  if (payout == null) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  const presentation = payoutStatusPresentation(payout.status);
+  byId('finance-payout-detail-status').textContent =
+    presentation.label;
+  byId('finance-payout-detail-driver').textContent =
+    payout.driverId ?? '—';
+  byId('finance-payout-detail-amount').textContent =
+    formatCurrencyCents(payout.amountCents);
+  byId('finance-payout-detail-pix').textContent =
+    payout.pixKey
+      ? `${String(payout.pixKeyType ?? '').toUpperCase()} · ${payout.pixKey}`
+      : '—';
+  byId('finance-payout-detail-processor').textContent =
+    payout.processor ?? 'Ainda não informado';
+  byId('finance-payout-detail-reference').textContent =
+    payout.processorPayoutId ?? '—';
+
+  const processorInput = byId('finance-payout-processor');
+  const referenceInput = byId('finance-payout-reference');
+  processorInput.value = payout.processor ?? '';
+  referenceInput.value = payout.processorPayoutId ?? '';
+
+  const actionable =
+    payout.status === 'requested' ||
+    payout.status === 'processing';
+  const canWrite = hasScope('finance:write') && actionable;
+  processorInput.disabled = !canWrite;
+  referenceInput.disabled = !canWrite;
+  byId('finance-payout-paid-button').disabled = !canWrite;
+  byId('finance-payout-cancel-button').disabled = !canWrite;
+
+  byId('finance-payout-action-note').textContent = actionable
+    ? hasScope('finance:write')
+      ? 'Confirme o repasse externo antes de registrar como pago.'
+      : 'Sua conta não possui permissão finance:write.'
+    : 'Este saque já foi finalizado e não aceita novas alterações.';
+}
+
+function closeFinancePayoutDetail() {
+  renderFinancePayoutDetail(null);
+}
+
+async function openFinancePayout(payoutId) {
+  if (!state.token || !hasScope('finance:read')) return;
+  try {
+    const payout = await api.financePayout(state.token, payoutId);
+    renderFinancePayoutDetail(payout);
+    byId('finance-payout-detail')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleFinancePayoutPaid(event) {
+  event.preventDefault();
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !hasScope('finance:write') ||
+    payout == null
+  ) {
+    return;
+  }
+
+  const processor = byId('finance-payout-processor').value.trim();
+  const processorPayoutId =
+    byId('finance-payout-reference').value.trim();
+  if (processor.length < 2) {
+    setMessage(
+      globalMessage,
+      'Informe o método ou processador usado no repasse.',
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Confirma que o repasse de ${formatCurrencyCents(payout.amountCents)} já foi realizado para a chave Pix exibida? Esta ação fecha o saldo reservado como pago.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-paid-button');
+  button.disabled = true;
+  try {
+    const result = await api.completeFinancePayout(state.token, {
+      payoutId: payout.id,
+      processor,
+      ...(processorPayoutId ? { processorPayoutId } : {}),
+    });
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.duplicate
+        ? 'Esse saque já estava registrado como pago.'
+        : 'Repasse registrado como pago e conciliado no ledger.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !hasScope('finance:write') ||
+      current == null ||
+      !['requested', 'processing'].includes(current.status);
+  }
+}
+
+async function handleFinancePayoutCancel() {
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !hasScope('finance:write') ||
+    payout == null
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Cancelar o saque de ${formatCurrencyCents(payout.amountCents)}? O valor reservado voltará ao saldo disponível do motorista.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-cancel-button');
+  button.disabled = true;
+  try {
+    const result = await api.cancelFinancePayout(
+      state.token,
+      payout.id,
+    );
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.duplicate
+        ? 'Esse saque já estava cancelado.'
+        : 'Saque cancelado e valor devolvido ao saldo do motorista.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !hasScope('finance:write') ||
+      current == null ||
+      !['requested', 'processing'].includes(current.status);
+  }
 }
 
 async function loadFinance({ announce = true } = {}) {
@@ -6404,6 +6595,15 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('finance-card-price-form', 'submit', (event) => {
       void handleCardPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-payout-paid-form', 'submit', (event) => {
+      void handleFinancePayoutPaid(event);
+    });
+    bindRouteEvent('finance-payout-cancel-button', 'click', () => {
+      void handleFinancePayoutCancel();
+    });
+    bindRouteEvent('finance-payout-close', 'click', () => {
+      closeFinancePayoutDetail();
     });
     return;
   }
