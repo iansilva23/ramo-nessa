@@ -99,4 +99,28 @@ test('página Motoristas expõe e valida a reserva durante pagamento', () => {
   assert.match(app, /nearbyDriverMaxDistanceKm/);
   assert.match(app, /locationMaxAgeSeconds < 15/);
   assert.match(app, /nearbyMaxDistanceKm < 0\.5/);
+
+  for (const id of [
+    'driver-offer-ttl-seconds',
+    'driver-payment-hold-seconds',
+    'driver-location-max-age-seconds',
+    'nearby-driver-max-distance-km',
+  ]) {
+    const tag = html.match(
+      new RegExp(
+        `<input[^>]*id=["']${id}["'][^>]*>`,
+      ),
+    )?.[0];
+    assert.ok(tag, `campo ${id} não encontrado`);
+    assert.match(tag, /\bdisabled\b/);
+    assert.equal(/\bvalue=/.test(tag), false);
+  }
+
+  assert.match(app, /operationalSettings: null/);
+  assert.match(app, /Aguardando configurações do Core/);
+  assert.match(app, /state\.operationalSettings == null/);
+  assert.match(
+    app,
+    /renderOperationalSettings\(null\);[\s\S]*handleAuthenticatedError/,
+  );
 });
