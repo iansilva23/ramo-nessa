@@ -25,6 +25,8 @@ class RideBottomSheet extends StatelessWidget {
     this.pricingLoading = false,
     this.priceIsFinal = false,
     this.passengerCount = 1,
+    this.minPassengerCount = 1,
+    this.maxPassengerCount = 4,
     this.onPassengerCountChanged,
     this.availableServices = ServiceType.values,
   });
@@ -47,6 +49,8 @@ class RideBottomSheet extends StatelessWidget {
   final bool pricingLoading;
   final bool priceIsFinal;
   final int passengerCount;
+  final int minPassengerCount;
+  final int maxPassengerCount;
   final ValueChanged<int>? onPassengerCountChanged;
   final List<ServiceType> availableServices;
 
@@ -182,6 +186,8 @@ class RideBottomSheet extends StatelessWidget {
                 const SizedBox(height: RamoSpacing.sm),
                 _PassengerCounter(
                   count: passengerCount,
+                  min: minPassengerCount,
+                  max: maxPassengerCount,
                   onChanged: onPassengerCountChanged,
                 ),
               ],
@@ -403,10 +409,14 @@ class _PriceAction extends StatelessWidget {
 class _PassengerCounter extends StatelessWidget {
   const _PassengerCounter({
     required this.count,
+    required this.min,
+    required this.max,
     required this.onChanged,
   });
 
   final int count;
+  final int min;
+  final int max;
   final ValueChanged<int>? onChanged;
 
   @override
@@ -435,7 +445,9 @@ class _PassengerCounter extends StatelessWidget {
           IconButton(
             tooltip: 'Remover passageiro',
             onPressed:
-                count > 1 && onChanged != null ? () => onChanged!(count - 1) : null,
+                count > min && onChanged != null
+                    ? () => onChanged!(count - 1)
+                    : null,
             icon: const Icon(Icons.remove_rounded),
           ),
           SizedBox(
@@ -451,7 +463,9 @@ class _PassengerCounter extends StatelessWidget {
           IconButton(
             tooltip: 'Adicionar passageiro',
             onPressed:
-                count < 4 && onChanged != null ? () => onChanged!(count + 1) : null,
+                count < max && onChanged != null
+                    ? () => onChanged!(count + 1)
+                    : null,
             icon: const Icon(Icons.add_rounded),
           ),
         ],
