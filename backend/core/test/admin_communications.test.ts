@@ -4,8 +4,12 @@ import test from 'node:test';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { InMemoryAdminCommunicationsRepository } from '../src/admin/repositories/in-memory-admin-communications-repository.js';
 import {
+  agencyTourPublicView,
+  listPublicAgencyTours,
   sendAdminNotification,
   updateAgencyPromotion,
+  updateAgencyTour,
+  updateAgencyTourCover,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from '../src/admin/admin-communications-service.js';
@@ -19,7 +23,10 @@ import type {
   PushDeliveryRequest,
 } from '../src/notifications/push-delivery-provider.js';
 import type { AuthSessionRecord } from '../src/auth/auth-session-repository.js';
-import { parseAdminSocialLinksUpdate } from '../src/admin/admin-communications-validation.js';
+import {
+  parseAdminAgencyTourUpdate,
+  parseAdminSocialLinksUpdate,
+} from '../src/admin/admin-communications-validation.js';
 
 class CapturingProvider implements PushDeliveryProvider {
   readonly kind = 'test';
@@ -261,5 +268,125 @@ test('Instagram oficial é normalizado, persistido e auditado', async () => {
       instagramHandle: 'instagram.com/nao-pode',
     }),
     /Instagram/,
+  );
+});
+
+
+test('catálogo de passeios mantém rascunhos fora do app e normaliza reserva', async () => {
+  const communications =
+    new InMemoryAdminCommunicationsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  const parsed = parseAdminAgencyTourUpdate({
+    enabled: true,
+    sortOrder: 5,
+    title: 'Lado Leste Premium',
+    badge: 'compartilhado',
+    shortDescription: 'Lagoas e praias do litoral leste.',
+    description:
+      'Passeio com roteiro administrado diretamente pelo painel.',
+    highlights: ['Árvore da Preguiça', 'Praia do Preá'],
+    included: ['Transporte'],
+    excluded: ['Alimentação'],
+    duration: '6 horas',
+    schedule: 'Saída pela manhã',
+    departure: 'Jericoacoara',
+    priceLabel: 'A partir de',
+    priceCents: 7500,
+    priceSuffix: 'por pessoa',
+    whatsappPhone: '(88) 99999-9999',
+    whatsappMessage: 'Olá! Quero reservar o Lado Leste.',
+  });
+
+  assert.equal(parsed.badge, 'COMPARTILHADO');
+  assert.equal(parsed.whatsappPhone, '+88999999999');
+
+  const saved = await updateAgencyTour({
+    communications,
+    admin,
+    actor,
+    slug: 'lado-leste',
+    ...parsed,
+    now: new Date('2026-09-26T16:00:00.000Z'),
+  });
+
+  assert.equal(saved.enabled, true);
+  assert.equal(saved.priceCents, 7500);
+  assert.equal(saved.highlights.length, 2);
+  assert.equal(saved.coverImageUrl, null);
+
+  const publicTours = await listPublicAgencyTours({ communications });
+  assert.equal(publicTours.length, 1);
+  assert.equal(publicTours[0]?.slug, 'lado-leste');
+
+  const drafts = (await communications.listTours(true)).filter(
+    (tour) => !tour.enabled,
+  );
+  assert.ok(drafts.some((tour) => tour.slug === 'lado-oeste'));
+  assert.equal((await admin.listAudit(10)).length, 1);
+});
+
+test('foto do passeio é versionada e publicada sem expor rascunhos', async () => {
+  const communications =
+    new InMemoryAdminCommunicationsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  const draft = await communications.getTour('lado-oeste');
+  assert.ok(draft);
+  assert.equal(draft.enabled, false);
+
+  const cover = await updateAgencyTourCover({
+    communications,
+    admin,
+    actor,
+    slug: 'lado-oeste',
+    mimeType: 'image/webp',
+    bytes: Uint8Array.from([82, 78, 1, 2, 3, 4]),
+    now: new Date('2026-09-26T16:10:00.000Z'),
+  });
+  assert.ok(cover);
+  assert.equal(cover.coverImageVersion, 1);
+  assert.match(
+    cover.coverImageUrl ?? '',
+    /\/v1\/content\/tours\/lado-oeste\/cover\?v=1$/,
+  );
+
+  const storedCover =
+    await communications.readTourCover('lado-oeste');
+  assert.ok(storedCover);
+  assert.equal(storedCover.mimeType, 'image/webp');
+  assert.deepEqual(
+    [...storedCover.bytes],
+    [82, 78, 1, 2, 3, 4],
+  );
+
+  const publicTours = await listPublicAgencyTours({ communications });
+  assert.ok(!publicTours.some((tour) => tour.slug === 'lado-oeste'));
+
+  const view = agencyTourPublicView(
+    (await communications.getTour('lado-oeste'))!,
+  );
+  assert.equal(view.coverImageVersion, 1);
+  assert.equal((await admin.listAudit(10)).length, 1);
+});
+
+test('passeio publicado exige WhatsApp de reserva', () => {
+  assert.throws(
+    () =>
+      parseAdminAgencyTourUpdate({
+        enabled: true,
+        sortOrder: 10,
+        title: 'Passeio sem contato',
+        badge: 'PRIVATIVO',
+        shortDescription: 'Descrição curta válida.',
+        description: 'Descrição completa válida.',
+        highlights: [],
+        included: [],
+        excluded: [],
+        priceLabel: 'Consulte',
+        whatsappPhone: '',
+        whatsappMessage: '',
+      }),
+    /WhatsApp/,
   );
 });
