@@ -18,7 +18,8 @@ export class AdminPaymentPolicyError extends Error {
     public readonly code:
       | 'CASH_ACTIVATION_BLOCKED'
       | 'INVALID_PIX_PRICE_ADJUSTMENT'
-      | 'INVALID_CARD_PRICE_ADJUSTMENT',
+      | 'INVALID_CARD_PRICE_ADJUSTMENT'
+      | 'INVALID_DEFAULT_CASH_DEBT_LIMIT',
     message: string,
   ) {
     super(message);
@@ -36,14 +37,20 @@ export async function adminPaymentPolicyView(
     cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
     cashActivationReady: true,
     futureCashDebtLimitCents:
-      PAYMENT_POLICY_V1.futureCashDebtLimitCents,
+      settings.defaultCashDebtLimitCents,
     directDriverPixEnabled:
       PAYMENT_POLICY_V1.directDriverPixEnabled,
     paymentRequiredBeforeDispatch:
       PAYMENT_POLICY_V1.paymentRequiredBeforeDispatch,
-    passengerWalletEnabled:
-      PAYMENT_POLICY_V1.passengerWalletEnabled,
-    allowedDigitalMethods: [...PAYMENT_POLICY_V1.allowedMethods],
+    passengerWalletEnabled: settings.walletEnabled,
+    pixEnabled: settings.pixEnabled,
+    cardEnabled: settings.cardEnabled,
+    walletEnabled: settings.walletEnabled,
+    allowedDigitalMethods: [
+      ...(settings.pixEnabled ? ['pix'] : []),
+      ...(settings.cardEnabled ? ['card'] : []),
+      ...(settings.walletEnabled ? ['wallet'] : []),
+    ],
     updatedAt: settings.updatedAt,
   };
 }
@@ -53,6 +60,10 @@ export async function updateAdminPaymentPolicy(input: {
   admin: AdminRepository;
   actor: AdminActor;
   cashEnabled?: boolean;
+  pixEnabled?: boolean;
+  cardEnabled?: boolean;
+  walletEnabled?: boolean;
+  defaultCashDebtLimitCents?: number;
   pixPriceAdjustmentBps?: number;
   cardPriceAdjustmentBps?: number;
   now?: Date;
@@ -81,8 +92,26 @@ export async function updateAdminPaymentPolicy(input: {
     );
   }
 
+  if (
+    input.defaultCashDebtLimitCents != null &&
+    (!Number.isInteger(input.defaultCashDebtLimitCents) ||
+      input.defaultCashDebtLimitCents < 0 ||
+      input.defaultCashDebtLimitCents > 100_000_000)
+  ) {
+    throw new AdminPaymentPolicyError(
+      'INVALID_DEFAULT_CASH_DEBT_LIMIT',
+      'O limite cash padrão deve ficar entre R$ 0,00 e R$ 1.000.000,00.',
+    );
+  }
+
   const current = await input.repository.get();
   const nextCashEnabled = input.cashEnabled ?? current.cashEnabled;
+  const nextPixEnabled = input.pixEnabled ?? current.pixEnabled;
+  const nextCardEnabled = input.cardEnabled ?? current.cardEnabled;
+  const nextWalletEnabled = input.walletEnabled ?? current.walletEnabled;
+  const nextDefaultCashDebtLimitCents =
+    input.defaultCashDebtLimitCents ??
+    current.defaultCashDebtLimitCents;
   const nextPixPriceAdjustmentBps =
     input.pixPriceAdjustmentBps ?? current.pixPriceAdjustmentBps;
   const nextCardPriceAdjustmentBps =
@@ -90,6 +119,11 @@ export async function updateAdminPaymentPolicy(input: {
 
   if (
     current.cashEnabled === nextCashEnabled &&
+    current.pixEnabled === nextPixEnabled &&
+    current.cardEnabled === nextCardEnabled &&
+    current.walletEnabled === nextWalletEnabled &&
+    current.defaultCashDebtLimitCents ===
+      nextDefaultCashDebtLimitCents &&
     current.pixPriceAdjustmentBps === nextPixPriceAdjustmentBps &&
     current.cardPriceAdjustmentBps === nextCardPriceAdjustmentBps
   ) {
@@ -112,6 +146,29 @@ export async function updateAdminPaymentPolicy(input: {
       updatedAt,
     );
   }
+  const digitalMethodsChanged =
+    current.pixEnabled !== nextPixEnabled ||
+    current.cardEnabled !== nextCardEnabled ||
+    current.walletEnabled !== nextWalletEnabled;
+  if (digitalMethodsChanged) {
+    await input.repository.setDigitalMethods(
+      {
+        pixEnabled: nextPixEnabled,
+        cardEnabled: nextCardEnabled,
+        walletEnabled: nextWalletEnabled,
+      },
+      updatedAt,
+    );
+  }
+  const defaultCashLimitChanged =
+    current.defaultCashDebtLimitCents !==
+    nextDefaultCashDebtLimitCents;
+  if (defaultCashLimitChanged) {
+    await input.repository.setDefaultCashDebtLimitCents(
+      nextDefaultCashDebtLimitCents,
+      updatedAt,
+    );
+  }
 
   const cashChanged = current.cashEnabled !== nextCashEnabled;
   const pixChanged =
@@ -122,25 +179,55 @@ export async function updateAdminPaymentPolicy(input: {
     id: randomUUID(),
     actor: input.actor,
     action:
-      cashChanged && !pixChanged && !cardChanged
+      cashChanged &&
+      !pixChanged &&
+      !cardChanged &&
+      !digitalMethodsChanged &&
+      !defaultCashLimitChanged
         ? nextCashEnabled
           ? 'payment_policy.cash_enabled'
           : 'payment_policy.cash_disabled'
-        : pixChanged && !cashChanged && !cardChanged
+        : pixChanged &&
+            !cashChanged &&
+            !cardChanged &&
+            !digitalMethodsChanged &&
+            !defaultCashLimitChanged
           ? 'payment_policy.pix_price_adjustment_updated'
-          : cardChanged && !cashChanged && !pixChanged
+          : cardChanged &&
+              !cashChanged &&
+              !pixChanged &&
+              !digitalMethodsChanged &&
+              !defaultCashLimitChanged
             ? 'payment_policy.card_price_adjustment_updated'
             : 'payment_policy.updated',
     targetType: 'payment_policy',
     targetId:
-      pixChanged && !cashChanged && !cardChanged
+      pixChanged &&
+      !cashChanged &&
+      !cardChanged &&
+      !digitalMethodsChanged &&
+      !defaultCashLimitChanged
         ? 'pix'
-        : cardChanged && !cashChanged && !pixChanged
+        : cardChanged &&
+            !cashChanged &&
+            !pixChanged &&
+            !digitalMethodsChanged &&
+            !defaultCashLimitChanged
           ? 'card'
           : 'payments',
     metadata: {
       previousCashEnabled: current.cashEnabled,
       cashEnabled: nextCashEnabled,
+      previousPixEnabled: current.pixEnabled,
+      pixEnabled: nextPixEnabled,
+      previousCardEnabled: current.cardEnabled,
+      cardEnabled: nextCardEnabled,
+      previousWalletEnabled: current.walletEnabled,
+      walletEnabled: nextWalletEnabled,
+      previousDefaultCashDebtLimitCents:
+        current.defaultCashDebtLimitCents,
+      defaultCashDebtLimitCents:
+        nextDefaultCashDebtLimitCents,
       previousPixPriceAdjustmentBps:
         current.pixPriceAdjustmentBps,
       pixPriceAdjustmentBps: nextPixPriceAdjustmentBps,
