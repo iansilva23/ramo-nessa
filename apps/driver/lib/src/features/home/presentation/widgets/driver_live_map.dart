@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
 
 import '../../../../core/config/driver_map_config.dart';
+import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
 
@@ -78,6 +81,12 @@ class DriverLiveMap extends StatefulWidget {
 class _DriverLiveMapState extends State<DriverLiveMap> {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
+  double _driverBearing = 0;
+  gm.BitmapDescriptor _passengerIcon =
+      gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _destinationIcon =
+      gm.BitmapDescriptor.defaultMarker;
+  final Map<String, gm.BitmapDescriptor> _vehicleIcons = {};
 
   domain.LatLng get _driverPoint {
     final supply = widget.supply;
@@ -89,6 +98,70 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
   void initState() {
     super.initState();
     _notifyPlaceholderReadyIfNeeded();
+    _loadMarkerIcons();
+  }
+
+  Future<void> _loadMarkerIcons() async {
+    final passengerIcon = await buildRamoMapMarker(
+      icon: Icons.person_rounded,
+      background: const Color(0xFFFFFFFF),
+      foreground: const Color(0xFF111111),
+      border: const Color(0xFFFFC400),
+    );
+    final destinationIcon = await buildRamoMapMarker(
+      icon: Icons.flag_rounded,
+      background: const Color(0xFF111111),
+      foreground: const Color(0xFFFFFFFF),
+      border: const Color(0xFFFFFFFF),
+    );
+
+    final vehicleIcons = <String, gm.BitmapDescriptor>{};
+    for (final category in const [
+      'moto',
+      'car',
+      'buggy',
+      'comfort_black',
+      'delivery',
+    ]) {
+      vehicleIcons[category] = await buildRamoMapMarker(
+        icon: ramoVehicleIcon(category),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _passengerIcon = passengerIcon;
+      _destinationIcon = destinationIcon;
+      _vehicleIcons
+        ..clear()
+        ..addAll(vehicleIcons);
+    });
+  }
+
+  double _bearingBetween(domain.LatLng from, domain.LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final degrees = math.atan2(y, x) * 180 / math.pi;
+    return (degrees + 360) % 360;
+  }
+
+  String _currentVehicleCategory() {
+    final activeCategory = widget.activeRide?.category;
+    if (activeCategory != null && activeCategory.isNotEmpty) {
+      return activeCategory;
+    }
+    final categories = widget.supply?.categories ?? const <String>[];
+    return categories.isEmpty ? 'car' : categories.first;
+  }
+
+  gm.BitmapDescriptor _vehicleIcon(String? category) {
+    return _vehicleIcons[category] ??
+        _vehicleIcons['car'] ??
+        gm.BitmapDescriptor.defaultMarker;
   }
 
   @override
@@ -103,6 +176,24 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
 
     if (oldWidget.networkTilesEnabled != widget.networkTilesEnabled) {
       _notifyPlaceholderReadyIfNeeded();
+    }
+
+    final previousSupply = oldWidget.supply;
+    final nextSupply = widget.supply;
+    if (previousSupply != null &&
+        nextSupply != null &&
+        (previousSupply.latitude != nextSupply.latitude ||
+            previousSupply.longitude != nextSupply.longitude)) {
+      _driverBearing = _bearingBetween(
+        domain.LatLng(
+          previousSupply.latitude,
+          previousSupply.longitude,
+        ),
+        domain.LatLng(
+          nextSupply.latitude,
+          nextSupply.longitude,
+        ),
+      );
     }
   }
 
@@ -128,13 +219,15 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
       final driver = widget.nearbyDrivers[index];
       markers.add(
         gm.Marker(
-          markerId: gm.MarkerId('nearby-driver-$index'),
-          position: gm.LatLng(driver.latitude, driver.longitude),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            driver.busy
-                ? gm.BitmapDescriptor.hueRose
-                : gm.BitmapDescriptor.hueAzure,
+          markerId: gm.MarkerId(
+            driver.driverId.isEmpty
+                ? 'nearby-driver-$index'
+                : 'nearby-driver-${driver.driverId}',
           ),
+          position: gm.LatLng(driver.latitude, driver.longitude),
+          icon: _vehicleIcon(driver.category),
+          anchor: const Offset(.5, .5),
+          flat: true,
           infoWindow: gm.InfoWindow(
             title: driver.busy ? 'Motorista ocupado' : 'Motorista disponível',
           ),
@@ -150,9 +243,10 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
           driverPoint.latitude,
           driverPoint.longitude,
         ),
-        icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-          gm.BitmapDescriptor.hueYellow,
-        ),
+        icon: _vehicleIcon(_currentVehicleCategory()),
+        anchor: const Offset(.5, .5),
+        flat: true,
+        rotation: _driverBearing,
         infoWindow: const gm.InfoWindow(
           title: 'Você',
         ),
@@ -168,9 +262,8 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
             ride!.pickupLatitude!,
             ride.pickupLongitude!,
           ),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            gm.BitmapDescriptor.hueGreen,
-          ),
+          icon: _passengerIcon,
+          anchor: const Offset(.5, .5),
           infoWindow: const gm.InfoWindow(
             title: 'Embarque',
           ),
@@ -186,9 +279,8 @@ class _DriverLiveMapState extends State<DriverLiveMap> {
             ride!.dropoffLatitude!,
             ride.dropoffLongitude!,
           ),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            gm.BitmapDescriptor.hueRed,
-          ),
+          icon: _destinationIcon,
+          anchor: const Offset(.5, .5),
           infoWindow: const gm.InfoWindow(
             title: 'Destino',
           ),
