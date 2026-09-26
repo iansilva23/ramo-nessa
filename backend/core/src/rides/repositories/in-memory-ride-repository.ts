@@ -126,10 +126,20 @@ export class InMemoryRideRepository implements RideRepository {
   async listRecentByDriverId(
     driverId: string,
     limit: number,
+    from?: string,
+    to?: string,
   ): Promise<RideRecord[]> {
     const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+    const fromMs = from == null ? null : Date.parse(from);
+    const toMs = to == null ? null : Date.parse(to);
     return [...this.rides.values()]
       .filter((ride) => ride.driverId === driverId)
+      .filter((ride) => {
+        const updatedAt = Date.parse(ride.updatedAt);
+        if (fromMs != null && updatedAt < fromMs) return false;
+        if (toMs != null && updatedAt >= toMs) return false;
+        return true;
+      })
       .sort((a, b) => {
         const updatedDiff = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
         if (updatedDiff !== 0) return updatedDiff;
@@ -141,10 +151,19 @@ export class InMemoryRideRepository implements RideRepository {
 
   async getDriverRideSummary(
     driverId: string,
+    from?: string,
+    to?: string,
   ): Promise<DriverRideSummary> {
-    const rides = [...this.rides.values()].filter(
-      (ride) => ride.driverId === driverId,
-    );
+    const fromMs = from == null ? null : Date.parse(from);
+    const toMs = to == null ? null : Date.parse(to);
+    const rides = [...this.rides.values()]
+      .filter((ride) => ride.driverId === driverId)
+      .filter((ride) => {
+        const updatedAt = Date.parse(ride.updatedAt);
+        if (fromMs != null && updatedAt < fromMs) return false;
+        if (toMs != null && updatedAt >= toMs) return false;
+        return true;
+      });
     const cancelledStates = new Set<RideRecord['state']>([
       'CANCELLED_BY_PASSENGER',
       'CANCELLED_BY_DRIVER',
@@ -165,6 +184,15 @@ export class InMemoryRideRepository implements RideRepository {
       earningsCents: rides
         .filter((ride) => ride.state === 'COMPLETED')
         .reduce((sum, ride) => sum + ride.quote.driverNetCents, 0),
+      grossCents: rides
+        .filter((ride) => ride.state === 'COMPLETED')
+        .reduce((sum, ride) => sum + ride.quote.totalAmountCents, 0),
+      platformFeeCents: rides
+        .filter((ride) => ride.state === 'COMPLETED')
+        .reduce(
+          (sum, ride) => sum + ride.quote.platformCommissionCents,
+          0,
+        ),
     };
   }
 
