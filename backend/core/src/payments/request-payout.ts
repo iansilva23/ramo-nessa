@@ -40,6 +40,15 @@ export async function requestDriverPayout(
     );
   }
 
+  const destination =
+    await repository.getDriverPayoutDestination(driverId);
+  if (destination == null) {
+    throw new PayoutDomainError(
+      'PAYOUT_DESTINATION_REQUIRED',
+      'Cadastre uma chave Pix antes de solicitar o saque.',
+    );
+  }
+
   const instant = (input.now ?? new Date()).toISOString();
   const payout: DriverPayoutRecord = {
     id: randomUUID(),
@@ -47,6 +56,8 @@ export async function requestDriverPayout(
     amountCents: input.amountCents,
     status: 'requested',
     idempotencyKey,
+    pixKeyType: destination.pixKeyType,
+    pixKey: destination.pixKey,
     createdAt: instant,
     updatedAt: instant,
   };
