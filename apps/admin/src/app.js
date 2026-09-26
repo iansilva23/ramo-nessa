@@ -140,6 +140,10 @@ const state = {
     socialLinks: null,
     tours: [],
   },
+  support: {
+    tickets: [],
+    selectedId: null,
+  },
   sessionTimer: null,
 };
 
@@ -199,6 +203,11 @@ const adminRoutes = Object.freeze({
     path: '/admin/notificacoes',
     title: 'Notificações',
     page: 'notifications',
+  },
+  support: {
+    path: '/admin/suporte',
+    title: 'Suporte',
+    page: 'support',
   },
   agency: {
     path: '/admin/passeios',
@@ -263,7 +272,7 @@ const scopeLabels = new Map([
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['communications:read', 'Consultar comunicação, versões e agência'],
-  ['communications:write', 'Enviar avisos e editar comunicação'],
+  ['communications:write', 'Enviar avisos, responder suporte e editar comunicação'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
