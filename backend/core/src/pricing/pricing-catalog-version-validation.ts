@@ -42,6 +42,43 @@ export type PricingCatalogDraftPatch =
       operation: 'add' | 'remove';
       scope: 'prea' | 'jijoca' | 'external';
       localityId: string;
+    }
+  | {
+      kind: 'commission_policy';
+      commissionBps: number;
+    }
+  | {
+      kind: 'period_policy';
+      nightStartHour: number;
+      dayStartHour: number;
+    }
+  | {
+      kind: 'pickup_policy';
+      freeKm: number;
+      fuelPriceCentsPerLiter: number;
+      motoReferenceKmPerLiter: number;
+      carReferenceKmPerLiter: number;
+    }
+  | {
+      kind: 'surcharge_policy';
+      preaComfortCents: number;
+      preaLocalCarAfter22Cents: number;
+      preaLocalCarAfter22LocalityIds: string[];
+    }
+  | {
+      kind: 'buggy_policy';
+      minPassengers: number;
+      maxPassengers: number;
+      dayBaseCents: number;
+      after22BaseCents: number;
+      perPassengerCents: number;
+    }
+  | {
+      kind: 'delivery_bands';
+      bands: Array<{
+        maxKm: number;
+        amountCents: number;
+      }>;
     };
 
 function objectValue(
@@ -108,6 +145,68 @@ function centsValue(value: unknown, field: string): number {
     );
   }
   return number;
+}
+
+function nonNegativeCentsValue(
+  value: unknown,
+  field: string,
+): number {
+  const number = Number(value);
+  if (
+    !Number.isInteger(number) ||
+    number < 0 ||
+    number > 10_000_000
+  ) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ser inteiro não negativo em centavos.`,
+    );
+  }
+  return number;
+}
+
+function integerValue(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ser inteiro entre ${min} e ${max}.`,
+    );
+  }
+  return number;
+}
+
+function decimalValue(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ficar entre ${min} e ${max}.`,
+    );
+  }
+  return Math.round(number * 1000) / 1000;
+}
+
+function identifierListValue(
+  value: unknown,
+  field: string,
+): string[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ser uma lista com até 100 itens.`,
+    );
+  }
+  const normalized = value.map((item, index) =>
+    identifierValue(item, `${field}[${index}]`),
+  );
+  return [...new Set(normalized)];
 }
 
 export function parsePricingCatalogDraftPatch(
@@ -274,6 +373,152 @@ export function parsePricingCatalogDraftPatch(
         'localityId',
       ),
     };
+  }
+
+  if (kind === 'commission_policy') {
+    return {
+      kind,
+      commissionBps: integerValue(
+        value.commissionBps,
+        'commissionBps',
+        0,
+        10_000,
+      ),
+    };
+  }
+
+  if (kind === 'period_policy') {
+    const nightStartHour = integerValue(
+      value.nightStartHour,
+      'nightStartHour',
+      0,
+      23,
+    );
+    const dayStartHour = integerValue(
+      value.dayStartHour,
+      'dayStartHour',
+      0,
+      23,
+    );
+    if (nightStartHour === dayStartHour) {
+      throw new InvalidPricingCatalogPatchError(
+        'nightStartHour e dayStartHour devem ser diferentes.',
+      );
+    }
+    return { kind, nightStartHour, dayStartHour };
+  }
+
+  if (kind === 'pickup_policy') {
+    return {
+      kind,
+      freeKm: decimalValue(value.freeKm, 'freeKm', 0, 100),
+      fuelPriceCentsPerLiter: centsValue(
+        value.fuelPriceCentsPerLiter,
+        'fuelPriceCentsPerLiter',
+      ),
+      motoReferenceKmPerLiter: decimalValue(
+        value.motoReferenceKmPerLiter,
+        'motoReferenceKmPerLiter',
+        1,
+        200,
+      ),
+      carReferenceKmPerLiter: decimalValue(
+        value.carReferenceKmPerLiter,
+        'carReferenceKmPerLiter',
+        1,
+        100,
+      ),
+    };
+  }
+
+  if (kind === 'surcharge_policy') {
+    return {
+      kind,
+      preaComfortCents: nonNegativeCentsValue(
+        value.preaComfortCents,
+        'preaComfortCents',
+      ),
+      preaLocalCarAfter22Cents: nonNegativeCentsValue(
+        value.preaLocalCarAfter22Cents,
+        'preaLocalCarAfter22Cents',
+      ),
+      preaLocalCarAfter22LocalityIds: identifierListValue(
+        value.preaLocalCarAfter22LocalityIds,
+        'preaLocalCarAfter22LocalityIds',
+      ),
+    };
+  }
+
+  if (kind === 'buggy_policy') {
+    const minPassengers = integerValue(
+      value.minPassengers,
+      'minPassengers',
+      1,
+      20,
+    );
+    const maxPassengers = integerValue(
+      value.maxPassengers,
+      'maxPassengers',
+      1,
+      20,
+    );
+    if (minPassengers > maxPassengers) {
+      throw new InvalidPricingCatalogPatchError(
+        'minPassengers não pode ser maior que maxPassengers.',
+      );
+    }
+    return {
+      kind,
+      minPassengers,
+      maxPassengers,
+      dayBaseCents: centsValue(
+        value.dayBaseCents,
+        'dayBaseCents',
+      ),
+      after22BaseCents: centsValue(
+        value.after22BaseCents,
+        'after22BaseCents',
+      ),
+      perPassengerCents: nonNegativeCentsValue(
+        value.perPassengerCents,
+        'perPassengerCents',
+      ),
+    };
+  }
+
+  if (kind === 'delivery_bands') {
+    if (
+      !Array.isArray(value.bands) ||
+      value.bands.length < 1 ||
+      value.bands.length > 20
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'bands deve conter entre 1 e 20 faixas.',
+      );
+    }
+    const bands = value.bands.map((item, index) => {
+      const band = objectValue(item, `bands[${index}]`);
+      return {
+        maxKm: decimalValue(
+          band.maxKm,
+          `bands[${index}].maxKm`,
+          0.1,
+          100,
+        ),
+        amountCents: centsValue(
+          band.amountCents,
+          `bands[${index}].amountCents`,
+        ),
+      };
+    });
+    for (let index = 1; index < bands.length; index += 1) {
+      if (bands[index]!.maxKm <= bands[index - 1]!.maxKm) {
+        throw new InvalidPricingCatalogPatchError(
+          'As faixas de entrega devem estar em ordem crescente e sem duplicidade.',
+        );
+      }
+    }
+    return { kind, bands };
   }
 
   throw new InvalidPricingCatalogPatchError(
