@@ -118,6 +118,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
   bool _navigationMode = false;
+  bool _ridePanelExpanded = false;
   int _selectedTab = 0;
   late final DriverRouteService _routeService =
       widget.routeService ??
@@ -676,9 +677,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _offerPickupRoute = null;
         _offerTripRoute = null;
         _offerAction = false;
+        _navigationMode = true;
+        _ridePanelExpanded = false;
+        _selectedTab = 0;
         _message = null;
       });
-      await _refreshActiveRoute(force: true);
+      await _startInAppNavigation();
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -717,6 +721,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     setState(() {
       _navigationMode = true;
+      _ridePanelExpanded = false;
       _selectedTab = 0;
       _message = null;
     });
@@ -732,7 +737,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   void _stopInAppNavigation() {
     if (!_navigationMode) return;
-    setState(() => _navigationMode = false);
+    setState(() {
+      _navigationMode = false;
+      _ridePanelExpanded = true;
+    });
   }
 
   Future<void> _openExternalNavigation() async {
@@ -1413,25 +1421,41 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       tripRoute: _offerTripRoute,
                     )
                   : _activeRide != null
-                      ? _ActiveRideCard(
-                          key: ValueKey(
-                            'ride-${_activeRide!.id}-${_activeRide!.state}',
-                          ),
-                          ride: _activeRide!,
-                          busy: _rideAction,
-                          navigationActive: _navigationMode,
-                          onNavigate: _startInAppNavigation,
-                          onStopNavigation: _stopInAppNavigation,
-                          onExternalNavigation: _openExternalNavigation,
-                          onArrived: _markArrived,
-                          onStart: _startRide,
-                          onComplete: _completeRide,
-                          route: _activeRoute,
-                          currentPosition: LatLng(
-                            supply.latitude,
-                            supply.longitude,
-                          ),
-                        )
+                      ? (_navigationMode && !_ridePanelExpanded
+                          ? _ActiveRideCompactBar(
+                              key: ValueKey(
+                                'ride-mini-${_activeRide!.id}-${_activeRide!.state}',
+                              ),
+                              ride: _activeRide!,
+                              route: _activeRoute,
+                              onExpand: () => setState(
+                                () => _ridePanelExpanded = true,
+                              ),
+                            )
+                          : _ActiveRideCard(
+                              key: ValueKey(
+                                'ride-${_activeRide!.id}-${_activeRide!.state}',
+                              ),
+                              ride: _activeRide!,
+                              busy: _rideAction,
+                              navigationActive: _navigationMode,
+                              onNavigate: _startInAppNavigation,
+                              onStopNavigation: _stopInAppNavigation,
+                              onExternalNavigation: _openExternalNavigation,
+                              onArrived: _markArrived,
+                              onStart: _startRide,
+                              onComplete: _completeRide,
+                              onMinimize: _navigationMode
+                                  ? () => setState(
+                                        () => _ridePanelExpanded = false,
+                                      )
+                                  : null,
+                              route: _activeRoute,
+                              currentPosition: LatLng(
+                                supply.latitude,
+                                supply.longitude,
+                              ),
+                            ))
                       : _MapAvailabilityPanel(
                           key: ValueKey('availability-${supply.online}'),
                           online: supply.online,
@@ -3399,6 +3423,103 @@ class _NavigationInstructionBanner extends StatelessWidget {
   }
 }
 
+class _ActiveRideCompactBar extends StatelessWidget {
+  const _ActiveRideCompactBar({
+    super.key,
+    required this.ride,
+    required this.onExpand,
+    this.route,
+  });
+
+  final AcceptedDriverRide ride;
+  final DriverRouteInfo? route;
+  final VoidCallback onExpand;
+
+  String get _target => ride.state == 'IN_PROGRESS'
+      ? ride.destination.displayName
+      : ride.origin.displayName;
+
+  IconData get _icon => switch (ride.state) {
+        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' =>
+          Icons.person_pin_circle_rounded,
+        'DRIVER_ARRIVED' => Icons.hail_rounded,
+        'IN_PROGRESS' => Icons.flag_rounded,
+        _ => Icons.route_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomRight,
+      child: Material(
+        color: RamoColors.brandBlack,
+        elevation: 8,
+        borderRadius: BorderRadius.circular(RamoRadius.pill),
+        child: InkWell(
+          onTap: onExpand,
+          borderRadius: BorderRadius.circular(RamoRadius.pill),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    color: RamoColors.brandYellow,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _icon,
+                    size: 20,
+                    color: RamoColors.brandBlack,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 190),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        route == null
+                            ? 'Corrida ativa'
+                            : '${route!.durationLabel} · ${route!.distanceLabel}',
+                        style: const TextStyle(
+                          color: RamoColors.brandYellow,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                        ),
+                      ),
+                      Text(
+                        _target,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.expand_less_rounded,
+                  color: Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
     super.key,
@@ -3412,6 +3533,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onStart,
     required this.onComplete,
     required this.currentPosition,
+    this.onMinimize,
     this.route,
   });
 
@@ -3425,6 +3547,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onComplete;
   final LatLng currentPosition;
+  final VoidCallback? onMinimize;
   final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
@@ -3528,6 +3651,15 @@ class _ActiveRideCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onMinimize != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Minimizar informações',
+                  onPressed: onMinimize,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.expand_more_rounded),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 16),
