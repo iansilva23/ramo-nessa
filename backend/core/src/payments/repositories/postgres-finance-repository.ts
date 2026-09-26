@@ -1830,6 +1830,36 @@ export class PostgresFinanceRepository implements FinanceRepository {
     return result.rows.map(mapPayout);
   }
 
+  async getDriverPayoutPeriodSummary(
+    driverId: string,
+    from?: string,
+    to?: string,
+  ) {
+    const result = await this.pool.query<{
+      requested_cents: string;
+      paid_cents: string;
+    }>(
+      `
+      SELECT
+        COALESCE(SUM(amount_cents) FILTER (
+          WHERE status IN ('requested', 'processing', 'paid')
+        ), 0)::text AS requested_cents,
+        COALESCE(SUM(amount_cents) FILTER (
+          WHERE status = 'paid'
+        ), 0)::text AS paid_cents
+      FROM driver_payouts
+      WHERE driver_id = $1
+        AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
+        AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
+      `,
+      [driverId, from ?? null, to ?? null],
+    );
+    return {
+      requestedCents: Number(result.rows[0]?.requested_cents ?? '0'),
+      paidCents: Number(result.rows[0]?.paid_cents ?? '0'),
+    };
+  }
+
   async listLedgerTransactionsForAccounts(
     accountKeys: readonly string[],
     limit: number,
