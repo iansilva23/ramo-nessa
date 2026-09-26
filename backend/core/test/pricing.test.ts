@@ -123,8 +123,15 @@ test('Aeroporto JJD respeita Carro/Comfort para Preá e apenas 4x4 para Jeri', (
   }
 });
 
-test('Buggy em Jeri soma R$2 por passageiro', () => {
-  const quote = quoteFare({
+test('Buggy em Jeri mantém o preço-base para 1 pessoa e soma R$2 só por adicional', () => {
+  const single = quoteFare({
+    origin: zone('jericoacoara'),
+    destination: zone('jericoacoara'),
+    category: 'buggy',
+    period: 'day',
+    passengers: 1,
+  });
+  const four = quoteFare({
     origin: zone('jericoacoara'),
     destination: zone('jericoacoara'),
     category: 'buggy',
@@ -132,9 +139,11 @@ test('Buggy em Jeri soma R$2 por passageiro', () => {
     passengers: 4,
   });
 
-  assert.equal(quote.kind, 'exact');
-  if (quote.kind === 'exact') {
-    assert.equal(quote.baseAmountCents, 6800);
+  assert.equal(single.kind, 'exact');
+  assert.equal(four.kind, 'exact');
+  if (single.kind === 'exact' && four.kind === 'exact') {
+    assert.equal(single.baseAmountCents, 4000);
+    assert.equal(four.baseAmountCents, 6600);
   }
 });
 
