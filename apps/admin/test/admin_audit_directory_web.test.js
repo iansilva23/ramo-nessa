@@ -66,10 +66,16 @@ test('cliente Admin filtra auditoria sem vazar Bearer na URL', async () => {
 });
 
 test('frontend expõe diretório paginado e auditoria continua somente leitura', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/audit.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
