@@ -81,7 +81,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
 
   async function requestBinary(path, options = {}) {
     const headers = {
-      accept: 'application/pdf,image/jpeg,image/png',
+      accept: 'application/pdf,image/jpeg,image/png,image/webp',
     };
     if (options.token) {
       headers.authorization = `Bearer ${options.token}`;
@@ -290,6 +290,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
           token,
           body: tour,
         },
+      );
+    },
+
+    agencyTourCover(token, slug) {
+      return requestBinary(
+        `/v1/admin/tours/${encodeURIComponent(slug)}/cover`,
+        { token },
       );
     },
 
