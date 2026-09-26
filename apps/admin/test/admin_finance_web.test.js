@@ -91,8 +91,12 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
   assert.equal(policy.cardPriceAdjustmentBps, 498);
 
   await api.updatePaymentPolicy(token, { cashEnabled: true });
+  await api.updatePaymentPolicy(token, {
+    pixPriceAdjustmentBps: 125,
+    cardPriceAdjustmentBps: 525,
+  });
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].url, '/v1/admin/payment-policy');
   assert.equal(calls[1].options.method, 'PATCH');
@@ -100,6 +104,14 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
     calls[1].options.body,
     JSON.stringify({
       cashEnabled: true,
+    }),
+  );
+  assert.equal(calls[2].options.method, 'PATCH');
+  assert.equal(
+    calls[2].options.body,
+    JSON.stringify({
+      pixPriceAdjustmentBps: 125,
+      cardPriceAdjustmentBps: 525,
     }),
   );
   for (const call of calls) {
