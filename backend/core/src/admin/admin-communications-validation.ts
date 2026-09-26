@@ -240,3 +240,30 @@ export function parsePublicReleasePolicyQuery(
   }
   return { appKind, platform, buildNumber };
 }
+
+
+export function parseAdminSocialLinksUpdate(body: unknown): {
+  instagramHandle?: string;
+  instagramUrl?: string;
+} {
+  const value = objectBody(body);
+  const raw = value.instagramHandle;
+  if (raw == null || raw === '') return {};
+  if (typeof raw !== 'string') {
+    throw new InvalidCommunicationsRequestError(
+      'Instagram deve ser um nome de usuário válido.',
+    );
+  }
+
+  const username = raw.trim().replace(/^@+/, '');
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(username)) {
+    throw new InvalidCommunicationsRequestError(
+      'Instagram deve conter apenas letras, números, ponto ou sublinhado.',
+    );
+  }
+
+  return {
+    instagramHandle: `@${username}`,
+    instagramUrl: `https://www.instagram.com/${username}/`,
+  };
+}
