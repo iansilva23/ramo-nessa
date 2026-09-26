@@ -40,11 +40,6 @@ export async function createRide(
   }
 
   const now = input.now ?? new Date();
-  const authoritativeQuoteRequest: QuoteRequest = {
-    ...input.quoteRequest,
-    period: pricingPeriodAt(now),
-  };
-
   const pricing =
     input.pricing ?? {
       snapshot: STATIC_PRICING_CATALOG_V1,
@@ -53,6 +48,10 @@ export async function createRide(
       },
       version: null,
     };
+  const authoritativeQuoteRequest: QuoteRequest = {
+    ...input.quoteRequest,
+    period: pricingPeriodAt(now, pricing.snapshot.periodPolicy),
+  };
   const fare = quoteFare(
     authoritativeQuoteRequest,
     pricing.snapshot,
