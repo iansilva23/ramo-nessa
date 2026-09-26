@@ -1,5 +1,4 @@
 import type { FinanceRepository } from './finance-repository.js';
-import { PAYMENT_POLICY_V1 } from './payment-policy.js';
 import type { PaymentPolicySettingsRepository } from './payment-policy-settings-repository.js';
 
 export interface DriverCashPolicySnapshot {
@@ -25,7 +24,7 @@ export async function driverCashPolicySnapshot(input: {
   ]);
 
   const defaultDebtLimitCents =
-    PAYMENT_POLICY_V1.futureCashDebtLimitCents;
+    settings.defaultCashDebtLimitCents;
   const overrideDebtLimitCents =
     override?.debtLimitCents ?? null;
   const effectiveDebtLimitCents = Math.max(
