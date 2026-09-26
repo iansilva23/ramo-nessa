@@ -3810,3 +3810,52 @@ td strong {
     width: 100%;
   }
 }
+
+
+.passenger-profile-edit-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--raised);
+}
+
+.passenger-profile-edit-form[hidden] {
+  display: none;
+}
+
+.passenger-profile-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.passenger-profile-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.passenger-profile-edit-actions small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .passenger-profile-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .passenger-profile-edit-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .passenger-profile-edit-actions .button {
+    width: 100%;
+  }
+}
