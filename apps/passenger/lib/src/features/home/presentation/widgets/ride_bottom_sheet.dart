@@ -12,6 +12,7 @@ class RideBottomSheet extends StatelessWidget {
     required this.onOriginTap,
     required this.onDestinationTap,
     required this.onRequestRide,
+    this.onDestinationClear,
     this.origin,
     this.destination,
     this.routeSummary,
@@ -33,6 +34,7 @@ class RideBottomSheet extends StatelessWidget {
   final VoidCallback onOriginTap;
   final VoidCallback onDestinationTap;
   final VoidCallback onRequestRide;
+  final VoidCallback? onDestinationClear;
   final String? origin;
   final String? destination;
   final String? routeSummary;
@@ -126,6 +128,7 @@ class RideBottomSheet extends StatelessWidget {
                 destination: destination ?? 'Pra onde vamos?',
                 onOriginTap: onOriginTap,
                 onDestinationTap: onDestinationTap,
+                onDestinationClear: onDestinationClear,
               ),
               if (routeLoading) ...[
                 const SizedBox(height: RamoSpacing.sm),
@@ -241,12 +244,14 @@ class _TripCard extends StatelessWidget {
     required this.destination,
     required this.onOriginTap,
     required this.onDestinationTap,
+    this.onDestinationClear,
   });
 
   final String origin;
   final String destination;
   final VoidCallback onOriginTap;
   final VoidCallback onDestinationTap;
+  final VoidCallback? onDestinationClear;
 
   @override
   Widget build(BuildContext context) {
@@ -275,6 +280,7 @@ class _TripCard extends StatelessWidget {
             value: destination,
             onTap: onDestinationTap,
             destination: true,
+            trailingAction: onDestinationClear,
           ),
         ],
       ),
@@ -461,6 +467,7 @@ class _LocationField extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.destination = false,
+    this.trailingAction,
   });
 
   final IconData icon;
@@ -468,6 +475,7 @@ class _LocationField extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
   final bool destination;
+  final VoidCallback? trailingAction;
 
   @override
   Widget build(BuildContext context) {
@@ -521,10 +529,21 @@ class _LocationField extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .35),
-            ),
+            if (trailingAction != null)
+              IconButton(
+                tooltip: 'Remover destino',
+                onPressed: trailingAction,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: .35),
+              ),
           ],
         ),
       ),
