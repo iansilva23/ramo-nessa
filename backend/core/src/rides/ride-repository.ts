@@ -36,6 +36,17 @@ export interface AdminPassengerRideSummary {
   completedAmountCents: number;
 }
 
+export type RideChatSenderType = 'passenger' | 'driver';
+
+export interface RideChatMessageRecord {
+  id: string;
+  rideId: string;
+  senderType: RideChatSenderType;
+  senderId: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface DriverRideSummary {
   total: number;
   completed: number;
@@ -63,6 +74,13 @@ export interface RideRepository {
   getDriverRideSummary(
     driverId: string,
   ): Promise<DriverRideSummary>;
+  listChatMessages(
+    rideId: string,
+    limit: number,
+  ): Promise<RideChatMessageRecord[]>;
+  appendChatMessage(
+    message: RideChatMessageRecord,
+  ): Promise<RideChatMessageRecord>;
   listAdmin(input: AdminRideListInput): Promise<AdminRideListPage>;
   getAdminOperationalSummary(
     since: string,
