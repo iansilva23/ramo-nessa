@@ -332,6 +332,43 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<List<DriverRideChatMessage>> rideMessages(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/messages'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    final decoded = _expectObject(response, expectedStatus: 200);
+    final raw = decoded['messages'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(DriverRideChatMessage.fromJson)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<DriverRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/messages'),
+          headers: _headers,
+          body: jsonEncode({'body': body}),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    final decoded = _expectObject(response, expectedStatus: 201);
+    return DriverRideChatMessage.fromJson(
+      decoded['message'] as Map<String, dynamic>,
+    );
+  }
+
+  @override
   Future<DriverFinanceSummary> financeSummary() async {
     final response = await _client
         .get(
