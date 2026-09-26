@@ -237,3 +237,61 @@ test('frontend não persiste sessão e evita sinks HTML inseguros', () => {
   assert.match(html, /id="passengers-active"/);
   assert.match(html, /id="passengers-suspended"/);
 });
+
+
+test('cliente Admin salva Instagram oficial sem vazar token', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      socialLinks: {
+        instagramHandle: '@ramonessa',
+        instagramUrl: 'https://www.instagram.com/ramonessa/',
+        updatedAt: '2026-09-26T13:45:00.000Z',
+      },
+    });
+  };
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_social_links_test';
+
+  await api.updateSocialLinks(token, {
+    instagramHandle: '@ramonessa',
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, '/v1/admin/social-links');
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    instagramHandle: '@ramonessa',
+  });
+});
+
+test('Admin expõe campo de Instagram controlado por comunicações', () => {
+  const html = readFileSync(
+    new URL('../index.html', import.meta.url),
+    'utf8',
+  );
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  for (const id of [
+    'social-links-form',
+    'social-instagram-handle',
+    'social-instagram-preview',
+    'social-links-updated-at',
+    'save-social-links-button',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(app, /renderSocialLinks/);
+  assert.match(app, /api\.updateSocialLinks/);
+  assert.match(app, /payload\?\.socialLinks/);
+});
