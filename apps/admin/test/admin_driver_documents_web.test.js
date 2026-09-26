@@ -397,3 +397,18 @@ test('ADM carrega lista proativa de pendências documentais', async () => {
     `Bearer ${token}`,
   );
 });
+
+test('decisões documentais sensíveis exigem confirmação', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /Confirmar decisão sobre o documento/,
+  );
+  assert.match(app, /Confirmar bloqueio documental/);
+  assert.match(app, /Confirmar liberação documental/);
+  assert.match(app, /Confirmar decisão de manter ativo/);
+});
