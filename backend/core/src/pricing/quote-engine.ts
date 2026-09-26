@@ -347,7 +347,7 @@ function quoteJeriLocal(
     ) {
       throw new PricingError(
         'INVALID_PASSENGER_COUNT',
-        'Buggy aceita de 1 a 4 passageiros.',
+        `Buggy aceita de ${catalog.jeri.buggy.minPassengers} a ${catalog.jeri.buggy.maxPassengers} passageiros.`,
       );
     }
 
@@ -355,9 +355,15 @@ function quoteJeriLocal(
       request.period === 'after_22'
         ? catalog.jeri.buggy.after22BaseCents
         : catalog.jeri.buggy.dayBaseCents;
+    const additionalPassengers = Math.max(
+      0,
+      passengers - catalog.jeri.buggy.minPassengers,
+    );
     return exactQuote(
       'jeri-buggy',
-      base + passengers * catalog.jeri.buggy.perPassengerCents,
+      base +
+        additionalPassengers *
+          catalog.jeri.buggy.perPassengerCents,
       request,
       catalog,
     );
