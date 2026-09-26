@@ -1316,7 +1316,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   String _activityDateLabel(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
-    return day + '/' + month + '/' + value.year.toString();
+    return '$day/$month/${value.year}';
   }
 
   Future<void> _selectActivityPeriod(
@@ -1764,7 +1764,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
                           key: ValueKey(
-                            'driver-activity-filter-' + period.name,
+                            'driver-activity-filter-${period.name}',
                           ),
                           selected: _activityPeriod == period,
                           label: Text(_activityPeriodLabel(period)),
@@ -1780,9 +1780,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 _activityCustomRange != null) ...[
               const SizedBox(height: RamoSpacing.xs),
               Text(
-                _activityDateLabel(_activityCustomRange!.start) +
-                    ' a ' +
-                    _activityDateLabel(_activityCustomRange!.end),
+                '${_activityDateLabel(_activityCustomRange!.start)} a '
+                '${_activityDateLabel(_activityCustomRange!.end)}',
                 style: const TextStyle(
                   color: RamoColors.muted,
                   fontSize: 12,
