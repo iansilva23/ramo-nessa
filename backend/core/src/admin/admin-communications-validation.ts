@@ -267,3 +267,168 @@ export function parseAdminSocialLinksUpdate(body: unknown): {
     instagramUrl: `https://www.instagram.com/${username}/`,
   };
 }
+
+
+function optionalCleanText(
+  value: unknown,
+  field: string,
+  max: number,
+): string | undefined {
+  if (value == null || value === '') return undefined;
+  return cleanText(value, field, 1, max);
+}
+
+function cleanStringList(
+  value: unknown,
+  field: string,
+): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 30) {
+    throw new InvalidCommunicationsRequestError(
+      `${field} deve ser uma lista com no máximo 30 itens.`,
+    );
+  }
+  return value.map((item, index) =>
+    cleanText(item, `${field} ${index + 1}`, 1, 180),
+  );
+}
+
+export function parseAgencyTourSlug(raw: string): string {
+  const slug = raw.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,59}$/.test(slug)) {
+    throw new InvalidCommunicationsRequestError(
+      'Identificador do passeio deve usar letras minúsculas, números e hífen.',
+    );
+  }
+  return slug;
+}
+
+export function parseAdminAgencyTourUpdate(body: unknown): {
+  enabled: boolean;
+  sortOrder: number;
+  title: string;
+  badge: string;
+  shortDescription: string;
+  description: string;
+  highlights: string[];
+  included: string[];
+  excluded: string[];
+  duration?: string;
+  schedule?: string;
+  departure?: string;
+  priceLabel: string;
+  priceCents?: number;
+  priceSuffix?: string;
+  whatsappPhone: string;
+  whatsappMessage: string;
+} {
+  const value = objectBody(body);
+  if (typeof value.enabled !== 'boolean') {
+    throw new InvalidCommunicationsRequestError(
+      'enabled deve ser booleano.',
+    );
+  }
+
+  const sortOrder = value.sortOrder;
+  if (
+    typeof sortOrder !== 'number' ||
+    !Number.isInteger(sortOrder) ||
+    sortOrder < 0 ||
+    sortOrder > 10000
+  ) {
+    throw new InvalidCommunicationsRequestError(
+      'Ordem deve ser um inteiro entre 0 e 10000.',
+    );
+  }
+
+  let priceCents: number | undefined;
+  if (value.priceCents != null && value.priceCents !== '') {
+    if (
+      typeof value.priceCents !== 'number' ||
+      !Number.isInteger(value.priceCents) ||
+      value.priceCents < 0 ||
+      value.priceCents > 100000000
+    ) {
+      throw new InvalidCommunicationsRequestError(
+        'Preço deve ser informado em centavos e não pode ser negativo.',
+      );
+    }
+    priceCents = value.priceCents;
+  }
+
+  let whatsappPhone = '';
+  if (value.whatsappPhone != null && value.whatsappPhone !== '') {
+    if (typeof value.whatsappPhone !== 'string') {
+      throw new InvalidCommunicationsRequestError(
+        'WhatsApp é inválido.',
+      );
+    }
+    const digits = value.whatsappPhone.replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 15 || digits.startsWith('0')) {
+      throw new InvalidCommunicationsRequestError(
+        'WhatsApp deve incluir DDI e DDD, por exemplo +5588999999999.',
+      );
+    }
+    whatsappPhone = `+${digits}`;
+  }
+
+  const whatsappMessage =
+    value.whatsappMessage == null || value.whatsappMessage === ''
+      ? ''
+      : cleanText(
+          value.whatsappMessage,
+          'Mensagem do WhatsApp',
+          1,
+          500,
+        );
+
+  if (value.enabled === true && whatsappPhone.length === 0) {
+    throw new InvalidCommunicationsRequestError(
+      'Configure o WhatsApp antes de publicar o passeio.',
+    );
+  }
+
+  return {
+    enabled: value.enabled,
+    sortOrder,
+    title: cleanText(value.title, 'Nome do passeio', 1, 120),
+    badge: cleanText(value.badge, 'Selo', 1, 32).toUpperCase(),
+    shortDescription: cleanText(
+      value.shortDescription,
+      'Descrição curta',
+      1,
+      280,
+    ),
+    description: cleanText(
+      value.description,
+      'Descrição completa',
+      1,
+      4000,
+    ),
+    highlights: cleanStringList(value.highlights, 'Ponto do roteiro'),
+    included: cleanStringList(value.included, 'Item incluído'),
+    excluded: cleanStringList(value.excluded, 'Item não incluído'),
+    ...(optionalCleanText(value.duration, 'Duração', 100) == null
+      ? {}
+      : { duration: optionalCleanText(value.duration, 'Duração', 100)! }),
+    ...(optionalCleanText(value.schedule, 'Horários', 180) == null
+      ? {}
+      : { schedule: optionalCleanText(value.schedule, 'Horários', 180)! }),
+    ...(optionalCleanText(value.departure, 'Saída', 180) == null
+      ? {}
+      : { departure: optionalCleanText(value.departure, 'Saída', 180)! }),
+    priceLabel: cleanText(value.priceLabel, 'Rótulo do preço', 1, 40),
+    ...(priceCents == null ? {} : { priceCents }),
+    ...(optionalCleanText(value.priceSuffix, 'Complemento do preço', 80) == null
+      ? {}
+      : {
+          priceSuffix: optionalCleanText(
+            value.priceSuffix,
+            'Complemento do preço',
+            80,
+          )!,
+        }),
+    whatsappPhone,
+    whatsappMessage,
+  };
+}
