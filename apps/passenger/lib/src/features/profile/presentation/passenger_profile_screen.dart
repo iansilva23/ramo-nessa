@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
+import '../../../core/communications/social_links_service.dart';
 import '../../../core/config/ramo_core_config.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import 'passenger_help_screen.dart';
@@ -26,6 +28,7 @@ class PassengerProfileScreen extends StatefulWidget {
     this.paymentService,
     this.savedPlaceService,
     this.placeSearchService,
+    this.socialLinksService,
     this.onLogout,
     this.previewMode = false,
   });
@@ -37,6 +40,7 @@ class PassengerProfileScreen extends StatefulWidget {
   final PassengerPaymentService? paymentService;
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;
+  final SocialLinksService? socialLinksService;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -47,6 +51,7 @@ class PassengerProfileScreen extends StatefulWidget {
 
 class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
   PassengerAccount? _account;
+  AppSocialLinks? _socialLinks;
   bool _loading = true;
   bool _photoUpdating = false;
   String? _error;
@@ -54,7 +59,26 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_load);
+    Future<void>.microtask(_refresh);
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      _load(),
+      _loadSocialLinks(),
+    ]);
+  }
+
+  Future<void> _loadSocialLinks() async {
+    final service = widget.socialLinksService;
+    if (service == null) return;
+    try {
+      final links = await service.load();
+      if (!mounted) return;
+      setState(() => _socialLinks = links);
+    } catch (_) {
+      // Rede social é conteúdo auxiliar e não bloqueia o Perfil.
+    }
   }
 
   Future<void> _load() async {
@@ -257,6 +281,24 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
     }
   }
 
+  Future<void> _openInstagram() async {
+    final rawUrl = _socialLinks?.instagramUrl?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) return;
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null) return;
+
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!mounted || opened) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Não foi possível abrir o Instagram agora.'),
+      ),
+    );
+  }
+
   Future<void> _logout() async {
     final logout = widget.onLogout;
     if (logout == null) return;
@@ -277,7 +319,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
 
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
@@ -426,6 +468,15 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                   );
                 },
               ),
+              if (_socialLinks?.instagramUrl?.isNotEmpty == true)
+                _ProfileOption(
+                  key: const Key('passenger-instagram'),
+                  icon: Icons.alternate_email_rounded,
+                  title: 'Siga o Ramo Nessa no Instagram',
+                  subtitle:
+                      _socialLinks?.instagramHandle ?? 'Instagram oficial',
+                  onTap: _openInstagram,
+                ),
               _ProfileOption(
                 key: const Key('passenger-settings'),
                 icon: Icons.settings_outlined,
