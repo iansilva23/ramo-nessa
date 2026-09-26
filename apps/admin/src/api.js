@@ -496,6 +496,20 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    updatePassengerProfile(token, { passengerId, fullName, email }) {
+      return request(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}/profile`,
+        {
+          method: 'PATCH',
+          token,
+          body: {
+            ...(fullName == null ? {} : { fullName }),
+            ...(email == null ? {} : { email }),
+          },
+        },
+      );
+    },
+
     setPassengerStatus(token, { passengerId, status }) {
       return request(
         `/v1/admin/passengers/${encodeURIComponent(passengerId)}/auth/status`,
