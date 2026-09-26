@@ -4169,13 +4169,41 @@ const server = createServer(async (request, response) => {
         rawLimit == null || !/^\d{1,2}$/.test(rawLimit)
           ? 20
           : Math.max(1, Math.min(50, Number(rawLimit)));
+      const rawFrom = requestUrl.searchParams.get('from');
+      const rawTo = requestUrl.searchParams.get('to');
+      const from =
+        rawFrom == null || rawFrom.trim() === ''
+          ? undefined
+          : rawFrom.trim();
+      const to =
+        rawTo == null || rawTo.trim() === ''
+          ? undefined
+          : rawTo.trim();
+      if (
+        (from != null && !Number.isFinite(Date.parse(from))) ||
+        (to != null && !Number.isFinite(Date.parse(to))) ||
+        (
+          from != null &&
+          to != null &&
+          Date.parse(from) >= Date.parse(to)
+        )
+      ) {
+        json(response, 400, {
+          error: 'INVALID_ACTIVITY_PERIOD',
+          message: 'Período de atividade inválido.',
+        });
+        return;
+      }
       json(
         response,
         200,
         await driverActivityForApp({
           rides: rideRepository,
+          finance: financeRepository,
           driverId,
           limit,
+          from,
+          to,
         }),
       );
       return;
