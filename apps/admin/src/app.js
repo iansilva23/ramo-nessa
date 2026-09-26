@@ -122,6 +122,8 @@ const state = {
     updatedAt: null,
   },
   selectedRide: null,
+  selectedTourSlug: null,
+  tourCoverObjectUrl: null,
   auditEntries: [],
   auditDirectory: {
     nextCursor: null,
@@ -136,6 +138,7 @@ const state = {
     releasePolicies: [],
     agencyPromotion: null,
     socialLinks: null,
+    tours: [],
   },
   sessionTimer: null,
 };
@@ -345,6 +348,11 @@ function clearSession(message = '') {
     updatedAt: null,
   };
   state.selectedRide = null;
+  state.selectedTourSlug = null;
+  if (state.tourCoverObjectUrl != null) {
+    URL.revokeObjectURL(state.tourCoverObjectUrl);
+    state.tourCoverObjectUrl = null;
+  }
   state.auditEntries = [];
   state.auditDirectory = {
     nextCursor: null,
@@ -358,6 +366,8 @@ function clearSession(message = '') {
     campaigns: [],
     releasePolicies: [],
     agencyPromotion: null,
+    socialLinks: null,
+    tours: [],
   };
   adminView.hidden = true;
   authView.hidden = false;
@@ -5085,6 +5095,138 @@ function renderSocialLinks() {
       : `Atualizado em ${formatDateTime(socialLinks.updatedAt)}`;
 }
 
+function tourLines(value) {
+  return String(value ?? '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resetTourCoverPreview() {
+  if (state.tourCoverObjectUrl != null) {
+    URL.revokeObjectURL(state.tourCoverObjectUrl);
+    state.tourCoverObjectUrl = null;
+  }
+  const image = byId('tour-cover-preview');
+  image.removeAttribute('src');
+  image.hidden = true;
+  byId('tour-cover-placeholder').hidden = false;
+}
+
+function fillTourForm(tour) {
+  const existing = tour != null;
+  byId('tour-slug').readOnly = existing;
+  byId('tour-slug').value = tour?.slug ?? '';
+  byId('tour-enabled').checked = tour?.enabled === true;
+  byId('tour-sort-order').value = String(tour?.sortOrder ?? 100);
+  byId('tour-title').value = tour?.title ?? '';
+  byId('tour-badge').value = tour?.badge ?? 'EXPERIÊNCIA';
+  byId('tour-short-description').value =
+    tour?.shortDescription ?? '';
+  byId('tour-description').value = tour?.description ?? '';
+  byId('tour-highlights').value =
+    Array.isArray(tour?.highlights) ? tour.highlights.join('\n') : '';
+  byId('tour-included').value =
+    Array.isArray(tour?.included) ? tour.included.join('\n') : '';
+  byId('tour-excluded').value =
+    Array.isArray(tour?.excluded) ? tour.excluded.join('\n') : '';
+  byId('tour-duration').value = tour?.duration ?? '';
+  byId('tour-schedule').value = tour?.schedule ?? '';
+  byId('tour-departure').value = tour?.departure ?? '';
+  byId('tour-price-label').value = tour?.priceLabel ?? 'A partir de';
+  byId('tour-price-reais').value =
+    tour?.priceCents == null
+      ? ''
+      : (Number(tour.priceCents) / 100).toFixed(2).replace('.', ',');
+  byId('tour-price-suffix').value = tour?.priceSuffix ?? '';
+  byId('tour-whatsapp-phone').value = tour?.whatsappPhone ?? '';
+  byId('tour-whatsapp-message').value = tour?.whatsappMessage ?? '';
+  byId('tour-updated-at').textContent =
+    tour?.updatedAt == null
+      ? 'Novo passeio'
+      : `Atualizado em ${formatDateTime(tour.updatedAt)}`;
+
+  resetTourCoverPreview();
+  const image = byId('tour-cover-preview');
+  const placeholder = byId('tour-cover-placeholder');
+  if (tour?.coverImageUrl && tour?.enabled === true) {
+    image.src = tour.coverImageUrl;
+    image.hidden = false;
+    placeholder.hidden = true;
+  } else if (Number(tour?.coverImageVersion ?? 0) > 0) {
+    placeholder.textContent =
+      'Foto salva. A prévia pública aparece quando o passeio estiver publicado.';
+  } else {
+    placeholder.textContent =
+      'Adicione uma foto de capa para o card do passeio.';
+  }
+}
+
+function selectTour(slug) {
+  const tour = state.communications.tours.find(
+    (item) => item.slug === slug,
+  );
+  if (tour == null) return;
+  state.selectedTourSlug = tour.slug;
+  fillTourForm(tour);
+  document.querySelectorAll('.tour-admin-item').forEach((button) => {
+    button.classList.toggle(
+      'is-active',
+      button.dataset.slug === tour.slug,
+    );
+  });
+}
+
+function renderTourCatalog() {
+  const tours = Array.isArray(state.communications.tours)
+    ? state.communications.tours
+    : [];
+  byId('tour-admin-summary').textContent =
+    `${tours.length} passeio(s)`;
+
+  const target = byId('tour-admin-list');
+  target.replaceChildren();
+
+  for (const tour of tours) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tour-admin-item';
+    button.dataset.slug = tour.slug;
+    button.classList.toggle(
+      'is-active',
+      state.selectedTourSlug === tour.slug,
+    );
+
+    const title = document.createElement('strong');
+    title.textContent = tour.title ?? tour.slug;
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${tour.enabled ? 'Publicado' : 'Rascunho'} · ordem ${tour.sortOrder ?? 0}`;
+    button.append(title, meta);
+    button.addEventListener('click', () => selectTour(tour.slug));
+    target.append(button);
+  }
+
+  const selected = tours.find(
+    (tour) => tour.slug === state.selectedTourSlug,
+  );
+  if (selected != null) {
+    fillTourForm(selected);
+  } else if (tours.length > 0) {
+    state.selectedTourSlug = tours[0].slug;
+    fillTourForm(tours[0]);
+    target.querySelector('[data-slug]')?.classList.add('is-active');
+  } else {
+    state.selectedTourSlug = null;
+    fillTourForm(null);
+  }
+
+  const canWrite = hasScope('communications:write');
+  byId('save-tour-button').disabled = !canWrite;
+  byId('upload-tour-cover-button').disabled = !canWrite;
+  byId('tour-new-button').disabled = !canWrite;
+}
+
 function renderCommunications() {
   const provider = state.communications.deliveryProvider || 'disabled';
   const badge = byId('communications-provider');
@@ -5097,6 +5239,7 @@ function renderCommunications() {
   syncReleasePolicyForm();
   renderAgencyPromotion();
   renderSocialLinks();
+  renderTourCatalog();
 
   const canWrite = hasScope('communications:write');
   byId('send-notification-button').disabled = !canWrite;
@@ -5119,6 +5262,7 @@ async function loadCommunications({ announce = true } = {}) {
         : [],
       agencyPromotion: payload?.agencyPromotion ?? null,
       socialLinks: payload?.socialLinks ?? null,
+      tours: Array.isArray(payload?.tours) ? payload.tours : [],
     };
     renderCommunications();
     if (announce) {
@@ -5245,6 +5389,143 @@ async function handleSocialLinksSubmit(event) {
       'Instagram oficial salvo.',
       'success',
     );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+function handleTourNew() {
+  if (!hasScope('communications:write')) return;
+  state.selectedTourSlug = null;
+  fillTourForm(null);
+  document.querySelectorAll('.tour-admin-item').forEach((button) => {
+    button.classList.remove('is-active');
+  });
+  byId('tour-slug').focus();
+}
+
+function tourPriceCentsFromInput() {
+  const raw = byId('tour-price-reais').value.trim();
+  if (!raw) return null;
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  const reais = Number(normalized);
+  if (!Number.isFinite(reais) || reais < 0) {
+    throw new Error('Informe um preço válido.');
+  }
+  return Math.round(reais * 100);
+}
+
+async function handleTourSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const slug = byId('tour-slug').value
+    .trim()
+    .toLowerCase();
+  const button = byId('save-tour-button');
+  button.disabled = true;
+  try {
+    const payload = {
+      enabled: byId('tour-enabled').checked,
+      sortOrder: Number(byId('tour-sort-order').value),
+      title: byId('tour-title').value.trim(),
+      badge: byId('tour-badge').value.trim(),
+      shortDescription:
+        byId('tour-short-description').value.trim(),
+      description: byId('tour-description').value.trim(),
+      highlights: tourLines(byId('tour-highlights').value),
+      included: tourLines(byId('tour-included').value),
+      excluded: tourLines(byId('tour-excluded').value),
+      duration: byId('tour-duration').value.trim(),
+      schedule: byId('tour-schedule').value.trim(),
+      departure: byId('tour-departure').value.trim(),
+      priceLabel: byId('tour-price-label').value.trim(),
+      priceCents: tourPriceCentsFromInput(),
+      priceSuffix: byId('tour-price-suffix').value.trim(),
+      whatsappPhone:
+        byId('tour-whatsapp-phone').value.trim(),
+      whatsappMessage:
+        byId('tour-whatsapp-message').value.trim(),
+    };
+    await api.saveAgencyTour(state.token, slug, payload);
+    state.selectedTourSlug = slug;
+    setMessage(
+      globalMessage,
+      'Passeio salvo. O app usa essas informações sem precisar de novo build.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+function previewSelectedTourCover(file) {
+  resetTourCoverPreview();
+  if (file == null) return;
+  state.tourCoverObjectUrl = URL.createObjectURL(file);
+  const image = byId('tour-cover-preview');
+  image.src = state.tourCoverObjectUrl;
+  image.hidden = false;
+  byId('tour-cover-placeholder').hidden = true;
+}
+
+async function handleTourCoverUpload() {
+  if (!state.token || !hasScope('communications:write')) return;
+  const slug = state.selectedTourSlug;
+  const file = byId('tour-cover-file').files?.[0] ?? null;
+  if (!slug) {
+    setMessage(
+      globalMessage,
+      'Salve o passeio antes de enviar a foto.',
+      'danger',
+    );
+    return;
+  }
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha uma foto de capa.', 'danger');
+    return;
+  }
+  if (
+    !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+  ) {
+    setMessage(
+      globalMessage,
+      'A foto deve ser JPEG, PNG ou WebP.',
+      'danger',
+    );
+    return;
+  }
+  if (file.size <= 0 || file.size > 8 * 1024 * 1024) {
+    setMessage(
+      globalMessage,
+      'A foto deve ter no máximo 8 MB.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('upload-tour-cover-button');
+  button.disabled = true;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await api.uploadAgencyTourCover(state.token, slug, {
+      bytes,
+      contentType: file.type,
+    });
+    setMessage(
+      globalMessage,
+      'Foto de capa atualizada.',
+      'success',
+    );
+    byId('tour-cover-file').value = '';
     await loadCommunications({ announce: false });
   } catch (error) {
     handleAuthenticatedError(error);
@@ -5398,6 +5679,18 @@ byId('agency-form').addEventListener('submit', (event) => {
 byId('social-links-form').addEventListener('submit', (event) => {
   void handleSocialLinksSubmit(event);
 });
+byId('tour-form').addEventListener('submit', (event) => {
+  void handleTourSubmit(event);
+});
+byId('tour-new-button').addEventListener('click', () => {
+  handleTourNew();
+});
+byId('tour-cover-file').addEventListener('change', (event) => {
+  previewSelectedTourCover(event.currentTarget.files?.[0] ?? null);
+});
+byId('upload-tour-cover-button').addEventListener('click', () => {
+  void handleTourCoverUpload();
+});
 byId('release-app-kind').addEventListener('change', () => {
   syncReleasePolicyForm();
 });
@@ -5463,6 +5756,7 @@ renderPricingEditor();
 renderNotificationHistory();
 renderAgencyPromotion();
 renderSocialLinks();
+renderTourCatalog();
 syncPricingEditFields();
 syncPricingLocalityPriceFields();
 syncDocumentRejectionRequirement();
