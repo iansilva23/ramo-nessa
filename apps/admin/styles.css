@@ -3320,3 +3320,155 @@ td strong {
     width: 100%;
   }
 }
+
+
+/* Catálogo de passeios */
+.tour-admin-card {
+  margin-top: 18px;
+}
+
+.tour-admin-heading p {
+  max-width: 760px;
+  margin: 8px 0 0;
+}
+
+.tour-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.tour-admin-directory {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--raised);
+}
+
+.tour-admin-directory > .button {
+  width: 100%;
+}
+
+.tour-admin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tour-admin-item {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tour-admin-item.is-active {
+  border-color: rgba(250, 213, 14, 0.9);
+  box-shadow: 0 0 0 3px rgba(250, 213, 14, 0.14);
+}
+
+.tour-admin-item strong,
+.tour-admin-item small {
+  display: block;
+}
+
+.tour-admin-item small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.tour-admin-editor {
+  min-width: 0;
+}
+
+.tour-form {
+  padding: 0;
+}
+
+.tour-cover-editor {
+  display: grid;
+  grid-template-columns: minmax(220px, .8fr) minmax(260px, 1.2fr);
+  gap: 16px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.tour-cover-preview {
+  min-height: 190px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 18px;
+  background: var(--raised);
+}
+
+.tour-cover-preview img {
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  object-fit: cover;
+}
+
+#tour-cover-placeholder {
+  max-width: 260px;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tour-cover-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+.tour-cover-actions .button {
+  align-self: flex-start;
+}
+
+@media (max-width: 980px) {
+  .tour-admin-layout,
+  .tour-cover-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .tour-admin-directory {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .tour-admin-directory > .button {
+    width: auto;
+  }
+
+  .tour-admin-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .tour-admin-directory {
+    grid-template-columns: 1fr;
+  }
+
+  .tour-admin-list {
+    grid-template-columns: 1fr;
+  }
+
+  .tour-cover-actions .button {
+    width: 100%;
+  }
+}
