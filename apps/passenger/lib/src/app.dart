@@ -5,6 +5,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import 'core/auth/http_phone_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
+import 'core/communications/firebase_push_registration_service.dart';
 import 'core/communications/social_links_service.dart';
 import 'core/config/ramo_core_config.dart';
 import 'core/location/location_service.dart';
@@ -180,6 +181,13 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código por SMS para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => shell(token, logout),
+        onSessionReady: (token) =>
+            FirebasePushRegistrationService.instance.start(
+              baseUrl: coreUri,
+              accessToken: token,
+            ),
+        onSessionEnded:
+            FirebasePushRegistrationService.instance.stop,
       );
     }
 
