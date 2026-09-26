@@ -34,6 +34,14 @@ import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'widgets/driver_live_map.dart';
 
+enum _DriverActivityPeriod {
+  sevenDays,
+  fifteenDays,
+  thirtyDays,
+  threeMonths,
+  custom,
+}
+
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({
     super.key,
@@ -116,6 +124,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
   DriverActivitySnapshot? _activity;
+  _DriverActivityPeriod _activityPeriod =
+      _DriverActivityPeriod.sevenDays;
+  DateTimeRange? _activityCustomRange;
+  int _activityRequestId = 0;
   AppSocialLinks? _socialLinks;
   List<NearbyDriverPosition> _nearbyDrivers = const [];
   bool _nearbyRequestInFlight = false;
@@ -1236,19 +1248,131 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
-  Future<void> _refreshActivity() async {
+  DateTime _activityStartOfDay(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  DateTime _activityEndExclusive(DateTime value) =>
+      DateTime(value.year, value.month, value.day + 1);
+
+  ({DateTime from, DateTime to}) _activityRange() {
+    final now = DateTime.now();
+    final end = _activityEndExclusive(now);
+
+    switch (_activityPeriod) {
+      case _DriverActivityPeriod.sevenDays:
+        return (
+          from: _activityStartOfDay(
+            now.subtract(const Duration(days: 6)),
+          ),
+          to: end,
+        );
+      case _DriverActivityPeriod.fifteenDays:
+        return (
+          from: _activityStartOfDay(
+            now.subtract(const Duration(days: 14)),
+          ),
+          to: end,
+        );
+      case _DriverActivityPeriod.thirtyDays:
+        return (
+          from: _activityStartOfDay(
+            now.subtract(const Duration(days: 29)),
+          ),
+          to: end,
+        );
+      case _DriverActivityPeriod.threeMonths:
+        return (
+          from: _activityStartOfDay(
+            now.subtract(const Duration(days: 89)),
+          ),
+          to: end,
+        );
+      case _DriverActivityPeriod.custom:
+        final range = _activityCustomRange;
+        if (range == null) {
+          return (
+            from: _activityStartOfDay(
+              now.subtract(const Duration(days: 6)),
+            ),
+            to: end,
+          );
+        }
+        return (
+          from: _activityStartOfDay(range.start),
+          to: _activityEndExclusive(range.end),
+        );
+    }
+  }
+
+  String _activityPeriodLabel(_DriverActivityPeriod period) =>
+      switch (period) {
+        _DriverActivityPeriod.sevenDays => '7 dias',
+        _DriverActivityPeriod.fifteenDays => '15 dias',
+        _DriverActivityPeriod.thirtyDays => '30 dias',
+        _DriverActivityPeriod.threeMonths => '3 meses',
+        _DriverActivityPeriod.custom => 'Personalizado',
+      };
+
+  String _activityDateLabel(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return day + '/' + month + '/' + value.year.toString();
+  }
+
+  Future<void> _selectActivityPeriod(
+    _DriverActivityPeriod period,
+  ) async {
+    if (period == _DriverActivityPeriod.custom) {
+      final now = DateTime.now();
+      final initial = _activityCustomRange ??
+          DateTimeRange(
+            start: now.subtract(const Duration(days: 6)),
+            end: now,
+          );
+      final selected = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(now.year - 2),
+        lastDate: now,
+        initialDateRange: initial,
+        helpText: 'Escolha o período',
+        cancelText: 'Cancelar',
+        confirmText: 'Aplicar',
+        saveText: 'Aplicar',
+      );
+      if (selected == null || !mounted) return;
+      setState(() {
+        _activityPeriod = period;
+        _activityCustomRange = selected;
+      });
+      await _refreshActivity(force: true);
+      return;
+    }
+
+    if (_activityPeriod == period) return;
+    setState(() => _activityPeriod = period);
+    await _refreshActivity(force: true);
+  }
+
+  Future<void> _refreshActivity({bool force = false}) async {
     final api = _api;
-    if (api == null || _activityLoading) return;
+    if (api == null || (_activityLoading && !force)) return;
+
+    final requestId = ++_activityRequestId;
+    final range = _activityRange();
     if (mounted) setState(() => _activityLoading = true);
+
     try {
-      final activity = await api.activity();
-      if (!mounted) return;
+      final activity = await api.activity(
+        from: range.from,
+        to: range.to,
+      );
+      if (!mounted || requestId != _activityRequestId) return;
       setState(() {
         _activity = activity;
         _activityLoading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || requestId != _activityRequestId) return;
       setState(() => _activityLoading = false);
     }
   }
@@ -1628,8 +1752,44 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             const _SectionHeader(
               eyebrow: 'CORRIDAS',
               title: 'Atividade',
-              subtitle: 'Resumo e histórico recente da sua operação.',
+              subtitle: 'Veja corridas e ganhos pelo período escolhido.',
             ),
+            const SizedBox(height: RamoSpacing.md),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _DriverActivityPeriod.values
+                    .map(
+                      (period) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          key: ValueKey(
+                            'driver-activity-filter-' + period.name,
+                          ),
+                          selected: _activityPeriod == period,
+                          label: Text(_activityPeriodLabel(period)),
+                          onSelected: (_) =>
+                              _selectActivityPeriod(period),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+            if (_activityPeriod == _DriverActivityPeriod.custom &&
+                _activityCustomRange != null) ...[
+              const SizedBox(height: RamoSpacing.xs),
+              Text(
+                _activityDateLabel(_activityCustomRange!.start) +
+                    ' a ' +
+                    _activityDateLabel(_activityCustomRange!.end),
+                style: const TextStyle(
+                  color: RamoColors.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(height: RamoSpacing.lg),
             if (_activityLoading && activity == null)
               const Center(child: CircularProgressIndicator())
@@ -1666,7 +1826,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               const SizedBox(height: RamoSpacing.xl),
             ],
             const Text(
-              'Histórico recente',
+              'Corridas no período',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 17,
