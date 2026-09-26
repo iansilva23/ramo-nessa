@@ -9,6 +9,7 @@ import type {
   AdminNotificationCategory,
   AgencyPromotionRecord,
   AppReleasePolicyRecord,
+  SocialLinksRecord,
 } from '../admin-communications-repository.js';
 
 interface CampaignRow {
@@ -33,6 +34,12 @@ interface ReleaseRow {
   minimum_build: number;
   store_url: string | null;
   update_message: string;
+  updated_at: Date;
+}
+
+interface SocialLinksRow {
+  instagram_handle: string | null;
+  instagram_url: string | null;
   updated_at: Date;
 }
 
@@ -72,6 +79,18 @@ function mapRelease(row: ReleaseRow): AppReleasePolicyRecord {
     minimumBuild: row.minimum_build,
     ...(row.store_url == null ? {} : { storeUrl: row.store_url }),
     updateMessage: row.update_message,
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapSocialLinks(row: SocialLinksRow): SocialLinksRecord {
+  return {
+    ...(row.instagram_handle == null
+      ? {}
+      : { instagramHandle: row.instagram_handle }),
+    ...(row.instagram_url == null
+      ? {}
+      : { instagramUrl: row.instagram_url }),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -240,5 +259,44 @@ export class PostgresAdminCommunicationsRepository
     const row = result.rows[0];
     if (row == null) throw new Error('Promoção da agência não foi persistida.');
     return mapPromotion(row);
+  }
+
+  async getSocialLinks(): Promise<SocialLinksRecord> {
+    const result = await this.pool.query<SocialLinksRow>(
+      `SELECT instagram_handle, instagram_url, updated_at
+       FROM app_social_links
+       WHERE id = 'ramo-nessa'
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      return { updatedAt: new Date(0).toISOString() };
+    }
+    return mapSocialLinks(row);
+  }
+
+  async saveSocialLinks(
+    record: SocialLinksRecord,
+  ): Promise<SocialLinksRecord> {
+    const result = await this.pool.query<SocialLinksRow>(
+      `INSERT INTO app_social_links (
+         id, instagram_handle, instagram_url, updated_at
+       )
+       VALUES ('ramo-nessa', $1, $2, $3)
+       ON CONFLICT (id)
+       DO UPDATE SET
+         instagram_handle = EXCLUDED.instagram_handle,
+         instagram_url = EXCLUDED.instagram_url,
+         updated_at = EXCLUDED.updated_at
+       RETURNING instagram_handle, instagram_url, updated_at`,
+      [
+        record.instagramHandle ?? null,
+        record.instagramUrl ?? null,
+        record.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Links sociais não foram persistidos.');
+    return mapSocialLinks(row);
   }
 }
