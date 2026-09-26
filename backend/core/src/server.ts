@@ -50,10 +50,13 @@ import { PayoutDomainError } from './payments/payout.js';
 import {
   driverFinanceStatement,
   driverFinanceSummary,
+  driverPayoutDestinationForApp,
   requestDriverPayoutFromApp,
+  saveDriverPayoutDestinationFromApp,
 } from './drivers/driver-finance-service.js';
 import {
   InvalidDriverFinanceRequestError,
+  parseDriverPayoutDestinationRequest,
   parseDriverPayoutRequest,
 } from './drivers/driver-finance-validation.js';
 import {
@@ -3851,6 +3854,51 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/payout-destination'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await driverPayoutDestinationForApp(
+          financeRepository,
+          driverId,
+        ),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/driver/me/payout-destination'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = parseDriverPayoutDestinationRequest(
+        await readJson(request),
+      );
+      json(
+        response,
+        200,
+        await saveDriverPayoutDestinationFromApp({
+          repository: financeRepository,
+          driverId,
+          pixKeyType: body.pixKeyType,
+          pixKey: body.pixKey,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/finance'
     ) {
       const driverId = await resolveDriverId({
@@ -3911,6 +3959,11 @@ const server = createServer(async (request, response) => {
           id: result.payout.id,
           amountCents: result.payout.amountCents,
           status: result.payout.status,
+          pixKeyType: result.payout.pixKeyType,
+          pixKeyMasked:
+            result.payout.pixKey.length > 4
+              ? `••••${result.payout.pixKey.slice(-4)}`
+              : '••••',
           createdAt: result.payout.createdAt,
         },
         duplicateRequest: result.duplicateRequest,
