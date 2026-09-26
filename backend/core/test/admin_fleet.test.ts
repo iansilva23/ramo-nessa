@@ -136,6 +136,8 @@ test('snapshot da frota inclui livres, ocupados e GPS atrasado', async () => {
     staleAfterSeconds: 120,
   });
 
+  assert.equal(snapshot.staleAfterSeconds, 120);
+
   assert.deepEqual(snapshot.summary, {
     totalOnline: 3,
     free: 2,
@@ -165,4 +167,45 @@ test('snapshot da frota inclui livres, ocupados e GPS atrasado', async () => {
   assert.equal(stale?.availability, 'free');
   assert.equal(stale?.location.status, 'stale');
   assert.equal(stale?.location.ageSeconds, 600);
+});
+
+
+test('snapshot da frota respeita janela de GPS configurada pelo Admin', async () => {
+  const drivers = new InMemoryDriverSupplyRepository();
+  const registry = new InMemoryDriverRegistryRepository();
+  const rides = new InMemoryRideRepository();
+
+  await drivers.upsert({
+    driverId: 'driver-gps-policy',
+    vehicleId: 'vehicle-gps-policy',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.82,
+    longitude: -40.41,
+    locationUpdatedAt: '2026-09-24T00:29:30.000Z',
+    updatedAt: '2026-09-24T00:29:30.000Z',
+  });
+
+  const strict = await adminFleetSnapshot({
+    drivers,
+    registry,
+    rides,
+    now,
+    staleAfterSeconds: 15,
+  });
+  const relaxed = await adminFleetSnapshot({
+    drivers,
+    registry,
+    rides,
+    now,
+    staleAfterSeconds: 45,
+  });
+
+  assert.equal(strict.staleAfterSeconds, 15);
+  assert.equal(strict.items[0]?.location.status, 'stale');
+  assert.equal(relaxed.staleAfterSeconds, 45);
+  assert.equal(relaxed.items[0]?.location.status, 'fresh');
 });
