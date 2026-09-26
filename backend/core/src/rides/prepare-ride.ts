@@ -112,7 +112,7 @@ export async function prepareRideForPayment(input: {
 
   const trustedQuoteRequest: QuoteRequest = {
     ...clientQuoteRequest,
-    period: pricingPeriodAt(now),
+    period: pricingPeriodAt(now, pricing.snapshot.periodPolicy),
     ...(authoritativeTripDistanceKm != null
       ? { tripDistanceKm: authoritativeTripDistanceKm }
       : {}),
