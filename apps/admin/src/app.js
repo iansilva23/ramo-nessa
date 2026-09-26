@@ -870,6 +870,7 @@ function renderDriverRegistry(payload, driverId) {
     target.textContent =
       `O motorista ${driverId} ainda não possui perfil e veículo cadastrados.`;
     byId('registry-status-button').disabled = true;
+    syncDriverAuthActionAvailability();
     return;
   }
 
@@ -5773,6 +5774,7 @@ async function lookupDriver(driverId) {
   try {
     const driver = await api.getDriver(state.token, driverId);
     state.currentDriver = driver;
+    state.currentDriverRegistry = null;
     renderDriver(driver);
     await loadDriverRegistry(driverId);
     await loadDriverDocuments(driverId);
@@ -5828,6 +5830,7 @@ async function handleDriverProvision(event) {
       status,
     });
     state.currentDriver = result;
+    state.currentDriverRegistry = null;
     byId('driver-search-id').value = driverId;
     renderDriver(result);
     await loadDriverRegistry(driverId);
