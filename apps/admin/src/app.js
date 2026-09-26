@@ -135,6 +135,7 @@ const state = {
     campaigns: [],
     releasePolicies: [],
     agencyPromotion: null,
+    socialLinks: null,
   },
   sessionTimer: null,
 };
@@ -5071,6 +5072,19 @@ function renderAgencyPromotion() {
     `pill ${promotion.enabled ? 'pill--success' : 'pill--neutral'}`;
 }
 
+function renderSocialLinks() {
+  const socialLinks = state.communications.socialLinks;
+  const handle = socialLinks?.instagramHandle ?? '';
+
+  byId('social-instagram-handle').value = handle;
+  byId('social-instagram-preview').textContent =
+    handle || 'Não configurado';
+  byId('social-links-updated-at').textContent =
+    socialLinks?.updatedAt == null
+      ? 'Ainda não configurado'
+      : `Atualizado em ${formatDateTime(socialLinks.updatedAt)}`;
+}
+
 function renderCommunications() {
   const provider = state.communications.deliveryProvider || 'disabled';
   const badge = byId('communications-provider');
@@ -5082,11 +5096,13 @@ function renderCommunications() {
   renderNotificationHistory();
   syncReleasePolicyForm();
   renderAgencyPromotion();
+  renderSocialLinks();
 
   const canWrite = hasScope('communications:write');
   byId('send-notification-button').disabled = !canWrite;
   byId('save-release-policy-button').disabled = !canWrite;
   byId('save-agency-button').disabled = !canWrite;
+  byId('save-social-links-button').disabled = !canWrite;
 }
 
 async function loadCommunications({ announce = true } = {}) {
@@ -5102,6 +5118,7 @@ async function loadCommunications({ announce = true } = {}) {
         ? payload.releasePolicies
         : [],
       agencyPromotion: payload?.agencyPromotion ?? null,
+      socialLinks: payload?.socialLinks ?? null,
     };
     renderCommunications();
     if (announce) {
@@ -5203,6 +5220,29 @@ async function handleAgencySubmit(event) {
     setMessage(
       globalMessage,
       'Divulgação da Ramo Nessa Agência salva.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+async function handleSocialLinksSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const button = byId('save-social-links-button');
+  button.disabled = true;
+  try {
+    await api.updateSocialLinks(state.token, {
+      instagramHandle: byId('social-instagram-handle').value.trim(),
+    });
+    setMessage(
+      globalMessage,
+      'Instagram oficial salvo.',
       'success',
     );
     await loadCommunications({ announce: false });
@@ -5355,6 +5395,9 @@ byId('release-policy-form').addEventListener('submit', (event) => {
 byId('agency-form').addEventListener('submit', (event) => {
   void handleAgencySubmit(event);
 });
+byId('social-links-form').addEventListener('submit', (event) => {
+  void handleSocialLinksSubmit(event);
+});
 byId('release-app-kind').addEventListener('change', () => {
   syncReleasePolicyForm();
 });
@@ -5419,6 +5462,7 @@ renderPricingVersions();
 renderPricingEditor();
 renderNotificationHistory();
 renderAgencyPromotion();
+renderSocialLinks();
 syncPricingEditFields();
 syncPricingLocalityPriceFields();
 syncDocumentRejectionRequirement();
