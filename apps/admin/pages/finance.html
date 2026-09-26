@@ -43,21 +43,21 @@
               </div>
               <form id="finance-methods-form" class="finance-cash-grid">
                 <label class="finance-payment-method-toggle">
-                  <input id="finance-pix-enabled" type="checkbox">
+                  <input id="finance-pix-enabled" type="checkbox" disabled>
                   <span>
                     <strong>Pix</strong>
                     <small>Pagamento via Mercado Pago Pix.</small>
                   </span>
                 </label>
                 <label class="finance-payment-method-toggle">
-                  <input id="finance-card-enabled" type="checkbox">
+                  <input id="finance-card-enabled" type="checkbox" disabled>
                   <span>
                     <strong>Cartão</strong>
                     <small>Crédito/débito à vista pelo gateway.</small>
                   </span>
                 </label>
                 <label class="finance-payment-method-toggle">
-                  <input id="finance-wallet-enabled" type="checkbox">
+                  <input id="finance-wallet-enabled" type="checkbox" disabled>
                   <span>
                     <strong>Carteira</strong>
                     <small>Saldo interno do Passageiro.</small>
@@ -68,6 +68,7 @@
                     id="finance-methods-save"
                     class="button button--dark"
                     type="submit"
+                    disabled
                   >
                     Salvar métodos
                   </button>
@@ -97,6 +98,7 @@
                   <input
                     id="finance-cash-limit-input"
                     type="number"
+                    disabled
                     min="0"
                     max="1000000"
                     step="0.01"
@@ -112,6 +114,7 @@
                     id="finance-cash-limit-save"
                     class="button button--dark"
                     type="submit"
+                    disabled
                   >
                     Salvar limite padrão
                   </button>
@@ -132,7 +135,7 @@
               <div class="finance-cash-grid">
                 <div>
                   <span class="metric-label">Limite futuro de dívida</span>
-                  <strong id="finance-cash-debt-limit">R$ 120,00</strong>
+                  <strong id="finance-cash-debt-limit">—</strong>
                   <small>Comissão máxima em aberto do motorista</small>
                 </div>
                 <div>
@@ -189,7 +192,7 @@
                       min="0"
                       max="20"
                       step="0.01"
-                      value="0.99"
+                      disabled
                       required
                     >
                     <strong>%</strong>
@@ -210,6 +213,7 @@
                     id="finance-pix-price-save"
                     class="button button--dark"
                     type="submit"
+                    disabled
                   >
                     Salvar preço no Pix
                   </button>
@@ -244,7 +248,7 @@
                       min="0"
                       max="20"
                       step="0.01"
-                      value="4.98"
+                      disabled
                       required
                     >
                     <strong>%</strong>
@@ -265,6 +269,7 @@
                     id="finance-card-price-save"
                     class="button button--dark"
                     type="submit"
+                    disabled
                   >
                     Salvar preço no cartão
                   </button>
