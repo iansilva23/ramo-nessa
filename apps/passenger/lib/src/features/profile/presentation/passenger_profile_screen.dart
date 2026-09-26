@@ -399,8 +399,8 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
               _ProfileOption(
                 key: const Key('passenger-saved-places'),
                 icon: Icons.bookmark_outline_rounded,
-                title: 'Endereços favoritos',
-                subtitle: 'Casa, trabalho e locais salvos',
+                title: 'Meus endereços',
+                subtitle: 'Casa, trabalho, pousada e locais salvos',
                 onTap: () {
                   final service = widget.savedPlaceService;
                   final searchService = widget.placeSearchService;
