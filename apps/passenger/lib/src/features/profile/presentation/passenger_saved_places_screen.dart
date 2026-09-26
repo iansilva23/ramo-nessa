@@ -491,7 +491,7 @@ class _SavedPlaceEditorScreenState
               maxLength: 40,
               decoration: const InputDecoration(
                 labelText: 'Nome do endereço',
-                hintText: 'Ex.: Praia favorita',
+                hintText: 'Ex.: Pousada, restaurante ou praia',
               ),
             ),
             const SizedBox(height: RamoSpacing.sm),
