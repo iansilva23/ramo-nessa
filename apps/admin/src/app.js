@@ -116,15 +116,7 @@ const state = {
     from: '',
     to: '',
   },
-  operationalSettings: {
-    driverOfferTtlSeconds: 35,
-    driverPaymentHoldSeconds: 90,
-    driverLocationMaxAgeSeconds: 120,
-    nearbyDriverMaxDistanceKm: 15,
-    showNearbyDrivers: false,
-    driverDocumentAutoEnforcement: false,
-    updatedAt: null,
-  },
+  operationalSettings: null,
   selectedRide: null,
   selectedTourSlug: null,
   tourCoverObjectUrl: null,
@@ -446,15 +438,7 @@ function clearSession(message = '') {
     from: '',
     to: '',
   };
-  state.operationalSettings = {
-    driverOfferTtlSeconds: 35,
-    driverPaymentHoldSeconds: 90,
-    driverLocationMaxAgeSeconds: 120,
-    nearbyDriverMaxDistanceKm: 15,
-    showNearbyDrivers: false,
-    driverDocumentAutoEnforcement: false,
-    updatedAt: null,
-  };
+  state.operationalSettings = null;
   state.selectedRide = null;
   state.selectedTourSlug = null;
   if (state.tourCoverObjectUrl != null) {
@@ -999,15 +983,13 @@ function renderDriverCashPolicy(policy) {
   form.hidden = !hasScope('finance:read');
   const input = byId('driver-cash-limit-reais');
   input.disabled = !canEdit;
-  input.min = String(
-    Math.trunc(policy.defaultDebtLimitCents / 100),
-  );
-  input.value = String(
-    Math.trunc(
+  input.min =
+    (policy.defaultDebtLimitCents / 100).toFixed(2);
+  input.value =
+    (
       (policy.overrideDebtLimitCents ??
-        policy.defaultDebtLimitCents) / 100,
-    ),
-  );
+        policy.defaultDebtLimitCents) / 100
+    ).toFixed(2);
   byId('driver-cash-limit-save').disabled = !canEdit;
   byId('driver-cash-limit-reset').disabled =
     !canEdit || policy.overrideDebtLimitCents == null;
@@ -1064,12 +1046,18 @@ async function handleDriverCashPolicySubmit(event) {
   }
 
   const reais = Number(byId('driver-cash-limit-reais').value);
-  const minimum =
-    state.currentDriverCashPolicy.defaultDebtLimitCents / 100;
-  if (!Number.isInteger(reais) || reais < minimum) {
+  const cents = Math.round(reais * 100);
+  const minimumCents =
+    state.currentDriverCashPolicy.defaultDebtLimitCents;
+  if (
+    !Number.isFinite(reais) ||
+    cents < minimumCents ||
+    cents > 100_000_000 ||
+    Math.abs(reais * 100 - cents) > 0.000001
+  ) {
     setMessage(
       globalMessage,
-      `O limite individual deve ser um valor inteiro de pelo menos R$ ${minimum}.`,
+      `O limite individual deve ficar entre ${formatCurrencyCents(minimumCents)} e R$ 1.000.000,00, com no máximo 2 casas decimais.`,
       'danger',
     );
     return;
@@ -1080,7 +1068,7 @@ async function handleDriverCashPolicySubmit(event) {
   try {
     const policy = await api.setDriverCashPolicy(state.token, {
       driverId: state.currentDriver.driverId,
-      debtLimitCents: reais * 100,
+      debtLimitCents: cents,
     });
     renderDriverCashPolicy(policy);
     setMessage(
@@ -4955,64 +4943,111 @@ function formatKm(value) {
     : '—';
 }
 
-function renderOperationalSettings(payload = state.operationalSettings) {
-  const ttl = Number(payload?.driverOfferTtlSeconds);
-  const safeTtl = Number.isInteger(ttl) && ttl >= 5 && ttl <= 120
-    ? ttl
-    : 35;
-  const paymentHold = Number(payload?.driverPaymentHoldSeconds);
-  const safePaymentHold =
+function renderOperationalSettings(
+  payload = state.operationalSettings,
+) {
+  const status = byId('operational-settings-status');
+  const updated = byId('operational-settings-updated-at');
+  const numericIds = [
+    'driver-offer-ttl-seconds',
+    'driver-payment-hold-seconds',
+    'driver-location-max-age-seconds',
+    'nearby-driver-max-distance-km',
+  ];
+  const toggleIds = [
+    'show-nearby-drivers',
+    'driver-document-auto-enforcement',
+  ];
+
+  const lock = (
+    statusText = 'Carregando',
+    detail = 'Aguardando configurações do Core',
+    tone = 'neutral',
+  ) => {
+    state.operationalSettings = null;
+    for (const id of numericIds) {
+      const input = byId(id);
+      input.value = '';
+      input.disabled = true;
+    }
+    for (const id of toggleIds) {
+      const input = byId(id);
+      input.checked = false;
+      input.disabled = true;
+    }
+    byId('save-operational-settings-button').disabled = true;
+    status.className = `pill pill--${tone}`;
+    status.textContent = statusText;
+    updated.textContent = detail;
+  };
+
+  if (payload == null || typeof payload !== 'object') {
+    lock();
+    return;
+  }
+
+  const ttl = Number(payload.driverOfferTtlSeconds);
+  const paymentHold = Number(payload.driverPaymentHoldSeconds);
+  const locationMaxAge = Number(
+    payload.driverLocationMaxAgeSeconds,
+  );
+  const nearbyDistance = Number(
+    payload.nearbyDriverMaxDistanceKm,
+  );
+
+  const valid =
+    Number.isInteger(ttl) &&
+    ttl >= 5 &&
+    ttl <= 120 &&
     Number.isInteger(paymentHold) &&
     paymentHold >= 30 &&
-    paymentHold <= 300
-      ? paymentHold
-      : 90;
-  const locationMaxAge = Number(
-    payload?.driverLocationMaxAgeSeconds,
-  );
-  const safeLocationMaxAge =
+    paymentHold <= 300 &&
     Number.isInteger(locationMaxAge) &&
     locationMaxAge >= 15 &&
-    locationMaxAge <= 600
-      ? locationMaxAge
-      : 120;
-  const nearbyDistance = Number(
-    payload?.nearbyDriverMaxDistanceKm,
-  );
-  const safeNearbyDistance =
+    locationMaxAge <= 600 &&
     Number.isFinite(nearbyDistance) &&
     nearbyDistance >= 0.5 &&
-    nearbyDistance <= 100
-      ? nearbyDistance
-      : 15;
-  const showNearbyDrivers = payload?.showNearbyDrivers === true;
+    nearbyDistance <= 100;
+
+  if (!valid) {
+    lock(
+      'Dados inválidos',
+      'O Core retornou configurações operacionais inválidas. Atualize novamente antes de editar.',
+      'danger',
+    );
+    return;
+  }
+
+  const showNearbyDrivers =
+    payload.showNearbyDrivers === true;
   const driverDocumentAutoEnforcement =
-    payload?.driverDocumentAutoEnforcement === true;
+    payload.driverDocumentAutoEnforcement === true;
   const updatedAt =
-    typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
+    typeof payload.updatedAt === 'string'
+      ? payload.updatedAt
+      : null;
 
   state.operationalSettings = {
-    driverOfferTtlSeconds: safeTtl,
-    driverPaymentHoldSeconds: safePaymentHold,
-    driverLocationMaxAgeSeconds: safeLocationMaxAge,
-    nearbyDriverMaxDistanceKm: safeNearbyDistance,
+    driverOfferTtlSeconds: ttl,
+    driverPaymentHoldSeconds: paymentHold,
+    driverLocationMaxAgeSeconds: locationMaxAge,
+    nearbyDriverMaxDistanceKm: nearbyDistance,
     showNearbyDrivers,
     driverDocumentAutoEnforcement,
     updatedAt,
   };
 
-  byId('driver-offer-ttl-seconds').value = String(safeTtl);
+  byId('driver-offer-ttl-seconds').value = String(ttl);
   byId('driver-payment-hold-seconds').value =
-    String(safePaymentHold);
+    String(paymentHold);
   byId('driver-location-max-age-seconds').value =
-    String(safeLocationMaxAge);
+    String(locationMaxAge);
   byId('nearby-driver-max-distance-km').value =
-    String(safeNearbyDistance);
+    String(nearbyDistance);
   byId('show-nearby-drivers').checked = showNearbyDrivers;
   byId('driver-document-auto-enforcement').checked =
     driverDocumentAutoEnforcement;
 
-  const status = byId('operational-settings-status');
   status.className = driverDocumentAutoEnforcement
     ? 'pill pill--success'
     : 'pill pill--neutral';
@@ -5020,9 +5055,9 @@ function renderOperationalSettings(payload = state.operationalSettings) {
     ? 'Documentos: automático'
     : 'Documentos: decisão manual';
 
-  byId('operational-settings-updated-at').textContent = updatedAt
+  updated.textContent = updatedAt
     ? `Atualizado em ${formatDateTime(updatedAt)}`
-    : 'Configuração padrão';
+    : 'Configuração carregada';
 
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
@@ -5037,7 +5072,11 @@ function renderOperationalSettings(payload = state.operationalSettings) {
 
 async function loadOperationalSettings({ announce = true } = {}) {
   if (!state.token || !hasScope('rides:read')) {
-    renderOperationalSettings();
+    renderOperationalSettings(null);
+    byId('operational-settings-status').textContent =
+      'Sem permissão';
+    byId('operational-settings-updated-at').textContent =
+      'Escopo rides:read necessário';
     return;
   }
 
@@ -5052,13 +5091,20 @@ async function loadOperationalSettings({ announce = true } = {}) {
       );
     }
   } catch (error) {
+    renderOperationalSettings(null);
     handleAuthenticatedError(error);
   }
 }
 
 async function handleOperationalSettingsSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('rides:write')) return;
+  if (
+    !state.token ||
+    !hasScope('rides:write') ||
+    state.operationalSettings == null
+  ) {
+    return;
+  }
 
   const ttl = Number(byId('driver-offer-ttl-seconds').value);
   const paymentHoldSeconds = Number(
