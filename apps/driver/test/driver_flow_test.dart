@@ -233,6 +233,48 @@ void main() {
     },
   );
 
+  testWidgets(
+    'atividade troca período e consulta o Core com a janela selecionada',
+    (tester) async {
+      final api = _FakeDriverApi();
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+
+      expect(api.activityCalls, greaterThanOrEqualTo(1));
+
+      await tester.tap(find.text('Atividade'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('7 dias'), findsOneWidget);
+      expect(find.text('15 dias'), findsOneWidget);
+      expect(find.text('30 dias'), findsOneWidget);
+      expect(find.text('3 meses'), findsOneWidget);
+      expect(find.text('Personalizado'), findsOneWidget);
+
+      final before = api.activityCalls;
+      await tester.tap(find.text('15 dias'));
+      await tester.pumpAndSettle();
+
+      expect(api.activityCalls, before + 1);
+      expect(api.lastActivityFrom, isNotNull);
+      expect(api.lastActivityTo, isNotNull);
+      expect(
+        api.lastActivityTo!.difference(api.lastActivityFrom!).inDays,
+        15,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
   testWidgets('motorista vê saldo e reserva saque', (tester) async {
     final api = _FakeDriverApi();
 
@@ -538,6 +580,9 @@ class _FakeDriverApi implements DriverApi {
   int payoutAttempts = 0;
   final List<String> payoutIdempotencyKeys = [];
   DriverFinanceSummary _finance;
+  int activityCalls = 0;
+  DateTime? lastActivityFrom;
+  DateTime? lastActivityTo;
 
   DriverOffer get _offer => DriverOffer(
         id: 'offer-1',
@@ -724,6 +769,9 @@ class _FakeDriverApi implements DriverApi {
     DateTime? from,
     DateTime? to,
   }) async {
+    activityCalls += 1;
+    lastActivityFrom = from;
+    lastActivityTo = to;
     return const DriverActivitySnapshot(
       total: 3,
       completed: 2,
