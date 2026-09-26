@@ -181,12 +181,16 @@ final class _PreviewDriverApi implements DriverApi {
       refreshAfterSeconds: 20,
       drivers: [
         NearbyDriverPosition(
+          driverId: 'preview-nearby-moto',
+          category: 'moto',
           latitude: -2.7982,
           longitude: -40.5180,
           busy: false,
           locationAgeSeconds: 8,
         ),
         NearbyDriverPosition(
+          driverId: 'preview-nearby-car',
+          category: 'car',
           latitude: -2.7918,
           longitude: -40.5095,
           busy: true,
