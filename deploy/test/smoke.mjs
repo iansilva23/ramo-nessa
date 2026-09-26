@@ -224,6 +224,7 @@ try {
     'precos',
     'financeiro',
     'notificacoes',
+    'suporte',
     'passeios',
     'integracoes',
     'auditoria',
