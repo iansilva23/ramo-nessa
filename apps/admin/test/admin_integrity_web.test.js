@@ -148,7 +148,28 @@ test('ADM evita execução HTML inline e innerHTML', async () => {
   const html = [index, ...pages.map((page) => page.source)].join('\n');
 
   assert.equal(/\son(?:click|change|submit|input|load)=/i.test(html), false);
-  assert.equal(/<script\b/i.test(html), false);
+
+  const scripts = [
+    ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi),
+  ];
+  for (const script of scripts) {
+    const attributes = script[1] ?? '';
+    const body = script[2] ?? '';
+    const src = attributes.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+
+    assert.ok(src, 'scripts do Admin precisam usar arquivo externo');
+    assert.equal(
+      /^(?:https?:|data:|javascript:)/i.test(src),
+      false,
+      'script externo precisa permanecer na mesma origem',
+    );
+    assert.equal(
+      body.trim(),
+      '',
+      'JavaScript inline não é permitido no Admin',
+    );
+  }
+
   assert.equal(app.includes('.innerHTML'), false);
   assert.equal(app.includes('insertAdjacentHTML'), false);
 });
