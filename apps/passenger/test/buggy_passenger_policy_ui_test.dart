@@ -35,8 +35,14 @@ void main() {
     await tester.pumpWidget(build());
     await tester.pump();
 
-    final remove = find.byTooltip('Remover passageiro');
-    final add = find.byTooltip('Adicionar passageiro');
+    final remove = find.widgetWithIcon(
+      IconButton,
+      Icons.remove_rounded,
+    );
+    final add = find.widgetWithIcon(
+      IconButton,
+      Icons.add_rounded,
+    );
 
     expect(tester.widget<IconButton>(remove).onPressed, isNull);
     expect(tester.widget<IconButton>(add).onPressed, isNotNull);
@@ -48,7 +54,10 @@ void main() {
     expect(count, 3);
     expect(
       tester.widget<IconButton>(
-        find.byTooltip('Adicionar passageiro'),
+        find.widgetWithIcon(
+          IconButton,
+          Icons.add_rounded,
+        ),
       ).onPressed,
       isNull,
     );
