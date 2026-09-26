@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
 
 import '../../../../core/config/ramo_map_config.dart';
+import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../../map/domain/ramo_place.dart';
 
 class RamoMapController {
@@ -100,6 +101,7 @@ class RamoLiveMap extends StatefulWidget {
     required this.destination,
     required this.routePoints,
     this.driverPosition,
+    this.driverCategory,
     this.driverPositionStale = false,
     this.onMapReady,
     this.networkTilesEnabled = true,
@@ -110,6 +112,7 @@ class RamoLiveMap extends StatefulWidget {
   final RamoPlace? destination;
   final List<domain.LatLng> routePoints;
   final domain.LatLng? driverPosition;
+  final String? driverCategory;
   final bool driverPositionStale;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
@@ -121,11 +124,62 @@ class RamoLiveMap extends StatefulWidget {
 class _RamoLiveMapState extends State<RamoLiveMap> {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
+  double _driverBearing = 0;
+  gm.BitmapDescriptor _passengerIcon =
+      gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _destinationIcon =
+      gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _driverIcon =
+      gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _staleDriverIcon =
+      gm.BitmapDescriptor.defaultMarker;
 
   @override
   void initState() {
     super.initState();
     _notifyPlaceholderReadyIfNeeded();
+    _loadMarkerIcons();
+  }
+
+  Future<void> _loadMarkerIcons() async {
+    final passengerIcon = await buildRamoMapMarker(
+      icon: Icons.person_rounded,
+      background: const Color(0xFFFFFFFF),
+      foreground: const Color(0xFF111111),
+      border: const Color(0xFFFFC400),
+    );
+    final destinationIcon = await buildRamoMapMarker(
+      icon: Icons.flag_rounded,
+      background: const Color(0xFF111111),
+      foreground: const Color(0xFFFFFFFF),
+      border: const Color(0xFFFFFFFF),
+    );
+    final driverIcon = await buildRamoMapMarker(
+      icon: ramoVehicleIcon(widget.driverCategory),
+    );
+    final staleDriverIcon = await buildRamoMapMarker(
+      icon: ramoVehicleIcon(widget.driverCategory),
+      background: const Color(0xFFB23A3A),
+      foreground: const Color(0xFFFFFFFF),
+    );
+    if (!mounted) return;
+    setState(() {
+      _passengerIcon = passengerIcon;
+      _destinationIcon = destinationIcon;
+      _driverIcon = driverIcon;
+      _staleDriverIcon = staleDriverIcon;
+    });
+  }
+
+  double _bearingBetween(domain.LatLng from, domain.LatLng to) {
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLon = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLon) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
+    final degrees = math.atan2(y, x) * 180 / math.pi;
+    return (degrees + 360) % 360;
   }
 
   @override
@@ -140,6 +194,19 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
 
     if (oldWidget.networkTilesEnabled != widget.networkTilesEnabled) {
       _notifyPlaceholderReadyIfNeeded();
+    }
+
+    final previousDriver = oldWidget.driverPosition;
+    final nextDriver = widget.driverPosition;
+    if (previousDriver != null &&
+        nextDriver != null &&
+        (previousDriver.latitude != nextDriver.latitude ||
+            previousDriver.longitude != nextDriver.longitude)) {
+      _driverBearing = _bearingBetween(previousDriver, nextDriver);
+    }
+
+    if (oldWidget.driverCategory != widget.driverCategory) {
+      _loadMarkerIcons();
     }
   }
 
@@ -170,9 +237,8 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
             origin.position.latitude,
             origin.position.longitude,
           ),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            gm.BitmapDescriptor.hueYellow,
-          ),
+          icon: _passengerIcon,
+          anchor: const Offset(.5, .5),
           infoWindow: gm.InfoWindow(
             title: 'Embarque',
             snippet: origin.name,
@@ -190,9 +256,8 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
             destination.position.latitude,
             destination.position.longitude,
           ),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            gm.BitmapDescriptor.hueRed,
-          ),
+          icon: _destinationIcon,
+          anchor: const Offset(.5, .5),
           infoWindow: gm.InfoWindow(
             title: 'Destino',
             snippet: destination.name,
@@ -207,11 +272,12 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
         gm.Marker(
           markerId: const gm.MarkerId('driver'),
           position: gm.LatLng(driver.latitude, driver.longitude),
-          icon: gm.BitmapDescriptor.defaultMarkerWithHue(
-            widget.driverPositionStale
-                ? gm.BitmapDescriptor.hueRose
-                : gm.BitmapDescriptor.hueAzure,
-          ),
+          icon: widget.driverPositionStale
+              ? _staleDriverIcon
+              : _driverIcon,
+          anchor: const Offset(.5, .5),
+          flat: true,
+          rotation: _driverBearing,
           infoWindow: gm.InfoWindow(
             title: widget.driverPositionStale
                 ? 'Última posição do motorista'
