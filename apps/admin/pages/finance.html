@@ -4,7 +4,7 @@
                 <span class="eyebrow eyebrow--dark">FINANCEIRO</span>
                 <h1>Pagamentos e comissões</h1>
                 <p>
-                  Visão contábil somente leitura derivada do ledger do Core.
+                  Ledger, políticas financeiras e conciliação de saques em um só lugar.
                 </p>
               </div>
               <div class="dashboard-refresh">
@@ -20,10 +20,11 @@
             </div>
 
             <div class="finance-readonly-note">
-              <strong>Somente leitura</strong>
+              <strong>Conciliação segura</strong>
               <span>
-                O painel não força captura, estorno, comissão ou pagamento de saque.
-                Essas ações continuam bloqueadas até gateway, conciliação e repasse reais.
+                Pagamentos e lançamentos do ledger não são alterados manualmente.
+                Em saques, o ADM pode registrar um repasse já realizado fora do sistema
+                ou cancelar a solicitação e devolver o valor reservado ao motorista.
               </span>
             </div>
 
@@ -361,6 +362,7 @@
                         <th>Valor</th>
                         <th>Processador</th>
                         <th>Criado</th>
+                        <th>Ações</th>
                       </tr>
                     </thead>
                     <tbody id="finance-payouts-body"></tbody>
@@ -371,4 +373,96 @@
                 </div>
               </article>
             </div>
+
+            <article
+              id="finance-payout-detail"
+              class="panel-card finance-payout-detail-card"
+              hidden
+            >
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CONCILIAÇÃO DE SAQUE</span>
+                  <h2>Detalhes da solicitação</h2>
+                  <p class="muted-copy">
+                    Registrar como pago não envia Pix. Use somente depois de confirmar
+                    que o repasse foi realizado fora do sistema.
+                  </p>
+                </div>
+                <button
+                  id="finance-payout-close"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div class="finance-payout-detail-grid">
+                <div>
+                  <span>Status</span>
+                  <strong id="finance-payout-detail-status">—</strong>
+                </div>
+                <div>
+                  <span>Motorista</span>
+                  <strong id="finance-payout-detail-driver">—</strong>
+                </div>
+                <div>
+                  <span>Valor</span>
+                  <strong id="finance-payout-detail-amount">—</strong>
+                </div>
+                <div>
+                  <span>Chave Pix</span>
+                  <strong id="finance-payout-detail-pix">—</strong>
+                </div>
+                <div>
+                  <span>Processador / método</span>
+                  <strong id="finance-payout-detail-processor">—</strong>
+                </div>
+                <div>
+                  <span>Referência externa</span>
+                  <strong id="finance-payout-detail-reference">—</strong>
+                </div>
+              </div>
+
+              <form id="finance-payout-paid-form" class="finance-payout-form">
+                <label class="field">
+                  <span>Processador ou método usado</span>
+                  <input
+                    id="finance-payout-processor"
+                    type="text"
+                    maxlength="80"
+                    placeholder="Ex.: Mercado Pago, banco, Pix manual"
+                    required
+                  >
+                </label>
+                <label class="field">
+                  <span>Referência externa</span>
+                  <input
+                    id="finance-payout-reference"
+                    type="text"
+                    maxlength="160"
+                    placeholder="ID/comprovante do repasse (opcional)"
+                  >
+                </label>
+                <div class="finance-payout-actions">
+                  <button
+                    id="finance-payout-paid-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Registrar como pago
+                  </button>
+                  <button
+                    id="finance-payout-cancel-button"
+                    class="button button--danger"
+                    type="button"
+                  >
+                    Cancelar solicitação
+                  </button>
+                </div>
+                <small id="finance-payout-action-note">
+                  Ações disponíveis somente enquanto o saque estiver solicitado.
+                </small>
+              </form>
+            </article>
           </section>
