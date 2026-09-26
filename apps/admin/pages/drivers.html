@@ -275,15 +275,12 @@
                     <span>Telefone</span>
                     <input id="provision-phone" required inputmode="tel" maxlength="24" placeholder="(88) 99999-9999">
                   </label>
-                  <label class="field">
-                    <span>Status inicial</span>
-                    <select id="provision-status">
-                      <option value="suspended" selected>Suspenso — aprovar depois</option>
-                      <option value="active">Aprovado — liberar OTP</option>
-                    </select>
-                  </label>
+                  <div class="notice-box">
+                    O acesso nasce suspenso. Primeiro salve e aprove o perfil e
+                    o veículo; depois libere o login OTP na ficha do motorista.
+                  </div>
                   <button class="button button--primary" type="submit">
-                    Criar acesso
+                    Criar acesso suspenso
                   </button>
                 </form>
               </article>
@@ -295,7 +292,7 @@
                   <span class="eyebrow eyebrow--dark">CADASTRO OPERACIONAL</span>
                   <h2>Perfil e veículo</h2>
                   <p class="muted-copy">
-                    Cadastro separado do acesso OTP. Aprovação do perfil e do veículo é explícita.
+                    Perfil e veículo precisam estar aprovados antes de o login OTP poder ser liberado.
                   </p>
                 </div>
                 <span id="driver-registry-overall" class="pill">Não carregado</span>
