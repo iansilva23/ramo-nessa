@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
-import '../../../core/notifications/firebase_push_coordinator.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../profile/data/passenger_saved_place_service.dart';
@@ -20,7 +19,6 @@ class PassengerMainShell extends StatefulWidget {
     required this.savedPlaceService,
     required this.placeSearchService,
     required this.accessToken,
-    this.pushCoordinator,
     this.onLogout,
     this.previewMode = false,
   });
@@ -32,7 +30,6 @@ class PassengerMainShell extends StatefulWidget {
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;
   final String? accessToken;
-  final FirebasePushCoordinator? pushCoordinator;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -63,7 +60,6 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
             paymentService: widget.paymentService,
             savedPlaceService: widget.savedPlaceService,
             placeSearchService: widget.placeSearchService,
-            pushCoordinator: widget.pushCoordinator,
             onLogout: widget.onLogout,
             previewMode: widget.previewMode,
           ),
