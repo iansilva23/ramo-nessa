@@ -773,6 +773,8 @@ class DriverActivityRide {
     required this.origin,
     required this.destination,
     required this.driverEarningsCents,
+    required this.totalAmountCents,
+    required this.platformFeeCents,
     required this.updatedAt,
     this.paymentMethod,
   });
@@ -790,6 +792,10 @@ class DriverActivityRide {
       ),
       driverEarningsCents:
           (json['driverEarningsCents'] as num).toInt(),
+      totalAmountCents:
+          (json['totalAmountCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents:
+          (json['platformFeeCents'] as num?)?.toInt() ?? 0,
       paymentMethod: json['paymentMethod'] as String?,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -801,6 +807,8 @@ class DriverActivityRide {
   final DriverLocationRef origin;
   final DriverLocationRef destination;
   final int driverEarningsCents;
+  final int totalAmountCents;
+  final int platformFeeCents;
   final String? paymentMethod;
   final DateTime updatedAt;
 
@@ -832,6 +840,12 @@ class DriverActivitySnapshot {
     required this.cancelled,
     required this.inProgress,
     required this.earningsCents,
+    required this.grossCents,
+    required this.platformFeeCents,
+    required this.averageEarningsCents,
+    required this.payoutsRequestedCents,
+    required this.payoutsPaidCents,
+    required this.availableBalanceCents,
     required this.rides,
   });
 
@@ -846,6 +860,18 @@ class DriverActivitySnapshot {
       inProgress: (summary['inProgress'] as num?)?.toInt() ?? 0,
       earningsCents:
           (summary['earningsCents'] as num?)?.toInt() ?? 0,
+      grossCents:
+          (summary['grossCents'] as num?)?.toInt() ?? 0,
+      platformFeeCents:
+          (summary['platformFeeCents'] as num?)?.toInt() ?? 0,
+      averageEarningsCents:
+          (summary['averageEarningsCents'] as num?)?.toInt() ?? 0,
+      payoutsRequestedCents:
+          (summary['payoutsRequestedCents'] as num?)?.toInt() ?? 0,
+      payoutsPaidCents:
+          (summary['payoutsPaidCents'] as num?)?.toInt() ?? 0,
+      availableBalanceCents:
+          (summary['availableBalanceCents'] as num?)?.toInt() ?? 0,
       rides: rides is List
           ? rides
               .whereType<Map<String, dynamic>>()
@@ -860,6 +886,12 @@ class DriverActivitySnapshot {
   final int cancelled;
   final int inProgress;
   final int earningsCents;
+  final int grossCents;
+  final int platformFeeCents;
+  final int averageEarningsCents;
+  final int payoutsRequestedCents;
+  final int payoutsPaidCents;
+  final int availableBalanceCents;
   final List<DriverActivityRide> rides;
 }
 
