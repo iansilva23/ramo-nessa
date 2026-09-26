@@ -360,6 +360,41 @@ class HttpDriverApi implements DriverApi {
   }
 
   @override
+  Future<DriverPayoutDestination> payoutDestination() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/payout-destination'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverPayoutDestination.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
+  Future<DriverPayoutDestination> savePayoutDestination({
+    required String pixKeyType,
+    required String pixKey,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/driver/me/payout-destination'),
+          headers: _headers,
+          body: jsonEncode({
+            'pixKeyType': pixKeyType,
+            'pixKey': pixKey,
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverPayoutDestination.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
+
+  @override
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
