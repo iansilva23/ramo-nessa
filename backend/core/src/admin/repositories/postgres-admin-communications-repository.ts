@@ -8,6 +8,8 @@ import type {
   AdminNotificationCampaignRecord,
   AdminNotificationCategory,
   AgencyPromotionRecord,
+  AgencyTourCover,
+  AgencyTourRecord,
   AppReleasePolicyRecord,
   SocialLinksRecord,
 } from '../admin-communications-repository.js';
@@ -41,6 +43,36 @@ interface SocialLinksRow {
   instagram_handle: string | null;
   instagram_url: string | null;
   updated_at: Date;
+}
+
+interface TourRow {
+  slug: string;
+  enabled: boolean;
+  sort_order: number;
+  title: string;
+  badge: string;
+  short_description: string;
+  description: string;
+  highlights: string[];
+  included: string[];
+  excluded: string[];
+  duration: string | null;
+  schedule: string | null;
+  departure: string | null;
+  price_label: string;
+  price_cents: number | null;
+  price_suffix: string | null;
+  whatsapp_phone: string;
+  whatsapp_message: string;
+  cover_image_mime_type: string | null;
+  cover_image_version: number;
+  updated_at: Date;
+}
+
+interface TourCoverRow {
+  cover_image: Buffer;
+  cover_image_mime_type: AgencyTourCover['mimeType'];
+  cover_image_version: number;
 }
 
 interface PromotionRow {
@@ -91,6 +123,34 @@ function mapSocialLinks(row: SocialLinksRow): SocialLinksRecord {
     ...(row.instagram_url == null
       ? {}
       : { instagramUrl: row.instagram_url }),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function mapTour(row: TourRow): AgencyTourRecord {
+  return {
+    slug: row.slug,
+    enabled: row.enabled,
+    sortOrder: row.sort_order,
+    title: row.title,
+    badge: row.badge,
+    shortDescription: row.short_description,
+    description: row.description,
+    highlights: row.highlights,
+    included: row.included,
+    excluded: row.excluded,
+    ...(row.duration == null ? {} : { duration: row.duration }),
+    ...(row.schedule == null ? {} : { schedule: row.schedule }),
+    ...(row.departure == null ? {} : { departure: row.departure }),
+    priceLabel: row.price_label,
+    ...(row.price_cents == null ? {} : { priceCents: row.price_cents }),
+    ...(row.price_suffix == null ? {} : { priceSuffix: row.price_suffix }),
+    whatsappPhone: row.whatsapp_phone,
+    whatsappMessage: row.whatsapp_message,
+    coverImageVersion: row.cover_image_version,
+    ...(row.cover_image_mime_type == null
+      ? {}
+      : { coverImageMimeType: row.cover_image_mime_type }),
     updatedAt: row.updated_at.toISOString(),
   };
 }
@@ -273,6 +333,149 @@ export class PostgresAdminCommunicationsRepository
       return { updatedAt: new Date(0).toISOString() };
     }
     return mapSocialLinks(row);
+  }
+
+  async listTours(
+    includeDisabled: boolean,
+  ): Promise<AgencyTourRecord[]> {
+    const result = await this.pool.query<TourRow>(
+      `SELECT slug, enabled, sort_order, title, badge,
+              short_description, description, highlights, included,
+              excluded, duration, schedule, departure, price_label,
+              price_cents, price_suffix, whatsapp_phone,
+              whatsapp_message, cover_image_mime_type,
+              cover_image_version, updated_at
+       FROM agency_tours
+       WHERE ($1::boolean = true OR enabled = true)
+       ORDER BY sort_order ASC, title ASC, slug ASC`,
+      [includeDisabled],
+    );
+    return result.rows.map(mapTour);
+  }
+
+  async getTour(slug: string): Promise<AgencyTourRecord | null> {
+    const result = await this.pool.query<TourRow>(
+      `SELECT slug, enabled, sort_order, title, badge,
+              short_description, description, highlights, included,
+              excluded, duration, schedule, departure, price_label,
+              price_cents, price_suffix, whatsapp_phone,
+              whatsapp_message, cover_image_mime_type,
+              cover_image_version, updated_at
+       FROM agency_tours
+       WHERE slug = $1
+       LIMIT 1`,
+      [slug],
+    );
+    const row = result.rows[0];
+    return row == null ? null : mapTour(row);
+  }
+
+  async saveTour(record: AgencyTourRecord): Promise<AgencyTourRecord> {
+    const result = await this.pool.query<TourRow>(
+      `INSERT INTO agency_tours (
+         slug, enabled, sort_order, title, badge, short_description,
+         description, highlights, included, excluded, duration,
+         schedule, departure, price_label, price_cents, price_suffix,
+         whatsapp_phone, whatsapp_message, updated_at
+       )
+       VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+       )
+       ON CONFLICT (slug)
+       DO UPDATE SET
+         enabled = EXCLUDED.enabled,
+         sort_order = EXCLUDED.sort_order,
+         title = EXCLUDED.title,
+         badge = EXCLUDED.badge,
+         short_description = EXCLUDED.short_description,
+         description = EXCLUDED.description,
+         highlights = EXCLUDED.highlights,
+         included = EXCLUDED.included,
+         excluded = EXCLUDED.excluded,
+         duration = EXCLUDED.duration,
+         schedule = EXCLUDED.schedule,
+         departure = EXCLUDED.departure,
+         price_label = EXCLUDED.price_label,
+         price_cents = EXCLUDED.price_cents,
+         price_suffix = EXCLUDED.price_suffix,
+         whatsapp_phone = EXCLUDED.whatsapp_phone,
+         whatsapp_message = EXCLUDED.whatsapp_message,
+         updated_at = EXCLUDED.updated_at
+       RETURNING slug, enabled, sort_order, title, badge,
+                 short_description, description, highlights, included,
+                 excluded, duration, schedule, departure, price_label,
+                 price_cents, price_suffix, whatsapp_phone,
+                 whatsapp_message, cover_image_mime_type,
+                 cover_image_version, updated_at`,
+      [
+        record.slug,
+        record.enabled,
+        record.sortOrder,
+        record.title,
+        record.badge,
+        record.shortDescription,
+        record.description,
+        record.highlights,
+        record.included,
+        record.excluded,
+        record.duration ?? null,
+        record.schedule ?? null,
+        record.departure ?? null,
+        record.priceLabel,
+        record.priceCents ?? null,
+        record.priceSuffix ?? null,
+        record.whatsappPhone,
+        record.whatsappMessage,
+        record.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Passeio não foi persistido.');
+    return mapTour(row);
+  }
+
+  async readTourCover(slug: string): Promise<AgencyTourCover | null> {
+    const result = await this.pool.query<TourCoverRow>(
+      `SELECT cover_image, cover_image_mime_type, cover_image_version
+       FROM agency_tours
+       WHERE slug = $1
+         AND cover_image IS NOT NULL
+         AND cover_image_mime_type IS NOT NULL
+       LIMIT 1`,
+      [slug],
+    );
+    const row = result.rows[0];
+    if (row == null) return null;
+    return {
+      mimeType: row.cover_image_mime_type,
+      bytes: row.cover_image,
+      version: row.cover_image_version,
+    };
+  }
+
+  async saveTourCover(input: {
+    slug: string;
+    mimeType: AgencyTourCover['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AgencyTourRecord | null> {
+    const result = await this.pool.query<TourRow>(
+      `UPDATE agency_tours
+       SET cover_image = $2,
+           cover_image_mime_type = $3,
+           cover_image_version = cover_image_version + 1,
+           updated_at = $4
+       WHERE slug = $1
+       RETURNING slug, enabled, sort_order, title, badge,
+                 short_description, description, highlights, included,
+                 excluded, duration, schedule, departure, price_label,
+                 price_cents, price_suffix, whatsapp_phone,
+                 whatsapp_message, cover_image_mime_type,
+                 cover_image_version, updated_at`,
+      [input.slug, Buffer.from(input.bytes), input.mimeType, input.updatedAt],
+    );
+    const row = result.rows[0];
+    return row == null ? null : mapTour(row);
   }
 
   async saveSocialLinks(
