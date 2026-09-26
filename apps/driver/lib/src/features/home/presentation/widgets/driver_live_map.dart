@@ -84,6 +84,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   bool _placeholderReadyNotified = false;
   double _driverBearing = 0;
   double _displayDriverBearing = 0;
+  double _driverAnimationBearingFrom = 0;
   domain.LatLng? _displayDriverPoint;
   domain.LatLng? _driverAnimationFrom;
   domain.LatLng? _driverAnimationTo;
@@ -131,12 +132,12 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     final longitude =
         from.longitude + (to.longitude - from.longitude) * t;
     final bearingDelta =
-        ((_driverBearing - _displayDriverBearing + 540) % 360) - 180;
+        ((_driverBearing - _driverAnimationBearingFrom + 540) % 360) - 180;
 
     setState(() {
       _displayDriverPoint = domain.LatLng(latitude, longitude);
       _displayDriverBearing =
-          (_displayDriverBearing + bearingDelta * t + 360) % 360;
+          (_driverAnimationBearingFrom + bearingDelta * t + 360) % 360;
     });
   }
 
@@ -176,6 +177,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     _driverAnimationFrom = current;
     _driverAnimationTo = to;
+    _driverAnimationBearingFrom = _displayDriverBearing;
     _driverMoveController.forward(from: 0);
   }
 
