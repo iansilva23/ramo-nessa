@@ -237,6 +237,14 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    updateSocialLinks(token, socialLinks) {
+      return request('/v1/admin/social-links', {
+        method: 'PATCH',
+        token,
+        body: socialLinks,
+      });
+    },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },
