@@ -45,21 +45,24 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('A caminho do embarque'), findsOneWidget);
-    expect(find.text('Cheguei'), findsOneWidget);
-    expect(find.text('Navegar até o embarque'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('ride-mini-ride-1-DRIVER_ARRIVING')),
+      findsOneWidget,
+    );
+    expect(find.text('Abrir no Google Maps'), findsOneWidget);
     expect(find.textContaining('-2.82017'), findsNothing);
     expect(find.textContaining('-40.41467'), findsNothing);
     expect(api.acceptedOfferId, 'offer-1');
-
-    await tester.ensureVisible(find.text('Navegar até o embarque'));
-    await tester.pump();
-    await tester.tap(find.text('Navegar até o embarque'));
-    await tester.pump();
-    expect(find.text('Parar navegação'), findsOneWidget);
-    expect(find.text('Abrir no Google Maps'), findsOneWidget);
     expect(navigation.lastLatitude, isNull);
     expect(navigation.lastLongitude, isNull);
+
+    await tester.tap(
+      find.byKey(const ValueKey('ride-mini-ride-1-DRIVER_ARRIVING')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('A caminho do embarque'), findsOneWidget);
+    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Parar navegação'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Abrir no Google Maps'));
     await tester.tap(find.text('Abrir no Google Maps'));
