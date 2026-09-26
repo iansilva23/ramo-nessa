@@ -434,3 +434,72 @@ export function driverPayoutReserveLedger(input: {
     createdAt: input.createdAt,
   };
 }
+
+
+export function driverPayoutPaidLedger(input: {
+  payoutId: string;
+  driverId: string;
+  processor: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const processor = input.processor.trim();
+  if (processor.length < 2) {
+    throw new LedgerError('Processador do saque é obrigatório.');
+  }
+
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `processor:${processor}:payouts`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_PAID',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-paid:${input.payoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function driverPayoutCancelledLedger(input: {
+  payoutId: string;
+  driverId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `driver:${input.driverId}:payable`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_CANCELLED',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-cancelled:${input.payoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
