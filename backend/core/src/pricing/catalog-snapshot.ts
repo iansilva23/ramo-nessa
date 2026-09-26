@@ -25,6 +25,10 @@ export interface PricingCatalogSnapshot {
   periods: PricePeriod[];
   zones: ZoneId[];
   commissionBps: number;
+  periodPolicy: {
+    nightStartHour: number;
+    dayStartHour: number;
+  };
   categoryPolicies: Record<
     ServiceCategory,
     {
@@ -77,6 +81,10 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
   periods: ['day', 'after_22'],
   zones: ['jericoacoara', 'jijoca', 'prea', 'external'],
   commissionBps: COMMISSION_BPS,
+  periodPolicy: {
+    nightStartHour: 22,
+    dayStartHour: 6,
+  },
   categoryPolicies: {
     moto: {
       enabled: true,
@@ -170,6 +178,10 @@ export function normalizePricingCatalogSnapshot(
 
   return {
     ...structuredClone(value),
+    periodPolicy:
+      value.periodPolicy == null
+        ? { nightStartHour: 22, dayStartHour: 6 }
+        : { ...value.periodPolicy },
     categoryPolicies:
       value.categoryPolicies == null
         ? structuredClone(STATIC_PRICING_CATALOG_V1.categoryPolicies)
