@@ -5718,180 +5718,455 @@ function handleAuditFilter(event) {
   void loadAudit({ reset: true });
 }
 
+function bindRouteEvent(id, eventName, handler) {
+  const element = byId(id);
+  if (element != null) {
+    element.addEventListener(eventName, handler);
+  }
+}
+
+function bindRouteEvents(view) {
+  if (view === 'overview') {
+    bindRouteEvent('refresh-dashboard-button', 'click', () => {
+      void loadDashboard();
+    });
+    return;
+  }
+
+  if (view === 'fleet') {
+    bindRouteEvent('refresh-fleet-button', 'click', () => {
+      void loadFleet();
+    });
+    return;
+  }
+
+  if (view === 'rides') {
+    bindRouteEvent('ride-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadRideDirectory({ reset: true });
+    });
+    bindRouteEvent('ride-cancel-form', 'submit', (event) => {
+      void handleRideCancel(event);
+    });
+    bindRouteEvent('ride-directory-more', 'click', () => {
+      void loadRideDirectory({ reset: false, announce: false });
+    });
+    return;
+  }
+
+  if (view === 'passengers') {
+    bindRouteEvent('passenger-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadPassengerDirectory({ reset: true });
+    });
+    bindRouteEvent('passenger-directory-more', 'click', () => {
+      void loadPassengerDirectory({
+        reset: false,
+        announce: false,
+      });
+    });
+    bindRouteEvent('passenger-access-button', 'click', () => {
+      void handlePassengerAccessChange();
+    });
+    return;
+  }
+
+  if (view === 'finance') {
+    bindRouteEvent('refresh-finance-button', 'click', () => {
+      void loadFinance();
+    });
+    bindRouteEvent('finance-enable-cash-button', 'click', () => {
+      void handleEnableCash();
+    });
+    bindRouteEvent('finance-disable-cash-button', 'click', () => {
+      void handleDisableCash();
+    });
+    bindRouteEvent('finance-pix-price-form', 'submit', (event) => {
+      void handlePixPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-card-price-form', 'submit', (event) => {
+      void handleCardPricePolicySubmit(event);
+    });
+    return;
+  }
+
+  if (view === 'integrations') {
+    bindRouteEvent('refresh-integrations-button', 'click', () => {
+      void loadIntegrations();
+    });
+    return;
+  }
+
+  if (view === 'pricing') {
+    bindRouteEvent('refresh-pricing-button', 'click', () => {
+      void Promise.all([
+        loadPricingCatalog(),
+        loadPricingVersions({ announce: false }),
+      ]);
+    });
+    bindRouteEvent('pricing-create-draft-button', 'click', () => {
+      void handlePricingCreateDraft();
+    });
+    bindRouteEvent('pricing-edit-form', 'submit', (event) => {
+      void handlePricingEditSubmit(event);
+    });
+    bindRouteEvent('pricing-edit-kind', 'change', () => {
+      syncPricingEditFields();
+    });
+    bindRouteEvent('pricing-locality-price-kind', 'change', () => {
+      syncPricingLocalityPriceFields();
+    });
+    bindRouteEvent('pricing-publish-button', 'click', () => {
+      void handlePricingPublish();
+    });
+    return;
+  }
+
+  if (view === 'drivers') {
+    bindRouteEvent(
+      'operational-settings-form',
+      'submit',
+      (event) => {
+        void handleOperationalSettingsSubmit(event);
+      },
+    );
+    bindRouteEvent('driver-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadDriverDirectory({ reset: true });
+    });
+    bindRouteEvent('driver-directory-more', 'click', () => {
+      void loadDriverDirectory({
+        reset: false,
+        announce: false,
+      });
+    });
+    bindRouteEvent('driver-search-form', 'submit', (event) => {
+      void handleDriverSearch(event);
+    });
+    bindRouteEvent('driver-provision-form', 'submit', (event) => {
+      void handleDriverProvision(event);
+    });
+    bindRouteEvent('driver-registry-form', 'submit', (event) => {
+      void handleDriverRegistrySubmit(event);
+    });
+    bindRouteEvent('driver-cash-policy-form', 'submit', (event) => {
+      void handleDriverCashPolicySubmit(event);
+    });
+    bindRouteEvent('driver-cash-limit-reset', 'click', () => {
+      void handleDriverCashPolicyReset();
+    });
+    bindRouteEvent('registry-status-button', 'click', () => {
+      void handleDriverRegistryStatus();
+    });
+    bindRouteEvent(
+      'driver-document-inspection-close',
+      'click',
+      () => {
+        closeDriverDocumentInspection();
+      },
+    );
+    bindRouteEvent(
+      'driver-document-review-form',
+      'submit',
+      (event) => {
+        void handleDriverDocumentReview(event);
+      },
+    );
+    bindRouteEvent(
+      'driver-document-review-status',
+      'change',
+      () => {
+        syncDocumentRejectionRequirement();
+      },
+    );
+    bindRouteEvent(
+      'driver-document-notify-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceNotify(
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-keep-active-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'keep_active',
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-block-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'block',
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-unblock-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'unblock',
+          event.currentTarget,
+        );
+      },
+    );
+    return;
+  }
+
+  if (view === 'notifications') {
+    bindRouteEvent('notification-form', 'submit', (event) => {
+      void handleNotificationSubmit(event);
+    });
+    bindRouteEvent('release-policy-form', 'submit', (event) => {
+      void handleReleasePolicySubmit(event);
+    });
+    bindRouteEvent('release-app-kind', 'change', () => {
+      syncReleasePolicyForm();
+    });
+    bindRouteEvent('release-platform', 'change', () => {
+      syncReleasePolicyForm();
+    });
+    bindRouteEvent(
+      'refresh-communications-button',
+      'click',
+      () => {
+        void loadCommunications();
+      },
+    );
+    return;
+  }
+
+  if (view === 'agency') {
+    bindRouteEvent('agency-form', 'submit', (event) => {
+      void handleAgencySubmit(event);
+    });
+    bindRouteEvent('social-links-form', 'submit', (event) => {
+      void handleSocialLinksSubmit(event);
+    });
+    bindRouteEvent('tour-form', 'submit', (event) => {
+      void handleTourSubmit(event);
+    });
+    bindRouteEvent('tour-new-button', 'click', () => {
+      handleTourNew();
+    });
+    bindRouteEvent('tour-cover-file', 'change', (event) => {
+      previewSelectedTourCover(
+        event.currentTarget.files?.[0] ?? null,
+      );
+    });
+    bindRouteEvent(
+      'upload-tour-cover-button',
+      'click',
+      () => {
+        void handleTourCoverUpload();
+      },
+    );
+    return;
+  }
+
+  if (view === 'audit') {
+    bindRouteEvent('audit-filter-form', 'submit', (event) => {
+      handleAuditFilter(event);
+    });
+    bindRouteEvent('audit-load-more', 'click', () => {
+      void loadAudit({ reset: false, announce: false });
+    });
+    bindRouteEvent('refresh-audit-button', 'click', () => {
+      void loadAudit({ reset: true });
+    });
+  }
+}
+
+async function loadOverviewSecondaryMetrics() {
+  if (!state.token || currentView !== 'overview') return;
+
+  if (hasScope('drivers:auth:read')) {
+    try {
+      const payload = await api.drivers(state.token, {
+        query: '',
+        status: '',
+        limit: 1,
+        cursor: null,
+      });
+      if (currentView === 'overview') {
+        renderDriverSummary(payload?.summary);
+      }
+    } catch (error) {
+      handleAuthenticatedError(error);
+    }
+  } else {
+    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
+  }
+
+  if (hasScope('audit:read')) {
+    try {
+      const payload = await api.audit(state.token, {
+        limit: 25,
+        actorKind: '',
+        action: '',
+        targetType: '',
+        query: '',
+        cursor: null,
+      });
+      if (currentView === 'overview') {
+        const entries = Array.isArray(payload?.entries)
+          ? payload.entries
+          : [];
+        const count = byId('audit-count');
+        if (count != null) count.textContent = String(entries.length);
+      }
+    } catch (error) {
+      handleAuthenticatedError(error);
+    }
+  }
+}
+
+function initializeRouteView(view) {
+  if (view === 'overview') {
+    renderDashboard(state.dashboard);
+    void loadDashboard({ announce: false });
+    void loadOverviewSecondaryMetrics();
+    return;
+  }
+
+  if (view === 'fleet') {
+    fleetMap = null;
+    renderFleet(state.fleet);
+    void loadFleet({ announce: false });
+    startFleetPolling();
+    return;
+  }
+
+  if (view === 'rides') {
+    void loadRideDirectory({ reset: true, announce: false });
+    return;
+  }
+
+  if (view === 'drivers') {
+    renderDriverRegistryUnavailable();
+    renderDriverDocumentsUnavailable();
+    renderDriverDocumentComplianceUnavailable();
+    renderDriverDocumentAlerts({
+      mode: 'manual',
+      total: 0,
+      decisionRequired: 0,
+      blocked: 0,
+      items: [],
+    });
+    renderDriverCashPolicyUnavailable();
+    renderOperationalSettings();
+    renderDriverSummary(state.driverDirectory.summary);
+    renderDriverDirectory();
+    syncDocumentRejectionRequirement();
+    if (hasScope('drivers:auth:read')) {
+      void loadDriverDirectory({ reset: true, announce: false });
+      void loadOperationalSettings({ announce: false });
+      void loadDriverDocumentAlerts({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'passengers') {
+    renderPassengerSummary(state.passengerDirectory.summary);
+    renderPassengerDirectory();
+    renderPassengerDetailEmpty();
+    if (hasScope('passengers:auth:read')) {
+      void loadPassengerDirectory({ reset: true, announce: false });
+    }
+    return;
+  }
+
+  if (view === 'pricing') {
+    renderPricingCatalog();
+    renderPricingVersions();
+    renderPricingEditor();
+    syncPricingEditFields();
+    syncPricingLocalityPriceFields();
+    if (hasScope('pricing:read')) {
+      void loadPricingCatalog({ announce: false });
+      void loadPricingVersions({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'finance') {
+    renderFinance(state.finance);
+    renderPaymentPolicy(state.finance.policy);
+    if (hasScope('finance:read')) {
+      void loadFinance({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'integrations') {
+    renderIntegrations(null);
+    void loadIntegrations({ announce: false });
+    return;
+  }
+
+  if (view === 'notifications') {
+    renderNotificationHistory();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'agency') {
+    renderAgencyPromotion();
+    renderSocialLinks();
+    renderTourCatalog();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'audit') {
+    renderAudit(state.auditEntries);
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  }
+}
+
 loginForm.addEventListener('submit', (event) => {
   void handleLogin(event);
 });
+
 byId('logout-button').addEventListener('click', () => {
   void handleLogout();
 });
-byId('operational-settings-form').addEventListener('submit', (event) => {
-  void handleOperationalSettingsSubmit(event);
-});
-byId('ride-directory-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  void loadRideDirectory({ reset: true });
-});
-byId('ride-cancel-form').addEventListener('submit', (event) => {
-  void handleRideCancel(event);
-});
-byId('ride-directory-more').addEventListener('click', () => {
-  void loadRideDirectory({ reset: false, announce: false });
-});
-byId('passenger-directory-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  void loadPassengerDirectory({ reset: true });
-});
-byId('passenger-directory-more').addEventListener('click', () => {
-  void loadPassengerDirectory({ reset: false, announce: false });
-});
-byId('passenger-access-button').addEventListener('click', () => {
-  void handlePassengerAccessChange();
-});
-byId('refresh-dashboard-button').addEventListener('click', () => {
-  void loadDashboard();
-});
-byId('refresh-fleet-button').addEventListener('click', () => {
-  void loadFleet();
-});
-byId('refresh-finance-button').addEventListener('click', () => {
-  void loadFinance();
-});
-byId('refresh-integrations-button').addEventListener('click', () => {
-  void loadIntegrations();
-});
-byId('finance-enable-cash-button').addEventListener('click', () => {
-  void handleEnableCash();
-});
-byId('finance-disable-cash-button').addEventListener('click', () => {
-  void handleDisableCash();
-});
-byId('finance-pix-price-form').addEventListener('submit', (event) => {
-  void handlePixPricePolicySubmit(event);
-});
-byId('finance-card-price-form').addEventListener('submit', (event) => {
-  void handleCardPricePolicySubmit(event);
-});
-byId('refresh-pricing-button').addEventListener('click', () => {
-  void Promise.all([
-    loadPricingCatalog(),
-    loadPricingVersions({ announce: false }),
-  ]);
-});
-byId('pricing-create-draft-button').addEventListener('click', () => {
-  void handlePricingCreateDraft();
-});
-byId('pricing-edit-form').addEventListener('submit', (event) => {
-  void handlePricingEditSubmit(event);
-});
-byId('pricing-edit-kind').addEventListener('change', () => {
-  syncPricingEditFields();
-});
-byId('pricing-locality-price-kind').addEventListener('change', () => {
-  syncPricingLocalityPriceFields();
-});
-byId('pricing-publish-button').addEventListener('click', () => {
-  void handlePricingPublish();
-});
-byId('driver-directory-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  void loadDriverDirectory({ reset: true });
-});
-byId('driver-directory-more').addEventListener('click', () => {
-  void loadDriverDirectory({ reset: false, announce: false });
-});
-byId('driver-search-form').addEventListener('submit', (event) => {
-  void handleDriverSearch(event);
-});
-byId('driver-provision-form').addEventListener('submit', (event) => {
-  void handleDriverProvision(event);
-});
-byId('driver-registry-form').addEventListener('submit', (event) => {
-  void handleDriverRegistrySubmit(event);
-});
-byId('driver-cash-policy-form').addEventListener('submit', (event) => {
-  void handleDriverCashPolicySubmit(event);
-});
-byId('driver-cash-limit-reset').addEventListener('click', () => {
-  void handleDriverCashPolicyReset();
-});
-byId('registry-status-button').addEventListener('click', () => {
-  void handleDriverRegistryStatus();
-});
-byId('driver-document-inspection-close').addEventListener('click', () => {
-  closeDriverDocumentInspection();
-});
-byId('driver-document-review-form').addEventListener('submit', (event) => {
-  void handleDriverDocumentReview(event);
-});
-byId('driver-document-review-status').addEventListener('change', () => {
-  syncDocumentRejectionRequirement();
-});
-byId('driver-document-notify-button').addEventListener('click', (event) => {
-  void handleDriverDocumentComplianceNotify(event.currentTarget);
-});
-byId('driver-document-keep-active-button').addEventListener('click', (event) => {
-  void handleDriverDocumentComplianceAction('keep_active', event.currentTarget);
-});
-byId('driver-document-block-button').addEventListener('click', (event) => {
-  void handleDriverDocumentComplianceAction('block', event.currentTarget);
-});
-byId('driver-document-unblock-button').addEventListener('click', (event) => {
-  void handleDriverDocumentComplianceAction('unblock', event.currentTarget);
-});
-byId('notification-form').addEventListener('submit', (event) => {
-  void handleNotificationSubmit(event);
-});
-byId('release-policy-form').addEventListener('submit', (event) => {
-  void handleReleasePolicySubmit(event);
-});
-byId('agency-form').addEventListener('submit', (event) => {
-  void handleAgencySubmit(event);
-});
-byId('social-links-form').addEventListener('submit', (event) => {
-  void handleSocialLinksSubmit(event);
-});
-byId('tour-form').addEventListener('submit', (event) => {
-  void handleTourSubmit(event);
-});
-byId('tour-new-button').addEventListener('click', () => {
-  handleTourNew();
-});
-byId('tour-cover-file').addEventListener('change', (event) => {
-  previewSelectedTourCover(event.currentTarget.files?.[0] ?? null);
-});
-byId('upload-tour-cover-button').addEventListener('click', () => {
-  void handleTourCoverUpload();
-});
-byId('release-app-kind').addEventListener('change', () => {
-  syncReleasePolicyForm();
-});
-byId('release-platform').addEventListener('change', () => {
-  syncReleasePolicyForm();
-});
-byId('refresh-communications-button').addEventListener('click', () => {
-  void loadCommunications();
-});
-byId('audit-filter-form').addEventListener('submit', (event) => {
-  handleAuditFilter(event);
-});
-byId('audit-load-more').addEventListener('click', () => {
-  void loadAudit({ reset: false, announce: false });
-});
-byId('refresh-audit-button').addEventListener('click', () => {
-  void loadAudit({ reset: true });
-});
+
 byId('mobile-menu-button').addEventListener('click', () => {
   document.body.classList.toggle('nav-open');
 });
 
-document.querySelectorAll('.nav-item').forEach((button) => {
-  button.addEventListener('click', () => {
-    activateView(button.dataset.view);
+document.querySelectorAll('.nav-item').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (!state.token) return;
+    void activateView(link.dataset.view);
   });
 });
 
 loginTotp.addEventListener('input', () => {
   loginTotp.value = loginTotp.value.replace(/\D/g, '').slice(0, 6);
+});
+
+window.addEventListener('popstate', () => {
+  if (!state.token) return;
+  void activateView(requestedViewFromLocation(), {
+    historyMode: 'none',
+  });
 });
 
 window.addEventListener('pagehide', () => {
