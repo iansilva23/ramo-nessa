@@ -36,8 +36,6 @@ class DriverSupplySnapshot {
   final int seatCapacity;
   final bool online;
   final bool busy;
-  final String driverId;
-  final String category;
   final double latitude;
   final double longitude;
   final DateTime locationUpdatedAt;
@@ -920,6 +918,8 @@ class NearbyDriverPosition {
     );
   }
 
+  final String driverId;
+  final String category;
   final double latitude;
   final double longitude;
   final bool busy;
