@@ -110,3 +110,17 @@ test('frontend expõe bloqueio/desbloqueio somente com escopo de escrita', () =>
   );
   assert.equal(css.includes('.passenger-access-actions'), true);
 });
+
+test('bloqueio e desbloqueio do passageiro exigem confirmação', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /Confirmar alteração de acesso do passageiro/,
+  );
+  assert.match(app, /revoga imediatamente todas as sessões ativas/);
+  assert.match(app, /poderá fazer um novo login/);
+});
