@@ -153,6 +153,29 @@ void main() {
       await tester.pump();
     },
   );
+  testWidgets(
+    'motorista suspenso fica bloqueado fora da operação',
+    (tester) async {
+      final api = _FakeDriverApi(registrySuspended: true);
+
+      await tester.pumpWidget(
+        RamoNessaDriverApp(
+          api: api,
+          locationService: const _FakeLocationService(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 10));
+
+      expect(find.text('Acesso suspenso'), findsOneWidget);
+      expect(find.text('Suspenso'), findsNWidgets(2));
+      expect(find.text('Você está offline'), findsNothing);
+      expect(find.text('Ganhos'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
 
   testWidgets('corrida ativa é recuperada ao reabrir o app', (tester) async {
     final api = _FakeDriverApi(
