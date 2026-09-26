@@ -342,19 +342,25 @@ import { resolvePushDeliveryProviderFromEnv } from './notifications/push-deliver
 import {
   AdminCommunicationsError,
   adminCommunicationsView,
+  getPublicAgencyTour,
+  listPublicAgencyTours,
   notifyRegisteredDeviceIfOutdated,
   releasePolicyView,
   sendAdminNotification,
   updateAgencyPromotion,
+  updateAgencyTour,
+  updateAgencyTourCover,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from './admin/admin-communications-service.js';
 import {
   InvalidCommunicationsRequestError,
   parseAdminAgencyPromotionUpdate,
+  parseAdminAgencyTourUpdate,
   parseAdminNotificationBroadcast,
   parseAdminSocialLinksUpdate,
   parseAdminReleasePolicyUpdate,
+  parseAgencyTourSlug,
   parseAppKind,
   parsePublicReleasePolicyQuery,
   parsePushPlatform,
@@ -474,6 +480,8 @@ function json(response: ServerResponse, status: number, body: unknown): void {
   });
   response.end(JSON.stringify(body));
 }
+
+const MAX_AGENCY_TOUR_COVER_BYTES = 8 * 1024 * 1024;
 
 const RIDE_CHAT_READABLE_STATES = new Set([
   'DRIVER_ASSIGNED',
@@ -1101,6 +1109,79 @@ const server = createServer(async (request, response) => {
         200,
         await adminCommunicationsRepository.getSocialLinks(),
       );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/content/tours'
+    ) {
+      json(response, 200, {
+        tours: await listPublicAgencyTours({
+          communications: adminCommunicationsRepository,
+        }),
+      });
+      return;
+    }
+
+    const publicTourCoverMatch = requestUrl.pathname.match(
+      /^\/v1\/content\/tours\/([^/]+)\/cover$/,
+    );
+    if (
+      request.method === 'GET' &&
+      publicTourCoverMatch != null
+    ) {
+      const slug = parseAgencyTourSlug(
+        decodeURIComponent(publicTourCoverMatch[1] ?? ''),
+      );
+      const tour = await adminCommunicationsRepository.getTour(slug);
+      if (tour == null || !tour.enabled) {
+        json(response, 404, {
+          error: 'TOUR_NOT_FOUND',
+          message: 'Passeio não encontrado.',
+        });
+        return;
+      }
+      const cover = await adminCommunicationsRepository.readTourCover(slug);
+      if (cover == null) {
+        json(response, 404, {
+          error: 'TOUR_COVER_NOT_FOUND',
+          message: 'Foto do passeio não encontrada.',
+        });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': cover.mimeType,
+        'content-length': String(cover.bytes.byteLength),
+        'cache-control': 'public, max-age=86400, immutable',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(Buffer.from(cover.bytes));
+      return;
+    }
+
+    const publicTourMatch = requestUrl.pathname.match(
+      /^\/v1\/content\/tours\/([^/]+)$/,
+    );
+    if (
+      request.method === 'GET' &&
+      publicTourMatch != null
+    ) {
+      const slug = parseAgencyTourSlug(
+        decodeURIComponent(publicTourMatch[1] ?? ''),
+      );
+      const tour = await getPublicAgencyTour({
+        communications: adminCommunicationsRepository,
+        slug,
+      });
+      if (tour == null) {
+        json(response, 404, {
+          error: 'TOUR_NOT_FOUND',
+          message: 'Passeio não encontrado.',
+        });
+        return;
+      }
+      json(response, 200, { tour });
       return;
     }
 
@@ -2286,6 +2367,97 @@ const server = createServer(async (request, response) => {
         ...body,
       });
       json(response, 200, { socialLinks });
+      return;
+    }
+
+    const adminTourCoverMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/tours\/([^/]+)\/cover$/,
+    );
+    if (
+      request.method === 'PUT' &&
+      adminTourCoverMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const slug = parseAgencyTourSlug(
+        decodeURIComponent(adminTourCoverMatch[1] ?? ''),
+      );
+      const mimeType = headerValue(request, 'content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        mimeType !== 'image/jpeg' &&
+        mimeType !== 'image/png' &&
+        mimeType !== 'image/webp'
+      ) {
+        json(response, 415, {
+          error: 'UNSUPPORTED_TOUR_COVER_TYPE',
+          message: 'Envie uma imagem JPEG, PNG ou WebP.',
+        });
+        return;
+      }
+      const bytes = await readBinaryBody(
+        request,
+        MAX_AGENCY_TOUR_COVER_BYTES,
+      );
+      if (bytes.byteLength === 0) {
+        json(response, 422, {
+          error: 'EMPTY_TOUR_COVER',
+          message: 'A foto do passeio está vazia.',
+        });
+        return;
+      }
+      const tour = await updateAgencyTourCover({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        slug,
+        mimeType,
+        bytes,
+      });
+      if (tour == null) {
+        json(response, 404, {
+          error: 'TOUR_NOT_FOUND',
+          message: 'Salve o passeio antes de enviar a foto.',
+        });
+        return;
+      }
+      json(response, 200, { tour });
+      return;
+    }
+
+    const adminTourMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/tours\/([^/]+)$/,
+    );
+    if (
+      request.method === 'PUT' &&
+      adminTourMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const slug = parseAgencyTourSlug(
+        decodeURIComponent(adminTourMatch[1] ?? ''),
+      );
+      const body = parseAdminAgencyTourUpdate(
+        await readJson(request),
+      );
+      const tour = await updateAgencyTour({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        slug,
+        ...body,
+      });
+      json(response, 200, { tour });
       return;
     }
 
