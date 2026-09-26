@@ -2114,6 +2114,110 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
+  Widget _animatedMainTabs(
+    DriverSupplySnapshot supply,
+  ) {
+    final pages = <Widget>[
+      _buildHomeMap(supply),
+      _buildEarnings(),
+      _buildActivity(supply),
+      _buildProfile(supply),
+    ];
+
+    return Stack(
+      fit: StackFit.expand,
+      children: List.generate(pages.length, (index) {
+        final selected = index == _selectedTab;
+        final horizontalOffset =
+            selected ? 0.0 : (index < _selectedTab ? -0.025 : 0.025);
+
+        return IgnorePointer(
+          ignoring: !selected,
+          child: ExcludeSemantics(
+            excluding: !selected,
+            child: TickerMode(
+              enabled: selected,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 230),
+                curve: Curves.easeOutCubic,
+                opacity: selected ? 1 : 0,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  offset: Offset(horizontalOffset, 0),
+                  child: pages[index],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _premiumBottomNavigation(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: colors.outlineVariant.withValues(alpha: .55),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .12),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: NavigationBar(
+            height: 72,
+            backgroundColor: colors.surface.withValues(alpha: .98),
+            surfaceTintColor: Colors.transparent,
+            indicatorColor: RamoColors.brandYellow,
+            indicatorShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            selectedIndex: _selectedTab,
+            onDestinationSelected: (index) {
+              if (index == _selectedTab) return;
+              setState(() => _selectedTab = index);
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map_rounded),
+                label: 'Início',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.account_balance_wallet_outlined),
+                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+                label: 'Ganhos',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Atividade',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Perfil',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final supply = _supply;
@@ -2143,57 +2247,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedTab,
-        children: [
-          _buildHomeMap(supply),
-          _buildEarnings(),
-          _buildActivity(supply),
-          _buildProfile(supply),
-        ],
-      ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor.withValues(alpha: .35),
-            ),
-          ),
-        ),
-        child: NavigationBar(
-          height: 70,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          indicatorColor: RamoColors.brandYellow,
-          selectedIndex: _selectedTab,
-          onDestinationSelected: (index) {
-            setState(() => _selectedTab = index);
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.map_outlined),
-              selectedIcon: Icon(Icons.map_rounded),
-              label: 'Início',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.account_balance_wallet_outlined),
-              selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-              label: 'Ganhos',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Atividade',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Perfil',
-            ),
-          ],
-        ),
-      ),
+      body: _animatedMainTabs(supply),
+      bottomNavigationBar: _premiumBottomNavigation(context),
     );
   }
 }
