@@ -102,6 +102,7 @@ final class _PreviewDriverApi implements DriverApi {
   DriverSupplySnapshot _supply;
   DriverOffer? _offer;
   AcceptedDriverRide? _ride;
+  final List<DriverRideChatMessage> _chatMessages = [];
   DriverFinanceSummary _finance = const DriverFinanceSummary(
     availableBalanceCents: 18240,
     payoutPendingCents: 0,
@@ -358,6 +359,27 @@ final class _PreviewDriverApi implements DriverApi {
       driverBalanceCents: _finance.availableBalanceCents,
       duplicateSettlement: false,
     );
+  }
+
+  @override
+  Future<List<DriverRideChatMessage>> rideMessages(String rideId) async =>
+      List.unmodifiable(_chatMessages);
+
+  @override
+  Future<DriverRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    final message = DriverRideChatMessage(
+      id: 'preview-chat-${_chatMessages.length + 1}',
+      rideId: rideId,
+      senderType: 'driver',
+      senderId: 'preview-driver',
+      body: body.trim(),
+      createdAt: DateTime.now(),
+    );
+    _chatMessages.add(message);
+    return message;
   }
 
   @override
