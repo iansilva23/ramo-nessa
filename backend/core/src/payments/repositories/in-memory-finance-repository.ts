@@ -34,6 +34,7 @@ import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
   PayoutDomainError,
+  type DriverPayoutDestination,
   type DriverPayoutRecord,
 } from '../payout.js';
 import {
