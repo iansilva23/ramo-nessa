@@ -347,11 +347,13 @@ import {
   sendAdminNotification,
   updateAgencyPromotion,
   updateAppReleasePolicy,
+  updateSocialLinks,
 } from './admin/admin-communications-service.js';
 import {
   InvalidCommunicationsRequestError,
   parseAdminAgencyPromotionUpdate,
   parseAdminNotificationBroadcast,
+  parseAdminSocialLinksUpdate,
   parseAdminReleasePolicyUpdate,
   parseAppKind,
   parsePublicReleasePolicyQuery,
@@ -1087,6 +1089,18 @@ const server = createServer(async (request, response) => {
       const promotion =
         await adminCommunicationsRepository.getAgencyPromotion();
       json(response, 200, promotion);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/content/social-links'
+    ) {
+      json(
+        response,
+        200,
+        await adminCommunicationsRepository.getSocialLinks(),
+      );
       return;
     }
 
@@ -2249,6 +2263,29 @@ const server = createServer(async (request, response) => {
         ...body,
       });
       json(response, 200, { promotion });
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/admin/social-links'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const body = parseAdminSocialLinksUpdate(
+        await readJson(request),
+      );
+      const socialLinks = await updateSocialLinks({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        ...body,
+      });
+      json(response, 200, { socialLinks });
       return;
     }
 
