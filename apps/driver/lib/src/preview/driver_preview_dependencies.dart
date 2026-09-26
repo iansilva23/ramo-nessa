@@ -103,6 +103,8 @@ final class _PreviewDriverApi implements DriverApi {
   DriverOffer? _offer;
   AcceptedDriverRide? _ride;
   final List<DriverRideChatMessage> _chatMessages = [];
+  DriverPayoutDestination _payoutDestination =
+      const DriverPayoutDestination(configured: false);
   DriverFinanceSummary _finance = const DriverFinanceSummary(
     availableBalanceCents: 18240,
     payoutPendingCents: 0,
@@ -392,6 +394,27 @@ final class _PreviewDriverApi implements DriverApi {
       finance: _finance,
       items: const [],
     );
+  }
+
+  @override
+  Future<DriverPayoutDestination> payoutDestination() async =>
+      _payoutDestination;
+
+  @override
+  Future<DriverPayoutDestination> savePayoutDestination({
+    required String pixKeyType,
+    required String pixKey,
+  }) async {
+    final value = pixKey.trim();
+    _payoutDestination = DriverPayoutDestination(
+      configured: true,
+      pixKeyType: pixKeyType,
+      pixKeyMasked: value.length <= 4
+          ? '••••'
+          : '••••${value.substring(value.length - 4)}',
+      updatedAt: DateTime.now(),
+    );
+    return _payoutDestination;
   }
 
   @override
