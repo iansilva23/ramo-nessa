@@ -2915,6 +2915,124 @@ function pricingMoneyToCents(value, label) {
   return cents;
 }
 
+function pricingDecimalValue(value, label, { min = 0, max = 100000 } = {}) {
+  const raw = String(value ?? '').trim().replace(',', '.');
+  const number = Number(raw);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw new Error(`${label} deve ficar entre ${min} e ${max}.`);
+  }
+  return Math.round(number * 1000) / 1000;
+}
+
+function pricingNonNegativeMoneyToCents(value, label) {
+  const amount = pricingDecimalValue(value, label, {
+    min: 0,
+    max: 100000,
+  });
+  return Math.round(amount * 100);
+}
+
+function pricingCentsToReais(cents) {
+  const number = Number(cents);
+  return Number.isFinite(number)
+    ? (number / 100).toFixed(2)
+    : '';
+}
+
+function pricingLines(value) {
+  return String(value ?? '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parsePricingDeliveryBands(value) {
+  const lines = String(value ?? '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error('Informe pelo menos uma faixa de entrega.');
+  }
+  return lines.map((line, index) => {
+    const parts = line.split(/\s*[|=;]\s*/);
+    if (parts.length !== 2) {
+      throw new Error(
+        `Faixa de entrega ${index + 1} deve usar o formato “km | R$”.`,
+      );
+    }
+    return {
+      maxKm: pricingDecimalValue(
+        parts[0],
+        `Distância da faixa ${index + 1}`,
+        { min: 0.1, max: 100 },
+      ),
+      amountCents: pricingMoneyToCents(
+        parts[1],
+        `Preço da faixa ${index + 1}`,
+      ),
+    };
+  });
+}
+
+function fillPricingPolicyFields(payload) {
+  if (payload == null) return;
+
+  const commissionBps = Number(payload.commissionBps);
+  byId('pricing-commission-percent').value =
+    Number.isFinite(commissionBps)
+      ? String(commissionBps / 100)
+      : '';
+
+  const period = payload.periodPolicy ?? {};
+  byId('pricing-night-start-hour').value =
+    period.nightStartHour ?? 22;
+  byId('pricing-day-start-hour').value =
+    period.dayStartHour ?? 6;
+
+  const pickup = payload.pickupPolicy ?? {};
+  byId('pricing-pickup-free-km').value =
+    pickup.freeKm ?? '';
+  byId('pricing-fuel-price-reais').value =
+    pricingCentsToReais(pickup.fuelPriceCentsPerLiter);
+  byId('pricing-moto-km-liter').value =
+    pickup.motoReferenceKmPerLiter ?? '';
+  byId('pricing-car-km-liter').value =
+    pickup.carReferenceKmPerLiter ?? '';
+
+  const surcharges = payload.surcharges ?? {};
+  byId('pricing-prea-comfort-surcharge').value =
+    pricingCentsToReais(surcharges.preaComfortCents);
+  byId('pricing-prea-night-surcharge').value =
+    pricingCentsToReais(surcharges.preaLocalCarAfter22Cents);
+  byId('pricing-prea-night-localities').value =
+    Array.isArray(surcharges.preaLocalCarAfter22LocalityIds)
+      ? surcharges.preaLocalCarAfter22LocalityIds.join('\n')
+      : '';
+
+  const buggy = payload.jeri?.buggy ?? {};
+  byId('pricing-buggy-min-passengers').value =
+    buggy.minPassengers ?? '';
+  byId('pricing-buggy-max-passengers').value =
+    buggy.maxPassengers ?? '';
+  byId('pricing-buggy-day-price').value =
+    pricingCentsToReais(buggy.dayBaseCents);
+  byId('pricing-buggy-night-price').value =
+    pricingCentsToReais(buggy.after22BaseCents);
+  byId('pricing-buggy-passenger-price').value =
+    pricingCentsToReais(buggy.perPassengerCents);
+
+  const deliveryBands = Array.isArray(payload.jeri?.deliveryBands)
+    ? payload.jeri.deliveryBands
+    : [];
+  byId('pricing-delivery-bands').value = deliveryBands
+    .map(
+      (band) =>
+        `${String(band.maxKm).replace('.', ',')} | ${pricingCentsToReais(band.amountCents).replace('.', ',')}`,
+    )
+    .join('\n');
+}
+
 function pricingVersionStatusPresentation(version) {
   if (version?.status === 'draft') {
     return { label: 'Rascunho', tone: 'warning' };
@@ -3034,16 +3152,22 @@ function renderPricingEditor(version = null) {
 
 function syncPricingEditFields() {
   const kind = byId('pricing-edit-kind').value;
-  byId('pricing-fixed-route-fields').hidden =
-    kind !== 'fixed_route';
-  byId('pricing-locality-fields').hidden =
-    kind !== 'locality_price';
-  byId('pricing-category-policy-fields').hidden =
-    kind !== 'category_policy';
-  byId('pricing-zone-policy-fields').hidden =
-    kind !== 'zone_policy';
-  byId('pricing-locality-structure-fields').hidden =
-    kind !== 'locality_structure';
+  const groups = {
+    'pricing-fixed-route-fields': 'fixed_route',
+    'pricing-locality-fields': 'locality_price',
+    'pricing-category-policy-fields': 'category_policy',
+    'pricing-zone-policy-fields': 'zone_policy',
+    'pricing-locality-structure-fields': 'locality_structure',
+    'pricing-commission-policy-fields': 'commission_policy',
+    'pricing-period-policy-fields': 'period_policy',
+    'pricing-pickup-policy-fields': 'pickup_policy',
+    'pricing-surcharge-policy-fields': 'surcharge_policy',
+    'pricing-buggy-policy-fields': 'buggy_policy',
+    'pricing-delivery-bands-fields': 'delivery_bands',
+  };
+  for (const [id, groupKind] of Object.entries(groups)) {
+    byId(id).hidden = kind !== groupKind;
+  }
 }
 
 function syncPricingLocalityPriceFields() {
@@ -3091,6 +3215,10 @@ function renderPricingCatalog(payload = null) {
     Number.isFinite(commissionBps)
       ? `${(commissionBps / 100).toLocaleString('pt-BR')}%`
       : '—';
+
+  if (payload != null) {
+    fillPricingPolicyFields(payload);
+  }
 
   byId('pricing-localities').textContent =
     String(localities.length);
@@ -3398,6 +3526,115 @@ function buildPricingDraftPatch() {
       scope:
         byId('pricing-locality-structure-scope').value,
       localityId,
+    };
+  }
+
+  if (kind === 'commission_policy') {
+    const percent = pricingDecimalValue(
+      byId('pricing-commission-percent').value,
+      'Comissão',
+      { min: 0, max: 100 },
+    );
+    return {
+      kind,
+      commissionBps: Math.round(percent * 100),
+    };
+  }
+
+  if (kind === 'period_policy') {
+    const nightStartHour = Number(
+      byId('pricing-night-start-hour').value,
+    );
+    const dayStartHour = Number(
+      byId('pricing-day-start-hour').value,
+    );
+    if (
+      !Number.isInteger(nightStartHour) ||
+      !Number.isInteger(dayStartHour) ||
+      nightStartHour < 0 ||
+      nightStartHour > 23 ||
+      dayStartHour < 0 ||
+      dayStartHour > 23 ||
+      nightStartHour === dayStartHour
+    ) {
+      throw new Error('Informe horários válidos e diferentes entre 0 e 23.');
+    }
+    return { kind, nightStartHour, dayStartHour };
+  }
+
+  if (kind === 'pickup_policy') {
+    return {
+      kind,
+      freeKm: pricingDecimalValue(
+        byId('pricing-pickup-free-km').value,
+        'Distância grátis',
+        { min: 0, max: 100 },
+      ),
+      fuelPriceCentsPerLiter: pricingMoneyToCents(
+        byId('pricing-fuel-price-reais').value,
+        'Preço do combustível',
+      ),
+      motoReferenceKmPerLiter: pricingDecimalValue(
+        byId('pricing-moto-km-liter').value,
+        'Consumo da moto',
+        { min: 1, max: 200 },
+      ),
+      carReferenceKmPerLiter: pricingDecimalValue(
+        byId('pricing-car-km-liter').value,
+        'Consumo do carro',
+        { min: 1, max: 100 },
+      ),
+    };
+  }
+
+  if (kind === 'surcharge_policy') {
+    return {
+      kind,
+      preaComfortCents: pricingNonNegativeMoneyToCents(
+        byId('pricing-prea-comfort-surcharge').value,
+        'Adicional Comfort/Black',
+      ),
+      preaLocalCarAfter22Cents:
+        pricingNonNegativeMoneyToCents(
+          byId('pricing-prea-night-surcharge').value,
+          'Adicional noturno do Preá',
+        ),
+      preaLocalCarAfter22LocalityIds: pricingLines(
+        byId('pricing-prea-night-localities').value,
+      ),
+    };
+  }
+
+  if (kind === 'buggy_policy') {
+    return {
+      kind,
+      minPassengers: Number(
+        byId('pricing-buggy-min-passengers').value,
+      ),
+      maxPassengers: Number(
+        byId('pricing-buggy-max-passengers').value,
+      ),
+      dayBaseCents: pricingMoneyToCents(
+        byId('pricing-buggy-day-price').value,
+        'Preço diurno do Buggy',
+      ),
+      after22BaseCents: pricingMoneyToCents(
+        byId('pricing-buggy-night-price').value,
+        'Preço noturno do Buggy',
+      ),
+      perPassengerCents: pricingNonNegativeMoneyToCents(
+        byId('pricing-buggy-passenger-price').value,
+        'Adicional por passageiro',
+      ),
+    };
+  }
+
+  if (kind === 'delivery_bands') {
+    return {
+      kind,
+      bands: parsePricingDeliveryBands(
+        byId('pricing-delivery-bands').value,
+      ),
     };
   }
 
