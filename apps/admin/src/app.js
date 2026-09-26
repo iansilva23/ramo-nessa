@@ -2348,6 +2348,17 @@ function renderFleet(payload = null) {
         : 'Sem permissão fleet:read'
       : `Atualizado em ${formatDateTime(state.fleet.generatedAt)}`;
 
+  const staleSeconds = Math.max(
+    15,
+    numericMetric(state.fleet.staleAfterSeconds),
+  );
+  const staleLabel =
+    staleSeconds % 60 === 0
+      ? `${staleSeconds / 60} min`
+      : `${staleSeconds}s`;
+  byId('fleet-live-note').textContent =
+    `Atualização automática a cada 5 segundos enquanto esta tela estiver aberta. GPS acima de ${staleLabel} aparece como atrasado.`;
+
   const roster = byId('fleet-roster');
   const empty = byId('fleet-roster-empty');
   roster.replaceChildren();
