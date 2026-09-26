@@ -223,6 +223,9 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /api\.createPricingVersion\(state\.token\)/);
   assert.match(app, /api\.updatePricingVersion\(state\.token/);
   assert.match(app, /api\.publishPricingVersion/);
+  assert.match(app, /window\.confirm/);
+  assert.match(app, /vigência imediata/);
+  assert.match(app, /coloca o catálogo em produção/);
   assert.match(app, /category_policy/);
   assert.match(app, /pricing-category-policies-body/);
   assert.match(app, /pricing-policy-four-by-four/);
