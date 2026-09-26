@@ -121,10 +121,16 @@ class RamoLiveMap extends StatefulWidget {
   State<RamoLiveMap> createState() => _RamoLiveMapState();
 }
 
-class _RamoLiveMapState extends State<RamoLiveMap> {
+class _RamoLiveMapState extends State<RamoLiveMap>
+    with SingleTickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
   double _driverBearing = 0;
+  double _displayDriverBearing = 0;
+  domain.LatLng? _displayDriverPosition;
+  domain.LatLng? _driverAnimationFrom;
+  domain.LatLng? _driverAnimationTo;
+  late final AnimationController _driverMoveController;
   gm.BitmapDescriptor _passengerIcon =
       gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon =
@@ -137,8 +143,74 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
   @override
   void initState() {
     super.initState();
+    _displayDriverPosition = widget.driverPosition;
+    _driverMoveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    )..addListener(_tickDriverMovement);
     _notifyPlaceholderReadyIfNeeded();
     _loadMarkerIcons();
+  }
+
+  void _tickDriverMovement() {
+    final from = _driverAnimationFrom;
+    final to = _driverAnimationTo;
+    if (from == null || to == null || !mounted) return;
+
+    final t = Curves.easeInOutCubic.transform(
+      _driverMoveController.value,
+    );
+    final latitude =
+        from.latitude + (to.latitude - from.latitude) * t;
+    final longitude =
+        from.longitude + (to.longitude - from.longitude) * t;
+    final bearingDelta =
+        ((_driverBearing - _displayDriverBearing + 540) % 360) - 180;
+
+    setState(() {
+      _displayDriverPosition = domain.LatLng(latitude, longitude);
+      _displayDriverBearing =
+          (_displayDriverBearing + bearingDelta * t + 360) % 360;
+    });
+  }
+
+  double _distanceMeters(domain.LatLng from, domain.LatLng to) {
+    const earthRadius = 6371000.0;
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final deltaLat =
+        (to.latitude - from.latitude) * math.pi / 180;
+    final deltaLon =
+        (to.longitude - from.longitude) * math.pi / 180;
+    final a = math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(deltaLon / 2) *
+            math.sin(deltaLon / 2);
+    return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  void _moveDriverSmoothly(
+    domain.LatLng from,
+    domain.LatLng to,
+    double targetBearing,
+  ) {
+    final current = _displayDriverPosition ?? from;
+    final distance = _distanceMeters(current, to);
+    _driverBearing = targetBearing;
+
+    if (widget.driverPositionStale || distance > 2500) {
+      _driverMoveController.stop();
+      setState(() {
+        _displayDriverPosition = to;
+        _displayDriverBearing = targetBearing;
+      });
+      return;
+    }
+
+    _driverAnimationFrom = current;
+    _driverAnimationTo = to;
+    _driverMoveController.forward(from: 0);
   }
 
   Future<void> _loadMarkerIcons() async {
@@ -198,11 +270,19 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
 
     final previousDriver = oldWidget.driverPosition;
     final nextDriver = widget.driverPosition;
-    if (previousDriver != null &&
-        nextDriver != null &&
-        (previousDriver.latitude != nextDriver.latitude ||
-            previousDriver.longitude != nextDriver.longitude)) {
-      _driverBearing = _bearingBetween(previousDriver, nextDriver);
+    if (nextDriver == null) {
+      _driverMoveController.stop();
+      _displayDriverPosition = null;
+    } else if (previousDriver == null) {
+      _driverMoveController.stop();
+      _displayDriverPosition = nextDriver;
+    } else if (previousDriver.latitude != nextDriver.latitude ||
+        previousDriver.longitude != nextDriver.longitude) {
+      _moveDriverSmoothly(
+        previousDriver,
+        nextDriver,
+        _bearingBetween(previousDriver, nextDriver),
+      );
     }
 
     if (oldWidget.driverCategory != widget.driverCategory) {
@@ -266,7 +346,7 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
       );
     }
 
-    final driver = widget.driverPosition;
+    final driver = _displayDriverPosition ?? widget.driverPosition;
     if (driver != null) {
       markers.add(
         gm.Marker(
@@ -277,7 +357,7 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
               : _driverIcon,
           anchor: const Offset(.5, .5),
           flat: true,
-          rotation: _driverBearing,
+          rotation: _displayDriverBearing,
           infoWindow: gm.InfoWindow(
             title: widget.driverPositionStale
                 ? 'Última posição do motorista'
@@ -313,6 +393,7 @@ class _RamoLiveMapState extends State<RamoLiveMap> {
 
   @override
   void dispose() {
+    _driverMoveController.dispose();
     widget.controller.detach();
     _nativeController = null;
     super.dispose();
