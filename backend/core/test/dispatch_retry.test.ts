@@ -10,6 +10,7 @@ import {
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryPaymentPolicySettingsRepository } from '../src/payments/repositories/in-memory-payment-policy-settings-repository.js';
+import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
 
 const now = new Date('2026-09-23T13:00:00.000Z');
@@ -264,4 +265,46 @@ test('cash pula motorista cujo limite de dívida seria excedido', async () => {
       'driver-next-cash-ok',
     );
   }
+});
+
+
+test('dispatch usa a validade máxima de GPS configurada no Admin', async () => {
+  const rides = new InMemoryRideRepository();
+  const drivers = new InMemoryDriverSupplyRepository();
+  const matching = new InMemoryRideMatchingRepository(rides, drivers);
+  const operationalSettings =
+    new InMemoryOperationalSettingsRepository();
+
+  await operationalSettings.update({
+    driverLocationMaxAgeSeconds: 30,
+    updatedAt: now.toISOString(),
+  });
+  await rides.create(ride());
+  await drivers.upsert({
+    driverId: 'driver-stale-by-admin',
+    vehicleId: 'vehicle-stale-by-admin',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.8205,
+    longitude: -40.4145,
+    locationUpdatedAt: new Date(
+      now.getTime() - 45 * 1000,
+    ).toISOString(),
+    updatedAt: now.toISOString(),
+  });
+
+  const result = await dispatchNextDriver({
+    rides,
+    drivers,
+    matching,
+    operationalSettings,
+    rideId: ride().id,
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    now,
+  });
+
+  assert.equal(result.kind, 'NO_DRIVER_FOUND');
 });
