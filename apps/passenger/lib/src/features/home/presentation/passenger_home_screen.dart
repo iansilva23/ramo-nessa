@@ -492,6 +492,24 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
   }
 
+  void _clearDestination() {
+    _routeRequestId++;
+    _pricingRequestId++;
+    setState(() {
+      _destination = null;
+      _route = null;
+      _routeLoading = false;
+      _coverageMessage = null;
+      _serviceAreaLabel = null;
+      _resetPricing();
+    });
+
+    final origin = _origin;
+    if (_mapReady && origin != null) {
+      unawaited(_mapController.move(origin.position, 16));
+    }
+  }
+
   Future<void> _chooseDestination() async {
     final destination = await _searchPlace(
       title: 'Escolher destino',
@@ -1071,6 +1089,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             routeLoading: _routeLoading,
             onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
+            onDestinationClear:
+                _destination == null ? null : _clearDestination,
             passengerCount: _passengerCount,
             onPassengerCountChanged: _changePassengerCount,
             availableServices: availableServices,
