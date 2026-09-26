@@ -7,6 +7,7 @@ import {
   sendAdminNotification,
   updateAgencyPromotion,
   updateAppReleasePolicy,
+  updateSocialLinks,
 } from '../src/admin/admin-communications-service.js';
 import { InMemoryPushDeviceRepository } from '../src/notifications/repositories/in-memory-push-device-repository.js';
 import {
@@ -18,6 +19,7 @@ import type {
   PushDeliveryRequest,
 } from '../src/notifications/push-delivery-provider.js';
 import type { AuthSessionRecord } from '../src/auth/auth-session-repository.js';
+import { parseAdminSocialLinksUpdate } from '../src/admin/admin-communications-validation.js';
 
 class CapturingProvider implements PushDeliveryProvider {
   readonly kind = 'test';
@@ -219,4 +221,45 @@ test('promoção da agência é persistida e auditada', async () => {
     'Ver passeios',
   );
   assert.equal((await admin.listAudit(10)).length, 1);
+});
+
+
+test('Instagram oficial é normalizado, persistido e auditado', async () => {
+  const communications =
+    new InMemoryAdminCommunicationsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  const parsed = parseAdminSocialLinksUpdate({
+    instagramHandle: ' @Ramo.Nessa_Oficial ',
+  });
+  assert.deepEqual(parsed, {
+    instagramHandle: '@Ramo.Nessa_Oficial',
+    instagramUrl: 'https://www.instagram.com/Ramo.Nessa_Oficial/',
+  });
+
+  const saved = await updateSocialLinks({
+    communications,
+    admin,
+    actor,
+    ...parsed,
+    now: new Date('2026-09-26T14:00:00.000Z'),
+  });
+
+  assert.equal(saved.instagramHandle, '@Ramo.Nessa_Oficial');
+  assert.equal(
+    saved.instagramUrl,
+    'https://www.instagram.com/Ramo.Nessa_Oficial/',
+  );
+  assert.equal(
+    (await communications.getSocialLinks()).instagramHandle,
+    '@Ramo.Nessa_Oficial',
+  );
+  assert.equal((await admin.listAudit(10)).length, 1);
+
+  assert.throws(
+    () => parseAdminSocialLinksUpdate({
+      instagramHandle: 'instagram.com/nao-pode',
+    }),
+    /Instagram/,
+  );
 });
