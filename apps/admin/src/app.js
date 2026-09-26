@@ -469,6 +469,10 @@ function clearSession(message = '') {
     socialLinks: null,
     tours: [],
   };
+  state.support = {
+    tickets: [],
+    selectedId: null,
+  };
   routeLoadSequence += 1;
   currentView = null;
   fleetMap = null;
@@ -6160,6 +6164,16 @@ function bindRouteEvents(view) {
     return;
   }
 
+  if (view === 'support') {
+    bindRouteEvent('refresh-support-button', 'click', () => {
+      void loadSupport();
+    });
+    bindRouteEvent('support-response-form', 'submit', (event) => {
+      void handleSupportResponse(event);
+    });
+    return;
+  }
+
   if (view === 'agency') {
     bindRouteEvent('agency-form', 'submit', (event) => {
       void handleAgencySubmit(event);
@@ -6332,6 +6346,14 @@ function initializeRouteView(view) {
     renderNotificationHistory();
     if (hasScope('communications:read')) {
       void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'support') {
+    renderSupport();
+    if (hasScope('communications:read')) {
+      void loadSupport({ announce: false });
     }
     return;
   }
