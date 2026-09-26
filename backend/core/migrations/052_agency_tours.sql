@@ -104,7 +104,7 @@ VALUES
     'A partir de', '', '', NOW()
   ),
   (
-    'madrinha', false, 60, 'Passeio Madrinha', 'EXPERIÊNCIA',
+    'barrinha', false, 60, 'Passeio Barrinha', 'EXPERIÊNCIA',
     'Configure os detalhes deste passeio no painel ADM.',
     'Preencha no painel ADM as informações completas, roteiro, duração, preço e atendimento pelo WhatsApp.',
     'A partir de', '', '', NOW()
