@@ -188,10 +188,10 @@ export class GooglePlacesService {
     localOnly: boolean;
   }): Promise<GooglePlacePrediction[]> {
     const query = input.query.trim();
-    if (query.length < 3 || query.length > 160) {
+    if (query.length < 1 || query.length > 160) {
       throw new GooglePlacesError(
         'INVALID_QUERY',
-        'A busca precisa ter entre 3 e 160 caracteres.',
+        'A busca precisa ter entre 1 e 160 caracteres.',
       );
     }
     const sessionToken = validateSessionToken(input.sessionToken);
