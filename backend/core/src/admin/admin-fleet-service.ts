@@ -25,8 +25,8 @@ export async function adminFleetSnapshot(input: {
 }) {
   const now = input.now ?? new Date();
   const staleAfterSeconds = Math.max(
-    30,
-    Math.min(900, Math.trunc(input.staleAfterSeconds ?? 120)),
+    15,
+    Math.min(600, Math.trunc(input.staleAfterSeconds ?? 120)),
   );
   const supplies = await input.drivers.listFleet();
 
