@@ -55,6 +55,13 @@ abstract interface class DriverApi {
 
   Future<DriverRideCompletion> completeRide(String rideId);
 
+  Future<List<DriverRideChatMessage>> rideMessages(String rideId);
+
+  Future<DriverRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  });
+
   Future<DriverFinanceSummary> financeSummary();
 
   Future<DriverFinanceStatement> financeStatement();
