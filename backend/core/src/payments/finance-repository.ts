@@ -133,6 +133,11 @@ export interface AdminFinanceSummary {
   payoutsRequestedCents: number;
 }
 
+export interface DriverPayoutPeriodSummary {
+  requestedCents: number;
+  paidCents: number;
+}
+
 export interface FinanceRepository {
   findPaymentById(id: string): Promise<PaymentRecord | null>;
   findLatestPaymentByRideId(rideId: string): Promise<PaymentRecord | null>;
@@ -179,6 +184,11 @@ export interface FinanceRepository {
   adminFinanceSummary(): Promise<AdminFinanceSummary>;
   listRecentPayments(limit: number): Promise<PaymentRecord[]>;
   listRecentDriverPayouts(limit: number): Promise<DriverPayoutRecord[]>;
+  getDriverPayoutPeriodSummary(
+    driverId: string,
+    from?: string,
+    to?: string,
+  ): Promise<DriverPayoutPeriodSummary>;
   listLedgerTransactionsForAccounts(
     accountKeys: readonly string[],
     limit: number,
