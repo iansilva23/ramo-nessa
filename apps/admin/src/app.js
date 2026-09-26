@@ -1360,6 +1360,13 @@ async function handleDriverRegistryStatus() {
     const vehicleStatus = validateDriverRegistryStatus(
       byId('registry-vehicle-status').value,
     );
+    const confirmed = window.confirm(
+      'Confirmar alteração cadastral do motorista? ' +
+        `Perfil: ${profileStatus} · Veículo: ${vehicleStatus}. ` +
+        'Essa decisão pode liberar ou bloquear a elegibilidade para corridas.',
+    );
+    if (!confirmed) return;
+
     const result = await api.setDriverRegistryStatus(
       state.token,
       {
@@ -1690,6 +1697,17 @@ async function handleDriverDocumentComplianceAction(action, button) {
     return;
   }
 
+  const confirmationByAction = {
+    block:
+      'Confirmar bloqueio documental? O motorista deixará de receber novas corridas, mas continuará acessando o app.',
+    unblock:
+      'Confirmar liberação documental? O motorista poderá voltar a receber novas corridas se cumprir as demais regras.',
+    keep_active:
+      'Confirmar decisão de manter ativo? A pendência ficará registrada, mas o motorista continuará recebendo novas corridas.',
+  };
+  const confirmation = confirmationByAction[action];
+  if (!confirmation || !window.confirm(confirmation)) return;
+
   button.disabled = true;
   try {
     const payload = await api.decideDriverDocumentCompliance(
@@ -1972,6 +1990,13 @@ async function handleDriverDocumentReview(event) {
     );
     return;
   }
+
+  const confirmed = window.confirm(
+    status === 'approved'
+      ? `Confirmar decisão sobre o documento ${driverDocumentTypeLabel(documentType)}? Ele será aprovado.`
+      : `Confirmar decisão sobre o documento ${driverDocumentTypeLabel(documentType)}? Ele será rejeitado pelo motivo informado.`,
+  );
+  if (!confirmed) return;
 
   const button = byId('driver-document-review-button');
   button.disabled = true;
@@ -4744,6 +4769,13 @@ async function handlePassengerAccessChange() {
     return;
   }
 
+  const confirmed = window.confirm(
+    nextStatus === 'suspended'
+      ? 'Confirmar alteração de acesso do passageiro? O bloqueio revoga imediatamente todas as sessões ativas.'
+      : 'Confirmar alteração de acesso do passageiro? O passageiro poderá fazer um novo login.',
+  );
+  if (!confirmed) return;
+
   button.disabled = true;
   try {
     const result = await api.setPassengerStatus(state.token, {
@@ -5821,14 +5853,23 @@ async function handleDriverProvision(event) {
 }
 
 async function changeDriverStatus(driverId, status, button) {
-  if (!state.token) return;
+  if (!state.token || !hasScope('drivers:auth:write')) return;
+
+  const nextStatus = validateDriverStatus(status);
+  const confirmed = window.confirm(
+    nextStatus === 'active'
+      ? 'Confirmar alteração de acesso do motorista? O login OTP será liberado para este motorista.'
+      : 'Confirmar alteração de acesso do motorista? A suspensão revoga imediatamente as sessões ativas.',
+  );
+  if (!confirmed) return;
+
   setMessage(globalMessage);
   button.disabled = true;
 
   try {
     const result = await api.setDriverStatus(state.token, {
       driverId,
-      status: validateDriverStatus(status),
+      status: nextStatus,
     });
     state.currentDriver = result.driver ?? result;
     renderDriver(state.currentDriver);
