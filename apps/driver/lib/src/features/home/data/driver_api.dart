@@ -41,7 +41,10 @@ abstract interface class DriverApi {
     required List<int> bytes,
   });
 
-  Future<DriverActivitySnapshot> activity();
+  Future<DriverActivitySnapshot> activity({
+    DateTime? from,
+    DateTime? to,
+  });
 
   Future<AcceptedDriverRide?> currentRide();
 
