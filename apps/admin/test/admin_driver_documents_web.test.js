@@ -183,10 +183,16 @@ test('cliente Admin emite token e lê arquivo privado sem vazar sessão ou stora
 });
 
 test('frontend documental mantém metadados sanitizados e preview temporário', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/drivers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
@@ -231,10 +237,16 @@ test('frontend documental mantém metadados sanitizados e preview temporário', 
 
 
 test('ADM mantém decisão humana por padrão e expõe controles documentais', async () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/drivers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
