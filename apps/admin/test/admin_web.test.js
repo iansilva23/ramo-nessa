@@ -221,6 +221,10 @@ test('frontend não persiste sessão e evita sinks HTML inseguros', () => {
       'utf8',
     ),
     readFileSync(
+      new URL('../pages/overview.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
       new URL('../pages/drivers.html', import.meta.url),
       'utf8',
     ),
