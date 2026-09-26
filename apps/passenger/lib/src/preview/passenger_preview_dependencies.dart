@@ -95,13 +95,27 @@ final class _PreviewPlaceSearchService implements PlaceSearchService {
     final normalized = query.trim().toLowerCase();
     if (normalized.length < 2) return const [];
 
-    return _places
+    final matches = _places
         .where(
           (place) =>
               place.name.toLowerCase().contains(normalized) ||
               place.address.toLowerCase().contains(normalized),
         )
         .toList(growable: false);
+
+    if (matches.isNotEmpty) return matches;
+
+    // O APK Preview não consulta Google Places. Este fallback permite
+    // testar a UX de pesquisar/trocar pousadas e outros estabelecimentos
+    // antes de o Core público estar configurado com Places.
+    return [
+      RamoPlace(
+        name: query.trim(),
+        address:
+            'Resultado simulado do Preview · Jericoacoara - CE',
+        position: const LatLng(-2.7956, -40.5142),
+      ),
+    ];
   }
 }
 
