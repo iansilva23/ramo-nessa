@@ -4202,8 +4202,8 @@ const server = createServer(async (request, response) => {
           finance: financeRepository,
           driverId,
           limit,
-          from,
-          to,
+          ...(from == null ? {} : { from }),
+          ...(to == null ? {} : { to }),
         }),
       );
       return;
