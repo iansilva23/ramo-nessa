@@ -28,6 +28,7 @@ import '../data/http_driver_api.dart';
 import '../data/io_driver_realtime_service.dart';
 import '../domain/driver_models.dart';
 import '../domain/driver_route_info.dart';
+import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'widgets/driver_live_map.dart';
 
@@ -1298,6 +1299,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _openRideChat() async {
+    final api = _api;
+    final ride = _activeRide;
+    if (api == null || ride == null) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DriverRideChatScreen(
+          api: api,
+          rideId: ride.id,
+        ),
+      ),
+    );
+  }
+
   void _centerDriverOnMap() {
     final supply = _supply;
     if (!_mapReady || supply == null) return;
@@ -1428,6 +1444,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               ),
                               ride: _activeRide!,
                               route: _activeRoute,
+                              onChat: _openRideChat,
                               onExpand: () => setState(
                                 () => _ridePanelExpanded = true,
                               ),
@@ -1445,6 +1462,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               onArrived: _markArrived,
                               onStart: _startRide,
                               onComplete: _completeRide,
+                              onChat: _openRideChat,
                               onMinimize: _navigationMode
                                   ? () => setState(
                                         () => _ridePanelExpanded = false,
@@ -1559,6 +1577,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onArrived: _markArrived,
                 onStart: _startRide,
                 onComplete: _completeRide,
+                onChat: _openRideChat,
                 route: _activeRoute,
                 currentPosition: LatLng(
                   supply.latitude,
@@ -3428,12 +3447,14 @@ class _ActiveRideCompactBar extends StatelessWidget {
     super.key,
     required this.ride,
     required this.onExpand,
+    required this.onChat,
     this.route,
   });
 
   final AcceptedDriverRide ride;
   final DriverRouteInfo? route;
   final VoidCallback onExpand;
+  final VoidCallback onChat;
 
   String get _target => ride.state == 'IN_PROGRESS'
       ? ride.destination.displayName
@@ -3506,7 +3527,17 @@ class _ActiveRideCompactBar extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Mensagem com passageiro',
+                  onPressed: onChat,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
                 const Icon(
                   Icons.expand_less_rounded,
                   color: Colors.white,
@@ -3532,6 +3563,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
+    required this.onChat,
     required this.currentPosition,
     this.onMinimize,
     this.route,
@@ -3546,6 +3578,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
+  final VoidCallback onChat;
   final LatLng currentPosition;
   final VoidCallback? onMinimize;
   final DriverRouteInfo? route;
@@ -3745,6 +3778,16 @@ class _ActiveRideCard extends StatelessWidget {
                   route!.nextManeuverFor(currentPosition)!.instruction,
             ),
           ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: onChat,
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: const Text('Mensagem com passageiro'),
+            ),
+          ),
           if (_canNavigate) ...[
             const SizedBox(height: 16),
             SizedBox(
