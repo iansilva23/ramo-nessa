@@ -113,7 +113,10 @@ test('Admin lê foto privada de passeio em rascunho com Bearer', async () => {
 
 test('painel Admin expõe editor completo do catálogo de passeios', async () => {
   const [html, app, api] = await Promise.all([
-    readFile(new URL('../index.html', import.meta.url), 'utf8'),
+    Promise.all([
+      readFile(new URL('../index.html', import.meta.url), 'utf8'),
+      readFile(new URL('../pages/agency.html', import.meta.url), 'utf8'),
+    ]).then((parts) => parts.join('\n')),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/api.js', import.meta.url), 'utf8'),
   ]);
