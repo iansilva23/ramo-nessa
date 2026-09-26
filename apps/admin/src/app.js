@@ -4123,6 +4123,15 @@ async function handlePricingPublish() {
     effectiveFrom = parsed.toISOString();
   }
 
+  const publishWhen = effectiveFrom
+    ? `com vigência em ${formatDateTime(effectiveFrom)}`
+    : 'com vigência imediata';
+  const confirmed = window.confirm(
+    `Publicar a versão #${version.versionNumber} ${publishWhen}? ` +
+      'Esta ação coloca o catálogo em produção e não pode ser desfeita editando esta mesma versão.',
+  );
+  if (!confirmed) return;
+
   const button = byId('pricing-publish-button');
   button.disabled = true;
   try {
