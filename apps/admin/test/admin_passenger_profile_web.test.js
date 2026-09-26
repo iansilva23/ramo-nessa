@@ -132,6 +132,11 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
     'passenger-access-actions',
     'passenger-access-button',
     'passenger-access-note',
+    'passenger-profile-edit-form',
+    'passenger-profile-full-name',
+    'passenger-profile-email',
+    'passenger-profile-save-button',
+    'passenger-profile-edit-note',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -141,6 +146,11 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
   assert.match(app, /hasScope\('passengers:auth:write'\)/);
   assert.match(app, /hasScope\('rides:read'\)/);
   assert.match(app, /api\.setPassengerStatus\(state\.token/);
+  assert.match(app, /handlePassengerProfileEdit/);
+  assert.match(app, /api\.updatePassengerProfile\(state\.token/);
+  assert.match(app, /passenger-profile-edit-form/);
+  assert.match(app, /passenger\.fullName/);
+  assert.match(app, /passenger\.email/);
   assert.match(app, /lookupPassenger\(passenger\.passengerId\)/);
   assert.match(app, /completedAmountCents/);
   assert.equal(app.includes('.innerHTML'), false);
@@ -151,7 +161,50 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
     '.passenger-detail-summary',
     '.passenger-history-table',
     '.passenger-access-actions',
+    '.passenger-profile-edit-form',
+    '.passenger-profile-edit-grid',
+    '.passenger-profile-edit-actions',
   ]) {
     assert.equal(css.includes(selector), true);
   }
+});
+
+
+test('cliente Admin edita nome e e-mail do passageiro sem vazar Bearer', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      passenger: {
+        passengerId: 'passenger-profile-001',
+        fullName: 'Maria da Silva',
+        email: 'maria@example.com',
+        status: 'active',
+      },
+    });
+  });
+
+  const token = 'rn_admin_session_passenger_profile_edit_secret';
+  const result = await api.updatePassengerProfile(token, {
+    passengerId: 'passenger-profile-001',
+    fullName: 'Maria da Silva',
+    email: 'maria@example.com',
+  });
+
+  assert.equal(result.passenger.fullName, 'Maria da Silva');
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/passengers/passenger-profile-001/profile',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    fullName: 'Maria da Silva',
+    email: 'maria@example.com',
+  });
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
 });
