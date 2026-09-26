@@ -3,6 +3,7 @@ FROM caddy:2-alpine
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY index.html styles.css favicon.svg /srv/admin/
 COPY src /srv/admin/src
+COPY pages /srv/admin/pages
 
 EXPOSE 8080
 
