@@ -1,0 +1,388 @@
+<section id="view-pricing" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">CATÁLOGO COMERCIAL</span>
+                <h1>Preços e zonas</h1>
+                <p>Catálogo autoritativo versionado usado pelo Core para preços, categorias, zonas e localidades.</p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="pricing-mode">Aguardando catálogo</small>
+                <button
+                  id="refresh-pricing-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar catálogo
+                </button>
+              </div>
+            </div>
+
+            <div class="pricing-summary-grid" aria-label="Resumo do catálogo de preços">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Versão</span>
+                <strong id="pricing-version">—</strong>
+                <small>Fonte autoritativa do Core</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Comissão</span>
+                <strong id="pricing-commission">—</strong>
+                <small>Percentual da plataforma</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Localidades</span>
+                <strong id="pricing-localities">0</strong>
+                <small>Preá + Jijoca</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Rotas fixas</span>
+                <strong id="pricing-fixed-routes">0</strong>
+                <small>Com valor dia / após 22h</small>
+              </article>
+            </div>
+
+            <div class="pricing-readonly-note">
+              <strong>Catálogo ativo protegido</strong>
+              <span>
+                O preço em produção nunca é alterado diretamente. Mudanças são feitas em rascunho, revisadas e só entram em vigor quando uma versão é publicada com vigência definida.
+              </span>
+            </div>
+
+            <div class="pricing-workflow-grid">
+              <article class="panel-card panel-card--table">
+                <div class="pricing-table-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">VERSÕES</span>
+                    <h2>Histórico comercial</h2>
+                  </div>
+                  <button
+                    id="pricing-create-draft-button"
+                    class="button button--primary"
+                    type="button"
+                  >
+                    Novo rascunho
+                  </button>
+                </div>
+                <div class="table-wrap">
+                  <table class="pricing-versions-table">
+                    <thead>
+                      <tr>
+                        <th>Versão</th>
+                        <th>Status</th>
+                        <th>Vigência</th>
+                        <th>Atualizada</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="pricing-versions-body"></tbody>
+                  </table>
+                </div>
+                <div id="pricing-versions-empty" class="empty-state">
+                  Nenhuma versão persistida ainda.
+                </div>
+              </article>
+
+              <article class="panel-card pricing-editor-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">RASCUNHO</span>
+                    <h2>Editar e publicar</h2>
+                  </div>
+                  <span id="pricing-editor-status" class="pill pill--neutral">Nenhum</span>
+                </div>
+
+                <div id="pricing-editor-empty" class="empty-state">
+                  Abra uma versão em rascunho ou crie uma nova para alterar preços.
+                </div>
+
+                <div id="pricing-editor-controls" hidden>
+                  <div class="pricing-selected-version">
+                    <strong id="pricing-selected-version-title">—</strong>
+                    <small id="pricing-selected-version-meta">—</small>
+                  </div>
+
+                  <form id="pricing-edit-form" class="pricing-edit-form">
+                    <label class="field">
+                      <span>Tipo de alteração</span>
+                      <select id="pricing-edit-kind">
+                        <option value="fixed_route">Rota fixa</option>
+                        <option value="locality_price">Preço por localidade</option>
+                        <option value="category_policy">Categoria e elegibilidade</option>
+                        <option value="zone_policy">Disponibilidade de zona</option>
+                        <option value="locality_structure">Estrutura de localidade</option>
+                      </select>
+                    </label>
+
+                    <div id="pricing-fixed-route-fields" class="pricing-edit-group">
+                      <label class="field">
+                        <span>ID da rota</span>
+                        <input id="pricing-route-id" autocomplete="off" placeholder="prea-jijoca-car">
+                      </label>
+                      <label class="field">
+                        <span>Preço dia (R$)</span>
+                        <input id="pricing-route-day" inputmode="decimal" placeholder="120,00">
+                      </label>
+                      <label class="field">
+                        <span>Preço após 22h (R$)</span>
+                        <input id="pricing-route-night" inputmode="decimal" placeholder="140,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Base</span>
+                        <select id="pricing-locality-hub">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input id="pricing-locality-id" autocomplete="off" placeholder="formosa">
+                      </label>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-locality-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Formato do preço</span>
+                        <select id="pricing-locality-price-kind">
+                          <option value="exact">Valor exato</option>
+                          <option value="range">Faixa</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span id="pricing-locality-min-label">Preço (R$)</span>
+                        <input id="pricing-locality-min" inputmode="decimal" placeholder="25,00">
+                      </label>
+                      <label id="pricing-locality-max-field" class="field" hidden>
+                        <span>Máximo (R$)</span>
+                        <input id="pricing-locality-max" inputmode="decimal" placeholder="30,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-category-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-policy-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                          <option value="comfort_black">Comfort/Black</option>
+                          <option value="buggy">Buggy</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Ao cruzar Jeri</span>
+                        <select id="pricing-policy-four-by-four">
+                          <option value="false">Não exigir 4x4</option>
+                          <option value="true">Exigir 4x4</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="pricing-zone-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Zona</span>
+                        <select id="pricing-zone-policy-id">
+                          <option value="jericoacoara">Jericoacoara</option>
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destinos externos</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-zone-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-structure-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Ação</span>
+                        <select id="pricing-locality-structure-operation">
+                          <option value="add">Adicionar</option>
+                          <option value="remove">Remover</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Estrutura</span>
+                        <select id="pricing-locality-structure-scope">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destino externo</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-structure-id"
+                          autocomplete="off"
+                          placeholder="novo-destino"
+                        >
+                      </label>
+                    </div>
+
+                    <button id="pricing-save-draft-button" class="button button--primary" type="submit">
+                      Salvar no rascunho
+                    </button>
+                  </form>
+
+                  <div class="pricing-publish-panel">
+                    <div>
+                      <strong>Publicar versão</strong>
+                      <small>
+                        Se a vigência ficar vazia, entra em vigor imediatamente.
+                      </small>
+                    </div>
+                    <label class="field">
+                      <span>Vigência</span>
+                      <input id="pricing-effective-from" type="datetime-local">
+                    </label>
+                    <button id="pricing-publish-button" class="button button--dark" type="button">
+                      Publicar versão
+                    </button>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CATEGORIAS</span>
+                  <h2>Disponibilidade e elegibilidade</h2>
+                </div>
+                <span id="pricing-category-count" class="pill">0 categorias</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Categoria</th>
+                      <th>Status</th>
+                      <th>Ao cruzar Jeri</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-category-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-category-policies-empty" class="empty-state">
+                Nenhuma política de categoria carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ZONAS</span>
+                  <h2>Disponibilidade operacional</h2>
+                </div>
+                <span id="pricing-zone-count" class="pill">0 zonas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Zona</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-zone-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-zone-policies-empty" class="empty-state">
+                Nenhuma política de zona carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">EXTERNOS</span>
+                  <h2>Destinos externos aprovados</h2>
+                </div>
+                <span id="pricing-external-count" class="pill">0 destinos</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>ID da localidade</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-external-localities-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-external-localities-empty" class="empty-state">
+                Nenhum destino externo aprovado.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">LOCALIDADES</span>
+                  <h2>Tarifas base por localidade</h2>
+                </div>
+                <span id="pricing-locality-count" class="pill">0 localidades</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Base</th>
+                      <th>Localidade</th>
+                      <th>Moto</th>
+                      <th>Entrega</th>
+                      <th>Carro</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-localities-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-localities-empty" class="empty-state">
+                Nenhuma localidade carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ROTAS FIXAS</span>
+                  <h2>Corredores e horários</h2>
+                </div>
+                <span id="pricing-route-count" class="pill">0 rotas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Rota</th>
+                      <th>Categoria</th>
+                      <th>Dia</th>
+                      <th>Após 22h</th>
+                      <th>Regra</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-routes-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-routes-empty" class="empty-state">
+                Nenhuma rota fixa carregada.
+              </div>
+            </article>
+          </section>
