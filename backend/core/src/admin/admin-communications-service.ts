@@ -9,6 +9,8 @@ import type {
   AdminNotificationAudience,
   AdminNotificationCategory,
   AgencyPromotionRecord,
+  AgencyTourCover,
+  AgencyTourRecord,
   AppReleasePolicyRecord,
 } from './admin-communications-repository.js';
 import type {
@@ -70,13 +72,19 @@ export async function adminCommunicationsView(input: {
   communications: AdminCommunicationsRepository;
   push: PushNotificationService;
 }) {
-  const [campaigns, releasePolicies, agencyPromotion, socialLinks] =
-    await Promise.all([
-      input.communications.listCampaigns(25),
-      input.communications.listReleasePolicies(),
-      input.communications.getAgencyPromotion(),
-      input.communications.getSocialLinks(),
-    ]);
+  const [
+    campaigns,
+    releasePolicies,
+    agencyPromotion,
+    socialLinks,
+    tours,
+  ] = await Promise.all([
+    input.communications.listCampaigns(25),
+    input.communications.listReleasePolicies(),
+    input.communications.getAgencyPromotion(),
+    input.communications.getSocialLinks(),
+    input.communications.listTours(true),
+  ]);
 
   return {
     deliveryProvider: input.push.providerKind,
@@ -84,6 +92,7 @@ export async function adminCommunicationsView(input: {
     releasePolicies,
     agencyPromotion,
     socialLinks,
+    tours: tours.map(agencyTourPublicView),
   };
 }
 
@@ -365,4 +374,155 @@ export async function updateSocialLinks(input: {
   });
 
   return record;
+}
+
+
+export function agencyTourPublicView(tour: AgencyTourRecord) {
+  return {
+    slug: tour.slug,
+    enabled: tour.enabled,
+    sortOrder: tour.sortOrder,
+    title: tour.title,
+    badge: tour.badge,
+    shortDescription: tour.shortDescription,
+    description: tour.description,
+    highlights: tour.highlights,
+    included: tour.included,
+    excluded: tour.excluded,
+    duration: tour.duration ?? null,
+    schedule: tour.schedule ?? null,
+    departure: tour.departure ?? null,
+    priceLabel: tour.priceLabel,
+    priceCents: tour.priceCents ?? null,
+    priceSuffix: tour.priceSuffix ?? null,
+    whatsappPhone: tour.whatsappPhone,
+    whatsappMessage: tour.whatsappMessage,
+    coverImageUrl:
+      tour.coverImageVersion > 0
+        ? `/v1/content/tours/${encodeURIComponent(tour.slug)}/cover?v=${tour.coverImageVersion}`
+        : null,
+    coverImageVersion: tour.coverImageVersion,
+    updatedAt: tour.updatedAt,
+  };
+}
+
+export async function listPublicAgencyTours(input: {
+  communications: AdminCommunicationsRepository;
+}) {
+  const tours = await input.communications.listTours(false);
+  return tours.map(agencyTourPublicView);
+}
+
+export async function getPublicAgencyTour(input: {
+  communications: AdminCommunicationsRepository;
+  slug: string;
+}) {
+  const tour = await input.communications.getTour(input.slug);
+  if (tour == null || !tour.enabled) return null;
+  return agencyTourPublicView(tour);
+}
+
+export async function updateAgencyTour(input: {
+  communications: AdminCommunicationsRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  slug: string;
+  enabled: boolean;
+  sortOrder: number;
+  title: string;
+  badge: string;
+  shortDescription: string;
+  description: string;
+  highlights: string[];
+  included: string[];
+  excluded: string[];
+  duration?: string;
+  schedule?: string;
+  departure?: string;
+  priceLabel: string;
+  priceCents?: number;
+  priceSuffix?: string;
+  whatsappPhone: string;
+  whatsappMessage: string;
+  now?: Date;
+}) {
+  const now = (input.now ?? new Date()).toISOString();
+  const current = await input.communications.getTour(input.slug);
+  const record: AgencyTourRecord = {
+    slug: input.slug,
+    enabled: input.enabled,
+    sortOrder: input.sortOrder,
+    title: input.title,
+    badge: input.badge,
+    shortDescription: input.shortDescription,
+    description: input.description,
+    highlights: input.highlights,
+    included: input.included,
+    excluded: input.excluded,
+    ...(input.duration == null ? {} : { duration: input.duration }),
+    ...(input.schedule == null ? {} : { schedule: input.schedule }),
+    ...(input.departure == null ? {} : { departure: input.departure }),
+    priceLabel: input.priceLabel,
+    ...(input.priceCents == null ? {} : { priceCents: input.priceCents }),
+    ...(input.priceSuffix == null ? {} : { priceSuffix: input.priceSuffix }),
+    whatsappPhone: input.whatsappPhone,
+    whatsappMessage: input.whatsappMessage,
+    coverImageVersion: current?.coverImageVersion ?? 0,
+    ...(current?.coverImageMimeType == null
+      ? {}
+      : { coverImageMimeType: current.coverImageMimeType }),
+    updatedAt: now,
+  };
+
+  const tour = await input.communications.saveTour(record);
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'communications.agency_tour_updated',
+    targetType: 'agency_tour',
+    targetId: tour.slug,
+    metadata: {
+      enabled: tour.enabled,
+      title: tour.title,
+      sortOrder: tour.sortOrder,
+      hasPrice: tour.priceCents != null,
+      hasWhatsapp: tour.whatsappPhone.length > 0,
+    },
+    createdAt: now,
+  });
+  return agencyTourPublicView(tour);
+}
+
+export async function updateAgencyTourCover(input: {
+  communications: AdminCommunicationsRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  slug: string;
+  mimeType: AgencyTourCover['mimeType'];
+  bytes: Uint8Array;
+  now?: Date;
+}) {
+  const now = (input.now ?? new Date()).toISOString();
+  const tour = await input.communications.saveTourCover({
+    slug: input.slug,
+    mimeType: input.mimeType,
+    bytes: input.bytes,
+    updatedAt: now,
+  });
+  if (tour == null) return null;
+
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'communications.agency_tour_cover_updated',
+    targetType: 'agency_tour',
+    targetId: tour.slug,
+    metadata: {
+      mimeType: input.mimeType,
+      bytes: input.bytes.byteLength,
+      coverImageVersion: tour.coverImageVersion,
+    },
+    createdAt: now,
+  });
+  return agencyTourPublicView(tour);
 }
