@@ -9,6 +9,8 @@ import '../../profile/data/passenger_saved_place_service.dart';
 import '../../profile/presentation/passenger_profile_screen.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import '../../rides/presentation/passenger_activity_screen.dart';
+import '../../tours/data/agency_tour_service.dart';
+import '../../tours/presentation/agency_tours_screen.dart';
 
 class PassengerMainShell extends StatefulWidget {
   const PassengerMainShell({
@@ -20,6 +22,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.savedPlaceService,
     required this.placeSearchService,
     required this.accessToken,
+    required this.tourService,
     this.socialLinksService,
     this.onLogout,
     this.previewMode = false,
@@ -32,6 +35,7 @@ class PassengerMainShell extends StatefulWidget {
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;
   final SocialLinksService? socialLinksService;
+  final AgencyTourService tourService;
   final String? accessToken;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
@@ -119,6 +123,11 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
                 label: 'Início',
               ),
               NavigationDestination(
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore_rounded),
+                label: 'Passeios',
+              ),
+              NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long_rounded),
                 label: 'Atividade',
@@ -138,12 +147,13 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      widget.homeBuilder(() => _select(2)),
+      widget.homeBuilder(() => _select(3)),
+      AgencyToursScreen(service: widget.tourService),
       PassengerActivityScreen(service: widget.activityService),
       PassengerProfileScreen(
         authService: widget.authService,
         accessToken: widget.accessToken,
-        onOpenActivity: () => _select(1),
+        onOpenActivity: () => _select(2),
         activityService: widget.activityService,
         paymentService: widget.paymentService,
         savedPlaceService: widget.savedPlaceService,
