@@ -21,7 +21,9 @@ class DriverWalletScreen extends StatefulWidget {
 
 class _DriverWalletScreenState extends State<DriverWalletScreen> {
   DriverFinanceSummary? _finance;
+  DriverPayoutDestination? _payoutDestination;
   bool _loading = false;
+  bool _savingPix = false;
   bool _requestingPayout = false;
   String? _error;
   String? _pendingIdempotencyKey;
@@ -43,9 +45,11 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
 
     try {
       final finance = await widget.api.financeSummary();
+      final payoutDestination = await widget.api.payoutDestination();
       if (!mounted) return;
       setState(() {
         _finance = finance;
+        _payoutDestination = payoutDestination;
         _loading = false;
       });
     } on DriverApiException catch (error) {
@@ -63,8 +67,141 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
     }
   }
 
+  Future<void> _configurePix() async {
+    if (_savingPix) return;
+
+    var keyType = _payoutDestination?.pixKeyType ?? 'cpf';
+    final controller = TextEditingController();
+
+    final submitted = await showDialog<({String type, String key})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            _payoutDestination?.configured == true
+                ? 'Alterar chave Pix'
+                : 'Cadastrar chave Pix',
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: keyType,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo da chave',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'cpf', child: Text('CPF')),
+                  DropdownMenuItem(value: 'cnpj', child: Text('CNPJ')),
+                  DropdownMenuItem(value: 'email', child: Text('E-mail')),
+                  DropdownMenuItem(value: 'phone', child: Text('Celular')),
+                  DropdownMenuItem(
+                    value: 'random',
+                    child: Text('Chave aleatória'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() => keyType = value);
+                },
+              ),
+              const SizedBox(height: RamoSpacing.md),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: switch (keyType) {
+                  'cpf' || 'cnpj' || 'phone' => TextInputType.phone,
+                  'email' => TextInputType.emailAddress,
+                  _ => TextInputType.text,
+                },
+                decoration: InputDecoration(
+                  labelText: 'Chave Pix',
+                  hintText: switch (keyType) {
+                    'cpf' => '000.000.000-00',
+                    'cnpj' => '00.000.000/0000-00',
+                    'email' => 'nome@email.com',
+                    'phone' => '(88) 99999-9999',
+                    _ => 'Cole sua chave aleatória',
+                  },
+                ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              const Text(
+                'O saque só será enviado para a chave Pix cadastrada '
+                'no momento da solicitação.',
+                style: TextStyle(
+                  color: RamoColors.muted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final key = controller.text.trim();
+                if (key.isEmpty) return;
+                Navigator.of(dialogContext).pop(
+                  (type: keyType, key: key),
+                );
+              },
+              child: const Text('Salvar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    controller.dispose();
+    if (submitted == null || !mounted) return;
+
+    setState(() {
+      _savingPix = true;
+      _error = null;
+    });
+
+    try {
+      final destination = await widget.api.savePayoutDestination(
+        pixKeyType: submitted.type,
+        pixKey: submitted.key,
+      );
+      if (!mounted) return;
+      setState(() {
+        _payoutDestination = destination;
+        _savingPix = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Chave Pix salva com segurança.')),
+        );
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _savingPix = false;
+        _error = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _savingPix = false;
+        _error = 'Não conseguimos salvar sua chave Pix agora.';
+      });
+    }
+  }
+
   Future<void> _requestPayout() async {
     final finance = _finance;
+    if (_payoutDestination?.configured != true) {
+      setState(() {
+        _error = 'Cadastre uma chave Pix antes de solicitar o saque.';
+      });
+      return;
+    }
     if (finance == null ||
         finance.availableBalanceCents <= 0 ||
         _requestingPayout) {
@@ -226,6 +363,59 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: RamoSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(RamoSpacing.md),
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(RamoRadius.md),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: RamoColors.brandYellow,
+                    foregroundColor: RamoColors.brandBlack,
+                    child: Icon(Icons.pix_rounded),
+                  ),
+                  const SizedBox(width: RamoSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Chave Pix para saque',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _payoutDestination?.configured == true
+                              ? '${_payoutDestination!.typeLabel} · '
+                                  '${_payoutDestination!.pixKeyMasked}'
+                              : 'Nenhuma chave cadastrada',
+                          style: const TextStyle(
+                            color: RamoColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _savingPix ? null : _configurePix,
+                    child: _savingPix
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _payoutDestination?.configured == true
+                                ? 'Alterar'
+                                : 'Cadastrar',
+                          ),
+                  ),
+                ],
+              ),
+            ),
             if (_error != null) ...[
               const SizedBox(height: RamoSpacing.md),
               Text(
@@ -237,7 +427,9 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
-              onPressed: available > 0 && !_requestingPayout
+              onPressed: available > 0 &&
+                      !_requestingPayout &&
+                      _payoutDestination?.configured == true
                   ? _requestPayout
                   : null,
               icon: const Icon(Icons.account_balance_rounded),
