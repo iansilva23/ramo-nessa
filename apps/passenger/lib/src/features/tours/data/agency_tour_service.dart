@@ -211,7 +211,7 @@ class PreviewAgencyTourService implements AgencyTourService {
       'EXPERIÊNCIA',
     ),
     _preview('utv', 50, 'Passeio de UTV', 'PRIVATIVO'),
-    _preview('madrinha', 60, 'Passeio Madrinha', 'EXPERIÊNCIA'),
+    _preview('barrinha', 60, 'Passeio Barrinha', 'EXPERIÊNCIA'),
     _preview('extremo-leste', 70, 'Passeio Extremo Leste', 'EXPERIÊNCIA'),
   ];
 
