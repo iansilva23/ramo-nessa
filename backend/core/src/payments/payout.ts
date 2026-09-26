@@ -38,7 +38,10 @@ export class PayoutDomainError extends Error {
       | 'PAYOUT_IDEMPOTENCY_CONFLICT'
       | 'INSUFFICIENT_DRIVER_BALANCE'
       | 'PAYOUT_DESTINATION_REQUIRED'
-      | 'INVALID_PIX_KEY',
+      | 'INVALID_PIX_KEY'
+      | 'PAYOUT_NOT_FOUND'
+      | 'INVALID_PAYOUT_TRANSITION'
+      | 'PAYOUT_PROCESSOR_REQUIRED',
     message: string,
   ) {
     super(message);
