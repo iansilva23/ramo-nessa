@@ -1,6 +1,8 @@
 import {
   cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
+  driverPayoutPaidLedger,
+  driverPayoutCancelledLedger,
   externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -11,8 +13,12 @@ import {
 } from '../ledger.js';
 import {
   type AdminFinanceSummary,
+  type CancelDriverPayoutInput,
+  type CancelDriverPayoutResult,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type CompleteDriverPayoutInput,
+  type CompleteDriverPayoutResult,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
   type RefundExternalPaymentInput,
@@ -817,6 +823,162 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       payout: structuredClone(payout),
       ledgerTransaction: structuredClone(ledger),
       duplicateRequest: false,
+    };
+  }
+
+  async findDriverPayoutById(
+    id: string,
+  ): Promise<DriverPayoutRecord | null> {
+    const payout = this.payouts.get(id);
+    return payout == null ? null : structuredClone(payout);
+  }
+
+  async completeDriverPayout(
+    input: CompleteDriverPayoutInput,
+  ): Promise<CompleteDriverPayoutResult> {
+    const payout = this.payouts.get(input.payoutId);
+    if (payout == null) {
+      throw new PayoutDomainError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+
+    const referenceKey = `driver-payout-paid:${payout.id}`;
+    if (payout.status === 'paid') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error('Saque pago sem lançamento de conclusão no ledger.');
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateCompletion: true,
+      };
+    }
+
+    if (payout.status !== 'requested' && payout.status !== 'processing') {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        `Saque em estado ${payout.status} não pode ser concluído.`,
+      );
+    }
+
+    const processor = input.processor.trim();
+    if (processor.length < 2 || processor.length > 80) {
+      throw new PayoutDomainError(
+        'PAYOUT_PROCESSOR_REQUIRED',
+        'Informe o processador ou método usado no repasse.',
+      );
+    }
+
+    const pending = await this.getAccountBalanceCents(
+      `driver:${payout.driverId}:payout_pending`,
+    );
+    if (pending < payout.amountCents) {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        'Saldo pendente do saque não fecha com o ledger.',
+      );
+    }
+
+    const completedAt = (input.completedAt ?? new Date()).toISOString();
+    const updated: DriverPayoutRecord = {
+      ...payout,
+      status: 'paid',
+      processor,
+      ...(input.processorPayoutId?.trim()
+        ? { processorPayoutId: input.processorPayoutId.trim() }
+        : {}),
+      updatedAt: completedAt,
+    };
+    const ledger = driverPayoutPaidLedger({
+      payoutId: payout.id,
+      driverId: payout.driverId,
+      processor,
+      amountCents: payout.amountCents,
+      createdAt: completedAt,
+    });
+
+    this.payouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
+
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateCompletion: false,
+    };
+  }
+
+  async cancelDriverPayout(
+    input: CancelDriverPayoutInput,
+  ): Promise<CancelDriverPayoutResult> {
+    const payout = this.payouts.get(input.payoutId);
+    if (payout == null) {
+      throw new PayoutDomainError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+
+    const referenceKey = `driver-payout-cancelled:${payout.id}`;
+    if (payout.status === 'cancelled') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error(
+          'Saque cancelado sem lançamento de devolução no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateCancellation: true,
+      };
+    }
+
+    if (payout.status !== 'requested' && payout.status !== 'processing') {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        `Saque em estado ${payout.status} não pode ser cancelado.`,
+      );
+    }
+
+    const pending = await this.getAccountBalanceCents(
+      `driver:${payout.driverId}:payout_pending`,
+    );
+    if (pending < payout.amountCents) {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        'Saldo pendente do saque não fecha com o ledger.',
+      );
+    }
+
+    const cancelledAt = (input.cancelledAt ?? new Date()).toISOString();
+    const updated: DriverPayoutRecord = {
+      ...payout,
+      status: 'cancelled',
+      updatedAt: cancelledAt,
+    };
+    const ledger = driverPayoutCancelledLedger({
+      payoutId: payout.id,
+      driverId: payout.driverId,
+      amountCents: payout.amountCents,
+      createdAt: cancelledAt,
+    });
+
+    this.payouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
+
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateCancellation: false,
     };
   }
 
