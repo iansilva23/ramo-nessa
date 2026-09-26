@@ -5,6 +5,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import 'core/auth/http_phone_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
+import 'core/communications/firebase_push_registration_service.dart';
 import 'core/config/driver_core_config.dart';
 import 'core/location/driver_location_service.dart';
 import 'core/navigation/driver_navigation_service.dart';
@@ -92,6 +93,13 @@ class RamoNessaDriverApp extends StatelessWidget {
         loginSubtitle:
             'Entre com o celular aprovado no seu cadastro de motorista.',
         authenticatedBuilder: (token, logout) => home(token, logout),
+        onSessionReady: (token) =>
+            DriverFirebasePushRegistrationService.instance.start(
+              baseUrl: coreUri,
+              accessToken: token,
+            ),
+        onSessionEnded:
+            DriverFirebasePushRegistrationService.instance.stop,
       );
     }
 
