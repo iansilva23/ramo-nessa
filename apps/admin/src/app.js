@@ -5113,6 +5113,53 @@ function resetTourCoverPreview() {
   byId('tour-cover-placeholder').hidden = false;
 }
 
+async function loadTourCoverPreview(tour) {
+  if (
+    tour == null ||
+    !state.token ||
+    Number(tour.coverImageVersion ?? 0) <= 0
+  ) {
+    return;
+  }
+
+  const requestedSlug = tour.slug;
+  const placeholder = byId('tour-cover-placeholder');
+  placeholder.hidden = false;
+  placeholder.textContent = 'Carregando foto salva…';
+
+  try {
+    const cover = await api.agencyTourCover(
+      state.token,
+      requestedSlug,
+    );
+    if (state.selectedTourSlug !== requestedSlug) return;
+
+    if (state.tourCoverObjectUrl != null) {
+      URL.revokeObjectURL(state.tourCoverObjectUrl);
+    }
+    const blob = new Blob(
+      [cover.bytes],
+      { type: cover.contentType },
+    );
+    state.tourCoverObjectUrl = URL.createObjectURL(blob);
+
+    const image = byId('tour-cover-preview');
+    image.src = state.tourCoverObjectUrl;
+    image.hidden = false;
+    placeholder.hidden = true;
+  } catch (error) {
+    if (state.selectedTourSlug !== requestedSlug) return;
+    placeholder.hidden = false;
+    placeholder.textContent =
+      'A foto foi registrada, mas não foi possível carregar a prévia.';
+    if (
+      !(error instanceof AdminApiError && error.status === 404)
+    ) {
+      handleAuthenticatedError(error);
+    }
+  }
+}
+
 function fillTourForm(tour) {
   const existing = tour != null;
   byId('tour-slug').readOnly = existing;
@@ -5147,15 +5194,10 @@ function fillTourForm(tour) {
       : `Atualizado em ${formatDateTime(tour.updatedAt)}`;
 
   resetTourCoverPreview();
-  const image = byId('tour-cover-preview');
   const placeholder = byId('tour-cover-placeholder');
-  if (tour?.coverImageUrl && tour?.enabled === true) {
-    image.src = tour.coverImageUrl;
-    image.hidden = false;
-    placeholder.hidden = true;
-  } else if (Number(tour?.coverImageVersion ?? 0) > 0) {
-    placeholder.textContent =
-      'Foto salva. A prévia pública aparece quando o passeio estiver publicado.';
+  if (Number(tour?.coverImageVersion ?? 0) > 0) {
+    placeholder.textContent = 'Carregando foto salva…';
+    void loadTourCoverPreview(tour);
   } else {
     placeholder.textContent =
       'Adicione uma foto de capa para o card do passeio.';
