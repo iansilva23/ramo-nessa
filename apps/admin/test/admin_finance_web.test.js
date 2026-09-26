@@ -142,7 +142,7 @@ test('política cash usa Bearer e permite toggle explícito pelo Admin', async (
   }
 });
 
-test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
+test('frontend financeiro mantém ledger protegido e gerencia conciliação de saques', () => {
   const html = [
     readFileSync(
       new URL('../index.html', import.meta.url),
@@ -185,6 +185,20 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     'finance-payments-refunded',
     'finance-payments-body',
     'finance-payouts-body',
+    'finance-payout-detail',
+    'finance-payout-close',
+    'finance-payout-detail-status',
+    'finance-payout-detail-driver',
+    'finance-payout-detail-amount',
+    'finance-payout-detail-pix',
+    'finance-payout-detail-processor',
+    'finance-payout-detail-reference',
+    'finance-payout-paid-form',
+    'finance-payout-processor',
+    'finance-payout-reference',
+    'finance-payout-paid-button',
+    'finance-payout-cancel-button',
+    'finance-payout-action-note',
     'finance-cash-status',
     'finance-cash-debt-limit',
     'finance-cash-readiness',
@@ -219,7 +233,7 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   }
 
   assert.match(html, /data-view=["']finance["']/);
-  assert.match(html, /Somente leitura/i);
+  assert.match(html, /Conciliação segura/i);
   assert.match(app, /hasScope\('finance:read'\)/);
   assert.match(app, /api\.finance\(state\.token, 25\)/);
   assert.match(app, /api\.paymentPolicy\(state\.token\)/);
@@ -241,7 +255,15 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
   assert.match(app, /cardPriceAdjustmentBps/);
   assert.equal(api.includes('financeUpdate('), false);
   assert.equal(api.includes('refundPayment('), false);
-  assert.equal(api.includes('approvePayout('), false);
+  assert.match(api, /financePayout\(/);
+  assert.match(api, /completeFinancePayout\(/);
+  assert.match(api, /cancelFinancePayout\(/);
+  assert.match(app, /openFinancePayout/);
+  assert.match(app, /handleFinancePayoutPaid/);
+  assert.match(app, /handleFinancePayoutCancel/);
+  assert.match(app, /finance:write/);
+  assert.match(html, /Registrar como pago/);
+  assert.match(html, /Cancelar solicitação/);
   assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
@@ -253,7 +275,63 @@ test('frontend financeiro é somente leitura e usa o ledger do Core', () => {
     '.finance-cash-card',
     '.finance-cash-grid',
     '.finance-cash-action',
+    '.finance-payout-detail-card',
+    '.finance-payout-detail-grid',
+    '.finance-payout-form',
+    '.finance-payout-actions',
   ]) {
     assert.equal(css.includes(selector), true);
   }
+});
+
+
+test('cliente Admin consulta, conclui e cancela saque com Bearer fora da URL', async () => {
+  const calls = [];
+  const payoutId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      payout: {
+        id: payoutId,
+        status: options.method === 'PATCH' ? 'paid' : 'requested',
+      },
+      duplicate: false,
+      id: payoutId,
+      status: 'requested',
+    });
+  });
+
+  const token = 'rn_admin_payout_secret';
+  await api.financePayout(token, payoutId);
+  await api.completeFinancePayout(token, {
+    payoutId,
+    processor: 'Pix manual',
+    processorPayoutId: 'comprovante-123',
+  });
+  await api.cancelFinancePayout(token, payoutId);
+
+  assert.equal(calls.length, 3);
+  for (const call of calls) {
+    assert.equal(
+      call.url,
+      `/v1/admin/finance/payouts/${payoutId}`,
+    );
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+  }
+
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[1].options.body), {
+    action: 'paid',
+    processor: 'Pix manual',
+    processorPayoutId: 'comprovante-123',
+  });
+  assert.equal(calls[2].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    action: 'cancelled',
+  });
 });
