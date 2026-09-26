@@ -2731,7 +2731,7 @@ function renderFinance(payload = null) {
     manageButton.type = 'button';
     manageButton.className = 'button button--ghost-dark button--compact';
     manageButton.textContent = 'Gerenciar';
-    manageButton.disabled = !hasScope('finance:read');
+    manageButton.disabled = !hasScope('finance:write');
     manageButton.addEventListener('click', () => {
       void openFinancePayout(payout.id);
     });
@@ -2805,7 +2805,7 @@ function closeFinancePayoutDetail() {
 }
 
 async function openFinancePayout(payoutId) {
-  if (!state.token || !hasScope('finance:read')) return;
+  if (!state.token || !hasScope('finance:write')) return;
   try {
     const payout = await api.financePayout(state.token, payoutId);
     renderFinancePayoutDetail(payout);
