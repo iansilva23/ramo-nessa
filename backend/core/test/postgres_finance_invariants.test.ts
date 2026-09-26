@@ -526,6 +526,13 @@ test(
         driverNetCents: 10800,
         settledAt: new Date(now),
       });
+      await repository.upsertDriverPayoutDestination({
+        driverId,
+        pixKeyType: 'random',
+        pixKey: '33333333-3333-4333-8333-333333333333',
+        createdAt: now,
+        updatedAt: now,
+      });
 
       const input = {
         driverId,
@@ -577,6 +584,10 @@ test(
       await pool.query('DELETE FROM driver_payouts WHERE driver_id = $1', [
         driverId,
       ]);
+      await pool.query(
+        'DELETE FROM driver_payout_destinations WHERE driver_id = $1',
+        [driverId],
+      );
       await pool.query(
         'DELETE FROM payment_events WHERE payment_id = $1',
         [paymentId],
