@@ -2,6 +2,8 @@ import type {
   AdminCommunicationsRepository,
   AdminNotificationCampaignRecord,
   AgencyPromotionRecord,
+  AgencyTourCover,
+  AgencyTourRecord,
   AppReleasePolicyRecord,
   SocialLinksRecord,
 } from '../admin-communications-repository.js';
@@ -13,6 +15,41 @@ function releaseKey(
   platform: PushPlatform,
 ): string {
   return `${appKind}:${platform}`;
+}
+
+function defaultTours(): AgencyTourRecord[] {
+  const updatedAt = '2026-09-26T00:00:00.000Z';
+  return [
+    ['lado-leste', 10, 'Passeio Lado Leste', 'COMPARTILHADO'],
+    ['lado-oeste', 20, 'Passeio Lado Oeste', 'COMPARTILHADO'],
+    ['por-do-sol', 30, 'Passeio Pôr do Sol', 'EXPERIÊNCIA'],
+    [
+      'pedra-furada-bike-eletrica',
+      40,
+      'Pedra Furada de Bike Elétrica',
+      'EXPERIÊNCIA',
+    ],
+    ['utv', 50, 'Passeio de UTV', 'PRIVATIVO'],
+    ['madrinha', 60, 'Passeio Madrinha', 'EXPERIÊNCIA'],
+    ['extremo-leste', 70, 'Passeio Extremo Leste', 'EXPERIÊNCIA'],
+  ].map(([slug, sortOrder, title, badge]) => ({
+    slug: String(slug),
+    enabled: false,
+    sortOrder: Number(sortOrder),
+    title: String(title),
+    badge: String(badge),
+    shortDescription: 'Configure os detalhes deste passeio no painel ADM.',
+    description:
+      'Preencha no painel ADM as informações completas, roteiro, duração, preço e atendimento pelo WhatsApp.',
+    highlights: [],
+    included: [],
+    excluded: [],
+    priceLabel: 'A partir de',
+    whatsappPhone: '',
+    whatsappMessage: '',
+    coverImageVersion: 0,
+    updatedAt,
+  }));
 }
 
 function defaultPolicies(): AppReleasePolicyRecord[] {
@@ -65,6 +102,8 @@ export class InMemoryAdminCommunicationsRepository
     new Map<string, AdminNotificationCampaignRecord>();
   private readonly policies =
     new Map<string, AppReleasePolicyRecord>();
+  private readonly tours = new Map<string, AgencyTourRecord>();
+  private readonly tourCovers = new Map<string, AgencyTourCover>();
   private socialLinks: SocialLinksRecord = {
     updatedAt: '2026-09-24T00:00:00.000Z',
   };
@@ -86,6 +125,9 @@ export class InMemoryAdminCommunicationsRepository
         releaseKey(policy.appKind, policy.platform),
         structuredClone(policy),
       );
+    }
+    for (const tour of defaultTours()) {
+      this.tours.set(tour.slug, structuredClone(tour));
     }
   }
 
@@ -147,6 +189,68 @@ export class InMemoryAdminCommunicationsRepository
   ): Promise<AgencyPromotionRecord> {
     this.promotion = structuredClone(record);
     return structuredClone(this.promotion);
+  }
+
+  async listTours(
+    includeDisabled: boolean,
+  ): Promise<AgencyTourRecord[]> {
+    return [...this.tours.values()]
+      .filter((tour) => includeDisabled || tour.enabled)
+      .sort((a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.title.localeCompare(b.title) ||
+        a.slug.localeCompare(b.slug),
+      )
+      .map((tour) => structuredClone(tour));
+  }
+
+  async getTour(slug: string): Promise<AgencyTourRecord | null> {
+    const tour = this.tours.get(slug);
+    return tour == null ? null : structuredClone(tour);
+  }
+
+  async saveTour(record: AgencyTourRecord): Promise<AgencyTourRecord> {
+    const current = this.tours.get(record.slug);
+    const next: AgencyTourRecord = {
+      ...structuredClone(record),
+      coverImageVersion:
+        current?.coverImageVersion ?? record.coverImageVersion,
+      ...(current?.coverImageMimeType == null
+        ? {}
+        : { coverImageMimeType: current.coverImageMimeType }),
+    };
+    this.tours.set(record.slug, next);
+    return structuredClone(next);
+  }
+
+  async readTourCover(slug: string): Promise<AgencyTourCover | null> {
+    const cover = this.tourCovers.get(slug);
+    return cover == null ? null : structuredClone(cover);
+  }
+
+  async saveTourCover(input: {
+    slug: string;
+    mimeType: AgencyTourCover['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AgencyTourRecord | null> {
+    const current = this.tours.get(input.slug);
+    if (current == null) return null;
+
+    const nextVersion = current.coverImageVersion + 1;
+    const next: AgencyTourRecord = {
+      ...current,
+      coverImageVersion: nextVersion,
+      coverImageMimeType: input.mimeType,
+      updatedAt: input.updatedAt,
+    };
+    this.tours.set(input.slug, next);
+    this.tourCovers.set(input.slug, {
+      mimeType: input.mimeType,
+      bytes: Uint8Array.from(input.bytes),
+      version: nextVersion,
+    });
+    return structuredClone(next);
   }
 
   async getSocialLinks(): Promise<SocialLinksRecord> {
