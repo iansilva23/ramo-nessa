@@ -2633,6 +2633,7 @@ const server = createServer(async (request, response) => {
 
       const payload = body as {
         driverOfferTtlSeconds?: unknown;
+        driverPaymentHoldSeconds?: unknown;
         showNearbyDrivers?: unknown;
         driverDocumentAutoEnforcement?: unknown;
       };
@@ -2640,6 +2641,10 @@ const server = createServer(async (request, response) => {
         payload.driverOfferTtlSeconds == null
           ? undefined
           : Number(payload.driverOfferTtlSeconds);
+      const driverPaymentHoldSeconds =
+        payload.driverPaymentHoldSeconds == null
+          ? undefined
+          : Number(payload.driverPaymentHoldSeconds);
       const showNearbyDrivers =
         payload.showNearbyDrivers == null
           ? undefined
@@ -2655,6 +2660,14 @@ const server = createServer(async (request, response) => {
       ) {
         throw new InvalidAdminRequestError(
           'driverOfferTtlSeconds deve ser inteiro.',
+        );
+      }
+      if (
+        driverPaymentHoldSeconds != null &&
+        !Number.isInteger(driverPaymentHoldSeconds)
+      ) {
+        throw new InvalidAdminRequestError(
+          'driverPaymentHoldSeconds deve ser inteiro.',
         );
       }
       if (
@@ -2683,6 +2696,7 @@ const server = createServer(async (request, response) => {
       }
       if (
         driverOfferTtlSeconds == null &&
+        driverPaymentHoldSeconds == null &&
         showNearbyDrivers == null &&
         driverDocumentAutoEnforcement == null
       ) {
@@ -2698,6 +2712,9 @@ const server = createServer(async (request, response) => {
         ...(driverOfferTtlSeconds == null
           ? {}
           : { driverOfferTtlSeconds }),
+        ...(driverPaymentHoldSeconds == null
+          ? {}
+          : { driverPaymentHoldSeconds }),
         ...(showNearbyDrivers == null
           ? {}
           : { showNearbyDrivers }),
@@ -4835,10 +4852,13 @@ const server = createServer(async (request, response) => {
 
       const body = parsePrepareRideRequest(await readJson(request));
       const now = new Date();
-      const pricing = await resolvePricingCatalogContext({
-        versions: pricingCatalogVersionRepository,
-        at: now,
-      });
+      const [pricing, operationalSettings] = await Promise.all([
+        resolvePricingCatalogContext({
+          versions: pricingCatalogVersionRepository,
+          at: now,
+        }),
+        operationalSettingsRepository.get(),
+      ]);
       const ride = await prepareRideForPayment({
         repository: ridePreparationRepository,
         drivers: driverSupplyRepository,
@@ -4848,6 +4868,7 @@ const server = createServer(async (request, response) => {
         pricing,
         pickup: body.pickup,
         dropoff: body.dropoff,
+        holdSeconds: operationalSettings.driverPaymentHoldSeconds,
         canUseDriver: (candidateDriverId) =>
           canDriverReceiveNewWorkUnderPolicy(
             candidateDriverId,
