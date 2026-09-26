@@ -557,89 +557,104 @@ function renderIdentity() {
   }
 }
 
-function activateView(viewName) {
-  const known = new Set([
-    'overview',
-    'fleet',
-    'rides',
-    'drivers',
-    'passengers',
-    'pricing',
-    'finance',
-    'notifications',
-    'agency',
-    'integrations',
-    'audit',
-  ]);
-  const view = known.has(viewName) ? viewName : 'overview';
-  stopFleetPolling();
+async function loadRouteMarkup(view) {
+  const route = adminRoutes[view] ?? adminRoutes.overview;
+  const sequence = ++routeLoadSequence;
+  routeLoading.hidden = false;
+  routeOutlet.setAttribute('aria-busy', 'true');
 
-  document.querySelectorAll('.view-panel').forEach((panel) => {
-    panel.hidden = panel.id !== `view-${view}`;
-  });
-  document.querySelectorAll('.nav-item').forEach((button) => {
-    const selected = button.dataset.view === view;
-    button.classList.toggle('is-active', selected);
-    button.setAttribute('aria-current', selected ? 'page' : 'false');
+  try {
+    const response = await fetch(
+      `/admin/pages/${encodeURIComponent(route.page)}.html`,
+      {
+        method: 'GET',
+        headers: { accept: 'text/html' },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Não foi possível abrir esta página do Admin (${response.status}).`,
+      );
+    }
+
+    const source = await response.text();
+    if (sequence !== routeLoadSequence) return false;
+
+    const parsed = new DOMParser().parseFromString(
+      source,
+      'text/html',
+    );
+    const panel = parsed.querySelector('.view-panel');
+    if (panel == null || panel.id !== `view-${view}`) {
+      throw new Error('A página administrativa retornou conteúdo inválido.');
+    }
+
+    panel.hidden = false;
+    const mounted = document.importNode(panel, true);
+    routeOutlet.replaceChildren(mounted);
+    return true;
+  } finally {
+    if (sequence === routeLoadSequence) {
+      routeLoading.hidden = true;
+      routeOutlet.removeAttribute('aria-busy');
+    }
+  }
+}
+
+function syncRouteNavigation(view) {
+  document.querySelectorAll('.nav-item').forEach((link) => {
+    const selected = link.dataset.view === view;
+    link.classList.toggle('is-active', selected);
+    if (selected) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
   });
 
-  const titles = {
-    overview: 'Visão geral',
-    fleet: 'Frota',
-    rides: 'Viagens',
-    drivers: 'Motoristas',
-    passengers: 'Passageiros',
-    pricing: 'Preços',
-    finance: 'Financeiro',
-    notifications: 'Notificações',
-    agency: 'Ramo Nessa Agência',
-    integrations: 'Integrações',
-    audit: 'Auditoria',
-  };
-  byId('page-title').textContent = titles[view];
+  const route = adminRoutes[view] ?? adminRoutes.overview;
+  byId('page-title').textContent = route.title;
+  document.title = `Ramo Nessa — ${route.title}`;
   document.body.classList.remove('nav-open');
+}
 
-  if (view === 'overview') {
-    void loadDashboard({ announce: false });
+async function activateView(
+  viewName,
+  { historyMode = 'push' } = {},
+) {
+  const view = adminRoutes[viewName] == null ? 'overview' : viewName;
+  const targetPath = routePath(view);
+
+  stopFleetPolling();
+  closeDriverDocumentInspection();
+  if (currentView === 'fleet') {
+    fleetMap = null;
   }
-  if (view === 'fleet') {
-    void loadFleet({ announce: false });
-    startFleetPolling();
-  }
-  if (view === 'audit') {
-    void loadAudit({ announce: false });
-  }
-  if (view === 'pricing') {
-    void loadPricingCatalog({ announce: false });
-    void loadPricingVersions({ announce: false });
-  }
-  if (view === 'finance') {
-    void loadFinance({ announce: false });
-  }
-  if (view === 'integrations') {
-    void loadIntegrations({ announce: false });
-  }
-  if (
-    (view === 'notifications' || view === 'agency') &&
-    hasScope('communications:read')
+
+  setMessage(globalMessage);
+  const loaded = await loadRouteMarkup(view);
+  if (!loaded) return;
+
+  currentView = view;
+  syncRouteNavigation(view);
+  bindRouteEvents(view);
+  renderIdentity();
+  updateSessionClock();
+
+  if (historyMode === 'push' && window.location.pathname !== targetPath) {
+    window.history.pushState({ adminView: view }, '', targetPath);
+  } else if (
+    historyMode === 'replace' &&
+    window.location.pathname !== targetPath
   ) {
-    void loadCommunications({ announce: false });
+    window.history.replaceState({ adminView: view }, '', targetPath);
   }
-  if (view === 'drivers' && hasScope('drivers:auth:read')) {
-    void loadDriverDirectory({ reset: true, announce: false });
-    void loadOperationalSettings({ announce: false });
-    void loadDriverDocumentAlerts({ announce: false });
-  }
-  if (view === 'rides' && hasScope('rides:read')) {
-    void loadRideDirectory({ reset: true, announce: false });
-    void loadOperationalSettings({ announce: false });
-  }
-  if (
-    view === 'passengers' &&
-    hasScope('passengers:auth:read')
-  ) {
-    void loadPassengerDirectory({ reset: true, announce: false });
-  }
+
+  initializeRouteView(view);
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 async function openSession(payload) {
@@ -660,28 +675,14 @@ async function openSession(payload) {
   setMessage(globalMessage);
   clearSensitiveInputs();
   renderIdentity();
-  activateView('overview');
   startSessionTimer();
 
-  if (hasScope('drivers:auth:read')) {
-    await loadDriverDirectory({ reset: true, announce: false });
-  } else {
-    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
-    renderDriverDirectory();
-  }
-
-  if (hasScope('passengers:auth:read')) {
-    await loadPassengerDirectory({ reset: true, announce: false });
-  } else {
-    renderPassengerSummary({ total: 0, active: 0, suspended: 0 });
-    renderPassengerDirectory();
-  }
-
-  if (hasScope('audit:read')) {
-    await loadAudit({ announce: false });
-  } else {
-    renderAudit([]);
-  }
+  const requested = requestedViewFromLocation();
+  const historyMode =
+    window.location.pathname === routePath(requested)
+      ? 'none'
+      : 'replace';
+  await activateView(requested, { historyMode });
 }
 
 async function handleLogin(event) {
