@@ -20,6 +20,7 @@ import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memor
 import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
+import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 
 function apiKeyActor(key: { id: string; name: string }) {
   return {
@@ -27,6 +28,35 @@ function apiKeyActor(key: { id: string; name: string }) {
     id: key.id,
     name: key.name,
   };
+}
+
+async function approveDriverRegistry(
+  registry: InMemoryDriverRegistryRepository,
+  driverId: string,
+) {
+  const now = '2026-09-23T15:09:00.000Z';
+  await registry.upsertProfile({
+    driverId,
+    fullName: 'Motorista Teste',
+    status: 'approved',
+    createdAt: now,
+    updatedAt: now,
+  });
+  await registry.upsertVehicle({
+    id: 'vehicle-' + driverId,
+    driverId,
+    plateNormalized: 'ABC1D23',
+    make: 'Toyota',
+    model: 'Corolla',
+    modelYear: 2024,
+    color: 'Prata',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    status: 'approved',
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 test('chave admin persiste somente hash, respeita escopo e revogação', async () => {
@@ -142,6 +172,7 @@ test('provisionamento sem status nasce suspenso por padrão', async () => {
   const admin = new InMemoryAdminRepository();
   const identities = new InMemoryAuthOtpRepository();
   const sessions = new InMemoryAuthSessionRepository();
+  const registry = new InMemoryDriverRegistryRepository();
   const actor = (
     await issueAdminApiKey({
       repository: admin,
@@ -153,6 +184,7 @@ test('provisionamento sem status nasce suspenso por padrão', async () => {
   const result = await provisionDriverAuthFromAdmin({
     identities,
     sessions,
+    registry,
     admin,
     actor: apiKeyActor(actor),
     driverId: 'driver-default-suspended',
@@ -166,6 +198,7 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
   const admin = new InMemoryAdminRepository();
   const identities = new InMemoryAuthOtpRepository();
   const sessions = new InMemoryAuthSessionRepository();
+  const registry = new InMemoryDriverRegistryRepository();
 
   const issuedAdmin = await issueAdminApiKey({
     repository: admin,
@@ -174,9 +207,12 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
     now: new Date('2026-09-23T15:10:00.000Z'),
   });
 
+  await approveDriverRegistry(registry, 'driver-admin-test-001');
+
   const provisioned = await provisionDriverAuthFromAdmin({
     identities,
     sessions,
+    registry,
     admin,
     actor: apiKeyActor(issuedAdmin.key),
     driverId: 'driver-admin-test-001',
@@ -199,6 +235,7 @@ test('admin provisiona e suspende motorista, revogando sessões e auditando', as
   const suspended = await setDriverAuthStatusFromAdmin({
     identities,
     sessions,
+    registry,
     admin,
     actor: apiKeyActor(issuedAdmin.key),
     driverId: 'driver-admin-test-001',
@@ -228,6 +265,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
   const admin = new InMemoryAdminRepository();
   const identities = new InMemoryAuthOtpRepository();
   const sessions = new InMemoryAuthSessionRepository();
+  const registry = new InMemoryDriverRegistryRepository();
   const actor = (
     await issueAdminApiKey({
       repository: admin,
@@ -239,6 +277,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
   await provisionDriverAuthFromAdmin({
     identities,
     sessions,
+    registry,
     admin,
     actor: apiKeyActor(actor),
     driverId: 'driver-conflict-a',
@@ -250,6 +289,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
       provisionDriverAuthFromAdmin({
         identities,
         sessions,
+    registry,
         admin,
         actor: apiKeyActor(actor),
         driverId: 'driver-conflict-b',
@@ -265,6 +305,7 @@ test('admin impede conflito de telefone e identificador de motorista', async () 
       provisionDriverAuthFromAdmin({
         identities,
         sessions,
+    registry,
         admin,
         actor: apiKeyActor(actor),
         driverId: 'driver-conflict-a',
@@ -286,6 +327,7 @@ test(
     const admin = new PostgresAdminRepository(pool);
     const identities = new PostgresAuthOtpRepository(pool);
     const sessions = new PostgresAuthSessionRepository(pool);
+    const registry = new InMemoryDriverRegistryRepository();
     const driverId = 'driver-admin-postgres-001';
     const phone = '+5588944441298';
 
@@ -316,9 +358,12 @@ test(
         issuedAdmin.key.expiresAt,
       );
 
+      await approveDriverRegistry(registry, driverId);
+
       await provisionDriverAuthFromAdmin({
         identities,
         sessions,
+    registry,
         admin,
         actor: apiKeyActor(issuedAdmin.key),
         driverId,
@@ -338,6 +383,7 @@ test(
       const result = await setDriverAuthStatusFromAdmin({
         identities,
         sessions,
+    registry,
         admin,
         actor: apiKeyActor(issuedAdmin.key),
         driverId,
