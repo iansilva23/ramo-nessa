@@ -1115,7 +1115,9 @@ try {
   );
   if (
     finance.response.status !== 200 ||
-    finance.payload?.readOnly !== true ||
+    finance.payload?.readOnly !== false ||
+    finance.payload?.paymentsReadOnly !== true ||
+    finance.payload?.payoutManagementEnabled !== true ||
     typeof finance.payload?.summary?.paymentsTotal !== 'number' ||
     typeof finance.payload?.summary?.paymentsPaidCents !== 'number' ||
     typeof finance.payload?.summary?.platformRevenueCents !== 'number' ||
@@ -1137,7 +1139,7 @@ try {
     )
   ) {
     throw new Error(
-      'Financeiro administrativo read-only não foi confirmado.',
+      'Financeiro administrativo protegido e com gestão de saques não foi confirmado.',
     );
   }
 
