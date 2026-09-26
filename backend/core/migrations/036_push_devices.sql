@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS push_devices (
   subject_id text NOT NULL,
   subject_type text NOT NULL CHECK (subject_type IN ('passenger', 'driver')),
   platform text NOT NULL CHECK (platform IN ('android', 'ios')),
-  provider text NOT NULL CHECK (provider IN ('fcm', 'apns')),
+  provider text NOT NULL CHECK (provider IN ('apns', 'webhook')),
   token text NOT NULL,
   token_hash text NOT NULL UNIQUE,
   enabled boolean NOT NULL DEFAULT true,
