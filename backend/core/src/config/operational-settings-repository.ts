@@ -1,6 +1,8 @@
 export interface OperationalSettingsRecord {
   driverOfferTtlSeconds: number;
   driverPaymentHoldSeconds: number;
+  driverLocationMaxAgeSeconds: number;
+  nearbyDriverMaxDistanceKm: number;
   showNearbyDrivers: boolean;
   driverDocumentAutoEnforcement: boolean;
   mercadoPagoPublicKey?: string;
@@ -12,6 +14,8 @@ export interface OperationalSettingsRepository {
   update(input: {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
+    driverLocationMaxAgeSeconds?: number;
+    nearbyDriverMaxDistanceKm?: number;
     showNearbyDrivers?: boolean;
     driverDocumentAutoEnforcement?: boolean;
     mercadoPagoPublicKey?: string | null;
