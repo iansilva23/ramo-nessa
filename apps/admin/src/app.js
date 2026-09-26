@@ -4406,6 +4406,9 @@ function renderPassengerDetailEmpty(
 
   byId('passenger-detail-history').hidden = true;
   byId('passenger-access-actions').hidden = true;
+  byId('passenger-profile-edit-form').hidden = true;
+  byId('passenger-profile-full-name').value = '';
+  byId('passenger-profile-email').value = '';
   byId('passenger-detail-rides-body').replaceChildren();
 }
 
@@ -4451,6 +4454,8 @@ function renderPassengerDetail(payload) {
   const grid = document.createElement('div');
   grid.className = 'passenger-detail-grid';
   grid.append(
+    passengerDetailItem('Nome', passenger.fullName ?? '—'),
+    passengerDetailItem('E-mail', passenger.email ?? '—'),
     passengerDetailItem('Telefone', passenger.phoneE164 ?? '—'),
     passengerDetailItem('Status', presentation.label),
     passengerDetailItem('Criado', formatDateTime(passenger.createdAt)),
@@ -4460,6 +4465,18 @@ function renderPassengerDetail(payload) {
     ),
   );
   content.append(identity, grid);
+
+  const canEditProfile = hasScope('passengers:auth:write');
+  const editForm = byId('passenger-profile-edit-form');
+  editForm.hidden = !canEditProfile;
+  byId('passenger-profile-full-name').value =
+    passenger.fullName ?? '';
+  byId('passenger-profile-email').value =
+    passenger.email ?? '';
+  byId('passenger-profile-full-name').disabled = !canEditProfile;
+  byId('passenger-profile-email').disabled = !canEditProfile;
+  byId('passenger-profile-save-button').disabled =
+    !canEditProfile;
 
   const accessActions = byId('passenger-access-actions');
   const accessButton = byId('passenger-access-button');
@@ -4559,6 +4576,78 @@ async function lookupPassenger(passengerId) {
       return;
     }
     handleAuthenticatedError(error);
+  }
+}
+
+async function handlePassengerProfileEdit(event) {
+  event.preventDefault();
+
+  const passenger =
+    state.selectedPassenger?.passenger;
+  const passengerId = passenger?.passengerId;
+  if (
+    !state.token ||
+    !passengerId ||
+    !hasScope('passengers:auth:write')
+  ) {
+    return;
+  }
+
+  const fullName =
+    byId('passenger-profile-full-name').value.trim();
+  const email =
+    byId('passenger-profile-email').value.trim();
+
+  if (!fullName && !email) {
+    setMessage(
+      globalMessage,
+      'Informe pelo menos nome ou e-mail para salvar.',
+      'danger',
+    );
+    return;
+  }
+
+  const sameName =
+    fullName === String(passenger.fullName ?? '').trim();
+  const sameEmail =
+    email.toLowerCase() ===
+    String(passenger.email ?? '').trim().toLowerCase();
+  if (sameName && sameEmail) {
+    setMessage(
+      globalMessage,
+      'Nenhuma alteração foi feita nos dados do passageiro.',
+      'neutral',
+    );
+    return;
+  }
+
+  const button = byId('passenger-profile-save-button');
+  button.disabled = true;
+  try {
+    await api.updatePassengerProfile(state.token, {
+      passengerId,
+      ...(fullName ? { fullName } : {}),
+      ...(email ? { email } : {}),
+    });
+
+    await loadPassengerDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupPassenger(passengerId);
+
+    setMessage(
+      globalMessage,
+      'Dados do passageiro atualizados.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('passengers:auth:write');
   }
 }
 
@@ -6630,6 +6719,13 @@ function bindRouteEvents(view) {
         announce: false,
       });
     });
+    bindRouteEvent(
+      'passenger-profile-edit-form',
+      'submit',
+      (event) => {
+        void handlePassengerProfileEdit(event);
+      },
+    );
     bindRouteEvent('passenger-access-button', 'click', () => {
       void handlePassengerAccessChange();
     });
