@@ -55,9 +55,7 @@ void main() {
     expect(navigation.lastLatitude, isNull);
     expect(navigation.lastLongitude, isNull);
 
-    await tester.tap(
-      find.byKey(const ValueKey('ride-mini-ride-1-DRIVER_ARRIVING')),
-    );
+    await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
     expect(find.text('A caminho do embarque'), findsOneWidget);
     expect(find.text('Cheguei'), findsOneWidget);
