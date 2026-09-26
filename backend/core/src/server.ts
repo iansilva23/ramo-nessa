@@ -2165,6 +2165,7 @@ const server = createServer(async (request, response) => {
       const result = await setDriverAuthStatusFromAdmin({
         identities: authOtpRepository,
         sessions: authSessionRepository,
+        registry: driverRegistryRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverAuthStatusMatch[1]!,
@@ -3954,15 +3955,44 @@ const server = createServer(async (request, response) => {
       const body = parseUpdateDriverRegistryStatusRequest(
         await readJson(request),
       );
+      const driverId = adminDriverRegistryStatusMatch[1]!;
       const result = await setDriverRegistryStatusFromAdmin({
         registry: driverRegistryRepository,
         drivers: driverSupplyRepository,
         admin: adminRepository,
         actor,
-        driverId: adminDriverRegistryStatusMatch[1]!,
+        driverId,
         ...body,
       });
-      json(response, 200, result);
+
+      let authStatus: 'active' | 'suspended' | null = null;
+      let revokedSessions = 0;
+      const identity = await authOtpRepository.findIdentityBySubject(
+        'driver',
+        driverId,
+      );
+      if (identity != null) {
+        authStatus = identity.status;
+        if (!result.registryApproved && identity.status === 'active') {
+          const suspended = await setDriverAuthStatusFromAdmin({
+            identities: authOtpRepository,
+            sessions: authSessionRepository,
+            registry: driverRegistryRepository,
+            admin: adminRepository,
+            actor,
+            driverId,
+            status: 'suspended',
+          });
+          authStatus = suspended.identity.status;
+          revokedSessions = suspended.revokedSessions;
+        }
+      }
+
+      json(response, 200, {
+        ...result,
+        authStatus,
+        revokedSessions,
+      });
       return;
     }
 
@@ -4140,6 +4170,7 @@ const server = createServer(async (request, response) => {
       const result = await provisionDriverAuthFromAdmin({
         identities: authOtpRepository,
         sessions: authSessionRepository,
+        registry: driverRegistryRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverAuthMatch[1]!,
