@@ -62,7 +62,7 @@ try {
       subjectId: driverId,
       subjectType: 'driver',
       phoneE164,
-      status: 'active',
+      status: 'suspended',
       createdAt: now,
       updatedAt: now,
     });
@@ -73,6 +73,7 @@ try {
           status: 'provisioned',
           driverId: identity.subjectId,
           phoneE164: identity.phoneE164,
+          access: 'suspended_until_registry_approval',
         },
         null,
         2,
