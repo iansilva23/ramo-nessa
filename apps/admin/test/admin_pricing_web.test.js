@@ -125,10 +125,16 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
 });
 
 test('frontend de preços expõe catálogo protegido e fluxo versionado', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/pricing.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
@@ -204,15 +210,15 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /pricing-external-localities-body/);
   assert.match(
     app,
-    /pricing-create-draft-button'\)\.addEventListener/,
+    /bindRouteEvent\('pricing-create-draft-button', 'click'/,
   );
   assert.match(
     app,
-    /pricing-edit-form'\)\.addEventListener/,
+    /bindRouteEvent\('pricing-edit-form', 'submit'/,
   );
   assert.match(
     app,
-    /pricing-publish-button'\)\.addEventListener/,
+    /bindRouteEvent\('pricing-publish-button', 'click'/,
   );
   assert.equal(app.includes('.innerHTML'), false);
 
