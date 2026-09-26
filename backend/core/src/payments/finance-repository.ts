@@ -78,6 +78,30 @@ export interface ReserveDriverPayoutResult {
   duplicateRequest: boolean;
 }
 
+export interface CompleteDriverPayoutInput {
+  payoutId: string;
+  processor: string;
+  processorPayoutId?: string;
+  completedAt?: Date;
+}
+
+export interface CompleteDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateCompletion: boolean;
+}
+
+export interface CancelDriverPayoutInput {
+  payoutId: string;
+  cancelledAt?: Date;
+}
+
+export interface CancelDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateCancellation: boolean;
+}
+
 export interface CaptureWalletTopupInput {
   walletTopupId: string;
   processorEventId: string;
@@ -172,6 +196,13 @@ export interface FinanceRepository {
   reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
+  findDriverPayoutById(id: string): Promise<DriverPayoutRecord | null>;
+  completeDriverPayout(
+    input: CompleteDriverPayoutInput,
+  ): Promise<CompleteDriverPayoutResult>;
+  cancelDriverPayout(
+    input: CancelDriverPayoutInput,
+  ): Promise<CancelDriverPayoutResult>;
   getDriverPayoutDestination(
     driverId: string,
   ): Promise<DriverPayoutDestination | null>;
