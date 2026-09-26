@@ -33,9 +33,9 @@ export function parsePushDeviceRegistration(
       'Plataforma push deve ser android ou ios.',
     );
   }
-  if (value.provider !== 'fcm' && value.provider !== 'apns') {
+  if (value.provider !== 'apns' && value.provider !== 'webhook') {
     throw new PushDeviceValidationError(
-      'Provider push deve ser fcm ou apns.',
+      'Provider push deve ser apns ou webhook.',
     );
   }
   if (typeof value.token !== 'string') {
