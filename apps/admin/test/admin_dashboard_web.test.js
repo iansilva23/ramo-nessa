@@ -89,10 +89,16 @@ test('cliente do dashboard usa GET autenticado sem colocar credencial na URL', a
 });
 
 test('HTML do Admin contém a superfície operacional do dashboard', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/overview.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
 
   for (const id of [
     'dashboard-active',
