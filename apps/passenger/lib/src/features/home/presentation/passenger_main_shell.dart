@@ -60,21 +60,24 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
         final horizontalOffset =
             selected ? 0.0 : (index < _index ? -0.025 : 0.025);
 
-        return IgnorePointer(
-          ignoring: !selected,
-          child: ExcludeSemantics(
-            excluding: !selected,
-            child: TickerMode(
-              enabled: selected,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 230),
-                curve: Curves.easeOutCubic,
-                opacity: selected ? 1 : 0,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 260),
+        return Offstage(
+          offstage: !selected,
+          child: IgnorePointer(
+            ignoring: !selected,
+            child: ExcludeSemantics(
+              excluding: !selected,
+              child: TickerMode(
+                enabled: selected,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 230),
                   curve: Curves.easeOutCubic,
-                  offset: Offset(horizontalOffset, 0),
-                  child: pages[index],
+                  opacity: selected ? 1 : 0,
+                  child: AnimatedSlide(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    offset: Offset(horizontalOffset, 0),
+                    child: pages[index],
+                  ),
                 ),
               ),
             ),
