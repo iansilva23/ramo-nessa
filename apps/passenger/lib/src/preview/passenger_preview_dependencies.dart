@@ -261,6 +261,28 @@ final class _PreviewPaymentService implements PassengerPaymentService {
 final class _PreviewRideTrackingService
     implements PassengerRideTrackingService {
   int _checks = 0;
+  final List<PassengerRideChatMessage> _chatMessages = [];
+
+  @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async =>
+      List.unmodifiable(_chatMessages);
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    final message = PassengerRideChatMessage(
+      id: 'preview-passenger-chat-${_chatMessages.length + 1}',
+      rideId: rideId,
+      senderType: 'passenger',
+      senderId: 'preview-passenger',
+      body: body.trim(),
+      createdAt: DateTime.now(),
+    );
+    _chatMessages.add(message);
+    return message;
+  }
 
   @override
   Future<PassengerDriverRatingResult> rateDriver(
