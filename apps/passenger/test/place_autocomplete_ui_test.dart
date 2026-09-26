@@ -6,6 +6,7 @@ import 'package:ramo_nessa_passenger/src/features/map/data/place_autocomplete_se
 import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
 
 void main() {
   testWidgets(
@@ -86,6 +87,47 @@ void main() {
         find.text('Selecionado: Pousada Casa do Vento'),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'meus endereços expande e seleciona destino salvo sem digitar',
+    (tester) async {
+      final service = _FakeAutocompleteService();
+      final saved = _FakeSavedPlaceService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: _SavedAddressHost(
+            service: service,
+            saved: saved,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('open-saved-search')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Meus endereços'), findsOneWidget);
+      expect(find.text('Casa'), findsNothing);
+
+      await tester.tap(find.byTooltip('Mostrar meus endereços'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(saved.listCalls, 1);
+      expect(find.text('Casa'), findsOneWidget);
+      expect(find.text('Pousada Teste'), findsOneWidget);
+
+      await tester.tap(find.text('Casa'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Selecionado: Pousada Teste'),
+        findsOneWidget,
+      );
+      expect(service.manualSearchCalls, 0);
+      expect(service.suggestionCalls, 0);
     },
   );
 }
@@ -216,6 +258,91 @@ class _FakeSavedPlaceService implements PassengerSavedPlaceService {
         position: const LatLng(-2.7960, -40.5130),
         createdAt: now,
         updatedAt: now,
+      ),
+    ];
+  }
+
+  @override
+  Future<PassengerSavedPlace> save({
+    required String kind,
+    String? label,
+    required String name,
+    required String address,
+    required LatLng position,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> delete(String id) {
+    throw UnimplementedError();
+  }
+}
+
+
+class _SavedAddressHost extends StatefulWidget {
+  const _SavedAddressHost({
+    required this.service,
+    required this.saved,
+  });
+
+  final _FakeAutocompleteService service;
+  final _FakeSavedPlaceService saved;
+
+  @override
+  State<_SavedAddressHost> createState() => _SavedAddressHostState();
+}
+
+class _SavedAddressHostState extends State<_SavedAddressHost> {
+  String? _selected;
+
+  Future<void> _open() async {
+    final place = await Navigator.of(context).push<RamoPlace>(
+      MaterialPageRoute(
+        builder: (_) => DestinationSearchScreen(
+          searchService: widget.service,
+          autocompleteService: widget.service,
+          savedPlaceService: widget.saved,
+        ),
+      ),
+    );
+    if (!mounted || place == null) return;
+    setState(() => _selected = place.name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          ElevatedButton(
+            key: const Key('open-saved-search'),
+            onPressed: _open,
+            child: const Text('Abrir busca salva'),
+          ),
+          if (_selected != null) Text('Selecionado: $_selected'),
+        ],
+      ),
+    );
+  }
+}
+
+class _FakeSavedPlaceService implements PassengerSavedPlaceService {
+  int listCalls = 0;
+
+  @override
+  Future<List<PassengerSavedPlace>> list() async {
+    listCalls += 1;
+    return [
+      PassengerSavedPlace(
+        id: '11111111-1111-4111-8111-111111111111',
+        kind: 'home',
+        label: 'Casa',
+        name: 'Pousada Teste',
+        address: 'Rua Principal, Jericoacoara - CE',
+        position: const LatLng(-2.7956, -40.5142),
+        createdAt: DateTime(2026, 9, 26),
+        updatedAt: DateTime(2026, 9, 26),
       ),
     ];
   }
