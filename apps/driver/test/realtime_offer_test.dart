@@ -190,13 +190,22 @@ class _NoOfferDriverApi implements DriverApi {
   }
 
   @override
-  Future<DriverActivitySnapshot> activity() async =>
+  Future<DriverActivitySnapshot> activity({
+    DateTime? from,
+    DateTime? to,
+  }) async =>
       const DriverActivitySnapshot(
         total: 0,
         completed: 0,
         cancelled: 0,
         inProgress: 0,
         earningsCents: 0,
+        grossCents: 0,
+        platformFeeCents: 0,
+        averageEarningsCents: 0,
+        payoutsRequestedCents: 0,
+        payoutsPaidCents: 0,
+        availableBalanceCents: 0,
         rides: [],
       );
 
