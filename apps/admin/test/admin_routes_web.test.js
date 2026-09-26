@@ -11,6 +11,7 @@ const routes = [
   ['pricing', 'precos'],
   ['finance', 'financeiro'],
   ['notifications', 'notificacoes'],
+  ['support', 'suporte'],
   ['agency', 'passeios'],
   ['integrations', 'integracoes'],
   ['audit', 'auditoria'],
