@@ -53,6 +53,8 @@ export interface DriverRideSummary {
   cancelled: number;
   inProgress: number;
   earningsCents: number;
+  grossCents: number;
+  platformFeeCents: number;
 }
 
 export interface RideRepository {
@@ -70,9 +72,13 @@ export interface RideRepository {
   listRecentByDriverId(
     driverId: string,
     limit: number,
+    from?: string,
+    to?: string,
   ): Promise<RideRecord[]>;
   getDriverRideSummary(
     driverId: string,
+    from?: string,
+    to?: string,
   ): Promise<DriverRideSummary>;
   listChatMessages(
     rideId: string,
