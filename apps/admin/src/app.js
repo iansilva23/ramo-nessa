@@ -654,7 +654,18 @@ async function activateView(
   }
 
   setMessage(globalMessage);
-  const loaded = await loadRouteMarkup(view);
+
+  let loaded = false;
+  try {
+    loaded = await loadRouteMarkup(view);
+  } catch (error) {
+    setMessage(
+      globalMessage,
+      errorMessage(error),
+      'danger',
+    );
+    return;
+  }
   if (!loaded) return;
 
   currentView = view;
