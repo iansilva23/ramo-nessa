@@ -2458,6 +2458,48 @@ function renderPaymentPolicy(policy = null) {
       : 'Aguardando política';
 
   const canWrite = hasScope('finance:write');
+
+  const pixEnabled = policy?.pixEnabled !== false;
+  const cardEnabled = policy?.cardEnabled !== false;
+  const walletEnabled = policy?.walletEnabled !== false;
+  const methodsStatus = byId('finance-methods-status');
+  const activeDigitalCount = [
+    pixEnabled,
+    cardEnabled,
+    walletEnabled,
+  ].filter(Boolean).length;
+  methodsStatus.className =
+    activeDigitalCount > 0
+      ? 'pill pill--success'
+      : 'pill pill--warning';
+  methodsStatus.textContent =
+    `${activeDigitalCount}/3 ativos`;
+
+  for (const [id, enabled] of [
+    ['finance-pix-enabled', pixEnabled],
+    ['finance-card-enabled', cardEnabled],
+    ['finance-wallet-enabled', walletEnabled],
+  ]) {
+    const input = byId(id);
+    input.checked = enabled;
+    input.disabled = !canWrite;
+  }
+  byId('finance-methods-save').disabled = !canWrite;
+
+  const defaultCashLimitCents = Math.max(
+    0,
+    numericMetric(policy?.futureCashDebtLimitCents ?? 12000),
+  );
+  const cashLimitStatus = byId('finance-cash-limit-status');
+  cashLimitStatus.className = 'pill pill--info';
+  cashLimitStatus.textContent =
+    formatCurrencyCents(defaultCashLimitCents);
+  const cashLimitInput = byId('finance-cash-limit-input');
+  cashLimitInput.value =
+    (defaultCashLimitCents / 100).toFixed(2);
+  cashLimitInput.disabled = !canWrite;
+  byId('finance-cash-limit-save').disabled = !canWrite;
+
   const enableButton = byId('finance-enable-cash-button');
   enableButton.hidden =
     cashEnabled || !activationReady || !canWrite;
@@ -2713,6 +2755,90 @@ async function loadFinance({ announce = true } = {}) {
     handleAuthenticatedError(error);
   } finally {
     button.disabled = false;
+  }
+}
+
+async function handlePaymentMethodsSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('finance:write')) return;
+
+  const pixEnabled = byId('finance-pix-enabled').checked;
+  const cardEnabled = byId('finance-card-enabled').checked;
+  const walletEnabled = byId('finance-wallet-enabled').checked;
+  const cashEnabled = state.finance.policy?.cashEnabled === true;
+
+  if (!pixEnabled && !cardEnabled && !walletEnabled && !cashEnabled) {
+    setMessage(
+      globalMessage,
+      'Mantenha pelo menos uma forma de pagamento ativa.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-methods-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      pixEnabled,
+      cardEnabled,
+      walletEnabled,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Métodos de pagamento atualizados.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('finance:write');
+  }
+}
+
+async function handleDefaultCashLimitSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('finance:write')) return;
+
+  const amount = Number(byId('finance-cash-limit-input').value);
+  const cents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 1_000_000 ||
+    !Number.isInteger(cents)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um limite cash entre R$ 0,00 e R$ 1.000.000,00.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-cash-limit-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      defaultCashDebtLimitCents: cents,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Limite cash padrão atualizado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('finance:write');
   }
 }
 
@@ -6231,6 +6357,12 @@ function bindRouteEvents(view) {
   if (view === 'finance') {
     bindRouteEvent('refresh-finance-button', 'click', () => {
       void loadFinance();
+    });
+    bindRouteEvent('finance-methods-form', 'submit', (event) => {
+      void handlePaymentMethodsSubmit(event);
+    });
+    bindRouteEvent('finance-cash-limit-form', 'submit', (event) => {
+      void handleDefaultCashLimitSubmit(event);
     });
     bindRouteEvent('finance-enable-cash-button', 'click', () => {
       void handleEnableCash();
