@@ -8,7 +8,7 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 
 void main() {
   testWidgets(
-    'autocomplete espera debounce e resolve sugestão na mesma sessão',
+    'autocomplete sugere desde a primeira letra e resolve na mesma sessão',
     (tester) async {
       final service = _FakeAutocompleteService();
 
@@ -21,8 +21,8 @@ void main() {
       await tester.tap(find.byKey(const Key('open-search')));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField), 'Jer');
-      await tester.pump(const Duration(milliseconds: 349));
+      await tester.enterText(find.byType(TextField), 'J');
+      await tester.pump(const Duration(milliseconds: 299));
       expect(service.suggestionCalls, 0);
 
       await tester.pump(const Duration(milliseconds: 1));
