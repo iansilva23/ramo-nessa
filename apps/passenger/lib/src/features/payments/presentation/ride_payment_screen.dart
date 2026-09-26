@@ -75,7 +75,6 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       const Duration(seconds: 1),
       (_) => _updateRemaining(),
     );
-    _loadWallet();
     _loadPaymentPolicy();
   }
 
@@ -94,7 +93,15 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       setState(() {
         _paymentPolicy = policy;
         _paymentPolicyLoading = false;
+        if (!policy.walletAvailable) {
+          _walletBalanceCents = null;
+          _walletMessage = null;
+          _walletLoading = false;
+        }
       });
+      if (policy.walletAvailable) {
+        await _loadWallet();
+      }
     } on PassengerPaymentException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -164,7 +171,17 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     return '$minutes:$rest';
   }
 
+  bool get _pixAvailable =>
+      _paymentPolicy?.pixAvailable == true;
+
+  bool get _cardAvailable =>
+      _paymentPolicy?.cardAvailable == true;
+
+  bool get _walletAvailable =>
+      _paymentPolicy?.walletAvailable == true;
+
   bool get _walletHasEnough =>
+      _walletAvailable &&
       _walletBalanceCents != null &&
       _walletBalanceCents! >= widget.ride.totalAmountCents;
 
@@ -202,7 +219,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _creatingPix ||
       _remaining == Duration.zero ||
       _paymentPolicyLoading ||
-      _paymentPolicy == null
+      !_pixAvailable
     ) {
       return;
     }
@@ -255,7 +272,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _creatingCard ||
       _remaining == Duration.zero ||
       _paymentPolicyLoading ||
-      _paymentPolicy == null
+      !_cardAvailable
     ) {
       return;
     }
@@ -404,7 +421,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   Future<void> _payWallet() async {
     final service = widget.paymentService;
-    if (service == null || !_walletHasEnough || _payingWallet) return;
+    if (
+      service == null ||
+      !_walletAvailable ||
+      !_walletHasEnough ||
+      _payingWallet
+    ) {
+      return;
+    }
 
     setState(() {
       _payingWallet = true;
@@ -491,9 +515,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         ? 'Calculando preço final no Pix…'
         : _paymentPolicy == null
             ? 'Preço indisponível até atualizar as formas de pagamento'
-            : _pixAdjustmentCents > 0
-                ? 'À vista · diferença de $pixAdjustment já incluída no preço final'
-                : 'À vista · sem diferença no Pix';
+            : !_pixAvailable
+                ? 'Indisponível no momento'
+                : _pixAdjustmentCents > 0
+                    ? 'À vista · diferença de $pixAdjustment já incluída no preço final'
+                    : 'À vista · sem diferença no Pix';
     final cardPrice = PreparedRide.formatCents(_cardTotalAmountCents);
     final cardAdjustment =
         PreparedRide.formatCents(_cardAdjustmentCents);
@@ -501,22 +527,27 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         ? 'Calculando preço final no cartão…'
         : _paymentPolicy == null
             ? 'Preço indisponível até atualizar as formas de pagamento'
-            : _cardAdjustmentCents > 0
-                ? 'À vista · diferença de $cardAdjustment já incluída no preço final'
-                : 'À vista · mesmo preço do Pix';
+            : !_cardAvailable
+                ? 'Indisponível no momento'
+                : _cardAdjustmentCents > 0
+                    ? 'À vista · diferença de $cardAdjustment já incluída no preço final'
+                    : 'À vista · mesmo preço do Pix';
 
-    final walletSubtitle = switch ((
-      widget.paymentService,
-      _walletLoading,
-      _walletBalanceCents,
-    )) {
-      (null, _, _) =>
-        'Será habilitada com a autenticação do passageiro',
-      (_, true, _) => 'Consultando saldo…',
-      (_, false, final int balance) =>
-        'Saldo: ${PreparedRide.formatCents(balance)}',
-      _ => _walletMessage ?? 'Saldo indisponível agora',
-    };
+    final walletSubtitle = !_walletAvailable &&
+            _paymentPolicy != null
+        ? 'Indisponível no momento'
+        : switch ((
+            widget.paymentService,
+            _walletLoading,
+            _walletBalanceCents,
+          )) {
+            (null, _, _) =>
+              'Será habilitada com a autenticação do passageiro',
+            (_, true, _) => 'Consultando saldo…',
+            (_, false, final int balance) =>
+              'Saldo: ${PreparedRide.formatCents(balance)}',
+            _ => _walletMessage ?? 'Saldo indisponível agora',
+          };
 
     return Scaffold(
       appBar: AppBar(
@@ -608,7 +639,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   widget.paymentService != null &&
                   !_creatingPix &&
                   !_paymentPolicyLoading &&
-                  _paymentPolicy != null,
+                  _pixAvailable,
               trailing: _creatingPix
                   ? const SizedBox.square(
                       dimension: 22,
@@ -630,7 +661,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   widget.paymentService != null &&
                   !_creatingCard &&
                   !_paymentPolicyLoading &&
-                  _paymentPolicy != null,
+                  _cardAvailable,
               trailing: _creatingCard
                   ? const SizedBox.square(
                       dimension: 22,
@@ -654,7 +685,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               title: 'Carteira Ramo Nessa',
               subtitle: walletSubtitle,
               enabled:
-                  !expired && !_walletLoading && _walletHasEnough && !_payingWallet,
+                  !expired &&
+                  _walletAvailable &&
+                  !_walletLoading &&
+                  _walletHasEnough &&
+                  !_payingWallet,
               trailing: _payingWallet
                   ? const SizedBox.square(
                       dimension: 22,
