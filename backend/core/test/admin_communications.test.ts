@@ -71,7 +71,7 @@ test('Admin envia aviso segmentado e registra histórico/auditoria', async () =>
     ),
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'passenger-token-aaaaaaaaaaaaaaaaaaa',
       appVersion: '0.1.0',
       buildNumber: 1,
@@ -86,7 +86,7 @@ test('Admin envia aviso segmentado e registra histórico/auditoria', async () =>
     ),
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'driver-token-bbbbbbbbbbbbbbbbbbbbb',
       appVersion: '0.1.0',
       buildNumber: 1,
@@ -136,7 +136,7 @@ test('nova versão avisa apenas aparelhos abaixo do build mais recente', async (
     ),
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'old-token-cccccccccccccccccccccccc',
       appVersion: '0.1.0',
       buildNumber: 1,
@@ -151,7 +151,7 @@ test('nova versão avisa apenas aparelhos abaixo do build mais recente', async (
     ),
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'new-token-dddddddddddddddddddddd',
       appVersion: '0.2.0',
       buildNumber: 2,
