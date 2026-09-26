@@ -21,6 +21,7 @@ import '../../profile/data/passenger_saved_place_service.dart';
 import '../../map/domain/route_info.dart';
 import '../../pricing/data/http_pricing_quote_service.dart';
 import '../../pricing/data/pricing_quote_service.dart';
+import '../../pricing/data/pricing_policy_service.dart';
 import '../../pricing/domain/pricing_quote.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
@@ -48,6 +49,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.placeSearchService,
     this.savedPlaceService,
     this.pricingQuoteService,
+    this.pricingPolicyService,
     this.ridePreparationService,
     this.paymentService,
     this.rideTrackingService,
@@ -65,6 +67,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final PlaceSearchService? placeSearchService;
   final PassengerSavedPlaceService? savedPlaceService;
   final PricingQuoteService? pricingQuoteService;
+  final PricingPolicyService? pricingPolicyService;
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
@@ -108,6 +111,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       widget.pricingQuoteService ??
           (RamoCoreConfig.enabled
               ? HttpPricingQuoteService(
+                  baseUrl: RamoCoreConfig.baseUri!,
+                )
+              : null);
+
+  late final PricingPolicyService? _pricingPolicyService =
+      widget.pricingPolicyService ??
+          (RamoCoreConfig.enabled
+              ? HttpPricingPolicyService(
                   baseUrl: RamoCoreConfig.baseUri!,
                 )
               : null);
@@ -185,6 +196,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   int _pricingRequestId = 0;
   int _passengerCount = 1;
   AgencyPromotion? _agencyPromotion;
+  PassengerPricingPolicy? _pricingPolicy;
   bool _releaseDialogShown = false;
 
   @override
@@ -194,6 +206,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locateUser(showErrors: false);
       _loadCommunicationContent();
+      _loadPricingPolicy();
     });
   }
 
@@ -550,6 +563,32 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     return (a == x && b == y) || (a == y && b == x);
   }
 
+  String _pricingZoneId(String coverageId) =>
+      coverageId == 'airport-jjd' ? 'external' : coverageId;
+
+  int _minimumPassengersFor(ServiceType service) =>
+      service == ServiceType.buggy
+          ? (_pricingPolicy?.buggyMinPassengers ?? 1)
+          : 1;
+
+  int _maximumPassengersFor(ServiceType service) =>
+      service == ServiceType.buggy
+          ? (_pricingPolicy?.buggyMaxPassengers ?? 4)
+          : 1;
+
+  Future<void> _loadPricingPolicy() async {
+    final service = _pricingPolicyService;
+    if (service == null) return;
+    try {
+      final policy = await service.load();
+      if (!mounted) return;
+      setState(() => _pricingPolicy = policy);
+    } catch (_) {
+      // O Core ainda valida toda cotação. Falha nesta visão pública não
+      // libera preço inválido e não bloqueia o app offline/preview.
+    }
+  }
+
   List<ServiceType> _servicesForCoverage(ServiceAreaCheck coverage) {
     final origin = coverage.originZone?.id;
     final destination = coverage.destinationZone?.id;
@@ -558,55 +597,70 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return const [];
     }
 
+    final policy = _pricingPolicy;
+    if (policy != null) {
+      final originPolicyZone = _pricingZoneId(origin);
+      final destinationPolicyZone = _pricingZoneId(destination);
+      if (
+        !policy.enabledZones.contains(originPolicyZone) ||
+        !policy.enabledZones.contains(destinationPolicyZone)
+      ) {
+        return const [];
+      }
+    }
+
+    List<ServiceType> services;
     if (origin == 'jericoacoara' && destination == 'jericoacoara') {
-      return const [
+      services = const [
         ServiceType.buggy,
         ServiceType.delivery,
       ];
-    }
-
-    if (_isPair(origin, destination, 'jericoacoara', 'prea')) {
-      return const [
+    } else if (_isPair(origin, destination, 'jericoacoara', 'prea')) {
+      services = const [
         ServiceType.moto,
         ServiceType.delivery,
         ServiceType.comfortBlack,
       ];
-    }
-
-    if (_isPair(origin, destination, 'jericoacoara', 'jijoca') ||
-        _isPair(origin, destination, 'jericoacoara', 'airport-jjd')) {
-      return const [ServiceType.comfortBlack];
-    }
-
-    if (origin == 'prea' && destination == 'prea') {
-      return const [
+    } else if (
+      _isPair(origin, destination, 'jericoacoara', 'jijoca') ||
+      _isPair(origin, destination, 'jericoacoara', 'airport-jjd')
+    ) {
+      services = const [ServiceType.comfortBlack];
+    } else if (origin == 'prea' && destination == 'prea') {
+      services = const [
         ServiceType.car,
         ServiceType.moto,
         ServiceType.delivery,
         ServiceType.comfortBlack,
       ];
-    }
-
-    if (origin == 'jijoca' && destination == 'jijoca') {
-      return const [
+    } else if (origin == 'jijoca' && destination == 'jijoca') {
+      services = const [
         ServiceType.car,
         ServiceType.moto,
         ServiceType.delivery,
       ];
-    }
-
-    if (_isPair(origin, destination, 'prea', 'jijoca') ||
-        _isPair(origin, destination, 'prea', 'airport-jjd') ||
-        _isPair(origin, destination, 'prea', 'external')) {
-      return const [
+    } else if (
+      _isPair(origin, destination, 'prea', 'jijoca') ||
+      _isPair(origin, destination, 'prea', 'airport-jjd') ||
+      _isPair(origin, destination, 'prea', 'external')
+    ) {
+      services = const [
         ServiceType.car,
         ServiceType.moto,
         ServiceType.delivery,
         ServiceType.comfortBlack,
       ];
+    } else {
+      services = const [];
     }
 
-    return const [];
+    if (policy == null) return services;
+    return services
+        .where(
+          (service) =>
+              policy.enabledCategories.contains(service.backendKey),
+        )
+        .toList(growable: false);
   }
 
   ServiceType _suggestService(List<ServiceType> available) {
@@ -632,6 +686,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     if (origin == null || destination == null) {
       return;
     }
+
+    await _loadPricingPolicy();
 
     final coverage = RamoServiceArea.checkPlaceTrip(
       origin: origin,
@@ -668,6 +724,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     setState(() {
       _service = suggestedService;
+      _passengerCount = _minimumPassengersFor(suggestedService);
       _routeLoading = true;
       _coverageMessage = null;
       _serviceAreaLabel =
@@ -789,7 +846,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   Future<void> _reloadQuoteForService(ServiceType service) async {
     setState(() {
       _service = service;
-      _passengerCount = 1;
+      _passengerCount = _minimumPassengersFor(service);
       _resetPricing();
     });
 
@@ -813,7 +870,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   Future<void> _changePassengerCount(int count) async {
-    if (count < 1 || count > 4 || count == _passengerCount) {
+    final minimum = _minimumPassengersFor(ServiceType.buggy);
+    final maximum = _maximumPassengersFor(ServiceType.buggy);
+    if (
+      count < minimum ||
+      count > maximum ||
+      count == _passengerCount
+    ) {
       return;
     }
 
@@ -960,12 +1023,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             destination: _destination!,
           )
         : null;
+    final initialServices = const [
+      ServiceType.car,
+      ServiceType.moto,
+      ServiceType.delivery,
+    ];
     final availableServices = coverage == null
-        ? const [
-            ServiceType.car,
-            ServiceType.moto,
-            ServiceType.delivery,
-          ]
+        ? _pricingPolicy == null
+            ? initialServices
+            : initialServices
+                .where(
+                  (service) => _pricingPolicy!.enabledCategories
+                      .contains(service.backendKey),
+                )
+                .toList(growable: false)
         : _servicesForCoverage(coverage);
 
     final routeSummary = _route == null
@@ -1099,6 +1170,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onDestinationClear:
                 _destination == null ? null : _clearDestination,
             passengerCount: _passengerCount,
+            minPassengerCount:
+                _minimumPassengersFor(ServiceType.buggy),
+            maxPassengerCount:
+                _maximumPassengersFor(ServiceType.buggy),
             onPassengerCountChanged: _changePassengerCount,
             availableServices: availableServices,
             onServiceChanged: _reloadQuoteForService,
