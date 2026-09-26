@@ -30,6 +30,97 @@
             <article class="panel-card finance-cash-card">
               <div class="panel-card__header">
                 <div>
+                  <span class="eyebrow eyebrow--dark">MÉTODOS DE PAGAMENTO</span>
+                  <h2>Disponibilidade no Passageiro</h2>
+                  <p class="muted-copy">
+                    Ative ou desative Pix, cartão e carteira sem alterar o aplicativo.
+                  </p>
+                </div>
+                <span id="finance-methods-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-methods-form" class="finance-cash-grid">
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-pix-enabled" type="checkbox">
+                  <span>
+                    <strong>Pix</strong>
+                    <small>Pagamento via Mercado Pago Pix.</small>
+                  </span>
+                </label>
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-card-enabled" type="checkbox">
+                  <span>
+                    <strong>Cartão</strong>
+                    <small>Crédito/débito à vista pelo gateway.</small>
+                  </span>
+                </label>
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-wallet-enabled" type="checkbox">
+                  <span>
+                    <strong>Carteira</strong>
+                    <small>Saldo interno do Passageiro.</small>
+                  </span>
+                </label>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-methods-save"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar métodos
+                  </button>
+                  <span>
+                    A mudança passa a valer na política pública imediatamente.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA CASH</span>
+                  <h2>Limite padrão de dívida</h2>
+                  <p class="muted-copy">
+                    Limite geral de comissão em aberto para motoristas que aceitam dinheiro.
+                  </p>
+                </div>
+                <span id="finance-cash-limit-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-cash-limit-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Limite padrão (R$)</span>
+                  <input
+                    id="finance-cash-limit-input"
+                    type="number"
+                    min="0"
+                    max="1000000"
+                    step="0.01"
+                    inputmode="decimal"
+                    required
+                  >
+                  <small>
+                    Overrides individuais de motorista continuam disponíveis na página Motoristas.
+                  </small>
+                </label>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-cash-limit-save"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar limite padrão
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
                   <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
                   <h2>Dinheiro</h2>
                 </div>
