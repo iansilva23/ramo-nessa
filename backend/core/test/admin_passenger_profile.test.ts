@@ -95,6 +95,8 @@ test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', a
   assert.deepEqual(profile.passenger, {
     passengerId: 'passenger-profile-001',
     phoneE164: '+5588999991001',
+    fullName: null,
+    email: null,
     status: 'active',
     createdAt: '2026-09-20T12:00:00.000Z',
     updatedAt: '2026-09-23T12:00:00.000Z',
