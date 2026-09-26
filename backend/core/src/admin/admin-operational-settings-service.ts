@@ -10,6 +10,7 @@ export class AdminOperationalSettingsError extends Error {
   constructor(
     public readonly code:
       | 'INVALID_DRIVER_OFFER_TTL'
+      | 'INVALID_DRIVER_PAYMENT_HOLD'
       | 'INVALID_MERCADO_PAGO_PUBLIC_KEY',
     message: string,
   ) {
@@ -29,6 +30,7 @@ export async function updateAdminOperationalSettings(input: {
   admin: AdminRepository;
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
+  driverPaymentHoldSeconds?: number;
   showNearbyDrivers?: boolean;
   driverDocumentAutoEnforcement?: boolean;
   mercadoPagoPublicKey?: string | null;
@@ -43,6 +45,18 @@ export async function updateAdminOperationalSettings(input: {
     throw new AdminOperationalSettingsError(
       'INVALID_DRIVER_OFFER_TTL',
       'O tempo de oferta deve ficar entre 5 e 120 segundos.',
+    );
+  }
+
+  if (
+    input.driverPaymentHoldSeconds != null &&
+    (!Number.isInteger(input.driverPaymentHoldSeconds) ||
+      input.driverPaymentHoldSeconds < 30 ||
+      input.driverPaymentHoldSeconds > 300)
+  ) {
+    throw new AdminOperationalSettingsError(
+      'INVALID_DRIVER_PAYMENT_HOLD',
+      'A reserva durante o pagamento deve ficar entre 30 e 300 segundos.',
     );
   }
 
@@ -69,6 +83,9 @@ export async function updateAdminOperationalSettings(input: {
   const current = await input.repository.get();
   const nextTtl =
     input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds;
+  const nextPaymentHold =
+    input.driverPaymentHoldSeconds ??
+    current.driverPaymentHoldSeconds;
   const nextNearby =
     input.showNearbyDrivers ?? current.showNearbyDrivers;
   const nextDocumentAutoEnforcement =
@@ -83,6 +100,7 @@ export async function updateAdminOperationalSettings(input: {
 
   if (
     nextTtl === current.driverOfferTtlSeconds &&
+    nextPaymentHold === current.driverPaymentHoldSeconds &&
     nextNearby === current.showNearbyDrivers &&
     nextDocumentAutoEnforcement ===
       current.driverDocumentAutoEnforcement &&
@@ -94,6 +112,7 @@ export async function updateAdminOperationalSettings(input: {
   const updatedAt = (input.now ?? new Date()).toISOString();
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
+    driverPaymentHoldSeconds: nextPaymentHold,
     showNearbyDrivers: nextNearby,
     driverDocumentAutoEnforcement:
       nextDocumentAutoEnforcement,
@@ -110,6 +129,10 @@ export async function updateAdminOperationalSettings(input: {
     metadata: {
       previousDriverOfferTtlSeconds: current.driverOfferTtlSeconds,
       driverOfferTtlSeconds: updated.driverOfferTtlSeconds,
+      previousDriverPaymentHoldSeconds:
+        current.driverPaymentHoldSeconds,
+      driverPaymentHoldSeconds:
+        updated.driverPaymentHoldSeconds,
       previousShowNearbyDrivers: current.showNearbyDrivers,
       showNearbyDrivers: updated.showNearbyDrivers,
       previousDriverDocumentAutoEnforcement:
