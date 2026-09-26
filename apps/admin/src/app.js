@@ -3499,11 +3499,20 @@ function renderDriverSummary(summary) {
     suspended: Number(summary?.suspended ?? 0),
   };
   state.driverDirectory.summary = normalized;
-  byId('drivers-total').textContent = String(normalized.total);
-  byId('drivers-active').textContent = String(normalized.active);
-  byId('drivers-suspended').textContent = String(normalized.suspended);
-  byId('driver-directory-summary').textContent =
-    `${normalized.total} motorista(s)`;
+
+  const total = byId('drivers-total');
+  const active = byId('drivers-active');
+  const suspended = byId('drivers-suspended');
+  const directorySummary = byId('driver-directory-summary');
+  if (total != null) total.textContent = String(normalized.total);
+  if (active != null) active.textContent = String(normalized.active);
+  if (suspended != null) {
+    suspended.textContent = String(normalized.suspended);
+  }
+  if (directorySummary != null) {
+    directorySummary.textContent =
+      `${normalized.total} motorista(s)`;
+  }
 }
 
 function renderDriverDirectory() {
@@ -4944,16 +4953,27 @@ function metadataText(metadata) {
 
 function renderAudit(entries) {
   state.auditEntries = entries;
-  byId('audit-count').textContent = String(entries.length);
-  byId('audit-directory-count').textContent =
-    `${entries.length} carregado(s)`;
+  const overviewCount = byId('audit-count');
+  if (overviewCount != null) {
+    overviewCount.textContent = String(entries.length);
+  }
 
+  const directoryCount = byId('audit-directory-count');
   const more = byId('audit-load-more');
-  more.hidden = !state.auditDirectory.nextCursor;
-  more.disabled = false;
-
   const body = byId('audit-table-body');
   const empty = byId('audit-empty');
+  if (
+    directoryCount == null ||
+    more == null ||
+    body == null ||
+    empty == null
+  ) {
+    return;
+  }
+
+  directoryCount.textContent = `${entries.length} carregado(s)`;
+  more.hidden = !state.auditDirectory.nextCursor;
+  more.disabled = false;
   body.replaceChildren();
 
   if (entries.length === 0) {
@@ -5365,23 +5385,37 @@ function renderTourCatalog() {
 
 function renderCommunications() {
   const provider = state.communications.deliveryProvider || 'disabled';
-  const badge = byId('communications-provider');
-  badge.textContent =
-    provider === 'disabled' ? 'Firebase pendente' : provider.toUpperCase();
-  badge.className =
-    `pill ${provider === 'disabled' ? 'pill--neutral' : 'pill--success'}`;
 
-  renderNotificationHistory();
-  syncReleasePolicyForm();
-  renderAgencyPromotion();
-  renderSocialLinks();
-  renderTourCatalog();
+  const providerPill = byId('communications-provider');
+  if (providerPill != null) {
+    providerPill.textContent =
+      provider === 'disabled' ? 'Push desligado' : provider;
+    providerPill.className =
+      provider === 'disabled'
+        ? 'pill pill--warning'
+        : 'pill pill--success';
+  }
+
+  if (byId('notification-history-body') != null) {
+    renderNotificationHistory();
+    syncReleasePolicyForm();
+  }
+
+  if (byId('agency-form') != null) {
+    renderAgencyPromotion();
+    renderSocialLinks();
+    renderTourCatalog();
+  }
 
   const canWrite = hasScope('communications:write');
-  byId('send-notification-button').disabled = !canWrite;
-  byId('save-release-policy-button').disabled = !canWrite;
-  byId('save-agency-button').disabled = !canWrite;
-  byId('save-social-links-button').disabled = !canWrite;
+  const sendButton = byId('send-notification-button');
+  const releaseButton = byId('save-release-policy-button');
+  const agencyButton = byId('save-agency-button');
+  const socialButton = byId('save-social-links-button');
+  if (sendButton != null) sendButton.disabled = !canWrite;
+  if (releaseButton != null) releaseButton.disabled = !canWrite;
+  if (agencyButton != null) agencyButton.disabled = !canWrite;
+  if (socialButton != null) socialButton.disabled = !canWrite;
 }
 
 async function loadCommunications({ announce = true } = {}) {
