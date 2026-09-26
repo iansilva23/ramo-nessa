@@ -1,7 +1,7 @@
 import type { AuthSubjectType } from '../auth/auth-session-repository.js';
 
 export type PushPlatform = 'android' | 'ios';
-export type PushTokenProvider = 'fcm' | 'apns';
+export type PushTokenProvider = 'apns' | 'webhook';
 
 export interface PushDeviceRecord {
   id: string;
