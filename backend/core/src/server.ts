@@ -2374,6 +2374,37 @@ const server = createServer(async (request, response) => {
       /^\/v1\/admin\/tours\/([^/]+)\/cover$/,
     );
     if (
+      request.method === 'GET' &&
+      adminTourCoverMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      const slug = parseAgencyTourSlug(
+        decodeURIComponent(adminTourCoverMatch[1] ?? ''),
+      );
+      const cover = await adminCommunicationsRepository.readTourCover(slug);
+      if (cover == null) {
+        json(response, 404, {
+          error: 'TOUR_COVER_NOT_FOUND',
+          message: 'Foto do passeio não encontrada.',
+        });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': cover.mimeType,
+        'content-length': String(cover.bytes.byteLength),
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(Buffer.from(cover.bytes));
+      return;
+    }
+
+    if (
       request.method === 'PUT' &&
       adminTourCoverMatch != null
     ) {
