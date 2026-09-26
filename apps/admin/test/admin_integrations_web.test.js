@@ -4,7 +4,10 @@ import test from 'node:test';
 
 test('admin exposes Google Maps production setup center', async () => {
   const [html, app, api] = await Promise.all([
-    readFile(new URL('../index.html', import.meta.url), 'utf8'),
+    Promise.all([
+      readFile(new URL('../index.html', import.meta.url), 'utf8'),
+      readFile(new URL('../pages/integrations.html', import.meta.url), 'utf8'),
+    ]).then((parts) => parts.join('\n')),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/api.js', import.meta.url), 'utf8'),
   ]);
