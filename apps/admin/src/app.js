@@ -119,6 +119,8 @@ const state = {
   operationalSettings: {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 90,
+    driverLocationMaxAgeSeconds: 120,
+    nearbyDriverMaxDistanceKm: 15,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
     updatedAt: null,
@@ -447,6 +449,8 @@ function clearSession(message = '') {
   state.operationalSettings = {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 90,
+    driverLocationMaxAgeSeconds: 120,
+    nearbyDriverMaxDistanceKm: 15,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
     updatedAt: null,
@@ -4808,6 +4812,24 @@ function renderOperationalSettings(payload = state.operationalSettings) {
     paymentHold <= 300
       ? paymentHold
       : 90;
+  const locationMaxAge = Number(
+    payload?.driverLocationMaxAgeSeconds,
+  );
+  const safeLocationMaxAge =
+    Number.isInteger(locationMaxAge) &&
+    locationMaxAge >= 15 &&
+    locationMaxAge <= 600
+      ? locationMaxAge
+      : 120;
+  const nearbyDistance = Number(
+    payload?.nearbyDriverMaxDistanceKm,
+  );
+  const safeNearbyDistance =
+    Number.isFinite(nearbyDistance) &&
+    nearbyDistance >= 0.5 &&
+    nearbyDistance <= 100
+      ? nearbyDistance
+      : 15;
   const showNearbyDrivers = payload?.showNearbyDrivers === true;
   const driverDocumentAutoEnforcement =
     payload?.driverDocumentAutoEnforcement === true;
@@ -4817,6 +4839,8 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   state.operationalSettings = {
     driverOfferTtlSeconds: safeTtl,
     driverPaymentHoldSeconds: safePaymentHold,
+    driverLocationMaxAgeSeconds: safeLocationMaxAge,
+    nearbyDriverMaxDistanceKm: safeNearbyDistance,
     showNearbyDrivers,
     driverDocumentAutoEnforcement,
     updatedAt,
@@ -4825,6 +4849,10 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   byId('driver-offer-ttl-seconds').value = String(safeTtl);
   byId('driver-payment-hold-seconds').value =
     String(safePaymentHold);
+  byId('driver-location-max-age-seconds').value =
+    String(safeLocationMaxAge);
+  byId('nearby-driver-max-distance-km').value =
+    String(safeNearbyDistance);
   byId('show-nearby-drivers').checked = showNearbyDrivers;
   byId('driver-document-auto-enforcement').checked =
     driverDocumentAutoEnforcement;
@@ -4844,6 +4872,8 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
   byId('driver-payment-hold-seconds').disabled = !canWrite;
+  byId('driver-location-max-age-seconds').disabled = !canWrite;
+  byId('nearby-driver-max-distance-km').disabled = !canWrite;
   byId('show-nearby-drivers').disabled = !canWrite;
   byId('driver-document-auto-enforcement').disabled =
     !canWrite || !hasScope('drivers:documents:write');
@@ -4879,6 +4909,12 @@ async function handleOperationalSettingsSubmit(event) {
   const paymentHoldSeconds = Number(
     byId('driver-payment-hold-seconds').value,
   );
+  const locationMaxAgeSeconds = Number(
+    byId('driver-location-max-age-seconds').value,
+  );
+  const nearbyMaxDistanceKm = Number(
+    byId('nearby-driver-max-distance-km').value,
+  );
   const showNearbyDrivers = byId('show-nearby-drivers').checked;
   const driverDocumentAutoEnforcement =
     byId('driver-document-auto-enforcement').checked;
@@ -4902,6 +4938,30 @@ async function handleOperationalSettingsSubmit(event) {
     );
     return;
   }
+  if (
+    !Number.isInteger(locationMaxAgeSeconds) ||
+    locationMaxAgeSeconds < 15 ||
+    locationMaxAgeSeconds > 600
+  ) {
+    setMessage(
+      globalMessage,
+      'A validade do GPS deve ficar entre 15 e 600 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isFinite(nearbyMaxDistanceKm) ||
+    nearbyMaxDistanceKm < 0.5 ||
+    nearbyMaxDistanceKm > 100
+  ) {
+    setMessage(
+      globalMessage,
+      'A distância de motoristas próximos deve ficar entre 0,5 e 100 km.',
+      'danger',
+    );
+    return;
+  }
 
   const button = byId('save-operational-settings-button');
   button.disabled = true;
@@ -4909,6 +4969,8 @@ async function handleOperationalSettingsSubmit(event) {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
       driverPaymentHoldSeconds: paymentHoldSeconds,
+      driverLocationMaxAgeSeconds: locationMaxAgeSeconds,
+      nearbyDriverMaxDistanceKm: nearbyMaxDistanceKm,
       showNearbyDrivers,
       ...(hasScope('drivers:documents:write')
         ? { driverDocumentAutoEnforcement }
@@ -4917,7 +4979,7 @@ async function handleOperationalSettingsSubmit(event) {
     renderOperationalSettings(settings);
     setMessage(
       globalMessage,
-      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva no pagamento: ${settings.driverPaymentHoldSeconds}s.`,
+      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva: ${settings.driverPaymentHoldSeconds}s · GPS válido por ${settings.driverLocationMaxAgeSeconds}s.`,
       'success',
     );
     if (state.currentDriver?.driverId) {
