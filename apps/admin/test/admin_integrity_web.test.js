@@ -95,22 +95,49 @@ test('rotas do menu correspondem às páginas registradas', async () => {
 
   assert.ok(nav.length > 0, 'menu do Admin não pode ficar vazio');
 
+  const routesStart = app.indexOf(
+    'const adminRoutes = Object.freeze({',
+  );
+  const routesEnd = app.indexOf('\n});', routesStart);
+  assert.ok(
+    routesStart >= 0 && routesEnd > routesStart,
+    'registro de rotas do Admin não foi encontrado',
+  );
+  const routesSource = app.slice(routesStart, routesEnd);
+
   for (const item of nav) {
-    const routePattern = new RegExp(
-      regexEscape(item.view) +
-        String.raw`\\s*:\\s*\\{[\\s\\S]*?path:\\s*['"]` +
-        regexEscape(item.path) +
-        String.raw`['"][\\s\\S]*?page:\\s*['"]([^'"]+)['"]`,
+    const entryStart = routesSource.indexOf(
+      '  ' + item.view + ': {',
     );
-    const route = app.match(routePattern);
+    assert.notEqual(
+      entryStart,
+      -1,
+      'rota ' + item.view + ' não está registrada',
+    );
+    const entryEnd = routesSource.indexOf(
+      '\n  },',
+      entryStart,
+    );
+    assert.notEqual(
+      entryEnd,
+      -1,
+      'bloco da rota ' + item.view + ' está incompleto',
+    );
+    const entry = routesSource.slice(entryStart, entryEnd);
+    assert.equal(
+      entry.includes("path: '" + item.path + "'"),
+      true,
+      'rota ' + item.view + ' usa caminho diferente de ' + item.path,
+    );
+    const page = entry.match(/page:\s*['"]([^'"]+)['"]/);
     assert.ok(
-      route,
-      'rota ' + item.view + ' (' + item.path + ') não está registrada',
+      page,
+      'rota ' + item.view + ' não registra página',
     );
     assert.equal(
-      pageNames.has(route[1]),
+      pageNames.has(page[1]),
       true,
-      'rota ' + item.view + ' aponta para página inexistente: ' + route[1],
+      'rota ' + item.view + ' aponta para página inexistente: ' + page[1],
     );
   }
 });
