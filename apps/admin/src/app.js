@@ -489,8 +489,14 @@ function updateSessionClock() {
   const label = formatSessionRemaining(seconds);
   const sessionTime = byId('session-time');
   if (sessionTime != null) sessionTime.textContent = label;
-  byId('sidebar-session-time').textContent = label;
-  byId('overview-expiry').textContent = formatDateTime(state.expiresAt);
+  const sidebarSessionTime = byId('sidebar-session-time');
+  if (sidebarSessionTime != null) {
+    sidebarSessionTime.textContent = label;
+  }
+  const overviewExpiry = byId('overview-expiry');
+  if (overviewExpiry != null) {
+    overviewExpiry.textContent = formatDateTime(state.expiresAt);
+  }
 
   if (seconds <= 0) {
     clearSession('Sua sessão administrativa expirou.');
@@ -507,13 +513,23 @@ function renderIdentity() {
   const user = state.user;
   if (!user) return;
 
-  byId('operator-name').textContent = user.name;
-  byId('operator-email').textContent = user.email;
-  byId('operator-initials').textContent = initials(user.name);
-  byId('overview-user').textContent = user.name;
-  byId('overview-email').textContent = user.email;
+  const operatorName = byId('operator-name');
+  const operatorEmail = byId('operator-email');
+  const operatorInitials = byId('operator-initials');
+  if (operatorName != null) operatorName.textContent = user.name;
+  if (operatorEmail != null) operatorEmail.textContent = user.email;
+  if (operatorInitials != null) {
+    operatorInitials.textContent = initials(user.name);
+  }
+
+  const overviewUser = byId('overview-user');
+  const overviewEmail = byId('overview-email');
+  if (overviewUser != null) overviewUser.textContent = user.name;
+  if (overviewEmail != null) overviewEmail.textContent = user.email;
 
   const scopeList = byId('scope-list');
+  if (scopeList == null) return;
+
   scopeList.replaceChildren();
   for (const scope of user.scopes ?? []) {
     const item = document.createElement('div');
