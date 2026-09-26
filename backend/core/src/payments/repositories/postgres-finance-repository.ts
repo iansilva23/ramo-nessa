@@ -5,6 +5,8 @@ import type { Pool, PoolClient } from 'pg';
 import {
   cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
+  driverPayoutPaidLedger,
+  driverPayoutCancelledLedger,
   externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -15,8 +17,12 @@ import {
 } from '../ledger.js';
 import {
   type AdminFinanceSummary,
+  type CancelDriverPayoutInput,
+  type CancelDriverPayoutResult,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type CompleteDriverPayoutInput,
+  type CompleteDriverPayoutResult,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
   type RefundExternalPaymentInput,
@@ -1647,6 +1653,258 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async findDriverPayoutById(
+    id: string,
+  ): Promise<DriverPayoutRecord | null> {
+    const result = await this.pool.query<DriverPayoutRow>(
+      `SELECT ${PAYOUT_COLUMNS}
+       FROM driver_payouts
+       WHERE id = $1
+       LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] == null
+      ? null
+      : mapPayout(result.rows[0]);
+  }
+
+  async completeDriverPayout(
+    input: CompleteDriverPayoutInput,
+  ): Promise<CompleteDriverPayoutResult> {
+    const processor = input.processor.trim();
+    if (processor.length < 2 || processor.length > 80) {
+      throw new PayoutDomainError(
+        'PAYOUT_PROCESSOR_REQUIRED',
+        'Informe o processador ou método usado no repasse.',
+      );
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`driver-payout:${input.payoutId}`],
+      );
+
+      const result = await client.query<DriverPayoutRow>(
+        `SELECT ${PAYOUT_COLUMNS}
+         FROM driver_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = result.rows[0];
+      if (row == null) {
+        throw new PayoutDomainError(
+          'PAYOUT_NOT_FOUND',
+          'Saque não encontrado.',
+        );
+      }
+      const payout = mapPayout(row);
+      const referenceKey = `driver-payout-paid:${payout.id}`;
+
+      if (payout.status === 'paid') {
+        const existing = await loadLedgerByReference(
+          client,
+          referenceKey,
+        );
+        if (existing == null) {
+          throw new Error(
+            'Saque pago sem lançamento de conclusão no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout,
+          ledgerTransaction: existing,
+          duplicateCompletion: true,
+        };
+      }
+
+      if (
+        payout.status !== 'requested' &&
+        payout.status !== 'processing'
+      ) {
+        throw new PayoutDomainError(
+          'INVALID_PAYOUT_TRANSITION',
+          `Saque em estado ${payout.status} não pode ser concluído.`,
+        );
+      }
+
+      const pendingAccount =
+        `driver:${payout.driverId}:payout_pending`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [pendingAccount],
+      );
+      const pending = await accountBalanceCents(
+        client,
+        pendingAccount,
+      );
+      if (pending < payout.amountCents) {
+        throw new PayoutDomainError(
+          'INVALID_PAYOUT_TRANSITION',
+          'Saldo pendente do saque não fecha com o ledger.',
+        );
+      }
+
+      const completedAt =
+        (input.completedAt ?? new Date()).toISOString();
+      const updatedResult = await client.query<DriverPayoutRow>(
+        `UPDATE driver_payouts
+         SET
+           status = 'paid',
+           processor = $2,
+           processor_payout_id = $3,
+           updated_at = $4
+         WHERE id = $1
+         RETURNING ${PAYOUT_COLUMNS}`,
+        [
+          payout.id,
+          processor,
+          input.processorPayoutId?.trim() || null,
+          completedAt,
+        ],
+      );
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou saque concluído.');
+      }
+
+      const ledger = driverPayoutPaidLedger({
+        payoutId: payout.id,
+        driverId: payout.driverId,
+        processor,
+        amountCents: payout.amountCents,
+        createdAt: completedAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      return {
+        payout: mapPayout(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateCompletion: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async cancelDriverPayout(
+    input: CancelDriverPayoutInput,
+  ): Promise<CancelDriverPayoutResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`driver-payout:${input.payoutId}`],
+      );
+
+      const result = await client.query<DriverPayoutRow>(
+        `SELECT ${PAYOUT_COLUMNS}
+         FROM driver_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = result.rows[0];
+      if (row == null) {
+        throw new PayoutDomainError(
+          'PAYOUT_NOT_FOUND',
+          'Saque não encontrado.',
+        );
+      }
+      const payout = mapPayout(row);
+      const referenceKey =
+        `driver-payout-cancelled:${payout.id}`;
+
+      if (payout.status === 'cancelled') {
+        const existing = await loadLedgerByReference(
+          client,
+          referenceKey,
+        );
+        if (existing == null) {
+          throw new Error(
+            'Saque cancelado sem lançamento de devolução no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout,
+          ledgerTransaction: existing,
+          duplicateCancellation: true,
+        };
+      }
+
+      if (
+        payout.status !== 'requested' &&
+        payout.status !== 'processing'
+      ) {
+        throw new PayoutDomainError(
+          'INVALID_PAYOUT_TRANSITION',
+          `Saque em estado ${payout.status} não pode ser cancelado.`,
+        );
+      }
+
+      const pendingAccount =
+        `driver:${payout.driverId}:payout_pending`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [pendingAccount],
+      );
+      const pending = await accountBalanceCents(
+        client,
+        pendingAccount,
+      );
+      if (pending < payout.amountCents) {
+        throw new PayoutDomainError(
+          'INVALID_PAYOUT_TRANSITION',
+          'Saldo pendente do saque não fecha com o ledger.',
+        );
+      }
+
+      const cancelledAt =
+        (input.cancelledAt ?? new Date()).toISOString();
+      const updatedResult = await client.query<DriverPayoutRow>(
+        `UPDATE driver_payouts
+         SET status = 'cancelled', updated_at = $2
+         WHERE id = $1
+         RETURNING ${PAYOUT_COLUMNS}`,
+        [payout.id, cancelledAt],
+      );
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou saque cancelado.');
+      }
+
+      const ledger = driverPayoutCancelledLedger({
+        payoutId: payout.id,
+        driverId: payout.driverId,
+        amountCents: payout.amountCents,
+        createdAt: cancelledAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      return {
+        payout: mapPayout(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateCancellation: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
