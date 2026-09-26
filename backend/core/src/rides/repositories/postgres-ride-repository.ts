@@ -334,6 +334,8 @@ export class PostgresRideRepository implements RideRepository {
   async listRecentByDriverId(
     driverId: string,
     limit: number,
+    from?: string,
+    to?: string,
   ): Promise<RideRecord[]> {
     const safeLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
     const result = await this.pool.query<RideRow>(
@@ -341,16 +343,20 @@ export class PostgresRideRepository implements RideRepository {
       SELECT ${RETURNING}
       FROM rides
       WHERE driver_id = $1
+        AND ($2::timestamptz IS NULL OR updated_at >= $2::timestamptz)
+        AND ($3::timestamptz IS NULL OR updated_at < $3::timestamptz)
       ORDER BY updated_at DESC, id DESC
-      LIMIT $2
+      LIMIT $4
       `,
-      [driverId, safeLimit],
+      [driverId, from ?? null, to ?? null, safeLimit],
     );
     return result.rows.map(mapRow);
   }
 
   async getDriverRideSummary(
     driverId: string,
+    from?: string,
+    to?: string,
   ): Promise<DriverRideSummary> {
     const result = await this.pool.query<DriverRideSummary>(
       `
@@ -379,11 +385,25 @@ export class PostgresRideRepository implements RideRepository {
             WHEN state = 'COMPLETED' THEN driver_net_cents
             ELSE 0
           END
-        ), 0)::int AS "earningsCents"
+        ), 0)::int AS "earningsCents",
+        COALESCE(SUM(
+          CASE
+            WHEN state = 'COMPLETED' THEN total_amount_cents
+            ELSE 0
+          END
+        ), 0)::int AS "grossCents",
+        COALESCE(SUM(
+          CASE
+            WHEN state = 'COMPLETED' THEN platform_commission_cents
+            ELSE 0
+          END
+        ), 0)::int AS "platformFeeCents"
       FROM rides
       WHERE driver_id = $1
+        AND ($2::timestamptz IS NULL OR updated_at >= $2::timestamptz)
+        AND ($3::timestamptz IS NULL OR updated_at < $3::timestamptz)
       `,
-      [driverId],
+      [driverId, from ?? null, to ?? null],
     );
 
     return result.rows[0] ?? {
@@ -392,6 +412,8 @@ export class PostgresRideRepository implements RideRepository {
       cancelled: 0,
       inProgress: 0,
       earningsCents: 0,
+      grossCents: 0,
+      platformFeeCents: 0,
     };
   }
 
