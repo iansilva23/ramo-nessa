@@ -74,6 +74,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     if (service == null) return;
 
     final next = !_savedExpanded;
+    if (next) {
+      FocusScope.of(context).unfocus();
+    }
     setState(() => _savedExpanded = next);
     if (next && !_savedLoaded && !_savedLoading) {
       await _loadSavedPlaces();
@@ -498,7 +501,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                                                   ConstrainedBox(
                                                     constraints:
                                                         const BoxConstraints(
-                                                      maxHeight: 190,
+                                                      maxHeight: 128,
                                                     ),
                                                     child: ListView.builder(
                                                       shrinkWrap: true,
