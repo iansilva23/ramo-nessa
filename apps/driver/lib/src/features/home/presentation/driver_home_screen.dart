@@ -3538,9 +3538,14 @@ class _ActiveRideCompactBar extends StatelessWidget {
                     size: 20,
                   ),
                 ),
-                const Icon(
-                  Icons.expand_less_rounded,
-                  color: Colors.white,
+                IconButton(
+                  tooltip: 'Expandir corrida',
+                  onPressed: onExpand,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(
+                    Icons.expand_less_rounded,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
