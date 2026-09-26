@@ -21,6 +21,7 @@ import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
 import 'preview/passenger_preview_dependencies.dart';
+import 'preview/preview_auth.dart';
 
 class RamoNessaPassengerApp extends StatelessWidget {
   const RamoNessaPassengerApp({
@@ -142,9 +143,16 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
     final Widget homeWidget;
     if (RamoCoreConfig.previewMode) {
-      homeWidget = shell(
-        null,
-        () async => true,
+      homeWidget = MobileAuthGate(
+        subjectType: 'passenger',
+        service: PreviewPhoneAuthService(subjectType: 'passenger'),
+        tokenStore: PreviewAuthTokenStore(),
+        initialAccessToken: initialToken,
+        devBypass: false,
+        loginTitle: 'Entre no Ramo Nessa',
+        loginSubtitle:
+            'Entre para testar o app. No Preview, o código é exibido na própria tela.',
+        authenticatedBuilder: (token, logout) => shell(token, logout),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
