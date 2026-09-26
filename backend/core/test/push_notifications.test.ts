@@ -49,7 +49,7 @@ test('registro push troca token antigo somente da mesma sessão', async () => {
     session,
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'token-driver-aaaaaaaaaaaaaaaaaaaa',
     },
     now: new Date('2026-09-24T01:00:00.000Z'),
@@ -59,7 +59,7 @@ test('registro push troca token antigo somente da mesma sessão', async () => {
     session,
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'token-driver-bbbbbbbbbbbbbbbbbbbb',
     },
     now: new Date('2026-09-24T01:01:00.000Z'),
@@ -85,7 +85,7 @@ test('logout desativa somente dispositivos da sessão informada', async () => {
     session,
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'token-session-one-aaaaaaaaaaaaaaaa',
     },
   });
@@ -94,7 +94,7 @@ test('logout desativa somente dispositivos da sessão informada', async () => {
     session: otherSession,
     registration: {
       platform: 'ios',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'token-session-two-bbbbbbbbbbbbbbbb',
     },
   });
@@ -125,7 +125,7 @@ test('serviço entrega em devices ativos e invalida token rejeitado', async () =
     session,
     registration: {
       platform: 'android',
-      provider: 'fcm',
+      provider: 'webhook',
       token: invalidToken,
     },
   });
@@ -137,7 +137,7 @@ test('serviço entrega em devices ativos e invalida token rejeitado', async () =
     },
     registration: {
       platform: 'ios',
-      provider: 'fcm',
+      provider: 'webhook',
       token: 'valid-token-dddddddddddddddddddd',
     },
   });
