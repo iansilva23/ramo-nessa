@@ -233,6 +233,19 @@ function routePath(view) {
   return adminRoutes[view]?.path ?? adminRoutes.overview.path;
 }
 
+function setMobileNavOpen(open) {
+  const expanded = open === true;
+  document.body.classList.toggle('nav-open', expanded);
+  const button = byId('mobile-menu-button');
+  if (button != null) {
+    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    button.setAttribute(
+      'aria-label',
+      expanded ? 'Fechar menu' : 'Abrir menu',
+    );
+  }
+}
+
 const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
   ['drivers:auth:write', 'Aprovar e suspender acessos de motoristas'],
@@ -455,7 +468,7 @@ function clearSession(message = '') {
   routeOutlet.replaceChildren();
   adminView.hidden = true;
   authView.hidden = false;
-  document.body.classList.remove('nav-open');
+  setMobileNavOpen(false);
   clearSensitiveInputs();
   if (message) setMessage(loginMessage, message, 'danger');
   loginEmail.focus();
@@ -624,7 +637,7 @@ function syncRouteNavigation(view) {
   const route = adminRoutes[view] ?? adminRoutes.overview;
   byId('page-title').textContent = route.title;
   document.title = `Ramo Nessa — ${route.title}`;
-  document.body.classList.remove('nav-open');
+  setMobileNavOpen(false);
 }
 
 async function activateView(
