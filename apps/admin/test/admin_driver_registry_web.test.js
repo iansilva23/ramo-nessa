@@ -282,3 +282,44 @@ test('ações sensíveis de acesso e cadastro do motorista exigem confirmação'
   );
   assert.match(app, /window\.confirm/);
 });
+
+
+test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () => {
+  const html = readFileSync(
+    new URL('../pages/drivers.html', import.meta.url),
+    'utf8',
+  );
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.equal(
+    /id=["']provision-status["']/.test(html),
+    false,
+    'provisionamento não pode oferecer criação já ativa',
+  );
+  assert.equal(
+    /value=["']active["'][^>]*>Aprovado/.test(html),
+    false,
+    'motorista novo não pode nascer com OTP liberado',
+  );
+  assert.match(html, /Criar acesso suspenso/);
+  assert.match(
+    html,
+    /perfil e\s+o veículo; depois libere o login OTP/i,
+  );
+
+  assert.match(app, /const status = 'suspended'/);
+  assert.match(app, /id = 'driver-auth-status-action'/);
+  assert.match(app, /Liberar acesso OTP/);
+  assert.match(
+    app,
+    /state\.currentDriverRegistry\?\.registryApproved === true/,
+  );
+  assert.match(app, /button\.disabled = !registryApproved/);
+  assert.match(
+    app,
+    /state\.currentDriverRegistry = null;\s*renderDriver\(driver\)/,
+  );
+});
