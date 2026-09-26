@@ -76,5 +76,9 @@ Future<gm.BitmapDescriptor> buildRamoMapMarker({
   }
 
   final Uint8List bytes = data.buffer.asUint8List();
-  return gm.BitmapDescriptor.fromBytes(bytes);
+  return gm.BitmapDescriptor.bytes(
+    bytes,
+    width: logicalSize,
+    height: logicalSize,
+  );
 }
