@@ -215,6 +215,60 @@ try {
     throw new Error('CSP do gateway administrativo está incompleta.');
   }
 
+  const adminDeepLinks = [
+    'visao-geral',
+    'frota',
+    'viagens',
+    'motoristas',
+    'passageiros',
+    'precos',
+    'financeiro',
+    'notificacoes',
+    'passeios',
+    'integracoes',
+    'auditoria',
+  ];
+  for (const route of adminDeepLinks) {
+    const response = await fetch(`${baseUrl}/admin/${route}`, {
+      cache: 'no-store',
+      redirect: 'error',
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Deep link do Admin /${route} retornou HTTP ${response.status}.`,
+      );
+    }
+    const html = await response.text();
+    if (
+      !html.includes('Ramo Nessa — Admin') ||
+      !html.includes('id="route-outlet"')
+    ) {
+      throw new Error(
+        `Deep link do Admin /${route} não retornou o shell roteado.`,
+      );
+    }
+  }
+
+  for (const page of ['overview', 'fleet', 'agency']) {
+    const response = await fetch(
+      `${baseUrl}/admin/pages/${page}.html`,
+      {
+        cache: 'no-store',
+        redirect: 'error',
+      },
+    );
+    const html = await response.text();
+    if (
+      !response.ok ||
+      !html.includes(`id="view-${page}"`) ||
+      !html.includes('view-panel')
+    ) {
+      throw new Error(
+        `Página isolada do Admin ${page} não foi publicada corretamente.`,
+      );
+    }
+  }
+
   const create = compose([
     'exec',
     '-T',
