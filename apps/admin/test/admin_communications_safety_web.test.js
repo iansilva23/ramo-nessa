@@ -54,3 +54,90 @@ test('publicação continua separada de configuração de credenciais', () => {
     false,
   );
 });
+
+test('Comunicação permanece bloqueada até o Core carregar', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+  const notifications = readFileSync(
+    new URL('../pages/notifications.html', import.meta.url),
+    'utf8',
+  );
+  const agency = readFileSync(
+    new URL('../pages/agency.html', import.meta.url),
+    'utf8',
+  );
+
+  for (const id of [
+    'send-notification-button',
+    'save-release-policy-button',
+  ]) {
+    const tag = notifications.match(
+      new RegExp(
+        `<button[^>]*id=["']${id}["'][^>]*>`,
+      ),
+    )?.[0];
+    assert.ok(tag, `botão ${id} não encontrado`);
+    assert.match(tag, /\bdisabled\b/);
+  }
+
+  for (const id of [
+    'save-agency-button',
+    'save-social-links-button',
+    'tour-new-button',
+    'save-tour-button',
+    'upload-tour-cover-button',
+  ]) {
+    const tag = agency.match(
+      new RegExp(
+        `<button[^>]*id=["']${id}["'][^>]*>`,
+      ),
+    )?.[0];
+    assert.ok(tag, `botão ${id} não encontrado`);
+    assert.match(tag, /\bdisabled\b/);
+  }
+
+  assert.match(app, /communications:\s*\{\s*loaded: false/);
+  assert.match(app, /state\.communications = \{\s*loaded: true/);
+  assert.match(
+    app,
+    /const canWrite =\s*loaded && hasScope\('communications:write'\)/,
+  );
+  assert.match(
+    app,
+    /state\.communications\.loaded === true &&\s*hasScope\('communications:write'\)/,
+  );
+  assert.match(app, /Aguardando dados do Core/);
+  assert.match(
+    app,
+    /state\.communications\.loaded !== true \|\|\s*!hasScope\('communications:write'\)/,
+  );
+});
+
+test('Suporte não depende do carregamento de Comunicação', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  const start = app.indexOf(
+    'async function handleSupportResponse',
+  );
+  const end = app.indexOf(
+    '\nfunction bindRouteEvent',
+    start,
+  );
+  assert.ok(start >= 0 && end > start);
+  const support = app.slice(start, end);
+
+  assert.equal(
+    support.includes('state.communications.loaded'),
+    false,
+  );
+  assert.match(
+    support,
+    /button\.disabled = !hasScope\('communications:write'\)/,
+  );
+});
+
