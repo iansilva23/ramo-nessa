@@ -3052,7 +3052,7 @@ class _ActivitySummaryGrid extends StatelessWidget {
       ('Total', activity.total.toString()),
       ('Concluídas', activity.completed.toString()),
       ('Canceladas', activity.cancelled.toString()),
-      ('Ganhos', formatCents(activity.earningsCents)),
+      ('Líquido recebido', formatCents(activity.earningsCents)),
     ];
 
     return Wrap(
