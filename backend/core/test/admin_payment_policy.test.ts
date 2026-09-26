@@ -117,3 +117,62 @@ test('Admin altera ajuste do preço no Pix sem alterar cartão', async () => {
     'payment_policy.pix_price_adjustment_updated',
   );
 });
+
+
+test('Admin controla métodos digitais e limite cash padrão com auditoria', async () => {
+  const repository = new InMemoryPaymentPolicySettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  const updated = await updateAdminPaymentPolicy({
+    repository,
+    admin,
+    actor,
+    pixEnabled: false,
+    cardEnabled: true,
+    walletEnabled: false,
+    defaultCashDebtLimitCents: 18500,
+    now: new Date('2026-09-26T18:40:00.000Z'),
+  });
+
+  assert.equal(updated.pixEnabled, false);
+  assert.equal(updated.cardEnabled, true);
+  assert.equal(updated.walletEnabled, false);
+  assert.equal(updated.passengerWalletEnabled, false);
+  assert.equal(updated.futureCashDebtLimitCents, 18500);
+  assert.deepEqual(updated.allowedDigitalMethods, ['card']);
+
+  const stored = await repository.get();
+  assert.equal(stored.pixEnabled, false);
+  assert.equal(stored.cardEnabled, true);
+  assert.equal(stored.walletEnabled, false);
+  assert.equal(stored.defaultCashDebtLimitCents, 18500);
+
+  const audit = await admin.listAudit(10);
+  assert.equal(audit[0]?.action, 'payment_policy.updated');
+  assert.equal(audit[0]?.metadata?.pixEnabled, false);
+  assert.equal(
+    audit[0]?.metadata?.defaultCashDebtLimitCents,
+    18500,
+  );
+});
+
+test('Admin não pode desligar todas as formas de pagamento', async () => {
+  const repository = new InMemoryPaymentPolicySettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  await assert.rejects(
+    updateAdminPaymentPolicy({
+      repository,
+      admin,
+      actor,
+      cashEnabled: false,
+      pixEnabled: false,
+      cardEnabled: false,
+      walletEnabled: false,
+    }),
+    (error: unknown) =>
+      error instanceof Error &&
+      'code' in error &&
+      error.code === 'NO_PAYMENT_METHOD_ENABLED',
+  );
+});
