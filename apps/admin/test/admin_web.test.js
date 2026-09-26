@@ -215,10 +215,20 @@ test('frontend não persiste sessão e evita sinks HTML inseguros', () => {
     new URL('../src/app.js', import.meta.url),
     'utf8',
   );
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/drivers.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/passengers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
 
   assert.equal(app.includes('localStorage'), false);
   assert.equal(app.includes('sessionStorage'), false);
@@ -272,10 +282,16 @@ test('cliente Admin salva Instagram oficial sem vazar token', async () => {
 });
 
 test('Admin expõe campo de Instagram controlado por comunicações', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/agency.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
