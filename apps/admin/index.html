@@ -143,7 +143,7 @@
     </div>
 
     <div id="admin-view" class="admin-shell" hidden>
-      <aside class="sidebar">
+      <aside id="admin-sidebar" class="sidebar">
         <div class="sidebar-brand">
           <div class="brand-lockup brand-lockup--light">
             <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
@@ -229,9 +229,17 @@
         tabindex="-1"
       ></button>
 
+      <button
+        id="mobile-nav-backdrop"
+        class="mobile-nav-backdrop"
+        type="button"
+        aria-label="Fechar menu"
+        tabindex="-1"
+      ></button>
+
       <div class="admin-main">
         <header class="topbar">
-          <button id="mobile-menu-button" class="icon-button mobile-menu-button" type="button" aria-label="Abrir menu">
+          <button id="mobile-menu-button" class="icon-button mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="admin-sidebar">
             ☰
           </button>
           <div>
