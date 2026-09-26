@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import { createPostgresPool } from '../src/db/postgres.js';
 import { PaymentDomainError } from '../src/payments/payment.js';
+import { PayoutDomainError } from '../src/payments/payout.js';
 import { PostgresFinanceRepository } from '../src/payments/repositories/postgres-finance-repository.js';
 import { requestDriverPayout } from '../src/payments/request-payout.js';
 
