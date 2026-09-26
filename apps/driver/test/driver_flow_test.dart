@@ -61,8 +61,8 @@ void main() {
     expect(find.text('Cheguei'), findsOneWidget);
     expect(find.text('Parar navegação'), findsOneWidget);
 
-    await tester.ensureVisible(find.byTooltip('Abrir no Google Maps'));
-    await tester.tap(find.byTooltip('Abrir no Google Maps'));
+    await tester.ensureVisible(find.text('Abrir no Google Maps'));
+    await tester.tap(find.text('Abrir no Google Maps'));
     await tester.pump();
     expect(navigation.lastLatitude, -2.82017);
     expect(navigation.lastLongitude, -40.41467);
