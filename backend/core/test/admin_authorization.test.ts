@@ -23,6 +23,7 @@ import { InMemoryAuthSessionRepository } from '../src/auth/repositories/in-memor
 import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
+import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 
 const encryptionKey = Buffer.alloc(32, 11);
 const rateLimitSecret =
@@ -93,6 +94,7 @@ test('ação feita por sessão humana registra ator humano na auditoria', async 
   const humanAuth = new InMemoryAdminHumanAuthRepository();
   const identities = new InMemoryAuthOtpRepository();
   const sessions = new InMemoryAuthSessionRepository();
+  const registry = new InMemoryDriverRegistryRepository();
 
   const created = await createAdminHumanUser({
     repository: humanAuth,
@@ -125,6 +127,7 @@ test('ação feita por sessão humana registra ator humano na auditoria', async 
   await provisionDriverAuthFromAdmin({
     identities,
     sessions,
+    registry,
     admin: apiKeys,
     actor,
     driverId: 'driver-human-admin-001',
@@ -153,6 +156,7 @@ test(
     const humanAuth = new PostgresAdminHumanAuthRepository(pool);
     const identities = new PostgresAuthOtpRepository(pool);
     const sessions = new PostgresAuthSessionRepository(pool);
+    const registry = new InMemoryDriverRegistryRepository();
     const nonce = randomInt(10_000_000, 99_999_999);
     const email = `principal-human-ci-${process.pid}-${nonce}@example.com`;
     const driverId = `driver-human-principal-ci-${process.pid}-${nonce}`;
@@ -193,6 +197,7 @@ test(
       await provisionDriverAuthFromAdmin({
         identities,
         sessions,
+        registry,
         admin: apiKeys,
         actor,
         driverId,
