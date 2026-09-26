@@ -4,7 +4,6 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/auth/phone_auth_service.dart';
 import '../../../core/config/ramo_core_config.dart';
-import '../../../core/notifications/firebase_push_coordinator.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import 'passenger_help_screen.dart';
 import 'passenger_notifications_screen.dart';
@@ -27,7 +26,6 @@ class PassengerProfileScreen extends StatefulWidget {
     this.paymentService,
     this.savedPlaceService,
     this.placeSearchService,
-    this.pushCoordinator,
     this.onLogout,
     this.previewMode = false,
   });
@@ -39,7 +37,6 @@ class PassengerProfileScreen extends StatefulWidget {
   final PassengerPaymentService? paymentService;
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;
-  final FirebasePushCoordinator? pushCoordinator;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -411,9 +408,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => PassengerNotificationsScreen(
-                        coordinator: widget.pushCoordinator,
-                      ),
+                      builder: (_) => const PassengerNotificationsScreen(),
                     ),
                   );
                 },
