@@ -83,7 +83,7 @@ class CorePlaceSearchService
     required String sessionToken,
   }) async {
     final normalized = query.trim();
-    if (normalized.length < 3) return const [];
+    if (normalized.isEmpty) return const [];
 
     final approvedExternal =
         _approvedExternalForAutocomplete(normalized);
