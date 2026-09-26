@@ -5757,6 +5757,183 @@ function handleAuditFilter(event) {
   void loadAudit({ reset: true });
 }
 
+function supportStatusLabel(status) {
+  switch (status) {
+    case 'open':
+      return 'Aberto';
+    case 'in_progress':
+      return 'Em atendimento';
+    case 'resolved':
+      return 'Resolvido';
+    case 'closed':
+      return 'Fechado';
+    default:
+      return status || 'Desconhecido';
+  }
+}
+
+function supportCategoryLabel(category) {
+  switch (category) {
+    case 'ride':
+      return 'Corrida';
+    case 'payment':
+      return 'Pagamento';
+    case 'account':
+      return 'Conta';
+    case 'document':
+      return 'Documento';
+    default:
+      return 'Outro';
+  }
+}
+
+function selectedSupportTicket() {
+  return state.support.tickets.find(
+    (ticket) => ticket.id === state.support.selectedId,
+  ) ?? null;
+}
+
+function renderSupportSelection() {
+  const ticket = selectedSupportTicket();
+  const card = byId('support-response-card');
+  if (card == null) return;
+
+  if (ticket == null) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  byId('support-ticket-id').value = ticket.id;
+  byId('support-response-title').textContent = ticket.subject;
+  byId('support-response-meta').textContent =
+    `${supportCategoryLabel(ticket.category)} · motorista ${ticket.driverId} · ${formatDateTime(ticket.createdAt)}`;
+  byId('support-response-status').textContent =
+    supportStatusLabel(ticket.status);
+  byId('support-driver-message').textContent = ticket.message;
+  byId('support-ticket-status').value =
+    ticket.status === 'open' ? 'in_progress' : ticket.status;
+  byId('support-ticket-response').value = ticket.response ?? '';
+
+  const canWrite = hasScope('communications:write');
+  byId('support-ticket-status').disabled = !canWrite;
+  byId('support-ticket-response').disabled = !canWrite;
+  byId('support-response-button').disabled = !canWrite;
+}
+
+function renderSupport() {
+  const tickets = Array.isArray(state.support.tickets)
+    ? state.support.tickets
+    : [];
+  const list = byId('support-list');
+  const empty = byId('support-empty');
+  const summary = byId('support-summary');
+  if (list == null || empty == null || summary == null) return;
+
+  summary.textContent = `${tickets.length} chamado(s)`;
+  list.replaceChildren();
+
+  for (const ticket of tickets) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.classList.toggle(
+      'is-active',
+      ticket.id === state.support.selectedId,
+    );
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const title = document.createElement('strong');
+    title.textContent = ticket.subject;
+    const status = document.createElement('span');
+    status.className =
+      ticket.status === 'open' || ticket.status === 'in_progress'
+        ? 'pill pill--warning'
+        : 'pill pill--success';
+    status.textContent = supportStatusLabel(ticket.status);
+    heading.append(title, status);
+
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${supportCategoryLabel(ticket.category)} · ${ticket.driverId} · ${formatDateTime(ticket.createdAt)}`;
+
+    const message = document.createElement('p');
+    message.textContent = ticket.message;
+
+    button.append(heading, meta, message);
+    button.addEventListener('click', () => {
+      state.support.selectedId = ticket.id;
+      renderSupport();
+    });
+    list.append(button);
+  }
+
+  empty.hidden = tickets.length !== 0;
+  renderSupportSelection();
+}
+
+async function loadSupport({ announce = true } = {}) {
+  if (!state.token || !hasScope('communications:read')) return;
+  try {
+    const payload = await api.support(state.token, 100);
+    state.support.tickets = Array.isArray(payload?.tickets)
+      ? payload.tickets
+      : [];
+    if (
+      state.support.selectedId != null &&
+      !state.support.tickets.some(
+        (ticket) => ticket.id === state.support.selectedId,
+      )
+    ) {
+      state.support.selectedId = null;
+    }
+    renderSupport();
+    if (announce) {
+      setMessage(globalMessage, 'Chamados atualizados.', 'success');
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleSupportResponse(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const ticketId = byId('support-ticket-id').value.trim();
+  const response = byId('support-ticket-response').value.trim();
+  const status = byId('support-ticket-status').value;
+  const button = byId('support-response-button');
+  if (!ticketId || response.length < 3) {
+    setMessage(
+      globalMessage,
+      'Informe uma resposta válida para o chamado.',
+      'danger',
+    );
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    await api.respondSupportTicket(state.token, {
+      ticketId,
+      response,
+      status,
+    });
+    setMessage(
+      globalMessage,
+      'Resposta registrada e motorista avisado.',
+      'success',
+    );
+    await loadSupport({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
 function bindRouteEvent(id, eventName, handler) {
   const element = byId(id);
   if (element != null) {
