@@ -153,7 +153,85 @@ const loginTotp = byId('login-totp');
 const loginButton = byId('login-button');
 const loginMessage = byId('login-message');
 const globalMessage = byId('global-message');
+const routeOutlet = byId('route-outlet');
+const routeLoading = byId('route-loading');
 let fleetMap = null;
+let currentView = null;
+let routeLoadSequence = 0;
+
+const adminRoutes = Object.freeze({
+  overview: {
+    path: '/admin/visao-geral',
+    title: 'Visão geral',
+    page: 'overview',
+  },
+  fleet: {
+    path: '/admin/frota',
+    title: 'Frota',
+    page: 'fleet',
+  },
+  rides: {
+    path: '/admin/viagens',
+    title: 'Viagens',
+    page: 'rides',
+  },
+  drivers: {
+    path: '/admin/motoristas',
+    title: 'Motoristas',
+    page: 'drivers',
+  },
+  passengers: {
+    path: '/admin/passageiros',
+    title: 'Passageiros',
+    page: 'passengers',
+  },
+  pricing: {
+    path: '/admin/precos',
+    title: 'Preços',
+    page: 'pricing',
+  },
+  finance: {
+    path: '/admin/financeiro',
+    title: 'Financeiro',
+    page: 'finance',
+  },
+  notifications: {
+    path: '/admin/notificacoes',
+    title: 'Notificações',
+    page: 'notifications',
+  },
+  agency: {
+    path: '/admin/passeios',
+    title: 'Ramo Nessa Agência',
+    page: 'agency',
+  },
+  integrations: {
+    path: '/admin/integracoes',
+    title: 'Integrações',
+    page: 'integrations',
+  },
+  audit: {
+    path: '/admin/auditoria',
+    title: 'Auditoria',
+    page: 'audit',
+  },
+});
+
+const routeByPath = new Map(
+  Object.entries(adminRoutes).map(([view, route]) => [
+    route.path,
+    view,
+  ]),
+);
+
+function requestedViewFromLocation() {
+  const path = window.location.pathname.replace(/\/$/, '') || '/admin';
+  return routeByPath.get(path) ?? 'overview';
+}
+
+function routePath(view) {
+  return adminRoutes[view]?.path ?? adminRoutes.overview.path;
+}
 
 const scopeLabels = new Map([
   ['drivers:auth:read', 'Consultar acesso de motoristas'],
