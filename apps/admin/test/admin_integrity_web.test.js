@@ -98,9 +98,9 @@ test('rotas do menu correspondem às páginas registradas', async () => {
   for (const item of nav) {
     const routePattern = new RegExp(
       regexEscape(item.view) +
-        '\\s*:\\s*\\{[\\s\\S]*?path:\\s*[\\'"]' +
+        String.raw`\\s*:\\s*\\{[\\s\\S]*?path:\\s*['"]` +
         regexEscape(item.path) +
-        '[\\'"][\\s\\S]*?page:\\s*[\\'"]([^\\'"]+)[\\'"]',
+        String.raw`['"][\\s\\S]*?page:\\s*['"]([^'"]+)['"]`,
     );
     const route = app.match(routePattern);
     assert.ok(
