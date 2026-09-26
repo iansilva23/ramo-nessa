@@ -363,13 +363,22 @@ export function parseAdminAgencyTourUpdate(body: unknown): {
         'WhatsApp é inválido.',
       );
     }
-    const digits = value.whatsappPhone.replace(/\D/g, '');
+    const rawPhone = value.whatsappPhone.trim();
+    const digits = rawPhone.replace(/\D/g, '');
     if (digits.length < 10 || digits.length > 15 || digits.startsWith('0')) {
       throw new InvalidCommunicationsRequestError(
-        'WhatsApp deve incluir DDI e DDD, por exemplo +5588999999999.',
+        'WhatsApp deve incluir DDD e um número válido.',
       );
     }
-    whatsappPhone = `+${digits}`;
+    if (digits.length === 10 || digits.length === 11) {
+      whatsappPhone = `+55${digits}`;
+    } else if (rawPhone.startsWith('+')) {
+      whatsappPhone = `+${digits}`;
+    } else {
+      throw new InvalidCommunicationsRequestError(
+        'Para número internacional, informe também o DDI com +.',
+      );
+    }
   }
 
   const whatsappMessage =
