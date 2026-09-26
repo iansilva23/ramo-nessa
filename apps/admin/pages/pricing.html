@@ -36,7 +36,7 @@
               <article class="metric-card">
                 <span class="metric-label">Rotas fixas</span>
                 <strong id="pricing-fixed-routes">0</strong>
-                <small>Com valor dia / após 22h</small>
+                <small>Com valor diurno / noturno</small>
               </article>
             </div>
 
@@ -109,6 +109,12 @@
                         <option value="category_policy">Categoria e elegibilidade</option>
                         <option value="zone_policy">Disponibilidade de zona</option>
                         <option value="locality_structure">Estrutura de localidade</option>
+                        <option value="commission_policy">Comissão da plataforma</option>
+                        <option value="period_policy">Horário diurno / noturno</option>
+                        <option value="pickup_policy">Deslocamento até o passageiro</option>
+                        <option value="surcharge_policy">Adicionais do Preá</option>
+                        <option value="buggy_policy">Regra do Buggy em Jeri</option>
+                        <option value="delivery_bands">Faixas de Entrega em Jeri</option>
                       </select>
                     </label>
 
@@ -122,7 +128,7 @@
                         <input id="pricing-route-day" inputmode="decimal" placeholder="120,00">
                       </label>
                       <label class="field">
-                        <span>Preço após 22h (R$)</span>
+                        <span>Preço noturno (R$)</span>
                         <input id="pricing-route-night" inputmode="decimal" placeholder="140,00">
                       </label>
                     </div>
@@ -233,6 +239,94 @@
                           autocomplete="off"
                           placeholder="novo-destino"
                         >
+                      </label>
+                    </div>
+
+                    <div id="pricing-commission-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Comissão da plataforma (%)</span>
+                        <input id="pricing-commission-percent" type="number" min="0" max="100" step="0.01" inputmode="decimal">
+                        <small>Ex.: 10 corresponde a 10% da tarifa-base. O valor restante é do motorista.</small>
+                      </label>
+                    </div>
+
+                    <div id="pricing-period-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Início do período noturno</span>
+                        <input id="pricing-night-start-hour" type="number" min="0" max="23" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Fim do período noturno / início do dia</span>
+                        <input id="pricing-day-start-hour" type="number" min="0" max="23" step="1" inputmode="numeric">
+                      </label>
+                      <small class="pricing-policy-help">
+                        Horário de Fortaleza. Ex.: 22 e 6 = noturno das 22h até 05:59.
+                      </small>
+                    </div>
+
+                    <div id="pricing-pickup-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Distância grátis para coleta (km)</span>
+                        <input id="pricing-pickup-free-km" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Preço de referência do combustível (R$/L)</span>
+                        <input id="pricing-fuel-price-reais" type="number" min="0.01" max="1000" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Consumo de referência Moto (km/L)</span>
+                        <input id="pricing-moto-km-liter" type="number" min="1" max="200" step="0.1" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Consumo de referência Carro/4x4 (km/L)</span>
+                        <input id="pricing-car-km-liter" type="number" min="1" max="100" step="0.1" inputmode="decimal">
+                      </label>
+                    </div>
+
+                    <div id="pricing-surcharge-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Adicional Comfort/Black no Preá (R$)</span>
+                        <input id="pricing-prea-comfort-surcharge" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Adicional noturno do carro local no Preá (R$)</span>
+                        <input id="pricing-prea-night-surcharge" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field pricing-edit-span">
+                        <span>Localidades que recebem o adicional noturno</span>
+                        <textarea id="pricing-prea-night-localities" rows="6" spellcheck="false" placeholder="prea&#10;formosa&#10;cavalo-bravo"></textarea>
+                        <small>Uma localidade por linha. Use os IDs já cadastrados no catálogo.</small>
+                      </label>
+                    </div>
+
+                    <div id="pricing-buggy-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Mínimo de passageiros</span>
+                        <input id="pricing-buggy-min-passengers" type="number" min="1" max="20" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Máximo de passageiros</span>
+                        <input id="pricing-buggy-max-passengers" type="number" min="1" max="20" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Preço base diurno (R$)</span>
+                        <input id="pricing-buggy-day-price" type="number" min="0.01" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Preço base noturno (R$)</span>
+                        <input id="pricing-buggy-night-price" type="number" min="0.01" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Adicional por passageiro (R$)</span>
+                        <input id="pricing-buggy-passenger-price" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                    </div>
+
+                    <div id="pricing-delivery-bands-fields" class="pricing-edit-group" hidden>
+                      <label class="field pricing-edit-span">
+                        <span>Faixas de distância e preço</span>
+                        <textarea id="pricing-delivery-bands" rows="7" spellcheck="false" placeholder="0,7 | 5,00&#10;1,2 | 7,00&#10;1,6 | 8,00&#10;2,0 | 10,00"></textarea>
+                        <small>Uma faixa por linha no formato “km | R$”. As distâncias precisam estar em ordem crescente.</small>
                       </label>
                     </div>
 
