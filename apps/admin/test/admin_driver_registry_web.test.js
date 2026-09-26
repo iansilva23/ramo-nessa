@@ -299,8 +299,16 @@ test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () =
     false,
     'provisionamento não pode oferecer criação já ativa',
   );
+  const provisionForm =
+    html.match(
+      /<form[^>]*id=["']driver-provision-form["'][^>]*>[\\s\\S]*?<\\/form>/,
+    )?.[0] ?? '';
+  assert.ok(
+    provisionForm,
+    'formulário de provisionamento do motorista deve existir',
+  );
   assert.equal(
-    /value=["']active["'][^>]*>Aprovado/.test(html),
+    /value=["']active["']/.test(provisionForm),
     false,
     'motorista novo não pode nascer com OTP liberado',
   );
