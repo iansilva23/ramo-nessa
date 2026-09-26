@@ -11,6 +11,8 @@ export class AdminOperationalSettingsError extends Error {
     public readonly code:
       | 'INVALID_DRIVER_OFFER_TTL'
       | 'INVALID_DRIVER_PAYMENT_HOLD'
+      | 'INVALID_DRIVER_LOCATION_MAX_AGE'
+      | 'INVALID_NEARBY_DRIVER_MAX_DISTANCE'
       | 'INVALID_MERCADO_PAGO_PUBLIC_KEY',
     message: string,
   ) {
@@ -31,6 +33,8 @@ export async function updateAdminOperationalSettings(input: {
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
   driverPaymentHoldSeconds?: number;
+  driverLocationMaxAgeSeconds?: number;
+  nearbyDriverMaxDistanceKm?: number;
   showNearbyDrivers?: boolean;
   driverDocumentAutoEnforcement?: boolean;
   mercadoPagoPublicKey?: string | null;
@@ -60,6 +64,30 @@ export async function updateAdminOperationalSettings(input: {
     );
   }
 
+  if (
+    input.driverLocationMaxAgeSeconds != null &&
+    (!Number.isInteger(input.driverLocationMaxAgeSeconds) ||
+      input.driverLocationMaxAgeSeconds < 15 ||
+      input.driverLocationMaxAgeSeconds > 600)
+  ) {
+    throw new AdminOperationalSettingsError(
+      'INVALID_DRIVER_LOCATION_MAX_AGE',
+      'A validade máxima do GPS deve ficar entre 15 e 600 segundos.',
+    );
+  }
+
+  if (
+    input.nearbyDriverMaxDistanceKm != null &&
+    (!Number.isFinite(input.nearbyDriverMaxDistanceKm) ||
+      input.nearbyDriverMaxDistanceKm < 0.5 ||
+      input.nearbyDriverMaxDistanceKm > 100)
+  ) {
+    throw new AdminOperationalSettingsError(
+      'INVALID_NEARBY_DRIVER_MAX_DISTANCE',
+      'A distância de motoristas próximos deve ficar entre 0,5 e 100 km.',
+    );
+  }
+
   const normalizedPublicKey =
     input.mercadoPagoPublicKey === undefined
       ? undefined
@@ -86,6 +114,12 @@ export async function updateAdminOperationalSettings(input: {
   const nextPaymentHold =
     input.driverPaymentHoldSeconds ??
     current.driverPaymentHoldSeconds;
+  const nextLocationMaxAge =
+    input.driverLocationMaxAgeSeconds ??
+    current.driverLocationMaxAgeSeconds;
+  const nextNearbyDistance =
+    input.nearbyDriverMaxDistanceKm ??
+    current.nearbyDriverMaxDistanceKm;
   const nextNearby =
     input.showNearbyDrivers ?? current.showNearbyDrivers;
   const nextDocumentAutoEnforcement =
@@ -101,6 +135,8 @@ export async function updateAdminOperationalSettings(input: {
   if (
     nextTtl === current.driverOfferTtlSeconds &&
     nextPaymentHold === current.driverPaymentHoldSeconds &&
+    nextLocationMaxAge === current.driverLocationMaxAgeSeconds &&
+    nextNearbyDistance === current.nearbyDriverMaxDistanceKm &&
     nextNearby === current.showNearbyDrivers &&
     nextDocumentAutoEnforcement ===
       current.driverDocumentAutoEnforcement &&
@@ -113,6 +149,8 @@ export async function updateAdminOperationalSettings(input: {
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
     driverPaymentHoldSeconds: nextPaymentHold,
+    driverLocationMaxAgeSeconds: nextLocationMaxAge,
+    nearbyDriverMaxDistanceKm: nextNearbyDistance,
     showNearbyDrivers: nextNearby,
     driverDocumentAutoEnforcement:
       nextDocumentAutoEnforcement,
@@ -133,6 +171,14 @@ export async function updateAdminOperationalSettings(input: {
         current.driverPaymentHoldSeconds,
       driverPaymentHoldSeconds:
         updated.driverPaymentHoldSeconds,
+      previousDriverLocationMaxAgeSeconds:
+        current.driverLocationMaxAgeSeconds,
+      driverLocationMaxAgeSeconds:
+        updated.driverLocationMaxAgeSeconds,
+      previousNearbyDriverMaxDistanceKm:
+        current.nearbyDriverMaxDistanceKm,
+      nearbyDriverMaxDistanceKm:
+        updated.nearbyDriverMaxDistanceKm,
       previousShowNearbyDrivers: current.showNearbyDrivers,
       showNearbyDrivers: updated.showNearbyDrivers,
       previousDriverDocumentAutoEnforcement:
