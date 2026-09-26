@@ -8,6 +8,10 @@ import type {
 
 interface PaymentPolicySettingsRow {
   cash_enabled: boolean;
+  pix_enabled: boolean;
+  card_enabled: boolean;
+  wallet_enabled: boolean;
+  default_cash_debt_limit_cents: number;
   pix_price_adjustment_bps: number;
   card_price_adjustment_bps: number;
   updated_at: Date;
@@ -19,6 +23,41 @@ interface DriverCashPolicyOverrideRow {
   updated_at: Date;
 }
 
+const POLICY_COLUMNS = `
+  cash_enabled,
+  pix_enabled,
+  card_enabled,
+  wallet_enabled,
+  default_cash_debt_limit_cents,
+  pix_price_adjustment_bps,
+  card_price_adjustment_bps,
+  updated_at
+`;
+
+function paymentPolicyRecord(
+  row: PaymentPolicySettingsRow,
+): PaymentPolicySettingsRecord {
+  return {
+    cashEnabled: row.cash_enabled,
+    pixEnabled: row.pix_enabled,
+    cardEnabled: row.card_enabled,
+    walletEnabled: row.wallet_enabled,
+    defaultCashDebtLimitCents: row.default_cash_debt_limit_cents,
+    pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
+    cardPriceAdjustmentBps: row.card_price_adjustment_bps,
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function requirePolicyRow(
+  row: PaymentPolicySettingsRow | undefined,
+): PaymentPolicySettingsRecord {
+  if (row == null) {
+    throw new Error('Configuração de pagamentos não encontrada.');
+  }
+  return paymentPolicyRecord(row);
+}
+
 export class PostgresPaymentPolicySettingsRepository
   implements PaymentPolicySettingsRepository
 {
@@ -26,7 +65,7 @@ export class PostgresPaymentPolicySettingsRepository
 
   async get(): Promise<PaymentPolicySettingsRecord> {
     const result = await this.pool.query<PaymentPolicySettingsRow>(
-      `SELECT cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at
+      `SELECT ${POLICY_COLUMNS}
        FROM payment_policy_settings
        WHERE id = 1
        LIMIT 1`,
@@ -35,12 +74,7 @@ export class PostgresPaymentPolicySettingsRepository
     if (row == null) {
       throw new Error('Configuração de pagamentos não foi inicializada.');
     }
-    return {
-      cashEnabled: row.cash_enabled,
-      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
-      cardPriceAdjustmentBps: row.card_price_adjustment_bps,
-      updatedAt: row.updated_at.toISOString(),
-    };
+    return paymentPolicyRecord(row);
   }
 
   async setCashEnabled(
@@ -51,19 +85,10 @@ export class PostgresPaymentPolicySettingsRepository
       `UPDATE payment_policy_settings
        SET cash_enabled = $1, updated_at = $2
        WHERE id = 1
-       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
+       RETURNING ${POLICY_COLUMNS}`,
       [enabled, updatedAt],
     );
-    const row = result.rows[0];
-    if (row == null) {
-      throw new Error('Configuração de pagamentos não encontrada.');
-    }
-    return {
-      cashEnabled: row.cash_enabled,
-      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
-      cardPriceAdjustmentBps: row.card_price_adjustment_bps,
-      updatedAt: row.updated_at.toISOString(),
-    };
+    return requirePolicyRow(result.rows[0]);
   }
 
   async setPixPriceAdjustmentBps(
@@ -74,19 +99,10 @@ export class PostgresPaymentPolicySettingsRepository
       `UPDATE payment_policy_settings
        SET pix_price_adjustment_bps = $1, updated_at = $2
        WHERE id = 1
-       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
+       RETURNING ${POLICY_COLUMNS}`,
       [bps, updatedAt],
     );
-    const row = result.rows[0];
-    if (row == null) {
-      throw new Error('Configuração de pagamentos não encontrada.');
-    }
-    return {
-      cashEnabled: row.cash_enabled,
-      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
-      cardPriceAdjustmentBps: row.card_price_adjustment_bps,
-      updatedAt: row.updated_at.toISOString(),
-    };
+    return requirePolicyRow(result.rows[0]);
   }
 
   async setCardPriceAdjustmentBps(
@@ -97,19 +113,52 @@ export class PostgresPaymentPolicySettingsRepository
       `UPDATE payment_policy_settings
        SET card_price_adjustment_bps = $1, updated_at = $2
        WHERE id = 1
-       RETURNING cash_enabled, pix_price_adjustment_bps, card_price_adjustment_bps, updated_at`,
+       RETURNING ${POLICY_COLUMNS}`,
       [bps, updatedAt],
     );
-    const row = result.rows[0];
-    if (row == null) {
-      throw new Error('Configuração de pagamentos não encontrada.');
-    }
-    return {
-      cashEnabled: row.cash_enabled,
-      pixPriceAdjustmentBps: row.pix_price_adjustment_bps,
-      cardPriceAdjustmentBps: row.card_price_adjustment_bps,
-      updatedAt: row.updated_at.toISOString(),
-    };
+    return requirePolicyRow(result.rows[0]);
+  }
+
+  async setDigitalMethods(
+    input: {
+      pixEnabled?: boolean;
+      cardEnabled?: boolean;
+      walletEnabled?: boolean;
+    },
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    const current = await this.get();
+    const result = await this.pool.query<PaymentPolicySettingsRow>(
+      `UPDATE payment_policy_settings
+       SET
+         pix_enabled = $1,
+         card_enabled = $2,
+         wallet_enabled = $3,
+         updated_at = $4
+       WHERE id = 1
+       RETURNING ${POLICY_COLUMNS}`,
+      [
+        input.pixEnabled ?? current.pixEnabled,
+        input.cardEnabled ?? current.cardEnabled,
+        input.walletEnabled ?? current.walletEnabled,
+        updatedAt,
+      ],
+    );
+    return requirePolicyRow(result.rows[0]);
+  }
+
+  async setDefaultCashDebtLimitCents(
+    cents: number,
+    updatedAt: string,
+  ): Promise<PaymentPolicySettingsRecord> {
+    const result = await this.pool.query<PaymentPolicySettingsRow>(
+      `UPDATE payment_policy_settings
+       SET default_cash_debt_limit_cents = $1, updated_at = $2
+       WHERE id = 1
+       RETURNING ${POLICY_COLUMNS}`,
+      [cents, updatedAt],
+    );
+    return requirePolicyRow(result.rows[0]);
   }
 
   async getDriverCashDebtLimitOverride(
