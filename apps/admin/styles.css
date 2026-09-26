@@ -423,8 +423,10 @@ button:disabled {
   color: #aeb2b7;
   background: transparent;
   text-align: left;
+  text-decoration: none;
   font-size: 14px;
   font-weight: 760;
+  cursor: pointer;
 }
 
 .nav-item:hover {
@@ -575,6 +577,54 @@ button:disabled {
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: 34px;
+}
+
+.route-outlet {
+  min-height: calc(100vh - 144px);
+}
+
+.route-loading {
+  min-height: 42vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.route-loading[hidden] {
+  display: none;
+}
+
+.route-loading__spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--border);
+  border-top-color: var(--yellow);
+  border-radius: 50%;
+  animation: route-spin 720ms linear infinite;
+}
+
+@keyframes route-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.route-outlet > .view-panel {
+  animation: route-enter 180ms ease-out both;
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .page-heading {
