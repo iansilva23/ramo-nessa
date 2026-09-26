@@ -23,6 +23,71 @@ export async function driverFinanceSummary(
   };
 }
 
+function maskPixKey(type: string, key: string): string {
+  if (type === 'email') {
+    const [user, domain] = key.split('@');
+    if (!user || !domain) return '••••';
+    const visible = user.substring(0, Math.min(2, user.length));
+    return `${visible}••••@${domain}`;
+  }
+  if (type === 'phone') {
+    return key.length > 4
+      ? `••••••${key.substring(key.length - 4)}`
+      : '••••';
+  }
+  const visible = key.substring(Math.max(0, key.length - 4));
+  return `••••${visible}`;
+}
+
+export async function driverPayoutDestinationForApp(
+  repository: FinanceRepository,
+  driverId: string,
+) {
+  const destination =
+    await repository.getDriverPayoutDestination(driverId);
+  if (destination == null) {
+    return { configured: false as const };
+  }
+  return {
+    configured: true as const,
+    pixKeyType: destination.pixKeyType,
+    pixKeyMasked: maskPixKey(
+      destination.pixKeyType,
+      destination.pixKey,
+    ),
+    updatedAt: destination.updatedAt,
+  };
+}
+
+export async function saveDriverPayoutDestinationFromApp(input: {
+  repository: FinanceRepository;
+  driverId: string;
+  pixKeyType: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  pixKey: string;
+  now?: Date;
+}) {
+  const current =
+    await input.repository.getDriverPayoutDestination(input.driverId);
+  const instant = (input.now ?? new Date()).toISOString();
+  const destination =
+    await input.repository.upsertDriverPayoutDestination({
+      driverId: input.driverId,
+      pixKeyType: input.pixKeyType,
+      pixKey: input.pixKey,
+      createdAt: current?.createdAt ?? instant,
+      updatedAt: instant,
+    });
+  return {
+    configured: true as const,
+    pixKeyType: destination.pixKeyType,
+    pixKeyMasked: maskPixKey(
+      destination.pixKeyType,
+      destination.pixKey,
+    ),
+    updatedAt: destination.updatedAt,
+  };
+}
+
 export async function requestDriverPayoutFromApp(input: {
   repository: FinanceRepository;
   driverId: string;
