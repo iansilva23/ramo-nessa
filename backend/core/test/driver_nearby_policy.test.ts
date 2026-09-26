@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import { nearbyDriversForApp } from '../src/drivers/driver-nearby-service.js';
+import type { DriverSupplyRecord } from '../src/drivers/driver-supply.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 
 const now = new Date('2026-09-26T19:40:00.000Z');
@@ -18,11 +19,11 @@ function supply(
     longitude: number;
     ageSeconds?: number;
   },
-) {
+): DriverSupplyRecord {
   return {
     driverId,
     vehicleId: `vehicle-${driverId}`,
-    categories: ['car'] as const,
+    categories: ['car'],
     fourByFour: false,
     seatCapacity: 4,
     online: true,
