@@ -39,6 +39,26 @@
                   </small>
                 </label>
 
+                <label class="field">
+                  <span>Reserva do motorista durante o pagamento</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="driver-payment-hold-seconds"
+                      type="number"
+                      min="30"
+                      max="300"
+                      step="1"
+                      value="90"
+                      required
+                    >
+                    <strong>segundos</strong>
+                  </div>
+                  <small>
+                    Mantém o motorista reservado enquanto o passageiro conclui
+                    Pix, cartão ou carteira. Depois desse tempo a reserva expira.
+                  </small>
+                </label>
+
                 <label class="operational-settings-toggle">
                   <span>
                     <strong>Mostrar outros motoristas no mapa</strong>
