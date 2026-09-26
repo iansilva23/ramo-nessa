@@ -2745,6 +2745,8 @@ const server = createServer(async (request, response) => {
       const payload = body as {
         driverOfferTtlSeconds?: unknown;
         driverPaymentHoldSeconds?: unknown;
+        driverLocationMaxAgeSeconds?: unknown;
+        nearbyDriverMaxDistanceKm?: unknown;
         showNearbyDrivers?: unknown;
         driverDocumentAutoEnforcement?: unknown;
       };
@@ -2756,6 +2758,14 @@ const server = createServer(async (request, response) => {
         payload.driverPaymentHoldSeconds == null
           ? undefined
           : Number(payload.driverPaymentHoldSeconds);
+      const driverLocationMaxAgeSeconds =
+        payload.driverLocationMaxAgeSeconds == null
+          ? undefined
+          : Number(payload.driverLocationMaxAgeSeconds);
+      const nearbyDriverMaxDistanceKm =
+        payload.nearbyDriverMaxDistanceKm == null
+          ? undefined
+          : Number(payload.nearbyDriverMaxDistanceKm);
       const showNearbyDrivers =
         payload.showNearbyDrivers == null
           ? undefined
@@ -2779,6 +2789,22 @@ const server = createServer(async (request, response) => {
       ) {
         throw new InvalidAdminRequestError(
           'driverPaymentHoldSeconds deve ser inteiro.',
+        );
+      }
+      if (
+        driverLocationMaxAgeSeconds != null &&
+        !Number.isInteger(driverLocationMaxAgeSeconds)
+      ) {
+        throw new InvalidAdminRequestError(
+          'driverLocationMaxAgeSeconds deve ser inteiro.',
+        );
+      }
+      if (
+        nearbyDriverMaxDistanceKm != null &&
+        !Number.isFinite(nearbyDriverMaxDistanceKm)
+      ) {
+        throw new InvalidAdminRequestError(
+          'nearbyDriverMaxDistanceKm deve ser numérico.',
         );
       }
       if (
@@ -2808,6 +2834,8 @@ const server = createServer(async (request, response) => {
       if (
         driverOfferTtlSeconds == null &&
         driverPaymentHoldSeconds == null &&
+        driverLocationMaxAgeSeconds == null &&
+        nearbyDriverMaxDistanceKm == null &&
         showNearbyDrivers == null &&
         driverDocumentAutoEnforcement == null
       ) {
@@ -2826,6 +2854,12 @@ const server = createServer(async (request, response) => {
         ...(driverPaymentHoldSeconds == null
           ? {}
           : { driverPaymentHoldSeconds }),
+        ...(driverLocationMaxAgeSeconds == null
+          ? {}
+          : { driverLocationMaxAgeSeconds }),
+        ...(nearbyDriverMaxDistanceKm == null
+          ? {}
+          : { nearbyDriverMaxDistanceKm }),
         ...(showNearbyDrivers == null
           ? {}
           : { showNearbyDrivers }),
