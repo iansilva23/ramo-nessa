@@ -3,6 +3,7 @@ import type {
   AdminNotificationCampaignRecord,
   AgencyPromotionRecord,
   AppReleasePolicyRecord,
+  SocialLinksRecord,
 } from '../admin-communications-repository.js';
 import type { AuthSubjectType } from '../../auth/auth-session-repository.js';
 import type { PushPlatform } from '../../notifications/push-device-repository.js';
@@ -64,6 +65,10 @@ export class InMemoryAdminCommunicationsRepository
     new Map<string, AdminNotificationCampaignRecord>();
   private readonly policies =
     new Map<string, AppReleasePolicyRecord>();
+  private socialLinks: SocialLinksRecord = {
+    updatedAt: '2026-09-24T00:00:00.000Z',
+  };
+
   private promotion: AgencyPromotionRecord = {
     id: 'ramo-nessa-agencia',
     enabled: false,
@@ -142,5 +147,16 @@ export class InMemoryAdminCommunicationsRepository
   ): Promise<AgencyPromotionRecord> {
     this.promotion = structuredClone(record);
     return structuredClone(this.promotion);
+  }
+
+  async getSocialLinks(): Promise<SocialLinksRecord> {
+    return structuredClone(this.socialLinks);
+  }
+
+  async saveSocialLinks(
+    record: SocialLinksRecord,
+  ): Promise<SocialLinksRecord> {
+    this.socialLinks = structuredClone(record);
+    return structuredClone(this.socialLinks);
   }
 }
