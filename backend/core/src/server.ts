@@ -4762,7 +4762,10 @@ const server = createServer(async (request, response) => {
       const quote = quoteFare(
         {
           ...body,
-          period: pricingPeriodAt(now),
+          period: pricingPeriodAt(
+            now,
+            pricing.snapshot.periodPolicy,
+          ),
         },
         pricing.snapshot,
       );
