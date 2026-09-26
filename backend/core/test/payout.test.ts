@@ -135,3 +135,121 @@ test('saque acima do saldo disponível é recusado', async () => {
     13500,
   );
 });
+
+
+test('concluir saque zera pendência sem devolver saldo disponível', async () => {
+  const repository = await repositoryWithDriverBalance();
+  const requested = await requestDriverPayout(repository, {
+    driverId: 'driver-77',
+    amountCents: 5000,
+    idempotencyKey: 'payout-driver-77-complete',
+    now: new Date('2026-09-23T03:00:00.000Z'),
+  });
+
+  const completed = await repository.completeDriverPayout({
+    payoutId: requested.payout.id,
+    processor: 'Pix manual',
+    processorPayoutId: 'receipt-001',
+    completedAt: new Date('2026-09-23T03:05:00.000Z'),
+  });
+
+  assert.equal(completed.payout.status, 'paid');
+  assert.equal(completed.payout.processor, 'Pix manual');
+  assert.equal(completed.payout.processorPayoutId, 'receipt-001');
+  assert.equal(completed.duplicateCompletion, false);
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payout_pending',
+    ),
+    0,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payable',
+    ),
+    8500,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'processor:Pix manual:payouts',
+    ),
+    5000,
+  );
+
+  const retry = await repository.completeDriverPayout({
+    payoutId: requested.payout.id,
+    processor: 'Pix manual',
+    processorPayoutId: 'receipt-001',
+  });
+  assert.equal(retry.duplicateCompletion, true);
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payout_pending',
+    ),
+    0,
+  );
+});
+
+test('cancelar saque devolve integralmente a reserva ao saldo do motorista', async () => {
+  const repository = await repositoryWithDriverBalance();
+  const requested = await requestDriverPayout(repository, {
+    driverId: 'driver-77',
+    amountCents: 5000,
+    idempotencyKey: 'payout-driver-77-cancel',
+    now: new Date('2026-09-23T03:00:00.000Z'),
+  });
+
+  const cancelled = await repository.cancelDriverPayout({
+    payoutId: requested.payout.id,
+    cancelledAt: new Date('2026-09-23T03:05:00.000Z'),
+  });
+
+  assert.equal(cancelled.payout.status, 'cancelled');
+  assert.equal(cancelled.duplicateCancellation, false);
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payout_pending',
+    ),
+    0,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payable',
+    ),
+    13500,
+  );
+
+  const retry = await repository.cancelDriverPayout({
+    payoutId: requested.payout.id,
+  });
+  assert.equal(retry.duplicateCancellation, true);
+  assert.equal(
+    await repository.getAccountBalanceCents(
+      'driver:driver-77:payable',
+    ),
+    13500,
+  );
+});
+
+test('saque pago não pode ser cancelado depois da conciliação', async () => {
+  const repository = await repositoryWithDriverBalance();
+  const requested = await requestDriverPayout(repository, {
+    driverId: 'driver-77',
+    amountCents: 5000,
+    idempotencyKey: 'payout-driver-77-terminal',
+  });
+  await repository.completeDriverPayout({
+    payoutId: requested.payout.id,
+    processor: 'Pix manual',
+  });
+
+  await assert.rejects(
+    () =>
+      repository.cancelDriverPayout({
+        payoutId: requested.payout.id,
+      }),
+    (error: unknown) =>
+      error instanceof PayoutDomainError &&
+      error.code === 'INVALID_PAYOUT_TRANSITION',
+  );
+});
