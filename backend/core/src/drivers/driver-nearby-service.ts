@@ -1,9 +1,6 @@
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
 
-const MAX_NEARBY_DISTANCE_KM = 15;
-const MAX_LOCATION_AGE_MS = 90 * 1000;
-
 function distanceKm(
   lat1: number,
   lon1: number,
@@ -29,6 +26,10 @@ export async function nearbyDriversForApp(input: {
   now?: Date;
 }) {
   const settings = await input.settings.get();
+  const maxLocationAgeMs =
+    settings.driverLocationMaxAgeSeconds * 1000;
+  const maxNearbyDistanceKm =
+    settings.nearbyDriverMaxDistanceKm;
   if (!settings.showNearbyDrivers) {
     return {
       enabled: false,
@@ -55,7 +56,11 @@ export async function nearbyDriversForApp(input: {
     .filter((candidate) => candidate.online)
     .filter((candidate) => {
       const ageMs = nowMs - Date.parse(candidate.locationUpdatedAt);
-      return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= MAX_LOCATION_AGE_MS;
+      return (
+        Number.isFinite(ageMs) &&
+        ageMs >= 0 &&
+        ageMs <= maxLocationAgeMs
+      );
     })
     .map((candidate) => ({
       driverId: candidate.driverId,
@@ -74,7 +79,9 @@ export async function nearbyDriversForApp(input: {
         candidate.longitude,
       ),
     }))
-    .filter((candidate) => candidate.distanceKm <= MAX_NEARBY_DISTANCE_KM)
+    .filter(
+      (candidate) => candidate.distanceKm <= maxNearbyDistanceKm,
+    )
     .sort((a, b) => a.distanceKm - b.distanceKm)
     .slice(0, 40)
     .map(({
