@@ -2415,6 +2415,143 @@
                 </form>
               </article>
             </div>
+
+            <article class="panel-card tour-admin-card">
+              <div class="panel-card__header tour-admin-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CATÁLOGO DE PASSEIOS</span>
+                  <h2>Passeios no app do Passageiro</h2>
+                  <p class="muted-copy">
+                    Edite foto, descrição, roteiro, preço e WhatsApp sem atualizar o aplicativo.
+                    Somente passeios marcados como publicados aparecem para o passageiro.
+                  </p>
+                </div>
+                <span id="tour-admin-summary" class="pill pill--neutral">0 passeios</span>
+              </div>
+
+              <div class="tour-admin-layout">
+                <aside class="tour-admin-directory">
+                  <button id="tour-new-button" class="button button--primary" type="button">
+                    Novo passeio
+                  </button>
+                  <div id="tour-admin-list" class="tour-admin-list"></div>
+                </aside>
+
+                <div class="tour-admin-editor">
+                  <form id="tour-form" class="communications-form tour-form">
+                    <label class="toggle-row communications-span-2">
+                      <input id="tour-enabled" type="checkbox">
+                      <span>
+                        <strong>Publicado no app</strong>
+                        <small>Exibe este passeio na aba Passeios.</small>
+                      </span>
+                    </label>
+
+                    <label class="field">
+                      <span>Identificador</span>
+                      <input id="tour-slug" maxlength="60" required placeholder="lado-leste">
+                      <small>Letras minúsculas, números e hífen.</small>
+                    </label>
+                    <label class="field">
+                      <span>Ordem</span>
+                      <input id="tour-sort-order" type="number" min="0" max="10000" step="1" value="100" required>
+                    </label>
+
+                    <label class="field">
+                      <span>Nome do passeio</span>
+                      <input id="tour-title" maxlength="120" required>
+                    </label>
+                    <label class="field">
+                      <span>Selo</span>
+                      <input id="tour-badge" maxlength="32" required placeholder="COMPARTILHADO">
+                    </label>
+
+                    <label class="field communications-span-2">
+                      <span>Descrição curta</span>
+                      <textarea id="tour-short-description" maxlength="280" rows="2" required></textarea>
+                    </label>
+                    <label class="field communications-span-2">
+                      <span>Descrição completa</span>
+                      <textarea id="tour-description" maxlength="4000" rows="6" required></textarea>
+                    </label>
+
+                    <label class="field communications-span-2">
+                      <span>Pontos do roteiro</span>
+                      <textarea id="tour-highlights" rows="5" placeholder="Um item por linha"></textarea>
+                    </label>
+                    <label class="field">
+                      <span>O que inclui</span>
+                      <textarea id="tour-included" rows="4" placeholder="Um item por linha"></textarea>
+                    </label>
+                    <label class="field">
+                      <span>O que não inclui</span>
+                      <textarea id="tour-excluded" rows="4" placeholder="Um item por linha"></textarea>
+                    </label>
+
+                    <label class="field">
+                      <span>Duração</span>
+                      <input id="tour-duration" maxlength="100" placeholder="Ex.: 6 horas">
+                    </label>
+                    <label class="field">
+                      <span>Horários</span>
+                      <input id="tour-schedule" maxlength="180">
+                    </label>
+                    <label class="field communications-span-2">
+                      <span>Local / orientação de saída</span>
+                      <input id="tour-departure" maxlength="180">
+                    </label>
+
+                    <label class="field">
+                      <span>Rótulo do preço</span>
+                      <input id="tour-price-label" maxlength="40" value="A partir de" required>
+                    </label>
+                    <label class="field">
+                      <span>Preço (R$)</span>
+                      <input id="tour-price-reais" inputmode="decimal" placeholder="75,00">
+                    </label>
+                    <label class="field communications-span-2">
+                      <span>Complemento do preço</span>
+                      <input id="tour-price-suffix" maxlength="80" placeholder="por pessoa">
+                    </label>
+
+                    <label class="field">
+                      <span>WhatsApp para reservas</span>
+                      <input id="tour-whatsapp-phone" inputmode="tel" maxlength="24" placeholder="+55 88 99999-9999">
+                    </label>
+                    <label class="field">
+                      <span>Mensagem pronta</span>
+                      <input id="tour-whatsapp-message" maxlength="500" placeholder="Olá! Quero reservar este passeio.">
+                    </label>
+
+                    <div class="communications-span-2 communications-actions">
+                      <small id="tour-updated-at">Novo passeio</small>
+                      <button id="save-tour-button" class="button button--dark" type="submit">
+                        Salvar passeio
+                      </button>
+                    </div>
+                  </form>
+
+                  <div class="tour-cover-editor">
+                    <div class="tour-cover-preview">
+                      <img id="tour-cover-preview" alt="Prévia da foto do passeio" hidden>
+                      <div id="tour-cover-placeholder">
+                        Adicione uma foto de capa para o card do passeio.
+                      </div>
+                    </div>
+                    <div class="tour-cover-actions">
+                      <label class="field">
+                        <span>Foto de capa</span>
+                        <input id="tour-cover-file" type="file" accept="image/jpeg,image/png,image/webp">
+                        <small>JPEG, PNG ou WebP. Máximo de 8 MB.</small>
+                      </label>
+                      <button id="upload-tour-cover-button" class="button button--primary" type="button">
+                        Trocar foto
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
           </section>
 
           <section id="view-audit" class="view-panel" hidden>
