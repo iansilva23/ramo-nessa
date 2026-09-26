@@ -36,6 +36,8 @@ class DriverSupplySnapshot {
   final int seatCapacity;
   final bool online;
   final bool busy;
+  final String driverId;
+  final String category;
   final double latitude;
   final double longitude;
   final DateTime locationUpdatedAt;
@@ -898,6 +900,8 @@ class DriverActivitySnapshot {
 
 class NearbyDriverPosition {
   const NearbyDriverPosition({
+    required this.driverId,
+    required this.category,
     required this.latitude,
     required this.longitude,
     required this.busy,
@@ -906,6 +910,8 @@ class NearbyDriverPosition {
 
   factory NearbyDriverPosition.fromJson(Map<String, dynamic> json) {
     return NearbyDriverPosition(
+      driverId: json['driverId'] as String? ?? '',
+      category: json['category'] as String? ?? 'car',
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       busy: json['busy'] as bool? ?? false,
