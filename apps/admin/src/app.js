@@ -6408,14 +6408,29 @@ async function handleNotificationSubmit(event) {
   event.preventDefault();
   if (!state.token || !hasScope('communications:write')) return;
 
+  const audience = byId('notification-audience').value;
+  const category = byId('notification-category').value;
+  const title = byId('notification-title').value.trim();
+  const body = byId('notification-body').value.trim();
+  const audienceLabel =
+    audience === 'passenger'
+      ? 'somente passageiros'
+      : audience === 'driver'
+        ? 'somente motoristas'
+        : 'toda a base';
+  const confirmed = window.confirm(
+    `Confirmar envio da notificação para ${audienceLabel}?\n\n${title}\n${body}`,
+  );
+  if (!confirmed) return;
+
   const button = byId('send-notification-button');
   button.disabled = true;
   try {
     const result = await api.sendNotification(state.token, {
-      audience: byId('notification-audience').value,
-      category: byId('notification-category').value,
-      title: byId('notification-title').value.trim(),
-      body: byId('notification-body').value.trim(),
+      audience,
+      category,
+      title,
+      body,
     });
     byId('notification-title').value = '';
     byId('notification-body').value = '';
@@ -6441,15 +6456,37 @@ async function handleReleasePolicySubmit(event) {
 
   const latestBuild = Number(byId('release-latest-build').value);
   const minimumBuild = Number(byId('release-minimum-build').value);
+  const appKind = byId('release-app-kind').value;
+  const platform = byId('release-platform').value;
+  const latestVersion =
+    byId('release-latest-version').value.trim();
+  if (
+    !Number.isInteger(latestBuild) ||
+    !Number.isInteger(minimumBuild) ||
+    latestBuild < 1 ||
+    minimumBuild < 1 ||
+    minimumBuild > latestBuild
+  ) {
+    setMessage(
+      globalMessage,
+      'Build mínimo e build mais recente devem ser inteiros positivos, e o mínimo não pode superar o mais recente.',
+      'danger',
+    );
+    return;
+  }
+  const confirmed = window.confirm(
+    `Confirmar política de versão? ${appKind} · ${platform} · versão ${latestVersion} · build atual ${latestBuild} · mínimo ${minimumBuild}. Aparelhos desatualizados podem receber aviso automaticamente.`,
+  );
+  if (!confirmed) return;
+
   const button = byId('save-release-policy-button');
   button.disabled = true;
   try {
     const result = await api.updateReleasePolicy(state.token, {
-      appKind: byId('release-app-kind').value,
-      platform: byId('release-platform').value,
+      appKind,
+      platform,
       policy: {
-        latestVersion:
-          byId('release-latest-version').value.trim(),
+        latestVersion,
         latestBuild,
         minimumBuild,
         storeUrl: byId('release-store-url').value.trim(),
@@ -6477,17 +6514,29 @@ async function handleAgencySubmit(event) {
   event.preventDefault();
   if (!state.token || !hasScope('communications:write')) return;
 
+  const payload = {
+    enabled: byId('agency-enabled').checked,
+    title: byId('agency-title').value.trim(),
+    subtitle: byId('agency-subtitle').value.trim(),
+    description: byId('agency-description').value.trim(),
+    ctaLabel: byId('agency-cta-label').value.trim(),
+    ctaUrl: byId('agency-cta-url').value.trim(),
+  };
+  const wasPublic =
+    state.communications.agencyPromotion?.enabled === true;
+  if (wasPublic || payload.enabled) {
+    const confirmed = window.confirm(
+      payload.enabled
+        ? 'Confirmar publicação da divulgação? As alterações ficarão visíveis no app assim que forem salvas.'
+        : 'Confirmar desativação da divulgação? Ela deixará de aparecer no app.',
+    );
+    if (!confirmed) return;
+  }
+
   const button = byId('save-agency-button');
   button.disabled = true;
   try {
-    await api.updateAgencyPromotion(state.token, {
-      enabled: byId('agency-enabled').checked,
-      title: byId('agency-title').value.trim(),
-      subtitle: byId('agency-subtitle').value.trim(),
-      description: byId('agency-description').value.trim(),
-      ctaLabel: byId('agency-cta-label').value.trim(),
-      ctaUrl: byId('agency-cta-url').value.trim(),
-    });
+    await api.updateAgencyPromotion(state.token, payload);
     setMessage(
       globalMessage,
       'Divulgação da Ramo Nessa Agência salva.',
@@ -6554,10 +6603,7 @@ async function handleTourSubmit(event) {
   const slug = byId('tour-slug').value
     .trim()
     .toLowerCase();
-  const button = byId('save-tour-button');
-  button.disabled = true;
-  try {
-    const payload = {
+  const payload = {
       enabled: byId('tour-enabled').checked,
       sortOrder: Number(byId('tour-sort-order').value),
       title: byId('tour-title').value.trim(),
@@ -6576,9 +6622,24 @@ async function handleTourSubmit(event) {
       priceSuffix: byId('tour-price-suffix').value.trim(),
       whatsappPhone:
         byId('tour-whatsapp-phone').value.trim(),
-      whatsappMessage:
-        byId('tour-whatsapp-message').value.trim(),
-    };
+    whatsappMessage:
+      byId('tour-whatsapp-message').value.trim(),
+  };
+  const current = state.communications.tours.find(
+    (tour) => tour.slug === slug,
+  );
+  if (current?.enabled === true || payload.enabled) {
+    const confirmed = window.confirm(
+      payload.enabled
+        ? 'Confirmar publicação do passeio? As informações salvas ficarão visíveis no app do Passageiro.'
+        : 'Confirmar retirada do passeio? Ele deixará de aparecer no app do Passageiro.',
+    );
+    if (!confirmed) return;
+  }
+
+  const button = byId('save-tour-button');
+  button.disabled = true;
+  try {
     await api.saveAgencyTour(state.token, slug, payload);
     state.selectedTourSlug = slug;
     setMessage(
