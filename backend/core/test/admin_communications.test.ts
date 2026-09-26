@@ -299,7 +299,7 @@ test('catálogo de passeios mantém rascunhos fora do app e normaliza reserva', 
   });
 
   assert.equal(parsed.badge, 'COMPARTILHADO');
-  assert.equal(parsed.whatsappPhone, '+88999999999');
+  assert.equal(parsed.whatsappPhone, '+5588999999999');
 
   const saved = await updateAgencyTour({
     communications,
