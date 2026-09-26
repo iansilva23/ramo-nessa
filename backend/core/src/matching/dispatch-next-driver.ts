@@ -65,15 +65,21 @@ export async function dispatchNextDriver(input: {
     });
   }
 
+  const operationalSettings =
+    input.operationalSettings == null
+      ? null
+      : await input.operationalSettings.get();
+
   const attemptedDriverIds = new Set(offers.map((offer) => offer.driverId));
   let candidates = rankEligibleDrivers({
     ride,
     pickup: input.pickup,
     candidates: await input.drivers.listOnline(),
     now,
-    ...(input.maxLocationAgeSeconds != null
-      ? { maxLocationAgeSeconds: input.maxLocationAgeSeconds }
-      : {}),
+    maxLocationAgeSeconds:
+      input.maxLocationAgeSeconds ??
+      operationalSettings?.driverLocationMaxAgeSeconds ??
+      120,
   }).filter((candidate) => !attemptedDriverIds.has(candidate.supply.driverId));
 
   const holdIsActive =
@@ -146,11 +152,8 @@ export async function dispatchNextDriver(input: {
 
   const configuredTtl =
     input.offerTtlSeconds ??
-    (
-      input.operationalSettings == null
-        ? DEFAULT_DRIVER_OFFER_TTL_SECONDS
-        : (await input.operationalSettings.get()).driverOfferTtlSeconds
-    );
+    operationalSettings?.driverOfferTtlSeconds ??
+    DEFAULT_DRIVER_OFFER_TTL_SECONDS;
 
   const created = await createDriverOffer({
     repository: input.matching,
