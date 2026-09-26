@@ -3573,3 +3573,98 @@ td strong {
     width: 100%;
   }
 }
+
+
+.support-list {
+  display: grid;
+  gap: 10px;
+}
+
+.support-ticket {
+  width: 100%;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+}
+
+.support-ticket:hover,
+.support-ticket.is-active {
+  border-color: #d7b80b;
+  background: rgba(250, 213, 14, 0.06);
+}
+
+.support-ticket__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.support-ticket strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.support-ticket small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.support-ticket p {
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.support-message-box {
+  margin-bottom: 18px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.support-message-box strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.support-message-box p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.field textarea {
+  width: 100%;
+  min-height: 108px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  resize: vertical;
+}
+
+.field textarea:focus {
+  border-color: #c9aa0b;
+  box-shadow: 0 0 0 3px rgba(250, 213, 14, 0.14);
+}
+
+@media (max-width: 620px) {
+  .support-ticket__heading {
+    flex-direction: column;
+  }
+}
