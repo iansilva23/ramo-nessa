@@ -651,13 +651,22 @@ class _FakeDriverApi implements DriverApi {
   }
 
   @override
-  Future<DriverActivitySnapshot> activity() async {
+  Future<DriverActivitySnapshot> activity({
+    DateTime? from,
+    DateTime? to,
+  }) async {
     return const DriverActivitySnapshot(
       total: 3,
       completed: 2,
       cancelled: 1,
       inProgress: 0,
       earningsCents: 22000,
+      grossCents: 24400,
+      platformFeeCents: 2400,
+      averageEarningsCents: 11000,
+      payoutsRequestedCents: 10000,
+      payoutsPaidCents: 8000,
+      availableBalanceCents: 12000,
       rides: [],
     );
   }
