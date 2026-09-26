@@ -61,6 +61,62 @@ class HttpPassengerRideTrackingService
   }
 
   @override
+  Future<List<PassengerRideChatMessage>> rideMessages(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/rides/$rideId/messages'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final raw = decoded['messages'];
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(PassengerRideChatMessage.fromJson)
+          .toList(growable: false);
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos carregar as mensagens agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerRideChatMessage> sendRideMessage({
+    required String rideId,
+    required String body,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/messages'),
+          headers: _identityHeaders,
+          body: jsonEncode({'body': body}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      final message = decoded['message'];
+      if (message is Map<String, dynamic>) {
+        return PassengerRideChatMessage.fromJson(message);
+      }
+    }
+
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos enviar sua mensagem agora.',
+      ),
+    );
+  }
+
+  @override
   Future<PassengerDriverRatingResult> rateDriver(
     String rideId,
     int stars,
