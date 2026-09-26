@@ -236,6 +236,20 @@ test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
   assert.match(css, /\.driver-cash-policy-summary/);
   assert.match(css, /\.driver-cash-policy-form/);
 
+  const cashInput = html.match(
+    /<input[^>]*id=["']driver-cash-limit-reais["'][^>]*>/,
+  )?.[0];
+  assert.ok(cashInput);
+  assert.match(cashInput, /step=["']0\.01["']/);
+  assert.equal(/min=["']120["']/.test(cashInput), false);
+  assert.equal(/placeholder=["']120["']/.test(cashInput), false);
+  assert.match(
+    app,
+    /policy\.defaultDebtLimitCents \/ 100\)\.toFixed\(2\)/,
+  );
+  assert.match(app, /Math\.abs\(reais \* 100 - cents\)/);
+  assert.match(app, /debtLimitCents: cents/);
+
   for (const category of [
     'moto',
     'delivery',
