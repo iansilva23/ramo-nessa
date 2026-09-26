@@ -22,6 +22,8 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
   const initial = await adminOperationalSettingsView(repository);
   assert.equal(initial.driverOfferTtlSeconds, 35);
   assert.equal(initial.driverPaymentHoldSeconds, 90);
+  assert.equal(initial.driverLocationMaxAgeSeconds, 120);
+  assert.equal(initial.nearbyDriverMaxDistanceKm, 15);
 
   const updated = await updateAdminOperationalSettings({
     repository,
@@ -29,16 +31,22 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
     actor,
     driverOfferTtlSeconds: 42,
     driverPaymentHoldSeconds: 135,
+    driverLocationMaxAgeSeconds: 75,
+    nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: true,
     now: new Date('2026-09-26T18:55:00.000Z'),
   });
 
   assert.equal(updated.driverOfferTtlSeconds, 42);
   assert.equal(updated.driverPaymentHoldSeconds, 135);
+  assert.equal(updated.driverLocationMaxAgeSeconds, 75);
+  assert.equal(updated.nearbyDriverMaxDistanceKm, 8.5);
   assert.equal(updated.showNearbyDrivers, true);
 
   const stored = await repository.get();
   assert.equal(stored.driverPaymentHoldSeconds, 135);
+  assert.equal(stored.driverLocationMaxAgeSeconds, 75);
+  assert.equal(stored.nearbyDriverMaxDistanceKm, 8.5);
 
   const audit = await admin.listAudit(10);
   assert.equal(audit[0]?.action, 'operational_settings.updated');
@@ -49,6 +57,14 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
   assert.equal(
     audit[0]?.metadata?.driverPaymentHoldSeconds,
     135,
+  );
+  assert.equal(
+    audit[0]?.metadata?.driverLocationMaxAgeSeconds,
+    75,
+  );
+  assert.equal(
+    audit[0]?.metadata?.nearbyDriverMaxDistanceKm,
+    8.5,
   );
 });
 
@@ -67,6 +83,40 @@ test('Admin rejeita reserva de pagamento fora de 30 a 300 segundos', async () =>
       (error: unknown) =>
         error instanceof AdminOperationalSettingsError &&
         error.code === 'INVALID_DRIVER_PAYMENT_HOLD',
+    );
+  }
+});
+
+
+test('Admin rejeita parâmetros de localização fora dos limites operacionais', async () => {
+  const repository = new InMemoryOperationalSettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  for (const value of [14, 601, 90.5]) {
+    await assert.rejects(
+      updateAdminOperationalSettings({
+        repository,
+        admin,
+        actor,
+        driverLocationMaxAgeSeconds: value,
+      }),
+      (error: unknown) =>
+        error instanceof AdminOperationalSettingsError &&
+        error.code === 'INVALID_DRIVER_LOCATION_MAX_AGE',
+    );
+  }
+
+  for (const value of [0.49, 100.01, Number.NaN]) {
+    await assert.rejects(
+      updateAdminOperationalSettings({
+        repository,
+        admin,
+        actor,
+        nearbyDriverMaxDistanceKm: value,
+      }),
+      (error: unknown) =>
+        error instanceof AdminOperationalSettingsError &&
+        error.code === 'INVALID_NEARBY_DRIVER_MAX_DISTANCE',
     );
   }
 });
