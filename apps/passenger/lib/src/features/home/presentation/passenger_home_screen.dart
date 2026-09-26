@@ -17,6 +17,7 @@ import '../../map/data/core_route_service.dart';
 import '../../map/data/place_search_service.dart';
 import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
+import '../../profile/data/passenger_saved_place_service.dart';
 import '../../map/domain/route_info.dart';
 import '../../pricing/data/http_pricing_quote_service.dart';
 import '../../pricing/data/pricing_quote_service.dart';
@@ -45,6 +46,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.locationService,
     this.routeService,
     this.placeSearchService,
+    this.savedPlaceService,
     this.pricingQuoteService,
     this.ridePreparationService,
     this.paymentService,
@@ -61,6 +63,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
+  final PassengerSavedPlaceService? savedPlaceService;
   final PricingQuoteService? pricingQuoteService;
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
@@ -448,6 +451,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   Future<RamoPlace?> _searchPlace({
     required String title,
     required String emptyTitle,
+    bool showSavedPlaces = false,
   }) {
     return Navigator.of(context).push<RamoPlace>(
       MaterialPageRoute(
@@ -459,6 +463,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   : null,
           title: title,
           emptyTitle: emptyTitle,
+          savedPlaceService:
+              showSavedPlaces ? widget.savedPlaceService : null,
         ),
       ),
     );
@@ -514,6 +520,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     final destination = await _searchPlace(
       title: 'Escolher destino',
       emptyTitle: 'Busque seu destino',
+      showSavedPlaces: true,
     );
 
     if (destination == null || !mounted) {
