@@ -57,15 +57,15 @@ function centerFor(items) {
   };
 }
 
-function markerCode(item) {
+function markerIcon(item) {
   const category = item?.currentServiceCategory ??
     item?.categories?.[0] ??
     'car';
-  if (category === 'moto') return 'M';
-  if (category === 'delivery') return 'E';
-  if (category === 'buggy') return 'B';
-  if (category === 'comfort_black') return 'C+';
-  return 'C';
+  if (category === 'moto') return '🏍';
+  if (category === 'delivery') return '🛵';
+  if (category === 'buggy') return '🚙';
+  if (category === 'comfort_black') return '🚘';
+  return '🚗';
 }
 
 function markerDescription(item) {
@@ -193,8 +193,9 @@ export function createFleetMap(input) {
       );
 
       const code = document.createElement('span');
-      code.className = 'fleet-marker__code';
-      code.textContent = markerCode(item);
+      code.className = 'fleet-marker__vehicle-icon';
+      code.textContent = markerIcon(item);
+      code.setAttribute('aria-hidden', 'true');
 
       const pulse = document.createElement('span');
       pulse.className = 'fleet-marker__pulse';
