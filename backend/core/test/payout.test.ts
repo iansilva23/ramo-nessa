@@ -62,6 +62,13 @@ async function repositoryWithDriverBalance() {
     ride: ride(),
     payment: capture.payment,
   });
+  await repository.upsertDriverPayoutDestination({
+    driverId: 'driver-77',
+    pixKeyType: 'random',
+    pixKey: '22222222-2222-4222-8222-222222222222',
+    createdAt: '2026-09-23T02:30:00.000Z',
+    updatedAt: '2026-09-23T02:30:00.000Z',
+  });
   return repository;
 }
 
