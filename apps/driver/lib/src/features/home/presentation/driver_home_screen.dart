@@ -145,6 +145,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   StreamSubscription<DriverRealtimeUpdate>? _realtimeSubscription;
   bool _locationSyncInFlight = false;
   bool _releaseDialogShown = false;
+  bool _registryAccessBlocked = false;
 
   @override
   void initState() {
@@ -245,6 +246,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (!mounted) return;
     setState(() {
       _supply = supply;
+      _registryAccessBlocked = false;
       _loading = false;
       _message = null;
     });
@@ -272,6 +274,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   Future<void> _load() async {
     final api = _api;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _message = null;
+      });
+    }
     if (api == null) {
       if (!mounted) return;
       setState(() {
@@ -286,6 +294,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final supply = await api.getSupply();
       await _applyLoadedSupply(supply);
     } on DriverApiException catch (error) {
+      if (error.code == 'DRIVER_REGISTRY_NOT_APPROVED') {
+        DriverProfileSnapshot? profile;
+        try {
+          profile = await api.profile();
+        } catch (_) {
+          // O status do cadastro é auxiliar aqui. O bloqueio do Core
+          // continua sendo a fonte de verdade mesmo se o perfil falhar.
+        }
+        if (!mounted) return;
+        setState(() {
+          _profile = profile ?? _profile;
+          _registryAccessBlocked = true;
+          _loading = false;
+          _message = profile == null ? error.message : null;
+        });
+        return;
+      }
+
       if (error.code == 'DRIVER_SUPPLY_NOT_INITIALIZED') {
         try {
           final position = await _location.currentPosition();
@@ -314,12 +340,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
       if (!mounted) return;
       setState(() {
+        _registryAccessBlocked = false;
         _loading = false;
         _message = error.message;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
+        _registryAccessBlocked = false;
         _loading = false;
         _message = 'Não conseguimos carregar o perfil do motorista.';
       });
@@ -1872,9 +1900,27 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget build(BuildContext context) {
     final supply = _supply;
 
-    if (_loading || supply == null) {
+    if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_registryAccessBlocked) {
+      return _DriverApprovalStatusScreen(
+        profile: _profile,
+        fallbackMessage: _message,
+        onRetry: _load,
+        onLogout: widget.onLogout == null ? null : _logout,
+      );
+    }
+
+    if (supply == null) {
+      return _DriverStartupErrorScreen(
+        message:
+            _message ?? 'Não conseguimos iniciar o app do motorista.',
+        onRetry: _load,
+        onLogout: widget.onLogout == null ? null : _logout,
       );
     }
 
@@ -1928,6 +1974,264 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               label: 'Perfil',
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _DriverApprovalStatusScreen extends StatelessWidget {
+  const _DriverApprovalStatusScreen({
+    required this.profile,
+    required this.fallbackMessage,
+    required this.onRetry,
+    this.onLogout,
+  });
+
+  final DriverProfileSnapshot? profile;
+  final String? fallbackMessage;
+  final Future<void> Function() onRetry;
+  final Future<void> Function()? onLogout;
+
+  String _statusLabel(String? status) => switch (status) {
+        'approved' => 'Aprovado',
+        'pending' => 'Em análise',
+        'suspended' => 'Suspenso',
+        _ => 'Não concluído',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final profileStatus = profile?.profileStatus;
+    final vehicleStatus = profile?.vehicleStatus;
+    final suspended =
+        profileStatus == 'suspended' || vehicleStatus == 'suspended';
+    final pending =
+        profileStatus == 'pending' || vehicleStatus == 'pending';
+
+    final title = suspended
+        ? 'Acesso suspenso'
+        : pending
+            ? 'Cadastro em análise'
+            : 'Cadastro ainda não aprovado';
+    final description = fallbackMessage ??
+        (suspended
+            ? 'Seu acesso operacional está suspenso. Entre em contato com o suporte do Ramo Nessa para verificar o cadastro.'
+            : 'Seu perfil e seu veículo precisam ser aprovados antes de liberar mapa, corridas e ganhos.');
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 32, 28, 40),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: RamoBrandLockup(),
+                  ),
+                  const SizedBox(height: 48),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: suspended
+                          ? RamoColors.danger.withValues(alpha: .10)
+                          : RamoColors.brandYellow.withValues(alpha: .18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      suspended
+                          ? Icons.block_rounded
+                          : Icons.verified_user_outlined,
+                      size: 36,
+                      color: suspended
+                          ? RamoColors.danger
+                          : RamoColors.brandBlack,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: RamoColors.muted,
+                          height: 1.45,
+                        ),
+                  ),
+                  const SizedBox(height: 28),
+                  _ApprovalStatusRow(
+                    label: 'Perfil do motorista',
+                    status: _statusLabel(profileStatus),
+                    approved: profileStatus == 'approved',
+                    blocked: profileStatus == 'suspended',
+                  ),
+                  const SizedBox(height: 10),
+                  _ApprovalStatusRow(
+                    label: 'Veículo',
+                    status: _statusLabel(vehicleStatus),
+                    approved: vehicleStatus == 'approved',
+                    blocked: vehicleStatus == 'suspended',
+                  ),
+                  const SizedBox(height: 28),
+                  FilledButton.icon(
+                    key: const Key('driver-approval-retry'),
+                    onPressed: () => onRetry(),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Verificar novamente'),
+                  ),
+                  if (onLogout != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      key: const Key('driver-approval-logout'),
+                      onPressed: () => onLogout!(),
+                      child: const Text('Sair da conta'),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  const Text(
+                    'O acesso às corridas só é liberado após a aprovação cadastral.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: RamoColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ApprovalStatusRow extends StatelessWidget {
+  const _ApprovalStatusRow({
+    required this.label,
+    required this.status,
+    required this.approved,
+    required this.blocked,
+  });
+
+  final String label;
+  final String status;
+  final bool approved;
+  final bool blocked;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = approved
+        ? RamoColors.success
+        : blocked
+            ? RamoColors.danger
+            : RamoColors.brandBlack;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(RamoRadius.md),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: .55),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            approved
+                ? Icons.check_circle_rounded
+                : blocked
+                    ? Icons.block_rounded
+                    : Icons.schedule_rounded,
+            color: tone,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Text(
+            status,
+            style: TextStyle(
+              color: tone,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverStartupErrorScreen extends StatelessWidget {
+  const _DriverStartupErrorScreen({
+    required this.message,
+    required this.onRetry,
+    this.onLogout,
+  });
+
+  final String message;
+  final Future<void> Function() onRetry;
+  final Future<void> Function()? onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 48),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Não conseguimos iniciar agora',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: RamoColors.muted),
+                  ),
+                  const SizedBox(height: 22),
+                  FilledButton(
+                    onPressed: () => onRetry(),
+                    child: const Text('Tentar novamente'),
+                  ),
+                  if (onLogout != null)
+                    TextButton(
+                      onPressed: () => onLogout!(),
+                      child: const Text('Sair da conta'),
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
