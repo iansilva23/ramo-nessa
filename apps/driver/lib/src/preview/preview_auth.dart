@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
+
 import '../core/auth/auth_token_store.dart';
 import '../core/auth/phone_auth_service.dart';
 
