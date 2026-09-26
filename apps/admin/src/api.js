@@ -195,6 +195,44 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    financePayout(token, payoutId) {
+      return request(
+        `/v1/admin/finance/payouts/${encodeURIComponent(payoutId)}`,
+        { token },
+      );
+    },
+
+    completeFinancePayout(
+      token,
+      { payoutId, processor, processorPayoutId },
+    ) {
+      return request(
+        `/v1/admin/finance/payouts/${encodeURIComponent(payoutId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: {
+            action: 'paid',
+            processor,
+            ...(processorPayoutId
+              ? { processorPayoutId }
+              : {}),
+          },
+        },
+      );
+    },
+
+    cancelFinancePayout(token, payoutId) {
+      return request(
+        `/v1/admin/finance/payouts/${encodeURIComponent(payoutId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: { action: 'cancelled' },
+        },
+      );
+    },
+
     integrations(token) {
       return request('/v1/admin/integrations', { token });
     },
