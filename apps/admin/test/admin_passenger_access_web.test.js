@@ -62,10 +62,16 @@ test('cliente Admin altera status do passageiro sem vazar Bearer na URL', async 
 });
 
 test('frontend expõe bloqueio/desbloqueio somente com escopo de escrita', () => {
-  const html = readFileSync(
-    new URL('../index.html', import.meta.url),
-    'utf8',
-  );
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/passengers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
