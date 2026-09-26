@@ -3668,3 +3668,22 @@ td strong {
     flex-direction: column;
   }
 }
+
+
+.pricing-edit-span {
+  grid-column: 1 / -1;
+}
+
+.pricing-policy-help {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .pricing-edit-span,
+  .pricing-policy-help {
+    grid-column: auto;
+  }
+}
