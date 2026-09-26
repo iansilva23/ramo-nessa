@@ -6,6 +6,7 @@ import type {
   AuthOtpRepository,
 } from '../auth/auth-otp-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
+import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import { normalizeBrazilMobilePhone } from '../auth/phone-otp-service.js';
 import type { AdminActor, AdminRepository } from './admin-repository.js';
 
@@ -16,7 +17,8 @@ export class AdminDriverAuthError extends Error {
       | 'INVALID_DRIVER_STATUS'
       | 'DRIVER_AUTH_NOT_FOUND'
       | 'DRIVER_PHONE_CONFLICT'
-      | 'DRIVER_ID_CONFLICT',
+      | 'DRIVER_ID_CONFLICT'
+      | 'DRIVER_REGISTRY_NOT_APPROVED',
     message: string,
   ) {
     super(message);
@@ -47,6 +49,26 @@ function normalizeStatus(value: string): AuthIdentityStatus {
     );
   }
   return value;
+}
+
+async function requireApprovedDriverRegistry(input: {
+  registry: DriverRegistryRepository;
+  driverId: string;
+}): Promise<void> {
+  const [profile, vehicle] = await Promise.all([
+    input.registry.findProfile(input.driverId),
+    input.registry.findVehicleByDriverId(input.driverId),
+  ]);
+
+  if (
+    profile?.status !== 'approved' ||
+    vehicle?.status !== 'approved'
+  ) {
+    throw new AdminDriverAuthError(
+      'DRIVER_REGISTRY_NOT_APPROVED',
+      'Aprove o perfil e o veículo do motorista antes de liberar o acesso OTP.',
+    );
+  }
 }
 
 async function audit(input: {
@@ -89,6 +111,7 @@ export async function getDriverAuthForAdmin(input: {
 export async function provisionDriverAuthFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
+  registry: DriverRegistryRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -99,6 +122,12 @@ export async function provisionDriverAuthFromAdmin(input: {
   const driverId = normalizeDriverId(input.driverId);
   const phoneE164 = normalizeBrazilMobilePhone(input.phone);
   const status = normalizeStatus(input.status ?? 'suspended');
+  if (status === 'active') {
+    await requireApprovedDriverRegistry({
+      registry: input.registry,
+      driverId,
+    });
+  }
   const now = (input.now ?? new Date()).toISOString();
 
   let [byPhone, bySubject] = await Promise.all([
@@ -198,6 +227,7 @@ export async function provisionDriverAuthFromAdmin(input: {
 export async function setDriverAuthStatusFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
+  registry: DriverRegistryRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -206,6 +236,12 @@ export async function setDriverAuthStatusFromAdmin(input: {
 }) {
   const driverId = normalizeDriverId(input.driverId);
   const status = normalizeStatus(input.status);
+  if (status === 'active') {
+    await requireApprovedDriverRegistry({
+      registry: input.registry,
+      driverId,
+    });
+  }
   const now = (input.now ?? new Date()).toISOString();
 
   const previous = await input.identities.findIdentityBySubject(
