@@ -11,7 +11,6 @@ import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
 import '../../../core/navigation/external_driver_navigation_service.dart';
-import '../../../core/notifications/firebase_push_coordinator.dart';
 import '../../../core/communications/app_release_policy_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
@@ -43,7 +42,6 @@ class DriverHomeScreen extends StatefulWidget {
     this.routeService,
     this.realtimeService,
     this.releasePolicyService,
-    this.pushCoordinator,
   });
 
   final String? accessToken;
@@ -54,7 +52,6 @@ class DriverHomeScreen extends StatefulWidget {
   final DriverRouteService? routeService;
   final DriverRealtimeService? realtimeService;
   final AppReleasePolicyService? releasePolicyService;
-  final FirebasePushCoordinator? pushCoordinator;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -1751,9 +1748,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => DriverNotificationsScreen(
-                      coordinator: widget.pushCoordinator,
-                    ),
+                    builder: (_) => const DriverNotificationsScreen(),
                   ),
                 );
               },
