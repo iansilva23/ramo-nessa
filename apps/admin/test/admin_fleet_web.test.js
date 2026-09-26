@@ -99,6 +99,7 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
     'fleet-roster',
     'fleet-roster-count',
     'fleet-roster-empty',
+    'fleet-live-note',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -109,6 +110,9 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
   assert.match(app, /setInterval\(\(\) => \{/);
   assert.match(app, /5_000/);
   assert.match(app, /createFleetMap/);
+  assert.match(app, /state\.fleet\.staleAfterSeconds/);
+  assert.match(app, /GPS acima de \$\{staleLabel\}/);
+  assert.equal(/GPS com mais de 2 minutos/.test(html), false);
   assert.match(map, /https:\/\/tile\.openstreetmap\.org/);
   assert.match(map, /marker\.dataset\.availability/);
   assert.match(map, /marker\.dataset\.gps/);
