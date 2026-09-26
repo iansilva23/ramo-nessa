@@ -8,8 +8,6 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    FLTFirebaseMessagingPlugin.configureNotificationCenterDelegate()
-
     if let rawMapsApiKey = Bundle.main.object(
       forInfoDictionaryKey: "GOOGLE_MAPS_API_KEY"
     ) as? String {
