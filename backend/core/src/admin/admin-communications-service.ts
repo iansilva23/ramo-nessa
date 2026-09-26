@@ -70,11 +70,12 @@ export async function adminCommunicationsView(input: {
   communications: AdminCommunicationsRepository;
   push: PushNotificationService;
 }) {
-  const [campaigns, releasePolicies, agencyPromotion] =
+  const [campaigns, releasePolicies, agencyPromotion, socialLinks] =
     await Promise.all([
       input.communications.listCampaigns(25),
       input.communications.listReleasePolicies(),
       input.communications.getAgencyPromotion(),
+      input.communications.getSocialLinks(),
     ]);
 
   return {
@@ -82,6 +83,7 @@ export async function adminCommunicationsView(input: {
     campaigns,
     releasePolicies,
     agencyPromotion,
+    socialLinks,
   };
 }
 
@@ -327,4 +329,40 @@ export async function updateAgencyPromotion(input: {
   });
 
   return promotion;
+}
+
+
+export async function updateSocialLinks(input: {
+  communications: AdminCommunicationsRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  instagramHandle?: string;
+  instagramUrl?: string;
+  now?: Date;
+}) {
+  const now = (input.now ?? new Date()).toISOString();
+  const record = await input.communications.saveSocialLinks({
+    ...(input.instagramHandle == null
+      ? {}
+      : { instagramHandle: input.instagramHandle }),
+    ...(input.instagramUrl == null
+      ? {}
+      : { instagramUrl: input.instagramUrl }),
+    updatedAt: now,
+  });
+
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'communications.social_links_updated',
+    targetType: 'social_links',
+    targetId: 'ramo-nessa',
+    metadata: {
+      instagramConfigured: record.instagramUrl != null,
+      instagramHandle: record.instagramHandle ?? null,
+    },
+    createdAt: now,
+  });
+
+  return record;
 }
