@@ -1,0 +1,283 @@
+<section id="view-finance" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">FINANCEIRO</span>
+                <h1>Pagamentos e comissões</h1>
+                <p>
+                  Visão contábil somente leitura derivada do ledger do Core.
+                </p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="finance-updated-at">Ainda não atualizado</small>
+                <button
+                  id="refresh-finance-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar financeiro
+                </button>
+              </div>
+            </div>
+
+            <div class="finance-readonly-note">
+              <strong>Somente leitura</strong>
+              <span>
+                O painel não força captura, estorno, comissão ou pagamento de saque.
+                Essas ações continuam bloqueadas até gateway, conciliação e repasse reais.
+              </span>
+            </div>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Dinheiro</h2>
+                </div>
+                <span id="finance-cash-status" class="pill pill--neutral">
+                  Desativado
+                </span>
+              </div>
+              <div class="finance-cash-grid">
+                <div>
+                  <span class="metric-label">Limite futuro de dívida</span>
+                  <strong id="finance-cash-debt-limit">R$ 120,00</strong>
+                  <small>Comissão máxima em aberto do motorista</small>
+                </div>
+                <div>
+                  <span class="metric-label">Prontidão de ativação</span>
+                  <strong id="finance-cash-readiness">Bloqueada</strong>
+                  <small id="finance-cash-updated-at">Aguardando política</small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-enable-cash-button"
+                    class="button"
+                    type="button"
+                    hidden
+                  >
+                    Ativar dinheiro
+                  </button>
+                  <button
+                    id="finance-disable-cash-button"
+                    class="button button--danger"
+                    type="button"
+                    hidden
+                  >
+                    Desativar dinheiro agora
+                  </button>
+                  <span id="finance-cash-note">
+                    A estrutura cash está pronta, mas continua desligada até
+                    você ativar manualmente.
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel-card finance-card-price-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Preço no Pix</h2>
+                  <p class="muted-copy">
+                    O passageiro vê o preço final antes de confirmar.
+                    O percentual abaixo cobre o processamento do Pix.
+                  </p>
+                </div>
+                <span id="finance-pix-price-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-pix-price-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Ajuste do preço no Pix</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="finance-pix-price-percent"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.01"
+                      value="0.99"
+                      required
+                    >
+                    <strong>%</strong>
+                  </div>
+                  <small>
+                    O Core aplica gross-up para preservar a tarifa-base da corrida.
+                  </small>
+                </label>
+                <div>
+                  <span class="metric-label">Exemplo</span>
+                  <strong id="finance-pix-price-example">R$ 150,00 → —</strong>
+                  <small>
+                    O acréscimo fica separado da comissão 10%/90%.
+                  </small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-pix-price-save"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar preço no Pix
+                  </button>
+                  <span id="finance-pix-price-note">
+                    Alterar aqui não exige mudança de código.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-card-price-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Preço no cartão</h2>
+                  <p class="muted-copy">
+                    O passageiro vê o preço final antes de confirmar.
+                    O percentual abaixo cobre o processamento do cartão.
+                  </p>
+                </div>
+                <span id="finance-card-price-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-card-price-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Ajuste do preço no cartão</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="finance-card-price-percent"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.01"
+                      value="4.98"
+                      required
+                    >
+                    <strong>%</strong>
+                  </div>
+                  <small>
+                    O Core aplica gross-up para preservar a tarifa-base da corrida.
+                  </small>
+                </label>
+                <div>
+                  <span class="metric-label">Exemplo</span>
+                  <strong id="finance-card-price-example">R$ 150,00 → —</strong>
+                  <small>
+                    O acréscimo fica separado da comissão 10%/90%.
+                  </small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-card-price-save"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar preço no cartão
+                  </button>
+                  <span id="finance-card-price-note">
+                    Alterar aqui não exige mudança de código.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <div class="finance-summary-grid">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Pagamentos confirmados</span>
+                <strong id="finance-paid-total">R$ 0,00</strong>
+                <small id="finance-paid-count">0 pagamentos</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Comissão reconhecida</span>
+                <strong id="finance-platform-revenue">R$ 0,00</strong>
+                <small>Saldo real de platform:revenue</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">A pagar motoristas</span>
+                <strong id="finance-driver-payable">R$ 0,00</strong>
+                <small>Saldo disponível dos motoristas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Saques reservados</span>
+                <strong id="finance-payout-pending">R$ 0,00</strong>
+                <small id="finance-payout-count">0 solicitações abertas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Escrow de corridas</span>
+                <strong id="finance-ride-escrow">R$ 0,00</strong>
+                <small>Valor recebido ainda não liquidado</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Carteiras passageiros</span>
+                <strong id="finance-passenger-wallet">R$ 0,00</strong>
+                <small>Saldo contábil agregado</small>
+              </article>
+            </div>
+
+            <div class="finance-status-strip">
+              <span><strong id="finance-payments-total">0</strong> pagamentos</span>
+              <span><strong id="finance-payments-pending">0</strong> pendentes</span>
+              <span><strong id="finance-payments-failed">0</strong> falhos</span>
+              <span><strong id="finance-payments-cancelled">0</strong> cancelados</span>
+              <span><strong id="finance-payments-refunded">0</strong> estornados</span>
+            </div>
+
+            <div class="finance-columns">
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">PAGAMENTOS</span>
+                    <h2>Mais recentes</h2>
+                  </div>
+                  <span id="finance-payments-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Método</th>
+                        <th>Corrida</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payments-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payments-empty" class="empty-state">
+                  Nenhum pagamento registrado.
+                </div>
+              </article>
+
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">SAQUES</span>
+                    <h2>Solicitações recentes</h2>
+                  </div>
+                  <span id="finance-payouts-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Motorista</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payouts-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payouts-empty" class="empty-state">
+                  Nenhum saque solicitado.
+                </div>
+              </article>
+            </div>
+          </section>
