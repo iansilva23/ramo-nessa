@@ -73,13 +73,13 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     });
 
     final autocomplete = _autocompleteService;
-    if (autocomplete == null || query.length < 3) {
+    if (autocomplete == null || query.isEmpty) {
       return;
     }
 
     final requestId = _requestId;
     _debounce = Timer(
-      const Duration(milliseconds: 350),
+      const Duration(milliseconds: 300),
       () => unawaited(_loadSuggestions(query, requestId)),
     );
   }
@@ -277,7 +277,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                 child: Text(
                   showingSuggestions
                       ? 'Sugestões enquanto você digita'
-                      : 'Pousada, rua, ponto turístico ou cidade',
+                      : 'Pousada, hotel, restaurante, rua ou ponto turístico',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: RamoColors.muted,
                       ),
@@ -553,7 +553,7 @@ class _SearchHint extends StatelessWidget {
             ),
             const SizedBox(height: RamoSpacing.xs),
             Text(
-              'Digite pelo menos 3 caracteres para começar.',
+              'Comece a digitar para ver sugestões. A busca manual fica disponível a partir de 3 caracteres.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: RamoColors.muted,
