@@ -6165,38 +6165,26 @@ byId('logout-button').addEventListener('click', () => {
   void handleLogout();
 });
 
-function setMobileNavigation(open) {
-  document.body.classList.toggle('nav-open', open);
-  const button = byId('mobile-menu-button');
-  if (button != null) {
-    button.setAttribute('aria-expanded', open ? 'true' : 'false');
-    button.setAttribute(
-      'aria-label',
-      open ? 'Fechar menu' : 'Abrir menu',
-    );
-  }
-}
-
 byId('mobile-menu-button').addEventListener('click', () => {
-  setMobileNavigation(!document.body.classList.contains('nav-open'));
+  setMobileNavOpen(!document.body.classList.contains('nav-open'));
 });
 
 byId('mobile-nav-backdrop').addEventListener('click', () => {
-  setMobileNavigation(false);
+  setMobileNavOpen(false);
 });
 
 document.querySelectorAll('.nav-item').forEach((link) => {
   link.addEventListener('click', (event) => {
     event.preventDefault();
     if (!state.token) return;
-    setMobileNavigation(false);
+    setMobileNavOpen(false);
     void activateView(link.dataset.view);
   });
 });
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
-    setMobileNavigation(false);
+    setMobileNavOpen(false);
   }
 });
 
