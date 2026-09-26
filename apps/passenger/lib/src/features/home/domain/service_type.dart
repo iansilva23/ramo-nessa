@@ -22,7 +22,7 @@ extension ServiceTypeUi on ServiceType {
         ServiceType.moto => 'Mais rápido',
         ServiceType.delivery => 'Envie algo',
         ServiceType.comfortBlack => '4x4 premium',
-        ServiceType.buggy => 'Até 4 pessoas',
+        ServiceType.buggy => 'Passeio local',
       };
 
   String get backendKey => switch (this) {
