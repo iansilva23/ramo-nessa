@@ -361,6 +361,40 @@ class DriverFinanceStatement {
 }
 
 
+class DriverPayoutDestination {
+  const DriverPayoutDestination({
+    required this.configured,
+    this.pixKeyType,
+    this.pixKeyMasked,
+    this.updatedAt,
+  });
+
+  factory DriverPayoutDestination.fromJson(Map<String, dynamic> json) {
+    return DriverPayoutDestination(
+      configured: json['configured'] as bool? ?? false,
+      pixKeyType: json['pixKeyType'] as String?,
+      pixKeyMasked: json['pixKeyMasked'] as String?,
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+
+  final bool configured;
+  final String? pixKeyType;
+  final String? pixKeyMasked;
+  final DateTime? updatedAt;
+
+  String get typeLabel => switch (pixKeyType) {
+        'cpf' => 'CPF',
+        'cnpj' => 'CNPJ',
+        'email' => 'E-mail',
+        'phone' => 'Celular',
+        'random' => 'Chave aleatória',
+        _ => 'Pix',
+      };
+}
+
 class DriverPayoutReservation {
   const DriverPayoutReservation({
     required this.id,
