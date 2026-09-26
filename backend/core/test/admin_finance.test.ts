@@ -67,7 +67,9 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
     limit: 10,
   });
 
-  assert.equal(view.readOnly, true);
+  assert.equal(view.readOnly, false);
+  assert.equal(view.paymentsReadOnly, true);
+  assert.equal(view.payoutManagementEnabled, true);
   assert.deepEqual(view.summary, {
     paymentsTotal: 2,
     paymentsPaid: 1,
