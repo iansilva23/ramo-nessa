@@ -7,8 +7,6 @@ import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
 import 'core/config/ramo_core_config.dart';
 import 'core/location/location_service.dart';
-import 'core/notifications/firebase_push_coordinator.dart';
-import 'core/notifications/push_foreground_listener.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
@@ -36,7 +34,6 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.paymentService,
     this.rideTrackingService,
     this.rideRealtimeService,
-    this.pushCoordinator,
     this.networkTilesEnabled = true,
   });
 
@@ -50,7 +47,6 @@ class RamoNessaPassengerApp extends StatelessWidget {
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
-  final FirebasePushCoordinator? pushCoordinator;
   final bool networkTilesEnabled;
 
   @override
@@ -118,7 +114,6 @@ class RamoNessaPassengerApp extends StatelessWidget {
         activityService: activityService,
         savedPlaceService: savedPlaceService,
         placeSearchService: resolvedPlaceSearchService,
-        pushCoordinator: pushCoordinator,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
           accessToken: normalizedToken,
@@ -159,8 +154,6 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código por SMS para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => shell(token, logout),
-        onSessionReady: pushCoordinator?.bindSession,
-        onSessionEnded: pushCoordinator?.unbindSession,
       );
     }
 
@@ -170,10 +163,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
       themeMode: ThemeMode.system,
-      home: PushForegroundListener(
-        coordinator: pushCoordinator,
-        child: homeWidget,
-      ),
+      home: homeWidget,
     );
   }
 }
