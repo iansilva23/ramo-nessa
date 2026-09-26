@@ -914,6 +914,34 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       .map((payout) => structuredClone(payout));
   }
 
+  async getDriverPayoutPeriodSummary(
+    driverId: string,
+    from?: string,
+    to?: string,
+  ) {
+    const fromMs = from == null ? null : Date.parse(from);
+    const toMs = to == null ? null : Date.parse(to);
+    const payouts = [...this.payouts.values()].filter((payout) => {
+      if (payout.driverId !== driverId) return false;
+      const createdAt = Date.parse(payout.createdAt);
+      if (fromMs != null && createdAt < fromMs) return false;
+      if (toMs != null && createdAt >= toMs) return false;
+      return true;
+    });
+    return {
+      requestedCents: payouts
+        .filter((payout) =>
+          payout.status === 'requested' ||
+          payout.status === 'processing' ||
+          payout.status === 'paid'
+        )
+        .reduce((sum, payout) => sum + payout.amountCents, 0),
+      paidCents: payouts
+        .filter((payout) => payout.status === 'paid')
+        .reduce((sum, payout) => sum + payout.amountCents, 0),
+    };
+  }
+
   async listLedgerTransactionsForAccounts(
     accountKeys: readonly string[],
     limit: number,
