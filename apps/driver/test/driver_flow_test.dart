@@ -42,8 +42,7 @@ void main() {
     await tester.ensureVisible(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Aceitar corrida'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 10));
+    await tester.pumpAndSettle();
 
     expect(
       find.byKey(const ValueKey('ride-mini-ride-1-DRIVER_ARRIVING')),
