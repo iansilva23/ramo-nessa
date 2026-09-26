@@ -5,6 +5,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import 'core/auth/http_phone_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
 import 'core/auth/secure_auth_token_store.dart';
+import 'core/communications/social_links_service.dart';
 import 'core/config/ramo_core_config.dart';
 import 'core/location/location_service.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
@@ -60,6 +61,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
             ? restoredToken
             : null;
 
+    final socialLinksService = coreUri == null
+        ? null
+        : HttpSocialLinksService(baseUrl: coreUri);
+
     final authService = coreUri == null
         ? null
         : HttpPhoneAuthService(
@@ -114,6 +119,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         activityService: activityService,
         savedPlaceService: savedPlaceService,
         placeSearchService: resolvedPlaceSearchService,
+        socialLinksService: socialLinksService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
           accessToken: normalizedToken,
