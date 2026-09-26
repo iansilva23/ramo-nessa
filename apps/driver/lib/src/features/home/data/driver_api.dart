@@ -59,6 +59,13 @@ abstract interface class DriverApi {
 
   Future<DriverFinanceStatement> financeStatement();
 
+  Future<DriverPayoutDestination> payoutDestination();
+
+  Future<DriverPayoutDestination> savePayoutDestination({
+    required String pixKeyType,
+    required String pixKey,
+  });
+
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
