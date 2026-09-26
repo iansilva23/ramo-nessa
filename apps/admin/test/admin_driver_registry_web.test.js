@@ -265,3 +265,20 @@ test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
     );
   }
 });
+
+test('ações sensíveis de acesso e cadastro do motorista exigem confirmação', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /Confirmar alteração de acesso do motorista/,
+  );
+  assert.match(
+    app,
+    /Confirmar alteração cadastral do motorista/,
+  );
+  assert.match(app, /window\.confirm/);
+});
