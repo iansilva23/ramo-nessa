@@ -11,6 +11,7 @@ import '../data/passenger_ride_realtime_service.dart';
 import '../data/passenger_ride_tracking_service.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import '../domain/prepared_ride.dart';
+import 'passenger_ride_chat_screen.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -131,6 +132,17 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     } finally {
       _requestInFlight = false;
     }
+  }
+
+  Future<void> _openRideChat() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PassengerRideChatScreen(
+          service: widget.trackingService,
+          rideId: widget.rideId,
+        ),
+      ),
+    );
   }
 
   Future<void> _submitDriverRating() async {
@@ -296,6 +308,24 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                   if (driverProfile != null) ...[
                     const SizedBox(height: RamoSpacing.md),
                     _AssignedDriverCard(driver: driverProfile),
+                  ],
+                  if ({
+                    'DRIVER_ASSIGNED',
+                    'DRIVER_ARRIVING',
+                    'DRIVER_ARRIVED',
+                    'IN_PROGRESS',
+                  }.contains(snapshot?.state)) ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _openRideChat,
+                        icon: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                        ),
+                        label: const Text('Mensagem com motorista'),
+                      ),
+                    ),
                   ],
                   if (snapshot?.state == 'COMPLETED' &&
                       driverProfile != null) ...[
