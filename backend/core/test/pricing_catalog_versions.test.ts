@@ -592,3 +592,147 @@ test('destino externo adicionado no rascunho só é reconhecido por esse catálo
     false,
   );
 });
+
+
+test('Admin versiona comissão, horário, coleta, adicionais, Buggy e entrega', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-commercial-policy',
+    name: 'Admin Commercial Policy',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+  });
+
+  const patches = [
+    parsePricingCatalogDraftPatch({
+      kind: 'commission_policy',
+      commissionBps: 1250,
+    }),
+    parsePricingCatalogDraftPatch({
+      kind: 'period_policy',
+      nightStartHour: 21,
+      dayStartHour: 5,
+    }),
+    parsePricingCatalogDraftPatch({
+      kind: 'pickup_policy',
+      freeKm: 2.5,
+      fuelPriceCentsPerLiter: 735,
+      motoReferenceKmPerLiter: 35,
+      carReferenceKmPerLiter: 10,
+    }),
+    parsePricingCatalogDraftPatch({
+      kind: 'surcharge_policy',
+      preaComfortCents: 5500,
+      preaLocalCarAfter22Cents: 1900,
+      preaLocalCarAfter22LocalityIds: ['prea', 'formosa'],
+    }),
+    parsePricingCatalogDraftPatch({
+      kind: 'buggy_policy',
+      minPassengers: 1,
+      maxPassengers: 5,
+      dayBaseCents: 4500,
+      after22BaseCents: 6500,
+      perPassengerCents: 300,
+    }),
+    parsePricingCatalogDraftPatch({
+      kind: 'delivery_bands',
+      bands: [
+        { maxKm: 0.8, amountCents: 600 },
+        { maxKm: 1.5, amountCents: 900 },
+        { maxKm: 2.5, amountCents: 1200 },
+      ],
+    }),
+  ];
+
+  let updated = draft;
+  for (const patch of patches) {
+    updated = await updatePricingCatalogDraft({
+      versions,
+      admin,
+      actor,
+      versionId: draft.id,
+      patch,
+    });
+  }
+
+  assert.equal(updated.snapshot.commissionBps, 1250);
+  assert.deepEqual(updated.snapshot.periodPolicy, {
+    nightStartHour: 21,
+    dayStartHour: 5,
+  });
+  assert.deepEqual(updated.snapshot.pickupPolicy, {
+    freeKm: 2.5,
+    fuelPriceCentsPerLiter: 735,
+    motoReferenceKmPerLiter: 35,
+    carReferenceKmPerLiter: 10,
+  });
+  assert.deepEqual(updated.snapshot.surcharges, {
+    preaComfortCents: 5500,
+    preaLocalCarAfter22Cents: 1900,
+    preaLocalCarAfter22LocalityIds: ['formosa', 'prea'],
+  });
+  assert.deepEqual(updated.snapshot.jeri.buggy, {
+    minPassengers: 1,
+    maxPassengers: 5,
+    dayBaseCents: 4500,
+    after22BaseCents: 6500,
+    perPassengerCents: 300,
+  });
+  assert.deepEqual(updated.snapshot.jeri.deliveryBands, [
+    { maxKm: 0.8, amountCents: 600 },
+    { maxKm: 1.5, amountCents: 900 },
+    { maxKm: 2.5, amountCents: 1200 },
+  ]);
+
+  assert.equal(STATIC_PRICING_CATALOG_V1.commissionBps, 1000);
+  assert.equal(STATIC_PRICING_CATALOG_V1.periodPolicy.nightStartHour, 22);
+  assert.equal(STATIC_PRICING_CATALOG_V1.jeri.buggy.dayBaseCents, 4000);
+});
+
+test('rejeita políticas comerciais inválidas antes de alterar o rascunho', () => {
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'commission_policy',
+        commissionBps: 10001,
+      }),
+    /commissionBps/,
+  );
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'period_policy',
+        nightStartHour: 22,
+        dayStartHour: 22,
+      }),
+    /diferentes/,
+  );
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'buggy_policy',
+        minPassengers: 5,
+        maxPassengers: 4,
+        dayBaseCents: 4000,
+        after22BaseCents: 6000,
+        perPassengerCents: 200,
+      }),
+    /minPassengers/,
+  );
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'delivery_bands',
+        bands: [
+          { maxKm: 1.2, amountCents: 700 },
+          { maxKm: 0.7, amountCents: 500 },
+        ],
+      }),
+    /ordem crescente/,
+  );
+});
