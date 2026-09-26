@@ -19,7 +19,8 @@ export class AdminPaymentPolicyError extends Error {
       | 'CASH_ACTIVATION_BLOCKED'
       | 'INVALID_PIX_PRICE_ADJUSTMENT'
       | 'INVALID_CARD_PRICE_ADJUSTMENT'
-      | 'INVALID_DEFAULT_CASH_DEBT_LIMIT',
+      | 'INVALID_DEFAULT_CASH_DEBT_LIMIT'
+      | 'NO_PAYMENT_METHOD_ENABLED',
     message: string,
   ) {
     super(message);
@@ -116,6 +117,18 @@ export async function updateAdminPaymentPolicy(input: {
     input.pixPriceAdjustmentBps ?? current.pixPriceAdjustmentBps;
   const nextCardPriceAdjustmentBps =
     input.cardPriceAdjustmentBps ?? current.cardPriceAdjustmentBps;
+
+  if (
+    !nextCashEnabled &&
+    !nextPixEnabled &&
+    !nextCardEnabled &&
+    !nextWalletEnabled
+  ) {
+    throw new AdminPaymentPolicyError(
+      'NO_PAYMENT_METHOD_ENABLED',
+      'Mantenha pelo menos uma forma de pagamento ativa.',
+    );
+  }
 
   if (
     current.cashEnabled === nextCashEnabled &&
