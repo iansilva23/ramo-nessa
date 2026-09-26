@@ -183,6 +183,76 @@ export async function updatePricingCatalogDraft(input: {
       zoneId: patch.zoneId,
       enabled: patch.enabled,
     };
+  } else if (patch.kind === 'commission_policy') {
+    snapshot.commissionBps = patch.commissionBps;
+    auditMetadata = {
+      kind: patch.kind,
+      commissionBps: patch.commissionBps,
+    };
+  } else if (patch.kind === 'period_policy') {
+    snapshot.periodPolicy = {
+      nightStartHour: patch.nightStartHour,
+      dayStartHour: patch.dayStartHour,
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      ...snapshot.periodPolicy,
+    };
+  } else if (patch.kind === 'pickup_policy') {
+    snapshot.pickupPolicy = {
+      freeKm: patch.freeKm,
+      fuelPriceCentsPerLiter: patch.fuelPriceCentsPerLiter,
+      motoReferenceKmPerLiter: patch.motoReferenceKmPerLiter,
+      carReferenceKmPerLiter: patch.carReferenceKmPerLiter,
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      ...snapshot.pickupPolicy,
+    };
+  } else if (patch.kind === 'surcharge_policy') {
+    const unknownLocalities =
+      patch.preaLocalCarAfter22LocalityIds.filter(
+        (localityId) =>
+          snapshot.localities.prea[localityId] == null,
+      );
+    if (unknownLocalities.length > 0) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        `Localidade(s) noturna(s) do Preá não encontrada(s): ${unknownLocalities.join(', ')}.`,
+      );
+    }
+    snapshot.surcharges = {
+      preaComfortCents: patch.preaComfortCents,
+      preaLocalCarAfter22Cents:
+        patch.preaLocalCarAfter22Cents,
+      preaLocalCarAfter22LocalityIds: [
+        ...patch.preaLocalCarAfter22LocalityIds,
+      ].sort(),
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      ...snapshot.surcharges,
+    };
+  } else if (patch.kind === 'buggy_policy') {
+    snapshot.jeri.buggy = {
+      minPassengers: patch.minPassengers,
+      maxPassengers: patch.maxPassengers,
+      dayBaseCents: patch.dayBaseCents,
+      after22BaseCents: patch.after22BaseCents,
+      perPassengerCents: patch.perPassengerCents,
+    };
+    auditMetadata = {
+      kind: patch.kind,
+      ...snapshot.jeri.buggy,
+    };
+  } else if (patch.kind === 'delivery_bands') {
+    snapshot.jeri.deliveryBands = patch.bands.map((band) => ({
+      ...band,
+    }));
+    auditMetadata = {
+      kind: patch.kind,
+      bands: snapshot.jeri.deliveryBands,
+    };
   } else {
     const referencedByFixedRoute = snapshot.fixedRoutes.some(
       (route) =>
