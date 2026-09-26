@@ -117,6 +117,7 @@ const state = {
   },
   operationalSettings: {
     driverOfferTtlSeconds: 35,
+    driverPaymentHoldSeconds: 90,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
     updatedAt: null,
@@ -4608,6 +4609,13 @@ function renderOperationalSettings(payload = state.operationalSettings) {
   const safeTtl = Number.isInteger(ttl) && ttl >= 5 && ttl <= 120
     ? ttl
     : 35;
+  const paymentHold = Number(payload?.driverPaymentHoldSeconds);
+  const safePaymentHold =
+    Number.isInteger(paymentHold) &&
+    paymentHold >= 30 &&
+    paymentHold <= 300
+      ? paymentHold
+      : 90;
   const showNearbyDrivers = payload?.showNearbyDrivers === true;
   const driverDocumentAutoEnforcement =
     payload?.driverDocumentAutoEnforcement === true;
@@ -4616,12 +4624,15 @@ function renderOperationalSettings(payload = state.operationalSettings) {
 
   state.operationalSettings = {
     driverOfferTtlSeconds: safeTtl,
+    driverPaymentHoldSeconds: safePaymentHold,
     showNearbyDrivers,
     driverDocumentAutoEnforcement,
     updatedAt,
   };
 
   byId('driver-offer-ttl-seconds').value = String(safeTtl);
+  byId('driver-payment-hold-seconds').value =
+    String(safePaymentHold);
   byId('show-nearby-drivers').checked = showNearbyDrivers;
   byId('driver-document-auto-enforcement').checked =
     driverDocumentAutoEnforcement;
@@ -4640,6 +4651,7 @@ function renderOperationalSettings(payload = state.operationalSettings) {
 
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
+  byId('driver-payment-hold-seconds').disabled = !canWrite;
   byId('show-nearby-drivers').disabled = !canWrite;
   byId('driver-document-auto-enforcement').disabled =
     !canWrite || !hasScope('drivers:documents:write');
@@ -4672,6 +4684,9 @@ async function handleOperationalSettingsSubmit(event) {
   if (!state.token || !hasScope('rides:write')) return;
 
   const ttl = Number(byId('driver-offer-ttl-seconds').value);
+  const paymentHoldSeconds = Number(
+    byId('driver-payment-hold-seconds').value,
+  );
   const showNearbyDrivers = byId('show-nearby-drivers').checked;
   const driverDocumentAutoEnforcement =
     byId('driver-document-auto-enforcement').checked;
@@ -4683,12 +4698,25 @@ async function handleOperationalSettingsSubmit(event) {
     );
     return;
   }
+  if (
+    !Number.isInteger(paymentHoldSeconds) ||
+    paymentHoldSeconds < 30 ||
+    paymentHoldSeconds > 300
+  ) {
+    setMessage(
+      globalMessage,
+      'A reserva durante o pagamento deve ficar entre 30 e 300 segundos.',
+      'danger',
+    );
+    return;
+  }
 
   const button = byId('save-operational-settings-button');
   button.disabled = true;
   try {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
+      driverPaymentHoldSeconds: paymentHoldSeconds,
       showNearbyDrivers,
       ...(hasScope('drivers:documents:write')
         ? { driverDocumentAutoEnforcement }
@@ -4697,7 +4725,7 @@ async function handleOperationalSettingsSubmit(event) {
     renderOperationalSettings(settings);
     setMessage(
       globalMessage,
-      `Configurações salvas. Novas ofertas usarão ${settings.driverOfferTtlSeconds}s.`,
+      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva no pagamento: ${settings.driverPaymentHoldSeconds}s.`,
       'success',
     );
     if (state.currentDriver?.driverId) {
