@@ -272,6 +272,19 @@ test('Instagram oficial é normalizado, persistido e auditado', async () => {
 });
 
 
+test('catálogo padrão em memória acompanha o seed PostgreSQL', async () => {
+  const communications =
+    new InMemoryAdminCommunicationsRepository();
+
+  const barrinha = await communications.getTour('barrinha');
+  const madrinha = await communications.getTour('madrinha');
+
+  assert.ok(barrinha);
+  assert.equal(barrinha.title, 'Passeio Barrinha');
+  assert.equal(barrinha.enabled, false);
+  assert.equal(madrinha, null);
+});
+
 test('catálogo de passeios mantém rascunhos fora do app e normaliza reserva', async () => {
   const communications =
     new InMemoryAdminCommunicationsRepository();
