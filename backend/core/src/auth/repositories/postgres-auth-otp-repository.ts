@@ -342,8 +342,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
 
   async setPassengerAccount(input: {
     subjectId: string;
-    fullName?: string;
-    emailNormalized?: string;
+    fullName?: string | null;
+    emailNormalized?: string | null;
     passwordHash?: string;
     photoUrl?: string | null;
     updatedAt: string;
@@ -368,8 +368,12 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       `,
       [
         input.subjectId,
-        input.fullName ?? current.fullName ?? null,
-        input.emailNormalized ?? current.emailNormalized ?? null,
+        input.fullName === undefined
+          ? current.fullName ?? null
+          : input.fullName,
+        input.emailNormalized === undefined
+          ? current.emailNormalized ?? null
+          : input.emailNormalized,
         input.passwordHash ?? current.passwordHash ?? null,
         input.photoUrl === undefined
           ? current.photoUrl ?? null
