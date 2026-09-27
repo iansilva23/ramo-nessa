@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   DriverSupportCategory,
+  DriverSupportCursor,
   DriverSupportRepository,
   DriverSupportStatus,
   DriverSupportTicketRecord,
@@ -138,15 +139,26 @@ export async function listDriverSupportTickets(input: {
 
 export async function listSupportTicketsForAdmin(input: {
   repository: DriverSupportRepository;
+  status?: DriverSupportStatus;
   limit?: number;
+  cursor?: DriverSupportCursor;
 }) {
   const limit = Math.max(1, Math.min(100, input.limit ?? 50));
-  const tickets = await input.repository.listRecent(limit);
+  const page = await input.repository.listAdmin({
+    limit,
+    ...(input.status == null ? {} : { status: input.status }),
+    ...(input.cursor == null ? {} : { cursor: input.cursor }),
+  });
+  const last = page.tickets[page.tickets.length - 1];
   return {
-    tickets: tickets.map((ticket) => ({
+    tickets: page.tickets.map((ticket) => ({
       driverId: ticket.driverId,
       ...supportTicketView(ticket),
     })),
+    nextCursor:
+      page.hasMore && last != null
+        ? { createdAt: last.createdAt, id: last.id }
+        : null,
   };
 }
 
