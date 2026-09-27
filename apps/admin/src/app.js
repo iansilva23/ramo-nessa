@@ -141,6 +141,8 @@ const state = {
   support: {
     tickets: [],
     selectedId: null,
+    status: '',
+    nextCursor: null,
   },
   sessionTimer: null,
 };
@@ -475,6 +477,8 @@ function clearSession(message = '') {
   state.support = {
     tickets: [],
     selectedId: null,
+    status: '',
+    nextCursor: null,
   };
   routeLoadSequence += 1;
   currentView = null;
@@ -7101,9 +7105,18 @@ function renderSupport() {
   const list = byId('support-list');
   const empty = byId('support-empty');
   const summary = byId('support-summary');
+  const loadedCount = byId('support-loaded-count');
+  const loadMore = byId('support-load-more');
   if (list == null || empty == null || summary == null) return;
 
-  summary.textContent = `${tickets.length} chamado(s)`;
+  summary.textContent = `${tickets.length} chamado(s) carregado(s)`;
+  if (loadedCount != null) {
+    loadedCount.textContent = `${tickets.length} carregado(s)`;
+  }
+  if (loadMore != null) {
+    loadMore.hidden = state.support.nextCursor == null;
+    loadMore.disabled = false;
+  }
   list.replaceChildren();
 
   for (const ticket of tickets) {
@@ -7146,13 +7159,53 @@ function renderSupport() {
   renderSupportSelection();
 }
 
-async function loadSupport({ announce = true } = {}) {
+async function loadSupport({
+  reset = true,
+  announce = true,
+} = {}) {
   if (!state.token || !hasScope('communications:read')) return;
+
+  const loadMore = byId('support-load-more');
+  if (reset) {
+    const filter = byId('support-status-filter');
+    state.support.status =
+      filter == null ? '' : String(filter.value ?? '');
+    state.support.nextCursor = null;
+  }
+  if (loadMore != null) loadMore.disabled = true;
+
   try {
-    const payload = await api.support(state.token, 100);
-    state.support.tickets = Array.isArray(payload?.tickets)
+    const payload = await api.support(state.token, {
+      limit: 50,
+      status: state.support.status,
+      cursor: reset ? null : state.support.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.tickets)
       ? payload.tickets
       : [];
+
+    if (reset) {
+      state.support.tickets = incoming;
+    } else {
+      const known = new Set(
+        state.support.tickets.map((ticket) => ticket.id),
+      );
+      state.support.tickets.push(
+        ...incoming.filter((ticket) => !known.has(ticket.id)),
+      );
+    }
+
+    state.support.nextCursor =
+      payload?.nextCursor != null &&
+      typeof payload.nextCursor === 'object' &&
+      typeof payload.nextCursor.createdAt === 'string' &&
+      typeof payload.nextCursor.id === 'string'
+        ? {
+            createdAt: payload.nextCursor.createdAt,
+            id: payload.nextCursor.id,
+          }
+        : null;
+
     if (
       state.support.selectedId != null &&
       !state.support.tickets.some(
@@ -7166,6 +7219,7 @@ async function loadSupport({ announce = true } = {}) {
       setMessage(globalMessage, 'Chamados atualizados.', 'success');
     }
   } catch (error) {
+    if (loadMore != null) loadMore.disabled = false;
     handleAuthenticatedError(error);
   }
 }
@@ -7457,7 +7511,14 @@ function bindRouteEvents(view) {
 
   if (view === 'support') {
     bindRouteEvent('refresh-support-button', 'click', () => {
-      void loadSupport();
+      void loadSupport({ reset: true });
+    });
+    bindRouteEvent('support-filter-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadSupport({ reset: true });
+    });
+    bindRouteEvent('support-load-more', 'click', () => {
+      void loadSupport({ reset: false, announce: false });
     });
     bindRouteEvent('support-response-form', 'submit', (event) => {
       void handleSupportResponse(event);
