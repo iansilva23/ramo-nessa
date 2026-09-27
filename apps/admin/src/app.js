@@ -4142,6 +4142,7 @@ async function handlePricingEditSubmit(event) {
     const payload = await api.updatePricingVersion(state.token, {
       versionId: version.id,
       patch: buildPricingDraftPatch(),
+      expectedUpdatedAt: version.updatedAt,
     });
     renderPricingCatalog(payload.catalog);
     renderPricingEditor(payload.version);
@@ -4208,6 +4209,7 @@ async function handlePricingPublish() {
       {
         versionId: version.id,
         effectiveFrom,
+        expectedUpdatedAt: version.updatedAt,
       },
     );
     byId('pricing-effective-from').value = '';
