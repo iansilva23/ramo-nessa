@@ -69,8 +69,10 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
   await api.pricingVersions(token);
   await api.getPricingVersion(token, versionId);
   await api.createPricingVersion(token);
+  const expectedUpdatedAt = '2026-09-27T06:00:00.000Z';
   await api.updatePricingVersion(token, {
     versionId,
+    expectedUpdatedAt,
     patch: {
       kind: 'fixed_route',
       routeId: 'prea-jijoca-car',
@@ -81,6 +83,7 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
   await api.publishPricingVersion(token, {
     versionId,
     effectiveFrom: '2026-10-01T03:00:00.000Z',
+    expectedUpdatedAt,
   });
 
   assert.deepEqual(
@@ -118,9 +121,11 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
     routeId: 'prea-jijoca-car',
     dayCents: 13000,
     after22Cents: 15000,
+    expectedUpdatedAt,
   });
   assert.deepEqual(JSON.parse(calls[4].options.body), {
     effectiveFrom: '2026-10-01T03:00:00.000Z',
+    expectedUpdatedAt,
   });
 });
 
@@ -223,6 +228,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /api\.createPricingVersion\(state\.token\)/);
   assert.match(app, /api\.updatePricingVersion\(state\.token/);
   assert.match(app, /api\.publishPricingVersion/);
+  assert.match(app, /expectedUpdatedAt: version\.updatedAt/);
   assert.match(app, /window\.confirm/);
   assert.match(app, /vigência imediata/);
   assert.match(app, /coloca o catálogo em produção/);
