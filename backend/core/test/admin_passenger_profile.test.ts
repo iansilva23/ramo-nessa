@@ -211,6 +211,32 @@ test('Admin edita nome e e-mail do passageiro com validação e auditoria', asyn
   assert.equal(same.fullName, 'Maria da Silva');
   assert.equal((await admin.listAudit(10)).length, 1);
 
+  const cleared = await updatePassengerProfileFromAdmin({
+    identities,
+    admin,
+    actor,
+    passengerId: 'passenger-edit-001',
+    fullName: null,
+    email: null,
+    now: new Date('2026-09-26T20:00:00.000Z'),
+  });
+  assert.equal(cleared.fullName, null);
+  assert.equal(cleared.email, null);
+
+  const clearedStored = await identities.findIdentityBySubject(
+    'passenger',
+    'passenger-edit-001',
+  );
+  assert.equal(clearedStored?.fullName, undefined);
+  assert.equal(clearedStored?.emailNormalized, undefined);
+
+  const auditAfterClear = await admin.listAudit(10);
+  assert.equal(auditAfterClear.length, 2);
+  assert.deepEqual(auditAfterClear[0]?.metadata, {
+    fullNameChanged: true,
+    emailChanged: true,
+  });
+
   await assert.rejects(
     () =>
       updatePassengerProfileFromAdmin({
