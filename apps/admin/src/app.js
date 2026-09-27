@@ -4981,6 +4981,50 @@ function renderIntegrations(payload) {
       `${otp.tokenConfigured ? 'token configurado' : 'token pendente'}`;
   }
 
+  const push = payload?.push;
+  const pushStatus = byId('push-provider-status');
+  const pushDetail = byId('push-provider-detail');
+  if (push == null) {
+    pushStatus.textContent = 'Não verificado';
+    pushStatus.className = 'integration-status-pending';
+    pushDetail.textContent = 'Provider do Core';
+  } else {
+    pushStatus.textContent = push.productionReady === true
+      ? 'Produção pronta'
+      : push.provider === 'fcm'
+        ? 'FCM sem credencial'
+        : push.provider === 'webhook'
+          ? 'Webhook incompleto'
+          : push.provider === 'disabled'
+            ? 'Desativado'
+            : 'Provider inválido';
+    pushStatus.className = push.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+
+    if (push.provider === 'fcm') {
+      const source =
+        push.firebaseCredentialSource === 'json'
+          ? push.firebaseJsonEnvironmentVariable
+          : push.firebaseCredentialSource === 'file'
+            ? push.firebaseFileEnvironmentVariable
+            : 'service account pendente';
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=fcm · ${source}`;
+    } else if (push.provider === 'webhook') {
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=webhook · ` +
+        `${push.webhookEndpointConfigured ? 'endpoint HTTPS OK' : 'endpoint pendente'} · ` +
+        `${push.webhookSecretConfigured ? 'token configurado' : 'token pendente'}`;
+    } else if (push.provider === 'disabled') {
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=disabled`;
+    } else {
+      pushDetail.textContent =
+        `Revise ${push.providerEnvironmentVariable}`;
+    }
+  }
+
   byId('integrations-updated-at').textContent =
     payload ? `Verificado em ${new Date().toLocaleTimeString('pt-BR')}` : 'Ainda não verificado';
 
