@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { InMemoryDriverSupportRepository } from '../src/drivers/repositories/in-memory-driver-support-repository.js';
@@ -175,12 +176,32 @@ test(
     const pool = createPostgresPool(supportDatabaseUrl!);
     const repository = new PostgresDriverSupportRepository(pool);
     const ids: string[] = [];
+    const runId = randomUUID();
+    const driverIds = Array.from(
+      { length: 4 },
+      (_, index) => `driver-support-pg-${runId}-${index}`,
+    );
 
     try {
+      for (const [index, driverId] of driverIds.entries()) {
+        await pool.query(
+          `
+          INSERT INTO driver_profiles (
+            driver_id, full_name, status, created_at, updated_at
+          ) VALUES ($1, $2, 'approved', $3, $3)
+          `,
+          [
+            driverId,
+            `Motorista Suporte PG ${index}`,
+            '2099-09-26T09:00:00.000Z',
+          ],
+        );
+      }
+
       for (let index = 0; index < 4; index += 1) {
         const ticket = await createDriverSupportTicket({
           repository,
-          driverId: `driver-support-pg-${index}`,
+          driverId: driverIds[index]!,
           category: 'payment',
           subject: `Suporte PG ${index}`,
           message: `Mensagem PostgreSQL válida número ${index}.`,
@@ -242,6 +263,10 @@ test(
           [ids],
         );
       }
+      await pool.query(
+        'DELETE FROM driver_profiles WHERE driver_id = ANY($1::text[])',
+        [driverIds],
+      );
       await pool.end();
     }
   },
