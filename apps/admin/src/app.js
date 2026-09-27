@@ -3145,7 +3145,7 @@ async function handlePaymentMethodsSubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('finance:write');
+    button.disabled = !financeWritesAvailable();
   }
 }
 
@@ -3187,7 +3187,7 @@ async function handleDefaultCashLimitSubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('finance:write');
+    button.disabled = !financeWritesAvailable();
   }
 }
 
@@ -3225,7 +3225,7 @@ async function handleEnableCash() {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = false;
+    button.disabled = !financeWritesAvailable();
   }
 }
 
@@ -3268,13 +3268,13 @@ async function handlePixPricePolicySubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('finance:write');
+    button.disabled = !financeWritesAvailable();
   }
 }
 
 async function handleCardPricePolicySubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !financeWritesAvailable()) return;
 
   const input = byId('finance-card-price-percent');
   const percent = Number(input.value);
@@ -3311,7 +3311,7 @@ async function handleCardPricePolicySubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('finance:write');
+    button.disabled = !financeWritesAvailable();
   }
 }
 
@@ -3342,7 +3342,7 @@ async function handleDisableCash() {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = false;
+    button.disabled = !financeWritesAvailable();
   }
 }
 
