@@ -402,6 +402,15 @@ test('ADM bloqueia mutações financeiras quando o snapshot fica desatualizado',
     (app.match(/!financeWritesAvailable\(\)/g) ?? []).length >= 8,
     'todos os handlers financeiros sensíveis devem falhar fechado',
   );
+  assert.match(
+    app,
+    /async function handleCardPricePolicySubmit\(event\)[\s\S]*?!state\.token \|\| !financeWritesAvailable\(\)/,
+  );
+  assert.ok(
+    (app.match(/button\.disabled = !financeWritesAvailable\(\);/g) ?? [])
+      .length >= 6,
+    'controles financeiros não podem reabrir enquanto o snapshot estiver bloqueado',
+  );
 });
 
 
