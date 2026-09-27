@@ -2953,6 +2953,7 @@ function closeFinancePayoutDetail() {
 
 async function openFinancePayout(payoutId) {
   if (!state.token || !financeWritesAvailable()) return;
+  renderFinancePayoutDetail(null);
   try {
     const payout = await api.financePayout(state.token, payoutId);
     renderFinancePayoutDetail(payout);
