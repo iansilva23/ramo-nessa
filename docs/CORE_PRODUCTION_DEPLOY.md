@@ -76,7 +76,8 @@ Nunca colocar no Git:
 - `OTP_WEBHOOK_TOKEN`;
 - tokens administrativos;
 - chaves de gateway/pagamento;
-- `GOOGLE_MAPS_SERVER_API_KEY`.
+- `GOOGLE_MAPS_SERVER_API_KEY`;
+- `FIREBASE_SERVICE_ACCOUNT_JSON` e o conteúdo de qualquer arquivo de Service Account Firebase.
 
 ## TLS e proxy
 
@@ -107,9 +108,45 @@ No host, restrinja as permissões do arquivo e, se o Core rodar em container,
 monte-o como volume/secret somente-leitura em
 `/run/secrets/ramo-nessa-firebase.json`.
 
-A configuração por `FIREBASE_PROJECT_ID`,
-`FIREBASE_CLIENT_EMAIL` e `FIREBASE_PRIVATE_KEY` continua aceita como
-alternativa, mas o arquivo montado é preferível.
+O Core aceita a Service Account por **uma destas duas formas**:
+`FIREBASE_SERVICE_ACCOUNT_JSON` (JSON completo vindo de secret) ou
+`FIREBASE_SERVICE_ACCOUNT_FILE` (arquivo privado montado no host/container).
+Variáveis separadas como `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e
+`FIREBASE_PRIVATE_KEY` **não fazem parte do contrato runtime atual**.
+
+### Configuração Firebase dos apps móveis
+
+Passenger e Driver inicializam Firebase a partir de `--dart-define`. O gate
+final `.github/workflows/mobile-build-audit.yml` recusa release com Push
+desativado.
+
+Secrets compartilhados obrigatórios:
+
+- `RAMO_FIREBASE_MESSAGING_SENDER_ID`;
+- `RAMO_FIREBASE_PROJECT_ID`.
+
+`RAMO_FIREBASE_STORAGE_BUCKET` é opcional para o Push atual.
+
+Para API key e App ID, prefira os Secrets específicos por app/plataforma:
+
+- Android Passenger: `RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY` e
+  `RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID`;
+- Android Driver: `RAMO_FIREBASE_ANDROID_DRIVER_API_KEY` e
+  `RAMO_FIREBASE_ANDROID_DRIVER_APP_ID`;
+- iOS Passenger: `RAMO_FIREBASE_IOS_PASSENGER_API_KEY` e
+  `RAMO_FIREBASE_IOS_PASSENGER_APP_ID`;
+- iOS Driver: `RAMO_FIREBASE_IOS_DRIVER_API_KEY` e
+  `RAMO_FIREBASE_IOS_DRIVER_APP_ID`.
+
+Os workflows mantêm fallbacks genéricos (`RAMO_FIREBASE_API_KEY`,
+`RAMO_FIREBASE_APP_ID`, `RAMO_FIREBASE_PASSENGER_APP_ID` e
+`RAMO_FIREBASE_DRIVER_APP_ID`) apenas para compatibilidade. Como cada app
+Firebase possui App ID próprio, a configuração específica por plataforma/app é
+a opção recomendada para produção.
+
+Os workflows de Preview e iOS Payment Audit permitem compilação sem esses
+Secrets e emitem warning; nesses binários o Push fica desativado. O
+`Mobile Build Audit` final exige a configuração completa.
 
 
 
