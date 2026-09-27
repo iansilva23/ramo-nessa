@@ -79,6 +79,7 @@ const state = {
     payouts: [],
     policy: null,
     selectedPayout: null,
+    writeLocked: true,
   },
   dashboard: {
     generatedAt: null,
@@ -2513,13 +2514,20 @@ function paymentMethodLabel(method) {
   return String(method ?? '—');
 }
 
+function financeWritesAvailable() {
+  return (
+    hasScope('finance:write') &&
+    state.finance.writeLocked !== true
+  );
+}
+
 function renderPaymentPolicy(policy = null) {
   state.finance.policy = policy;
 
   const loaded =
     policy != null && typeof policy === 'object';
   const canWrite =
-    loaded && hasScope('finance:write');
+    loaded && financeWritesAvailable();
 
   const status = byId('finance-cash-status');
   const methodsStatus = byId('finance-methods-status');
@@ -2757,6 +2765,7 @@ function renderFinance(payload = null) {
     payouts,
     policy: state.finance.policy,
     selectedPayout: state.finance.selectedPayout ?? null,
+    writeLocked: state.finance.writeLocked === true,
   };
 
   const current = state.finance.summary;
@@ -2918,16 +2927,19 @@ function renderFinancePayoutDetail(payout = null) {
   const actionable =
     payout.status === 'requested' ||
     payout.status === 'processing';
-  const canWrite = hasScope('finance:write') && actionable;
+  const canWrite =
+    financeWritesAvailable() && actionable;
   processorInput.disabled = !canWrite;
   referenceInput.disabled = !canWrite;
   byId('finance-payout-paid-button').disabled = !canWrite;
   byId('finance-payout-cancel-button').disabled = !canWrite;
 
   byId('finance-payout-action-note').textContent = actionable
-    ? hasScope('finance:write')
-      ? 'Confirme o repasse externo antes de registrar como pago.'
-      : 'Sua conta não possui permissão finance:write.'
+    ? state.finance.writeLocked === true
+      ? 'Atualize o financeiro antes de executar ações neste saque.'
+      : hasScope('finance:write')
+        ? 'Confirme o repasse externo antes de registrar como pago.'
+        : 'Sua conta não possui permissão finance:write.'
     : 'Este saque já foi finalizado e não aceita novas alterações.';
 }
 
@@ -2936,7 +2948,7 @@ function closeFinancePayoutDetail() {
 }
 
 async function openFinancePayout(payoutId) {
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !financeWritesAvailable()) return;
   try {
     const payout = await api.financePayout(state.token, payoutId);
     renderFinancePayoutDetail(payout);
@@ -2954,7 +2966,7 @@ async function handleFinancePayoutPaid(event) {
   const payout = state.finance.selectedPayout;
   if (
     !state.token ||
-    !hasScope('finance:write') ||
+    !financeWritesAvailable() ||
     payout == null
   ) {
     return;
@@ -3012,7 +3024,7 @@ async function handleFinancePayoutCancel() {
   const payout = state.finance.selectedPayout;
   if (
     !state.token ||
-    !hasScope('finance:write') ||
+    !financeWritesAvailable() ||
     payout == null
   ) {
     return;
@@ -3066,6 +3078,7 @@ async function loadFinance({ announce = true } = {}) {
       api.finance(state.token, 25),
       api.paymentPolicy(state.token),
     ]);
+    state.finance.writeLocked = false;
     renderFinance(payload);
     renderPaymentPolicy(policy);
     if (announce) {
@@ -3076,6 +3089,13 @@ async function loadFinance({ announce = true } = {}) {
       );
     }
   } catch (error) {
+    state.finance.writeLocked = true;
+    byId('finance-updated-at').textContent =
+      state.finance.generatedAt == null
+        ? 'Falha ao atualizar · sem dados atuais'
+        : `Falha ao atualizar · último dado ${formatDateTime(state.finance.generatedAt)}`;
+    renderPaymentPolicy(state.finance.policy);
+    renderFinancePayoutDetail(null);
     handleAuthenticatedError(error);
   } finally {
     button.disabled = false;
@@ -3084,7 +3104,7 @@ async function loadFinance({ announce = true } = {}) {
 
 async function handlePaymentMethodsSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !financeWritesAvailable()) return;
 
   const pixEnabled = byId('finance-pix-enabled').checked;
   const cardEnabled = byId('finance-card-enabled').checked;
@@ -3126,7 +3146,7 @@ async function handlePaymentMethodsSubmit(event) {
 
 async function handleDefaultCashLimitSubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !financeWritesAvailable()) return;
 
   const amount = Number(byId('finance-cash-limit-input').value);
   const cents = Math.round(amount * 100);
@@ -3169,7 +3189,7 @@ async function handleDefaultCashLimitSubmit(event) {
 async function handleEnableCash() {
   if (
     !state.token ||
-    !hasScope('finance:write') ||
+    !financeWritesAvailable() ||
     state.finance.policy?.cashEnabled !== false ||
     state.finance.policy?.cashActivationReady !== true
   ) {
@@ -3206,7 +3226,7 @@ async function handleEnableCash() {
 
 async function handlePixPricePolicySubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !financeWritesAvailable()) return;
 
   const input = byId('finance-pix-price-percent');
   const percent = Number(input.value);
@@ -3293,7 +3313,7 @@ async function handleCardPricePolicySubmit(event) {
 async function handleDisableCash() {
   if (
     !state.token ||
-    !hasScope('finance:write') ||
+    !financeWritesAvailable() ||
     state.finance.policy?.cashEnabled !== true
   ) {
     return;
