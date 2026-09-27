@@ -3429,26 +3429,33 @@ const server = createServer(async (request, response) => {
         fullName?: unknown;
         email?: unknown;
       };
+      const hasFullName = Object.prototype.hasOwnProperty.call(
+        payload,
+        'fullName',
+      );
+      const hasEmail = Object.prototype.hasOwnProperty.call(
+        payload,
+        'email',
+      );
       if (
-        payload.fullName != null &&
+        hasFullName &&
+        payload.fullName !== null &&
         typeof payload.fullName !== 'string'
       ) {
         throw new InvalidAdminRequestError(
-          'fullName deve ser texto.',
+          'fullName deve ser texto ou null.',
         );
       }
       if (
-        payload.email != null &&
+        hasEmail &&
+        payload.email !== null &&
         typeof payload.email !== 'string'
       ) {
         throw new InvalidAdminRequestError(
-          'email deve ser texto.',
+          'email deve ser texto ou null.',
         );
       }
-      if (
-        payload.fullName == null &&
-        payload.email == null
-      ) {
+      if (!hasFullName && !hasEmail) {
         throw new InvalidAdminRequestError(
           'Informe ao menos nome ou e-mail.',
         );
@@ -3459,10 +3466,12 @@ const server = createServer(async (request, response) => {
         admin: adminRepository,
         actor,
         passengerId: adminPassengerProfileUpdateMatch[1]!,
-        ...(payload.fullName == null
-          ? {}
-          : { fullName: payload.fullName }),
-        ...(payload.email == null ? {} : { email: payload.email }),
+        ...(hasFullName
+          ? { fullName: payload.fullName as string | null }
+          : {}),
+        ...(hasEmail
+          ? { email: payload.email as string | null }
+          : {}),
       });
       json(response, 200, { passenger });
       return;
