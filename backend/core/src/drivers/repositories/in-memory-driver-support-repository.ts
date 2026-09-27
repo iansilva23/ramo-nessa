@@ -1,4 +1,6 @@
 import type {
+  DriverSupportAdminListInput,
+  DriverSupportAdminListPage,
   DriverSupportRepository,
   DriverSupportTicketRecord,
 } from '../driver-support-repository.js';
@@ -36,11 +38,31 @@ export class InMemoryDriverSupportRepository
     return found == null ? null : structuredClone(found);
   }
 
-  async listRecent(limit: number): Promise<DriverSupportTicketRecord[]> {
-    return [...this.tickets.values()]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
-      .map((ticket) => structuredClone(ticket));
+  async listAdmin(
+    input: DriverSupportAdminListInput,
+  ): Promise<DriverSupportAdminListPage> {
+    const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
+    const filtered = [...this.tickets.values()]
+      .filter(
+        (ticket) => input.status == null || ticket.status === input.status,
+      )
+      .filter((ticket) => {
+        if (input.cursor == null) return true;
+        return (
+          ticket.createdAt < input.cursor.createdAt ||
+          (ticket.createdAt === input.cursor.createdAt &&
+            ticket.id < input.cursor.id)
+        );
+      })
+      .sort((a, b) => {
+        const created = b.createdAt.localeCompare(a.createdAt);
+        return created !== 0 ? created : b.id.localeCompare(a.id);
+      });
+    const rows = filtered.slice(0, limit + 1);
+    return {
+      tickets: rows.slice(0, limit).map((ticket) => structuredClone(ticket)),
+      hasMore: rows.length > limit,
+    };
   }
 
   async respond(input: {
