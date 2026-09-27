@@ -89,6 +89,10 @@ test('cliente do dashboard usa GET autenticado sem colocar credencial na URL', a
 });
 
 test('HTML do Admin contém a superfície operacional do dashboard', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
   const html = [
     readFileSync(
       new URL('../index.html', import.meta.url),
@@ -113,4 +117,11 @@ test('HTML do Admin contém a superfície operacional do dashboard', () => {
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
+
+  assert.match(
+    app,
+    /summary\.active > activeRides\.length[\s\S]*?activeRides\.length[\s\S]*?summary\.active/,
+  );
+  assert.match(app, /Falha ao atualizar · sem dados atuais/);
+  assert.match(app, /Falha ao atualizar · último dado/);
 });
