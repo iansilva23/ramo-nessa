@@ -2185,7 +2185,9 @@ function renderDashboard(payload = null) {
     summary.cancelledLast24h,
   );
   byId('dashboard-active-count').textContent =
-    `${activeRides.length} corrida(s)`;
+    summary.active > activeRides.length
+      ? `${activeRides.length} de ${summary.active} corrida(s)`
+      : `${summary.active} corrida(s)`;
   byId('dashboard-updated-at').textContent =
     state.dashboard.generatedAt == null
       ? hasScope('rides:read')
@@ -2270,6 +2272,11 @@ async function loadDashboard({ announce = true } = {}) {
       );
     }
   } catch (error) {
+    const updatedAt = byId('dashboard-updated-at');
+    updatedAt.textContent =
+      state.dashboard.generatedAt == null
+        ? 'Falha ao atualizar · sem dados atuais'
+        : `Falha ao atualizar · último dado ${formatDateTime(state.dashboard.generatedAt)}`;
     handleAuthenticatedError(error);
   } finally {
     refreshButton.disabled = false;
