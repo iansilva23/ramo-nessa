@@ -122,11 +122,36 @@ jobs:
             exit 1
           fi
 
+      - name: Validate Driver Android Firebase push config
+        env:
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+        run: |
+          for name in RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::${name} é obrigatório para o release Driver Android com push real."
+              exit 1
+            fi
+          done
+
       - name: Build Driver Android release
         working-directory: apps/driver
         env:
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
-        run: flutter build apk --release
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
 
       - name: Upload Driver APK
         uses: actions/upload-artifact@v7.0.1
