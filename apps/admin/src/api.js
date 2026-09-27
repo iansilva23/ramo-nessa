@@ -719,12 +719,33 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
-    support(token, limit = 50) {
+    support(token, options = 50) {
+      const config =
+        typeof options === 'number'
+          ? { limit: options }
+          : options ?? {};
       const safeLimit = Math.max(
         1,
-        Math.min(100, Math.trunc(limit)),
+        Math.min(100, Math.trunc(config.limit ?? 50)),
       );
-      return request(`/v1/admin/support?limit=${safeLimit}`, {
+      const params = new URLSearchParams();
+      params.set('limit', String(safeLimit));
+      if (
+        config.status === 'open' ||
+        config.status === 'in_progress' ||
+        config.status === 'resolved' ||
+        config.status === 'closed'
+      ) {
+        params.set('status', config.status);
+      }
+      if (
+        config.cursor?.createdAt &&
+        config.cursor?.id
+      ) {
+        params.set('cursorCreatedAt', config.cursor.createdAt);
+        params.set('cursorId', config.cursor.id);
+      }
+      return request(`/v1/admin/support?${params.toString()}`, {
         token,
       });
     },
