@@ -736,3 +736,86 @@ test('rejeita políticas comerciais inválidas antes de alterar o rascunho', () 
     /ordem crescente/,
   );
 });
+
+
+test('rejeita edição e publicação com revisão stale do rascunho', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-concurrency',
+    name: 'Admin Pricing Concurrency',
+  };
+  const createdAt = new Date('2026-09-27T06:10:00.000Z');
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: createdAt,
+  });
+
+  const firstPatch = parsePricingCatalogDraftPatch({
+    kind: 'commission_policy',
+    commissionBps: 1100,
+  });
+  const updated = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: firstPatch,
+    expectedUpdatedAt: draft.updatedAt,
+    // Mesmo instante de criação: o serviço precisa avançar o revision timestamp.
+    now: createdAt,
+  });
+
+  assert.notEqual(updated.updatedAt, draft.updatedAt);
+  assert.equal(updated.snapshot.commissionBps, 1100);
+
+  const stalePatch = parsePricingCatalogDraftPatch({
+    kind: 'commission_policy',
+    commissionBps: 1200,
+  });
+
+  await assert.rejects(
+    () =>
+      updatePricingCatalogDraft({
+        versions,
+        admin,
+        actor,
+        versionId: draft.id,
+        patch: stalePatch,
+        expectedUpdatedAt: draft.updatedAt,
+      }),
+    (error: unknown) =>
+      error instanceof PricingCatalogVersionError &&
+      error.code === 'PRICING_VERSION_CONFLICT',
+  );
+
+  await assert.rejects(
+    () =>
+      publishPricingCatalogVersion({
+        versions,
+        admin,
+        actor,
+        versionId: draft.id,
+        expectedUpdatedAt: draft.updatedAt,
+      }),
+    (error: unknown) =>
+      error instanceof PricingCatalogVersionError &&
+      error.code === 'PRICING_VERSION_CONFLICT',
+  );
+
+  const stillDraft = await versions.findById(draft.id);
+  assert.equal(stillDraft?.status, 'draft');
+  assert.equal(stillDraft?.snapshot.commissionBps, 1100);
+
+  const published = await publishPricingCatalogVersion({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    expectedUpdatedAt: updated.updatedAt,
+  });
+  assert.equal(published.status, 'published');
+});
