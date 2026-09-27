@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-test('admin exposes Google Maps production setup center', async () => {
+test('admin exposes secure production integration status center', async () => {
   const [html, app, api] = await Promise.all([
     Promise.all([
       readFile(new URL('../index.html', import.meta.url), 'utf8'),
@@ -17,8 +17,15 @@ test('admin exposes Google Maps production setup center', async () => {
   assert.match(html, /Maps SDK for Android/);
   assert.match(html, /Places API \(New\)/);
   assert.match(html, /GOOGLE_MAPS_SERVER_API_KEY/);
+  assert.match(html, /id="mercado-pago-status"/);
+  assert.match(html, /id="otp-provider-status"/);
+  assert.match(html, /carregadas com segurança no boot do Core/);
 
   assert.match(app, /loadIntegrations/);
+  assert.match(app, /payload\?\.mercadoPago/);
+  assert.match(app, /payload\?\.otp/);
+  assert.match(app, /mercadoPago\.productionReady/);
+  assert.match(app, /otp\.productionReady/);
   assert.match(app, /item\.githubSecretName/);
   assert.match(app, /google-credential-cards/);
   assert.match(api, /\/v1\/admin\/integrations/);
