@@ -503,8 +503,8 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
           method: 'PATCH',
           token,
           body: {
-            ...(fullName == null ? {} : { fullName }),
-            ...(email == null ? {} : { email }),
+            ...(fullName === undefined ? {} : { fullName }),
+            ...(email === undefined ? {} : { email }),
           },
         },
       );
