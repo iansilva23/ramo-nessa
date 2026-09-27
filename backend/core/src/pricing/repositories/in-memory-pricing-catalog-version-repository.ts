@@ -45,7 +45,13 @@ export class InMemoryPricingCatalogVersionRepository
     >[0],
   ): Promise<PricingCatalogVersionRecord | null> {
     const current = this.versions.get(input.id);
-    if (current == null || current.status !== 'draft') return null;
+    if (
+      current == null ||
+      current.status !== 'draft' ||
+      current.updatedAt !== input.expectedUpdatedAt
+    ) {
+      return null;
+    }
     const updated: PricingCatalogVersionRecord = {
       ...current,
       snapshot: normalizePricingCatalogSnapshot(
@@ -61,7 +67,13 @@ export class InMemoryPricingCatalogVersionRepository
     input: Parameters<PricingCatalogVersionRepository['publish']>[0],
   ): Promise<PricingCatalogVersionRecord | null> {
     const current = this.versions.get(input.id);
-    if (current == null || current.status !== 'draft') return null;
+    if (
+      current == null ||
+      current.status !== 'draft' ||
+      current.updatedAt !== input.expectedUpdatedAt
+    ) {
+      return null;
+    }
 
     const updated: PricingCatalogVersionRecord = {
       ...current,
