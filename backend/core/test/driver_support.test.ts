@@ -129,10 +129,11 @@ test('Admin pagina chamados e filtra por status sem perder chamados antigos', as
   assert.equal(first.tickets[1]?.id, created[3]?.id);
   assert.ok(first.nextCursor);
 
+  assert.ok(first.nextCursor);
   const second = await listSupportTicketsForAdmin({
     repository,
     limit: 2,
-    cursor: first.nextCursor ?? undefined,
+    cursor: first.nextCursor,
   });
   assert.equal(second.tickets.length, 2);
   assert.deepEqual(
@@ -141,10 +142,11 @@ test('Admin pagina chamados e filtra por status sem perder chamados antigos', as
   );
   assert.ok(second.nextCursor);
 
+  assert.ok(second.nextCursor);
   const third = await listSupportTicketsForAdmin({
     repository,
     limit: 2,
-    cursor: second.nextCursor ?? undefined,
+    cursor: second.nextCursor,
   });
   assert.deepEqual(
     third.tickets.map((ticket) => ticket.id),
@@ -183,7 +185,7 @@ test(
           subject: `Suporte PG ${index}`,
           message: `Mensagem PostgreSQL válida número ${index}.`,
           now: new Date(
-            `2026-09-26T1${index}:00:00.000Z`,
+            `2099-09-26T1${index}:00:00.000Z`,
           ),
         });
         ids.push(ticket.id);
@@ -194,7 +196,7 @@ test(
         id: ids[3]!,
         response: 'Resolvido no teste PostgreSQL.',
         status: 'resolved',
-        now: new Date('2026-09-26T20:00:00.000Z'),
+        now: new Date('2099-09-26T20:00:00.000Z'),
       });
 
       const first = await listSupportTicketsForAdmin({
