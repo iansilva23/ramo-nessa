@@ -4252,12 +4252,58 @@ const server = createServer(async (request, response) => {
         rawLimit == null || !/^\d{1,3}$/.test(rawLimit)
           ? 50
           : Math.max(1, Math.min(100, Number(rawLimit)));
+      const rawStatus =
+        requestUrl.searchParams.get('status')?.trim() ?? '';
+      if (
+        rawStatus &&
+        rawStatus !== 'open' &&
+        rawStatus !== 'in_progress' &&
+        rawStatus !== 'resolved' &&
+        rawStatus !== 'closed'
+      ) {
+        throw new InvalidAdminRequestError(
+          'status de suporte é inválido.',
+        );
+      }
+      const cursorCreatedAt =
+        requestUrl.searchParams.get('cursorCreatedAt')?.trim() ?? '';
+      const cursorId =
+        requestUrl.searchParams.get('cursorId')?.trim() ?? '';
+      if (
+        Boolean(cursorCreatedAt) !== Boolean(cursorId) ||
+        (cursorCreatedAt &&
+          (!Number.isFinite(Date.parse(cursorCreatedAt)) ||
+            !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+              cursorId,
+            )))
+      ) {
+        throw new InvalidAdminRequestError(
+          'cursor de suporte é inválido.',
+        );
+      }
       json(
         response,
         200,
         await listSupportTicketsForAdmin({
           repository: driverSupportRepository,
           limit,
+          ...(rawStatus
+            ? {
+                status: rawStatus as
+                  | 'open'
+                  | 'in_progress'
+                  | 'resolved'
+                  | 'closed',
+              }
+            : {}),
+          ...(cursorCreatedAt
+            ? {
+                cursor: {
+                  createdAt: new Date(cursorCreatedAt).toISOString(),
+                  id: cursorId,
+                },
+              }
+            : {}),
         }),
       );
       return;
