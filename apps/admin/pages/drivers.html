@@ -437,6 +437,45 @@
               </form>
             </article>
 
+            <article class="panel-card driver-finance-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">FINANCEIRO · MOTORISTA</span>
+                  <h2>Saldo, Pix e extrato</h2>
+                  <p class="muted-copy">
+                    Consulta somente leitura. O ledger histórico não pode ser editado nesta ficha.
+                  </p>
+                </div>
+                <span id="driver-finance-status" class="pill">Não carregado</span>
+              </div>
+
+              <div id="driver-finance-summary" class="driver-finance-summary empty-state">
+                Abra um motorista para consultar o financeiro.
+              </div>
+
+              <div id="driver-finance-statement" hidden>
+                <div class="table-wrap">
+                  <table class="driver-finance-table">
+                    <thead>
+                      <tr>
+                        <th>Quando</th>
+                        <th>Movimentação</th>
+                        <th>Disponível</th>
+                        <th>Saque pendente</th>
+                        <th>Dívida cash</th>
+                        <th>Taxa de manutenção</th>
+                        <th>Saldo após</th>
+                      </tr>
+                    </thead>
+                    <tbody id="driver-finance-statement-body"></tbody>
+                  </table>
+                </div>
+                <div id="driver-finance-statement-empty" class="empty-state">
+                  Nenhuma movimentação financeira encontrada.
+                </div>
+              </div>
+            </article>
+
             <article class="panel-card driver-documents-card">
               <div class="panel-card__header">
                 <div>

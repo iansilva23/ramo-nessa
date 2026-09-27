@@ -3605,6 +3605,50 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const adminPassengerPhotoMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/photo$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminPassengerPhotoMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'passengers:auth:read',
+      });
+      const passengerId = adminPassengerPhotoMatch[1]!;
+      const identity = await authOtpRepository.findIdentityBySubject(
+        'passenger',
+        passengerId,
+      );
+      if (identity == null) {
+        throw new AdminPassengerError(
+          'PASSENGER_NOT_FOUND',
+          'Passageiro não encontrado.',
+        );
+      }
+      const photo = await authOtpRepository.findPassengerProfilePhoto(
+        passengerId,
+      );
+      if (photo == null) {
+        json(response, 404, {
+          error: 'PASSENGER_PHOTO_NOT_FOUND',
+          message: 'Foto do passageiro não encontrada.',
+        });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': photo.mimeType,
+        'content-length': String(photo.bytes.length),
+        'cache-control': 'private, no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(photo.bytes);
+      return;
+    }
+
     if (
       request.method === 'GET' &&
       adminPassengerMatch != null
@@ -4138,6 +4182,46 @@ const server = createServer(async (request, response) => {
         data,
       });
       json(response, 200, result);
+      return;
+    }
+
+    const adminDriverFinanceMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/drivers\/([A-Za-z0-9._:-]+)\/finance$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminDriverFinanceMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      const driverId = adminDriverFinanceMatch[1]!;
+      const identity = await authOtpRepository.findIdentityBySubject(
+        'driver',
+        driverId,
+      );
+      if (identity == null) {
+        json(response, 404, {
+          error: 'DRIVER_NOT_FOUND',
+          message: 'Motorista não encontrado.',
+        });
+        return;
+      }
+      const [statement, payoutDestination] = await Promise.all([
+        driverFinanceStatement({
+          repository: financeRepository,
+          driverId,
+          limit: 50,
+        }),
+        driverPayoutDestinationForApp(financeRepository, driverId),
+      ]);
+      json(response, 200, {
+        ...statement,
+        payoutDestination,
+      });
       return;
     }
 

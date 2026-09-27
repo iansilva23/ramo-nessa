@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   driverFinanceStatement,
   driverFinanceSummary,
+  driverPayoutDestinationForApp,
   requestDriverPayoutFromApp,
 } from '../src/drivers/driver-finance-service.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
@@ -115,6 +116,27 @@ test('extrato mostra corrida, taxa e saque com saldo real', async () => {
   assert.equal(
     ride.rideId,
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+  );
+});
+
+test('consulta administrativa pode reutilizar Pix mascarado sem expor a chave', async () => {
+  const finance = await fundedFinance();
+  const destination = await driverPayoutDestinationForApp(
+    finance,
+    'driver-finance',
+  );
+
+  assert.deepEqual(destination, {
+    configured: true,
+    pixKeyType: 'random',
+    pixKeyMasked: '••••1111',
+    updatedAt: now.toISOString(),
+  });
+  assert.equal(
+    JSON.stringify(destination).includes(
+      '11111111-1111-4111-8111-111111111111',
+    ),
+    false,
   );
 });
 

@@ -68,6 +68,7 @@ export async function adminPassengerProfile(input: {
       phoneE164: identity.phoneE164,
       fullName: identity.fullName ?? null,
       email: identity.emailNormalized ?? null,
+      photoUpdatedAt: identity.photoUpdatedAt ?? null,
       status: identity.status,
       createdAt: identity.createdAt,
       updatedAt: identity.updatedAt,

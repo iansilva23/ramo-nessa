@@ -21,6 +21,23 @@ function jsonResponse(status, payload) {
   };
 }
 
+function binaryResponse(status, bytes, contentType = 'image/jpeg') {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type'
+          ? contentType
+          : null;
+      },
+    },
+    async arrayBuffer() {
+      return Uint8Array.from(bytes).buffer;
+    },
+  };
+}
+
 test('cliente Admin abre ficha de passageiro sem vazar Bearer na URL', async () => {
   const calls = [];
   const api = createAdminApi(async (url, options) => {
@@ -136,6 +153,34 @@ test('cliente Admin consulta carteira e notificações com endpoints separados',
   }
 });
 
+test('cliente Admin lê foto privada do passageiro com Bearer', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return binaryResponse(200, [0xff, 0xd8, 0xff]);
+  });
+
+  const token = 'rn_admin_session_passenger_photo_secret';
+  const file = await api.getPassengerPhoto(
+    token,
+    'passenger-profile-001',
+  );
+
+  assert.equal(file.contentType, 'image/jpeg');
+  assert.deepEqual([...file.bytes], [0xff, 0xd8, 0xff]);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/passengers/passenger-profile-001/photo',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+  assert.equal(calls[0].options.credentials, 'omit');
+  assert.equal(calls[0].options.cache, 'no-store');
+});
+
 test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', () => {
   const html = [
     readFileSync(
@@ -183,6 +228,8 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
     'passenger-notification-devices-count',
     'passenger-notification-devices-body',
     'passenger-notification-devices-empty',
+    'passenger-photo-preview',
+    'passenger-photo-empty',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -205,6 +252,8 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
   assert.match(app, /lookupPassenger\(passenger\.passengerId\)/);
   assert.match(app, /completedAmountCents/);
   assert.match(app, /renderPassengerOperationalDetail/);
+  assert.match(app, /api\.getPassengerPhoto/);
+  assert.match(app, /passengerPhotoObjectUrl/);
   assert.match(app, /hasScope\('finance:read'\)/);
   assert.match(app, /hasScope\('communications:read'\)/);
   assert.equal(app.includes('.innerHTML'), false);

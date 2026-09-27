@@ -186,6 +186,46 @@ test('cliente Admin consulta e altera limite cash individual sem vazar Bearer', 
   }
 });
 
+test('cliente Admin consulta extrato e Pix mascarado do motorista', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      generatedAt: '2026-09-27T08:00:00.000Z',
+      finance: {
+        availableBalanceCents: 13500,
+        payoutPendingCents: 0,
+        cashCommissionDebtCents: 0,
+      },
+      payoutDestination: {
+        configured: true,
+        pixKeyType: 'cpf',
+        pixKeyMasked: '••••1234',
+      },
+      items: [],
+    });
+  });
+
+  const token = 'rn_admin_session_driver_finance_secret';
+  const payload = await api.getDriverFinance(
+    token,
+    'driver-registry-web',
+  );
+
+  assert.equal(payload.finance.availableBalanceCents, 13500);
+  assert.equal(payload.payoutDestination.pixKeyMasked, '••••1234');
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/drivers/driver-registry-web/finance',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+});
+
 test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
   const html = [
     readFileSync(
@@ -217,6 +257,11 @@ test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
     'driver-cash-limit-save',
     'driver-cash-limit-reset',
     'driver-cash-policy-note',
+    'driver-finance-status',
+    'driver-finance-summary',
+    'driver-finance-statement',
+    'driver-finance-statement-body',
+    'driver-finance-statement-empty',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -233,8 +278,15 @@ test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
   assert.match(app, /hasScope\('finance:write'\)/);
   assert.match(app, /currentDriverCashPolicy\.cashEnabled/);
   assert.match(app, /api\.setDriverCashPolicy/);
+  assert.match(app, /api\.getDriverFinance/);
+  assert.match(app, /payoutDestination/);
+  assert.match(html, /Taxa de manutenção/);
+  assert.match(app, /driver-registry-photo/);
+  assert.match(app, /renderDriverFinanceUnavailable\('Carregando financeiro…'\)/);
   assert.match(css, /\.driver-cash-policy-summary/);
   assert.match(css, /\.driver-cash-policy-form/);
+  assert.match(css, /\.driver-finance-summary/);
+  assert.match(css, /\.driver-registry-photo/);
 
   const cashInput = html.match(
     /<input[^>]*id=["']driver-cash-limit-reais["'][^>]*>/,

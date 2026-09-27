@@ -526,6 +526,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    getPassengerPhoto(token, passengerId) {
+      return requestBinary(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}/photo`,
+        { token },
+      );
+    },
+
     updatePassengerProfile(token, { passengerId, fullName, email }) {
       return request(
         `/v1/admin/passengers/${encodeURIComponent(passengerId)}/profile`,
@@ -640,6 +647,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     getDriverCashPolicy(token, driverId) {
       return request(
         `/v1/admin/drivers/${encodeURIComponent(driverId)}/cash-policy`,
+        { token },
+      );
+    },
+
+    getDriverFinance(token, driverId) {
+      return request(
+        `/v1/admin/drivers/${encodeURIComponent(driverId)}/finance`,
         { token },
       );
     },

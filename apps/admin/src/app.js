@@ -33,6 +33,7 @@ const state = {
   currentDriverDocuments: null,
   currentDriverDocumentCompliance: null,
   currentDriverCashPolicy: null,
+  currentDriverFinance: null,
   documentInspectionObjectUrl: null,
   documentInspectionTimer: null,
   pricingCatalog: null,
@@ -101,6 +102,7 @@ const state = {
     status: '',
   },
   selectedPassenger: null,
+  passengerPhotoObjectUrl: null,
   passengerDirectory: {
     items: [],
     nextCursor: null,
@@ -355,6 +357,23 @@ function closeDriverDocumentInspection() {
   if (panel != null) panel.hidden = true;
 }
 
+function clearPassengerPhoto() {
+  if (state.passengerPhotoObjectUrl != null) {
+    URL.revokeObjectURL(state.passengerPhotoObjectUrl);
+    state.passengerPhotoObjectUrl = null;
+  }
+  const image = byId('passenger-photo-preview');
+  if (image != null) {
+    image.removeAttribute('src');
+    image.hidden = true;
+  }
+  const empty = byId('passenger-photo-empty');
+  if (empty != null) {
+    empty.hidden = false;
+    empty.textContent = 'Nenhuma foto cadastrada.';
+  }
+}
+
 function clearSession(message = '') {
   stopSessionTimer();
   stopFleetPolling();
@@ -367,6 +386,7 @@ function clearSession(message = '') {
   state.currentDriverDocuments = null;
   state.currentDriverDocumentCompliance = null;
   state.currentDriverCashPolicy = null;
+  state.currentDriverFinance = null;
   state.pricingCatalog = null;
   state.pricingVersions = {
     items: [],
@@ -434,6 +454,7 @@ function clearSession(message = '') {
     status: '',
   };
   state.selectedPassenger = null;
+  clearPassengerPhoto();
   state.passengerDirectory = {
     items: [],
     nextCursor: null,
@@ -893,6 +914,21 @@ function renderDriverRegistry(payload, driverId) {
   const profileStatus = registryStatusPresentation(profile?.status);
   const vehicleStatus = registryStatusPresentation(vehicle?.status);
 
+  if (profile?.photoUpdatedAt) {
+    const photo = document.createElement('figure');
+    photo.className = 'driver-registry-photo';
+    const image = document.createElement('img');
+    image.alt = `Foto de ${profile.preferredName || profile.fullName}`;
+    image.src =
+      `/v1/drivers/${encodeURIComponent(driverId)}/photo?v=` +
+      encodeURIComponent(profile.photoUpdatedAt);
+    const caption = document.createElement('figcaption');
+    caption.textContent =
+      `Foto atualizada em ${formatDateTime(profile.photoUpdatedAt)}`;
+    photo.append(image, caption);
+    target.append(photo);
+  }
+
   const summary = document.createElement('div');
   summary.className = 'driver-registry-summary';
   summary.append(
@@ -1038,6 +1074,119 @@ async function loadDriverCashPolicy(driverId) {
       );
       return;
     }
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderDriverFinanceUnavailable(
+  message = 'Abra um motorista para consultar o financeiro.',
+) {
+  state.currentDriverFinance = null;
+  const summary = byId('driver-finance-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-finance-summary empty-state';
+  summary.textContent = message;
+  const status = byId('driver-finance-status');
+  status.className = 'pill';
+  status.textContent = 'Não carregado';
+  byId('driver-finance-statement').hidden = true;
+  byId('driver-finance-statement-body').replaceChildren();
+}
+
+function formatFinancialDelta(cents) {
+  const value = Number(cents ?? 0);
+  return value > 0
+    ? `+${formatCurrencyCents(value)}`
+    : formatCurrencyCents(value);
+}
+
+function renderDriverFinance(payload) {
+  state.currentDriverFinance = payload;
+  const finance = payload?.finance ?? {};
+  const destination = payload?.payoutDestination ?? {};
+  const summary = byId('driver-finance-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-finance-summary';
+  summary.append(
+    registrySummaryItem(
+      'Saldo disponível',
+      formatCurrencyCents(finance.availableBalanceCents),
+    ),
+    registrySummaryItem(
+      'Saque pendente',
+      formatCurrencyCents(finance.payoutPendingCents),
+    ),
+    registrySummaryItem(
+      'Dívida cash',
+      formatCurrencyCents(finance.cashCommissionDebtCents),
+    ),
+    registrySummaryItem(
+      'Pix de recebimento',
+      destination.configured
+        ? `${String(destination.pixKeyType ?? '').toUpperCase()} · ${destination.pixKeyMasked}`
+        : 'Não configurado',
+    ),
+  );
+
+  const status = byId('driver-finance-status');
+  status.className = 'pill pill--success';
+  status.textContent = `Atualizado ${formatDateTime(payload?.generatedAt)}`;
+
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const body = byId('driver-finance-statement-body');
+  body.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement('tr');
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(item.createdAt);
+    const movement = document.createElement('td');
+    const title = document.createElement('strong');
+    title.textContent = item.title ?? 'Movimentação financeira';
+    const reference = document.createElement('small');
+    reference.className = 'table-subtext';
+    reference.textContent = item.rideId ?? item.payoutId ?? item.id ?? '—';
+    movement.append(title, reference);
+    const available = document.createElement('td');
+    available.textContent = formatFinancialDelta(item.availableDeltaCents);
+    const pending = document.createElement('td');
+    pending.textContent = formatFinancialDelta(item.pendingDeltaCents);
+    const debt = document.createElement('td');
+    debt.textContent = formatFinancialDelta(item.debtDeltaCents);
+    const maintenance = document.createElement('td');
+    maintenance.textContent = formatCurrencyCents(item.platformFeeCents);
+    const balance = document.createElement('td');
+    balance.textContent = formatCurrencyCents(item.balanceAfterCents);
+    row.append(
+      created,
+      movement,
+      available,
+      pending,
+      debt,
+      maintenance,
+      balance,
+    );
+    body.append(row);
+  }
+  byId('driver-finance-statement-empty').hidden = items.length !== 0;
+  byId('driver-finance-statement').hidden = false;
+}
+
+async function loadDriverFinance(driverId) {
+  if (!state.token) return;
+  if (!hasScope('finance:read')) {
+    renderDriverFinanceUnavailable(
+      'Sua conta não possui permissão finance:read.',
+    );
+    return;
+  }
+  try {
+    renderDriverFinance(
+      await api.getDriverFinance(state.token, driverId),
+    );
+  } catch (error) {
+    renderDriverFinanceUnavailable(
+      'Não foi possível carregar o financeiro deste motorista.',
+    );
     handleAuthenticatedError(error);
   }
 }
@@ -2132,17 +2281,23 @@ function renderDriver(driver) {
   }
 }
 
-function renderDriverNotFound(driverId) {
+function renderDriverUnavailable(title, message) {
   const target = byId('driver-result');
   target.replaceChildren();
   target.className = 'driver-result empty-state';
 
   const strong = document.createElement('strong');
-  strong.textContent = 'Motorista não provisionado';
+  strong.textContent = title;
   const copy = document.createElement('p');
-  copy.textContent =
-    `Nenhuma identidade de autenticação foi encontrada para ${driverId}.`;
+  copy.textContent = message;
   target.append(strong, copy);
+}
+
+function renderDriverNotFound(driverId) {
+  renderDriverUnavailable(
+    'Motorista não provisionado',
+    `Nenhuma identidade de autenticação foi encontrada para ${driverId}.`,
+  );
 }
 
 function numericMetric(value) {
@@ -4557,6 +4712,7 @@ async function loadPassengerDirectory({
 function renderPassengerDetailEmpty(
   message = 'Abra um passageiro na tabela para ver identidade e histórico recente.',
 ) {
+  clearPassengerPhoto();
   state.selectedPassenger = null;
   const content = byId('passenger-detail-content');
   content.replaceChildren();
@@ -4600,6 +4756,11 @@ function savedPlaceKindLabel(kind) {
 }
 
 function renderPassengerOperationalDetail(payload) {
+  clearPassengerPhoto();
+  const photoEmpty = byId('passenger-photo-empty');
+  photoEmpty.textContent = payload?.passenger?.photoUpdatedAt
+    ? 'Carregando foto cadastrada…'
+    : 'Nenhuma foto cadastrada.';
   const savedPlaces = Array.isArray(payload?.savedPlaces)
     ? payload.savedPlaces
     : [];
@@ -4665,6 +4826,39 @@ function renderPassengerOperationalDetail(payload) {
   byId('passenger-notification-devices-empty').hidden =
     devices.length !== 0;
   byId('passenger-operational-detail').hidden = false;
+}
+
+async function loadPassengerPhoto(passengerId) {
+  if (!state.token || !hasScope('passengers:auth:read')) return;
+  try {
+    const file = await api.getPassengerPhoto(
+      state.token,
+      passengerId,
+    );
+    if (
+      state.selectedPassenger?.passenger?.passengerId !== passengerId
+    ) {
+      return;
+    }
+    clearPassengerPhoto();
+    const blob = new Blob([file.bytes], { type: file.contentType });
+    state.passengerPhotoObjectUrl = URL.createObjectURL(blob);
+    const image = byId('passenger-photo-preview');
+    image.src = state.passengerPhotoObjectUrl;
+    image.hidden = false;
+    byId('passenger-photo-empty').hidden = true;
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      clearPassengerPhoto();
+      return;
+    }
+    clearPassengerPhoto();
+    byId('passenger-photo-empty').textContent =
+      'Não foi possível carregar a foto cadastrada.';
+  }
 }
 
 function renderPassengerDetail(payload) {
@@ -4825,6 +5019,9 @@ async function lookupPassenger(passengerId) {
       wallet,
       notifications,
     });
+    if (profile?.passenger?.photoUpdatedAt) {
+      void loadPassengerPhoto(passengerId);
+    }
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -6051,6 +6248,19 @@ async function loadDriverDocumentAlerts({ announce = false } = {}) {
 
 async function lookupDriver(driverId) {
   if (!state.token) return;
+  state.currentDriver = null;
+  state.currentDriverRegistry = null;
+  state.currentDriverDocuments = null;
+  state.currentDriverCashPolicy = null;
+  state.currentDriverFinance = null;
+  renderDriverUnavailable(
+    'Carregando motorista…',
+    `Consultando os dados atuais de ${driverId}.`,
+  );
+  renderDriverRegistryUnavailable('Carregando cadastro operacional…');
+  renderDriverDocumentsUnavailable('Carregando documentos…');
+  renderDriverCashPolicyUnavailable('Carregando política cash…');
+  renderDriverFinanceUnavailable('Carregando financeiro…');
   try {
     const driver = await api.getDriver(state.token, driverId);
     state.currentDriver = driver;
@@ -6059,6 +6269,7 @@ async function lookupDriver(driverId) {
     await loadDriverRegistry(driverId);
     await loadDriverDocuments(driverId);
     await loadDriverCashPolicy(driverId);
+    await loadDriverFinance(driverId);
   } catch (error) {
     if (
       error instanceof AdminApiError &&
@@ -6075,8 +6286,27 @@ async function lookupDriver(driverId) {
       renderDriverCashPolicyUnavailable(
         'Provisione o motorista antes de configurar limite cash.',
       );
+      renderDriverFinanceUnavailable(
+        'Provisione o motorista antes de consultar o financeiro.',
+      );
       return;
     }
+    renderDriverUnavailable(
+      'Não foi possível atualizar o motorista',
+      'A ficha anterior foi removida. Tente consultar novamente.',
+    );
+    renderDriverRegistryUnavailable(
+      'Não foi possível atualizar o cadastro operacional.',
+    );
+    renderDriverDocumentsUnavailable(
+      'Não foi possível atualizar os documentos.',
+    );
+    renderDriverCashPolicyUnavailable(
+      'Não foi possível atualizar a política cash.',
+    );
+    renderDriverFinanceUnavailable(
+      'Não foi possível atualizar o financeiro.',
+    );
     handleAuthenticatedError(error);
   }
 }
@@ -6116,6 +6346,7 @@ async function handleDriverProvision(event) {
     await loadDriverRegistry(driverId);
     await loadDriverDocuments(driverId);
     await loadDriverCashPolicy(driverId);
+    await loadDriverFinance(driverId);
     setMessage(
       globalMessage,
       result.created
@@ -7740,6 +7971,7 @@ function initializeRouteView(view) {
       items: [],
     });
     renderDriverCashPolicyUnavailable();
+    renderDriverFinanceUnavailable();
     renderOperationalSettings();
     renderDriverSummary(state.driverDirectory.summary);
     renderDriverDirectory();

@@ -1597,6 +1597,27 @@ td strong {
   margin-bottom: 18px;
 }
 
+.driver-registry-photo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
+.driver-registry-photo img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--raised);
+}
+
+.driver-registry-photo figcaption {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .driver-registry-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2534,6 +2555,16 @@ td strong {
   font-size: 12px;
 }
 
+.passenger-photo-panel img {
+  display: block;
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
 .passenger-saved-places-table,
 .passenger-notification-devices-table {
   min-width: 620px;
@@ -2730,6 +2761,49 @@ td strong {
   margin-top: 18px;
 }
 
+.driver-finance-card {
+  margin-top: 18px;
+}
+
+.driver-finance-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.driver-finance-summary > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.driver-finance-summary span,
+.driver-finance-summary strong {
+  display: block;
+}
+
+.driver-finance-summary span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.driver-finance-summary strong {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+#driver-finance-statement {
+  padding: 0 16px 16px;
+}
+
+.driver-finance-table {
+  min-width: 1080px;
+}
+
 .driver-cash-policy-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -2783,7 +2857,8 @@ td strong {
 
 @media (max-width: 900px) {
   .driver-cash-policy-summary,
-  .driver-cash-policy-form {
+  .driver-cash-policy-form,
+  .driver-finance-summary {
     grid-template-columns: 1fr;
   }
 
