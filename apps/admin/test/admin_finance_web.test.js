@@ -403,3 +403,16 @@ test('ADM bloqueia mutações financeiras quando o snapshot fica desatualizado',
     'todos os handlers financeiros sensíveis devem falhar fechado',
   );
 });
+
+
+test('ADM limpa saque selecionado antes de consultar outro detalhe', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /async function openFinancePayout\(payoutId\)[\s\S]*?renderFinancePayoutDetail\(null\);[\s\S]*?api\.financePayout\(state\.token, payoutId\)/,
+  );
+});
