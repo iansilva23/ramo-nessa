@@ -20,6 +20,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 1. **Core ainda não está pronto para produção**
    - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
+   - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; para produção ainda faltam `PUSH_PROVIDER=fcm`, Service Account Firebase privada no Core e os Secrets Firebase de build dos apps;
+   - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
    - falta gateway real, conciliação e repasse Pix;
    - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
    - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
@@ -83,6 +85,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - fechamento/reabertura;
    - troca de rede;
    - dois aparelhos simultâneos Passageiro/Motorista;
+   - entrega real de Push FCM em Android e iPhone, incluindo app aberto, background e token renovado;
    - cenários reais de pagamento e cancelamento.
 
 10. **Regras de acesso/eligibilidade e geografia**
