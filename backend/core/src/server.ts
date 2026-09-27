@@ -3130,15 +3130,33 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'pricing:write',
       });
-      const patch = parsePricingCatalogDraftPatch(
-        await readJson(request),
-      );
+      const body = await readJson(request);
+      const expectedUpdatedAt =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        'expectedUpdatedAt' in body
+          ? String(
+              (body as { expectedUpdatedAt?: unknown })
+                .expectedUpdatedAt ?? '',
+            ).trim()
+          : '';
+      if (
+        expectedUpdatedAt &&
+        !Number.isFinite(Date.parse(expectedUpdatedAt))
+      ) {
+        throw new InvalidAdminRequestError(
+          'expectedUpdatedAt deve ser uma data ISO válida.',
+        );
+      }
+      const patch = parsePricingCatalogDraftPatch(body);
       const updated = await updatePricingCatalogDraft({
         versions: pricingCatalogVersionRepository,
         admin: adminRepository,
         actor,
         versionId: pricingVersionMatch[1]!,
         patch,
+        ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
       });
       json(response, 200, {
         version: pricingCatalogVersionView(updated),
@@ -3181,6 +3199,12 @@ const server = createServer(async (request, response) => {
         'effectiveFrom' in body
           ? (body as { effectiveFrom?: unknown }).effectiveFrom
           : undefined;
+      const rawExpectedUpdatedAt =
+        body != null &&
+        typeof body === 'object' &&
+        'expectedUpdatedAt' in body
+          ? (body as { expectedUpdatedAt?: unknown }).expectedUpdatedAt
+          : undefined;
       if (
         rawEffectiveFrom != null &&
         typeof rawEffectiveFrom !== 'string'
@@ -3189,12 +3213,24 @@ const server = createServer(async (request, response) => {
           'effectiveFrom deve ser uma data ISO em texto.',
         );
       }
+      if (
+        rawExpectedUpdatedAt != null &&
+        (typeof rawExpectedUpdatedAt !== 'string' ||
+          !Number.isFinite(Date.parse(rawExpectedUpdatedAt)))
+      ) {
+        throw new InvalidAdminRequestError(
+          'expectedUpdatedAt deve ser uma data ISO válida.',
+        );
+      }
 
       const published = await publishPricingCatalogVersion({
         versions: pricingCatalogVersionRepository,
         admin: adminRepository,
         actor,
         versionId: pricingPublishMatch[1]!,
+        ...(rawExpectedUpdatedAt == null
+          ? {}
+          : { expectedUpdatedAt: rawExpectedUpdatedAt }),
         ...(rawEffectiveFrom == null
           ? {}
           : { effectiveFrom: rawEffectiveFrom }),
@@ -5925,6 +5961,7 @@ const server = createServer(async (request, response) => {
         error.code === 'PRICING_RULE_NOT_FOUND'
           ? 404
           : error.code === 'PRICING_VERSION_NOT_DRAFT' ||
+              error.code === 'PRICING_VERSION_CONFLICT' ||
               error.code === 'PRICING_STRUCTURE_CONFLICT'
             ? 409
             : 400;
