@@ -188,7 +188,7 @@ jobs:
       - name: Configure Driver Google Maps iOS key
         working-directory: apps/driver/ios/Flutter
         env:
-          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
         run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
       - name: Build Driver iOS simulator
