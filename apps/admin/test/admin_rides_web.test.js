@@ -189,3 +189,29 @@ test('HTML de Viagens contém histórico e cancelamento administrativo protegido
   assert.match(app, /pending_external_gateway/);
   assert.equal(app.includes('.innerHTML'), false);
 });
+
+
+test('ADM confirma cancelamento e permite retry do estorno pendente', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /ADMIN_CANCELLABLE_RIDE_STATES[\s\S]*?'CANCELLED_BY_ADMIN'[\s\S]*?'REFUND_PENDING'/,
+  );
+  assert.match(app, /Tentar estorno novamente/);
+  assert.match(
+    app,
+    /Confirmar cancelamento administrativo desta corrida/,
+  );
+  assert.match(
+    app,
+    /Tentar concluir o estorno desta corrida novamente/,
+  );
+  assert.match(
+    app,
+    /catch \(error\)[\s\S]*?handleAuthenticatedError\(error\)[\s\S]*?loadRideDirectory\([\s\S]*?lookupRide\(ride\.id\)/,
+  );
+});
