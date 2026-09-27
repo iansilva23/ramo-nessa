@@ -3,11 +3,35 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
+import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../../core/config/driver_map_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../domain/driver_models.dart';
 import '../../domain/driver_route_info.dart';
+
+@visibleForTesting
+List<domain.LatLng> driverVisibleRoutePoints(
+  List<domain.LatLng> points,
+  double progress,
+) {
+  if (points.length < 2) return points;
+  final clamped = progress.clamp(0.0, 1.0).toDouble();
+  if (clamped >= 1) return points;
+
+  final scaled = clamped * (points.length - 1);
+  final segment = scaled.floor().clamp(0, points.length - 2).toInt();
+  final segmentProgress = scaled - segment;
+  final from = points[segment];
+  final to = points[segment + 1];
+  return [
+    ...points.take(segment + 1),
+    domain.LatLng(
+      from.latitude + (to.latitude - from.latitude) * segmentProgress,
+      from.longitude + (to.longitude - from.longitude) * segmentProgress,
+    ),
+  ];
+}
 
 class DriverMapController {
   gm.GoogleMapController? _nativeController;
@@ -46,6 +70,44 @@ class DriverMapController {
     );
   }
 
+  Future<void> fitCoordinates(
+    List<domain.LatLng> coordinates, {
+    double padding = 90,
+    double maxZoom = 16.5,
+  }) async {
+    final controller = _nativeController;
+    if (!ready || controller == null || coordinates.isEmpty) return;
+    if (coordinates.length == 1) {
+      await move(coordinates.first, maxZoom);
+      return;
+    }
+
+    var minLatitude = coordinates.first.latitude;
+    var maxLatitude = coordinates.first.latitude;
+    var minLongitude = coordinates.first.longitude;
+    var maxLongitude = coordinates.first.longitude;
+    for (final point in coordinates.skip(1)) {
+      minLatitude = math.min(minLatitude, point.latitude);
+      maxLatitude = math.max(maxLatitude, point.latitude);
+      minLongitude = math.min(minLongitude, point.longitude);
+      maxLongitude = math.max(maxLongitude, point.longitude);
+    }
+
+    await controller.animateCamera(
+      gm.CameraUpdate.newLatLngBounds(
+        gm.LatLngBounds(
+          southwest: gm.LatLng(minLatitude, minLongitude),
+          northeast: gm.LatLng(maxLatitude, maxLongitude),
+        ),
+        padding,
+      ),
+    );
+    final currentZoom = await controller.getZoomLevel();
+    if (currentZoom > maxZoom) {
+      await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom));
+    }
+  }
+
   void dispose() {
     _disposed = true;
     detach();
@@ -79,7 +141,7 @@ class DriverLiveMap extends StatefulWidget {
 }
 
 class _DriverLiveMapState extends State<DriverLiveMap>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
   double _driverBearing = 0;
@@ -89,6 +151,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   domain.LatLng? _driverAnimationFrom;
   domain.LatLng? _driverAnimationTo;
   late final AnimationController _driverMoveController;
+  late final AnimationController _routeDrawController;
   gm.BitmapDescriptor _passengerIcon =
       gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon =
@@ -115,8 +178,32 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       vsync: this,
       duration: const Duration(milliseconds: 720),
     )..addListener(_tickDriverMovement);
+    _routeDrawController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..addListener(_tickRouteDrawing);
+    if ((widget.route?.points.length ?? 0) >= 2) {
+      _routeDrawController.forward(from: 0);
+    }
     _notifyPlaceholderReadyIfNeeded();
     _loadMarkerIcons();
+  }
+
+  void _tickRouteDrawing() {
+    if (mounted) setState(() {});
+  }
+
+  bool _sameRoute(DriverRouteInfo? previous, DriverRouteInfo? next) {
+    final previousPoints = previous?.points ?? const <domain.LatLng>[];
+    final nextPoints = next?.points ?? const <domain.LatLng>[];
+    if (previousPoints.length != nextPoints.length) return false;
+    for (var index = 0; index < previousPoints.length; index += 1) {
+      if (previousPoints[index].latitude != nextPoints[index].latitude ||
+          previousPoints[index].longitude != nextPoints[index].longitude) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _tickDriverMovement() {
@@ -184,9 +271,11 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   Future<void> _loadMarkerIcons() async {
     final passengerIcon = await buildRamoMapMarker(
       icon: Icons.person_rounded,
+      assetName: RamoMapMarkerAssets.passenger,
       background: const Color(0xFFFFFFFF),
       foreground: const Color(0xFF111111),
       border: const Color(0xFFFFC400),
+      logicalSize: 58,
     );
     final destinationIcon = await buildRamoMapMarker(
       icon: Icons.flag_rounded,
@@ -205,6 +294,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     ]) {
       vehicleIcons[category] = await buildRamoMapMarker(
         icon: ramoVehicleIcon(category),
+        assetName: ramoVehicleMarkerAsset(category),
+        logicalSize: 62,
       );
     }
 
@@ -256,6 +347,15 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     if (oldWidget.networkTilesEnabled != widget.networkTilesEnabled) {
       _notifyPlaceholderReadyIfNeeded();
+    }
+
+    if (!_sameRoute(oldWidget.route, widget.route)) {
+      if ((widget.route?.points.length ?? 0) < 2) {
+        _routeDrawController.stop();
+        _routeDrawController.value = 0;
+      } else {
+        _routeDrawController.forward(from: 0);
+      }
     }
 
     final previousSupply = oldWidget.supply;
@@ -378,11 +478,15 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   Set<gm.Polyline> get _polylines {
     final route = widget.route;
     if (route == null || route.points.length < 2) return const {};
+    final visiblePoints = driverVisibleRoutePoints(
+      route.points,
+      Curves.easeOutCubic.transform(_routeDrawController.value),
+    );
 
     return {
       gm.Polyline(
         polylineId: const gm.PolylineId('driver-route'),
-        points: route.points
+        points: visiblePoints
             .map(
               (point) => gm.LatLng(
                 point.latitude,
@@ -400,6 +504,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   @override
   void dispose() {
     _driverMoveController.dispose();
+    _routeDrawController.dispose();
     widget.controller.detach();
     _nativeController = null;
     super.dispose();

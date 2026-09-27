@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
+import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
   const route = DriverRouteInfo(
@@ -77,5 +78,14 @@ void main() {
           ?.instruction,
       'Continue pela rota.',
     );
+  });
+
+  test('desenho da rota avança progressivamente até o passageiro', () {
+    final halfway = driverVisibleRoutePoints(route.points, .5);
+
+    expect(halfway.first, route.points.first);
+    expect(halfway.last.latitude, route.points[1].latitude + .0025);
+    expect(halfway.last.longitude, route.points[1].longitude);
+    expect(driverVisibleRoutePoints(route.points, 1), same(route.points));
   });
 }

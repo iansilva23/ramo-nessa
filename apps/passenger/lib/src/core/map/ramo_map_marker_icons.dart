@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
+import 'package:ramo_design_system/ramo_design_system.dart';
 
 IconData ramoVehicleIcon(String? category) => switch (category) {
       'moto' => Icons.two_wheeler_rounded,
@@ -14,11 +16,26 @@ IconData ramoVehicleIcon(String? category) => switch (category) {
 
 Future<gm.BitmapDescriptor> buildRamoMapMarker({
   required IconData icon,
+  String? assetName,
   Color background = const Color(0xFFFFC400),
   Color foreground = const Color(0xFF111111),
   Color border = Colors.white,
   double logicalSize = 54,
 }) async {
+  if (assetName != null) {
+    try {
+      final data = await rootBundle.load(assetName);
+      return gm.BitmapDescriptor.bytes(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        width: logicalSize,
+        height: logicalSize,
+      );
+    } catch (_) {
+      // O marcador vetorial abaixo mantém o mapa utilizável se o asset
+      // estiver ausente ou corrompido em uma distribuição incompleta.
+    }
+  }
+
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
   final center = Offset(logicalSize / 2, logicalSize / 2);
@@ -82,3 +99,6 @@ Future<gm.BitmapDescriptor> buildRamoMapMarker({
     height: logicalSize,
   );
 }
+
+String ramoVehicleMarkerAsset(String? category) =>
+    RamoMapMarkerAssets.vehicle(category);

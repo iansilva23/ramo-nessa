@@ -22,6 +22,11 @@ Aplicativo Flutter do motorista, separado do Passageiro.
 - embarque e destino exatos ficam disponíveis para o fluxo de navegação;
 - botão abre navegação externa para embarque antes da corrida;
 - após iniciar, botão abre navegação externa para o destino exato;
+- navegação interna desenha e enquadra a rota até o passageiro e, após iniciar,
+  troca para a rota até o destino;
+- marcadores 3D de carro, moto, entrega e buggy giram conforme o rumo;
+- Preview usa Google Routes via Core quando `RAMO_CORE_BASE_URL` HTTPS estiver
+  configurada; sem ela, mantém uma rota demonstrativa offline;
 - APK debug publicado como artefato do Driver CI.
 
 ## Segurança

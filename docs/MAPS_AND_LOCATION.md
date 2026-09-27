@@ -17,7 +17,10 @@ Os apps não acessam Routes ou Places diretamente. O Passenger e o Driver falam 
 - busca de lugares: Google Places API (New) via Core;
 - rota, distância, ETA e geometria: Google Routes API via Core;
 - matching por distância roteada: Google Routes API via Core;
-- Preview: serviços locais/fakes, sem chamadas Google;
+- Preview sem `RAMO_PREVIEW_CORE_BASE_URL`: catálogo/rotas locais claramente
+  demonstrativos;
+- Preview com `RAMO_PREVIEW_CORE_BASE_URL` HTTPS: Passageiro usa Places/Routes
+  e Motorista usa Routes via Core de teste, sem expor a chave de servidor;
 - Test Stack: mock local compatível com os contratos de Routes/Places, sem consumo externo.
 
 ## Segurança das chaves

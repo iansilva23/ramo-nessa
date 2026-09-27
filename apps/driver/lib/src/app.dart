@@ -41,6 +41,10 @@ class RamoNessaDriverApp extends StatelessWidget {
     final coreUri = DriverCoreConfig.baseUri;
     final preview =
         DriverCoreConfig.previewMode ? DriverPreviewDependencies() : null;
+    final resolvedRouteService = routeService ??
+        (DriverCoreConfig.previewMode && coreUri != null
+            ? CoreDriverRouteService(baseUrl: coreUri)
+            : preview?.route);
     final restoredToken = accessToken?.trim();
     final initialToken =
         restoredToken != null && restoredToken.length >= 20
@@ -57,7 +61,7 @@ class RamoNessaDriverApp extends StatelessWidget {
           api: api ?? preview?.api,
           locationService: locationService ?? preview?.location,
           navigationService: navigationService ?? preview?.navigation,
-          routeService: routeService ?? preview?.route,
+          routeService: resolvedRouteService,
           realtimeService: realtimeService,
         );
 

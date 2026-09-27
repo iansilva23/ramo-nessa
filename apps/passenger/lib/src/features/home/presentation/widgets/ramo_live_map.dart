@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
+import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../../core/config/ramo_map_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
@@ -268,9 +269,11 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   Future<void> _loadMarkerIcons() async {
     final passengerIcon = await buildRamoMapMarker(
       icon: Icons.person_rounded,
+      assetName: RamoMapMarkerAssets.passenger,
       background: const Color(0xFFFFFFFF),
       foreground: const Color(0xFF111111),
       border: const Color(0xFFFFC400),
+      logicalSize: 58,
     );
     final destinationIcon = await buildRamoMapMarker(
       icon: Icons.flag_rounded,
@@ -280,11 +283,15 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     );
     final driverIcon = await buildRamoMapMarker(
       icon: ramoVehicleIcon(widget.driverCategory),
+      assetName: ramoVehicleMarkerAsset(widget.driverCategory),
+      logicalSize: 62,
     );
     final staleDriverIcon = await buildRamoMapMarker(
       icon: ramoVehicleIcon(widget.driverCategory),
+      assetName: ramoVehicleMarkerAsset(widget.driverCategory),
       background: const Color(0xFFB23A3A),
       foreground: const Color(0xFFFFFFFF),
+      logicalSize: 62,
     );
     if (!mounted) return;
     setState(() {

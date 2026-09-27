@@ -176,10 +176,24 @@ jobs:
             echo "Firebase push configurado para o Preview Motorista."
           fi
 
+      - name: Check Driver connected Preview Core
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_PREVIEW_CORE_BASE_URL }}
+        run: |
+          if [ -z "$RAMO_CORE_BASE_URL" ]; then
+            echo "::warning::RAMO_PREVIEW_CORE_BASE_URL não configurado; a rota do Motorista será demonstrativa."
+          elif [[ "$RAMO_CORE_BASE_URL" != https://* ]]; then
+            echo "::error::RAMO_PREVIEW_CORE_BASE_URL precisa usar HTTPS."
+            exit 1
+          else
+            echo "Preview Motorista conectado ao Core de teste para Google Routes."
+          fi
+
       - name: Build Driver Preview APK
         working-directory: apps/driver
         env:
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_PREVIEW_CORE_BASE_URL }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
           RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
@@ -190,6 +204,7 @@ jobs:
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=RAMO_PREVIEW_MODE=true
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
           --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
           --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
           --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
