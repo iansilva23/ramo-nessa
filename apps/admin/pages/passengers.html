@@ -163,6 +163,73 @@
                 </small>
               </div>
 
+              <section id="passenger-operational-detail" class="passenger-operational-detail" hidden>
+                <div class="form-section-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">OPERAÇÃO</span>
+                    <h3>Carteira, locais e notificações</h3>
+                  </div>
+                  <small>Consulta somente leitura; credenciais e tokens nunca são exibidos.</small>
+                </div>
+
+                <div class="passenger-detail-summary passenger-operational-summary">
+                  <div>
+                    <span>Saldo da carteira</span>
+                    <strong id="passenger-wallet-balance">Sem permissão</strong>
+                  </div>
+                  <div>
+                    <span>Locais salvos</span>
+                    <strong id="passenger-saved-places-count">0</strong>
+                  </div>
+                  <div>
+                    <span>Dispositivos push ativos</span>
+                    <strong id="passenger-notification-devices-count">Sem permissão</strong>
+                  </div>
+                </div>
+
+                <div class="passenger-operational-columns">
+                  <div>
+                    <h4>Locais salvos</h4>
+                    <div class="table-wrap">
+                      <table class="passenger-saved-places-table">
+                        <thead>
+                          <tr>
+                            <th>Tipo</th>
+                            <th>Local</th>
+                            <th>Endereço</th>
+                            <th>Atualizado</th>
+                          </tr>
+                        </thead>
+                        <tbody id="passenger-saved-places-body"></tbody>
+                      </table>
+                    </div>
+                    <div id="passenger-saved-places-empty" class="empty-state">
+                      Nenhum local salvo.
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4>Dispositivos de notificação</h4>
+                    <div class="table-wrap">
+                      <table class="passenger-notification-devices-table">
+                        <thead>
+                          <tr>
+                            <th>Plataforma</th>
+                            <th>Provedor</th>
+                            <th>Versão</th>
+                            <th>Última atividade</th>
+                          </tr>
+                        </thead>
+                        <tbody id="passenger-notification-devices-body"></tbody>
+                      </table>
+                    </div>
+                    <div id="passenger-notification-devices-empty" class="empty-state">
+                      Sem permissão de comunicações ou nenhum dispositivo ativo.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <div id="passenger-detail-history" hidden>
                 <div class="passenger-detail-summary">
                   <div>

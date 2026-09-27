@@ -4573,6 +4573,13 @@ function renderPassengerDetailEmpty(
   byId('passenger-profile-full-name').value = '';
   byId('passenger-profile-email').value = '';
   byId('passenger-detail-rides-body').replaceChildren();
+  byId('passenger-operational-detail').hidden = true;
+  byId('passenger-wallet-balance').textContent = 'Sem permissão';
+  byId('passenger-saved-places-count').textContent = '0';
+  byId('passenger-notification-devices-count').textContent =
+    'Sem permissão';
+  byId('passenger-saved-places-body').replaceChildren();
+  byId('passenger-notification-devices-body').replaceChildren();
 }
 
 function passengerDetailItem(label, value) {
@@ -4584,6 +4591,80 @@ function passengerDetailItem(label, value) {
   data.textContent = value;
   item.append(term, data);
   return item;
+}
+
+function savedPlaceKindLabel(kind) {
+  if (kind === 'home') return 'Casa';
+  if (kind === 'work') return 'Trabalho';
+  return 'Personalizado';
+}
+
+function renderPassengerOperationalDetail(payload) {
+  const savedPlaces = Array.isArray(payload?.savedPlaces)
+    ? payload.savedPlaces
+    : [];
+  byId('passenger-saved-places-count').textContent = String(
+    savedPlaces.length,
+  );
+
+  const placesBody = byId('passenger-saved-places-body');
+  placesBody.replaceChildren();
+  for (const place of savedPlaces) {
+    const row = document.createElement('tr');
+    const kind = document.createElement('td');
+    kind.textContent = savedPlaceKindLabel(place.kind);
+    const name = document.createElement('td');
+    name.textContent = place.name || place.label || '—';
+    const address = document.createElement('td');
+    address.textContent = place.address || '—';
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(place.updatedAt);
+    row.append(kind, name, address, updated);
+    placesBody.append(row);
+  }
+  byId('passenger-saved-places-empty').hidden =
+    savedPlaces.length !== 0;
+
+  const wallet = payload?.wallet;
+  byId('passenger-wallet-balance').textContent =
+    wallet == null
+      ? 'Sem permissão'
+      : formatCurrencyCents(wallet.balanceCents);
+
+  const notifications = payload?.notifications;
+  const devices = Array.isArray(notifications?.devices)
+    ? notifications.devices
+    : [];
+  byId('passenger-notification-devices-count').textContent =
+    notifications == null
+      ? 'Sem permissão'
+      : String(Number(notifications.enabledDevices ?? devices.length));
+
+  const devicesBody = byId('passenger-notification-devices-body');
+  devicesBody.replaceChildren();
+  for (const device of devices) {
+    const row = document.createElement('tr');
+    const platform = document.createElement('td');
+    platform.textContent =
+      device.platform === 'ios' ? 'iOS' : 'Android';
+    const provider = document.createElement('td');
+    provider.textContent = String(device.provider ?? '—').toUpperCase();
+    const version = document.createElement('td');
+    version.textContent = device.appVersion
+      ? `${device.appVersion}${device.buildNumber == null ? '' : ` (${device.buildNumber})`}`
+      : device.buildNumber == null
+        ? '—'
+        : String(device.buildNumber);
+    const lastSeen = document.createElement('td');
+    lastSeen.textContent = formatDateTime(
+      device.lastSeenAt ?? device.updatedAt,
+    );
+    row.append(platform, provider, version, lastSeen);
+    devicesBody.append(row);
+  }
+  byId('passenger-notification-devices-empty').hidden =
+    devices.length !== 0;
+  byId('passenger-operational-detail').hidden = false;
 }
 
 function renderPassengerDetail(payload) {
@@ -4713,6 +4794,7 @@ function renderPassengerDetail(payload) {
 
   byId('passenger-detail-rides-empty').hidden = rides.length !== 0;
   byId('passenger-detail-history').hidden = false;
+  renderPassengerOperationalDetail(payload);
 }
 
 async function lookupPassenger(passengerId) {
@@ -4727,9 +4809,22 @@ async function lookupPassenger(passengerId) {
     return;
   }
 
+  renderPassengerDetailEmpty('Carregando ficha do passageiro…');
   try {
-    const payload = await api.getPassenger(state.token, passengerId);
-    renderPassengerDetail(payload);
+    const [profile, wallet, notifications] = await Promise.all([
+      api.getPassenger(state.token, passengerId),
+      hasScope('finance:read')
+        ? api.getPassengerWallet(state.token, passengerId)
+        : Promise.resolve(null),
+      hasScope('communications:read')
+        ? api.getPassengerNotifications(state.token, passengerId)
+        : Promise.resolve(null),
+    ]);
+    renderPassengerDetail({
+      ...profile,
+      wallet,
+      notifications,
+    });
   } catch (error) {
     if (
       error instanceof AdminApiError &&

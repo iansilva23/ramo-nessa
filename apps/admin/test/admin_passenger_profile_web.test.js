@@ -98,6 +98,44 @@ test('cliente Admin altera acesso do passageiro sem vazar Bearer', async () => {
   );
 });
 
+test('cliente Admin consulta carteira e notificações com endpoints separados', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(
+      200,
+      url.endsWith('/wallet')
+        ? { balanceCents: 4250 }
+        : { enabledDevices: 1, devices: [] },
+    );
+  });
+
+  const token = 'rn_admin_session_passenger_operations_secret';
+  const passengerId = 'passenger-profile-001';
+  const wallet = await api.getPassengerWallet(token, passengerId);
+  const notifications = await api.getPassengerNotifications(
+    token,
+    passengerId,
+  );
+
+  assert.equal(wallet.balanceCents, 4250);
+  assert.equal(notifications.enabledDevices, 1);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [
+      '/v1/admin/passengers/passenger-profile-001/wallet',
+      '/v1/admin/passengers/passenger-profile-001/notifications',
+    ],
+  );
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+  }
+});
+
 test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', () => {
   const html = [
     readFileSync(
@@ -137,11 +175,24 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
     'passenger-profile-email',
     'passenger-profile-save-button',
     'passenger-profile-edit-note',
+    'passenger-operational-detail',
+    'passenger-wallet-balance',
+    'passenger-saved-places-count',
+    'passenger-saved-places-body',
+    'passenger-saved-places-empty',
+    'passenger-notification-devices-count',
+    'passenger-notification-devices-body',
+    'passenger-notification-devices-empty',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 
   assert.match(app, /api\.getPassenger\(state\.token, passengerId\)/);
+  assert.match(app, /api\.getPassengerWallet\(state\.token, passengerId\)/);
+  assert.match(
+    app,
+    /api\.getPassengerNotifications\(state\.token, passengerId\)/,
+  );
   assert.match(app, /hasScope\('passengers:auth:read'\)/);
   assert.match(app, /hasScope\('passengers:auth:write'\)/);
   assert.match(app, /hasScope\('rides:read'\)/);
@@ -153,6 +204,9 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
   assert.match(app, /passenger\.email/);
   assert.match(app, /lookupPassenger\(passenger\.passengerId\)/);
   assert.match(app, /completedAmountCents/);
+  assert.match(app, /renderPassengerOperationalDetail/);
+  assert.match(app, /hasScope\('finance:read'\)/);
+  assert.match(app, /hasScope\('communications:read'\)/);
   assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
@@ -164,6 +218,9 @@ test('frontend de Passageiros expõe ficha, histórico e bloqueio de acesso', ()
     '.passenger-profile-edit-form',
     '.passenger-profile-edit-grid',
     '.passenger-profile-edit-actions',
+    '.passenger-operational-detail',
+    '.passenger-operational-summary',
+    '.passenger-operational-columns',
   ]) {
     assert.equal(css.includes(selector), true);
   }

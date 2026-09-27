@@ -2506,6 +2506,39 @@ td strong {
   padding: 0 22px 22px;
 }
 
+.passenger-operational-detail {
+  display: grid;
+  gap: 16px;
+  margin: 0 22px 22px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--raised);
+}
+
+.passenger-operational-detail[hidden] {
+  display: none;
+}
+
+.passenger-operational-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.passenger-operational-columns {
+  display: grid;
+  gap: 18px;
+}
+
+.passenger-operational-columns h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.passenger-saved-places-table,
+.passenger-notification-devices-table {
+  min-width: 620px;
+}
+
 .passenger-detail-summary {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 16px;
@@ -3846,6 +3879,15 @@ td strong {
 }
 
 @media (max-width: 720px) {
+  .passenger-operational-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .passenger-operational-detail {
+    margin-inline: 14px;
+    padding: 14px;
+  }
+
   .passenger-profile-edit-grid {
     grid-template-columns: 1fr;
   }

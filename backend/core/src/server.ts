@@ -255,7 +255,9 @@ import {
 } from './admin/admin-driver-cash-policy-service.js';
 import {
   AdminPassengerError,
+  adminPassengerNotificationsView,
   adminPassengerProfile,
+  adminPassengerWalletView,
   setPassengerAuthStatusFromAdmin,
   updatePassengerProfileFromAdmin,
 } from './admin/admin-passenger-service.js';
@@ -3558,6 +3560,51 @@ const server = createServer(async (request, response) => {
     const adminPassengerMatch = requestUrl.pathname.match(
       /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)$/,
     );
+    const adminPassengerWalletMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/wallet$/,
+    );
+    if (
+      request.method === 'GET' &&
+      adminPassengerWalletMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:read',
+      });
+      const wallet = await adminPassengerWalletView({
+        identities: authOtpRepository,
+        finance: financeRepository,
+        passengerId: adminPassengerWalletMatch[1]!,
+      });
+      json(response, 200, wallet);
+      return;
+    }
+
+    const adminPassengerNotificationsMatch =
+      requestUrl.pathname.match(
+        /^\/v1\/admin\/passengers\/([A-Za-z0-9._:-]+)\/notifications$/,
+      );
+    if (
+      request.method === 'GET' &&
+      adminPassengerNotificationsMatch != null
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      const notifications = await adminPassengerNotificationsView({
+        identities: authOtpRepository,
+        devices: pushDeviceRepository,
+        passengerId: adminPassengerNotificationsMatch[1]!,
+      });
+      json(response, 200, notifications);
+      return;
+    }
+
     if (
       request.method === 'GET' &&
       adminPassengerMatch != null
@@ -3577,6 +3624,7 @@ const server = createServer(async (request, response) => {
       const profile = await adminPassengerProfile({
         identities: authOtpRepository,
         rides: rideRepository,
+        savedPlaces: passengerSavedPlaceRepository,
         passengerId: adminPassengerMatch[1]!,
       });
       json(response, 200, profile);

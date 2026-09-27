@@ -3,11 +3,15 @@ import test from 'node:test';
 
 import {
   AdminPassengerError,
+  adminPassengerNotificationsView,
   adminPassengerProfile,
+  adminPassengerWalletView,
   updatePassengerProfileFromAdmin,
 } from '../src/admin/admin-passenger-service.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
 import { InMemoryAuthOtpRepository } from '../src/auth/repositories/in-memory-auth-otp-repository.js';
+import { InMemoryPushDeviceRepository } from '../src/notifications/repositories/in-memory-push-device-repository.js';
+import { InMemoryPassengerSavedPlaceRepository } from '../src/passengers/repositories/in-memory-passenger-saved-place-repository.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
 
@@ -49,6 +53,7 @@ function ride(input: {
 test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', async () => {
   const identities = new InMemoryAuthOtpRepository();
   const rides = new InMemoryRideRepository();
+  const savedPlaces = new InMemoryPassengerSavedPlaceRepository();
 
   await identities.createIdentity({
     id: '11111111-1111-4111-8111-111111111111',
@@ -69,6 +74,18 @@ test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', a
       updatedAt: '2026-09-22T12:00:00.000Z',
     }),
   );
+  await savedPlaces.save({
+    id: 'saved-place-home-001',
+    passengerId: 'passenger-profile-001',
+    kind: 'home',
+    label: 'Casa',
+    name: 'Casa da Maria',
+    address: 'Rua Principal, 100',
+    latitude: -2.82017,
+    longitude: -40.41467,
+    createdAt: '2026-09-21T12:00:00.000Z',
+    updatedAt: '2026-09-23T12:00:00.000Z',
+  });
   await rides.create(
     ride({
       id: '33333333-3333-4333-8333-333333333333',
@@ -91,6 +108,7 @@ test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', a
   const profile = await adminPassengerProfile({
     identities,
     rides,
+    savedPlaces,
     passengerId: 'passenger-profile-001',
   });
 
@@ -111,6 +129,22 @@ test('ficha Admin do passageiro agrega identidade e histórico exato sem GPS', a
     completedAmountCents: 12000,
   });
   assert.equal(profile.recentRides.length, 2);
+  assert.deepEqual(profile.savedPlaces, [
+    {
+      id: 'saved-place-home-001',
+      kind: 'home',
+      label: 'Casa',
+      name: 'Casa da Maria',
+      address: 'Rua Principal, 100',
+      createdAt: '2026-09-21T12:00:00.000Z',
+      updatedAt: '2026-09-23T12:00:00.000Z',
+    },
+  ]);
+  assert.equal(
+    'latitude' in profile.savedPlaces[0]! ||
+      'longitude' in profile.savedPlaces[0]!,
+    false,
+  );
   assert.equal(
     profile.recentRides[0]?.id,
     '33333333-3333-4333-8333-333333333333',
@@ -129,12 +163,80 @@ test('ficha Admin retorna erro explícito para passageiro inexistente', async ()
       adminPassengerProfile({
         identities: new InMemoryAuthOtpRepository(),
         rides: new InMemoryRideRepository(),
+        savedPlaces: new InMemoryPassengerSavedPlaceRepository(),
         passengerId: 'passenger-missing',
       }),
     (error: unknown) =>
       error instanceof AdminPassengerError &&
       error.code === 'PASSENGER_NOT_FOUND',
   );
+});
+
+test('Admin consulta carteira e notificações do passageiro sem expor credenciais', async () => {
+  const identities = new InMemoryAuthOtpRepository();
+  const devices = new InMemoryPushDeviceRepository();
+  await identities.createIdentity({
+    id: '55555555-5555-4555-8555-555555555550',
+    subjectId: 'passenger-operations-001',
+    subjectType: 'passenger',
+    phoneE164: '+5588999991999',
+    status: 'active',
+    createdAt: '2026-09-26T18:00:00.000Z',
+    updatedAt: '2026-09-26T18:00:00.000Z',
+  });
+  await devices.registerForSession({
+    id: 'push-device-passenger-001',
+    sessionId: 'private-session-id',
+    subjectId: 'passenger-operations-001',
+    subjectType: 'passenger',
+    platform: 'android',
+    provider: 'fcm',
+    token: 'private-fcm-token',
+    tokenHash: 'private-fcm-token-hash',
+    appVersion: '1.2.3',
+    buildNumber: 123,
+    createdAt: '2026-09-26T18:00:00.000Z',
+    updatedAt: '2026-09-26T19:00:00.000Z',
+  });
+
+  const requestedAccounts: string[] = [];
+  const wallet = await adminPassengerWalletView({
+    identities,
+    finance: {
+      async getAccountBalanceCents(accountKey) {
+        requestedAccounts.push(accountKey);
+        return 4250;
+      },
+    },
+    passengerId: 'passenger-operations-001',
+  });
+  const notifications = await adminPassengerNotificationsView({
+    identities,
+    devices,
+    passengerId: 'passenger-operations-001',
+  });
+
+  assert.deepEqual(requestedAccounts, [
+    'passenger:passenger-operations-001:wallet',
+  ]);
+  assert.deepEqual(wallet, { balanceCents: 4250 });
+  assert.deepEqual(notifications, {
+    enabledDevices: 1,
+    devices: [
+      {
+        platform: 'android',
+        provider: 'fcm',
+        appVersion: '1.2.3',
+        buildNumber: 123,
+        lastSeenAt: '2026-09-26T19:00:00.000Z',
+        updatedAt: '2026-09-26T19:00:00.000Z',
+      },
+    ],
+  });
+  const serialized = JSON.stringify(notifications);
+  assert.equal(serialized.includes('private-fcm-token'), false);
+  assert.equal(serialized.includes('private-session-id'), false);
+  assert.equal(serialized.includes('tokenHash'), false);
 });
 
 

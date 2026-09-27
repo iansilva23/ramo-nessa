@@ -9,6 +9,9 @@ import {
   normalizePassengerName,
 } from '../auth/passenger-password-auth-service.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
+import type { PushDeviceRepository } from '../notifications/push-device-repository.js';
+import type { PassengerSavedPlaceRepository } from '../passengers/passenger-saved-place-repository.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { AdminActor, AdminRepository } from './admin-repository.js';
 
@@ -30,6 +33,7 @@ export class AdminPassengerError extends Error {
 export async function adminPassengerProfile(input: {
   identities: AuthOtpRepository;
   rides: RideRepository;
+  savedPlaces: Pick<PassengerSavedPlaceRepository, 'listByPassenger'>;
   passengerId: string;
   recentLimit?: number;
 }) {
@@ -49,12 +53,13 @@ export async function adminPassengerProfile(input: {
     1,
     Math.min(25, Math.trunc(input.recentLimit ?? 10)),
   );
-  const [rideSummary, recentRides] = await Promise.all([
+  const [rideSummary, recentRides, savedPlaces] = await Promise.all([
     input.rides.getAdminPassengerRideSummary(passengerId),
     input.rides.listAdminRecentByPassengerId(
       passengerId,
       recentLimit,
     ),
+    input.savedPlaces.listByPassenger(passengerId),
   ]);
 
   return {
@@ -68,6 +73,15 @@ export async function adminPassengerProfile(input: {
       updatedAt: identity.updatedAt,
     },
     rides: rideSummary,
+    savedPlaces: savedPlaces.map((place) => ({
+      id: place.id,
+      kind: place.kind,
+      label: place.label,
+      name: place.name,
+      address: place.address,
+      createdAt: place.createdAt,
+      updatedAt: place.updatedAt,
+    })),
     recentRides: recentRides.map((ride) => ({
       id: ride.id,
       state: ride.state,
@@ -82,6 +96,70 @@ export async function adminPassengerProfile(input: {
       totalAmountCents: ride.quote.totalAmountCents,
       createdAt: ride.createdAt,
       updatedAt: ride.updatedAt,
+    })),
+  };
+}
+
+async function requirePassenger(
+  identities: AuthOtpRepository,
+  passengerId: string,
+) {
+  const normalizedPassengerId = passengerId.trim();
+  const identity = await identities.findIdentityBySubject(
+    'passenger',
+    normalizedPassengerId,
+  );
+  if (identity == null) {
+    throw new AdminPassengerError(
+      'PASSENGER_NOT_FOUND',
+      'Passageiro não encontrado.',
+    );
+  }
+  return { identity, passengerId: normalizedPassengerId };
+}
+
+export async function adminPassengerWalletView(input: {
+  identities: AuthOtpRepository;
+  finance: Pick<FinanceRepository, 'getAccountBalanceCents'>;
+  passengerId: string;
+}) {
+  const { passengerId } = await requirePassenger(
+    input.identities,
+    input.passengerId,
+  );
+  return {
+    balanceCents: await input.finance.getAccountBalanceCents(
+      `passenger:${passengerId}:wallet`,
+    ),
+  };
+}
+
+export async function adminPassengerNotificationsView(input: {
+  identities: AuthOtpRepository;
+  devices: Pick<PushDeviceRepository, 'listEnabledForSubject'>;
+  passengerId: string;
+}) {
+  const { passengerId } = await requirePassenger(
+    input.identities,
+    input.passengerId,
+  );
+  const devices = await input.devices.listEnabledForSubject(
+    'passenger',
+    passengerId,
+  );
+  return {
+    enabledDevices: devices.length,
+    devices: devices.map((device) => ({
+      platform: device.platform,
+      provider: device.provider,
+      ...(device.appVersion == null
+        ? {}
+        : { appVersion: device.appVersion }),
+      ...(device.buildNumber == null
+        ? {}
+        : { buildNumber: device.buildNumber }),
+      lastSeenAt: device.lastSeenAt ?? null,
+      updatedAt: device.updatedAt,
     })),
   };
 }

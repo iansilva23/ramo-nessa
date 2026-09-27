@@ -512,6 +512,20 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    getPassengerWallet(token, passengerId) {
+      return request(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}/wallet`,
+        { token },
+      );
+    },
+
+    getPassengerNotifications(token, passengerId) {
+      return request(
+        `/v1/admin/passengers/${encodeURIComponent(passengerId)}/notifications`,
+        { token },
+      );
+    },
+
     updatePassengerProfile(token, { passengerId, fullName, email }) {
       return request(
         `/v1/admin/passengers/${encodeURIComponent(passengerId)}/profile`,
