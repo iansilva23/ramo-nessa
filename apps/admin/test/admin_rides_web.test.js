@@ -215,3 +215,20 @@ test('ADM confirma cancelamento e permite retry do estorno pendente', () => {
     /catch \(error\)[\s\S]*?handleAuthenticatedError\(error\)[\s\S]*?loadRideDirectory\([\s\S]*?lookupRide\(ride\.id\)/,
   );
 });
+
+
+test('ADM desabilita ações quando o detalhe da corrida fica desatualizado', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /async function lookupRide[\s\S]*?renderRideDetailEmpty\(\s*'Não foi possível atualizar esta corrida\. Recarregue antes de executar ações\.'[\s\S]*?handleAuthenticatedError\(error\)/,
+  );
+  assert.match(
+    app,
+    /function renderRideDetailEmpty[\s\S]*?state\.selectedRide = null[\s\S]*?ride-cancel-panel'\)\.hidden = true/,
+  );
+});
