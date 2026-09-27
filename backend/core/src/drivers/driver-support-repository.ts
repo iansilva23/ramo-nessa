@@ -24,6 +24,22 @@ export interface DriverSupportTicketRecord {
   updatedAt: string;
 }
 
+export interface DriverSupportCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface DriverSupportAdminListInput {
+  status?: DriverSupportStatus;
+  limit: number;
+  cursor?: DriverSupportCursor;
+}
+
+export interface DriverSupportAdminListPage {
+  tickets: DriverSupportTicketRecord[];
+  hasMore: boolean;
+}
+
 export interface DriverSupportRepository {
   create(
     ticket: DriverSupportTicketRecord,
@@ -33,7 +49,9 @@ export interface DriverSupportRepository {
     limit: number,
   ): Promise<DriverSupportTicketRecord[]>;
   findById(id: string): Promise<DriverSupportTicketRecord | null>;
-  listRecent(limit: number): Promise<DriverSupportTicketRecord[]>;
+  listAdmin(
+    input: DriverSupportAdminListInput,
+  ): Promise<DriverSupportAdminListPage>;
   respond(input: {
     id: string;
     response: string;
