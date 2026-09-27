@@ -25,9 +25,9 @@
               <span>
                 O ADM mostra onde cada credencial deve ser colocada, mas nunca
                 exibe a chave privada do servidor. Chaves dos apps ficam em
-                GitHub Secrets e entram somente no build. Mercado Pago e OTP
-                aparecem aqui apenas como status: as credenciais continuam
-                sendo carregadas com segurança no boot do Core.
+                GitHub Secrets e entram somente no build. Mercado Pago, OTP
+                e Push aparecem aqui apenas como status: as credenciais
+                continuam sendo carregadas com segurança no boot do Core.
               </span>
             </div>
 
@@ -46,6 +46,11 @@
                 <span class="metric-label">OTP / Login por telefone</span>
                 <strong id="otp-provider-status">Verificando…</strong>
                 <small id="otp-provider-detail">Provider de produção</small>
+              </article>
+              <article class="panel-card integration-status-card">
+                <span class="metric-label">Push / Notificações</span>
+                <strong id="push-provider-status">Verificando…</strong>
+                <small id="push-provider-detail">Provider do Core</small>
               </article>
               <article class="panel-card integration-status-card">
                 <span class="metric-label">Passageiro Android</span>
