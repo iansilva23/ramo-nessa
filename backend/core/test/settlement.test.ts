@@ -232,3 +232,46 @@ test('cartão preserva 90/10 da tarifa-base e separa o ajuste de pagamento', asy
     0,
   );
 });
+
+test('Pix preserva 90/10 da tarifa-base e separa o ajuste de pagamento', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const ride = completedRide();
+  const payment: PaymentRecord = {
+    ...paidPayment(),
+    id: '44444444-4444-4444-8444-444444444444',
+    method: 'pix',
+    amountCents: 15150,
+    idempotencyKey: 'settlement-pix-adjustment',
+  };
+
+  await repository.createPayment({
+    ...payment,
+    status: 'pending',
+  });
+  const capture = await repository.capturePayment({
+    paymentId: payment.id,
+    processorEventId: 'settlement-pix-adjustment-capture',
+  });
+
+  await settleCompletedRide(repository, {
+    ride,
+    payment: capture.payment,
+  });
+
+  assert.equal(
+    await repository.getAccountBalanceCents('platform:revenue'),
+    1500,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents('driver:driver-77:payable'),
+    13500,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents('platform:payment_fee_recovery'),
+    150,
+  );
+  assert.equal(
+    await repository.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+});

@@ -18,6 +18,14 @@ Formas desabilitadas:
 
 O serviço só pode entrar em matching/despacho quando o pagamento estiver confirmado ou quando o provedor de pagamentos tiver autorizado/reservado o valor necessário.
 
+## Preço por forma de pagamento
+
+- Pix usa, por padrão, ajuste de 0,99% (`99 bps`) sobre o preço final, com gross-up em centavos para preservar a tarifa-base. O percentual pode ser alterado no Financeiro do ADM, inclusive para zero.
+- Cartão usa ajuste configurável no Financeiro do ADM e também apresenta o total final antes da confirmação.
+- Carteira não recebe ajuste de processamento.
+- O Core é a autoridade do cálculo; o Passageiro apenas exibe o total devolvido pela política e confirma a cobrança.
+- Ajustes de Pix/cartão ficam separados no ledger em `platform:payment_fee_recovery` e não aumentam a comissão da plataforma nem reduzem os 90% do motorista sobre a tarifa-base.
+
 ## Comissão
 
 - Ramo Nessa: 10% da tarifa-base.

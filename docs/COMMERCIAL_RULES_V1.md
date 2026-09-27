@@ -11,6 +11,9 @@ Este documento é a fonte comercial de verdade da v1. Os valores abaixo são ser
 - Repasse ao motorista/prestador: 90% da tarifa-base.
 - A compensação de coleta distante é repassada integralmente ao motorista e não sofre comissão.
 - Pagamento no lançamento: somente Pix, cartão e Carteira Ramo Nessa.
+- Pix tem ajuste padrão de 0,99% (`99 bps`), administrável pelo Financeiro do ADM; o Passageiro vê o total final antes de confirmar.
+- Ajustes de Pix/cartão recuperam custo de processamento separadamente e não alteram a comissão de 10%/90% sobre a tarifa-base.
+- Carteira mantém a tarifa-base, sem ajuste de processamento.
 - Dinheiro: desativado no lançamento.
 - Pix direto para o motorista: desativado.
 - O serviço só entra em matching/despacho após pagamento confirmado ou valor devidamente autorizado/reservado pelo provedor.
