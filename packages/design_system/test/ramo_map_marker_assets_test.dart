@@ -5,7 +5,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('cada categoria usa um marcador 3D empacotado', () async {
+  test('cada categoria usa um marcador 2D empacotado', () async {
     final assets = <String>{
       RamoMapMarkerAssets.passenger,
       RamoMapMarkerAssets.vehicle('car'),
