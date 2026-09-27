@@ -19,6 +19,7 @@ export class PricingCatalogVersionError extends Error {
     public readonly code:
       | 'PRICING_VERSION_NOT_FOUND'
       | 'PRICING_VERSION_NOT_DRAFT'
+      | 'PRICING_VERSION_CONFLICT'
       | 'PRICING_RULE_NOT_FOUND'
       | 'PRICING_STRUCTURE_CONFLICT'
       | 'INVALID_EFFECTIVE_FROM',
@@ -26,6 +27,34 @@ export class PricingCatalogVersionError extends Error {
   ) {
     super(message);
     this.name = 'PricingCatalogVersionError';
+  }
+}
+
+function nextPricingMutationInstant(
+  currentUpdatedAt: string,
+  now = new Date(),
+): string {
+  const currentMs = Date.parse(currentUpdatedAt);
+  const requestedMs = now.getTime();
+  return new Date(
+    Number.isFinite(currentMs)
+      ? Math.max(requestedMs, currentMs + 1)
+      : requestedMs,
+  ).toISOString();
+}
+
+function assertExpectedPricingVersion(
+  current: PricingCatalogVersionRecord,
+  expectedUpdatedAt?: string,
+): void {
+  if (
+    expectedUpdatedAt != null &&
+    expectedUpdatedAt !== current.updatedAt
+  ) {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_CONFLICT',
+      'Este rascunho foi alterado por outro operador. Reabra a versão antes de salvar ou publicar.',
+    );
   }
 }
 
@@ -98,6 +127,7 @@ export async function updatePricingCatalogDraft(input: {
   actor: AdminActor;
   versionId: string;
   patch: PricingCatalogDraftPatch;
+  expectedUpdatedAt?: string;
   now?: Date;
 }): Promise<PricingCatalogVersionRecord> {
   const current = await input.versions.findById(input.versionId);
@@ -113,6 +143,7 @@ export async function updatePricingCatalogDraft(input: {
       'Somente rascunhos podem ser alterados.',
     );
   }
+  assertExpectedPricingVersion(current, input.expectedUpdatedAt);
 
   const snapshot = structuredClone(current.snapshot);
   let auditMetadata: Record<string, unknown>;
@@ -338,16 +369,31 @@ export async function updatePricingCatalogDraft(input: {
     };
   }
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const instant = nextPricingMutationInstant(
+    current.updatedAt,
+    input.now,
+  );
   const updated = await input.versions.updateDraftSnapshot({
     id: current.id,
     snapshot,
+    expectedUpdatedAt: current.updatedAt,
     updatedAt: instant,
   });
   if (updated == null) {
+    const latest = await input.versions.findById(current.id);
+    if (latest?.status === 'draft') {
+      throw new PricingCatalogVersionError(
+        'PRICING_VERSION_CONFLICT',
+        'Este rascunho mudou enquanto a alteração era salva. Reabra a versão e tente novamente.',
+      );
+    }
     throw new PricingCatalogVersionError(
-      'PRICING_VERSION_NOT_DRAFT',
-      'O rascunho deixou de estar disponível para edição.',
+      latest == null
+        ? 'PRICING_VERSION_NOT_FOUND'
+        : 'PRICING_VERSION_NOT_DRAFT',
+      latest == null
+        ? 'Versão de preços não encontrada.'
+        : 'O rascunho deixou de estar disponível para edição.',
     );
   }
 
@@ -372,6 +418,7 @@ export async function publishPricingCatalogVersion(input: {
   admin: AdminRepository;
   actor: AdminActor;
   versionId: string;
+  expectedUpdatedAt?: string;
   effectiveFrom?: string;
   now?: Date;
 }): Promise<PricingCatalogVersionRecord> {
@@ -389,6 +436,7 @@ export async function publishPricingCatalogVersion(input: {
       'Somente uma versão em rascunho pode ser publicada.',
     );
   }
+  assertExpectedPricingVersion(current, input.expectedUpdatedAt);
 
   const effectiveFrom = input.effectiveFrom?.trim()
     ? input.effectiveFrom.trim()
@@ -400,16 +448,32 @@ export async function publishPricingCatalogVersion(input: {
     );
   }
 
+  const publishedAt = nextPricingMutationInstant(
+    current.updatedAt,
+    now,
+  );
   const published = await input.versions.publish({
     id: input.versionId,
+    expectedUpdatedAt: current.updatedAt,
     effectiveFrom: new Date(effectiveFrom).toISOString(),
     publishedBy: input.actor,
-    publishedAt: now.toISOString(),
+    publishedAt,
   });
   if (published == null) {
+    const latest = await input.versions.findById(current.id);
+    if (latest?.status === 'draft') {
+      throw new PricingCatalogVersionError(
+        'PRICING_VERSION_CONFLICT',
+        'Este rascunho mudou enquanto era publicado. Reabra a versão antes de publicar.',
+      );
+    }
     throw new PricingCatalogVersionError(
-      'PRICING_VERSION_NOT_DRAFT',
-      'A versão deixou de estar disponível para publicação.',
+      latest == null
+        ? 'PRICING_VERSION_NOT_FOUND'
+        : 'PRICING_VERSION_NOT_DRAFT',
+      latest == null
+        ? 'Versão de preços não encontrada.'
+        : 'A versão deixou de estar disponível para publicação.',
     );
   }
 
@@ -423,7 +487,7 @@ export async function publishPricingCatalogVersion(input: {
       versionNumber: published.versionNumber,
       effectiveFrom: published.effectiveFrom,
     },
-    createdAt: now.toISOString(),
+    createdAt: publishedAt,
   });
 
   return published;
