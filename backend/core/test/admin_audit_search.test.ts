@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -7,6 +8,8 @@ import {
   parseAdminAuditQuery,
 } from '../src/admin/admin-validation.js';
 import { InMemoryAdminRepository } from '../src/admin/repositories/in-memory-admin-repository.js';
+import { PostgresAdminRepository } from '../src/admin/repositories/postgres-admin-repository.js';
+import { createPostgresPool } from '../src/db/postgres.js';
 
 const userActor = {
   kind: 'user' as const,
@@ -123,3 +126,102 @@ test('query de auditoria valida filtros e decodifica cursor', () => {
       error instanceof InvalidAdminRequestError,
   );
 });
+
+
+const databaseUrl = process.env.DATABASE_URL?.trim();
+
+test(
+  'PostgreSQL mantém paridade de filtros e cursor da auditoria',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresAdminRepository(pool);
+    const keyId = randomUUID();
+    const firstId = randomUUID();
+    const secondId = randomUUID();
+    const unrelatedId = randomUUID();
+    const actor = {
+      kind: 'api_key' as const,
+      id: keyId,
+      name: 'Audit Search CI',
+    };
+
+    try {
+      await repository.createApiKey({
+        id: keyId,
+        name: actor.name,
+        tokenHash: 'audit-search-' + randomUUID(),
+        scopes: ['audit:read'],
+        expiresAt: '2026-10-27T00:00:00.000Z',
+        createdAt: '2026-09-27T00:00:00.000Z',
+      });
+
+      await repository.appendAudit({
+        id: firstId,
+        actor,
+        action: 'audit.search.parity',
+        targetType: 'audit_test',
+        targetId: 'needle-older',
+        metadata: { order: 1 },
+        createdAt: '2026-09-27T00:01:00.000Z',
+      });
+      await repository.appendAudit({
+        id: secondId,
+        actor,
+        action: 'audit.search.parity',
+        targetType: 'audit_test',
+        targetId: 'needle-newer',
+        metadata: { order: 2 },
+        createdAt: '2026-09-27T00:02:00.000Z',
+      });
+      await repository.appendAudit({
+        id: unrelatedId,
+        actor,
+        action: 'audit.search.other',
+        targetType: 'audit_test',
+        targetId: 'needle-unrelated',
+        metadata: {},
+        createdAt: '2026-09-27T00:03:00.000Z',
+      });
+
+      const first = await repository.searchAudit({
+        limit: 1,
+        actorKind: 'api_key',
+        action: 'audit.search.parity',
+        targetType: 'audit_test',
+        search: 'needle',
+      });
+
+      assert.equal(first.records.length, 1);
+      assert.equal(first.records[0]?.id, secondId);
+      assert.equal(first.hasMore, true);
+
+      const cursorRecord = first.records[0]!;
+      const second = await repository.searchAudit({
+        limit: 1,
+        actorKind: 'api_key',
+        action: 'audit.search.parity',
+        targetType: 'audit_test',
+        search: 'needle',
+        cursor: {
+          createdAt: cursorRecord.createdAt,
+          id: cursorRecord.id,
+        },
+      });
+
+      assert.equal(second.records.length, 1);
+      assert.equal(second.records[0]?.id, firstId);
+      assert.equal(second.hasMore, false);
+    } finally {
+      await pool.query(
+        'DELETE FROM admin_audit_log WHERE actor_key_id = $1',
+        [keyId],
+      );
+      await pool.query(
+        'DELETE FROM admin_api_keys WHERE id = $1',
+        [keyId],
+      );
+      await pool.end();
+    }
+  },
+);
