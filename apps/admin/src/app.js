@@ -5623,6 +5623,9 @@ async function lookupRide(rideId) {
       renderRideDetailEmpty('Corrida não encontrada.');
       return;
     }
+    renderRideDetailEmpty(
+      'Não foi possível atualizar esta corrida. Recarregue antes de executar ações.',
+    );
     handleAuthenticatedError(error);
   }
 }
