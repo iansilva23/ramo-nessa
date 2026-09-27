@@ -4928,6 +4928,59 @@ function renderIntegrations(payload) {
     ? `${server.runtimeEnvironmentVariable} · Routes + Places`
     : 'GOOGLE_MAPS_SERVER_API_KEY';
 
+  const mercadoPago = payload?.mercadoPago;
+  const mercadoPagoStatus = byId('mercado-pago-status');
+  const mercadoPagoDetail = byId('mercado-pago-detail');
+  if (mercadoPago == null) {
+    mercadoPagoStatus.textContent = 'Não verificado';
+    mercadoPagoStatus.className = 'integration-status-pending';
+    mercadoPagoDetail.textContent = 'Credenciais do servidor';
+  } else {
+    const testReady =
+      mercadoPago.mode === 'test' &&
+      mercadoPago.accessTokenConfigured === true;
+    mercadoPagoStatus.textContent = mercadoPago.productionReady === true
+      ? 'Produção pronta'
+      : testReady
+        ? 'Teste configurado'
+        : mercadoPago.mode === 'production'
+          ? 'Produção incompleta'
+          : 'Teste incompleto';
+    mercadoPagoStatus.className = mercadoPago.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+    mercadoPagoDetail.textContent =
+      `${mercadoPago.mode === 'production' ? 'Produção' : 'Teste'} · ` +
+      `${mercadoPago.accessTokenEnvironmentVariable} · ` +
+      `${mercadoPago.webhookSecretConfigured ? 'webhook configurado' : 'webhook pendente'}`;
+  }
+
+  const otp = payload?.otp;
+  const otpStatus = byId('otp-provider-status');
+  const otpDetail = byId('otp-provider-detail');
+  if (otp == null) {
+    otpStatus.textContent = 'Não verificado';
+    otpStatus.className = 'integration-status-pending';
+    otpDetail.textContent = 'Provider de produção';
+  } else {
+    otpStatus.textContent = otp.productionReady === true
+      ? 'Produção pronta'
+      : otp.provider === 'dev'
+        ? 'Modo desenvolvimento'
+        : otp.provider === 'webhook'
+          ? 'Webhook incompleto'
+          : otp.provider === 'missing'
+            ? 'Não configurado'
+            : 'Provider inválido';
+    otpStatus.className = otp.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+    otpDetail.textContent =
+      `${otp.providerEnvironmentVariable} · ` +
+      `${otp.endpointConfigured ? 'endpoint HTTPS OK' : 'endpoint pendente'} · ` +
+      `${otp.tokenConfigured ? 'token configurado' : 'token pendente'}`;
+  }
+
   byId('integrations-updated-at').textContent =
     payload ? `Verificado em ${new Date().toLocaleTimeString('pt-BR')}` : 'Ainda não verificado';
 
@@ -5005,7 +5058,7 @@ async function loadIntegrations({ announce = true } = {}) {
     if (announce) {
       setMessage(
         globalMessage,
-        'Configuração do Google Maps verificada sem expor segredos.',
+        'Integrações verificadas sem expor segredos.',
         'success',
       );
     }
