@@ -279,6 +279,8 @@ const ADMIN_CANCELLABLE_RIDE_STATES = new Set([
   'DRIVER_ASSIGNED',
   'DRIVER_ARRIVING',
   'DRIVER_ARRIVED',
+  'CANCELLED_BY_ADMIN',
+  'REFUND_PENDING',
 ]);
 
 function hasScope(scope) {
@@ -5505,14 +5507,22 @@ function renderRideDetail(ride) {
   status.textContent = stateInfo.label;
 
   const cancelPanel = byId('ride-cancel-panel');
+  const retryRefund =
+    ride.state === 'CANCELLED_BY_ADMIN' ||
+    ride.state === 'REFUND_PENDING';
   const canCancel =
     hasScope('rides:write') &&
     ADMIN_CANCELLABLE_RIDE_STATES.has(ride.state);
   cancelPanel.hidden = !canCancel;
-  byId('ride-cancel-button').disabled = false;
+  const cancelButton = byId('ride-cancel-button');
+  cancelButton.disabled = false;
+  cancelButton.textContent = retryRefund
+    ? 'Tentar estorno novamente'
+    : 'Cancelar corrida';
   byId('ride-cancel-reason').value = '';
-  byId('ride-cancel-note').textContent =
-    ride.paymentStatus === 'paid'
+  byId('ride-cancel-note').textContent = retryRefund
+    ? 'A corrida já está cancelada. Esta ação tenta concluir o estorno pendente sem cancelar a viagem novamente.'
+    : ride.paymentStatus === 'paid'
       ? 'Carteira é estornada imediatamente. Pix/cartão permanecem em reembolso pendente até o gateway confirmar.'
       : 'O cancelamento só é aceito quando o pagamento está confirmado.';
 
@@ -5641,6 +5651,16 @@ async function handleRideCancel(event) {
     return;
   }
 
+  const retryRefund =
+    ride.state === 'CANCELLED_BY_ADMIN' ||
+    ride.state === 'REFUND_PENDING';
+  const confirmed = window.confirm(
+    retryRefund
+      ? 'Tentar concluir o estorno desta corrida novamente? A corrida continuará cancelada.'
+      : 'Confirmar cancelamento administrativo desta corrida? Esta ação libera o motorista e inicia o estorno quando aplicável.',
+  );
+  if (!confirmed) return;
+
   const button = byId('ride-cancel-button');
   button.disabled = true;
   try {
@@ -5659,9 +5679,15 @@ async function handleRideCancel(event) {
     }
     const pendingExternal =
       result.refundStatus === 'pending_external_gateway';
+    const duplicate =
+      result.duplicateCancellation === true;
     const message = pendingExternal
-      ? 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.'
-      : 'Corrida cancelada e reembolso concluído.';
+      ? duplicate
+        ? 'Corrida permanece cancelada. O estorno externo ainda está pendente de confirmação do gateway.'
+        : 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.'
+      : duplicate
+        ? 'Estorno concluído. A corrida já estava cancelada.'
+        : 'Corrida cancelada e reembolso concluído.';
     setMessage(
       globalMessage,
       message,
@@ -5685,6 +5711,13 @@ async function handleRideCancel(event) {
     }
   } catch (error) {
     handleAuthenticatedError(error);
+    if (state.token && hasScope('rides:read')) {
+      await loadRideDirectory({
+        reset: true,
+        announce: false,
+      });
+      await lookupRide(ride.id);
+    }
   } finally {
     button.disabled = false;
   }
