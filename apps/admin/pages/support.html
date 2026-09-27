@@ -19,9 +19,36 @@
       <span id="support-summary" class="pill">0 chamados</span>
     </div>
 
+    <form id="support-filter-form" class="directory-toolbar">
+      <label class="field directory-status">
+        <span>Status</span>
+        <select id="support-status-filter">
+          <option value="">Todos</option>
+          <option value="open">Abertos</option>
+          <option value="in_progress">Em atendimento</option>
+          <option value="resolved">Resolvidos</option>
+          <option value="closed">Fechados</option>
+        </select>
+      </label>
+      <button class="button button--dark" type="submit">
+        Filtrar
+      </button>
+    </form>
+
     <div id="support-list" class="support-list"></div>
     <div id="support-empty" class="empty-state">
       Nenhum chamado de suporte foi encontrado.
+    </div>
+    <div class="directory-footer">
+      <span id="support-loaded-count">0 carregados</span>
+      <button
+        id="support-load-more"
+        class="button button--ghost-dark"
+        type="button"
+        hidden
+      >
+        Carregar mais
+      </button>
     </div>
   </article>
 
