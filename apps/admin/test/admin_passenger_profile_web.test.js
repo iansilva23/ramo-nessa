@@ -208,3 +208,41 @@ test('cliente Admin edita nome e e-mail do passageiro sem vazar Bearer', async (
     `Bearer ${token}`,
   );
 });
+
+
+test('cliente Admin limpa nome e e-mail opcionais do passageiro', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      passenger: {
+        passengerId: 'passenger-profile-001',
+        fullName: null,
+        email: null,
+        status: 'active',
+      },
+    });
+  });
+
+  await api.updatePassengerProfile(
+    'rn_admin_session_passenger_profile_clear_secret',
+    {
+      passengerId: 'passenger-profile-001',
+      fullName: null,
+      email: null,
+    },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    fullName: null,
+    email: null,
+  });
+
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+  assert.match(app, /fullName: fullName \|\| null/);
+  assert.match(app, /email: email \|\| null/);
+});
