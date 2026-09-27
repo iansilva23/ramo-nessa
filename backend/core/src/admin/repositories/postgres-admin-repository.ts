@@ -49,6 +49,10 @@ function mapKey(row: AdminKeyRow): AdminApiKeyRecord {
   };
 }
 
+function escapeAuditSearchPattern(value: string): string {
+  return value.replace(/[!%_]/g, (character) => `!${character}`);
+}
+
 function mapAudit(row: AdminAuditRow): AdminAuditRecord {
   return {
     id: row.id,
@@ -201,14 +205,14 @@ export class PostgresAdminRepository implements AdminRepository {
     }
 
     if (query.search != null) {
-      const term = `%${query.search}%`;
+      const term = `%${escapeAuditSearchPattern(query.search)}%`;
       const p = push(term);
       clauses.push(
         `(
-          actor_name ILIKE ${p}
-          OR action ILIKE ${p}
-          OR target_type ILIKE ${p}
-          OR target_id ILIKE ${p}
+          actor_name ILIKE ${p} ESCAPE '!'
+          OR action ILIKE ${p} ESCAPE '!'
+          OR target_type ILIKE ${p} ESCAPE '!'
+          OR target_id ILIKE ${p} ESCAPE '!'
         )`,
       );
     }
