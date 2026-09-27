@@ -4731,22 +4731,15 @@ async function handlePassengerProfileEdit(event) {
     byId('passenger-profile-full-name').value.trim();
   const email =
     byId('passenger-profile-email').value.trim();
+  const currentFullName =
+    String(passenger.fullName ?? '').trim();
+  const currentEmail =
+    String(passenger.email ?? '').trim();
 
-  if (!fullName && !email) {
-    setMessage(
-      globalMessage,
-      'Informe pelo menos nome ou e-mail para salvar.',
-      'danger',
-    );
-    return;
-  }
-
-  const sameName =
-    fullName === String(passenger.fullName ?? '').trim();
-  const sameEmail =
-    email.toLowerCase() ===
-    String(passenger.email ?? '').trim().toLowerCase();
-  if (sameName && sameEmail) {
+  const nameChanged = fullName !== currentFullName;
+  const emailChanged =
+    email.toLowerCase() !== currentEmail.toLowerCase();
+  if (!nameChanged && !emailChanged) {
     setMessage(
       globalMessage,
       'Nenhuma alteração foi feita nos dados do passageiro.',
@@ -4760,8 +4753,10 @@ async function handlePassengerProfileEdit(event) {
   try {
     await api.updatePassengerProfile(state.token, {
       passengerId,
-      ...(fullName ? { fullName } : {}),
-      ...(email ? { email } : {}),
+      ...(nameChanged
+        ? { fullName: fullName || null }
+        : {}),
+      ...(emailChanged ? { email: email || null } : {}),
     });
 
     await loadPassengerDirectory({
