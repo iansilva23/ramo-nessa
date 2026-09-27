@@ -92,8 +92,8 @@ export async function updatePassengerProfileFromAdmin(input: {
   admin: AdminRepository;
   actor: AdminActor;
   passengerId: string;
-  fullName?: string;
-  email?: string;
+  fullName?: string | null;
+  email?: string | null;
   now?: Date;
 }) {
   const passengerId = input.passengerId.trim();
@@ -108,46 +108,55 @@ export async function updatePassengerProfileFromAdmin(input: {
     );
   }
 
-  let fullName: string | undefined;
-  if (input.fullName != null) {
-    try {
-      fullName = normalizePassengerName(input.fullName);
-    } catch {
-      throw new AdminPassengerError(
-        'INVALID_PASSENGER_NAME',
-        'Informe um nome válido para o passageiro.',
-      );
+  let fullName: string | null | undefined;
+  if (input.fullName !== undefined) {
+    if (input.fullName === null) {
+      fullName = null;
+    } else {
+      try {
+        fullName = normalizePassengerName(input.fullName);
+      } catch {
+        throw new AdminPassengerError(
+          'INVALID_PASSENGER_NAME',
+          'Informe um nome válido para o passageiro.',
+        );
+      }
     }
   }
 
-  let emailNormalized: string | undefined;
-  if (input.email != null) {
-    try {
-      emailNormalized = normalizePassengerEmail(input.email);
-    } catch {
-      throw new AdminPassengerError(
-        'INVALID_PASSENGER_EMAIL',
-        'Informe um e-mail válido para o passageiro.',
-      );
-    }
+  let emailNormalized: string | null | undefined;
+  if (input.email !== undefined) {
+    if (input.email === null) {
+      emailNormalized = null;
+    } else {
+      try {
+        emailNormalized = normalizePassengerEmail(input.email);
+      } catch {
+        throw new AdminPassengerError(
+          'INVALID_PASSENGER_EMAIL',
+          'Informe um e-mail válido para o passageiro.',
+        );
+      }
 
-    const owner = await input.identities.findIdentityByEmail(
-      'passenger',
-      emailNormalized,
-    );
-    if (owner != null && owner.subjectId !== passengerId) {
-      throw new AdminPassengerError(
-        'PASSENGER_EMAIL_IN_USE',
-        'Este e-mail já está vinculado a outro passageiro.',
+      const owner = await input.identities.findIdentityByEmail(
+        'passenger',
+        emailNormalized,
       );
+      if (owner != null && owner.subjectId !== passengerId) {
+        throw new AdminPassengerError(
+          'PASSENGER_EMAIL_IN_USE',
+          'Este e-mail já está vinculado a outro passageiro.',
+        );
+      }
     }
   }
 
   const fullNameChanged =
-    fullName != null && fullName !== current.fullName;
+    fullName !== undefined &&
+    fullName !== (current.fullName ?? null);
   const emailChanged =
-    emailNormalized != null &&
-    emailNormalized !== current.emailNormalized;
+    emailNormalized !== undefined &&
+    emailNormalized !== (current.emailNormalized ?? null);
 
   if (!fullNameChanged && !emailChanged) {
     return {
@@ -166,10 +175,8 @@ export async function updatePassengerProfileFromAdmin(input: {
   try {
     updated = await input.identities.setPassengerAccount({
       subjectId: passengerId,
-      ...(fullNameChanged ? { fullName: fullName! } : {}),
-      ...(emailChanged
-        ? { emailNormalized: emailNormalized! }
-        : {}),
+      ...(fullNameChanged ? { fullName } : {}),
+      ...(emailChanged ? { emailNormalized } : {}),
       updatedAt,
     });
   } catch (error) {
