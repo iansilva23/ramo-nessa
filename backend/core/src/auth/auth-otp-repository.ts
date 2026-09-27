@@ -120,8 +120,8 @@ export interface AuthOtpRepository {
   }): Promise<AuthIdentityRecord | null>;
   setPassengerAccount(input: {
     subjectId: string;
-    fullName?: string;
-    emailNormalized?: string;
+    fullName?: string | null;
+    emailNormalized?: string | null;
     passwordHash?: string;
     photoUrl?: string | null;
     updatedAt: string;
