@@ -2,6 +2,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../core/location/location_service.dart';
 import '../features/home/domain/service_type.dart';
+import '../features/map/data/place_autocomplete_service.dart';
 import '../features/map/data/place_search_service.dart';
 import '../features/map/data/route_service.dart';
 import '../features/map/domain/ramo_place.dart';
@@ -69,7 +70,8 @@ final class _PreviewRouteService implements RouteService {
   }
 }
 
-final class _PreviewPlaceSearchService implements PlaceSearchService {
+final class _PreviewPlaceSearchService
+    implements PlaceSearchService, PlaceAutocompleteService {
   const _PreviewPlaceSearchService();
 
   static const _places = <RamoPlace>[
@@ -88,34 +90,80 @@ final class _PreviewPlaceSearchService implements PlaceSearchService {
       address: 'Jijoca de Jericoacoara - CE',
       position: LatLng(-2.8994, -40.4519),
     ),
+    RamoPlace(
+      name: 'Praia do Preá',
+      address: 'Praia do Preá, Cruz - CE',
+      position: LatLng(-2.8154, -40.4074),
+    ),
+    RamoPlace(
+      name: 'Aeroporto Regional de Jericoacoara',
+      address: 'Aeroporto JJD, Cruz - CE',
+      position: LatLng(-2.9067, -40.3581),
+    ),
+    RamoPlace(
+      name: 'Lagoa do Paraíso',
+      address: 'Lagoa do Paraíso, Jijoca de Jericoacoara - CE',
+      position: LatLng(-2.8657, -40.4531),
+    ),
   ];
 
-  @override
-  Future<List<RamoPlace>> search(String query) async {
-    final normalized = query.trim().toLowerCase();
-    if (normalized.length < 2) return const [];
+  static String _placeId(RamoPlace place) =>
+      'preview-${place.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
 
-    final matches = _places
+  static List<RamoPlace> _matches(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return const [];
+    return _places
         .where(
           (place) =>
               place.name.toLowerCase().contains(normalized) ||
               place.address.toLowerCase().contains(normalized),
         )
         .toList(growable: false);
+  }
 
-    if (matches.isNotEmpty) return matches;
+  @override
+  String beginSession() =>
+      'preview-${DateTime.now().microsecondsSinceEpoch}';
 
-    // O APK Preview não consulta Google Places. Este fallback permite
-    // testar a UX de pesquisar/trocar pousadas e outros estabelecimentos
-    // antes de o Core público estar configurado com Places.
-    return [
-      RamoPlace(
-        name: query.trim(),
-        address:
-            'Resultado simulado do Preview · Jericoacoara - CE',
-        position: const LatLng(-2.7956, -40.5142),
+  @override
+  Future<List<PlaceAutocompleteSuggestion>> suggestions(
+    String query, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) return const [];
+    return _matches(query)
+        .map(
+          (place) => PlaceAutocompleteSuggestion(
+            placeId: _placeId(place),
+            mainText: place.name,
+            secondaryText: place.address,
+            localOnly: true,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<RamoPlace> resolve(
+    PlaceAutocompleteSuggestion suggestion, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw StateError('Sessão de busca Preview inválida.');
+    }
+    return _places.firstWhere(
+      (place) => _placeId(place) == suggestion.placeId,
+      orElse: () => throw StateError(
+        'Esse destino não existe no catálogo Preview.',
       ),
-    ];
+    );
+  }
+
+  @override
+  Future<List<RamoPlace>> search(String query) async {
+    if (query.trim().length < 2) return const [];
+    return _matches(query);
   }
 }
 

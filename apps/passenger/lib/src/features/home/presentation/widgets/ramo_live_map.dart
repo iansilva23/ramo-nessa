@@ -8,6 +8,30 @@ import '../../../../core/config/ramo_map_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../../map/domain/ramo_place.dart';
 
+@visibleForTesting
+List<domain.LatLng> ramoVisibleRoutePoints(
+  List<domain.LatLng> points,
+  double progress,
+) {
+  if (points.length < 2) return points;
+  final clamped = progress.clamp(0.0, 1.0).toDouble();
+  if (clamped >= 1) return points;
+
+  final scaled = clamped * (points.length - 1);
+  final segment = scaled.floor().clamp(0, points.length - 2).toInt();
+  final segmentProgress = scaled - segment;
+  final from = points[segment];
+  final to = points[segment + 1];
+  final partial = domain.LatLng(
+    from.latitude + (to.latitude - from.latitude) * segmentProgress,
+    from.longitude + (to.longitude - from.longitude) * segmentProgress,
+  );
+  return [
+    ...points.take(segment + 1),
+    partial,
+  ];
+}
+
 class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
@@ -122,7 +146,7 @@ class RamoLiveMap extends StatefulWidget {
 }
 
 class _RamoLiveMapState extends State<RamoLiveMap>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
   double _driverBearing = 0;
@@ -132,6 +156,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   domain.LatLng? _driverAnimationFrom;
   domain.LatLng? _driverAnimationTo;
   late final AnimationController _driverMoveController;
+  late final AnimationController _routeDrawController;
   gm.BitmapDescriptor _passengerIcon =
       gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon =
@@ -149,8 +174,33 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       vsync: this,
       duration: const Duration(milliseconds: 720),
     )..addListener(_tickDriverMovement);
+    _routeDrawController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 950),
+    )..addListener(_tickRouteDrawing);
+    if (widget.routePoints.length >= 2) {
+      _routeDrawController.forward(from: 0);
+    }
     _notifyPlaceholderReadyIfNeeded();
     _loadMarkerIcons();
+  }
+
+  void _tickRouteDrawing() {
+    if (mounted) setState(() {});
+  }
+
+  bool _sameRoute(
+    List<domain.LatLng> previous,
+    List<domain.LatLng> next,
+  ) {
+    if (previous.length != next.length) return false;
+    for (var index = 0; index < previous.length; index += 1) {
+      if (previous[index].latitude != next[index].latitude ||
+          previous[index].longitude != next[index].longitude) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _tickDriverMovement() {
@@ -270,6 +320,15 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       _notifyPlaceholderReadyIfNeeded();
     }
 
+    if (!_sameRoute(oldWidget.routePoints, widget.routePoints)) {
+      if (widget.routePoints.length < 2) {
+        _routeDrawController.stop();
+        _routeDrawController.value = 0;
+      } else {
+        _routeDrawController.forward(from: 0);
+      }
+    }
+
     final previousDriver = oldWidget.driverPosition;
     final nextDriver = widget.driverPosition;
     if (nextDriver == null) {
@@ -374,11 +433,15 @@ class _RamoLiveMapState extends State<RamoLiveMap>
 
   Set<gm.Polyline> get _polylines {
     if (widget.routePoints.length < 2) return const {};
+    final visiblePoints = ramoVisibleRoutePoints(
+      widget.routePoints,
+      Curves.easeOutCubic.transform(_routeDrawController.value),
+    );
 
     return {
       gm.Polyline(
         polylineId: const gm.PolylineId('ride-route'),
-        points: widget.routePoints
+        points: visiblePoints
             .map(
               (point) => gm.LatLng(
                 point.latitude,
@@ -396,6 +459,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   @override
   void dispose() {
     _driverMoveController.dispose();
+    _routeDrawController.dispose();
     widget.controller.detach();
     _nativeController = null;
     super.dispose();

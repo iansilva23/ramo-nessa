@@ -14,6 +14,7 @@ import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
 import 'features/profile/data/http_passenger_saved_place_service.dart';
 import 'features/map/data/core_place_search_service.dart';
+import 'features/map/data/core_route_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
@@ -102,8 +103,11 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
       final resolvedPlaceSearchService =
           placeSearchService ??
-              preview?.places ??
-              (coreUri != null &&
+              (RamoCoreConfig.previewMode
+                  ? coreUri == null
+                      ? preview?.places
+                      : CorePlaceSearchService(baseUrl: coreUri)
+                  : coreUri != null &&
                       normalizedToken != null &&
                       normalizedToken.length >= 20
                   ? CorePlaceSearchService(
@@ -111,6 +115,13 @@ class RamoNessaPassengerApp extends StatelessWidget {
                       accessToken: normalizedToken,
                     )
                   : null);
+
+      final resolvedRouteService = routeService ??
+          (RamoCoreConfig.previewMode
+              ? coreUri == null
+                  ? preview?.route
+                  : CoreRouteService(baseUrl: coreUri)
+              : null);
 
       final savedPlaceService =
           coreUri != null &&
@@ -138,7 +149,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
           onLogout: logout,
           onOpenProfile: openProfile,
           locationService: locationService ?? preview?.location,
-          routeService: routeService ?? preview?.route,
+          routeService: resolvedRouteService,
           placeSearchService: resolvedPlaceSearchService,
           savedPlaceService: savedPlaceService,
           pricingQuoteService: pricingQuoteService ?? preview?.pricing,

@@ -53,9 +53,18 @@ test('previews e audit iOS injetam Firebase quando disponível', async () => {
 
   assert.match(preview, /Check Passenger Firebase push config/);
   assert.match(preview, /Check Driver Firebase push config/);
+  assert.match(preview, /Check Passenger connected Preview Core/);
   assert.equal(
     (preview.match(/--dart-define=RAMO_FIREBASE_API_KEY=/g) ?? []).length,
     2,
+  );
+  assert.match(
+    preview,
+    /RAMO_CORE_BASE_URL: \$\{\{ secrets\.RAMO_PREVIEW_CORE_BASE_URL \}\}/,
+  );
+  assert.match(
+    preview,
+    /--dart-define=RAMO_CORE_BASE_URL=\$RAMO_CORE_BASE_URL/,
   );
 
   assert.match(iosAudit, /Check Passenger Firebase push config/);

@@ -71,9 +71,23 @@ jobs:
             echo "Firebase push configurado para o Preview Passageiro."
           fi
 
+      - name: Check Passenger connected Preview Core
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_PREVIEW_CORE_BASE_URL }}
+        run: |
+          if [ -z "$RAMO_CORE_BASE_URL" ]; then
+            echo "::warning::RAMO_PREVIEW_CORE_BASE_URL não configurado; a busca usará somente o catálogo local e a rota será demonstrativa."
+          elif [[ "$RAMO_CORE_BASE_URL" != https://* ]]; then
+            echo "::error::RAMO_PREVIEW_CORE_BASE_URL precisa usar HTTPS."
+            exit 1
+          else
+            echo "Preview Passageiro conectado ao Core de teste para Google Places e Routes."
+          fi
+
       - name: Build Passenger Preview APK
         working-directory: apps/passenger
         env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_PREVIEW_CORE_BASE_URL }}
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
@@ -86,6 +100,7 @@ jobs:
           flutter build apk --release
           --build-number=${{ github.run_number }}
           --dart-define=RAMO_PREVIEW_MODE=true
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
           --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
           --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
           --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
