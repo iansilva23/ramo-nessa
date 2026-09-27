@@ -71,3 +71,31 @@ test('Mercado Pago e OTP mostram prontidão sem vazar segredos', () => {
   assert.equal(serialized.includes(otpToken), false);
   assert.equal(serialized.includes(otpEndpoint), false);
 });
+
+
+test('Push FCM mostra prontidão pelo arquivo configurado', () => {
+  const credentialPath = '/srv/ramo/firebase-config.json';
+  const view = adminIntegrationSetupView({
+    NODE_ENV: 'production',
+    PUSH_PROVIDER: 'fcm',
+    FIREBASE_SERVICE_ACCOUNT_FILE: credentialPath,
+  });
+
+  assert.equal(view.push.provider, 'fcm');
+  assert.equal(view.push.firebaseCredentialConfigured, true);
+  assert.equal(view.push.firebaseCredentialSource, 'file');
+  assert.equal(view.push.productionReady, true);
+  assert.equal(JSON.stringify(view).includes(credentialPath), false);
+});
+
+test('Push desativado aparece como não pronto', () => {
+  const view = adminIntegrationSetupView({
+    NODE_ENV: 'production',
+    PUSH_PROVIDER: 'disabled',
+  });
+
+  assert.equal(view.push.provider, 'disabled');
+  assert.equal(view.push.firebaseCredentialConfigured, false);
+  assert.equal(view.push.firebaseCredentialSource, 'missing');
+  assert.equal(view.push.productionReady, false);
+});
