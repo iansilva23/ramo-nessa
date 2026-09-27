@@ -19,13 +19,18 @@ test('admin exposes secure production integration status center', async () => {
   assert.match(html, /GOOGLE_MAPS_SERVER_API_KEY/);
   assert.match(html, /id="mercado-pago-status"/);
   assert.match(html, /id="otp-provider-status"/);
+  assert.match(html, /id="push-provider-status"/);
+  assert.match(html, /id="push-provider-detail"/);
   assert.match(html, /carregadas com segurança no boot do Core/);
 
   assert.match(app, /loadIntegrations/);
   assert.match(app, /payload\?\.mercadoPago/);
   assert.match(app, /payload\?\.otp/);
+  assert.match(app, /payload\?\.push/);
   assert.match(app, /mercadoPago\.productionReady/);
   assert.match(app, /otp\.productionReady/);
+  assert.match(app, /push\.productionReady/);
+  assert.match(app, /firebaseCredentialSource/);
   assert.match(app, /item\.githubSecretName/);
   assert.match(app, /google-credential-cards/);
   assert.match(api, /\/v1\/admin\/integrations/);
