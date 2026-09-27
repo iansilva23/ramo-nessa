@@ -390,24 +390,40 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
-    updatePricingVersion(token, { versionId, patch }) {
+    updatePricingVersion(
+      token,
+      { versionId, patch, expectedUpdatedAt },
+    ) {
       return request(
         `/v1/admin/pricing/versions/${versionId}`,
         {
           method: 'PATCH',
           token,
-          body: patch,
+          body: {
+            ...patch,
+            ...(expectedUpdatedAt
+              ? { expectedUpdatedAt }
+              : {}),
+          },
         },
       );
     },
 
-    publishPricingVersion(token, { versionId, effectiveFrom }) {
+    publishPricingVersion(
+      token,
+      { versionId, effectiveFrom, expectedUpdatedAt },
+    ) {
       return request(
         `/v1/admin/pricing/versions/${versionId}/publish`,
         {
           method: 'POST',
           token,
-          body: effectiveFrom ? { effectiveFrom } : {},
+          body: {
+            ...(effectiveFrom ? { effectiveFrom } : {}),
+            ...(expectedUpdatedAt
+              ? { expectedUpdatedAt }
+              : {}),
+          },
         },
       );
     },
