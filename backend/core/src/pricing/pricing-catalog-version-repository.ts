@@ -31,11 +31,13 @@ export interface PricingCatalogVersionRepository {
   updateDraftSnapshot(input: {
     id: string;
     snapshot: PricingCatalogSnapshot;
+    expectedUpdatedAt: string;
     updatedAt: string;
   }): Promise<PricingCatalogVersionRecord | null>;
 
   publish(input: {
     id: string;
+    expectedUpdatedAt: string;
     effectiveFrom: string;
     publishedBy: AdminActor;
     publishedAt: string;
