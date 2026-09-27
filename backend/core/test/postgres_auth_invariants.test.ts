@@ -401,3 +401,59 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL remove explicitamente nome e e-mail opcionais do passageiro',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresAuthOtpRepository(pool);
+    const phone = '+5588944441288';
+
+    try {
+      await repository.createIdentity({
+        id: '88888888-8888-4888-8888-888888888881',
+        subjectId: 'postgres-passenger-clear-profile',
+        subjectType: 'passenger',
+        phoneE164: phone,
+        fullName: 'Nome Temporário',
+        emailNormalized: 'temporario@example.com',
+        status: 'active',
+        createdAt: '2026-09-27T06:00:00.000Z',
+        updatedAt: '2026-09-27T06:00:00.000Z',
+      });
+
+      const cleared = await repository.setPassengerAccount({
+        subjectId: 'postgres-passenger-clear-profile',
+        fullName: null,
+        emailNormalized: null,
+        updatedAt: '2026-09-27T06:01:00.000Z',
+      });
+
+      assert.equal(cleared?.fullName, undefined);
+      assert.equal(cleared?.emailNormalized, undefined);
+
+      const raw = await pool.query<{
+        full_name: string | null;
+        email_normalized: string | null;
+      }>(
+        `
+        SELECT full_name, email_normalized
+        FROM auth_identities
+        WHERE subject_type = 'passenger' AND subject_id = $1
+        `,
+        ['postgres-passenger-clear-profile'],
+      );
+      assert.equal(raw.rows[0]?.full_name, null);
+      assert.equal(raw.rows[0]?.email_normalized, null);
+    } finally {
+      await pool.query(
+        `DELETE FROM auth_identities
+         WHERE subject_type = 'passenger' AND subject_id = $1`,
+        ['postgres-passenger-clear-profile'],
+      );
+      await pool.end();
+    }
+  },
+);
