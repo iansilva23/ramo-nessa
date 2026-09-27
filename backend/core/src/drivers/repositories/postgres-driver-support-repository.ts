@@ -1,6 +1,8 @@
 import type { Pool } from 'pg';
 
 import type {
+  DriverSupportAdminListInput,
+  DriverSupportAdminListPage,
   DriverSupportCategory,
   DriverSupportRepository,
   DriverSupportStatus,
@@ -110,18 +112,34 @@ export class PostgresDriverSupportRepository
     return result.rows[0] == null ? null : mapTicket(result.rows[0]);
   }
 
-  async listRecent(limit: number): Promise<DriverSupportTicketRecord[]> {
-    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  async listAdmin(
+    input: DriverSupportAdminListInput,
+  ): Promise<DriverSupportAdminListPage> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
     const result = await this.pool.query<DriverSupportTicketRow>(
       `
       SELECT ${COLUMNS}
       FROM driver_support_tickets
+      WHERE ($1::text IS NULL OR status = $1)
+        AND (
+          $2::timestamptz IS NULL OR
+          created_at < $2 OR
+          (created_at = $2 AND id < $3::uuid)
+        )
       ORDER BY created_at DESC, id DESC
-      LIMIT $1
+      LIMIT $4
       `,
-      [safeLimit],
+      [
+        input.status ?? null,
+        input.cursor?.createdAt ?? null,
+        input.cursor?.id ?? null,
+        safeLimit + 1,
+      ],
     );
-    return result.rows.map(mapTicket);
+    return {
+      tickets: result.rows.slice(0, safeLimit).map(mapTicket),
+      hasMore: result.rows.length > safeLimit,
+    };
   }
 
   async respond(input: {
