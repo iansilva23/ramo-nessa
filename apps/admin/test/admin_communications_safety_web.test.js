@@ -2,6 +2,25 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { createAdminApi } from '../src/api.js';
+
+function supportJsonResponse(status, payload) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type'
+          ? 'application/json; charset=utf-8'
+          : null;
+      },
+    },
+    async json() {
+      return payload;
+    },
+  };
+}
+
 test('ações de comunicação de amplo impacto exigem confirmação', () => {
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
@@ -141,3 +160,86 @@ test('Suporte não depende do carregamento de Comunicação', () => {
   );
 });
 
+
+
+test('Suporte pagina e filtra a fila sem vazar a sessão', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return supportJsonResponse(200, {
+      tickets: [],
+      nextCursor: null,
+    });
+  });
+  const token = 'rn_admin_support_paging_secret';
+
+  await api.support(token, {
+    limit: 25,
+    status: 'open',
+    cursor: {
+      createdAt: '2026-09-27T01:00:00.000Z',
+      id: '11111111-1111-4111-8111-111111111111',
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  const url = new URL(calls[0].url, 'https://admin.local');
+  assert.equal(url.pathname, '/v1/admin/support');
+  assert.equal(url.searchParams.get('limit'), '25');
+  assert.equal(url.searchParams.get('status'), 'open');
+  assert.equal(
+    url.searchParams.get('cursorCreatedAt'),
+    '2026-09-27T01:00:00.000Z',
+  );
+  assert.equal(
+    url.searchParams.get('cursorId'),
+    '11111111-1111-4111-8111-111111111111',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+});
+
+test('ADM de Suporte expõe filtro, cursor e Carregar mais', () => {
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/support.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  for (const id of [
+    'support-filter-form',
+    'support-status-filter',
+    'support-loaded-count',
+    'support-load-more',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  assert.match(app, /state\.support\.nextCursor/);
+  assert.match(app, /status: state\.support\.status/);
+  assert.match(app, /cursor: reset \? null : state\.support\.nextCursor/);
+  assert.match(
+    app,
+    /bindRouteEvent\('support-filter-form', 'submit'/,
+  );
+  assert.match(
+    app,
+    /bindRouteEvent\('support-load-more', 'click'/,
+  );
+  assert.match(
+    app,
+    /loadSupport\(\{ reset: false, announce: false \}\)/,
+  );
+});
