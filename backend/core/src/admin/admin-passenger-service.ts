@@ -171,14 +171,25 @@ export async function updatePassengerProfileFromAdmin(input: {
   }
 
   const updatedAt = (input.now ?? new Date()).toISOString();
+  const accountUpdate: {
+    subjectId: string;
+    fullName?: string | null;
+    emailNormalized?: string | null;
+    updatedAt: string;
+  } = {
+    subjectId: passengerId,
+    updatedAt,
+  };
+  if (fullNameChanged && fullName !== undefined) {
+    accountUpdate.fullName = fullName;
+  }
+  if (emailChanged && emailNormalized !== undefined) {
+    accountUpdate.emailNormalized = emailNormalized;
+  }
+
   let updated;
   try {
-    updated = await input.identities.setPassengerAccount({
-      subjectId: passengerId,
-      ...(fullNameChanged ? { fullName } : {}),
-      ...(emailChanged ? { emailNormalized } : {}),
-      updatedAt,
-    });
+    updated = await input.identities.setPassengerAccount(accountUpdate);
   } catch (error) {
     const code =
       typeof error === 'object' && error != null && 'code' in error
