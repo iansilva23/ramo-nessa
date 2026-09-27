@@ -140,6 +140,10 @@ test(
     const firstId = randomUUID();
     const secondId = randomUUID();
     const unrelatedId = randomUUID();
+    const percentLiteralId = randomUUID();
+    const percentWildcardId = randomUUID();
+    const underscoreLiteralId = randomUUID();
+    const underscoreWildcardId = randomUUID();
     const actor = {
       kind: 'api_key' as const,
       id: keyId,
@@ -183,6 +187,42 @@ test(
         metadata: {},
         createdAt: '2026-09-27T00:03:00.000Z',
       });
+      await repository.appendAudit({
+        id: percentLiteralId,
+        actor,
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        targetId: 'literal%match',
+        metadata: {},
+        createdAt: '2026-09-27T00:04:00.000Z',
+      });
+      await repository.appendAudit({
+        id: percentWildcardId,
+        actor,
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        targetId: 'literalXmatch',
+        metadata: {},
+        createdAt: '2026-09-27T00:05:00.000Z',
+      });
+      await repository.appendAudit({
+        id: underscoreLiteralId,
+        actor,
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        targetId: 'literal_match',
+        metadata: {},
+        createdAt: '2026-09-27T00:06:00.000Z',
+      });
+      await repository.appendAudit({
+        id: underscoreWildcardId,
+        actor,
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        targetId: 'literal-match',
+        metadata: {},
+        createdAt: '2026-09-27T00:07:00.000Z',
+      });
 
       const first = await repository.searchAudit({
         limit: 1,
@@ -212,6 +252,30 @@ test(
       assert.equal(second.records.length, 1);
       assert.equal(second.records[0]?.id, firstId);
       assert.equal(second.hasMore, false);
+
+      const percentLiteral = await repository.searchAudit({
+        limit: 10,
+        actorKind: 'api_key',
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        search: 'literal%match',
+      });
+      assert.deepEqual(
+        percentLiteral.records.map((record) => record.id),
+        [percentLiteralId],
+      );
+
+      const underscoreLiteral = await repository.searchAudit({
+        limit: 10,
+        actorKind: 'api_key',
+        action: 'audit.search.literal',
+        targetType: 'audit_test',
+        search: 'literal_match',
+      });
+      assert.deepEqual(
+        underscoreLiteral.records.map((record) => record.id),
+        [underscoreLiteralId],
+      );
     } finally {
       await pool.query(
         'DELETE FROM admin_audit_log WHERE actor_key_id = $1',
