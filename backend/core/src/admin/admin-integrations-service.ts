@@ -60,6 +60,19 @@ export interface AdminIntegrationSetupView {
     endpointEnvironmentVariable: 'OTP_WEBHOOK_URL';
     tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN';
   };
+  push: {
+    provider: 'fcm' | 'webhook' | 'disabled' | 'invalid';
+    firebaseCredentialConfigured: boolean;
+    firebaseCredentialSource: 'json' | 'file' | 'missing';
+    webhookEndpointConfigured: boolean;
+    webhookSecretConfigured: boolean;
+    productionReady: boolean;
+    providerEnvironmentVariable: 'PUSH_PROVIDER';
+    firebaseJsonEnvironmentVariable: 'FIREBASE_SERVICE_ACCOUNT_JSON';
+    firebaseFileEnvironmentVariable: 'FIREBASE_SERVICE_ACCOUNT_FILE';
+    webhookEndpointEnvironmentVariable: 'PUSH_WEBHOOK_URL';
+    webhookSecretEnvironmentVariable: 'PUSH_WEBHOOK_SECRET';
+  };
 }
 
 function validHttpsUrl(value: string): boolean {
@@ -110,6 +123,36 @@ export function adminIntegrationSetupView(
   const otpToken = env.OTP_WEBHOOK_TOKEN?.trim() ?? '';
   const otpEndpointConfigured = validHttpsUrl(otpEndpoint);
   const otpTokenConfigured = otpToken.length >= 20;
+
+  const rawPushProvider = env.PUSH_PROVIDER?.trim().toLowerCase() ?? '';
+  const pushProvider: 'fcm' | 'webhook' | 'disabled' | 'invalid' =
+    rawPushProvider === 'fcm'
+      ? 'fcm'
+      : rawPushProvider === 'webhook'
+        ? 'webhook'
+        : rawPushProvider === '' || rawPushProvider === 'disabled'
+          ? 'disabled'
+          : 'invalid';
+  const firebaseServiceAccountJson =
+    env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim() ?? '';
+  const firebaseServiceAccountFile =
+    env.FIREBASE_SERVICE_ACCOUNT_FILE?.trim() ?? '';
+  const firebaseCredentialSource: 'json' | 'file' | 'missing' =
+    firebaseServiceAccountJson
+      ? 'json'
+      : firebaseServiceAccountFile
+        ? 'file'
+        : 'missing';
+  const pushWebhookEndpoint = env.PUSH_WEBHOOK_URL?.trim() ?? '';
+  const pushWebhookSecret = env.PUSH_WEBHOOK_SECRET?.trim() ?? '';
+  const pushWebhookEndpointConfigured = validHttpsUrl(pushWebhookEndpoint);
+  const pushWebhookSecretConfigured = pushWebhookSecret.length >= 16;
+  const pushProductionReady =
+    pushProvider === 'fcm'
+      ? firebaseCredentialSource !== 'missing'
+      : pushProvider === 'webhook'
+        ? pushWebhookEndpointConfigured && pushWebhookSecretConfigured
+        : false;
 
   return {
     googleMaps: {
@@ -183,6 +226,22 @@ export function adminIntegrationSetupView(
       providerEnvironmentVariable: 'OTP_PROVIDER',
       endpointEnvironmentVariable: 'OTP_WEBHOOK_URL',
       tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN',
+    },
+    push: {
+      provider: pushProvider,
+      firebaseCredentialConfigured:
+        firebaseCredentialSource !== 'missing',
+      firebaseCredentialSource,
+      webhookEndpointConfigured: pushWebhookEndpointConfigured,
+      webhookSecretConfigured: pushWebhookSecretConfigured,
+      productionReady: pushProductionReady,
+      providerEnvironmentVariable: 'PUSH_PROVIDER',
+      firebaseJsonEnvironmentVariable:
+        'FIREBASE_SERVICE_ACCOUNT_JSON',
+      firebaseFileEnvironmentVariable:
+        'FIREBASE_SERVICE_ACCOUNT_FILE',
+      webhookEndpointEnvironmentVariable: 'PUSH_WEBHOOK_URL',
+      webhookSecretEnvironmentVariable: 'PUSH_WEBHOOK_SECRET',
     },
   };
 }
