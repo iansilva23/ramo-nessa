@@ -30,7 +30,7 @@ function defaultTours(): AgencyTourRecord[] {
       'EXPERIÊNCIA',
     ],
     ['utv', 50, 'Passeio de UTV', 'PRIVATIVO'],
-    ['madrinha', 60, 'Passeio Madrinha', 'EXPERIÊNCIA'],
+    ['barrinha', 60, 'Passeio Barrinha', 'EXPERIÊNCIA'],
     ['extremo-leste', 70, 'Passeio Extremo Leste', 'EXPERIÊNCIA'],
   ].map(([slug, sortOrder, title, badge]) => ({
     slug: String(slug),
