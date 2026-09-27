@@ -174,7 +174,7 @@ test(
   async () => {
     const pool = createPostgresPool(supportDatabaseUrl!);
     const repository = new PostgresDriverSupportRepository(pool);
-    const ids = [];
+    const ids: string[] = [];
 
     try {
       for (let index = 0; index < 4; index += 1) {
