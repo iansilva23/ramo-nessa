@@ -188,8 +188,8 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
 
   async setPassengerAccount(input: {
     subjectId: string;
-    fullName?: string;
-    emailNormalized?: string;
+    fullName?: string | null;
+    emailNormalized?: string | null;
     passwordHash?: string;
     photoUrl?: string | null;
     updatedAt: string;
@@ -215,6 +215,12 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
         : { photoUrl: input.photoUrl }),
       updatedAt: input.updatedAt,
     };
+    if (input.fullName === null) {
+      delete updated.fullName;
+    }
+    if (input.emailNormalized === null) {
+      delete updated.emailNormalized;
+    }
     if (input.photoUrl === null) {
       delete updated.photoUrl;
     }
