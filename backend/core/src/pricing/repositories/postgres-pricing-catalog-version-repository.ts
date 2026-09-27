@@ -126,12 +126,14 @@ export class PostgresPricingCatalogVersionRepository
       SET snapshot = $2::jsonb, updated_at = $3
       WHERE id = $1
         AND status = 'draft'
+        AND updated_at = $4
       RETURNING *
       `,
       [
         input.id,
         JSON.stringify(input.snapshot),
         input.updatedAt,
+        input.expectedUpdatedAt,
       ],
     );
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
