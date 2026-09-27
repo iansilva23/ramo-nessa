@@ -155,6 +155,7 @@ export class PostgresPricingCatalogVersionRepository
         updated_at = $6
       WHERE id = $1
         AND status = 'draft'
+        AND updated_at = $7
       RETURNING *
       `,
       [
@@ -164,6 +165,7 @@ export class PostgresPricingCatalogVersionRepository
         input.publishedBy.id,
         input.publishedBy.name,
         input.publishedAt,
+        input.expectedUpdatedAt,
       ],
     );
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
