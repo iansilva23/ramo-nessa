@@ -373,3 +373,33 @@ test('cliente Admin consulta, conclui e cancela saque com Bearer fora da URL', a
     action: 'cancelled',
   });
 });
+
+
+test('ADM bloqueia mutações financeiras quando o snapshot fica desatualizado', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    app,
+    /function financeWritesAvailable\(\)[\s\S]*?state\.finance\.writeLocked !== true/,
+  );
+  assert.match(app, /writeLocked: true/);
+  assert.match(
+    app,
+    /state\.finance\.writeLocked = false;[\s\S]*?renderFinance\(payload\)[\s\S]*?renderPaymentPolicy\(policy\)/,
+  );
+  assert.match(
+    app,
+    /state\.finance\.writeLocked = true;[\s\S]*?Falha ao atualizar · último dado[\s\S]*?renderPaymentPolicy\(state\.finance\.policy\)[\s\S]*?renderFinancePayoutDetail\(null\)/,
+  );
+  assert.match(
+    app,
+    /const canWrite =[\s\S]*?financeWritesAvailable\(\) && actionable/,
+  );
+  assert.ok(
+    (app.match(/!financeWritesAvailable\(\)/g) ?? []).length >= 8,
+    'todos os handlers financeiros sensíveis devem falhar fechado',
+  );
+});
