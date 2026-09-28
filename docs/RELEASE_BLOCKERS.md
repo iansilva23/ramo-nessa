@@ -22,7 +22,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
    - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; para produção ainda faltam `PUSH_PROVIDER=fcm`, Service Account Firebase privada no Core e os Secrets Firebase de build dos apps;
    - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
-   - Pix/cartão para corridas já possuem integração com o gateway; ainda faltam confirmação real de recarga, conciliação/estornos externos e repasse Pix, conforme o item financeiro abaixo;
+   - Pix/cartão para corridas já possuem integração com o gateway; ainda faltam confirmação real de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
    - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
    - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
    - ainda faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy de produção.
@@ -47,7 +47,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
    - ainda faltam configurar credenciais reais, webhook no domínio público, validar sandbox externo e implementar a confirmação real de recarga da carteira;
    - por segurança, o Passageiro consulta e usa o saldo existente, mas o app não oferece botão de recarga enquanto a intenção criada pelo Core continuar `simulated: true` e `actionable: false`; a interface de recarga só deve ser liberada junto da confirmação real do gateway;
-   - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão ficam em `REFUND_PENDING`; ainda faltam confirmação de estorno/chargeback do gateway externo, conciliação e repasse Pix real.
+   - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão usam `REFUND_PENDING` até confirmação; solicitação de estorno integral e reconciliação da confirmação Orders já existem no Core, inclusive retry idempotente;
+   - ainda é necessário validar pagamento/estorno no sandbox externo e domínio público; conciliação operacional completa, tratamento operacional de chargebacks/estornos parciais e repasse Pix real continuam pendentes.
 
 5. **Assinatura Android de produção ainda não existe**
    - a auditoria removeu o fallback de release para chave debug;
@@ -76,8 +77,9 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já possui metadados/revisão de CNH e CRLV com histórico de versões e sem expor referência privada ao browser;
    - o Admin já consulta somente metadados sanitizados e registra a decisão humana de aprovação/rejeição, sem receber storageKey ou hash do arquivo;
    - inspeção segura já existe no Core/Admin: sessão humana obrigatória, token criptografado curto, proxy `no-store`, validação de hash/MIME/tamanho/assinatura e preview temporário; o stack E2E usa um storage privado de teste;
-   - ainda faltam provider de storage privado de produção, upload real dos arquivos e integração completa dessa aprovação com o onboarding final;
-   - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria, financeiro read-only e inspeção segura de documentos; ainda falta a implantação operacional do storage/upload documental de produção e demais itens de Go-Live;
+   - upload de CNH/CRLV no app e no Core já existe, com validação de conteúdo e status pendente; os adapters de storage HTTP privado e diretório privado também existem;
+   - ainda faltam configurar storage privado persistente, permissões, backup/retenção e validar envio/revisão no ambiente final, além de concluir o onboarding operacional;
+   - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria, ledger histórico protegido e inspeção segura de documentos; ainda falta a implantação operacional e demais itens de Go-Live;
    - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
 
 9. **Testes reais ainda faltam**

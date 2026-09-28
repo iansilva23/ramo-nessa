@@ -1,5 +1,10 @@
 # Roadmap — Ramo Nessa
 
+> Checkboxes de implementação não certificam prontidão de produção. Consulte
+> `RELEASE_BLOCKERS.md` para credenciais, infraestrutura e testes reais pendentes.
+> Atualização de 28/09/2026: itens abaixo foram reconciliados com o código existente,
+> sem recriar chat, avaliações, documentos ou integrações já implementados.
+
 ## Etapa 0 — Fundação
 
 - [x] nome Ramo Nessa
@@ -22,7 +27,7 @@
 - [x] mapa real em ambiente de desenvolvimento
 - [x] origem por GPS
 - [x] origem manual
-- [x] busca explícita de destino
+- [x] autocomplete de destino via Core/Google Places, com busca e resolução do local
 - [x] rota, distância e ETA reais
 - [x] Carro / Moto / Entrega no domínio
 - [x] Comfort/Black e Buggy no domínio/seletor
@@ -33,7 +38,8 @@
 - [x] Aeroporto JJD incluído na área operacional inicial
 - [x] CI, testes e build Android de validação
 - [x] busca controlada dos destinos longos aprovados na tabela comercial
-- [ ] splash/onboarding final
+- [x] splash/login animados (splash de 3 s, animação de 2,8 s e entrada do login de 850 ms)
+- [ ] validar experiência final de entrada em aparelhos reais
 - [x] autenticação por telefone/OTP + sessão Bearer + armazenamento seguro
 - [x] tela base de pagamento com preço final
 - [x] cobrança Pix real via Mercado Pago Orders API
@@ -41,7 +47,8 @@
 - [x] cobrança cartão real tokenizada via SDK nativo Mercado Pago
 - [ ] interface completa da Carteira Ramo Nessa no app
 - [x] consulta de saldo e pagamento da corrida com Carteira
-- [x] Core da Carteira: recarga, saldo e pagamento de corrida
+- [x] Core da Carteira: intenção de recarga, saldo, ledger e pagamento de corrida
+- [ ] integrar cobrança/confirmação real da recarga ao gateway antes de liberar sua interface
 - [x] Core confirma pagamento antes de liberar corrida para despacho
 - [x] criação inicial de corrida no backend com identidade Bearer; fallback dev apenas fora de produção
 - [x] preparação de preço final com reserva curta e coleta roteada
@@ -53,17 +60,19 @@
 - [x] app Motorista conectado ao WebSocket com fallback HTTP
 - [x] acompanhamento do motorista via polling temporário
 - [x] acompanhamento realtime via WebSocket com fallback HTTP
-- [ ] chat
+- [x] chat de corrida nos dois apps e persistência/autorização no Core
+- [ ] validar chat entre dois aparelhos na operação real
 - [x] histórico de viagens read-only com escopo completo, filtros e detalhe
 - [x] abertura e acompanhamento de chamados do Passageiro no mesmo suporte do ADM
-- [ ] avaliação
+- [x] avaliação do motorista após corrida no Passenger e persistência/validação no Core
 
 ## Etapa 2 — Motorista
 
 - [ ] onboarding
-- [ ] documentos
+- [x] consulta e upload de CNH/CRLV pelo app, validação no Core e revisão no ADM
+- [ ] configurar storage privado persistente e validar documentos no ambiente de operação
 - [x] login OTP somente para motorista previamente provisionado/aprovado
-- [ ] cadastro completo de veículo
+- [x] cadastro de motorista/veículo e aprovação controlados pelo ADM
 - [x] capacidade/elegibilidade no Core de matching
 - [x] elegibilidade 4x4/rotas no Core
 - [x] projeção online/offline no Core
@@ -129,10 +138,12 @@
 - [x] saldo contábil do motorista por ledger
 - [x] solicitação e reserva idempotente de saque
 - [ ] repasse Pix real ao motorista
-- [ ] notificações
-- [ ] chat
-- [ ] auditoria persistente
-- [ ] observabilidade
+- [x] eventos, campanhas e integração FCM, com status seguro no ADM
+- [ ] configurar FCM e validar entrega real nos aparelhos
+- [x] chat persistente de corrida com autorização por participante
+- [x] auditoria administrativa persistente com operador, ação, alvo e metadata
+- [x] readiness, logs estruturados e shutdown gracioso
+- [ ] coleta centralizada, alertas e operação da observabilidade
 
 ## Etapa 4 — Admin
 
@@ -145,7 +156,7 @@
 - [x] backend cadastral de motorista + veículo separado do matching
 - [x] frontend Admin para editar e aprovar perfil + veículo
 - [x] frontend Admin para status/revisão de metadados de CNH/CRLV sem expor storage
-- [x] diretório read-only de passageiros com busca/filtro/paginação
+- [x] diretório de passageiros com busca/filtro/paginação, edição permitida e bloqueio de acesso
 - [x] backend do dashboard operacional com métricas reais de corridas
 - [x] frontend do dashboard operacional com corridas ativas e janela de 24h
 - [x] mapa da frota em tempo real (carros/motos, livres, em corrida, entrega e GPS atrasado)
@@ -164,7 +175,7 @@
 - [x] edição/versionamento/vigência de preços para rotas fixas e tarifas por localidade
 - [x] edição estrutural versionada de localidades/zonas suportadas
 - [x] categorias e elegibilidade comercial versionadas (ativação + exigência 4x4 ao cruzar Jeri)
-- [x] painel read-only de pagamentos/comissões, saldos contábeis e saques
+- [x] pagamentos/ledger históricos read-only, políticas financeiras editáveis e fluxo legítimo de gestão de saques
 - [x] fundação persistente no Admin para política de dinheiro, desligada por padrão e com ativação protegida
 - [x] fluxo cash end-to-end com ativação manual no Admin, desligado por padrão (dívida, limite, compensação e liquidação)
 - [x] bloqueios de acesso de passageiros/motoristas com revogação imediata de sessão
