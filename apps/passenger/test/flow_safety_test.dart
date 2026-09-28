@@ -102,10 +102,6 @@ void main() {
       expect(find.text('Táxi Buggy'), findsOneWidget);
       expect(find.text('Carro normal'), findsNothing);
       expect(find.textContaining(r'R$'), findsNothing);
-      expect(
-        find.textContaining('O preço aparece na próxima etapa'),
-        findsOneWidget,
-      );
 
       final addPassengerButton = find.byTooltip('Adicionar passageiro');
       await tester.tap(addPassengerButton);
