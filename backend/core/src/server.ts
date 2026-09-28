@@ -26,6 +26,14 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from './payments/mercado-pago-orders.js';
 import {
+  createDriverPayoutProviderFromEnv,
+  DriverPayoutProviderError,
+} from './payments/driver-payout-provider.js';
+import {
+  processDriverPayout,
+  reconcileDriverPayouts,
+} from './payments/driver-payout-processing-service.js';
+import {
   applyMercadoPagoOrderStatus,
   createMercadoPagoCardIntent,
   createMercadoPagoPixIntent,
@@ -414,6 +422,7 @@ const googlePlacesService = createGooglePlacesServiceFromEnv();
 assertGoogleMapsProductionConfig();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
+const driverPayoutProvider = createDriverPayoutProviderFromEnv();
 const realtimeHub = new RealtimeHub();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 const pushNotificationService = new PushNotificationService(
