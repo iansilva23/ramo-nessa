@@ -22,6 +22,8 @@ export interface PrepareRideRequest {
     latitude: number;
     longitude: number;
   };
+  pickupPlaceProof?: string;
+  dropoffPlaceProof?: string;
 }
 
 export function parsePrepareRideRequest(input: unknown): PrepareRideRequest {
@@ -69,10 +71,38 @@ export function parsePrepareRideRequest(input: unknown): PrepareRideRequest {
     return { latitude, longitude };
   };
 
+  const parseProof = (
+    value: unknown,
+    field: 'pickupPlaceProof' | 'dropoffPlaceProof',
+  ): string | undefined => {
+    if (value == null) return undefined;
+    if (
+      typeof value !== 'string' ||
+      value.trim().length < 40 ||
+      value.trim().length > 4096
+    ) {
+      throw new InvalidRideRequestError(
+        `${field} deve ser uma prova de lugar válida.`,
+      );
+    }
+    return value.trim();
+  };
+
+  const pickupPlaceProof = parseProof(
+    record.pickupPlaceProof,
+    'pickupPlaceProof',
+  );
+  const dropoffPlaceProof = parseProof(
+    record.dropoffPlaceProof,
+    'dropoffPlaceProof',
+  );
+
   return {
     quoteRequest: parseQuoteRequest(record.quoteRequest),
     pickup: parsePoint(record.pickup, 'pickup'),
     dropoff: parsePoint(record.dropoff, 'dropoff'),
+    ...(pickupPlaceProof == null ? {} : { pickupPlaceProof }),
+    ...(dropoffPlaceProof == null ? {} : { dropoffPlaceProof }),
   };
 }
 
