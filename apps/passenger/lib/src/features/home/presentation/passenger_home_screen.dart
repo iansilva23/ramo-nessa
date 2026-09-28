@@ -19,10 +19,8 @@ import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../profile/data/passenger_saved_place_service.dart';
 import '../../map/domain/route_info.dart';
-import '../../pricing/data/http_pricing_quote_service.dart';
 import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/data/pricing_policy_service.dart';
-import '../../pricing/domain/pricing_quote.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
 import '../../rides/data/http_passenger_ride_tracking_service.dart';
@@ -35,6 +33,7 @@ import '../../payments/presentation/ride_payment_screen.dart';
 import '../../service_area/domain/service_area_policy.dart';
 import '../domain/service_type.dart';
 import 'destination_search_screen.dart';
+import 'vehicle_selection_screen.dart';
 import 'widgets/ramo_live_map.dart';
 import 'widgets/ride_bottom_sheet.dart';
 
@@ -107,14 +106,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   accessToken: _accessToken,
                 )
               : const _UnavailablePlaceSearchService());
-  late final PricingQuoteService? _pricingQuoteService =
-      widget.pricingQuoteService ??
-          (RamoCoreConfig.enabled
-              ? HttpPricingQuoteService(
-                  baseUrl: RamoCoreConfig.baseUri!,
-                )
-              : null);
-
   late final PricingPolicyService? _pricingPolicyService =
       widget.pricingPolicyService ??
           (RamoCoreConfig.enabled
@@ -179,22 +170,16 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 )
               : null);
 
-  ServiceType _service = ServiceType.car;
   RamoPlace? _origin;
   RamoPlace? _destination;
   RouteInfo? _route;
-  PricingQuote? _pricingQuote;
-  String? _pricingMessage;
   String? _coverageMessage;
   String? _serviceAreaLabel;
   bool _mapReady = false;
   bool _locating = false;
   bool _routeLoading = false;
-  bool _pricingLoading = false;
   bool _preparingRide = false;
   int _routeRequestId = 0;
-  int _pricingRequestId = 0;
-  int _passengerCount = 1;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
   bool _releaseDialogShown = false;
@@ -462,13 +447,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     );
   }
 
-  void _resetPricing() {
-    _pricingRequestId++;
-    _pricingQuote = null;
-    _pricingMessage = null;
-    _pricingLoading = false;
-  }
-
   Future<void> _locateUser({bool showErrors = true}) async {
     if (_locating) {
       return;
@@ -493,7 +471,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _locating = false;
         _coverageMessage = null;
         _serviceAreaLabel = null;
-        _resetPricing();
       });
 
       if (_mapReady) {
@@ -560,7 +537,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       _routeLoading = false;
       _coverageMessage = null;
       _serviceAreaLabel = null;
-      _resetPricing();
     });
 
     if (_destination != null) {
@@ -572,14 +548,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   void _clearDestination() {
     _routeRequestId++;
-    _pricingRequestId++;
     setState(() {
       _destination = null;
       _route = null;
       _routeLoading = false;
       _coverageMessage = null;
       _serviceAreaLabel = null;
-      _resetPricing();
     });
 
     final origin = _origin;
@@ -607,7 +581,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       _routeLoading = false;
       _coverageMessage = null;
       _serviceAreaLabel = null;
-      _resetPricing();
     });
 
     if (_origin == null) {
@@ -723,18 +696,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   ServiceType _suggestService(List<ServiceType> available) {
-    if (available.contains(_service)) {
-      return _service;
-    }
-
-    if (available.contains(ServiceType.comfortBlack)) {
-      return ServiceType.comfortBlack;
-    }
-
-    if (available.contains(ServiceType.buggy)) {
-      return ServiceType.buggy;
-    }
-
     return available.first;
   }
 
@@ -760,35 +721,27 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
         _coverageMessage = coverage.message;
         _serviceAreaLabel = null;
-        _resetPricing();
       });
       return;
     }
 
-    final availableServices = _servicesForCoverage(coverage);
-    if (availableServices.isEmpty) {
+    if (_servicesForCoverage(coverage).isEmpty) {
       _routeRequestId++;
       setState(() {
         _route = null;
         _routeLoading = false;
         _coverageMessage = 'Essa rota ainda não tem serviço configurado.';
         _serviceAreaLabel = null;
-        _resetPricing();
       });
       return;
     }
 
     final requestId = ++_routeRequestId;
-    final suggestedService = _suggestService(availableServices);
-
     setState(() {
-      _service = suggestedService;
-      _passengerCount = _minimumPassengersFor(suggestedService);
       _routeLoading = true;
       _coverageMessage = null;
       _serviceAreaLabel =
           '${coverage.originZone!.label} → ${coverage.destinationZone!.label}';
-      _resetPricing();
     });
 
     try {
@@ -806,8 +759,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
       });
 
-      await _loadQuote(route: route, coverage: coverage);
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fitRoute();
       });
@@ -819,148 +770,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       setState(() {
         _route = null;
         _routeLoading = false;
-        _resetPricing();
       });
       _showMessage('Não conseguimos calcular essa rota agora.');
     }
-  }
-
-  Future<void> _loadQuote({
-    required RouteInfo route,
-    required ServiceAreaCheck coverage,
-  }) async {
-    final origin = _origin;
-    final destination = _destination;
-    final service = _pricingQuoteService;
-
-    if (origin == null ||
-        destination == null ||
-        coverage.originZone == null ||
-        coverage.destinationZone == null) {
-      return;
-    }
-
-    if (service == null) {
-      setState(() {
-        _pricingQuote = null;
-        _pricingLoading = false;
-        _pricingMessage =
-            'Não conseguimos confirmar o valor desta corrida agora. Tente novamente em instantes.';
-      });
-      return;
-    }
-
-    final requestId = ++_pricingRequestId;
-    setState(() {
-      _pricingLoading = true;
-      _pricingQuote = null;
-      _pricingMessage = null;
-    });
-
-    try {
-      final quote = await service.quote(
-        service: _service,
-        origin: origin,
-        destination: destination,
-        originZoneId: coverage.originZone!.id,
-        destinationZoneId: coverage.destinationZone!.id,
-        route: route,
-        passengers: _passengerCount,
-      );
-
-      if (!mounted || requestId != _pricingRequestId) {
-        return;
-      }
-
-      setState(() {
-        _pricingQuote = quote;
-        _pricingLoading = false;
-        _pricingMessage = quote.isExact
-            ? null
-            : 'Essa tarifa ainda é uma faixa e precisa ser resolvida antes do pagamento.';
-      });
-    } on PricingQuoteException catch (error) {
-      if (!mounted || requestId != _pricingRequestId) {
-        return;
-      }
-
-      setState(() {
-        _pricingQuote = null;
-        _pricingLoading = false;
-        _pricingMessage = error.message;
-      });
-    } catch (_) {
-      if (!mounted || requestId != _pricingRequestId) {
-        return;
-      }
-
-      setState(() {
-        _pricingQuote = null;
-        _pricingLoading = false;
-        _pricingMessage = 'Não conseguimos atualizar o valor da corrida agora.';
-      });
-    }
-  }
-
-  Future<void> _reloadQuoteForService(ServiceType service) async {
-    setState(() {
-      _service = service;
-      _passengerCount = _minimumPassengersFor(service);
-      _resetPricing();
-    });
-
-    final origin = _origin;
-    final destination = _destination;
-    final route = _route;
-    if (origin == null || destination == null || route == null) {
-      return;
-    }
-
-    final coverage = RamoServiceArea.checkPlaceTrip(
-      origin: origin,
-      destination: destination,
-    );
-    if (!coverage.isSupported ||
-        !_servicesForCoverage(coverage).contains(service)) {
-      return;
-    }
-
-    await _loadQuote(route: route, coverage: coverage);
-  }
-
-  Future<void> _changePassengerCount(int count) async {
-    final minimum = _minimumPassengersFor(ServiceType.buggy);
-    final maximum = _maximumPassengersFor(ServiceType.buggy);
-    if (
-      count < minimum ||
-      count > maximum ||
-      count == _passengerCount
-    ) {
-      return;
-    }
-
-    setState(() {
-      _passengerCount = count;
-      _resetPricing();
-    });
-
-    final origin = _origin;
-    final destination = _destination;
-    final route = _route;
-    if (origin == null || destination == null || route == null) {
-      return;
-    }
-
-    final coverage = RamoServiceArea.checkPlaceTrip(
-      origin: origin,
-      destination: destination,
-    );
-    if (!coverage.isSupported ||
-        !_servicesForCoverage(coverage).contains(ServiceType.buggy)) {
-      return;
-    }
-
-    await _loadQuote(route: route, coverage: coverage);
   }
 
   void _fitRoute() {
@@ -985,17 +797,21 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     );
   }
 
-  Future<void> _requestRide() async {
+  Future<void> _continueToVehicleSelection() async {
     final origin = _origin;
     final destination = _destination;
+    final route = _route;
 
     if (origin == null) {
-      _chooseOrigin();
+      await _chooseOrigin();
       return;
     }
-
     if (destination == null) {
-      _chooseDestination();
+      await _chooseDestination();
+      return;
+    }
+    if (route == null) {
+      await _loadRoute();
       return;
     }
 
@@ -1003,13 +819,15 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       origin: origin,
       destination: destination,
     );
-    if (!coverage.isSupported) {
+    if (!coverage.isSupported ||
+        coverage.originZone == null ||
+        coverage.destinationZone == null) {
       _showMessage(coverage.message ?? 'Essa rota ainda não é atendida.');
       return;
     }
 
-    final originZoneId = coverage.originZone?.id;
-    final destinationZoneId = coverage.destinationZone?.id;
+    final originZoneId = coverage.originZone!.id;
+    final destinationZoneId = coverage.destinationZone!.id;
     if (
       originZoneId == 'external' &&
       origin.approvedExternalId != 'airport-jjd' &&
@@ -1031,60 +849,88 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
-    if (_route == null) {
-      _loadRoute();
+    final services = _servicesForCoverage(coverage);
+    if (services.isEmpty) {
+      _showMessage('Essa rota ainda não tem serviço configurado.');
       return;
     }
 
-    if (_pricingQuote == null || !_pricingQuote!.isExact) {
-      _showMessage(
-        _pricingMessage ?? 'Aguardando confirmação do valor da corrida.',
-      );
-      return;
-    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VehicleSelectionScreen(
+          originLabel: origin.displayName,
+          destinationLabel: destination.displayName,
+          routeSummary: '${route.distanceLabel} · ${route.durationLabel}',
+          availableServices: services,
+          initialService: _suggestService(services),
+          buggyMinPassengers: _minimumPassengersFor(ServiceType.buggy),
+          buggyMaxPassengers: _maximumPassengersFor(ServiceType.buggy),
+          onContinue: (selection) => _prepareSelectedRide(
+            selection: selection,
+            coverage: coverage,
+            origin: origin,
+            destination: destination,
+            route: route,
+          ),
+        ),
+      ),
+    );
+  }
 
+  Future<String?> _prepareSelectedRide({
+    required VehicleSelectionResult selection,
+    required ServiceAreaCheck coverage,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required RouteInfo route,
+  }) async {
     final preparation = _ridePreparationService;
     if (preparation == null) {
-      _showMessage(
-        'Não conseguimos iniciar esta corrida agora. Atualize o app ou tente novamente mais tarde.',
-      );
-      return;
+      return 'Não conseguimos iniciar esta corrida agora. Atualize o app ou tente novamente mais tarde.';
+    }
+    if (_preparingRide) {
+      return 'Aguarde, estamos preparando sua corrida.';
     }
 
-    if (_preparingRide) return;
+    if (!_servicesForCoverage(coverage).contains(selection.service)) {
+      return 'Essa categoria não está disponível para esta rota.';
+    }
 
     setState(() => _preparingRide = true);
     try {
       final prepared = await preparation.prepare(
-        service: _service,
+        service: selection.service,
         origin: origin,
         destination: destination,
         originZoneId: coverage.originZone!.id,
         destinationZoneId: coverage.destinationZone!.id,
-        route: _route!,
-        passengers: _passengerCount,
+        route: route,
+        passengers: selection.passengerCount,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return 'Não conseguimos abrir o pagamento agora.';
+      }
 
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => RidePaymentScreen(
-            ride: prepared,
-            paymentService: _paymentService,
-            rideTrackingService: _rideTrackingService,
-            rideRealtimeService: _rideRealtimeService,
-            routeService: _routeService,
-            networkTilesEnabled: widget.networkTilesEnabled,
+      unawaited(
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => RidePaymentScreen(
+              ride: prepared,
+              paymentService: _paymentService,
+              rideTrackingService: _rideTrackingService,
+              rideRealtimeService: _rideRealtimeService,
+              routeService: _routeService,
+              networkTilesEnabled: widget.networkTilesEnabled,
+            ),
           ),
         ),
       );
+      return null;
     } on RidePreparationException catch (error) {
-      if (mounted) _showMessage(error.message);
+      return error.message;
     } catch (_) {
-      if (mounted) {
-        _showMessage('Não conseguimos preparar essa corrida agora.');
-      }
+      return 'Não conseguimos preparar essa corrida agora.';
     } finally {
       if (mounted) setState(() => _preparingRide = false);
     }
@@ -1100,28 +946,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final coverage = _origin != null && _destination != null
-        ? RamoServiceArea.checkPlaceTrip(
-            origin: _origin!,
-            destination: _destination!,
-          )
-        : null;
-    final initialServices = const [
-      ServiceType.car,
-      ServiceType.moto,
-      ServiceType.delivery,
-    ];
-    final availableServices = coverage == null
-        ? _pricingPolicy == null
-            ? initialServices
-            : initialServices
-                .where(
-                  (service) => _pricingPolicy!.enabledCategories
-                      .contains(service.backendKey),
-                )
-                .toList(growable: false)
-        : _servicesForCoverage(coverage);
-
     final routeSummary = _route == null
         ? null
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
@@ -1234,17 +1058,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             ),
           ),
           RideBottomSheet(
-            selectedService: _service,
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
-            estimatedFare: _pricingQuote?.formatted,
-            fareCaption: _pricingQuote?.isExact == true
-                ? 'Valor confirmado antes do pagamento'
-                : 'Estimativa atualizada da corrida',
-            priceIsFinal: _pricingQuote?.isExact == true,
-            pricingMessage: _pricingMessage,
-            pricingLoading: _pricingLoading,
             serviceAreaLabel: _serviceAreaLabel,
             coverageMessage: _coverageMessage,
             routeLoading: _routeLoading,
@@ -1252,15 +1068,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onDestinationTap: _chooseDestination,
             onDestinationClear:
                 _destination == null ? null : _clearDestination,
-            passengerCount: _passengerCount,
-            minPassengerCount:
-                _minimumPassengersFor(ServiceType.buggy),
-            maxPassengerCount:
-                _maximumPassengersFor(ServiceType.buggy),
-            onPassengerCountChanged: _changePassengerCount,
-            availableServices: availableServices,
-            onServiceChanged: _reloadQuoteForService,
-            onRequestRide: _requestRide,
+            onContinue: _preparingRide
+                ? () {}
+                : () => unawaited(_continueToVehicleSelection()),
           ),
         ],
       ),
