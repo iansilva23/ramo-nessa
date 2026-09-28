@@ -38,6 +38,24 @@ test('audit final mobile exige Firebase em Android e iOS', async () => {
     (yaml.match(/--dart-define=RAMO_FIREBASE_PROJECT_ID=/g) ?? []).length,
     4,
   );
+  assert.equal(
+    (yaml.match(/Validate production Core URL/g) ?? []).length,
+    4,
+  );
+  assert.equal(
+    (yaml.match(/RAMO_CORE_BASE_URL: \$\{\{ secrets\.RAMO_CORE_BASE_URL \}\}/g) ?? [])
+      .length,
+    8,
+  );
+  assert.equal(
+    (yaml.match(/--dart-define=RAMO_CORE_BASE_URL=\$RAMO_CORE_BASE_URL/g) ?? [])
+      .length,
+    4,
+  );
+  assert.match(
+    yaml,
+    /RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release/,
+  );
 
   assert.match(
     yaml,
