@@ -78,6 +78,31 @@ export interface ReserveDriverPayoutResult {
   duplicateRequest: boolean;
 }
 
+export interface StartDriverPayoutInput {
+  payoutId: string;
+  processor: string;
+  processorPayoutId: string;
+  startedAt?: Date;
+}
+
+export interface StartDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  duplicateStart: boolean;
+}
+
+export interface FailDriverPayoutInput {
+  payoutId: string;
+  processor?: string;
+  processorPayoutId?: string;
+  failedAt?: Date;
+}
+
+export interface FailDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateFailure: boolean;
+}
+
 export interface CompleteDriverPayoutInput {
   payoutId: string;
   processor: string;
@@ -234,6 +259,16 @@ export interface FinanceRepository {
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
   findDriverPayoutById(id: string): Promise<DriverPayoutRecord | null>;
+  listDriverPayoutsByStatus(
+    statuses: readonly DriverPayoutRecord['status'][],
+    limit: number,
+  ): Promise<DriverPayoutRecord[]>;
+  startDriverPayout(
+    input: StartDriverPayoutInput,
+  ): Promise<StartDriverPayoutResult>;
+  failDriverPayout(
+    input: FailDriverPayoutInput,
+  ): Promise<FailDriverPayoutResult>;
   completeDriverPayout(
     input: CompleteDriverPayoutInput,
   ): Promise<CompleteDriverPayoutResult>;
