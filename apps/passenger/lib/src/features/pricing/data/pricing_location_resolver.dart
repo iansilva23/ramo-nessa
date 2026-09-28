@@ -37,10 +37,12 @@ abstract final class PricingLocationResolver {
     }
 
     if (serviceZoneId == 'external') {
+      final approvedByCore = place.approvedExternalId?.trim();
       final external = ApprovedDestinationCatalog.matchPlace(place);
       return PricingLocationRef(
         zoneId: 'external',
-        localityId: external?.id,
+        localityId:
+            approvedByCore?.isNotEmpty == true ? approvedByCore : external?.id,
       );
     }
 
