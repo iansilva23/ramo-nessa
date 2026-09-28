@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 test('admin exposes secure production integration status center', async () => {
   const [html, app, api] = await Promise.all([
@@ -46,4 +47,41 @@ test('admin exposes secure production integration status center', async () => {
     /AIza[0-9A-Za-z_-]{20,}/,
     'o HTML não deve conter chave Google real',
   );
+});
+
+test('Public Key exige no formulário e no submit os mesmos scopes do Core', async () => {
+  const app = await readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  const functions = app.slice(
+    app.indexOf('function canManageMercadoPagoPublicKey('),
+    app.indexOf('async function loadIntegrations('),
+  );
+  for (const scopes of [[], ['finance:write'], ['rides:write'], ['finance:write', 'rides:write']]) {
+    const elements = new Map();
+    const byId = (id) => {
+      if (!elements.has(id)) elements.set(id, {});
+      return elements.get(id);
+    };
+    let updates = 0;
+    const settings = { mercadoPagoPublicKey: 'TEST-public-key-for-integration' };
+    const handlers = runInNewContext(
+      `${functions}\n({ renderMercadoPagoPublicKey, handleMercadoPagoPublicKeySubmit })`,
+      {
+        byId,
+        hasScope: (scope) => scopes.includes(scope),
+        state: { token: 'admin-test-token' },
+        window: { confirm: () => true },
+        globalMessage: {},
+        setMessage: () => {},
+        api: { updateOperationalSettings: async () => { updates += 1; return settings; } },
+        handleAuthenticatedError: (error) => { throw error; },
+      },
+    );
+    handlers.renderMercadoPagoPublicKey(settings);
+    const canWrite = scopes.length === 2;
+    assert.equal(byId('mercado-pago-public-key').disabled, !canWrite);
+    assert.equal(byId('save-mercado-pago-public-key-button').disabled, !canWrite);
+    await handlers.handleMercadoPagoPublicKeySubmit({ preventDefault() {} });
+    assert.equal(updates, canWrite ? 1 : 0);
+    assert.equal(byId('save-mercado-pago-public-key-button').disabled, !canWrite);
+  }
 });

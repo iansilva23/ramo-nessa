@@ -22,7 +22,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
    - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; para produção ainda faltam `PUSH_PROVIDER=fcm`, Service Account Firebase privada no Core e os Secrets Firebase de build dos apps;
    - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
-   - falta gateway real, conciliação e repasse Pix;
+   - Pix/cartão para corridas já possuem integração com o gateway; ainda faltam confirmação real de recarga, conciliação/estornos externos e repasse Pix, conforme o item financeiro abaixo;
    - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
    - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
    - ainda faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy de produção.
@@ -43,7 +43,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - Pix/cartão/carteira são a política aprovada e o ledger/carteira internos já existem;
    - Pix usa Orders API no Core e cartão usa tokenização nativa do Mercado Pago; a Public Key pode ser administrada no ADM e consumida dinamicamente pelo Passenger, com fallback do build;
    - Access Token e webhook secret continuam restritos ao ambiente seguro do Core e não aparecem no ADM nem nos apps;
-   - o Admin já possui visão financeira somente leitura baseada no ledger, sem ações de mutação financeira;
+   - o Admin mantém ledger e pagamentos históricos somente leitura; políticas financeiras e o fluxo legítimo de conclusão/cancelamento de saques são administráveis, sem edição arbitrária do ledger;
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
    - ainda faltam configurar credenciais reais, webhook no domínio público, validar sandbox externo e implementar a confirmação real de recarga da carteira;
    - por segurança, o Passageiro consulta e usa o saldo existente, mas o app não oferece botão de recarga enquanto a intenção criada pelo Core continuar `simulated: true` e `actionable: false`; a interface de recarga só deve ser liberada junto da confirmação real do gateway;
@@ -91,18 +91,22 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - entrega real de Push FCM em Android e iPhone, incluindo app aberto, background e token renovado;
    - cenários reais de pagamento e cancelamento.
 
-## Suporte
-
-- Motoristas e passageiros abrem e acompanham chamados autenticados nos respectivos apps;
-- o ADM usa uma única fila paginada, identifica o tipo de solicitante, responde e registra a ação na auditoria;
-- as referências de motorista e passageiro permanecem protegidas por foreign keys próprias no PostgreSQL.
-
 10. **Regras de acesso/eligibilidade e geografia**
    - preço não substitui autorização operacional;
    - o Core já valida categoria, lotação, disponibilidade e 4x4 antes da oferta;
    - disponibilidade de categorias e exigência 4x4 ao cruzar Jeri já são políticas versionadas e publicáveis pelo Admin;
    - cada corrida congela sua exigência 4x4 para não mudar com versões futuras;
    - falta um catálogo geoespacial autoritativo para validar a localidade exata de todas as tarifas locais/externas, além da validação de zona/GPS já implementada.
+
+## Suporte e separação Preview/real
+
+- Motoristas e passageiros abrem e acompanham chamados autenticados nos respectivos apps;
+- o ADM usa uma única fila paginada, identifica o tipo de solicitante, responde e registra a ação na auditoria;
+- as referências de motorista e passageiro permanecem protegidas por foreign keys próprias no PostgreSQL;
+- o Passenger normal compartilha os serviços autenticados entre Início e Perfil; os serviços privados nunca são selecionados por uma sessão Preview;
+- no Preview, o suporte é temporário e local, com aviso explícito de que não envia à equipe. Isso não substitui o teste operacional com Core real;
+- resposta salva no chamado não comprova entrega de Push: FCM continua dependendo da configuração e do aparelho;
+- falhas de consulta do suporte mostram erro/retry, não lista vazia nem dados antigos como se estivessem atualizados.
 
 ## Regra do projeto
 

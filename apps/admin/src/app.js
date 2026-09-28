@@ -5415,6 +5415,10 @@ function renderIntegrations(payload) {
   );
 }
 
+function canManageMercadoPagoPublicKey() {
+  return hasScope('finance:write') && hasScope('rides:write');
+}
+
 function renderMercadoPagoPublicKey(settings) {
   const input = byId('mercado-pago-public-key');
   const button = byId('save-mercado-pago-public-key-button');
@@ -5437,7 +5441,7 @@ function renderMercadoPagoPublicKey(settings) {
   const value = typeof settings.mercadoPagoPublicKey === 'string'
     ? settings.mercadoPagoPublicKey.trim()
     : '';
-  const canWrite = hasScope('finance:write');
+  const canWrite = canManageMercadoPagoPublicKey();
   input.value = value;
   input.disabled = !canWrite;
   button.disabled = !canWrite;
@@ -5447,12 +5451,12 @@ function renderMercadoPagoPublicKey(settings) {
   status.textContent = value ? 'Configurada' : 'Usando fallback do build';
   detail.textContent = canWrite
     ? 'Alterações passam a valer ao abrir novamente a tela de pagamento.'
-    : 'Permissão finance:write necessária para alterar.';
+    : 'Permissões finance:write e rides:write necessárias para alterar.';
 }
 
 async function handleMercadoPagoPublicKeySubmit(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('finance:write')) return;
+  if (!state.token || !canManageMercadoPagoPublicKey()) return;
 
   const input = byId('mercado-pago-public-key');
   const button = byId('save-mercado-pago-public-key-button');
@@ -5493,7 +5497,7 @@ async function handleMercadoPagoPublicKeySubmit(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('finance:write');
+    button.disabled = !canManageMercadoPagoPublicKey();
   }
 }
 
@@ -7760,7 +7764,7 @@ async function handleSupportResponse(event) {
     });
     setMessage(
       globalMessage,
-      'Resposta registrada e solicitante avisado.',
+      'Resposta registrada no chamado.',
       'success',
     );
     await loadSupport({ announce: false });

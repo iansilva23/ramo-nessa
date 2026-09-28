@@ -161,6 +161,8 @@ test('Suporte não depende do carregamento de Comunicação', () => {
   );
   assert.match(app, /supportRequesterLabel/);
   assert.match(app, /requesterType === 'passenger'/);
+  assert.match(app, /Resposta registrada no chamado/);
+  assert.doesNotMatch(app, /Resposta registrada e solicitante avisado/);
 });
 
 
