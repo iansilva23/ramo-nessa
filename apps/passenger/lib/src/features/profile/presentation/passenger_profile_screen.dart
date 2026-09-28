@@ -14,6 +14,7 @@ import 'passenger_security_screen.dart';
 import 'passenger_settings_screen.dart';
 import '../../map/data/place_search_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
+import '../../payments/presentation/passenger_wallet_screen.dart';
 import '../data/passenger_saved_place_service.dart';
 import '../data/passenger_support_service.dart';
 import 'passenger_saved_places_screen.dart';
@@ -940,6 +941,20 @@ class _PassengerPaymentMethodsScreenState
                 subtitle: _walletCents == null
                     ? 'Saldo indisponível'
                     : 'Saldo: ${_formatCents(_walletCents!)}',
+                onTap: policy.passengerWalletEnabled &&
+                        policy.allowedMethods.contains('wallet') &&
+                        widget.service != null
+                    ? () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PassengerWalletScreen(
+                              service: widget.service!,
+                            ),
+                          ),
+                        );
+                        if (mounted) await _load();
+                      }
+                    : null,
               ),
               _PaymentMethodTile(
                 icon: Icons.payments_outlined,
@@ -964,12 +979,14 @@ class _PaymentMethodTile extends StatelessWidget {
     required this.title,
     required this.enabled,
     required this.subtitle,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final bool enabled;
   final String subtitle;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -984,23 +1001,26 @@ class _PaymentMethodTile extends StatelessWidget {
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
       subtitle: Text(subtitle),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: enabled
-              ? RamoColors.brandYellow
-              : RamoColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(RamoRadius.pill),
-        ),
-        child: Text(
-          enabled ? 'Disponível' : 'Indisponível',
-          style: const TextStyle(
-            color: RamoColors.brandBlack,
-            fontWeight: FontWeight.w900,
-            fontSize: 11,
-          ),
-        ),
-      ),
+      trailing: onTap != null
+          ? const Icon(Icons.chevron_right_rounded)
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: enabled
+                    ? RamoColors.brandYellow
+                    : RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(RamoRadius.pill),
+              ),
+              child: Text(
+                enabled ? 'Disponível' : 'Indisponível',
+                style: const TextStyle(
+                  color: RamoColors.brandBlack,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+      onTap: onTap,
     );
   }
 }
