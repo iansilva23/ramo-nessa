@@ -125,6 +125,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         placeSearchService: resolvedPlaceSearchService,
         socialLinksService: socialLinksService,
         supportService: services.support,
+        privacyService: services.privacy,
         tourService: tourService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
