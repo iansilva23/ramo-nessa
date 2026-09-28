@@ -329,7 +329,7 @@ final class _PreviewPaymentService implements PassengerPaymentService {
   @override
   Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) async {
     return List<WalletTopupStatus>.unmodifiable(
-      _topups.take(limit.clamp(1, 100)),
+      _topups.take(limit.clamp(1, 100).toInt()),
     );
   }
 
