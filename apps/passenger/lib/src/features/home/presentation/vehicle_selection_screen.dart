@@ -24,6 +24,7 @@ class VehicleSelectionScreen extends StatefulWidget {
     required this.initialService,
     required this.buggyMinPassengers,
     required this.buggyMaxPassengers,
+    required this.onContinue,
   });
 
   final String originLabel;
@@ -33,6 +34,7 @@ class VehicleSelectionScreen extends StatefulWidget {
   final ServiceType initialService;
   final int buggyMinPassengers;
   final int buggyMaxPassengers;
+  final Future<String?> Function(VehicleSelectionResult result) onContinue;
 
   @override
   State<VehicleSelectionScreen> createState() =>
@@ -43,13 +45,16 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   late ServiceType _selected = widget.initialService;
   late int _passengerCount =
       _selected == ServiceType.buggy ? widget.buggyMinPassengers : 1;
+  bool _submitting = false;
+  String? _error;
 
   void _select(ServiceType service) {
-    if (_selected == service) return;
+    if (_selected == service || _submitting) return;
     setState(() {
       _selected = service;
       _passengerCount =
           service == ServiceType.buggy ? widget.buggyMinPassengers : 1;
+      _error = null;
     });
   }
 
@@ -64,13 +69,25 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     setState(() => _passengerCount = value);
   }
 
-  void _continue() {
-    Navigator.of(context).pop(
+  Future<void> _continue() async {
+    if (_submitting) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+
+    final error = await widget.onContinue(
       VehicleSelectionResult(
         service: _selected,
         passengerCount: _passengerCount,
       ),
     );
+
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _error = error;
+    });
   }
 
   @override
@@ -162,6 +179,16 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                           color: RamoColors.muted,
                         ),
                   ),
+                  if (_error != null) ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    Text(
+                      _error!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -187,7 +214,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                 height: 54,
                 child: FilledButton(
                   key: const Key('continue-vehicle-button'),
-                  onPressed: _continue,
+                  onPressed: _submitting ? null : _continue,
                   style: FilledButton.styleFrom(
                     backgroundColor: RamoColors.brandBlack,
                     foregroundColor: Colors.white,
@@ -195,13 +222,21 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text(
-                    'Continuar',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  child: _submitting
+                      ? const SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Continuar',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                 ),
               ),
             ),
