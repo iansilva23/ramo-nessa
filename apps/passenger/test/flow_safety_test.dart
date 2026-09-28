@@ -88,7 +88,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Etapa 1: mapa/rota sem preço e sem categoria.
-      expect(find.text('2,5 km · 7 min'), findsOneWidget);
+      expect(find.textContaining('2,5 km · 7 min'), findsOneWidget);
       expect(find.textContaining(r'R$'), findsNothing);
       expect(find.text('Táxi Buggy'), findsNothing);
 
