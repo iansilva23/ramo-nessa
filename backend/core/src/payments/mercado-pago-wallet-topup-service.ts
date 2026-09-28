@@ -2,7 +2,6 @@ import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
 import type { FinanceRepository } from './finance-repository.js';
 import {
   mercadoPagoOrderRefundState,
-  type MercadoPagoCardOrder,
   type MercadoPagoOrderStatus,
   type MercadoPagoOrdersClient,
   type MercadoPagoPixOrder,
@@ -91,51 +90,6 @@ export async function createMercadoPagoWalletPixTopup(input: {
   });
 
   return { topup, pix };
-}
-
-export async function createMercadoPagoWalletCardTopup(input: {
-  finance: FinanceRepository;
-  gateway: MercadoPagoOrdersClient | null;
-  passengerId: string;
-  identity: AuthIdentityRecord | null;
-  payerEmail?: string;
-  amountCents: number;
-  cardToken: string;
-  paymentMethodId: string;
-  paymentMethodType: 'credit_card' | 'debit_card';
-  installments: number;
-  idempotencyKey: string;
-  now?: Date;
-}): Promise<{ topup: WalletTopupRecord; card: MercadoPagoCardOrder }> {
-  const gateway = assertGateway(input.gateway);
-  const email = payerEmail(input.identity, input.payerEmail);
-  let topup = await createWalletTopup(input.finance, {
-    passengerId: input.passengerId,
-    method: 'card',
-    processor: 'mercado-pago-orders',
-    amountCents: input.amountCents,
-    idempotencyKey: input.idempotencyKey,
-    ...(input.now == null ? {} : { now: input.now }),
-  });
-
-  const card = await gateway.createCardOrder({
-    paymentId: topup.id,
-    amountCents: topup.amountCents,
-    payerEmail: email,
-    cardToken: input.cardToken,
-    paymentMethodId: input.paymentMethodId,
-    paymentMethodType: input.paymentMethodType,
-    installments: input.installments,
-    idempotencyKey: `mp-wallet-card-${topup.id}`,
-  });
-
-  topup = await input.finance.markWalletTopupPending({
-    walletTopupId: topup.id,
-    processorTopupId: card.orderId,
-    ...(input.now == null ? {} : { updatedAt: input.now }),
-  });
-
-  return { topup, card };
 }
 
 export type MercadoPagoWalletTopupApplication =
