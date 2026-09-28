@@ -258,7 +258,9 @@ void main() {
       return http.Response(
         '{"provider":"google","place":{'
         '"id":"sobral","address":"Sobral - CE, Brasil",'
-        '"latitude":-3.6880,"longitude":-40.3499}}',
+        '"latitude":-3.6880,"longitude":-40.3499,'
+        '"approvedExternalId":"sobral",'
+        '"placeProof":"signed-place-proof-for-sobral-abcdefghijklmnopqrstuvwxyz"}}',
         200,
         headers: {'content-type': 'application/json'},
       );
@@ -289,6 +291,11 @@ void main() {
       contains('"externalLocalityId":"sobral"'),
     );
     expect(place.name, 'Sobral');
+    expect(place.approvedExternalId, 'sobral');
+    expect(
+      place.placeProof,
+      'signed-place-proof-for-sobral-abcdefghijklmnopqrstuvwxyz',
+    );
   });
 
 }
