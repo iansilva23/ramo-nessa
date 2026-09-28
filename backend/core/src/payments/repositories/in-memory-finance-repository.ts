@@ -570,15 +570,6 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       );
     }
 
-    const walletAccount = `passenger:${topup.passengerId}:wallet`;
-    const balance = await this.getAccountBalanceCents(walletAccount);
-    if (balance < topup.amountCents) {
-      throw new WalletDomainError(
-        'INSUFFICIENT_WALLET_BALANCE',
-        'Saldo da carteira já foi utilizado e não permite estorno automático da recarga.',
-      );
-    }
-
     const refundedAt = (input.refundedAt ?? new Date()).toISOString();
     const updated: WalletTopupRecord = {
       ...topup,
