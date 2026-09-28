@@ -17,12 +17,13 @@ import '../../../core/communications/social_links_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
+import '../../profile/data/driver_privacy_service.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
+import '../../profile/presentation/driver_privacy_screen.dart';
 import '../../profile/presentation/driver_ride_summary_screen.dart';
 import '../../profile/presentation/driver_security_screen.dart';
 import '../../profile/presentation/driver_settings_screen.dart';
 import '../../profile/presentation/driver_support_screen.dart';
-import '../../profile/presentation/driver_terms_screen.dart';
 import '../data/driver_api.dart';
 import '../data/driver_realtime_service.dart';
 import '../data/driver_route_service.dart';
@@ -54,6 +55,7 @@ class DriverHomeScreen extends StatefulWidget {
     this.realtimeService,
     this.releasePolicyService,
     this.socialLinksService,
+    this.privacyService,
   });
 
   final String? accessToken;
@@ -65,6 +67,7 @@ class DriverHomeScreen extends StatefulWidget {
   final DriverRealtimeService? realtimeService;
   final AppReleasePolicyService? releasePolicyService;
   final SocialLinksService? socialLinksService;
+  final DriverPrivacyService? privacyService;
 
   @override
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
@@ -2157,13 +2160,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               },
             ),
             _ProfileOption(
-              icon: Icons.gavel_outlined,
-              title: 'Termos e privacidade',
-              subtitle: 'Uso do app, dados e informações legais',
+              icon: Icons.privacy_tip_outlined,
+              title: 'Privacidade e LGPD',
+              subtitle: 'Documentos, preferências e seus direitos',
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const DriverTermsScreen(),
+                    builder: (_) => DriverPrivacyScreen(
+                      service: widget.privacyService,
+                    ),
                   ),
                 );
               },
