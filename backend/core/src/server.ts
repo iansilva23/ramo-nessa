@@ -929,6 +929,44 @@ async function finalizeMercadoPagoRefundedRide(
 }
 
 let shuttingDown = false;
+let payoutReconciliationRunning = false;
+let payoutReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+
+function payoutReconciliationIntervalMs(): number {
+  const raw = process.env.DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS?.trim();
+  const seconds = raw == null || raw === '' ? 60 : Number(raw);
+  if (!Number.isInteger(seconds) || seconds < 15 || seconds > 3600) {
+    return 60_000;
+  }
+  return seconds * 1000;
+}
+
+async function runPayoutReconciliation(): Promise<void> {
+  if (
+    driverPayoutProvider == null ||
+    payoutReconciliationRunning ||
+    shuttingDown
+  ) {
+    return;
+  }
+
+  payoutReconciliationRunning = true;
+  try {
+    const result = await reconcileDriverPayouts({
+      finance: financeRepository,
+      provider: driverPayoutProvider,
+      limit: 100,
+    });
+    if (result.processed > 0 || result.errors > 0) {
+      logInfo('driver.payout.reconciliation.completed', result);
+    }
+  } catch (error) {
+    logWarn('driver.payout.reconciliation.failed', errorFields(error));
+  } finally {
+    payoutReconciliationRunning = false;
+  }
+}
+
 const shutdownTimeoutMs = resolveShutdownTimeoutMs();
 
 const server = createServer(async (request, response) => {
@@ -2737,6 +2775,42 @@ const server = createServer(async (request, response) => {
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
       });
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/finance/payouts/reconcile'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      if (driverPayoutProvider == null) {
+        json(response, 503, {
+          error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
+          message: 'Provedor automático de repasse Pix não configurado.',
+        });
+        return;
+      }
+
+      const reconciliation = await reconcileDriverPayouts({
+        finance: financeRepository,
+        provider: driverPayoutProvider,
+        limit: 100,
+      });
+      await adminRepository.appendAudit({
+        id: randomUUID(),
+        actor,
+        action: 'finance.payout.reconciled',
+        targetType: 'driver_payout_batch',
+        targetId: 'automatic-provider',
+        metadata: reconciliation,
+        createdAt: new Date().toISOString(),
+      });
+      json(response, 200, reconciliation);
       return;
     }
 
@@ -6945,6 +7019,10 @@ function shutdown(signal: string): Promise<void> {
 
   shutdownPromise = (async () => {
     shuttingDown = true;
+    if (payoutReconciliationTimer != null) {
+      clearInterval(payoutReconciliationTimer);
+      payoutReconciliationTimer = null;
+    }
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -6993,4 +7071,13 @@ server.listen(port, '0.0.0.0', () => {
     storageMode,
     nodeEnv: process.env.NODE_ENV ?? 'development',
   });
+
+  if (driverPayoutProvider != null) {
+    payoutReconciliationTimer = setInterval(
+      () => void runPayoutReconciliation(),
+      payoutReconciliationIntervalMs(),
+    );
+    payoutReconciliationTimer.unref();
+    void runPayoutReconciliation();
+  }
 });
