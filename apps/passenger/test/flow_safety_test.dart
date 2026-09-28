@@ -52,79 +52,114 @@ void main() {
     );
   });
 
-  testWidgets('rota prepara preço final e abre pagamento sem matching fake',
-      (tester) async {
-    final search = _FakePlaceSearchService();
+  testWidgets(
+    'fluxo separa destino, veículo e preço/pagamento',
+    (tester) async {
+      final search = _FakePlaceSearchService();
 
-    await tester.pumpWidget(
-      RamoNessaPassengerApp(
-        locationService: _FakeLocationService(),
-        routeService: _FakeRouteService(),
-        placeSearchService: search,
-        pricingQuoteService: _FakePricingQuoteService(),
-        ridePreparationService: _FakeRidePreparationService(),
-        paymentService: _FakePassengerPaymentService(),
-        networkTilesEnabled: false,
-      ),
-    );
+      await tester.pumpWidget(
+        RamoNessaPassengerApp(
+          locationService: _FakeLocationService(),
+          routeService: _FakeRouteService(),
+          placeSearchService: search,
+          pricingQuoteService: _FakePricingQuoteService(),
+          ridePreparationService: _FakeRidePreparationService(),
+          paymentService: _FakePassengerPaymentService(),
+          networkTilesEnabled: false,
+        ),
+      );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Minha localização'), findsOneWidget);
+      expect(find.text('Minha localização'), findsOneWidget);
 
-    await tester.tap(find.text('Pra onde vamos?'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Pra onde vamos?'));
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Jericoacoara');
-    await tester.pump();
-    await tester.tap(find.byTooltip('Buscar'));
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Jericoacoara');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Buscar'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(ListView),
-        matching: find.text('Jericoacoara'),
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ListView),
+          matching: find.text('Jericoacoara'),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('2,5 km · 7 min'), findsOneWidget);
-    expect(find.textContaining('R\    expect(find.text('Tarifa-base da corrida'), findsOneWidget);
-    expect(find.text('R\$ 45,00'), findsOneWidget);
-    expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
-    expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
-    expect(find.text('Pix · R\$ 45,45'), findsOneWidget);
-    expect(find.text('Cartão · R\$ 47,36'), findsOneWidget);
-    expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
-    expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
+      // Etapa 1: mapa/rota sem preço e sem categoria.
+      expect(find.text('2,5 km · 7 min'), findsOneWidget);
+      expect(find.textContaining(r'R$'), findsNothing);
+      expect(find.text('Táxi Buggy'), findsNothing);
 
-    await tester.drag(
-      find.byType(ListView).last,
-      const Offset(0, -260),
-    );
-    await tester.pumpAndSettle();
+      final confirmDestination =
+          find.byKey(const Key('confirm-destination-button'));
+      expect(confirmDestination, findsOneWidget);
+      await tester.tap(confirmDestination);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Dinheiro'), findsOneWidget);
-    expect(find.text('Em breve'), findsOneWidget);
-    await tester.tap(find.text('Dinheiro'), warnIfMissed: false);
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-    expect(find.textContaining('Procurando buggy'), findsNothing);
+      // Etapa 2: categorias permitidas, ainda sem preço.
+      expect(find.text('Escolha o veículo'), findsOneWidget);
+      expect(find.text('Táxi Buggy'), findsOneWidget);
+      expect(find.text('Carro normal'), findsNothing);
+      expect(find.textContaining(r'R$'), findsNothing);
+      expect(
+        find.textContaining('O preço aparece na próxima etapa'),
+        findsOneWidget,
+      );
 
-    await tester.drag(
-      find.byType(ListView).last,
-      const Offset(0, 260),
-    );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Carteira Ramo Nessa'));
-    await tester.pumpAndSettle();
+      final addPassengerButton = find.byTooltip('Adicionar passageiro');
+      await tester.tap(addPassengerButton);
+      await tester.pumpAndSettle();
+      expect(find.textContaining(r'R$'), findsNothing);
 
-    expect(find.text('Pagamento confirmado'), findsOneWidget);
-    expect(find.text('Saldo restante: R\$ 55,00'), findsOneWidget);
-  });
+      final continueVehicle =
+          find.byKey(const Key('continue-vehicle-button'));
+      expect(continueVehicle, findsOneWidget);
+      await tester.tap(continueVehicle);
+      await tester.pumpAndSettle();
+
+      // Etapa 3: preço final e formas de pagamento.
+      expect(find.text('Preço e pagamento'), findsOneWidget);
+      expect(find.text('Tarifa-base da corrida'), findsOneWidget);
+      expect(find.text(r'R$ 45,00'), findsOneWidget);
+      expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
+      expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
+      expect(find.text(r'Pix · R$ 45,45'), findsOneWidget);
+      expect(find.text(r'Cartão · R$ 47,36'), findsOneWidget);
+      expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
+      expect(find.text(r'Saldo: R$ 100,00'), findsOneWidget);
+
+      await tester.drag(
+        find.byType(ListView).last,
+        const Offset(0, -260),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dinheiro'), findsOneWidget);
+      expect(find.text('Em breve'), findsOneWidget);
+      await tester.tap(find.text('Dinheiro'), warnIfMissed: false);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('Procurando buggy'), findsNothing);
+
+      await tester.drag(
+        find.byType(ListView).last,
+        const Offset(0, 260),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Carteira Ramo Nessa'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pagamento confirmado'), findsOneWidget);
+      expect(find.text(r'Saldo restante: R$ 55,00'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'dinheiro aparece ativo quando a política central libera cash',
