@@ -240,4 +240,90 @@ void main() {
     expect(result.status, 'action_required');
     expect(result.challengeUrl, 'https://secure.example.test/challenge');
   });
+
+  test('recarga da carteira usa somente Pix e envia e-mail no pagamento', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        jsonEncode({
+          'topup': {
+            'id': '11111111-2222-4333-8444-555555555555',
+            'status': 'pending',
+            'amountCents': 5000,
+            'createdAt': '2026-09-28T12:00:00.000Z',
+            'updatedAt': '2026-09-28T12:00:00.000Z',
+          },
+          'actionable': true,
+          'action': {
+            'kind': 'pix',
+            'orderId': 'ORD01WALLETTOPUP123456',
+            'ticketUrl': 'https://example.test/wallet-pix',
+            'qrCode': '000201010212-wallet-topup',
+            'qrCodeBase64': '',
+          },
+        }),
+        201,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-wallet-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final result = await service.createPixWalletTopup(
+      amountCents: 5000,
+      idempotencyKey: 'wallet-pix-http-idempotency',
+      payerEmail: 'passageiro@example.com',
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/v1/wallet/topups');
+    expect(captured.headers['idempotency-key'], 'wallet-pix-http-idempotency');
+    expect(jsonDecode(captured.body), {
+      'method': 'pix',
+      'amountCents': 5000,
+      'payerEmail': 'passageiro@example.com',
+    });
+    expect(result.topup.amountCents, 5000);
+    expect(result.topup.status, 'pending');
+    expect(result.orderId, 'ORD01WALLETTOPUP123456');
+    expect(result.qrCode, '000201010212-wallet-topup');
+  });
+
+  test('histórico de recargas da carteira é carregado pelo Core', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'topups': [
+            {
+              'id': 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+              'status': 'paid',
+              'amountCents': 7500,
+              'createdAt': '2026-09-28T12:00:00.000Z',
+              'updatedAt': '2026-09-28T12:01:00.000Z',
+            },
+          ],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = HttpPassengerPaymentService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-wallet-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final history = await service.walletTopups(limit: 30);
+
+    expect(history, hasLength(1));
+    expect(history.single.status, 'paid');
+    expect(history.single.amountCents, 7500);
+  });
+
 }
