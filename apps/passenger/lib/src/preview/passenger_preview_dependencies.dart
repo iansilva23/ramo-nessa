@@ -14,9 +14,7 @@ import '../features/payments/domain/passenger_payment_policy.dart';
 import '../features/payments/domain/pix_ride_payment_result.dart';
 import '../features/payments/domain/wallet_ride_payment_result.dart';
 import '../features/payments/domain/wallet_topup_result.dart';
-import '../features/pricing/data/pricing_quote_service.dart';
 import '../features/profile/data/passenger_support_service.dart';
-import '../features/pricing/domain/pricing_quote.dart';
 import '../features/rides/data/passenger_activity_service.dart';
 import '../features/rides/data/passenger_ride_tracking_service.dart';
 import '../features/rides/data/ride_preparation_service.dart';
@@ -34,7 +32,6 @@ final class PassengerPreviewDependencies {
   final LocationService location = const _PreviewLocationService();
   final RouteService route = const _PreviewRouteService();
   final PlaceSearchService places = const _PreviewPlaceSearchService();
-  final PricingQuoteService pricing = const _PreviewPricingService();
   final RidePreparationService ridePreparation =
       const _PreviewRidePreparationService();
   final PassengerPaymentService payments = _PreviewPaymentService();
@@ -208,38 +205,6 @@ final class _PreviewPlaceSearchService
   Future<List<RamoPlace>> search(String query) async {
     if (query.trim().length < 2) return const [];
     return _matches(query);
-  }
-}
-
-final class _PreviewPricingService implements PricingQuoteService {
-  const _PreviewPricingService();
-
-  @override
-  Future<PricingQuote> quote({
-    required ServiceType service,
-    required RamoPlace origin,
-    required RamoPlace destination,
-    required String originZoneId,
-    required String destinationZoneId,
-    required RouteInfo route,
-    int passengers = 1,
-    DateTime? now,
-  }) async {
-    final cents = switch (service) {
-      ServiceType.moto => 2600,
-      ServiceType.delivery => 3200,
-      ServiceType.car => 4200,
-      ServiceType.buggy => 4500 + ((passengers - 1) * 400),
-      ServiceType.comfortBlack => 6200,
-    };
-
-    return PricingQuote.fromJson({
-      'kind': 'exact',
-      'ruleId': 'preview-${service.backendKey}',
-      'totalAmountCents': cents,
-      'platformCommissionCents': cents ~/ 10,
-      'driverNetCents': cents - (cents ~/ 10),
-    });
   }
 }
 
