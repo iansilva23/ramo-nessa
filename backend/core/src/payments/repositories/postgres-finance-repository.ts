@@ -13,6 +13,7 @@ import {
   walletRidePaymentLedger,
   walletRideRefundLedger,
   walletTopupCaptureLedger,
+  walletTopupRefundLedger,
   type LedgerTransaction,
 } from '../ledger.js';
 import {
@@ -25,8 +26,12 @@ import {
   type CompleteDriverPayoutResult,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
+  type MarkWalletTopupPendingInput,
+  type MarkWalletTopupTerminalInput,
   type RefundExternalPaymentInput,
   type RefundExternalPaymentResult,
+  type RefundWalletTopupInput,
+  type RefundWalletTopupResult,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -790,6 +795,17 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async findWalletTopupById(
+    id: string,
+  ): Promise<WalletTopupRecord | null> {
+    const result = await this.pool.query<WalletTopupRow>(
+      `SELECT ${TOPUP_COLUMNS}
+       FROM wallet_topups WHERE id = $1 LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] == null ? null : mapTopup(result.rows[0]);
+  }
+
   async findWalletTopupByIdempotencyKey(
     key: string,
   ): Promise<WalletTopupRecord | null> {
@@ -857,6 +873,77 @@ export class PostgresFinanceRepository implements FinanceRepository {
       }
       throw error;
     }
+  }
+
+  async markWalletTopupPending(
+    input: MarkWalletTopupPendingInput,
+  ): Promise<WalletTopupRecord> {
+    const updatedAt = (input.updatedAt ?? new Date()).toISOString();
+    const result = await this.pool.query<WalletTopupRow>(
+      `
+      UPDATE wallet_topups
+      SET status = 'pending',
+          processor_topup_id = $2,
+          updated_at = $3
+      WHERE id = $1
+        AND status IN ('created', 'pending', 'authorized')
+      RETURNING ${TOPUP_COLUMNS}
+      `,
+      [input.walletTopupId, input.processorTopupId, updatedAt],
+    );
+    const row = result.rows[0];
+    if (row != null) return mapTopup(row);
+
+    const current = await this.findWalletTopupById(input.walletTopupId);
+    if (current == null) {
+      throw new WalletDomainError(
+        'WALLET_TOPUP_NOT_FOUND',
+        'Recarga não encontrada.',
+      );
+    }
+    throw new WalletDomainError(
+      'INVALID_TOPUP_TRANSITION',
+      `Recarga em estado ${current.status} não pode voltar para pendente.`,
+    );
+  }
+
+  async markWalletTopupTerminal(
+    input: MarkWalletTopupTerminalInput,
+  ): Promise<WalletTopupRecord> {
+    const current = await this.findWalletTopupById(input.walletTopupId);
+    if (current == null) {
+      throw new WalletDomainError(
+        'WALLET_TOPUP_NOT_FOUND',
+        'Recarga não encontrada.',
+      );
+    }
+    if (current.status === input.status) return current;
+    if (current.status === 'paid' || current.status === 'refunded') {
+      throw new WalletDomainError(
+        'INVALID_TOPUP_TRANSITION',
+        `Recarga em estado ${current.status} não pode ser encerrada como ${input.status}.`,
+      );
+    }
+
+    const updatedAt = (input.updatedAt ?? new Date()).toISOString();
+    const result = await this.pool.query<WalletTopupRow>(
+      `
+      UPDATE wallet_topups
+      SET status = $2, updated_at = $3
+      WHERE id = $1
+        AND status NOT IN ('paid', 'refunded')
+      RETURNING ${TOPUP_COLUMNS}
+      `,
+      [input.walletTopupId, input.status, updatedAt],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new WalletDomainError(
+        'INVALID_TOPUP_TRANSITION',
+        'A recarga mudou de estado enquanto era encerrada.',
+      );
+    }
+    return mapTopup(row);
   }
 
   async captureWalletTopup(
@@ -974,6 +1061,104 @@ export class PostgresFinanceRepository implements FinanceRepository {
         topup: mapTopup(updatedRow),
         ledgerTransaction: ledger,
         duplicateEvent: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async refundWalletTopup(
+    input: RefundWalletTopupInput,
+  ): Promise<RefundWalletTopupResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const topupResult = await client.query<WalletTopupRow>(
+        `
+        SELECT ${TOPUP_COLUMNS}
+        FROM wallet_topups
+        WHERE id = $1
+        FOR UPDATE
+        `,
+        [input.walletTopupId],
+      );
+      const row = topupResult.rows[0];
+      if (row == null) {
+        throw new WalletDomainError(
+          'WALLET_TOPUP_NOT_FOUND',
+          'Recarga não encontrada.',
+        );
+      }
+      const topup = mapTopup(row);
+      const referenceKey = `wallet-topup-refund:${topup.id}`;
+      const existingLedger = await loadLedgerByReference(
+        client,
+        referenceKey,
+      );
+      if (existingLedger != null) {
+        await client.query('COMMIT');
+        return {
+          topup,
+          ledgerTransaction: existingLedger,
+          duplicateRefund: true,
+        };
+      }
+
+      if (topup.status !== 'paid') {
+        throw new WalletDomainError(
+          'INVALID_TOPUP_TRANSITION',
+          `Recarga em estado ${topup.status} não pode ser estornada.`,
+        );
+      }
+
+      const walletAccount =
+        `passenger:${topup.passengerId}:wallet`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [walletAccount],
+      );
+      const balance = await accountBalanceCents(client, walletAccount);
+      if (balance < topup.amountCents) {
+        throw new WalletDomainError(
+          'INSUFFICIENT_WALLET_BALANCE',
+          'Saldo da carteira já foi utilizado e não permite estorno automático da recarga.',
+        );
+      }
+
+      const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+      const updatedResult = await client.query<WalletTopupRow>(
+        `
+        UPDATE wallet_topups
+        SET status = 'refunded', updated_at = $2
+        WHERE id = $1
+        RETURNING ${TOPUP_COLUMNS}
+        `,
+        [topup.id, refundedAt],
+      );
+      const updatedRow = updatedResult.rows[0];
+      if (updatedRow == null) {
+        throw new Error('Falha ao marcar recarga como estornada.');
+      }
+
+      const ledger = walletTopupRefundLedger({
+        walletTopupId: topup.id,
+        passengerId: topup.passengerId,
+        processor: topup.processor,
+        amountCents: topup.amountCents,
+        createdAt: refundedAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      return {
+        topup: mapTopup(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateRefund: false,
       };
     } catch (error) {
       await client.query('ROLLBACK');
