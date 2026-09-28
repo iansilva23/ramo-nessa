@@ -1051,6 +1051,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             paymentService: _paymentService,
             rideTrackingService: _rideTrackingService,
             rideRealtimeService: _rideRealtimeService,
+            routeService: _routeService,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),
         ),

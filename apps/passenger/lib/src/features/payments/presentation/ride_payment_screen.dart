@@ -10,6 +10,7 @@ import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
+import '../../map/data/route_service.dart';
 import '../data/card_tokenization_service.dart';
 import '../data/passenger_payment_service.dart';
 import '../domain/card_ride_payment_result.dart';
@@ -24,6 +25,7 @@ class RidePaymentScreen extends StatefulWidget {
     this.cardTokenizationService,
     this.rideTrackingService,
     this.rideRealtimeService,
+    this.routeService,
     this.networkTilesEnabled = true,
   });
 
@@ -32,6 +34,7 @@ class RidePaymentScreen extends StatefulWidget {
   final CardTokenizationService? cardTokenizationService;
   final PassengerRideTrackingService? rideTrackingService;
   final PassengerRideRealtimeService? rideRealtimeService;
+  final RouteService? routeService;
   final bool networkTilesEnabled;
 
   @override
@@ -246,6 +249,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
+            routeService: widget.routeService,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),
         ),
@@ -321,6 +325,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
+            routeService: widget.routeService,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),
         ),
@@ -398,6 +403,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   paymentMethod: 'cash',
                   trackingService: tracking,
                   realtimeService: widget.rideRealtimeService,
+                  routeService: widget.routeService,
                   initialDispatchStatus: result.dispatchStatus,
                   networkTilesEnabled: widget.networkTilesEnabled,
                 ),
@@ -479,6 +485,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   paymentMethod: 'wallet',
                   trackingService: tracking,
                   realtimeService: widget.rideRealtimeService,
+                  routeService: widget.routeService,
                   initialDispatchStatus: result.dispatchStatus,
                   networkTilesEnabled: widget.networkTilesEnabled,
                 ),
@@ -782,6 +789,7 @@ class _PixPaymentScreen extends StatefulWidget {
     required this.result,
     required this.trackingService,
     required this.realtimeService,
+    required this.routeService,
     required this.networkTilesEnabled,
   });
 
@@ -790,6 +798,7 @@ class _PixPaymentScreen extends StatefulWidget {
   final PixRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
   final PassengerRideRealtimeService? realtimeService;
+  final RouteService? routeService;
   final bool networkTilesEnabled;
 
   @override
@@ -939,6 +948,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
             paymentMethod: 'pix',
             trackingService: tracking,
             realtimeService: widget.realtimeService,
+            routeService: widget.routeService,
             initialDispatchStatus: dispatchStatus,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),
@@ -1076,6 +1086,7 @@ class _CardPaymentStatusScreen extends StatefulWidget {
     required this.result,
     required this.trackingService,
     required this.realtimeService,
+    required this.routeService,
     required this.networkTilesEnabled,
   });
 
@@ -1083,6 +1094,7 @@ class _CardPaymentStatusScreen extends StatefulWidget {
   final CardRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
   final PassengerRideRealtimeService? realtimeService;
+  final RouteService? routeService;
   final bool networkTilesEnabled;
 
   @override
@@ -1228,6 +1240,7 @@ class _CardPaymentStatusScreenState
             paymentMethod: 'card',
             trackingService: tracking,
             realtimeService: widget.realtimeService,
+            routeService: widget.routeService,
             initialDispatchStatus: dispatchStatus,
             networkTilesEnabled: widget.networkTilesEnabled,
           ),

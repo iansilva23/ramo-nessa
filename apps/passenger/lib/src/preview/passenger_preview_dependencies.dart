@@ -61,9 +61,22 @@ final class _PreviewRouteService implements RouteService {
     final distanceMeters =
         const Distance().as(LengthUnit.Meter, origin, destination);
     final seconds = (distanceMeters / 8.33).round().clamp(60, 7200);
+    final deltaLatitude = destination.latitude - origin.latitude;
+    final deltaLongitude = destination.longitude - origin.longitude;
 
     return RouteInfo(
-      points: [origin, destination],
+      points: [
+        origin,
+        LatLng(
+          origin.latitude + deltaLatitude * .32 - deltaLongitude * .08,
+          origin.longitude + deltaLongitude * .32 + deltaLatitude * .08,
+        ),
+        LatLng(
+          origin.latitude + deltaLatitude * .68 + deltaLongitude * .06,
+          origin.longitude + deltaLongitude * .68 - deltaLatitude * .06,
+        ),
+        destination,
+      ],
       distanceMeters: distanceMeters,
       duration: Duration(seconds: seconds),
     );
@@ -323,6 +336,14 @@ final class _PreviewPaymentService implements PassengerPaymentService {
 final class _PreviewRideTrackingService
     implements PassengerRideTrackingService {
   int _checks = 0;
+  static const _driverPath = [
+    LatLng(-2.8002, -40.5208),
+    LatLng(-2.7998, -40.5197),
+    LatLng(-2.7989, -40.5190),
+    LatLng(-2.7985, -40.5178),
+    LatLng(-2.7974, -40.5169),
+    LatLng(-2.7967, -40.5155),
+  ];
   final List<PassengerRideChatMessage> _chatMessages = [];
 
   @override
@@ -363,6 +384,9 @@ final class _PreviewRideTrackingService
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
     _checks += 1;
     final state = _checks < 3 ? 'SEARCHING_DRIVER' : 'DRIVER_ASSIGNED';
+    final pathIndex =
+        (_checks - 3).clamp(0, _driverPath.length - 1).toInt();
+    final driverPoint = _driverPath[pathIndex];
 
     return PassengerRideTrackingSnapshot(
       rideId: rideId,
@@ -374,8 +398,8 @@ final class _PreviewRideTrackingService
       dropoffLongitude: -40.5795,
       driverLocation: state == 'DRIVER_ASSIGNED'
           ? PassengerDriverLocation(
-              latitude: -2.7982,
-              longitude: -40.5180,
+              latitude: driverPoint.latitude,
+              longitude: driverPoint.longitude,
               updatedAt: DateTime.now(),
               stale: false,
             )

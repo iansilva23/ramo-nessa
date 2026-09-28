@@ -6,7 +6,9 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../../core/config/ramo_core_config.dart';
 import '../../home/presentation/widgets/ramo_live_map.dart';
+import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
+import '../../map/domain/route_info.dart';
 import '../data/passenger_ride_realtime_service.dart';
 import '../data/passenger_ride_tracking_service.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
@@ -21,6 +23,7 @@ class RideTrackingScreen extends StatefulWidget {
     required this.trackingService,
     this.paymentMethod,
     this.realtimeService,
+    this.routeService,
     this.initialDispatchStatus,
     this.networkTilesEnabled = true,
   });
@@ -30,6 +33,7 @@ class RideTrackingScreen extends StatefulWidget {
   final PassengerRideTrackingService trackingService;
   final String? paymentMethod;
   final PassengerRideRealtimeService? realtimeService;
+  final RouteService? routeService;
   final String? initialDispatchStatus;
   final bool networkTilesEnabled;
 
@@ -45,6 +49,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   String? _error;
   bool _mapReady = false;
   bool _requestInFlight = false;
+  bool _routeRequestInFlight = false;
+  DateTime? _lastRouteAttemptAt;
+  String? _lastRouteState;
+  RouteInfo? _route;
   int _ratingStars = 0;
   bool _ratingSubmitting = false;
   bool _ratingSubmitted = false;
@@ -91,6 +99,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       _snapshot = snapshot;
       _error = null;
     });
+    unawaited(_refreshRoute(snapshot));
 
     if (snapshot.isTerminal) {
       _timer?.cancel();
@@ -110,6 +119,39 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
     if (_mapReady && center != null) {
       unawaited(_mapController.move(center, 15.5));
+    }
+  }
+
+  Future<void> _refreshRoute(PassengerRideTrackingSnapshot snapshot) async {
+    final service = widget.routeService;
+    final driver = snapshot.driverLocation;
+    if (service == null || driver == null || _routeRequestInFlight) return;
+    final useDropoff = snapshot.state == 'IN_PROGRESS';
+    final targetLatitude =
+        useDropoff ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
+    final targetLongitude =
+        useDropoff ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
+    if (targetLatitude == null || targetLongitude == null) return;
+    final now = DateTime.now();
+    if (_lastRouteState == snapshot.state &&
+        _lastRouteAttemptAt != null &&
+        now.difference(_lastRouteAttemptAt!) < const Duration(seconds: 8)) {
+      return;
+    }
+    _routeRequestInFlight = true;
+    _lastRouteAttemptAt = now;
+    _lastRouteState = snapshot.state;
+    try {
+      final route = await service.route(
+        origin: LatLng(driver.latitude, driver.longitude),
+        destination: LatLng(targetLatitude, targetLongitude),
+      );
+      if (mounted) setState(() => _route = route);
+    } catch (_) {
+      // A telemetria continua visível; uma nova tentativa acontece no próximo
+      // ciclo sem transformar falha do provedor em localização falsa.
+    } finally {
+      _routeRequestInFlight = false;
     }
   }
 
@@ -250,7 +292,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               controller: _mapController,
               origin: _pickup(snapshot),
               destination: _dropoff(snapshot),
-              routePoints: const [],
+              routePoints: _route?.points ?? const [],
               driverPosition: driverPosition,
               driverCategory: snapshot?.category,
               driverPositionStale: driver?.stale ?? false,

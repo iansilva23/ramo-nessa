@@ -28,14 +28,22 @@ final class _PreviewDriverLocationService
     latitude: -2.7956,
     longitude: -40.5142,
   );
+  static const _path = [
+    _position,
+    DriverPosition(latitude: -2.7959, longitude: -40.5136),
+    DriverPosition(latitude: -2.7965, longitude: -40.5132),
+    DriverPosition(latitude: -2.7971, longitude: -40.5135),
+    DriverPosition(latitude: -2.7975, longitude: -40.5142),
+    DriverPosition(latitude: -2.7970, longitude: -40.5149),
+  ];
 
   @override
   Future<DriverPosition> currentPosition() async => _position;
 
   @override
   Stream<DriverPosition> positionStream() => Stream<DriverPosition>.periodic(
-        const Duration(seconds: 15),
-        (_) => _position,
+        const Duration(seconds: 4),
+        (index) => _path[(index + 1) % _path.length],
       );
 }
 
@@ -62,9 +70,22 @@ final class _PreviewDriverRouteService
     final distanceMeters =
         const Distance().as(LengthUnit.Meter, origin, destination);
     final seconds = (distanceMeters / 8.33).round().clamp(60, 7200);
+    final deltaLatitude = destination.latitude - origin.latitude;
+    final deltaLongitude = destination.longitude - origin.longitude;
 
     return DriverRouteInfo(
-      points: [origin, destination],
+      points: [
+        origin,
+        LatLng(
+          origin.latitude + deltaLatitude * .32 - deltaLongitude * .08,
+          origin.longitude + deltaLongitude * .32 + deltaLatitude * .08,
+        ),
+        LatLng(
+          origin.latitude + deltaLatitude * .68 + deltaLongitude * .06,
+          origin.longitude + deltaLongitude * .68 - deltaLatitude * .06,
+        ),
+        destination,
+      ],
       distanceMeters: distanceMeters,
       duration: Duration(seconds: seconds),
     );

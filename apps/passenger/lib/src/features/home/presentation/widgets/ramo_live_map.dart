@@ -150,12 +150,9 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     with TickerProviderStateMixin {
   gm.GoogleMapController? _nativeController;
   bool _placeholderReadyNotified = false;
-  double _driverBearing = 0;
   double _displayDriverBearing = 0;
-  double _driverAnimationBearingFrom = 0;
   domain.LatLng? _displayDriverPosition;
-  domain.LatLng? _driverAnimationFrom;
-  domain.LatLng? _driverAnimationTo;
+  RamoRouteMotionPath? _driverMotionPath;
   late final AnimationController _driverMoveController;
   late final AnimationController _routeDrawController;
   gm.BitmapDescriptor _passengerIcon =
@@ -205,24 +202,18 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   }
 
   void _tickDriverMovement() {
-    final from = _driverAnimationFrom;
-    final to = _driverAnimationTo;
-    if (from == null || to == null || !mounted) return;
-
+    final path = _driverMotionPath;
+    if (path == null || !mounted) return;
     final t = Curves.easeInOutCubic.transform(
       _driverMoveController.value,
     );
-    final latitude =
-        from.latitude + (to.latitude - from.latitude) * t;
-    final longitude =
-        from.longitude + (to.longitude - from.longitude) * t;
-    final bearingDelta =
-        ((_driverBearing - _driverAnimationBearingFrom + 540) % 360) - 180;
-
+    final sample = path.sample(t);
     setState(() {
-      _displayDriverPosition = domain.LatLng(latitude, longitude);
-      _displayDriverBearing =
-          (_driverAnimationBearingFrom + bearingDelta * t + 360) % 360;
+      _displayDriverPosition = domain.LatLng(
+        sample.point.latitude,
+        sample.point.longitude,
+      );
+      _displayDriverBearing = sample.bearing;
     });
   }
 
@@ -245,24 +236,33 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   void _moveDriverSmoothly(
     domain.LatLng from,
     domain.LatLng to,
-    double targetBearing,
   ) {
     final current = _displayDriverPosition ?? from;
     final distance = _distanceMeters(current, to);
-    _driverBearing = targetBearing;
 
     if (widget.driverPositionStale || distance > 2500) {
       _driverMoveController.stop();
       setState(() {
         _displayDriverPosition = to;
-        _displayDriverBearing = targetBearing;
+        _displayDriverBearing = _bearingBetween(current, to);
       });
       return;
     }
 
-    _driverAnimationFrom = current;
-    _driverAnimationTo = to;
-    _driverAnimationBearingFrom = _displayDriverBearing;
+    _driverMotionPath = RamoRouteMotionPath.between(
+      from: RamoMapPoint(current.latitude, current.longitude),
+      to: RamoMapPoint(to.latitude, to.longitude),
+      route: widget.routePoints
+          .map((point) => RamoMapPoint(point.latitude, point.longitude))
+          .toList(growable: false),
+    );
+    _driverMoveController.duration = Duration(
+      milliseconds:
+          ((_driverMotionPath!.totalMeters / 8) * 1000)
+              .round()
+              .clamp(900, 6000)
+              .toInt(),
+    );
     _driverMoveController.forward(from: 0);
   }
 
@@ -349,7 +349,6 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       _moveDriverSmoothly(
         previousDriver,
         nextDriver,
-        _bearingBetween(previousDriver, nextDriver),
       );
     }
 
