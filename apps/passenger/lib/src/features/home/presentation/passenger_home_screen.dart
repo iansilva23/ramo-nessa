@@ -1008,6 +1008,29 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    final originZoneId = coverage.originZone?.id;
+    final destinationZoneId = coverage.destinationZone?.id;
+    if (
+      originZoneId == 'external' &&
+      origin.approvedExternalId != 'airport-jjd' &&
+      origin.placeProof?.trim().isNotEmpty != true
+    ) {
+      _showMessage(
+        'Selecione novamente o local de partida externo para validar a localidade.',
+      );
+      return;
+    }
+    if (
+      destinationZoneId == 'external' &&
+      destination.approvedExternalId != 'airport-jjd' &&
+      destination.placeProof?.trim().isNotEmpty != true
+    ) {
+      _showMessage(
+        'Selecione novamente o destino externo para validar a localidade.',
+      );
+      return;
+    }
+
     if (_route == null) {
       _loadRoute();
       return;
