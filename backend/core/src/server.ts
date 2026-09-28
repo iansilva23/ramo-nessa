@@ -305,6 +305,13 @@ import {
   isApprovedExternalPlacesQuery,
   placesLocalityId,
 } from './places/places-access-policy.js';
+import {
+  issueExternalPlaceProof,
+  PlaceProofError,
+  resolvePlaceProofSecret,
+  resolvePlaceProofTtlSeconds,
+  verifyExternalPlaceProof,
+} from './places/place-proof.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
   confirmRidePayment,
@@ -419,6 +426,8 @@ const {
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
 const googlePlacesService = createGooglePlacesServiceFromEnv();
+const placeProofSecret = resolvePlaceProofSecret();
+const placeProofTtlSeconds = resolvePlaceProofTtlSeconds();
 assertGoogleMapsProductionConfig();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
@@ -1485,6 +1494,17 @@ const server = createServer(async (request, response) => {
           return;
         }
 
+        const placeProof = !localOnly
+          ? issueExternalPlaceProof({
+              localityId: externalLocalityId,
+              placeId: place.id,
+              latitude: place.latitude,
+              longitude: place.longitude,
+              secret: placeProofSecret,
+              ttlSeconds: placeProofTtlSeconds,
+            })
+          : undefined;
+
         json(response, 200, {
           provider: 'google',
           place: {
@@ -1492,6 +1512,10 @@ const server = createServer(async (request, response) => {
             address: place.address,
             latitude: place.latitude,
             longitude: place.longitude,
+            ...(placeProof == null ? {} : { placeProof }),
+            ...(externalLocalityId
+              ? { approvedExternalId: externalLocalityId }
+              : {}),
           },
         });
       } catch (error) {
@@ -5681,6 +5705,47 @@ const server = createServer(async (request, response) => {
 
       const body = parsePrepareRideRequest(await readJson(request));
       const now = new Date();
+
+      const verifyExternalRef = (
+        ref: typeof body.quoteRequest.origin,
+        point: typeof body.pickup,
+        proof: string | undefined,
+        field: 'origin' | 'destination',
+      ) => {
+        if (
+          ref.zoneId !== 'external' ||
+          ref.localityId === 'airport-jjd'
+        ) {
+          return;
+        }
+        if (ref.localityId == null || proof == null) {
+          throw new PlaceProofError(
+            'PLACE_PROOF_INVALID',
+            `Selecione novamente o ${field === 'origin' ? 'local de partida' : 'destino'} externo para validar a localidade.`,
+          );
+        }
+        verifyExternalPlaceProof({
+          proof,
+          localityId: ref.localityId,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          secret: placeProofSecret,
+          now,
+        });
+      };
+
+      verifyExternalRef(
+        body.quoteRequest.origin,
+        body.pickup,
+        body.pickupPlaceProof,
+        'origin',
+      );
+      verifyExternalRef(
+        body.quoteRequest.destination,
+        body.dropoff,
+        body.dropoffPlaceProof,
+        'destination',
+      );
       const [pricing, operationalSettings] = await Promise.all([
         resolvePricingCatalogContext({
           versions: pricingCatalogVersionRepository,
@@ -6631,6 +6696,16 @@ const server = createServer(async (request, response) => {
           : error.code === 'DOCUMENT_INSPECTION_INTEGRITY_FAILED'
             ? 502
             : 400;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PlaceProofError) {
+      const status =
+        error.code === 'PLACE_PROOF_CONFIG_INVALID' ? 503 : 422;
       json(response, status, {
         error: error.code,
         message: error.message,
