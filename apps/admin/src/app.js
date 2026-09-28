@@ -841,6 +841,13 @@ function detailRow(label, value) {
   return row;
 }
 
+function setDriverProvisionControlsVisible() {
+  const card = byId('driver-provision-card');
+  if (card != null) {
+    card.hidden = !hasScope('drivers:auth:write');
+  }
+}
+
 function setRegistryWriteControlsVisible() {
   const controls = byId('driver-registry-write-controls');
   controls.hidden = !hasScope('drivers:profile:write');
@@ -6444,7 +6451,7 @@ async function handleDriverSearch(event) {
 async function handleDriverProvision(event) {
   event.preventDefault();
   setMessage(globalMessage);
-  if (!state.token) return;
+  if (!state.token || !hasScope('drivers:auth:write')) return;
 
   const button = event.currentTarget.querySelector('button[type="submit"]');
   try {
@@ -8578,6 +8585,7 @@ function initializeRouteView(view) {
   }
 
   if (view === 'drivers') {
+    setDriverProvisionControlsVisible();
     renderDriverRegistryUnavailable();
     renderDriverDocumentsUnavailable();
     renderDriverDocumentComplianceUnavailable();
