@@ -7845,24 +7845,38 @@ function localDateTimeValue(iso) {
   ].join('');
 }
 
+const privacyDocumentFields = Object.freeze({
+  privacy_policy: Object.freeze({
+    currentId: 'privacy-policy-current',
+    titleId: 'privacy-policy-title',
+    contentId: 'privacy-policy-content',
+    effectiveAtId: 'privacy-policy-effective-at',
+    submitId: 'privacy-policy-submit',
+  }),
+  terms_of_use: Object.freeze({
+    currentId: 'terms-of-use-current',
+    titleId: 'terms-of-use-title',
+    contentId: 'terms-of-use-content',
+    effectiveAtId: 'terms-of-use-effective-at',
+    submitId: 'terms-of-use-submit',
+  }),
+});
+
 function renderPrivacyDocuments() {
   const canWrite = hasScope('privacy:write');
-  for (const [type, prefix] of [
-    ['privacy_policy', 'privacy-policy'],
-    ['terms_of_use', 'terms-of-use'],
-  ]) {
+  for (const [type, fields] of Object.entries(privacyDocumentFields)) {
     const document = privacyDocumentByType(type);
-    const current = byId(`${prefix}-current`);
+    const current = byId(fields.currentId);
     if (current != null) {
       current.textContent = document == null
         ? 'Nenhuma versão publicada.'
         : `Versão ${document.version} · vigente desde ${formatDateTime(document.effectiveAt)}`;
     }
 
-    const title = byId(`${prefix}-title`);
-    const content = byId(`${prefix}-content`);
-    const effectiveAt = byId(`${prefix}-effective-at`);
-    const submit = byId(`${prefix}-submit`);
+    const title = byId(fields.titleId);
+    const content = byId(fields.contentId);
+    const effectiveAt = byId(fields.effectiveAtId);
+    const submit = byId(fields.submitId);
 
     if (title != null) {
       title.disabled = !canWrite;
@@ -8059,15 +8073,18 @@ async function loadPrivacy({
   }
 }
 
-async function handlePrivacyDocumentSubmit(event, documentType, prefix) {
+async function handlePrivacyDocumentSubmit(event, documentType) {
   event.preventDefault();
   if (!state.token || !hasScope('privacy:write')) return;
 
-  const title = byId(`${prefix}-title`).value.trim();
-  const content = byId(`${prefix}-content`).value.trim();
+  const fields = privacyDocumentFields[documentType];
+  if (fields == null) return;
+
+  const title = byId(fields.titleId).value.trim();
+  const content = byId(fields.contentId).value.trim();
   const rawEffectiveAt =
-    byId(`${prefix}-effective-at`).value.trim();
-  const submit = byId(`${prefix}-submit`);
+    byId(fields.effectiveAtId).value.trim();
+  const submit = byId(fields.submitId);
 
   if (title.length < 3 || content.length < 50) {
     setMessage(
@@ -8423,14 +8440,12 @@ function bindRouteEvents(view) {
       void handlePrivacyDocumentSubmit(
         event,
         'privacy_policy',
-        'privacy-policy',
       );
     });
     bindRouteEvent('terms-of-use-form', 'submit', (event) => {
       void handlePrivacyDocumentSubmit(
         event,
         'terms_of_use',
-        'terms-of-use',
       );
     });
     bindRouteEvent('privacy-response-form', 'submit', (event) => {
