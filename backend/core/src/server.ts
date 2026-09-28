@@ -5777,6 +5777,51 @@ const server = createServer(async (request, response) => {
     }
 
     if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/wallet/topups'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,3}$/.test(rawLimit)
+          ? 20
+          : Math.max(1, Math.min(100, Number(rawLimit)));
+      const topups = await financeRepository.listWalletTopups(
+        passengerId,
+        limit,
+      );
+      json(response, 200, { topups });
+      return;
+    }
+
+    const walletTopupMatch = requestUrl.pathname.match(
+      /^\/v1\/wallet\/topups\/([0-9a-fA-F-]+)$/,
+    );
+    if (request.method === 'GET' && walletTopupMatch != null) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const topup = await financeRepository.findWalletTopupById(
+        walletTopupMatch[1]!,
+      );
+      if (topup == null || topup.passengerId !== passengerId) {
+        json(response, 404, {
+          error: 'WALLET_TOPUP_NOT_FOUND',
+          message: 'Recarga não encontrada.',
+        });
+        return;
+      }
+      json(response, 200, { topup });
+      return;
+    }
+
+    if (
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/wallet/topups'
     ) {
