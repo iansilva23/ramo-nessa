@@ -3,6 +3,7 @@ import {
   driverPayoutReserveLedger,
   driverPayoutPaidLedger,
   driverPayoutCancelledLedger,
+  driverPayoutFailedLedger,
   externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -20,6 +21,8 @@ import {
   type CapturePaymentResult,
   type CompleteDriverPayoutInput,
   type CompleteDriverPayoutResult,
+  type FailDriverPayoutInput,
+  type FailDriverPayoutResult,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
   type MarkWalletTopupPendingInput,
@@ -40,6 +43,8 @@ import {
   type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
+  type StartDriverPayoutInput,
+  type StartDriverPayoutResult,
 } from '../finance-repository.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
@@ -974,6 +979,147 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   ): Promise<DriverPayoutRecord | null> {
     const payout = this.payouts.get(id);
     return payout == null ? null : structuredClone(payout);
+  }
+
+  async listDriverPayoutsByStatus(
+    statuses: readonly DriverPayoutRecord['status'][],
+    limit: number,
+  ): Promise<DriverPayoutRecord[]> {
+    const allowed = new Set(statuses);
+    return [...this.payouts.values()]
+      .filter((payout) => allowed.has(payout.status))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((payout) => structuredClone(payout));
+  }
+
+  async startDriverPayout(
+    input: StartDriverPayoutInput,
+  ): Promise<StartDriverPayoutResult> {
+    const payout = this.payouts.get(input.payoutId);
+    if (payout == null) {
+      throw new PayoutDomainError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+
+    if (payout.status === 'processing') {
+      if (
+        payout.processor === input.processor &&
+        payout.processorPayoutId === input.processorPayoutId
+      ) {
+        return {
+          payout: structuredClone(payout),
+          duplicateStart: true,
+        };
+      }
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        'Saque já está em processamento por outro repasse.',
+      );
+    }
+
+    if (payout.status !== 'requested') {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        `Saque em estado ${payout.status} não pode iniciar processamento.`,
+      );
+    }
+
+    const processor = input.processor.trim();
+    const processorPayoutId = input.processorPayoutId.trim();
+    if (processor.length < 2 || processorPayoutId.length < 3) {
+      throw new PayoutDomainError(
+        'PAYOUT_PROCESSOR_REQUIRED',
+        'Processador e referência do repasse são obrigatórios.',
+      );
+    }
+
+    const updated: DriverPayoutRecord = {
+      ...payout,
+      status: 'processing',
+      processor,
+      processorPayoutId,
+      updatedAt: (input.startedAt ?? new Date()).toISOString(),
+    };
+    this.payouts.set(payout.id, structuredClone(updated));
+    return {
+      payout: structuredClone(updated),
+      duplicateStart: false,
+    };
+  }
+
+  async failDriverPayout(
+    input: FailDriverPayoutInput,
+  ): Promise<FailDriverPayoutResult> {
+    const payout = this.payouts.get(input.payoutId);
+    if (payout == null) {
+      throw new PayoutDomainError(
+        'PAYOUT_NOT_FOUND',
+        'Saque não encontrado.',
+      );
+    }
+
+    const referenceKey = `driver-payout-failed:${payout.id}`;
+    if (payout.status === 'failed') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error(
+          'Saque falho sem lançamento de devolução no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateFailure: true,
+      };
+    }
+
+    if (payout.status !== 'requested' && payout.status !== 'processing') {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        `Saque em estado ${payout.status} não pode falhar.`,
+      );
+    }
+
+    const pending = await this.getAccountBalanceCents(
+      `driver:${payout.driverId}:payout_pending`,
+    );
+    if (pending < payout.amountCents) {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        'Saldo pendente do saque não fecha com o ledger.',
+      );
+    }
+
+    const failedAt = (input.failedAt ?? new Date()).toISOString();
+    const updated: DriverPayoutRecord = {
+      ...payout,
+      status: 'failed',
+      ...(input.processor?.trim()
+        ? { processor: input.processor.trim() }
+        : {}),
+      ...(input.processorPayoutId?.trim()
+        ? { processorPayoutId: input.processorPayoutId.trim() }
+        : {}),
+      updatedAt: failedAt,
+    };
+    const ledger = driverPayoutFailedLedger({
+      payoutId: payout.id,
+      driverId: payout.driverId,
+      amountCents: payout.amountCents,
+      createdAt: failedAt,
+    });
+
+    this.payouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateFailure: false,
+    };
   }
 
   async completeDriverPayout(
