@@ -316,9 +316,9 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
               ..._topups.map(
                 (topup) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
+                  leading: const CircleAvatar(
                     backgroundColor: RamoColors.surfaceRaised,
-                    child: const Icon(
+                    child: Icon(
                       Icons.pix_rounded,
                       color: RamoColors.brandBlack,
                     ),
