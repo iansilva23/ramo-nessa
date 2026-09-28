@@ -142,6 +142,13 @@ const state = {
     tours: [],
     appAuthBranding: null,
   },
+  privacy: {
+    legalDocuments: [],
+    requests: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
+  },
   support: {
     tickets: [],
     selectedId: null,
@@ -213,6 +220,11 @@ const adminRoutes = Object.freeze({
     title: 'Suporte',
     page: 'support',
   },
+  privacy: {
+    path: '/admin/privacidade',
+    title: 'Privacidade e LGPD',
+    page: 'privacy',
+  },
   agency: {
     path: '/admin/passeios',
     title: 'Ramo Nessa Agência',
@@ -277,6 +289,8 @@ const scopeLabels = new Map([
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['communications:read', 'Consultar comunicação, versões e agência'],
   ['communications:write', 'Enviar avisos, responder suporte e editar comunicação'],
+  ['privacy:read', 'Consultar documentos e solicitações LGPD'],
+  ['privacy:write', 'Publicar documentos e atender solicitações LGPD'],
   ['audit:read', 'Consultar auditoria'],
 ]);
 
@@ -500,6 +514,13 @@ function clearSession(message = '') {
     agencyPromotion: null,
     socialLinks: null,
     tours: [],
+  };
+  state.privacy = {
+    legalDocuments: [],
+    requests: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
   };
   state.support = {
     tickets: [],
@@ -7775,6 +7796,361 @@ async function handleSupportResponse(event) {
   }
 }
 
+
+function privacyRequestTypeLabel(type) {
+  return {
+    access: 'Acesso aos dados',
+    correction: 'Correção de dados',
+    deletion: 'Eliminação de dados',
+    anonymization: 'Anonimização',
+    portability: 'Portabilidade',
+    consent_revocation: 'Revogação de consentimento',
+  }[type] ?? type ?? 'Solicitação';
+}
+
+function privacyStatusLabel(status) {
+  return {
+    open: 'Aberto',
+    in_progress: 'Em atendimento',
+    completed: 'Concluído',
+    rejected: 'Rejeitado',
+  }[status] ?? status ?? '—';
+}
+
+function privacySubjectLabel(subjectType) {
+  return subjectType === 'driver' ? 'Motorista' : 'Passageiro';
+}
+
+function privacyDocumentByType(type) {
+  return state.privacy.legalDocuments.find(
+    (document) => document.documentType === type,
+  ) ?? null;
+}
+
+function localDateTimeValue(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (value) => String(value).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    '-',
+    pad(date.getMonth() + 1),
+    '-',
+    pad(date.getDate()),
+    'T',
+    pad(date.getHours()),
+    ':',
+    pad(date.getMinutes()),
+  ].join('');
+}
+
+function renderPrivacyDocuments() {
+  const canWrite = hasScope('privacy:write');
+  for (const [type, prefix] of [
+    ['privacy_policy', 'privacy-policy'],
+    ['terms_of_use', 'terms-of-use'],
+  ]) {
+    const document = privacyDocumentByType(type);
+    const current = byId(`${prefix}-current`);
+    if (current != null) {
+      current.textContent = document == null
+        ? 'Nenhuma versão publicada.'
+        : `Versão ${document.version} · vigente desde ${formatDateTime(document.effectiveAt)}`;
+    }
+
+    const title = byId(`${prefix}-title`);
+    const content = byId(`${prefix}-content`);
+    const effectiveAt = byId(`${prefix}-effective-at`);
+    const submit = byId(`${prefix}-submit`);
+
+    if (title != null) {
+      title.disabled = !canWrite;
+      if (document != null && !title.value) title.value = document.title ?? '';
+    }
+    if (content != null) {
+      content.disabled = !canWrite;
+      if (document != null && !content.value) content.value = document.content ?? '';
+    }
+    if (effectiveAt != null) {
+      effectiveAt.disabled = !canWrite;
+      if (document != null && !effectiveAt.value) {
+        effectiveAt.value = localDateTimeValue(document.effectiveAt);
+      }
+    }
+    if (submit != null) submit.disabled = !canWrite;
+  }
+}
+
+function renderPrivacySelection() {
+  const card = byId('privacy-response-card');
+  if (card == null) return;
+
+  const request = state.privacy.requests.find(
+    (item) => item.id === state.privacy.selectedId,
+  );
+  if (request == null) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  byId('privacy-response-title').textContent =
+    privacyRequestTypeLabel(request.requestType);
+  byId('privacy-response-meta').textContent =
+    `${privacySubjectLabel(request.subjectType)} · ${request.subjectId} · ${formatDateTime(request.createdAt)}`;
+  byId('privacy-response-status').textContent =
+    privacyStatusLabel(request.status);
+  byId('privacy-request-note').textContent =
+    request.note?.trim() || 'Sem observação adicional.';
+  byId('privacy-request-id').value = request.id;
+
+  const status = byId('privacy-request-status');
+  const response = byId('privacy-request-response');
+  const button = byId('privacy-response-button');
+  const canWrite = hasScope('privacy:write');
+
+  if (status != null) {
+    status.value =
+      request.status === 'completed' || request.status === 'rejected'
+        ? request.status
+        : 'in_progress';
+    status.disabled = !canWrite;
+  }
+  if (response != null) {
+    response.value = request.response ?? '';
+    response.disabled = !canWrite;
+  }
+  if (button != null) button.disabled = !canWrite;
+}
+
+function renderPrivacy() {
+  renderPrivacyDocuments();
+
+  const list = byId('privacy-request-list');
+  const empty = byId('privacy-empty');
+  const summary = byId('privacy-summary');
+  const loaded = byId('privacy-loaded-count');
+  const loadMore = byId('privacy-load-more');
+  if (
+    list == null ||
+    empty == null ||
+    summary == null ||
+    loaded == null ||
+    loadMore == null
+  ) {
+    return;
+  }
+
+  list.replaceChildren();
+  const requests = state.privacy.requests;
+  summary.textContent =
+    `${requests.length} ${requests.length === 1 ? 'solicitação' : 'solicitações'}`;
+  loaded.textContent = `${requests.length} carregadas`;
+  loadMore.hidden = state.privacy.nextCursor == null;
+
+  for (const request of requests) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.classList.toggle(
+      'is-active',
+      request.id === state.privacy.selectedId,
+    );
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const title = document.createElement('strong');
+    title.textContent = privacyRequestTypeLabel(request.requestType);
+    const status = document.createElement('span');
+    status.className =
+      request.status === 'open' || request.status === 'in_progress'
+        ? 'pill pill--warning'
+        : request.status === 'completed'
+          ? 'pill pill--success'
+          : 'pill pill--neutral';
+    status.textContent = privacyStatusLabel(request.status);
+    heading.append(title, status);
+
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${privacySubjectLabel(request.subjectType)} · ${formatDateTime(request.createdAt)}`;
+
+    const note = document.createElement('p');
+    note.textContent = request.note?.trim() || 'Sem observação adicional.';
+
+    button.append(heading, meta, note);
+    button.addEventListener('click', () => {
+      state.privacy.selectedId = request.id;
+      renderPrivacy();
+    });
+    list.append(button);
+  }
+
+  empty.hidden = requests.length !== 0;
+  renderPrivacySelection();
+}
+
+async function loadPrivacy({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('privacy:read')) return;
+
+  const loadMore = byId('privacy-load-more');
+  if (reset) {
+    const filter = byId('privacy-status-filter');
+    state.privacy.status =
+      filter == null ? '' : String(filter.value ?? '');
+    state.privacy.nextCursor = null;
+  }
+  if (loadMore != null) loadMore.disabled = true;
+
+  try {
+    const payload = await api.privacy(state.token, {
+      limit: 50,
+      status: state.privacy.status,
+      cursor: reset ? null : state.privacy.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.requests)
+      ? payload.requests
+      : [];
+    if (reset) {
+      state.privacy.requests = incoming;
+      state.privacy.legalDocuments = Array.isArray(payload?.legalDocuments)
+        ? payload.legalDocuments
+        : [];
+    } else {
+      const known = new Set(
+        state.privacy.requests.map((request) => request.id),
+      );
+      state.privacy.requests.push(
+        ...incoming.filter((request) => !known.has(request.id)),
+      );
+    }
+
+    state.privacy.nextCursor =
+      payload?.nextCursor != null &&
+      typeof payload.nextCursor === 'object' &&
+      typeof payload.nextCursor.createdAt === 'string' &&
+      typeof payload.nextCursor.id === 'string'
+        ? {
+            createdAt: payload.nextCursor.createdAt,
+            id: payload.nextCursor.id,
+          }
+        : null;
+
+    if (
+      state.privacy.selectedId != null &&
+      !state.privacy.requests.some(
+        (request) => request.id === state.privacy.selectedId,
+      )
+    ) {
+      state.privacy.selectedId = null;
+    }
+
+    renderPrivacy();
+    if (announce) {
+      setMessage(globalMessage, 'Privacidade atualizada.', 'success');
+    }
+  } catch (error) {
+    if (loadMore != null) loadMore.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handlePrivacyDocumentSubmit(event, documentType, prefix) {
+  event.preventDefault();
+  if (!state.token || !hasScope('privacy:write')) return;
+
+  const title = byId(`${prefix}-title`).value.trim();
+  const content = byId(`${prefix}-content`).value.trim();
+  const rawEffectiveAt =
+    byId(`${prefix}-effective-at`).value.trim();
+  const submit = byId(`${prefix}-submit`);
+
+  if (title.length < 3 || content.length < 50) {
+    setMessage(
+      globalMessage,
+      'Informe título e conteúdo jurídico completo antes de publicar.',
+      'danger',
+    );
+    return;
+  }
+
+  let effectiveAt = '';
+  if (rawEffectiveAt) {
+    const parsed = new Date(rawEffectiveAt);
+    if (!Number.isFinite(parsed.getTime())) {
+      setMessage(globalMessage, 'Data de vigência inválida.', 'danger');
+      return;
+    }
+    effectiveAt = parsed.toISOString();
+  }
+
+  submit.disabled = true;
+  try {
+    await api.publishPrivacyDocument(state.token, {
+      documentType,
+      title,
+      content,
+      effectiveAt,
+    });
+    setMessage(
+      globalMessage,
+      'Nova versão do documento legal publicada.',
+      'success',
+    );
+    await loadPrivacy({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    submit.disabled = !hasScope('privacy:write');
+  }
+}
+
+async function handlePrivacyResponse(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('privacy:write')) return;
+
+  const requestId = byId('privacy-request-id').value.trim();
+  const status = byId('privacy-request-status').value;
+  const response = byId('privacy-request-response').value.trim();
+  const button = byId('privacy-response-button');
+  if (!requestId) return;
+
+  if (
+    (status === 'completed' || status === 'rejected') &&
+    response.length < 3
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe a resposta antes de concluir ou rejeitar a solicitação.',
+      'danger',
+    );
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    await api.updatePrivacyRequest(state.token, {
+      requestId,
+      status,
+      response,
+    });
+    setMessage(
+      globalMessage,
+      'Solicitação LGPD atualizada.',
+      'success',
+    );
+    await loadPrivacy({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('privacy:write');
+  }
+}
+
 function bindRouteEvent(id, eventName, handler) {
   const element = byId(id);
   if (element != null) {
@@ -8032,6 +8408,37 @@ function bindRouteEvents(view) {
     return;
   }
 
+  if (view === 'privacy') {
+    bindRouteEvent('refresh-privacy-button', 'click', () => {
+      void loadPrivacy();
+    });
+    bindRouteEvent('privacy-filter-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadPrivacy({ reset: true });
+    });
+    bindRouteEvent('privacy-load-more', 'click', () => {
+      void loadPrivacy({ reset: false, announce: false });
+    });
+    bindRouteEvent('privacy-policy-form', 'submit', (event) => {
+      void handlePrivacyDocumentSubmit(
+        event,
+        'privacy_policy',
+        'privacy-policy',
+      );
+    });
+    bindRouteEvent('terms-of-use-form', 'submit', (event) => {
+      void handlePrivacyDocumentSubmit(
+        event,
+        'terms_of_use',
+        'terms-of-use',
+      );
+    });
+    bindRouteEvent('privacy-response-form', 'submit', (event) => {
+      void handlePrivacyResponse(event);
+    });
+    return;
+  }
+
   if (view === 'support') {
     bindRouteEvent('refresh-support-button', 'click', () => {
       void loadSupport({ reset: true });
@@ -8223,6 +8630,14 @@ function initializeRouteView(view) {
     renderNotificationHistory();
     if (hasScope('communications:read')) {
       void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'privacy') {
+    renderPrivacy();
+    if (hasScope('privacy:read')) {
+      void loadPrivacy({ announce: false });
     }
     return;
   }
