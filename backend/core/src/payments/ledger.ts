@@ -505,6 +505,37 @@ export function driverPayoutPaidLedger(input: {
   };
 }
 
+export function driverPayoutFailedLedger(input: {
+  payoutId: string;
+  driverId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `driver:${input.driverId}:payable`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_FAILED',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-failed:${input.payoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function driverPayoutCancelledLedger(input: {
   payoutId: string;
   driverId: string;
