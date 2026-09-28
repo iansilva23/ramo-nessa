@@ -4,6 +4,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'auth_token_store.dart';
 import 'phone_auth_service.dart';
+import '../config/driver_core_config.dart';
 
 class PhoneLoginScreen extends StatefulWidget {
   const PhoneLoginScreen({
@@ -116,14 +117,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   Widget build(BuildContext context) {
     final waitingForCode = _challenge != null;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
+    return RamoAuthScaffold(
+      heroImageUrl: DriverCoreConfig.baseUri
+          ?.resolve('/v1/content/app-auth-branding/hero')
+          .toString(),
+      child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Align(
@@ -227,26 +225,11 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     ),
                   ],
                   const SizedBox(height: 22),
-                  FilledButton(
+                  RamoRouteSubmitButton(
                     key: const Key('auth-primary-button'),
-                    onPressed: _loading
-                        ? null
-                        : waitingForCode
-                            ? _verifyCode
-                            : _requestCode,
-                    child: _loading
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            waitingForCode
-                                ? 'Confirmar e entrar'
-                                : 'Continuar',
-                          ),
+                    onPressed: waitingForCode ? _verifyCode : _requestCode,
+                    loading: _loading,
+                    label: waitingForCode ? 'Confirmar e entrar' : 'Continuar',
                   ),
                   if (waitingForCode) ...[
                     const SizedBox(height: 8),
@@ -279,9 +262,6 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   ],
                 ],
               ),
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -2,18 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../brand/ramo_brand_lockup.dart';
 import '../foundation/ramo_colors.dart';
+import 'ramo_brand_lockup.dart';
 
-/// Entrada de marca usada enquanto o app inicializa serviços locais e remotos.
-///
-/// Ela aparece no primeiro frame do Flutter para que inicializações como
-/// Firebase/Keystore não deixem o usuário parado numa tela nativa vazia.
+/// Entrada cinematográfica compartilhada enquanto o app inicializa.
 class RamoStartupSplash extends StatefulWidget {
-  const RamoStartupSplash({
-    super.key,
-    this.label,
-  });
+  const RamoStartupSplash({super.key, this.label});
 
   final String? label;
 
@@ -25,8 +19,8 @@ class _RamoStartupSplashState extends State<RamoStartupSplash>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1400),
-  )..repeat();
+    duration: const Duration(milliseconds: 2200),
+  )..forward();
 
   @override
   void dispose() {
@@ -36,85 +30,87 @@ class _RamoStartupSplashState extends State<RamoStartupSplash>
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final animation = reduceMotion ? const AlwaysStoppedAnimation(1.0) : _controller;
     return Scaffold(
-      backgroundColor: RamoColors.brandBlack,
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final t = _controller.value;
-              final intro = Curves.easeOutBack.transform(
-                math.min(1, t * 2.4),
-              );
-              final breathe = 1 + (math.sin(t * math.pi * 2) * 0.018);
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Transform.scale(
-                    scale: (.84 + (.16 * intro)) * breathe,
-                    child: Opacity(
-                      opacity: math.min(1, t * 3.2),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color: RamoColors.brandYellow,
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x3DFAD50E),
-                              blurRadius: 34,
-                              spreadRadius: 4,
+        child: AnimatedBuilder(
+          animation: animation,
+          builder: (context, _) {
+            final t = animation.value;
+            final artT = Curves.easeOutBack.transform(math.min(1, t / .56));
+            final brandT = Curves.easeOutCubic.transform(
+              ((t - .36) / .42).clamp(0.0, 1.0).toDouble(),
+            );
+            final labelT = Curves.easeOut.transform(
+              ((t - .62) / .3).clamp(0.0, 1.0).toDouble(),
+            );
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.translate(
+                      offset: Offset(0, 30 * (1 - artT)),
+                      child: Transform.scale(
+                        scale: .78 + (.22 * artT),
+                        child: Opacity(
+                          opacity: math.min(1, t * 3.1),
+                          child: const Image(
+                            image: AssetImage(
+                              'assets/auth/splash_mobility.png',
+                              package: 'ramo_design_system',
                             ),
-                          ],
+                            width: 310,
+                            height: 310,
+                            fit: BoxFit.contain,
+                            semanticLabel: 'Mobilidade Ramo Nessa',
+                          ),
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRect(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: brandT,
                         child: const RamoBrandLockup(),
                       ),
                     ),
-                  ),
-                  if (widget.label != null) ...[
-                    const SizedBox(height: 22),
-                    Text(
-                      widget.label!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
+                    if (widget.label != null) ...[
+                      const SizedBox(height: 14),
+                      Opacity(
+                        opacity: labelT,
+                        child: Text(
+                          widget.label!,
+                          style: const TextStyle(
+                            color: RamoColors.muted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.8,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    Opacity(
+                      opacity: labelT,
+                      child: const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: RamoColors.brandYellow,
+                        ),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    width: 118,
-                    height: 3,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: Stack(
-                        children: [
-                          const Positioned.fill(
-                            child: ColoredBox(color: Color(0x22FFFFFF)),
-                          ),
-                          FractionallySizedBox(
-                            widthFactor: .34,
-                            alignment: Alignment(-1 + (t * 2), 0),
-                            child: const DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: RamoColors.brandYellow,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

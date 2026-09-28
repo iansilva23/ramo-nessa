@@ -4,6 +4,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 
 import 'auth_token_store.dart';
 import 'phone_auth_service.dart';
+import '../config/ramo_core_config.dart';
 
 enum _PassengerAuthMode {
   landing,
@@ -287,18 +288,10 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: _buildContent(context),
-            ),
-          ),
-        ),
-      ),
+    final base = RamoCoreConfig.baseUri;
+    return RamoAuthScaffold(
+      heroImageUrl: base?.resolve('/v1/content/app-auth-branding/hero').toString(),
+      child: _buildContent(context),
     );
   }
 
@@ -456,10 +449,11 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           onSubmitted: (_) => _login(),
         ),
         const SizedBox(height: 22),
-        FilledButton(
+        RamoRouteSubmitButton(
           key: const Key('auth-primary-button'),
-          onPressed: _loading ? null : _login,
-          child: _buttonChild('Entrar'),
+          onPressed: _login,
+          loading: _loading,
+          label: 'Entrar',
         ),
         const SizedBox(height: 8),
         TextButton(
@@ -529,10 +523,11 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           onSubmitted: (_) => _startRegistration(),
         ),
         const SizedBox(height: 22),
-        FilledButton(
+        RamoRouteSubmitButton(
           key: const Key('auth-primary-button'),
-          onPressed: _loading ? null : _startRegistration,
-          child: _buttonChild('Continuar'),
+          onPressed: _startRegistration,
+          loading: _loading,
+          label: 'Continuar',
         ),
       ],
     );
@@ -562,10 +557,11 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           onSubmitted: (_) => _startRecovery(),
         ),
         const SizedBox(height: 22),
-        FilledButton(
+        RamoRouteSubmitButton(
           key: const Key('auth-primary-button'),
-          onPressed: _loading ? null : _startRecovery,
-          child: _buttonChild('Enviar código'),
+          onPressed: _startRecovery,
+          loading: _loading,
+          label: 'Enviar código',
         ),
       ],
     );
@@ -605,10 +601,11 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           onSubmitted: (_) => onSubmit(),
         ),
         const SizedBox(height: 22),
-        FilledButton(
+        RamoRouteSubmitButton(
           key: const Key('auth-primary-button'),
-          onPressed: _loading ? null : onSubmit,
-          child: _buttonChild('Confirmar'),
+          onPressed: onSubmit,
+          loading: _loading,
+          label: 'Confirmar',
         ),
       ],
     );
@@ -640,10 +637,11 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           onSubmitted: (_) => _finishRecovery(),
         ),
         const SizedBox(height: 22),
-        FilledButton(
+        RamoRouteSubmitButton(
           key: const Key('auth-primary-button'),
-          onPressed: _loading ? null : _finishRecovery,
-          child: _buttonChild('Salvar nova senha'),
+          onPressed: _finishRecovery,
+          loading: _loading,
+          label: 'Salvar nova senha',
         ),
       ],
     );
@@ -673,15 +671,4 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
     );
   }
 
-  Widget _buttonChild(String label) {
-    return _loading
-        ? const SizedBox.square(
-            dimension: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          )
-        : Text(label);
-  }
 }
