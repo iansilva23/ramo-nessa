@@ -1,49 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
-import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ride_bottom_sheet.dart';
+import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_selection_screen.dart';
 
 void main() {
   testWidgets(
-    'contador do Buggy respeita mínimo e máximo do Admin',
+    'contador do Táxi Buggy respeita mínimo e máximo do Admin',
     (tester) async {
-      var count = 2;
-
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) {
-                return RideBottomSheet(
-                  selectedService: ServiceType.buggy,
-                  availableServices: const [ServiceType.buggy],
-                  origin: 'Jericoacoara',
-                  destination: 'Jericoacoara',
-                  estimatedFare: 'R\$ 40,00',
-                  priceIsFinal: true,
-                  passengerCount: count,
-                  minPassengerCount: 2,
-                  maxPassengerCount: 3,
-                  onPassengerCountChanged: (value) {
-                    setState(() {
-                      count = value;
-                    });
-                  },
-                  onServiceChanged: (_) {},
-                  onOriginTap: () {},
-                  onDestinationTap: () {},
-                  onRequestRide: () {},
-                );
-              },
-            ),
+          home: VehicleSelectionScreen(
+            originLabel: 'Jericoacoara',
+            destinationLabel: 'Jericoacoara',
+            routeSummary: '2,5 km · 7 min',
+            availableServices: const [ServiceType.buggy],
+            initialService: ServiceType.buggy,
+            buggyMinPassengers: 2,
+            buggyMaxPassengers: 3,
+            onContinue: (_) async => null,
           ),
         ),
       );
-      await tester.pump();
-
-      final list = find.byType(ListView).first;
-      await tester.drag(list, const Offset(0, -320));
       await tester.pumpAndSettle();
+
+      expect(find.text('Táxi Buggy'), findsOneWidget);
+      expect(find.textContaining(r'R$'), findsNothing);
 
       final remove = find.widgetWithIcon(
         IconButton,
@@ -68,7 +49,7 @@ void main() {
       await tester.tap(add);
       await tester.pumpAndSettle();
 
-      expect(count, 3);
+      expect(find.text('3'), findsOneWidget);
       expect(
         tester.widget<IconButton>(add).onPressed,
         isNull,
