@@ -78,7 +78,7 @@ class RideBottomSheet extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      hasTrip ? 'Confira sua rota' : 'Pra onde vamos?',
+                      hasTrip ? 'Confira sua rota' : 'Escolha seu destino',
                       style:
                           Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
