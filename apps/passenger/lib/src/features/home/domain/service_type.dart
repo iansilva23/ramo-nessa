@@ -10,19 +10,19 @@ enum ServiceType {
 
 extension ServiceTypeUi on ServiceType {
   String get label => switch (this) {
-        ServiceType.car => 'Carro',
-        ServiceType.moto => 'Moto',
+        ServiceType.car => 'Carro normal',
+        ServiceType.moto => 'Mototáxi',
         ServiceType.delivery => 'Entrega',
-        ServiceType.comfortBlack => 'Comfort',
-        ServiceType.buggy => 'Buggy',
+        ServiceType.comfortBlack => 'Comfort 4x4',
+        ServiceType.buggy => 'Táxi Buggy',
       };
 
   String get description => switch (this) {
         ServiceType.car => 'Carro popular',
-        ServiceType.moto => 'Mais rápido',
+        ServiceType.moto => 'Mototáxi local',
         ServiceType.delivery => 'Envie algo',
         ServiceType.comfortBlack => '4x4 premium',
-        ServiceType.buggy => 'Passeio local',
+        ServiceType.buggy => 'Buggy/táxi local',
       };
 
   String get backendKey => switch (this) {
