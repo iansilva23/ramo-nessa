@@ -13,6 +13,7 @@ import '../features/payments/domain/cash_ride_authorization_result.dart';
 import '../features/payments/domain/passenger_payment_policy.dart';
 import '../features/payments/domain/pix_ride_payment_result.dart';
 import '../features/payments/domain/wallet_ride_payment_result.dart';
+import '../features/payments/domain/wallet_topup_result.dart';
 import '../features/pricing/data/pricing_quote_service.dart';
 import '../features/profile/data/passenger_support_service.dart';
 import '../features/pricing/domain/pricing_quote.dart';
@@ -278,6 +279,7 @@ final class _PreviewRidePreparationService
 
 final class _PreviewPaymentService implements PassengerPaymentService {
   int _walletCents = 12500;
+  final List<WalletTopupStatus> _topups = [];
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async =>
@@ -290,6 +292,46 @@ final class _PreviewPaymentService implements PassengerPaymentService {
 
   @override
   Future<int> walletBalanceCents() async => _walletCents;
+
+  @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) async {
+    final now = DateTime.now();
+    final topup = WalletTopupStatus(
+      id: 'preview-topup-${now.microsecondsSinceEpoch}',
+      status: 'paid',
+      amountCents: amountCents,
+      createdAt: now,
+      updatedAt: now,
+    );
+    _walletCents += amountCents;
+    _topups.insert(0, topup);
+    return PixWalletTopupResult(
+      topup: topup,
+      orderId: 'preview-wallet-order-${now.microsecondsSinceEpoch}',
+      ticketUrl: 'https://example.invalid/preview-wallet-pix',
+      qrCode: '',
+      qrCodeBase64: '',
+    );
+  }
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) async {
+    return _topups.firstWhere(
+      (topup) => topup.id == topupId,
+      orElse: () => throw StateError('Recarga preview não encontrada.'),
+    );
+  }
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) async {
+    return List<WalletTopupStatus>.unmodifiable(
+      _topups.take(limit.clamp(1, 100)),
+    );
+  }
 
   @override
   Future<PixRidePaymentResult> createPixRidePayment({
