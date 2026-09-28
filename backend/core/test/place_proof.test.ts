@@ -112,7 +112,8 @@ test('prova externa expira e assinatura adulterada é rejeitada', () => {
       error.code === 'PLACE_PROOF_EXPIRED',
   );
 
-  const tampered = proof.replace('a', 'b');
+  const last = proof.at(-1);
+  const tampered = `${proof.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`;
   assert.throws(
     () =>
       verifyExternalPlaceProof({
