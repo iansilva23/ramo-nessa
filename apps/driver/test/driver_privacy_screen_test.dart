@@ -50,6 +50,12 @@ void main() {
       find.text('Solicitação registrada e enviada para atendimento.'),
       findsOneWidget,
     );
+    expect(
+      tester.widget<FilledButton>(
+        find.byKey(const Key('driver-privacy-request-submit')),
+      ).onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('motorista aceita exatamente a versão publicada pelo Core',
