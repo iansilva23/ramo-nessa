@@ -13,6 +13,8 @@ import 'features/home/data/driver_api.dart';
 import 'features/home/data/driver_realtime_service.dart';
 import 'features/home/data/driver_route_service.dart';
 import 'features/home/presentation/driver_home_screen.dart';
+import 'features/profile/data/driver_privacy_service.dart';
+import 'features/profile/data/http_driver_privacy_service.dart';
 import 'preview/driver_preview_dependencies.dart';
 import 'preview/preview_auth.dart';
 
@@ -26,6 +28,7 @@ class RamoNessaDriverApp extends StatelessWidget {
     this.navigationService,
     this.routeService,
     this.realtimeService,
+    this.privacyService,
   });
 
   final String? accessToken;
@@ -35,6 +38,7 @@ class RamoNessaDriverApp extends StatelessWidget {
   final DriverNavigationService? navigationService;
   final DriverRouteService? routeService;
   final DriverRealtimeService? realtimeService;
+  final DriverPrivacyService? privacyService;
 
   @override
   Widget build(BuildContext context) {
@@ -54,16 +58,32 @@ class RamoNessaDriverApp extends StatelessWidget {
     Widget home(
       String? token, [
       Future<bool> Function()? logout,
-    ]) =>
-        DriverHomeScreen(
-          accessToken: token,
-          onLogout: logout,
-          api: api ?? preview?.api,
-          locationService: locationService ?? preview?.location,
-          navigationService: navigationService ?? preview?.navigation,
-          routeService: resolvedRouteService,
-          realtimeService: realtimeService,
-        );
+    ]) {
+      final normalizedToken = token?.trim();
+      final resolvedPrivacyService = privacyService ??
+          (
+            preview == null &&
+                coreUri != null &&
+                normalizedToken != null &&
+                normalizedToken.length >= 20
+              ? HttpDriverPrivacyService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
+              : null
+          );
+
+      return DriverHomeScreen(
+        accessToken: token,
+        onLogout: logout,
+        api: api ?? preview?.api,
+        locationService: locationService ?? preview?.location,
+        navigationService: navigationService ?? preview?.navigation,
+        routeService: resolvedRouteService,
+        realtimeService: realtimeService,
+        privacyService: resolvedPrivacyService,
+      );
+    }
 
     final Widget homeWidget;
     if (DriverCoreConfig.previewMode) {
