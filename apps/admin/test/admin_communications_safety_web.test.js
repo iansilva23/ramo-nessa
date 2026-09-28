@@ -218,6 +218,9 @@ test('ADM de Suporte expõe filtro, cursor e Carregar mais', () => {
       'utf8',
     ),
   ].join('\n');
+
+  assert.match(html, /Chamados de suporte/);
+  assert.match(html, /passageiros e motoristas/);
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
