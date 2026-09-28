@@ -5831,6 +5831,7 @@ const server = createServer(async (request, response) => {
         },
       });
       return;
+    }
 
     const paymentMatch = requestUrl.pathname.match(
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/payments$/,
