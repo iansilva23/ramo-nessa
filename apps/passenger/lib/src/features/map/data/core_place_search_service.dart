@@ -215,6 +215,14 @@ class CorePlaceSearchService
         latitude.toDouble(),
         longitude.toDouble(),
       ),
+      providerPlaceId: raw['id']?.toString().trim(),
+      approvedExternalId:
+          raw['approvedExternalId']?.toString().trim().isNotEmpty == true
+              ? raw['approvedExternalId'].toString().trim()
+              : suggestion.approvedExternalId,
+      placeProof: raw['placeProof']?.toString().trim().isNotEmpty == true
+          ? raw['placeProof'].toString().trim()
+          : null,
     );
 
     final approvedExternalId = suggestion.approvedExternalId;
