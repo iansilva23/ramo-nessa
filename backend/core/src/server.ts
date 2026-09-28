@@ -33,6 +33,12 @@ import {
   shouldRefundMercadoPagoPaymentBeforeDispatch,
 } from './payments/mercado-pago-payment-service.js';
 import {
+  applyMercadoPagoWalletTopupOrderStatus,
+  createMercadoPagoWalletCardTopup,
+  createMercadoPagoWalletPixTopup,
+  MercadoPagoWalletTopupError,
+} from './payments/mercado-pago-wallet-topup-service.js';
+import {
   InvalidPaymentRequestError,
   parseCreatePaymentRequest,
   readIdempotencyKey,
@@ -42,7 +48,6 @@ import {
   resolvePaymentProcessor,
 } from './payments/dev-processor.js';
 import {
-  createWalletTopup,
   passengerWalletBalanceCents,
   payRideWithWallet,
 } from './payments/wallet-services.js';
@@ -1031,6 +1036,34 @@ const server = createServer(async (request, response) => {
       }
 
       const order = await mercadoPagoOrdersClient.getOrder(orderId);
+      const topup = await financeRepository.findWalletTopupById(
+        order.externalReference.trim(),
+      );
+
+      if (topup != null) {
+        const appliedTopup =
+          await applyMercadoPagoWalletTopupOrderStatus({
+            finance: financeRepository,
+            order,
+          });
+
+        if (appliedTopup.kind === 'partially_refunded') {
+          logWarn('wallet.topup.partial_refund_detected', {
+            walletTopupId: appliedTopup.topup.id,
+            passengerId: appliedTopup.topup.passengerId,
+            orderId,
+          });
+        }
+
+        json(response, 200, {
+          received: true,
+          orderId,
+          resource: 'wallet_topup',
+          status: appliedTopup.kind,
+        });
+        return;
+      }
+
       const applied = await applyMercadoPagoOrderStatus({
         finance: financeRepository,
         order,
@@ -1056,6 +1089,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         received: true,
         orderId,
+        resource: 'ride_payment',
         status: applied.kind,
       });
       return;
@@ -5770,21 +5804,67 @@ const server = createServer(async (request, response) => {
           'A forma de pagamento escolhida está desativada pelo administrador.',
         );
       }
-      const topup = await createWalletTopup(financeRepository, {
+
+      const identity = await authOtpRepository.findIdentityBySubject(
+        'passenger',
         passengerId,
-        method: body.method,
-        processor: resolvePaymentProcessor(body.method),
+      );
+      const idempotencyKey = readIdempotencyKey(request.headers);
+
+      if (body.method === 'pix') {
+        const result = await createMercadoPagoWalletPixTopup({
+          finance: financeRepository,
+          gateway: mercadoPagoOrdersClient,
+          passengerId,
+          identity,
+          ...(body.payerEmail == null
+            ? {}
+            : { payerEmail: body.payerEmail }),
+          amountCents: body.amountCents,
+          idempotencyKey,
+        });
+        json(response, 201, {
+          topup: result.topup,
+          actionable: true,
+          action: {
+            kind: 'pix',
+            orderId: result.pix.orderId,
+            ticketUrl: result.pix.ticketUrl,
+            qrCode: result.pix.qrCode,
+            qrCodeBase64: result.pix.qrCodeBase64,
+          },
+        });
+        return;
+      }
+
+      const result = await createMercadoPagoWalletCardTopup({
+        finance: financeRepository,
+        gateway: mercadoPagoOrdersClient,
+        passengerId,
+        identity,
+        ...(body.payerEmail == null
+          ? {}
+          : { payerEmail: body.payerEmail }),
         amountCents: body.amountCents,
-        idempotencyKey: readIdempotencyKey(request.headers),
+        cardToken: body.cardToken!,
+        paymentMethodId: body.paymentMethodId!,
+        paymentMethodType: body.paymentMethodType!,
+        installments: body.installments ?? 1,
+        idempotencyKey,
       });
 
       json(response, 201, {
-        ...topup,
-        simulated: true,
-        actionable: false,
-        message:
-          'Intenção de recarga criada. O saldo só será creditado ' +
-          'quando um gateway real confirmar o pagamento.',
+        topup: result.topup,
+        actionable: true,
+        action: {
+          kind: 'card',
+          orderId: result.card.orderId,
+          status: result.card.status,
+          statusDetail: result.card.statusDetail,
+          ...(result.card.challengeUrl == null
+            ? {}
+            : { challengeUrl: result.card.challengeUrl }),
+        },
       });
       return;
     }
@@ -6598,6 +6678,22 @@ const server = createServer(async (request, response) => {
           : error.code === 'PASSENGER_EMAIL_REQUIRED'
             ? 422
             : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof MercadoPagoWalletTopupError) {
+      const status =
+        error.code === 'MERCADO_PAGO_NOT_CONFIGURED'
+          ? 503
+          : error.code === 'PASSENGER_EMAIL_REQUIRED'
+            ? 422
+            : error.code === 'TOPUP_NOT_FOUND'
+              ? 404
+              : 409;
       json(response, status, {
         error: error.code,
         message: error.message,
