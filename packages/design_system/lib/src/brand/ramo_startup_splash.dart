@@ -19,7 +19,7 @@ class _RamoStartupSplashState extends State<RamoStartupSplash>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 2200),
+    duration: const Duration(milliseconds: 2800),
   )..forward();
 
   @override

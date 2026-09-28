@@ -39,7 +39,7 @@ class _PassengerBootstrapState extends State<_PassengerBootstrap> {
 
   Future<void> _initialize() async {
     final minimumSplash = Future<void>.delayed(
-      const Duration(milliseconds: 1050),
+      const Duration(milliseconds: 3000),
     );
 
     final tokenStore = SecureAuthTokenStore();
