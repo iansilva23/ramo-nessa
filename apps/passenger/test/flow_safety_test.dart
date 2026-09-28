@@ -15,6 +15,7 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_auth
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
@@ -573,6 +574,22 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
   Future<int> walletBalanceCents() async => 10000;
 
   @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
   Future<WalletRidePaymentResult> payRideWithWallet({
     required String rideId,
     required String idempotencyKey,
@@ -639,6 +656,22 @@ class _FakeCashPassengerPaymentService
       dispatchStatus: 'SEARCHING_DRIVER',
     );
   }
+
+  @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
 
   @override
   Future<WalletRidePaymentResult> payRideWithWallet({
@@ -754,6 +787,22 @@ class _FakeRefundedPassengerPaymentService
   Future<int> walletBalanceCents() async => 10000;
 
   @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
   Future<WalletRidePaymentResult> payRideWithWallet({
     required String rideId,
     required String idempotencyKey,
@@ -822,6 +871,22 @@ class _FakePixPassengerPaymentService
   }) async {
     throw StateError('Cash não faz parte deste teste Pix.');
   }
+
+  @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) =>
+      throw StateError('Recarga da carteira não faz parte deste teste.');
 
   @override
   Future<WalletRidePaymentResult> payRideWithWallet({
