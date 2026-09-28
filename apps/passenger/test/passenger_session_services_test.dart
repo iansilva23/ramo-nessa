@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/http_passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/http_passenger_privacy_service.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/http_passenger_saved_place_service.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/http_passenger_support_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/http_passenger_activity_service.dart';
@@ -17,6 +18,7 @@ void main() {
     );
     expect(services.payments, isA<HttpPassengerPaymentService>());
     expect(services.support, isA<HttpPassengerSupportService>());
+    expect(services.privacy, isA<HttpPassengerPrivacyService>());
     expect(services.savedPlaces, isA<HttpPassengerSavedPlaceService>());
     expect(services.activity, isA<HttpPassengerActivityService>());
   });
@@ -30,6 +32,7 @@ void main() {
     );
     expect(services.payments, same(preview.payments));
     expect(services.support, same(preview.support));
+    expect(services.privacy, isNull);
     expect(services.activity, same(preview.activity));
     expect(services.savedPlaces, isNull);
   });
@@ -42,6 +45,7 @@ void main() {
     ]) {
       expect(services.payments, isNull);
       expect(services.support, isNull);
+      expect(services.privacy, isNull);
       expect(services.activity, isNull);
       expect(services.savedPlaces, isNull);
     }
