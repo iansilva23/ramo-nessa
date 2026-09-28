@@ -5,6 +5,7 @@ import '../../../core/auth/phone_auth_service.dart';
 import '../../../core/communications/social_links_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../map/data/place_search_service.dart';
+import '../../profile/data/passenger_privacy_service.dart';
 import '../../profile/data/passenger_saved_place_service.dart';
 import '../../profile/data/passenger_support_service.dart';
 import '../../profile/presentation/passenger_profile_screen.dart';
@@ -25,6 +26,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.accessToken,
     required this.tourService,
     this.supportService,
+    this.privacyService,
     this.socialLinksService,
     this.onLogout,
     this.previewMode = false,
@@ -39,6 +41,7 @@ class PassengerMainShell extends StatefulWidget {
   final SocialLinksService? socialLinksService;
   final AgencyTourService tourService;
   final PassengerSupportService? supportService;
+  final PassengerPrivacyService? privacyService;
   final String? accessToken;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
@@ -166,6 +169,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
         placeSearchService: widget.placeSearchService,
         socialLinksService: widget.socialLinksService,
         supportService: widget.supportService,
+        privacyService: widget.privacyService,
         onLogout: widget.onLogout,
         previewMode: widget.previewMode,
       ),
