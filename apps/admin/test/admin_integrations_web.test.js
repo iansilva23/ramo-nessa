@@ -21,7 +21,9 @@ test('admin exposes secure production integration status center', async () => {
   assert.match(html, /id="otp-provider-status"/);
   assert.match(html, /id="push-provider-status"/);
   assert.match(html, /id="push-provider-detail"/);
-  assert.match(html, /carregadas com segurança no boot do Core/);
+  assert.match(html, /id="mercado-pago-public-key-form"/);
+  assert.match(html, /id="mercado-pago-public-key"/);
+  assert.match(html, /Nunca[\s\S]*Access Token[\s\S]*webhook secret/);
 
   assert.match(app, /loadIntegrations/);
   assert.match(app, /payload\?\.mercadoPago/);
@@ -33,7 +35,11 @@ test('admin exposes secure production integration status center', async () => {
   assert.match(app, /firebaseCredentialSource/);
   assert.match(app, /item\.githubSecretName/);
   assert.match(app, /google-credential-cards/);
+  assert.match(app, /renderMercadoPagoPublicKey/);
+  assert.match(app, /handleMercadoPagoPublicKeySubmit/);
+  assert.match(app, /hasScope\('finance:write'\)/);
   assert.match(api, /\/v1\/admin\/integrations/);
+  assert.match(api, /mercadoPagoPublicKey/);
 
   assert.doesNotMatch(
     html,

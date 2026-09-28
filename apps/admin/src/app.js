@@ -5415,19 +5415,106 @@ function renderIntegrations(payload) {
   );
 }
 
+function renderMercadoPagoPublicKey(settings) {
+  const input = byId('mercado-pago-public-key');
+  const button = byId('save-mercado-pago-public-key-button');
+  const status = byId('mercado-pago-public-key-status');
+  const detail = byId('mercado-pago-public-key-detail');
+  if (input == null || button == null || status == null || detail == null) {
+    return;
+  }
+
+  if (settings == null || typeof settings !== 'object') {
+    input.value = '';
+    input.disabled = true;
+    button.disabled = true;
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Indisponível';
+    detail.textContent = 'Aguardando configurações do Core';
+    return;
+  }
+
+  const value = typeof settings.mercadoPagoPublicKey === 'string'
+    ? settings.mercadoPagoPublicKey.trim()
+    : '';
+  const canWrite = hasScope('finance:write');
+  input.value = value;
+  input.disabled = !canWrite;
+  button.disabled = !canWrite;
+  status.className = value
+    ? 'pill pill--success'
+    : 'pill pill--neutral';
+  status.textContent = value ? 'Configurada' : 'Usando fallback do build';
+  detail.textContent = canWrite
+    ? 'Alterações passam a valer ao abrir novamente a tela de pagamento.'
+    : 'Permissão finance:write necessária para alterar.';
+}
+
+async function handleMercadoPagoPublicKeySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('finance:write')) return;
+
+  const input = byId('mercado-pago-public-key');
+  const button = byId('save-mercado-pago-public-key-button');
+  const publicKey = input.value.trim();
+  if (
+    publicKey.length > 0 &&
+    (publicKey.length < 20 || publicKey.length > 220 || /\s/.test(publicKey))
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe uma Public Key válida, sem espaços.',
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    publicKey
+      ? 'Confirmar a nova Public Key do Mercado Pago? A mudança afetará novas tokenizações de cartão.'
+      : 'Remover a Public Key administrada e voltar ao fallback configurado no build?',
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  try {
+    const settings = await api.updateOperationalSettings(state.token, {
+      mercadoPagoPublicKey: publicKey || null,
+    });
+    renderMercadoPagoPublicKey(settings);
+    setMessage(
+      globalMessage,
+      publicKey
+        ? 'Public Key do Mercado Pago atualizada.'
+        : 'Public Key administrada removida; o app usará o fallback do build.',
+      'success',
+    );
+    if (hasScope('audit:read')) void loadAudit({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('finance:write');
+  }
+}
+
 async function loadIntegrations({ announce = true } = {}) {
   const button = byId('refresh-integrations-button');
 
   if (!state.token || !hasScope('rides:read')) {
     renderIntegrations(null);
+    renderMercadoPagoPublicKey(null);
     button.disabled = true;
     return;
   }
 
   button.disabled = true;
   try {
-    const payload = await api.integrations(state.token);
+    const [payload, settings] = await Promise.all([
+      api.integrations(state.token),
+      api.operationalSettings(state.token),
+    ]);
     renderIntegrations(payload);
+    renderMercadoPagoPublicKey(settings);
     if (announce) {
       setMessage(
         globalMessage,
@@ -5436,6 +5523,7 @@ async function loadIntegrations({ announce = true } = {}) {
       );
     }
   } catch (error) {
+    renderMercadoPagoPublicKey(null);
     handleAuthenticatedError(error);
   } finally {
     button.disabled = !hasScope('rides:read');
@@ -7773,6 +7861,9 @@ function bindRouteEvents(view) {
     bindRouteEvent('refresh-integrations-button', 'click', () => {
       void loadIntegrations();
     });
+    bindRouteEvent('mercado-pago-public-key-form', 'submit', (event) => {
+      void handleMercadoPagoPublicKeySubmit(event);
+    });
     return;
   }
 
@@ -8111,6 +8202,7 @@ function initializeRouteView(view) {
 
   if (view === 'integrations') {
     renderIntegrations(null);
+    renderMercadoPagoPublicKey(null);
     void loadIntegrations({ announce: false });
     return;
   }

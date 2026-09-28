@@ -30,9 +30,13 @@ class CardTokenizationException implements Exception {
 }
 
 class NativeCardTokenizationService implements CardTokenizationService {
-  const NativeCardTokenizationService({required this.amountCents});
+  const NativeCardTokenizationService({
+    required this.amountCents,
+    this.mercadoPagoPublicKey,
+  });
 
   final int amountCents;
+  final String? mercadoPagoPublicKey;
 
   static const _channel = MethodChannel(
     'br.com.ramonessa.passenger/payments',
@@ -57,9 +61,13 @@ class NativeCardTokenizationService implements CardTokenizationService {
       );
     }
 
-    if (Platform.isIOS && _mercadoPagoPublicKey.trim().isEmpty) {
+    final publicKey = mercadoPagoPublicKey?.trim().isNotEmpty == true
+        ? mercadoPagoPublicKey!.trim()
+        : _mercadoPagoPublicKey.trim();
+
+    if (publicKey.isEmpty) {
       throw const CardTokenizationException(
-        'Pagamento por cartão ainda não está configurado neste build.',
+        'Pagamento por cartão ainda não está configurado neste ambiente.',
       );
     }
 
@@ -68,7 +76,7 @@ class NativeCardTokenizationService implements CardTokenizationService {
         'tokenizeCard',
         {
           'amountCents': amountCents,
-          'publicKey': _mercadoPagoPublicKey,
+          'publicKey': publicKey,
         },
       );
       if (result == null) {

@@ -45,6 +45,7 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
     nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
+    mercadoPagoPublicKey: 'APP_USR-public-key-admin-1234567890',
   });
 
   assert.equal(calls.length, 1);
@@ -62,6 +63,7 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
     nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
     driverDocumentAutoEnforcement: false,
+    mercadoPagoPublicKey: 'APP_USR-public-key-admin-1234567890',
   });
 });
 

@@ -80,7 +80,11 @@ class CardTokenizationActivity : ComponentActivity() {
             return
         }
 
-        val publicKey = BuildConfig.MERCADO_PAGO_PUBLIC_KEY.trim()
+        val publicKey =
+            intent.getStringExtra(MainActivity.EXTRA_MERCADO_PAGO_PUBLIC_KEY)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: BuildConfig.MERCADO_PAGO_PUBLIC_KEY.trim()
         if (publicKey.isEmpty()) {
             setResult(
                 RESULT_FIRST_USER,
@@ -97,6 +101,11 @@ class CardTokenizationActivity : ComponentActivity() {
             if (!MercadoPagoSDK.isInitialized) {
                 MercadoPagoSDK.initialize(
                     context = applicationContext,
+                    publicKey = publicKey,
+                    countryCode = CountryCode.BRA,
+                )
+            } else {
+                MercadoPagoSDK.setNewConfiguration(
                     publicKey = publicKey,
                     countryCode = CountryCode.BRA,
                 )

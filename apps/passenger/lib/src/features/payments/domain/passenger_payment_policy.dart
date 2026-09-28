@@ -6,6 +6,7 @@ class PassengerPaymentPolicy {
     required this.passengerWalletEnabled,
     this.pixPriceAdjustmentBps = 99,
     this.cardPriceAdjustmentBps = 498,
+    this.mercadoPagoPublicKey,
   });
 
   factory PassengerPaymentPolicy.fromJson(Map<String, dynamic> json) {
@@ -21,6 +22,15 @@ class PassengerPaymentPolicy {
         .map((method) => method.trim())
         .where((method) => method.isNotEmpty)
         .toSet();
+    final rawPublicKey = json['mercadoPagoPublicKey'];
+    final normalizedPublicKey = rawPublicKey is String
+        ? rawPublicKey.trim()
+        : '';
+    final mercadoPagoPublicKey = normalizedPublicKey.length >= 20 &&
+            normalizedPublicKey.length <= 220 &&
+            !RegExp(r'\s').hasMatch(normalizedPublicKey)
+        ? normalizedPublicKey
+        : null;
 
     return PassengerPaymentPolicy(
       cashEnabled: json['cashEnabled'] as bool? ?? false,
@@ -33,6 +43,7 @@ class PassengerPaymentPolicy {
           (json['pixPriceAdjustmentBps'] as num?)?.toInt() ?? 0,
       cardPriceAdjustmentBps:
           (json['cardPriceAdjustmentBps'] as num?)?.toInt() ?? 0,
+      mercadoPagoPublicKey: mercadoPagoPublicKey,
     );
   }
 
@@ -42,6 +53,7 @@ class PassengerPaymentPolicy {
   final bool passengerWalletEnabled;
   final int pixPriceAdjustmentBps;
   final int cardPriceAdjustmentBps;
+  final String? mercadoPagoPublicKey;
 
   bool get pixAvailable => allowedMethods.contains('pix');
 

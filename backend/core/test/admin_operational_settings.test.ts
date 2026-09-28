@@ -120,3 +120,47 @@ test('Admin rejeita parâmetros de localização fora dos limites operacionais',
     );
   }
 });
+
+test('Admin persiste e audita somente a Public Key do Mercado Pago', async () => {
+  const repository = new InMemoryOperationalSettingsRepository();
+  const admin = new InMemoryAdminRepository();
+  const publicKey = 'APP_USR-public-key-admin-1234567890';
+
+  const updated = await updateAdminOperationalSettings({
+    repository,
+    admin,
+    actor,
+    mercadoPagoPublicKey: publicKey,
+    now: new Date('2026-09-28T06:45:00.000Z'),
+  });
+
+  assert.equal(updated.mercadoPagoPublicKey, publicKey);
+  assert.equal(
+    (await repository.get()).mercadoPagoPublicKey,
+    publicKey,
+  );
+
+  const audit = await admin.listAudit(10);
+  assert.equal(
+    audit[0]?.metadata?.mercadoPagoPublicKeyChanged,
+    true,
+  );
+  assert.equal(JSON.stringify(audit[0]).includes(publicKey), false);
+});
+
+test('Admin rejeita Public Key malformada do Mercado Pago', async () => {
+  const repository = new InMemoryOperationalSettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  await assert.rejects(
+    updateAdminOperationalSettings({
+      repository,
+      admin,
+      actor,
+      mercadoPagoPublicKey: 'public key com espaços',
+    }),
+    (error: unknown) =>
+      error instanceof AdminOperationalSettingsError &&
+      error.code === 'INVALID_MERCADO_PAGO_PUBLIC_KEY',
+  );
+});

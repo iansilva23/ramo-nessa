@@ -25,9 +25,10 @@
               <span>
                 O ADM mostra onde cada credencial deve ser colocada, mas nunca
                 exibe a chave privada do servidor. Chaves dos apps ficam em
-                GitHub Secrets e entram somente no build. Mercado Pago, OTP
-                e Push aparecem aqui apenas como status: as credenciais
-                continuam sendo carregadas com segurança no boot do Core.
+                GitHub Secrets e entram somente no build. A Public Key do
+                Mercado Pago pode ser administrada abaixo porque é pública;
+                Access Token, webhook secret, OTP e credenciais Push continuam
+                protegidos no ambiente seguro do Core.
               </span>
             </div>
 
@@ -68,6 +69,51 @@
                 <small>Maps SDK for iOS</small>
               </article>
             </div>
+
+            <article class="panel-card integration-public-config-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">MERCADO PAGO</span>
+                  <h2>Public Key do Checkout</h2>
+                </div>
+                <span id="mercado-pago-public-key-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="mercado-pago-public-key-form" class="integration-public-config-form">
+                <label class="field" for="mercado-pago-public-key">
+                  <span>Public Key</span>
+                  <input
+                    id="mercado-pago-public-key"
+                    type="text"
+                    minlength="20"
+                    maxlength="220"
+                    autocomplete="off"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    placeholder="APP_USR-..."
+                    disabled
+                  />
+                  <small>
+                    Esta chave é enviada ao app para tokenizar o cartão. Nunca
+                    cole aqui o Access Token nem o webhook secret.
+                  </small>
+                </label>
+                <div class="integration-public-config-actions">
+                  <small id="mercado-pago-public-key-detail">
+                    Aguardando configurações do Core
+                  </small>
+                  <button
+                    id="save-mercado-pago-public-key-button"
+                    class="button button--primary"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar Public Key
+                  </button>
+                </div>
+              </form>
+            </article>
 
             <article class="panel-card integration-wizard">
               <div class="panel-card__header">

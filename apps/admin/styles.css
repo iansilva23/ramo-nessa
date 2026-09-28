@@ -3154,6 +3154,33 @@ td strong {
   margin-bottom: 18px;
 }
 
+.integration-public-config-card {
+  margin-top: 18px;
+}
+
+.integration-public-config-form {
+  display: grid;
+  gap: 18px;
+}
+
+.integration-public-config-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .integration-public-config-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .integration-public-config-actions .button {
+    width: 100%;
+  }
+}
+
 .integration-status-card {
   padding: 18px;
 }

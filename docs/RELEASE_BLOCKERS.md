@@ -39,11 +39,13 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Admin já possui catálogo ativo protegido, rascunhos editáveis, versionamento persistente, publicação auditada, vigência imediata/programada e edição estrutural versionada das zonas/localidades suportadas; ainda falta resolução geoespacial robusta de todas as localidades externas;
    - faixas comerciais que ainda não possuem valor único não podem virar cobrança exata automaticamente.
 
-4. **Gateway financeiro real ainda não foi integrado**
+4. **Gateway financeiro real está integrado, mas depende da operação externa**
    - Pix/cartão/carteira são a política aprovada e o ledger/carteira internos já existem;
+   - Pix usa Orders API no Core e cartão usa tokenização nativa do Mercado Pago; a Public Key pode ser administrada no ADM e consumida dinamicamente pelo Passenger, com fallback do build;
+   - Access Token e webhook secret continuam restritos ao ambiente seguro do Core e não aparecem no ADM nem nos apps;
    - o Admin já possui visão financeira somente leitura baseada no ledger, sem ações de mutação financeira;
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
-   - falta integrar gateway para Pix/cartão e confirmação real de recarga;
+   - ainda faltam configurar credenciais reais, webhook no domínio público, validar sandbox externo e implementar a confirmação real de recarga da carteira;
    - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão ficam em `REFUND_PENDING`; ainda faltam confirmação de estorno/chargeback do gateway externo, conciliação e repasse Pix real.
 
 5. **Assinatura Android de produção ainda não existe**

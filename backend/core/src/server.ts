@@ -2862,6 +2862,7 @@ const server = createServer(async (request, response) => {
         nearbyDriverMaxDistanceKm?: unknown;
         showNearbyDrivers?: unknown;
         driverDocumentAutoEnforcement?: unknown;
+        mercadoPagoPublicKey?: unknown;
       };
       const driverOfferTtlSeconds =
         payload.driverOfferTtlSeconds == null
@@ -2887,6 +2888,12 @@ const server = createServer(async (request, response) => {
         payload.driverDocumentAutoEnforcement == null
           ? undefined
           : payload.driverDocumentAutoEnforcement;
+      const mercadoPagoPublicKey = Object.prototype.hasOwnProperty.call(
+        payload,
+        'mercadoPagoPublicKey',
+      )
+        ? payload.mercadoPagoPublicKey
+        : undefined;
 
       if (
         driverOfferTtlSeconds != null &&
@@ -2936,6 +2943,15 @@ const server = createServer(async (request, response) => {
           'driverDocumentAutoEnforcement deve ser booleano.',
         );
       }
+      if (
+        mercadoPagoPublicKey !== undefined &&
+        mercadoPagoPublicKey !== null &&
+        typeof mercadoPagoPublicKey !== 'string'
+      ) {
+        throw new InvalidAdminRequestError(
+          'mercadoPagoPublicKey deve ser texto ou null.',
+        );
+      }
       if (driverDocumentAutoEnforcement != null) {
         await authenticateAdminPrincipal({
           apiKeys: adminRepository,
@@ -2944,13 +2960,22 @@ const server = createServer(async (request, response) => {
           requiredScope: 'drivers:documents:write',
         });
       }
+      if (mercadoPagoPublicKey !== undefined) {
+        await authenticateAdminPrincipal({
+          apiKeys: adminRepository,
+          humanAuth: adminHumanAuthRepository,
+          headers: request.headers,
+          requiredScope: 'finance:write',
+        });
+      }
       if (
         driverOfferTtlSeconds == null &&
         driverPaymentHoldSeconds == null &&
         driverLocationMaxAgeSeconds == null &&
         nearbyDriverMaxDistanceKm == null &&
         showNearbyDrivers == null &&
-        driverDocumentAutoEnforcement == null
+        driverDocumentAutoEnforcement == null &&
+        mercadoPagoPublicKey === undefined
       ) {
         throw new InvalidAdminRequestError(
           'Informe ao menos uma configuração operacional.',
@@ -2979,6 +3004,12 @@ const server = createServer(async (request, response) => {
         ...(driverDocumentAutoEnforcement == null
           ? {}
           : { driverDocumentAutoEnforcement }),
+        ...(mercadoPagoPublicKey === undefined
+          ? {}
+          : {
+              mercadoPagoPublicKey:
+                mercadoPagoPublicKey as string | null,
+            }),
       });
       json(response, 200, settings);
       return;
@@ -5362,7 +5393,10 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && request.url === '/v1/payments/policy') {
-      const settings = await paymentPolicySettingsRepository.get();
+      const [settings, operationalSettings] = await Promise.all([
+        paymentPolicySettingsRepository.get(),
+        operationalSettingsRepository.get(),
+      ]);
       json(response, 200, {
         ...PAYMENT_POLICY_V1,
         cashEnabled: settings.cashEnabled,
@@ -5374,6 +5408,8 @@ const server = createServer(async (request, response) => {
           settings.defaultCashDebtLimitCents,
         pixPriceAdjustmentBps: settings.pixPriceAdjustmentBps,
         cardPriceAdjustmentBps: settings.cardPriceAdjustmentBps,
+        mercadoPagoPublicKey:
+          operationalSettings.mercadoPagoPublicKey ?? null,
         allowedMethods: [
           ...(settings.pixEnabled ? ['pix'] : []),
           ...(settings.cardEnabled ? ['card'] : []),

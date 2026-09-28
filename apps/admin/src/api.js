@@ -250,6 +250,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         nearbyDriverMaxDistanceKm,
         showNearbyDrivers,
         driverDocumentAutoEnforcement,
+        mercadoPagoPublicKey,
       },
     ) {
       return request('/v1/admin/operational-settings', {
@@ -262,6 +263,9 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
           nearbyDriverMaxDistanceKm,
           showNearbyDrivers,
           driverDocumentAutoEnforcement,
+          ...(mercadoPagoPublicKey === undefined
+            ? {}
+            : { mercadoPagoPublicKey }),
         },
       });
     },

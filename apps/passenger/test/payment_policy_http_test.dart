@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/http_passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
 
 void main() {
   test('política de pagamentos controla disponibilidade de dinheiro', () async {
@@ -17,6 +18,8 @@ void main() {
           'passengerWalletEnabled': true,
           'pixPriceAdjustmentBps': 99,
           'cardPriceAdjustmentBps': 498,
+          'mercadoPagoPublicKey':
+              'APP_USR-public-key-dynamic-1234567890',
           'allowedMethods': ['pix', 'card', 'wallet'],
         }),
         200,
@@ -47,8 +50,25 @@ void main() {
     expect(policy.cardPriceAdjustmentBps, 498);
     expect(policy.cardTotalAmountCents(15000), 15787);
     expect(policy.cardAdjustmentCents(15000), 787);
+    expect(
+      policy.mercadoPagoPublicKey,
+      'APP_USR-public-key-dynamic-1234567890',
+    );
     expect(policy.allowedMethods, containsAll(['pix', 'card', 'wallet']));
     expect(policy.allowedMethods, isNot(contains('cash')));
+  });
+
+  test('política ignora Public Key inválida e preserva fallback seguro', () {
+    final policy = PassengerPaymentPolicy.fromJson({
+      'cashEnabled': false,
+      'paymentRequiredBeforeDispatch': true,
+      'passengerWalletEnabled': false,
+      'allowedMethods': ['pix', 'card'],
+      'mercadoPagoPublicKey': 'Access Token com espaços',
+    });
+
+    expect(policy.mercadoPagoPublicKey, isNull);
+    expect(policy.cardAvailable, isTrue);
   });
 
   test('autorização cash usa a rota de pagamentos e body cash', () async {

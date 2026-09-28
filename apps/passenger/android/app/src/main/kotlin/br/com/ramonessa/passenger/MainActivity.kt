@@ -48,10 +48,15 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        if (BuildConfig.MERCADO_PAGO_PUBLIC_KEY.isBlank()) {
+        val publicKey =
+            ((arguments as? Map<*, *>)?.get("publicKey") as? String)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: BuildConfig.MERCADO_PAGO_PUBLIC_KEY.trim()
+        if (publicKey.isBlank()) {
             result.error(
                 "MERCADO_PAGO_NOT_CONFIGURED",
-                "Public Key do Mercado Pago não configurada neste build.",
+                "Public Key do Mercado Pago não configurada neste ambiente.",
                 null,
             )
             return
@@ -61,6 +66,7 @@ class MainActivity : FlutterActivity() {
         startActivityForResult(
             Intent(this, CardTokenizationActivity::class.java).apply {
                 putExtra(EXTRA_AMOUNT_CENTS, amountCents)
+                putExtra(EXTRA_MERCADO_PAGO_PUBLIC_KEY, publicKey)
             },
             CARD_REQUEST_CODE,
         )
@@ -132,6 +138,8 @@ class MainActivity : FlutterActivity() {
         private const val PAYMENT_CHANNEL =
             "br.com.ramonessa.passenger/payments"
         const val EXTRA_AMOUNT_CENTS = "amountCents"
+        const val EXTRA_MERCADO_PAGO_PUBLIC_KEY =
+            "mercadoPagoPublicKey"
         private const val CARD_REQUEST_CODE = 8042
     }
 }

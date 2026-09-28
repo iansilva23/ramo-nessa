@@ -180,6 +180,13 @@ assinatura.
 O Core usa Checkout Transparente via **Orders API** para Pix. O Access Token é
 credencial privada e nunca deve ser enviado ao app ou versionado no Git.
 
+A Public Key do Checkout é pública e pode ser administrada em
+`/admin/integracoes`. O Core a persiste no PostgreSQL e a entrega pela política
+de pagamentos; novas tokenizações de cartão no Passenger passam a usá-la sem
+novo APK. `RAMO_MERCADO_PAGO_PUBLIC_KEY` permanece no build somente como
+fallback seguro. Essa configuração não aceita nem substitui o Access Token ou
+o webhook secret, que continuam exclusivos do ambiente protegido do Core.
+
 Ambiente de teste:
 
 ```bash

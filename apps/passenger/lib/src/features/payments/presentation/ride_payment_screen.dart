@@ -291,6 +291,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           widget.cardTokenizationService ??
           NativeCardTokenizationService(
             amountCents: _cardTotalAmountCents,
+            mercadoPagoPublicKey:
+                _paymentPolicy?.mercadoPagoPublicKey,
           );
       final tokenized = await tokenizer.tokenize();
       if (!mounted) return;
