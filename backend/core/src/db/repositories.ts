@@ -55,6 +55,9 @@ import { InMemoryPassengerSavedPlaceRepository } from '../passengers/repositorie
 import { PostgresPassengerSavedPlaceRepository } from '../passengers/repositories/postgres-passenger-saved-place-repository.js';
 import { InMemoryOperationalSettingsRepository } from '../config/in-memory-operational-settings-repository.js';
 import { PostgresOperationalSettingsRepository } from '../config/postgres-operational-settings-repository.js';
+import type { PrivacyRepository } from '../privacy/privacy-repository.js';
+import { InMemoryPrivacyRepository } from '../privacy/repositories/in-memory-privacy-repository.js';
+import { PostgresPrivacyRepository } from '../privacy/repositories/postgres-privacy-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
@@ -77,6 +80,7 @@ export interface RepositoryBundle {
   adminCommunicationsRepository: AdminCommunicationsRepository;
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
+  privacyRepository: PrivacyRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -122,6 +126,7 @@ export function createRepositories(): RepositoryBundle {
         new PostgresOperationalSettingsRepository(pool),
       passengerSavedPlaceRepository:
         new PostgresPassengerSavedPlaceRepository(pool),
+      privacyRepository: new PostgresPrivacyRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -177,6 +182,7 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryOperationalSettingsRepository(),
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
+    privacyRepository: new InMemoryPrivacyRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
