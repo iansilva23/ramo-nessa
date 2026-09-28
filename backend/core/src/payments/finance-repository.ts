@@ -102,6 +102,18 @@ export interface CancelDriverPayoutResult {
   duplicateCancellation: boolean;
 }
 
+export interface MarkWalletTopupPendingInput {
+  walletTopupId: string;
+  processorTopupId: string;
+  updatedAt?: Date;
+}
+
+export interface MarkWalletTopupTerminalInput {
+  walletTopupId: string;
+  status: 'failed' | 'cancelled';
+  updatedAt?: Date;
+}
+
 export interface CaptureWalletTopupInput {
   walletTopupId: string;
   processorEventId: string;
@@ -114,6 +126,17 @@ export interface CaptureWalletTopupResult {
   topup: WalletTopupRecord;
   ledgerTransaction: LedgerTransaction;
   duplicateEvent: boolean;
+}
+
+export interface RefundWalletTopupInput {
+  walletTopupId: string;
+  refundedAt?: Date;
+}
+
+export interface RefundWalletTopupResult {
+  topup: WalletTopupRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateRefund: boolean;
 }
 
 export interface PayRideFromWalletInput {
@@ -175,13 +198,23 @@ export interface FinanceRepository {
     input: RefundExternalPaymentInput,
   ): Promise<RefundExternalPaymentResult>;
 
+  findWalletTopupById(id: string): Promise<WalletTopupRecord | null>;
   findWalletTopupByIdempotencyKey(
     key: string,
   ): Promise<WalletTopupRecord | null>;
   createWalletTopup(topup: WalletTopupRecord): Promise<WalletTopupRecord>;
+  markWalletTopupPending(
+    input: MarkWalletTopupPendingInput,
+  ): Promise<WalletTopupRecord>;
+  markWalletTopupTerminal(
+    input: MarkWalletTopupTerminalInput,
+  ): Promise<WalletTopupRecord>;
   captureWalletTopup(
     input: CaptureWalletTopupInput,
   ): Promise<CaptureWalletTopupResult>;
+  refundWalletTopup(
+    input: RefundWalletTopupInput,
+  ): Promise<RefundWalletTopupResult>;
   payRideFromWallet(
     input: PayRideFromWalletInput,
   ): Promise<PayRideFromWalletResult>;
