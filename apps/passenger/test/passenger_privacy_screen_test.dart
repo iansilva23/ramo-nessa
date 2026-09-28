@@ -49,6 +49,12 @@ void main() {
       find.text('Solicitação registrada e enviada para atendimento.'),
       findsOneWidget,
     );
+    expect(
+      tester.widget<FilledButton>(
+        find.byKey(const Key('privacy-request-submit')),
+      ).onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('documento vigente registra aceite pela versão do Core',
