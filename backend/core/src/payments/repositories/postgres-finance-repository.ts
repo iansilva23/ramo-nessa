@@ -795,6 +795,22 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async listWalletTopups(
+    passengerId: string,
+    limit: number,
+  ): Promise<WalletTopupRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, limit));
+    const result = await this.pool.query<WalletTopupRow>(
+      `SELECT ${TOPUP_COLUMNS}
+       FROM wallet_topups
+       WHERE passenger_id = $1
+       ORDER BY created_at DESC, id DESC
+       LIMIT $2`,
+      [passengerId, safeLimit],
+    );
+    return result.rows.map(mapTopup);
+  }
+
   async findWalletTopupById(
     id: string,
   ): Promise<WalletTopupRecord | null> {
