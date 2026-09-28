@@ -353,6 +353,17 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     };
   }
 
+  async listWalletTopups(
+    passengerId: string,
+    limit: number,
+  ): Promise<WalletTopupRecord[]> {
+    return [...this.walletTopups.values()]
+      .filter((topup) => topup.passengerId === passengerId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, limit)))
+      .map((topup) => structuredClone(topup));
+  }
+
   async findWalletTopupById(
     id: string,
   ): Promise<WalletTopupRecord | null> {
