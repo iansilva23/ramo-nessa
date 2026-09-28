@@ -82,6 +82,18 @@ export interface AgencyTourCover {
   version: number;
 }
 
+export interface AppAuthBrandingRecord {
+  heroImageVersion: number;
+  heroImageMimeType?: string;
+  updatedAt: string;
+}
+
+export interface AppAuthHero {
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  bytes: Uint8Array;
+  version: number;
+}
+
 export interface AdminCommunicationsRepository {
   createCampaign(
     record: AdminNotificationCampaignRecord,
@@ -113,4 +125,11 @@ export interface AdminCommunicationsRepository {
     bytes: Uint8Array;
     updatedAt: string;
   }): Promise<AgencyTourRecord | null>;
+  getAppAuthBranding(): Promise<AppAuthBrandingRecord>;
+  readAppAuthHero(): Promise<AppAuthHero | null>;
+  saveAppAuthHero(input: {
+    mimeType: AppAuthHero['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AppAuthBrandingRecord>;
 }

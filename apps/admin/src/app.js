@@ -123,6 +123,7 @@ const state = {
   selectedRide: null,
   selectedTourSlug: null,
   tourCoverObjectUrl: null,
+  appAuthHeroObjectUrl: null,
   auditEntries: [],
   auditDirectory: {
     nextCursor: null,
@@ -139,6 +140,7 @@ const state = {
     agencyPromotion: null,
     socialLinks: null,
     tours: [],
+    appAuthBranding: null,
   },
   support: {
     tickets: [],
@@ -477,6 +479,10 @@ function clearSession(message = '') {
   if (state.tourCoverObjectUrl != null) {
     URL.revokeObjectURL(state.tourCoverObjectUrl);
     state.tourCoverObjectUrl = null;
+  }
+  if (state.appAuthHeroObjectUrl != null) {
+    URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+    state.appAuthHeroObjectUrl = null;
   }
   state.auditEntries = [];
   state.auditDirectory = {
@@ -6853,6 +6859,75 @@ function renderTourCatalog() {
   byId('tour-new-button').disabled = !canWrite;
 }
 
+async function loadAppAuthHeroPreview() {
+  const image = byId('app-auth-hero-preview');
+  if (image == null || !state.token || !hasScope('communications:read')) return;
+  if (state.appAuthHeroObjectUrl != null) {
+    URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+    state.appAuthHeroObjectUrl = null;
+  }
+  const branding = state.communications.appAuthBranding;
+  const placeholder = byId('app-auth-hero-placeholder');
+  if (!branding || Number(branding.heroImageVersion || 0) < 1) {
+    image.hidden = true;
+    placeholder.hidden = false;
+    return;
+  }
+  try {
+    const payload = await api.appAuthHero(state.token);
+    state.appAuthHeroObjectUrl = URL.createObjectURL(
+      new Blob([payload.bytes], { type: payload.contentType }),
+    );
+    image.src = state.appAuthHeroObjectUrl;
+    image.hidden = false;
+    placeholder.hidden = true;
+  } catch (error) {
+    image.hidden = true;
+    placeholder.hidden = false;
+  }
+}
+
+function previewSelectedAppAuthHero(file) {
+  if (file == null) return;
+  if (state.appAuthHeroObjectUrl != null) URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+  state.appAuthHeroObjectUrl = URL.createObjectURL(file);
+  const image = byId('app-auth-hero-preview');
+  image.src = state.appAuthHeroObjectUrl;
+  image.hidden = false;
+  byId('app-auth-hero-placeholder').hidden = true;
+}
+
+async function handleAppAuthHeroUpload() {
+  if (!state.token || !hasScope('communications:write')) return;
+  const file = byId('app-auth-hero-file').files?.[0] ?? null;
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha uma imagem para o login.', 'danger');
+    return;
+  }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size <= 0 || file.size > 5 * 1024 * 1024) {
+    setMessage(globalMessage, 'Use JPEG, PNG ou WebP com no máximo 5 MB.', 'danger');
+    return;
+  }
+  if (!window.confirm('Confirmar publicação da nova imagem de login? Ela ficará visível nos apps Passageiro e Motorista.')) {
+    return;
+  }
+  const button = byId('upload-app-auth-hero-button');
+  button.disabled = true;
+  try {
+    await api.uploadAppAuthHero(state.token, {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      contentType: file.type,
+    });
+    byId('app-auth-hero-file').value = '';
+    setMessage(globalMessage, 'Imagem do login publicada para os dois apps.', 'success');
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
 function renderCommunications() {
   const loaded = state.communications.loaded === true;
   const provider = state.communications.deliveryProvider || 'disabled';
@@ -6917,6 +6992,15 @@ function renderCommunications() {
   if (releaseButton != null) releaseButton.disabled = !canWrite;
   if (agencyButton != null) agencyButton.disabled = !canWrite;
   if (socialButton != null) socialButton.disabled = !canWrite;
+  const authHeroButton = byId('upload-app-auth-hero-button');
+  if (authHeroButton != null) authHeroButton.disabled = !canWrite;
+  const authHeroMeta = byId('app-auth-hero-meta');
+  if (authHeroMeta != null) {
+    const branding = state.communications.appAuthBranding;
+    authHeroMeta.textContent = branding?.heroImageVersion > 0
+      ? `Versão ${branding.heroImageVersion} · atualizada em ${formatDateTime(branding.updatedAt)}`
+      : 'Imagem padrão embarcada nos aplicativos.';
+  }
 
   if (byId('save-tour-button') != null) {
     byId('save-tour-button').disabled = !canWrite;
@@ -6939,6 +7023,7 @@ async function loadCommunications({ announce = true } = {}) {
       agencyPromotion: null,
       socialLinks: null,
       tours: [],
+      appAuthBranding: null,
     };
     renderCommunications();
     return;
@@ -6961,8 +7046,10 @@ async function loadCommunications({ announce = true } = {}) {
       agencyPromotion: payload?.agencyPromotion ?? null,
       socialLinks: payload?.socialLinks ?? null,
       tours: Array.isArray(payload?.tours) ? payload.tours : [],
+      appAuthBranding: payload?.appAuthBranding ?? null,
     };
     renderCommunications();
+    if (byId('app-auth-hero-preview') != null) void loadAppAuthHeroPreview();
     if (announce) {
       setMessage(
         globalMessage,
@@ -7833,6 +7920,12 @@ function bindRouteEvents(view) {
         void loadCommunications();
       },
     );
+    bindRouteEvent('app-auth-hero-file', 'change', (event) => {
+      previewSelectedAppAuthHero(event.currentTarget.files?.[0] ?? null);
+    });
+    bindRouteEvent('upload-app-auth-hero-button', 'click', () => {
+      void handleAppAuthHeroUpload();
+    });
     return;
   }
 

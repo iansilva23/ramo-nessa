@@ -34,6 +34,7 @@ test('ações de comunicação de amplo impacto exigem confirmação', () => {
   assert.match(app, /Confirmar desativação da divulgação/);
   assert.match(app, /Confirmar publicação do passeio/);
   assert.match(app, /Confirmar retirada do passeio/);
+  assert.match(app, /Confirmar publicação da nova imagem de login/);
 });
 
 test('política de versão é validada antes de salvar', () => {

@@ -10,6 +10,8 @@ import type {
   AgencyPromotionRecord,
   AgencyTourCover,
   AgencyTourRecord,
+  AppAuthBrandingRecord,
+  AppAuthHero,
   AppReleasePolicyRecord,
   SocialLinksRecord,
 } from '../admin-communications-repository.js';
@@ -83,6 +85,13 @@ interface PromotionRow {
   description: string;
   cta_label: string;
   cta_url: string | null;
+  updated_at: Date;
+}
+
+interface AppAuthBrandingRow {
+  hero_image: Buffer | null;
+  hero_image_mime_type: AppAuthHero['mimeType'] | null;
+  hero_image_version: number;
   updated_at: Date;
 }
 
@@ -501,5 +510,57 @@ export class PostgresAdminCommunicationsRepository
     const row = result.rows[0];
     if (row == null) throw new Error('Links sociais não foram persistidos.');
     return mapSocialLinks(row);
+  }
+
+  async getAppAuthBranding(): Promise<AppAuthBrandingRecord> {
+    const result = await this.pool.query<AppAuthBrandingRow>(
+      `SELECT hero_image, hero_image_mime_type, hero_image_version, updated_at
+       FROM app_auth_branding WHERE id = 'ramo-nessa' LIMIT 1`,
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Identidade visual dos apps não encontrada.');
+    return {
+      heroImageVersion: row.hero_image_version,
+      ...(row.hero_image_mime_type == null ? {} : { heroImageMimeType: row.hero_image_mime_type }),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  async readAppAuthHero(): Promise<AppAuthHero | null> {
+    const result = await this.pool.query<AppAuthBrandingRow>(
+      `SELECT hero_image, hero_image_mime_type, hero_image_version, updated_at
+       FROM app_auth_branding
+       WHERE id = 'ramo-nessa' AND hero_image IS NOT NULL
+         AND hero_image_mime_type IS NOT NULL LIMIT 1`,
+    );
+    const row = result.rows[0];
+    if (row?.hero_image == null || row.hero_image_mime_type == null) return null;
+    return {
+      mimeType: row.hero_image_mime_type,
+      bytes: row.hero_image,
+      version: row.hero_image_version,
+    };
+  }
+
+  async saveAppAuthHero(input: {
+    mimeType: AppAuthHero['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AppAuthBrandingRecord> {
+    const result = await this.pool.query<AppAuthBrandingRow>(
+      `UPDATE app_auth_branding
+       SET hero_image = $1, hero_image_mime_type = $2,
+           hero_image_version = hero_image_version + 1, updated_at = $3
+       WHERE id = 'ramo-nessa'
+       RETURNING hero_image, hero_image_mime_type, hero_image_version, updated_at`,
+      [Buffer.from(input.bytes), input.mimeType, input.updatedAt],
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Imagem de login não foi persistida.');
+    return {
+      heroImageVersion: row.hero_image_version,
+      ...(row.hero_image_mime_type == null ? {} : { heroImageMimeType: row.hero_image_mime_type }),
+      updatedAt: row.updated_at.toISOString(),
+    };
   }
 }

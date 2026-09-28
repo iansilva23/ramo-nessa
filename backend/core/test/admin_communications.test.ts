@@ -10,6 +10,7 @@ import {
   updateAgencyPromotion,
   updateAgencyTour,
   updateAgencyTourCover,
+  updateAppAuthHero,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from '../src/admin/admin-communications-service.js';
@@ -402,4 +403,25 @@ test('passeio publicado exige WhatsApp de reserva', () => {
       }),
     /WhatsApp/,
   );
+});
+
+test('imagem do login é versionada e toda troca gera auditoria', async () => {
+  const communications = new InMemoryAdminCommunicationsRepository();
+  const admin = new InMemoryAdminRepository();
+  const bytes = Uint8Array.from([0xff, 0xd8, 0xff, 1, 2, 3]);
+
+  const branding = await updateAppAuthHero({
+    communications,
+    admin,
+    actor,
+    mimeType: 'image/jpeg',
+    bytes,
+    now: new Date('2026-09-28T12:00:00.000Z'),
+  });
+
+  assert.equal(branding.heroImageVersion, 1);
+  assert.equal(branding.heroImageMimeType, 'image/jpeg');
+  assert.deepEqual([...(await communications.readAppAuthHero())!.bytes], [...bytes]);
+  const audit = await admin.listAudit(10);
+  assert.equal(audit[0]?.action, 'communications.app_auth_hero_updated');
 });

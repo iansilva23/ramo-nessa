@@ -301,6 +301,18 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/communications', { token });
     },
 
+    appAuthHero(token) {
+      return requestBinary('/v1/admin/app-auth-branding/hero', { token });
+    },
+
+    uploadAppAuthHero(token, { bytes, contentType }) {
+      return uploadBinary('/v1/admin/app-auth-branding/hero', {
+        token,
+        bytes,
+        contentType,
+      });
+    },
+
     sendNotification(token, payload) {
       return request('/v1/admin/notifications', {
         method: 'POST',

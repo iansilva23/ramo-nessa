@@ -360,6 +360,7 @@ import {
   updateAgencyPromotion,
   updateAgencyTour,
   updateAgencyTourCover,
+  updateAppAuthHero,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from './admin/admin-communications-service.js';
@@ -492,6 +493,21 @@ function json(response: ServerResponse, status: number, body: unknown): void {
 }
 
 const MAX_AGENCY_TOUR_COVER_BYTES = 8 * 1024 * 1024;
+const MAX_APP_AUTH_HERO_BYTES = 5 * 1024 * 1024;
+
+function hasValidImageMagic(
+  bytes: Buffer,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
+): boolean {
+  if (mimeType === 'image/jpeg') {
+    return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (mimeType === 'image/png') {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
+  }
+  return bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
+}
 
 const RIDE_CHAT_READABLE_STATES = new Set([
   'DRIVER_ASSIGNED',
@@ -1131,6 +1147,39 @@ const server = createServer(async (request, response) => {
           communications: adminCommunicationsRepository,
         }),
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/content/app-auth-branding'
+    ) {
+      const branding = await adminCommunicationsRepository.getAppAuthBranding();
+      json(response, 200, {
+        ...branding,
+        heroImageUrl: branding.heroImageVersion > 0
+          ? `/v1/content/app-auth-branding/hero?v=${branding.heroImageVersion}`
+          : null,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/content/app-auth-branding/hero'
+    ) {
+      const hero = await adminCommunicationsRepository.readAppAuthHero();
+      if (hero == null) {
+        json(response, 404, { error: 'APP_AUTH_HERO_NOT_FOUND', message: 'Imagem de login não configurada.' });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': hero.mimeType,
+        'content-length': String(hero.bytes.byteLength),
+        'cache-control': 'public, max-age=60, must-revalidate',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(Buffer.from(hero.bytes));
       return;
     }
 
@@ -2300,6 +2349,62 @@ const server = createServer(async (request, response) => {
         ...body,
       });
       json(response, 201, { campaign });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/app-auth-branding/hero'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      const hero = await adminCommunicationsRepository.readAppAuthHero();
+      if (hero == null) {
+        json(response, 404, { error: 'APP_AUTH_HERO_NOT_FOUND', message: 'Imagem de login não configurada.' });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': hero.mimeType,
+        'content-length': String(hero.bytes.byteLength),
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(Buffer.from(hero.bytes));
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/admin/app-auth-branding/hero'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const rawMimeType = headerValue(request, 'content-type')?.split(';')[0]?.trim().toLowerCase();
+      if (rawMimeType !== 'image/jpeg' && rawMimeType !== 'image/png' && rawMimeType !== 'image/webp') {
+        json(response, 415, { error: 'UNSUPPORTED_APP_AUTH_HERO_TYPE', message: 'Envie uma imagem JPEG, PNG ou WebP.' });
+        return;
+      }
+      const bytes = await readBinaryBody(request, MAX_APP_AUTH_HERO_BYTES);
+      if (bytes.byteLength < 128 || !hasValidImageMagic(bytes, rawMimeType)) {
+        json(response, 422, { error: 'INVALID_APP_AUTH_HERO', message: 'O conteúdo não corresponde a uma imagem válida.' });
+        return;
+      }
+      const appAuthBranding = await updateAppAuthHero({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        mimeType: rawMimeType,
+        bytes,
+      });
+      json(response, 200, { appAuthBranding });
       return;
     }
 

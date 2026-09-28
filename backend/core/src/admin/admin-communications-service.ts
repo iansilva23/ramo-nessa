@@ -11,6 +11,7 @@ import type {
   AgencyPromotionRecord,
   AgencyTourCover,
   AgencyTourRecord,
+  AppAuthHero,
   AppReleasePolicyRecord,
 } from './admin-communications-repository.js';
 import type {
@@ -78,12 +79,14 @@ export async function adminCommunicationsView(input: {
     agencyPromotion,
     socialLinks,
     tours,
+    appAuthBranding,
   ] = await Promise.all([
     input.communications.listCampaigns(25),
     input.communications.listReleasePolicies(),
     input.communications.getAgencyPromotion(),
     input.communications.getSocialLinks(),
     input.communications.listTours(true),
+    input.communications.getAppAuthBranding(),
   ]);
 
   return {
@@ -93,6 +96,7 @@ export async function adminCommunicationsView(input: {
     agencyPromotion,
     socialLinks,
     tours: tours.map(agencyTourPublicView),
+    appAuthBranding,
   };
 }
 
@@ -525,4 +529,34 @@ export async function updateAgencyTourCover(input: {
     createdAt: now,
   });
   return agencyTourPublicView(tour);
+}
+
+export async function updateAppAuthHero(input: {
+  communications: AdminCommunicationsRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  mimeType: AppAuthHero['mimeType'];
+  bytes: Uint8Array;
+  now?: Date;
+}) {
+  const now = (input.now ?? new Date()).toISOString();
+  const branding = await input.communications.saveAppAuthHero({
+    mimeType: input.mimeType,
+    bytes: input.bytes,
+    updatedAt: now,
+  });
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'communications.app_auth_hero_updated',
+    targetType: 'app_auth_branding',
+    targetId: 'ramo-nessa',
+    metadata: {
+      mimeType: input.mimeType,
+      bytes: input.bytes.byteLength,
+      heroImageVersion: branding.heroImageVersion,
+    },
+    createdAt: now,
+  });
+  return branding;
 }
