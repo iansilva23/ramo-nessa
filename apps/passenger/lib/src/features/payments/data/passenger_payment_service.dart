@@ -3,11 +3,22 @@ import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
 import '../domain/pix_ride_payment_result.dart';
 import '../domain/wallet_ride_payment_result.dart';
+import '../domain/wallet_topup_result.dart';
 
 abstract interface class PassengerPaymentService {
   Future<PassengerPaymentPolicy> paymentPolicy();
 
   Future<int> walletBalanceCents();
+
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  });
+
+  Future<WalletTopupStatus> walletTopupStatus(String topupId);
+
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20});
 
   Future<PixRidePaymentResult> createPixRidePayment({
     required String rideId,
