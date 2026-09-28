@@ -87,11 +87,15 @@ void main() {
       MaterialApp(home: PassengerSupportScreen(service: service)),
     );
     await tester.pumpAndSettle();
+    final retry = find.byKey(const Key('passenger-support-retry'));
+    await tester.scrollUntilVisible(
+      retry, 200, scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Você ainda não abriu nenhum chamado.'), findsNothing);
     expect(find.text('Conexão indisponível.'), findsOneWidget);
 
     service.listHandler = null;
-    final retry = find.byKey(const Key('passenger-support-retry'));
     await tester.ensureVisible(retry);
     await tester.tap(retry);
     await tester.pumpAndSettle();
@@ -111,10 +115,20 @@ void main() {
       MaterialApp(home: PassengerSupportScreen(service: service)),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Resposta antiga'), 200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Resposta antiga'), findsOneWidget);
     service.listHandler = () async =>
         throw const PassengerSupportException('Falha ao atualizar.');
     await tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Falha ao atualizar.'), 200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Resposta antiga'), findsNothing);
     expect(find.text('Falha ao atualizar.'), findsOneWidget);
