@@ -6831,6 +6831,14 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof DriverPayoutProviderError) {
+      json(response, 503, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof MercadoPagoOrdersError) {
       json(response, 502, {
         error: 'MERCADO_PAGO_UNAVAILABLE',
