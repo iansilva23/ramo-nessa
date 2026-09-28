@@ -16,6 +16,8 @@ export const ADMIN_SCOPES = [
   'pricing:write',
   'communications:read',
   'communications:write',
+  'privacy:read',
+  'privacy:write',
   'audit:read',
 ] as const;
 
