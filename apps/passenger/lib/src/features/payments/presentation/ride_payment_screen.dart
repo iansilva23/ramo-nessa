@@ -560,7 +560,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pague com'),
+        title: const Text('Preço e pagamento'),
       ),
       body: SafeArea(
         child: ListView(
