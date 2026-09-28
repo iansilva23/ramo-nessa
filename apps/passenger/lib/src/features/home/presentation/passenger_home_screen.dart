@@ -19,7 +19,6 @@ import '../../map/data/route_service.dart';
 import '../../map/domain/ramo_place.dart';
 import '../../profile/data/passenger_saved_place_service.dart';
 import '../../map/domain/route_info.dart';
-import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/data/pricing_policy_service.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
@@ -47,7 +46,6 @@ class PassengerHomeScreen extends StatefulWidget {
     this.routeService,
     this.placeSearchService,
     this.savedPlaceService,
-    this.pricingQuoteService,
     this.pricingPolicyService,
     this.ridePreparationService,
     this.paymentService,
@@ -65,7 +63,6 @@ class PassengerHomeScreen extends StatefulWidget {
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
   final PassengerSavedPlaceService? savedPlaceService;
-  final PricingQuoteService? pricingQuoteService;
   final PricingPolicyService? pricingPolicyService;
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
