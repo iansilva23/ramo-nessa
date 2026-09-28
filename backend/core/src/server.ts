@@ -34,7 +34,6 @@ import {
 } from './payments/mercado-pago-payment-service.js';
 import {
   applyMercadoPagoWalletTopupOrderStatus,
-  createMercadoPagoWalletCardTopup,
   createMercadoPagoWalletPixTopup,
   MercadoPagoWalletTopupError,
 } from './payments/mercado-pago-wallet-topup-service.js';
@@ -5795,13 +5794,10 @@ const server = createServer(async (request, response) => {
           'Carteira está desativada pelo administrador.',
         );
       }
-      if (
-        (body.method === 'pix' && !paymentSettings.pixEnabled) ||
-        (body.method === 'card' && !paymentSettings.cardEnabled)
-      ) {
+      if (!paymentSettings.pixEnabled) {
         throw new PaymentDomainError(
           'PAYMENT_METHOD_DISABLED',
-          'A forma de pagamento escolhida está desativada pelo administrador.',
+          'Pix está desativado pelo administrador.',
         );
       }
 
@@ -5811,33 +5807,8 @@ const server = createServer(async (request, response) => {
       );
       const idempotencyKey = readIdempotencyKey(request.headers);
 
-      if (body.method === 'pix') {
-        const result = await createMercadoPagoWalletPixTopup({
-          finance: financeRepository,
-          gateway: mercadoPagoOrdersClient,
-          passengerId,
-          identity,
-          ...(body.payerEmail == null
-            ? {}
-            : { payerEmail: body.payerEmail }),
-          amountCents: body.amountCents,
-          idempotencyKey,
-        });
-        json(response, 201, {
-          topup: result.topup,
-          actionable: true,
-          action: {
-            kind: 'pix',
-            orderId: result.pix.orderId,
-            ticketUrl: result.pix.ticketUrl,
-            qrCode: result.pix.qrCode,
-            qrCodeBase64: result.pix.qrCodeBase64,
-          },
-        });
-        return;
-      }
 
-      const result = await createMercadoPagoWalletCardTopup({
+      const result = await createMercadoPagoWalletPixTopup({
         finance: financeRepository,
         gateway: mercadoPagoOrdersClient,
         passengerId,
@@ -5846,28 +5817,20 @@ const server = createServer(async (request, response) => {
           ? {}
           : { payerEmail: body.payerEmail }),
         amountCents: body.amountCents,
-        cardToken: body.cardToken!,
-        paymentMethodId: body.paymentMethodId!,
-        paymentMethodType: body.paymentMethodType!,
-        installments: body.installments ?? 1,
         idempotencyKey,
       });
-
       json(response, 201, {
         topup: result.topup,
         actionable: true,
         action: {
-          kind: 'card',
-          orderId: result.card.orderId,
-          status: result.card.status,
-          statusDetail: result.card.statusDetail,
-          ...(result.card.challengeUrl == null
-            ? {}
-            : { challengeUrl: result.card.challengeUrl }),
+          kind: 'pix',
+          orderId: result.pix.orderId,
+          ticketUrl: result.pix.ticketUrl,
+          qrCode: result.pix.qrCode,
+          qrCodeBase64: result.pix.qrCodeBase64,
         },
       });
       return;
-    }
 
     const paymentMatch = requestUrl.pathname.match(
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/payments$/,
