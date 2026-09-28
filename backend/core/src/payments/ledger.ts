@@ -156,6 +156,38 @@ export function walletTopupCaptureLedger(input: {
   };
 }
 
+export function walletTopupRefundLedger(input: {
+  walletTopupId: string;
+  passengerId: string;
+  processor: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `passenger:${input.passengerId}:wallet`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `processor:${input.processor}:clearing`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'WALLET_TOPUP_REFUNDED',
+    walletTopupId: input.walletTopupId,
+    referenceKey: `wallet-topup-refund:${input.walletTopupId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function walletRidePaymentLedger(input: {
   rideId: string;
   paymentId: string;
