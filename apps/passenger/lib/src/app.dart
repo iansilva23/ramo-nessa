@@ -12,19 +12,17 @@ import 'core/location/location_service.dart';
 import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
-import 'features/profile/data/http_passenger_saved_place_service.dart';
-import 'features/profile/data/http_passenger_support_service.dart';
 import 'features/map/data/core_place_search_service.dart';
 import 'features/map/data/core_route_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
 import 'features/pricing/data/pricing_policy_service.dart';
-import 'features/rides/data/http_passenger_activity_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
 import 'features/tours/data/agency_tour_service.dart';
+import 'passenger_session_services.dart';
 import 'preview/passenger_preview_dependencies.dart';
 import 'preview/preview_auth.dart';
 
@@ -91,16 +89,12 @@ class RamoNessaPassengerApp extends StatelessWidget {
       Future<bool> Function()? logout,
     ]) {
       final normalizedToken = token?.trim();
-      final activityService = RamoCoreConfig.previewMode
-          ? preview?.activity
-          : coreUri != null &&
-                  normalizedToken != null &&
-                  normalizedToken.length >= 20
-              ? HttpPassengerActivityService(
-                  baseUrl: coreUri,
-                  accessToken: normalizedToken,
-                )
-              : null;
+      final services = PassengerSessionServices(
+        coreUri: coreUri,
+        accessToken: normalizedToken,
+        preview: preview,
+        paymentService: paymentService,
+      );
 
       final resolvedPlaceSearchService =
           placeSearchService ??
@@ -124,36 +118,16 @@ class RamoNessaPassengerApp extends StatelessWidget {
                   : CoreRouteService(baseUrl: coreUri)
               : null);
 
-      final savedPlaceService =
-          coreUri != null &&
-                  normalizedToken != null &&
-                  normalizedToken.length >= 20
-              ? HttpPassengerSavedPlaceService(
-                  baseUrl: coreUri,
-                  accessToken: normalizedToken,
-                )
-              : null;
-
-      final supportService =
-          coreUri != null &&
-                  normalizedToken != null &&
-                  normalizedToken.length >= 20
-              ? HttpPassengerSupportService(
-                  baseUrl: coreUri,
-                  accessToken: normalizedToken,
-                )
-              : preview?.support;
-
       return PassengerMainShell(
         accessToken: normalizedToken,
         onLogout: logout,
         authService: authService,
-        paymentService: paymentService ?? preview?.payments,
-        activityService: activityService,
-        savedPlaceService: savedPlaceService,
+        paymentService: services.payments,
+        activityService: services.activity,
+        savedPlaceService: services.savedPlaces,
         placeSearchService: resolvedPlaceSearchService,
         socialLinksService: socialLinksService,
-        supportService: supportService,
+        supportService: services.support,
         tourService: tourService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(
@@ -163,12 +137,12 @@ class RamoNessaPassengerApp extends StatelessWidget {
           locationService: locationService ?? preview?.location,
           routeService: resolvedRouteService,
           placeSearchService: resolvedPlaceSearchService,
-          savedPlaceService: savedPlaceService,
+          savedPlaceService: services.savedPlaces,
           pricingQuoteService: pricingQuoteService ?? preview?.pricing,
           pricingPolicyService: pricingPolicyService,
           ridePreparationService:
               ridePreparationService ?? preview?.ridePreparation,
-          paymentService: paymentService ?? preview?.payments,
+          paymentService: services.payments,
           rideTrackingService: rideTrackingService ?? preview?.tracking,
           rideRealtimeService: rideRealtimeService,
           networkTilesEnabled: networkTilesEnabled,

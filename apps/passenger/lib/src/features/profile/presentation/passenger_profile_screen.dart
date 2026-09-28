@@ -468,6 +468,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                     MaterialPageRoute<void>(
                       builder: (_) => PassengerHelpScreen(
                         supportService: widget.supportService,
+                        previewMode: widget.previewMode,
                       ),
                     ),
                   );

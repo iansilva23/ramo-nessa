@@ -4,9 +4,14 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../data/passenger_support_service.dart';
 
 class PassengerSupportScreen extends StatefulWidget {
-  const PassengerSupportScreen({super.key, required this.service});
+  const PassengerSupportScreen({
+    super.key,
+    required this.service,
+    this.previewMode = false,
+  });
 
   final PassengerSupportService service;
+  final bool previewMode;
 
   @override
   State<PassengerSupportScreen> createState() =>
@@ -19,6 +24,8 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
   List<PassengerSupportTicket> _tickets = const [];
   String _category = 'ride';
   String? _error;
+  String? _loadError;
+  int _loadGeneration = 0;
   bool _loading = true;
   bool _submitting = false;
 
@@ -36,28 +43,29 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     setState(() {
       _loading = true;
-      _error = null;
+      _loadError = null;
     });
     try {
       final tickets = await widget.service.listTickets();
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _tickets = tickets;
         _loading = false;
       });
     } on PassengerSupportException catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
-        _error = error.message;
+        _loadError = error.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
-        _error = 'Não conseguimos carregar seus chamados agora.';
+        _loadError = 'Não conseguimos carregar seus chamados agora.';
       });
     }
   }
@@ -83,14 +91,18 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
         subject: subject,
         message: message,
       );
+      if (!mounted) return;
       _subject.clear();
       _message.clear();
-      if (!mounted) return;
       setState(() => _submitting = false);
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chamado enviado ao suporte.')),
+        SnackBar(
+          content: Text(widget.previewMode
+              ? 'Chamado de demonstração salvo somente neste teste.'
+              : 'Chamado enviado ao suporte.'),
+        ),
       );
     } on PassengerSupportException catch (error) {
       if (!mounted) return;
@@ -129,6 +141,14 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
             RamoSpacing.xxl,
           ),
           children: [
+            if (widget.previewMode) ...[
+              const Text(
+                'Demonstração: estes chamados são temporários, ficam apenas '
+                'neste app e não são enviados à equipe de suporte.',
+                key: Key('passenger-support-preview-notice'),
+              ),
+              const SizedBox(height: RamoSpacing.md),
+            ],
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(RamoSpacing.lg),
@@ -219,6 +239,18 @@ class _PassengerSupportScreenState extends State<PassengerSupportScreen> {
             const SizedBox(height: RamoSpacing.md),
             if (_loading)
               const Center(child: CircularProgressIndicator())
+            else if (_loadError != null) ...[
+              Text(
+                _loadError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              TextButton.icon(
+                key: const Key('passenger-support-retry'),
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Tentar novamente'),
+              ),
+            ]
             else if (_tickets.isEmpty)
               const Text('Você ainda não abriu nenhum chamado.')
             else

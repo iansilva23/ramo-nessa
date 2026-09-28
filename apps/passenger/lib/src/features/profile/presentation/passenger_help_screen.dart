@@ -5,9 +5,14 @@ import '../data/passenger_support_service.dart';
 import 'passenger_support_screen.dart';
 
 class PassengerHelpScreen extends StatelessWidget {
-  const PassengerHelpScreen({super.key, this.supportService});
+  const PassengerHelpScreen({
+    super.key,
+    this.supportService,
+    this.previewMode = false,
+  });
 
   final PassengerSupportService? supportService;
+  final bool previewMode;
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +35,7 @@ class PassengerHelpScreen extends StatelessWidget {
                 MaterialPageRoute<void>(
                   builder: (_) => PassengerSupportScreen(
                     service: supportService!,
+                    previewMode: previewMode,
                   ),
                 ),
               ),
