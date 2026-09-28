@@ -763,6 +763,72 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    privacy(token, options = 50) {
+      const config =
+        typeof options === 'number'
+          ? { limit: options }
+          : options ?? {};
+      const safeLimit = Math.max(
+        1,
+        Math.min(100, Math.trunc(config.limit ?? 50)),
+      );
+      const params = new URLSearchParams();
+      params.set('limit', String(safeLimit));
+      if (
+        config.status === 'open' ||
+        config.status === 'in_progress' ||
+        config.status === 'completed' ||
+        config.status === 'rejected'
+      ) {
+        params.set('status', config.status);
+      }
+      if (
+        config.cursor?.createdAt &&
+        config.cursor?.id
+      ) {
+        params.set('cursorCreatedAt', config.cursor.createdAt);
+        params.set('cursorId', config.cursor.id);
+      }
+      return request(`/v1/admin/privacy?${params.toString()}`, {
+        token,
+      });
+    },
+
+    publishPrivacyDocument(
+      token,
+      { documentType, title, content, effectiveAt },
+    ) {
+      return request(
+        `/v1/admin/privacy/documents/${encodeURIComponent(documentType)}`,
+        {
+          method: 'PUT',
+          token,
+          body: {
+            title,
+            content,
+            ...(effectiveAt ? { effectiveAt } : {}),
+          },
+        },
+      );
+    },
+
+    updatePrivacyRequest(
+      token,
+      { requestId, status, response },
+    ) {
+      return request(
+        `/v1/admin/privacy/requests/${encodeURIComponent(requestId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: {
+            status,
+            ...(response ? { response } : {}),
+          },
+        },
+      );
+    },
+
     support(token, options = 50) {
       const config =
         typeof options === 'number'
