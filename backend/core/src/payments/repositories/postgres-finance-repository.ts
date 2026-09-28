@@ -1143,13 +1143,6 @@ export class PostgresFinanceRepository implements FinanceRepository {
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [walletAccount],
       );
-      const balance = await accountBalanceCents(client, walletAccount);
-      if (balance < topup.amountCents) {
-        throw new WalletDomainError(
-          'INSUFFICIENT_WALLET_BALANCE',
-          'Saldo da carteira já foi utilizado e não permite estorno automático da recarga.',
-        );
-      }
 
       const refundedAt = (input.refundedAt ?? new Date()).toISOString();
       const updatedResult = await client.query<WalletTopupRow>(
