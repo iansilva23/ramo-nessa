@@ -9,6 +9,7 @@ import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
 import '../domain/pix_ride_payment_result.dart';
 import '../domain/wallet_ride_payment_result.dart';
+import '../domain/wallet_topup_result.dart';
 import 'passenger_payment_service.dart';
 
 class HttpPassengerPaymentService implements PassengerPaymentService {
@@ -86,6 +87,110 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       apiErrorMessage(
         decoded,
         'Não conseguimos consultar a carteira agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/wallet/topups'),
+          headers: {
+            ..._identityHeaders,
+            'idempotency-key': idempotencyKey,
+          },
+          body: jsonEncode({
+            'method': 'pix',
+            'amountCents': amountCents,
+            'payerEmail': payerEmail,
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return PixWalletTopupResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma recarga Pix inválida.',
+        );
+      }
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos gerar a recarga Pix agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/wallet/topups/$topupId'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final topup = decoded['topup'];
+      if (topup is Map<String, dynamic>) {
+        try {
+          return WalletTopupStatus.fromJson(topup);
+        } catch (_) {}
+      }
+      throw const PassengerPaymentException(
+        'O servidor retornou um status de recarga inválido.',
+      );
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos consultar a recarga agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) async {
+    final safeLimit = limit.clamp(1, 100);
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/wallet/topups?limit=$safeLimit'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final raw = decoded['topups'];
+      if (raw is List) {
+        try {
+          return raw
+              .whereType<Map<String, dynamic>>()
+              .map(WalletTopupStatus.fromJson)
+              .toList(growable: false);
+        } catch (_) {}
+      }
+      throw const PassengerPaymentException(
+        'O servidor retornou um histórico de recargas inválido.',
+      );
+    }
+
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos consultar o histórico de recargas agora.',
       ),
     );
   }
