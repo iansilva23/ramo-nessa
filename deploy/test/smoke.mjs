@@ -1,4 +1,5 @@
 import { createHash, createHmac } from 'node:crypto';
+import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -466,6 +467,66 @@ try {
   const passengerAuthHeaders = {
     authorization: `Bearer ${passengerVerify.payload.accessToken}`,
   };
+
+  const invalidSupportSession = await jsonRequest('/v1/passenger/me/support', {
+    headers: { authorization: 'Bearer invalid-support-session-token' },
+  });
+  assert.equal(invalidSupportSession.response.status, 401);
+  const supportCreated = await jsonRequest('/v1/passenger/me/support', {
+    method: 'POST',
+    headers: { ...passengerAuthHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      category: 'account',
+      subject: 'Suporte smoke passageiro',
+      message: 'Preciso de orientação para atualizar minha conta.',
+      passengerId: 'forged-passenger-must-be-ignored',
+      driverId: 'forged-driver-must-be-ignored',
+    }),
+  });
+  assert.equal(supportCreated.response.status, 201, 'criação de suporte autenticada');
+  const supportId = supportCreated.payload?.id;
+  assert.equal(typeof supportId, 'string');
+  const supportQueue = await jsonRequest('/v1/admin/support?status=open', {
+    headers: authHeaders,
+  });
+  assert.equal(supportQueue.response.status, 200);
+  const queuedSupport = supportQueue.payload.tickets.find((ticket) => ticket.id === supportId);
+  assert.equal(queuedSupport?.requesterId, smokePassenger.passengerId,
+    'o dono do chamado vem da sessão, nunca do payload');
+  assert.equal(queuedSupport?.requesterType, 'passenger');
+  assert.equal(queuedSupport?.driverId, null);
+  const supportAnswer = {
+    response: 'Sua solicitação foi conferida pela equipe de suporte.',
+    status: 'resolved',
+  };
+  const supportForbidden = await jsonRequest(`/v1/admin/support/${supportId}`, {
+    method: 'PATCH',
+    headers: { ...documentStorageHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify(supportAnswer),
+  });
+  assert.equal(supportForbidden.response.status, 403,
+    'scope documental não permite responder suporte');
+  const supportAnswered = await jsonRequest(`/v1/admin/support/${supportId}`, {
+    method: 'PATCH',
+    headers: { ...authHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify(supportAnswer),
+  });
+  assert.equal(supportAnswered.response.status, 200);
+  const supportReloaded = await jsonRequest('/v1/passenger/me/support', {
+    headers: passengerAuthHeaders,
+  });
+  assert.equal(supportReloaded.response.status, 200);
+  const ownedSupport = supportReloaded.payload.tickets.find((ticket) => ticket.id === supportId);
+  assert.equal(ownedSupport?.response, supportAnswer.response);
+  assert.equal(ownedSupport?.status, 'resolved');
+  const supportAudit = await jsonRequest(
+    `/v1/admin/audit?action=passenger.support.responded&targetType=passenger_support_ticket&query=${encodeURIComponent(supportId)}`,
+    { headers: authHeaders },
+  );
+  assert.equal(supportAudit.response.status, 200);
+  assert.equal(supportAudit.payload.entries[0]?.targetId, supportId);
+  assert.equal(supportAudit.payload.entries[0]?.actor?.kind, 'user');
+  assert.equal(supportAudit.payload.entries[0]?.metadata?.passengerId, smokePassenger.passengerId);
 
   const passengerWalletBeforeBlock = await jsonRequest(
     '/v1/wallet',
@@ -956,6 +1017,12 @@ try {
   const driverAuthHeaders = {
     authorization: `Bearer ${driverVerify.payload.accessToken}`,
   };
+
+  const supportWrongRole = await jsonRequest('/v1/passenger/me/support', {
+    headers: driverAuthHeaders,
+  });
+  assert.equal(supportWrongRole.response.status, 401);
+  assert.equal(supportWrongRole.payload?.error, 'AUTH_ROLE_MISMATCH');
 
   const driverSupply = await jsonRequest(
     '/v1/driver/me/supply',
@@ -1767,7 +1834,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados com inspeção segura, frota/GPS, ficha de passageiro, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados com inspeção segura, frota/GPS, ficha de passageiro, suporte autenticado com resposta persistida e scopes, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

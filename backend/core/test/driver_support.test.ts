@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { InMemoryDriverSupportRepository } from '../src/drivers/repositories/in-memory-driver-support-repository.js';
@@ -120,6 +120,33 @@ test('suporte valida categoria e conteúdo', async () => {
   );
 });
 
+test('suporte isola solicitantes e papéis mesmo com o mesmo ID', async () => {
+  const repository = new InMemoryDriverSupportRepository();
+  const shared = {
+    repository,
+    category: 'account',
+    subject: 'Acesso à minha conta',
+    message: 'Preciso de ajuda para acessar minha conta.',
+  };
+  const driver = await createDriverSupportTicket({
+    ...shared, driverId: 'same-subject',
+  });
+  const passenger = await createPassengerSupportTicket({
+    ...shared, passengerId: 'same-subject',
+  });
+  const driverTickets = await listDriverSupportTickets({
+    repository, driverId: 'same-subject',
+  });
+  const passengerTickets = await listPassengerSupportTickets({
+    repository, passengerId: 'same-subject',
+  });
+  assert.deepEqual(driverTickets.tickets.map((ticket) => ticket.id), [driver.id]);
+  assert.deepEqual(passengerTickets.tickets.map((ticket) => ticket.id), [passenger.id]);
+  assert.deepEqual(await listPassengerSupportTickets({
+    repository, passengerId: 'someone-else',
+  }), { tickets: [] });
+});
+
 
 test('Admin pagina chamados e filtra por status sem perder chamados antigos', async () => {
   const repository = new InMemoryDriverSupportRepository();
@@ -212,6 +239,7 @@ test(
     const ids: string[] = [];
     const runId = randomUUID();
     const passengerIdentityId = randomUUID();
+    const driverIdentityId = randomUUID();
     const passengerId = `passenger-support-pg-${runId}`;
     const driverIds = Array.from(
       { length: 4 },
@@ -244,10 +272,51 @@ test(
         [
           passengerIdentityId,
           passengerId,
-          `+5588${runId.replaceAll('-', '').slice(0, 9)}`,
+          `+5588${randomInt(900000000, 1000000000)}`,
           '2099-09-26T09:00:00.000Z',
         ],
       );
+
+      await pool.query(
+        `INSERT INTO auth_identities (
+          id, subject_id, subject_type, phone_e164, status,
+          created_at, updated_at
+        ) VALUES ($1, $2, 'driver', $3, 'active', $4, $4)`,
+        [driverIdentityId, driverIds[0],
+          `+5588${randomInt(900000000, 1000000000)}`,
+          '2099-09-26T09:00:00.000Z'],
+      );
+
+      // Exercise the actual database constraints, not just valid fixtures.
+      const insertInvalidRequester = (driverId: string | null, ownerId: string | null) => {
+        const id = randomUUID();
+        ids.push(id);
+        return pool.query(
+          `INSERT INTO driver_support_tickets (
+            id, driver_id, passenger_id, category, subject, message, status,
+            created_at, updated_at
+          ) VALUES ($1, $2, $3, 'account', 'Suporte inválido',
+            'Chamado que deve ser recusado pelo banco.', 'open', NOW(), NOW())`,
+          [id, driverId, ownerId],
+        );
+      };
+      await assert.rejects(insertInvalidRequester(`missing-${runId}`, null), {
+        code: '23503', constraint: 'driver_support_tickets_driver_id_fkey',
+      });
+      await assert.rejects(insertInvalidRequester(null, `missing-${runId}`), {
+        code: '23503', constraint: 'driver_support_tickets_passenger_fkey',
+      });
+      await assert.rejects(insertInvalidRequester(null, driverIds[0]!), {
+        code: '23503', constraint: 'driver_support_tickets_passenger_fkey',
+      });
+      await assert.rejects(insertInvalidRequester(null, null), {
+        code: '23514', constraint: 'driver_support_tickets_requester_check',
+      });
+      await assert.rejects(insertInvalidRequester(driverIds[0]!, passengerId), {
+        code: '23514', constraint: 'driver_support_tickets_requester_check',
+      });
+      // Invalid inserts above have no rows; keep pagination fixture IDs exact.
+      ids.length = 0;
 
       for (let index = 0; index < 4; index += 1) {
         const ticket = await createDriverSupportTicket({
@@ -277,6 +346,8 @@ test(
         passengerId,
       });
       assert.equal(passengerTickets.tickets[0]?.id, passengerTicket.id);
+      assert.deepEqual(await repository.listByPassenger(driverIds[0]!, 50), []);
+      assert.deepEqual(await repository.listByDriver(passengerId, 50), []);
 
       await respondToSupportTicket({
         repository,
@@ -333,8 +404,8 @@ test(
         'DELETE FROM driver_profiles WHERE driver_id = ANY($1::text[])',
         [driverIds],
       );
-      await pool.query('DELETE FROM auth_identities WHERE id = $1', [
-        passengerIdentityId,
+      await pool.query('DELETE FROM auth_identities WHERE id = ANY($1::uuid[])', [
+        [passengerIdentityId, driverIdentityId],
       ]);
       await pool.end();
     }
