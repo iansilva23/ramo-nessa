@@ -17,8 +17,6 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payme
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
-import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
-import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
@@ -62,7 +60,6 @@ void main() {
           locationService: _FakeLocationService(),
           routeService: _FakeRouteService(),
           placeSearchService: search,
-          pricingQuoteService: _FakePricingQuoteService(),
           ridePreparationService: _FakeRidePreparationService(),
           paymentService: _FakePassengerPaymentService(),
           networkTilesEnabled: false,
@@ -256,7 +253,6 @@ void main() {
         locationService: _FakeLocationService(),
         routeService: _FakeRouteService(),
         placeSearchService: search,
-        pricingQuoteService: _FakePricingQuoteService(),
         networkTilesEnabled: false,
       ),
     );
@@ -293,7 +289,6 @@ void main() {
         locationService: _FakeLocationService(),
         routeService: _FakeRouteService(),
         placeSearchService: search,
-        pricingQuoteService: _FakePricingQuoteService(),
         ridePreparationService: _FakeRidePreparationService(),
         paymentService: _FakePassengerPaymentService(),
         rideTrackingService: _FakeRideTrackingService(),
@@ -452,31 +447,6 @@ class _FakeRouteService implements RouteService {
       distanceMeters: 2500,
       duration: const Duration(minutes: 7),
     );
-  }
-}
-
-class _FakePricingQuoteService implements PricingQuoteService {
-  @override
-  Future<PricingQuote> quote({
-    required ServiceType service,
-    required RamoPlace origin,
-    required RamoPlace destination,
-    required String originZoneId,
-    required String destinationZoneId,
-    required RouteInfo route,
-    int passengers = 1,
-    DateTime? now,
-  }) async {
-    final amount = service == ServiceType.buggy
-        ? 4000 + passengers * 200
-        : 4200;
-    return PricingQuote.fromJson({
-      'kind': 'exact',
-      'ruleId': 'test-exact',
-      'totalAmountCents': amount,
-      'platformCommissionCents': (amount * 0.10).round(),
-      'driverNetCents': (amount * 0.90).round(),
-    });
   }
 }
 
