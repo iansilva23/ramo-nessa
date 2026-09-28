@@ -9,12 +9,14 @@ import '../../../core/config/ramo_core_config.dart';
 import '../../rides/data/passenger_activity_service.dart';
 import 'passenger_help_screen.dart';
 import 'passenger_notifications_screen.dart';
+import 'passenger_privacy_screen.dart';
 import 'passenger_ride_history_screen.dart';
 import 'passenger_security_screen.dart';
 import 'passenger_settings_screen.dart';
 import '../../map/data/place_search_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../payments/presentation/passenger_wallet_screen.dart';
+import '../data/passenger_privacy_service.dart';
 import '../data/passenger_saved_place_service.dart';
 import '../data/passenger_support_service.dart';
 import 'passenger_saved_places_screen.dart';
@@ -32,6 +34,7 @@ class PassengerProfileScreen extends StatefulWidget {
     this.placeSearchService,
     this.socialLinksService,
     this.supportService,
+    this.privacyService,
     this.onLogout,
     this.previewMode = false,
   });
@@ -45,6 +48,7 @@ class PassengerProfileScreen extends StatefulWidget {
   final PlaceSearchService? placeSearchService;
   final SocialLinksService? socialLinksService;
   final PassengerSupportService? supportService;
+  final PassengerPrivacyService? privacyService;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -484,6 +488,21 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                       _socialLinks?.instagramHandle ?? 'Instagram oficial',
                   onTap: _openInstagram,
                 ),
+              _ProfileOption(
+                key: const Key('passenger-privacy'),
+                icon: Icons.privacy_tip_outlined,
+                title: 'Privacidade e LGPD',
+                subtitle: 'Documentos, preferências e seus direitos',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerPrivacyScreen(
+                        service: widget.privacyService,
+                      ),
+                    ),
+                  );
+                },
+              ),
               _ProfileOption(
                 key: const Key('passenger-settings'),
                 icon: Icons.settings_outlined,
