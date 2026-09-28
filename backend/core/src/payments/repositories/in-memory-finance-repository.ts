@@ -9,6 +9,7 @@ import {
   walletRidePaymentLedger,
   walletRideRefundLedger,
   walletTopupCaptureLedger,
+  walletTopupRefundLedger,
   type LedgerTransaction,
 } from '../ledger.js';
 import {
@@ -21,8 +22,12 @@ import {
   type CompleteDriverPayoutResult,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
+  type MarkWalletTopupPendingInput,
+  type MarkWalletTopupTerminalInput,
   type RefundExternalPaymentInput,
   type RefundExternalPaymentResult,
+  type RefundWalletTopupInput,
+  type RefundWalletTopupResult,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
   type FinanceRepository,
@@ -348,6 +353,13 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     };
   }
 
+  async findWalletTopupById(
+    id: string,
+  ): Promise<WalletTopupRecord | null> {
+    const topup = this.walletTopups.get(id);
+    return topup == null ? null : structuredClone(topup);
+  }
+
   async findWalletTopupByIdempotencyKey(
     key: string,
   ): Promise<WalletTopupRecord | null> {
@@ -375,6 +387,64 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       topup.id,
     );
     return structuredClone(topup);
+  }
+
+  async markWalletTopupPending(
+    input: MarkWalletTopupPendingInput,
+  ): Promise<WalletTopupRecord> {
+    const topup = this.walletTopups.get(input.walletTopupId);
+    if (topup == null) {
+      throw new WalletDomainError(
+        'WALLET_TOPUP_NOT_FOUND',
+        'Recarga não encontrada.',
+      );
+    }
+    if (
+      topup.status === 'paid' ||
+      topup.status === 'refunded' ||
+      topup.status === 'failed' ||
+      topup.status === 'cancelled'
+    ) {
+      throw new WalletDomainError(
+        'INVALID_TOPUP_TRANSITION',
+        `Recarga em estado ${topup.status} não pode voltar para pendente.`,
+      );
+    }
+
+    const updated: WalletTopupRecord = {
+      ...topup,
+      status: 'pending',
+      processorTopupId: input.processorTopupId,
+      updatedAt: (input.updatedAt ?? new Date()).toISOString(),
+    };
+    this.walletTopups.set(topup.id, structuredClone(updated));
+    return structuredClone(updated);
+  }
+
+  async markWalletTopupTerminal(
+    input: MarkWalletTopupTerminalInput,
+  ): Promise<WalletTopupRecord> {
+    const topup = this.walletTopups.get(input.walletTopupId);
+    if (topup == null) {
+      throw new WalletDomainError(
+        'WALLET_TOPUP_NOT_FOUND',
+        'Recarga não encontrada.',
+      );
+    }
+    if (topup.status === input.status) return structuredClone(topup);
+    if (topup.status === 'paid' || topup.status === 'refunded') {
+      throw new WalletDomainError(
+        'INVALID_TOPUP_TRANSITION',
+        `Recarga em estado ${topup.status} não pode ser encerrada como ${input.status}.`,
+      );
+    }
+    const updated: WalletTopupRecord = {
+      ...topup,
+      status: input.status,
+      updatedAt: (input.updatedAt ?? new Date()).toISOString(),
+    };
+    this.walletTopups.set(topup.id, structuredClone(updated));
+    return structuredClone(updated);
   }
 
   async captureWalletTopup(
@@ -452,6 +522,68 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       topup: structuredClone(updated),
       ledgerTransaction: structuredClone(ledger),
       duplicateEvent: false,
+    };
+  }
+
+  async refundWalletTopup(
+    input: RefundWalletTopupInput,
+  ): Promise<RefundWalletTopupResult> {
+    const topup = this.walletTopups.get(input.walletTopupId);
+    if (topup == null) {
+      throw new WalletDomainError(
+        'WALLET_TOPUP_NOT_FOUND',
+        'Recarga não encontrada.',
+      );
+    }
+
+    const referenceKey = `wallet-topup-refund:${topup.id}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      const stored = this.walletTopups.get(topup.id) ?? topup;
+      return {
+        topup: structuredClone(stored),
+        ledgerTransaction: structuredClone(existing),
+        duplicateRefund: true,
+      };
+    }
+
+    if (topup.status !== 'paid') {
+      throw new WalletDomainError(
+        'INVALID_TOPUP_TRANSITION',
+        `Recarga em estado ${topup.status} não pode ser estornada.`,
+      );
+    }
+
+    const walletAccount = `passenger:${topup.passengerId}:wallet`;
+    const balance = await this.getAccountBalanceCents(walletAccount);
+    if (balance < topup.amountCents) {
+      throw new WalletDomainError(
+        'INSUFFICIENT_WALLET_BALANCE',
+        'Saldo da carteira já foi utilizado e não permite estorno automático da recarga.',
+      );
+    }
+
+    const refundedAt = (input.refundedAt ?? new Date()).toISOString();
+    const updated: WalletTopupRecord = {
+      ...topup,
+      status: 'refunded',
+      updatedAt: refundedAt,
+    };
+    const ledger = walletTopupRefundLedger({
+      walletTopupId: topup.id,
+      passengerId: topup.passengerId,
+      processor: topup.processor,
+      amountCents: topup.amountCents,
+      createdAt: refundedAt,
+    });
+
+    this.walletTopups.set(topup.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+
+    return {
+      topup: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateRefund: false,
     };
   }
 
