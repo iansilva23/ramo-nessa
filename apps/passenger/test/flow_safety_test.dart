@@ -104,6 +104,12 @@ void main() {
       expect(find.textContaining(r'R$'), findsNothing);
 
       final addPassengerButton = find.byTooltip('Adicionar passageiro');
+      await tester.scrollUntilVisible(
+        addPassengerButton,
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(addPassengerButton);
       await tester.pumpAndSettle();
       expect(find.textContaining(r'R$'), findsNothing);
