@@ -6,6 +6,7 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_auth
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
@@ -91,6 +92,22 @@ class _PolicyOnlyPaymentService implements PassengerPaymentService {
     walletBalanceCalls += 1;
     return 50000;
   }
+
+  @override
+  Future<PixWalletTopupResult> createPixWalletTopup({
+    required int amountCents,
+    required String idempotencyKey,
+    required String payerEmail,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<WalletTopupStatus> walletTopupStatus(String topupId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<WalletTopupStatus>> walletTopups({int limit = 20}) =>
+      throw UnimplementedError();
 
   @override
   Future<PixRidePaymentResult> createPixRidePayment({
