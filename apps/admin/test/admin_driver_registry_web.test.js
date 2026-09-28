@@ -324,6 +324,29 @@ test('ações sensíveis de acesso e cadastro do motorista exigem confirmação'
     'utf8',
   );
 
+  const html = readFileSync(
+    new URL('../pages/drivers.html', import.meta.url),
+    'utf8',
+  );
+
+  const provisionCard = html.match(
+    /<article[^>]*id=["']driver-provision-card["'][^>]*>/,
+  )?.[0];
+  assert.ok(provisionCard, 'card de provisionamento deve existir');
+  assert.match(
+    provisionCard,
+    /\bhidden\b/,
+    'provisionamento deve nascer oculto até validar drivers:auth:write',
+  );
+  assert.match(
+    app,
+    /card\.hidden = !hasScope\('drivers:auth:write'\)/,
+  );
+  assert.match(
+    app,
+    /if \(!state\.token \|\| !hasScope\('drivers:auth:write'\)\) return;/,
+  );
+
   assert.match(
     app,
     /Confirmar alteração de acesso do motorista/,
