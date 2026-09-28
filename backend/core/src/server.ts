@@ -386,6 +386,17 @@ import {
   updateSocialLinks,
 } from './admin/admin-communications-service.js';
 import {
+  PrivacyError,
+  acceptCurrentLegalDocument,
+  createDataSubjectRequest,
+  listPrivacyRequestsForAdmin,
+  privacyOverview,
+  publicLegalDocuments,
+  publishLegalDocument,
+  updatePrivacyPreferences,
+  updatePrivacyRequestFromAdmin,
+} from './privacy/privacy-service.js';
+import {
   InvalidCommunicationsRequestError,
   parseAdminAgencyPromotionUpdate,
   parseAdminAgencyTourUpdate,
@@ -419,6 +430,7 @@ const {
   adminCommunicationsRepository,
   operationalSettingsRepository,
   passengerSavedPlaceRepository,
+  privacyRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -1225,6 +1237,18 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await adminCommunicationsRepository.getSocialLinks(),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/legal/documents'
+    ) {
+      json(
+        response,
+        200,
+        await publicLegalDocuments({ repository: privacyRepository }),
       );
       return;
     }
@@ -4649,6 +4673,238 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/me/privacy'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      json(
+        response,
+        200,
+        await privacyOverview({
+          repository: privacyRepository,
+          subjectType: session.subjectType,
+          subjectId: session.subjectId,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/me/privacy/preferences'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(
+        response,
+        200,
+        await updatePrivacyPreferences({
+          repository: privacyRepository,
+          subjectType: session.subjectType,
+          subjectId: session.subjectId,
+          marketingNotificationsEnabled:
+            value.marketingNotificationsEnabled,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/me/privacy/legal-acceptances'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(
+        response,
+        201,
+        await acceptCurrentLegalDocument({
+          repository: privacyRepository,
+          subjectType: session.subjectType,
+          subjectId: session.subjectId,
+          documentType: value.documentType,
+          version: value.version,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/me/privacy/requests'
+    ) {
+      const session = await authenticateBearer({
+        repository: authSessionRepository,
+        identities: authOtpRepository,
+        headers: request.headers,
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(
+        response,
+        201,
+        await createDataSubjectRequest({
+          repository: privacyRepository,
+          subjectType: session.subjectType,
+          subjectId: session.subjectId,
+          requestType: value.requestType,
+          note: value.note,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/privacy'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'privacy:read',
+      });
+
+      const rawLimit = requestUrl.searchParams.get('limit');
+      const limit =
+        rawLimit == null || !/^\d{1,3}$/.test(rawLimit)
+          ? 50
+          : Math.max(1, Math.min(100, Number(rawLimit)));
+      const rawStatus =
+        requestUrl.searchParams.get('status')?.trim() ?? '';
+      const cursorCreatedAt =
+        requestUrl.searchParams.get('cursorCreatedAt')?.trim() ?? '';
+      const cursorId =
+        requestUrl.searchParams.get('cursorId')?.trim() ?? '';
+      if (
+        Boolean(cursorCreatedAt) !== Boolean(cursorId) ||
+        (
+          cursorCreatedAt &&
+          (
+            !Number.isFinite(Date.parse(cursorCreatedAt)) ||
+            !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+              cursorId,
+            )
+          )
+        )
+      ) {
+        throw new PrivacyError(
+          'INVALID_PRIVACY_REQUEST',
+          'Cursor de privacidade é inválido.',
+        );
+      }
+
+      const [legal, requests] = await Promise.all([
+        publicLegalDocuments({ repository: privacyRepository }),
+        listPrivacyRequestsForAdmin({
+          repository: privacyRepository,
+          ...(rawStatus ? { status: rawStatus } : {}),
+          limit,
+          ...(cursorCreatedAt
+            ? {
+                cursor: {
+                  createdAt: new Date(cursorCreatedAt).toISOString(),
+                  id: cursorId,
+                },
+              }
+            : {}),
+        }),
+      ]);
+      json(response, 200, {
+        legalDocuments: legal.documents,
+        ...requests,
+      });
+      return;
+    }
+
+    const adminPrivacyDocumentMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/privacy\/documents\/(privacy_policy|terms_of_use)$/,
+    );
+    if (
+      request.method === 'PUT' &&
+      adminPrivacyDocumentMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'privacy:write',
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(
+        response,
+        201,
+        await publishLegalDocument({
+          repository: privacyRepository,
+          admin: adminRepository,
+          actor,
+          documentType: adminPrivacyDocumentMatch[1],
+          title: value.title,
+          content: value.content,
+          effectiveAt: value.effectiveAt,
+        }),
+      );
+      return;
+    }
+
+    const adminPrivacyRequestMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/privacy\/requests\/([0-9a-fA-F-]+)$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminPrivacyRequestMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'privacy:write',
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const updated = await updatePrivacyRequestFromAdmin({
+        repository: privacyRepository,
+        admin: adminRepository,
+        actor,
+        id: adminPrivacyRequestMatch[1]!,
+        status: value.status,
+        response: value.response,
+      });
+      json(response, 200, updated);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/support'
     ) {
       await authenticateAdminPrincipal({
@@ -6501,6 +6757,22 @@ const server = createServer(async (request, response) => {
     if (error instanceof DriverSupportError) {
       const status =
         error.code === 'SUPPORT_TICKET_NOT_FOUND' ? 404 : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PrivacyError) {
+      const status =
+        error.code === 'PRIVACY_REQUEST_NOT_FOUND'
+          ? 404
+          : error.code === 'DUPLICATE_PRIVACY_REQUEST'
+            ? 409
+            : error.code === 'LEGAL_DOCUMENT_NOT_AVAILABLE'
+              ? 409
+              : 422;
       json(response, status, {
         error: error.code,
         message: error.message,
