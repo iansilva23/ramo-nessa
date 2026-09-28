@@ -266,3 +266,53 @@ test('carteira não debita a mesma corrida duas vezes com chaves diferentes', as
     6000,
   );
 });
+
+test('estorno externo de recarga usada é conciliado sem liberar novo gasto', async () => {
+  const repository = new InMemoryFinanceRepository();
+  const topup = await createWalletTopup(repository, {
+    passengerId: 'passenger-wallet',
+    method: 'pix',
+    processor: 'mercado-pago-orders',
+    amountCents: 5000,
+    idempotencyKey: 'wallet-topup-refund-after-use',
+  });
+  await repository.captureWalletTopup({
+    walletTopupId: topup.id,
+    processorEventId: 'wallet-topup-refund-after-use-capture',
+  });
+
+  await payRideWithWallet(repository, {
+    ride: ride(4000),
+    passengerId: 'passenger-wallet',
+    idempotencyKey: 'wallet-topup-refund-after-use-ride',
+  });
+  assert.equal(
+    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
+    1000,
+  );
+
+  const refunded = await repository.refundWalletTopup({
+    walletTopupId: topup.id,
+  });
+  assert.equal(refunded.topup.status, 'refunded');
+  assert.equal(
+    await passengerWalletBalanceCents(repository, 'passenger-wallet'),
+    -4000,
+  );
+
+  await assert.rejects(
+    () =>
+      payRideWithWallet(repository, {
+        ride: {
+          ...ride(1000),
+          id: '77777777-7777-4777-8777-777777777777',
+        },
+        passengerId: 'passenger-wallet',
+        idempotencyKey: 'wallet-after-negative-topup-refund',
+      }),
+    (error: unknown) =>
+      error instanceof WalletDomainError &&
+      error.code === 'INSUFFICIENT_WALLET_BALANCE',
+  );
+});
+
