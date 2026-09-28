@@ -140,6 +140,7 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
       );
       if (!mounted) return;
       _note.clear();
+      setState(() => _sendingRequest = false);
       _showMessage('Solicitação registrada e enviada para atendimento.');
       await _load();
     } catch (error) {
