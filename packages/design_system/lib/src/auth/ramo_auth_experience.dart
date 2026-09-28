@@ -39,6 +39,10 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 720 || media.viewInsets.bottom > 0;
+    final heroHeight = media.size.height * (compact ? .30 : .42);
+    final cardTop = media.size.height * (compact ? .18 : .34);
     final animation = reduceMotion ? const AlwaysStoppedAnimation(1.0) : _controller;
     return Scaffold(
       backgroundColor: Colors.white,
@@ -60,14 +64,14 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
                     scale: 1.06 - (.06 * heroT),
                     alignment: Alignment.topCenter,
                     child: SizedBox(
-                      height: MediaQuery.sizeOf(context).height * .42,
+                      height: heroHeight,
                       child: _HeroImage(url: widget.heroImageUrl),
                     ),
                   ),
                 ),
               ),
               Positioned.fill(
-                top: MediaQuery.sizeOf(context).height * .34,
+                top: cardTop,
                 child: Transform.translate(
                   offset: Offset(0, 46 * (1 - cardT)),
                   child: Opacity(
