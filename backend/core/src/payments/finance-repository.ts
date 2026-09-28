@@ -199,6 +199,10 @@ export interface FinanceRepository {
   ): Promise<RefundExternalPaymentResult>;
 
   findWalletTopupById(id: string): Promise<WalletTopupRecord | null>;
+  listWalletTopups(
+    passengerId: string,
+    limit: number,
+  ): Promise<WalletTopupRecord[]>;
   findWalletTopupByIdempotencyKey(
     key: string,
   ): Promise<WalletTopupRecord | null>;
