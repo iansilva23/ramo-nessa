@@ -254,14 +254,21 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
         _pendingAmountCents = null;
       });
 
+      final payoutMessage = switch (result.status) {
+        'paid' =>
+          'Saque concluído: ${formatCents(result.amountCents)} enviado via Pix.',
+        'processing' =>
+          'Saque em processamento: ${formatCents(result.amountCents)}.',
+        'failed' =>
+          'O repasse Pix falhou e o valor voltou para seu saldo.',
+        _ =>
+          'Saque solicitado: ${formatCents(result.amountCents)}.',
+      };
+
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(
-            content: Text(
-              'Saque solicitado: ${formatCents(result.amountCents)}.',
-            ),
-          ),
+          SnackBar(content: Text(payoutMessage)),
         );
     } on DriverApiException catch (error) {
       if (!mounted) return;
