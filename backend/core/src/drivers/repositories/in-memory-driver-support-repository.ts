@@ -25,7 +25,26 @@ export class InMemoryDriverSupportRepository
     limit: number,
   ): Promise<DriverSupportTicketRecord[]> {
     return [...this.tickets.values()]
-      .filter((ticket) => ticket.driverId === driverId)
+      .filter(
+        (ticket) =>
+          ticket.requesterType === 'driver' &&
+          ticket.driverId === driverId,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((ticket) => structuredClone(ticket));
+  }
+
+  async listByPassenger(
+    passengerId: string,
+    limit: number,
+  ): Promise<DriverSupportTicketRecord[]> {
+    return [...this.tickets.values()]
+      .filter(
+        (ticket) =>
+          ticket.requesterType === 'passenger' &&
+          ticket.passengerId === passengerId,
+      )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
       .map((ticket) => structuredClone(ticket));

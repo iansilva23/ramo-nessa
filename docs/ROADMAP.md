@@ -55,6 +55,7 @@
 - [x] acompanhamento realtime via WebSocket com fallback HTTP
 - [ ] chat
 - [x] histórico de viagens read-only com escopo completo, filtros e detalhe
+- [x] abertura e acompanhamento de chamados do Passageiro no mesmo suporte do ADM
 - [ ] avaliação
 
 ## Etapa 2 — Motorista

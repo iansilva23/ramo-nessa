@@ -11,7 +11,8 @@ import type {
 
 interface DriverSupportTicketRow {
   id: string;
-  driver_id: string;
+  driver_id: string | null;
+  passenger_id: string | null;
   category: DriverSupportCategory;
   subject: string;
   message: string;
@@ -25,9 +26,8 @@ interface DriverSupportTicketRow {
 function mapTicket(
   row: DriverSupportTicketRow,
 ): DriverSupportTicketRecord {
-  return {
+  const base = {
     id: row.id,
-    driverId: row.driver_id,
     category: row.category,
     subject: row.subject,
     message: row.message,
@@ -39,10 +39,25 @@ function mapTicket(
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+  if (row.driver_id != null && row.passenger_id == null) {
+    return {
+      ...base,
+      requesterType: 'driver',
+      driverId: row.driver_id,
+    };
+  }
+  if (row.passenger_id != null && row.driver_id == null) {
+    return {
+      ...base,
+      requesterType: 'passenger',
+      passengerId: row.passenger_id,
+    };
+  }
+  throw new Error('Chamado possui solicitante inconsistente.');
 }
 
 const COLUMNS = `
-  id, driver_id, category, subject, message, status,
+  id, driver_id, passenger_id, category, subject, message, status,
   response, responded_at, created_at, updated_at
 `;
 
@@ -56,14 +71,15 @@ export class PostgresDriverSupportRepository
     const result = await this.pool.query<DriverSupportTicketRow>(
       `
       INSERT INTO driver_support_tickets (
-        id, driver_id, category, subject, message, status,
-        response, responded_at, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        id, driver_id, passenger_id, category, subject, message,
+        status, response, responded_at, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING ${COLUMNS}
       `,
       [
         ticket.id,
-        ticket.driverId,
+        ticket.requesterType === 'driver' ? ticket.driverId : null,
+        ticket.requesterType === 'passenger' ? ticket.passengerId : null,
         ticket.category,
         ticket.subject,
         ticket.message,
@@ -77,6 +93,24 @@ export class PostgresDriverSupportRepository
     const row = result.rows[0];
     if (row == null) throw new Error('Chamado não foi persistido.');
     return mapTicket(row);
+  }
+
+  async listByPassenger(
+    passengerId: string,
+    limit: number,
+  ): Promise<DriverSupportTicketRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<DriverSupportTicketRow>(
+      `
+      SELECT ${COLUMNS}
+      FROM driver_support_tickets
+      WHERE passenger_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT $2
+      `,
+      [passengerId, safeLimit],
+    );
+    return result.rows.map(mapTicket);
   }
 
   async listByDriver(

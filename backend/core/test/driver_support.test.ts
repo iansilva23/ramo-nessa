@@ -8,7 +8,9 @@ import { createPostgresPool } from '../src/db/postgres.js';
 import {
   DriverSupportError,
   createDriverSupportTicket,
+  createPassengerSupportTicket,
   listDriverSupportTickets,
+  listPassengerSupportTickets,
   listSupportTicketsForAdmin,
   respondToSupportTicket,
 } from '../src/drivers/driver-support-service.js';
@@ -54,6 +56,38 @@ test('motorista abre chamado e acompanha resposta do suporte', async () => {
   const admin = await listSupportTicketsForAdmin({ repository });
   assert.equal(admin.tickets.length, 1);
   assert.equal(admin.tickets[0]?.driverId, 'driver-support');
+});
+
+test('passageiro abre chamado na mesma fila e acompanha resposta', async () => {
+  const repository = new InMemoryDriverSupportRepository();
+  const created = await createPassengerSupportTicket({
+    repository,
+    passengerId: 'passenger-support',
+    category: 'ride',
+    subject: 'Local de embarque',
+    message: 'Preciso corrigir o ponto de embarque da corrida.',
+    now: new Date('2026-09-28T07:10:00.000Z'),
+  });
+
+  const listed = await listPassengerSupportTickets({
+    repository,
+    passengerId: 'passenger-support',
+  });
+  assert.equal(listed.tickets[0]?.id, created.id);
+
+  const admin = await listSupportTicketsForAdmin({ repository });
+  assert.equal(admin.tickets[0]?.requesterType, 'passenger');
+  assert.equal(admin.tickets[0]?.passengerId, 'passenger-support');
+
+  const answered = await respondToSupportTicket({
+    repository,
+    id: created.id,
+    response: 'O ponto de embarque foi conferido pela equipe.',
+    status: 'resolved',
+  });
+  assert.equal(answered.requesterType, 'passenger');
+  assert.equal(answered.requesterId, 'passenger-support');
+  assert.equal(answered.ticket.status, 'resolved');
 });
 
 test('suporte valida categoria e conteúdo', async () => {
@@ -177,6 +211,8 @@ test(
     const repository = new PostgresDriverSupportRepository(pool);
     const ids: string[] = [];
     const runId = randomUUID();
+    const passengerIdentityId = randomUUID();
+    const passengerId = `passenger-support-pg-${runId}`;
     const driverIds = Array.from(
       { length: 4 },
       (_, index) => `driver-support-pg-${runId}-${index}`,
@@ -198,6 +234,21 @@ test(
         );
       }
 
+      await pool.query(
+        `
+        INSERT INTO auth_identities (
+          id, subject_id, subject_type, phone_e164, status,
+          created_at, updated_at
+        ) VALUES ($1, $2, 'passenger', $3, 'active', $4, $4)
+        `,
+        [
+          passengerIdentityId,
+          passengerId,
+          `+5588${runId.replaceAll('-', '').slice(0, 9)}`,
+          '2099-09-26T09:00:00.000Z',
+        ],
+      );
+
       for (let index = 0; index < 4; index += 1) {
         const ticket = await createDriverSupportTicket({
           repository,
@@ -211,6 +262,21 @@ test(
         });
         ids.push(ticket.id);
       }
+
+      const passengerTicket = await createPassengerSupportTicket({
+        repository,
+        passengerId,
+        category: 'account',
+        subject: 'Suporte Passageiro PG',
+        message: 'Mensagem PostgreSQL válida do passageiro.',
+        now: new Date('2099-09-26T14:00:00.000Z'),
+      });
+      ids.push(passengerTicket.id);
+      const passengerTickets = await listPassengerSupportTickets({
+        repository,
+        passengerId,
+      });
+      assert.equal(passengerTickets.tickets[0]?.id, passengerTicket.id);
 
       await respondToSupportTicket({
         repository,
@@ -267,6 +333,9 @@ test(
         'DELETE FROM driver_profiles WHERE driver_id = ANY($1::text[])',
         [driverIds],
       );
+      await pool.query('DELETE FROM auth_identities WHERE id = $1', [
+        passengerIdentityId,
+      ]);
       await pool.end();
     }
   },

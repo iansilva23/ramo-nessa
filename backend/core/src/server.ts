@@ -196,7 +196,9 @@ import {
 import {
   DriverSupportError,
   createDriverSupportTicket,
+  createPassengerSupportTicket,
   listDriverSupportTickets,
+  listPassengerSupportTickets,
   listSupportTicketsForAdmin,
   respondToSupportTicket,
 } from './drivers/driver-support-service.js';
@@ -4605,26 +4607,79 @@ const server = createServer(async (request, response) => {
       await adminRepository.appendAudit({
         id: randomUUID(),
         actor,
-        action: 'driver.support.responded',
-        targetType: 'driver_support_ticket',
+        action: `${result.requesterType}.support.responded`,
+        targetType:
+          result.requesterType === 'driver'
+            ? 'driver_support_ticket'
+            : 'passenger_support_ticket',
         targetId: adminSupportMatch[1]!,
         metadata: {
-          driverId: result.driverId,
+          requesterType: result.requesterType,
+          requesterId: result.requesterId,
+          ...(result.requesterType === 'driver'
+            ? { driverId: result.requesterId }
+            : { passengerId: result.requesterId }),
           status: result.ticket.status,
         },
         createdAt: new Date().toISOString(),
       });
 
       sendPushBestEffort({
-        subjectType: 'driver',
-        subjectId: result.driverId,
-        type: 'driver.support.updated',
+        subjectType: result.requesterType,
+        subjectId: result.requesterId,
+        type: `${result.requesterType}.support.updated`,
         title: 'Suporte Ramo Nessa',
         body: 'Seu chamado recebeu uma atualização.',
         data: { ticketId: adminSupportMatch[1]! },
       });
 
       json(response, 200, result.ticket);
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/support'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await listPassengerSupportTickets({
+          repository: driverSupportRepository,
+          passengerId,
+          limit: 50,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/passenger/me/support'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const ticket = await createPassengerSupportTicket({
+        repository: driverSupportRepository,
+        passengerId,
+        category: value.category,
+        subject: value.subject,
+        message: value.message,
+      });
+      json(response, 201, ticket);
       return;
     }
 

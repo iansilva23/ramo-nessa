@@ -13,6 +13,7 @@ import 'features/home/presentation/passenger_home_screen.dart';
 import 'features/home/presentation/passenger_main_shell.dart';
 import 'features/payments/data/passenger_payment_service.dart';
 import 'features/profile/data/http_passenger_saved_place_service.dart';
+import 'features/profile/data/http_passenger_support_service.dart';
 import 'features/map/data/core_place_search_service.dart';
 import 'features/map/data/core_route_service.dart';
 import 'features/map/data/place_search_service.dart';
@@ -133,6 +134,16 @@ class RamoNessaPassengerApp extends StatelessWidget {
                 )
               : null;
 
+      final supportService =
+          coreUri != null &&
+                  normalizedToken != null &&
+                  normalizedToken.length >= 20
+              ? HttpPassengerSupportService(
+                  baseUrl: coreUri,
+                  accessToken: normalizedToken,
+                )
+              : preview?.support;
+
       return PassengerMainShell(
         accessToken: normalizedToken,
         onLogout: logout,
@@ -142,6 +153,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         savedPlaceService: savedPlaceService,
         placeSearchService: resolvedPlaceSearchService,
         socialLinksService: socialLinksService,
+        supportService: supportService,
         tourService: tourService,
         previewMode: RamoCoreConfig.previewMode,
         homeBuilder: (openProfile) => PassengerHomeScreen(

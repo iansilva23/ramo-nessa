@@ -159,6 +159,8 @@ test('Suporte não depende do carregamento de Comunicação', () => {
     support,
     /button\.disabled = !hasScope\('communications:write'\)/,
   );
+  assert.match(app, /supportRequesterLabel/);
+  assert.match(app, /requesterType === 'passenger'/);
 });
 
 

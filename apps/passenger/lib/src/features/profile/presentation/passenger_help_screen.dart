@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+import '../data/passenger_support_service.dart';
+import 'passenger_support_screen.dart';
+
 class PassengerHelpScreen extends StatelessWidget {
-  const PassengerHelpScreen({super.key});
+  const PassengerHelpScreen({super.key, this.supportService});
+
+  final PassengerSupportService? supportService;
 
   @override
   Widget build(BuildContext context) {
@@ -15,40 +20,55 @@ class PassengerHelpScreen extends StatelessWidget {
           RamoSpacing.lg,
           RamoSpacing.xxl,
         ),
-        children: const [
-          _HelpHeader(),
-          SizedBox(height: RamoSpacing.xl),
-          _HelpItem(
+        children: [
+          const _HelpHeader(),
+          if (supportService != null) ...[
+            const SizedBox(height: RamoSpacing.lg),
+            FilledButton.icon(
+              key: const Key('passenger-open-support'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PassengerSupportScreen(
+                    service: supportService!,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.support_agent_rounded),
+              label: const Text('Falar com o suporte'),
+            ),
+          ],
+          const SizedBox(height: RamoSpacing.xl),
+          const _HelpItem(
             title: 'Como pedir uma corrida?',
             body:
                 'Na tela Início, confirme a origem, escolha o destino, selecione '
                 'a categoria e a forma de pagamento. A busca pelo motorista só '
                 'começa depois das validações e do pagamento exigido pela operação.',
           ),
-          _HelpItem(
+          const _HelpItem(
             title: 'Como acompanho o motorista?',
             body:
                 'Depois que um motorista aceitar, a tela da corrida mostra o '
                 'status e a posição disponível em tempo real ou próximo do tempo real.',
           ),
-          _HelpItem(
+          const _HelpItem(
             title: 'Onde vejo minhas corridas?',
             body:
                 'Use Atividade no menu inferior ou Histórico de corridas dentro do Perfil.',
           ),
-          _HelpItem(
+          const _HelpItem(
             title: 'E se nenhum motorista aceitar?',
             body:
                 'O aplicativo informa que não encontrou motorista. Quando houver '
                 'pagamento antecipado, o estorno é processado conforme a forma de pagamento usada.',
           ),
-          _HelpItem(
+          const _HelpItem(
             title: 'Como protejo minha conta?',
             body:
                 'Em Perfil > Segurança você pode conferir a validade da sessão '
                 'e encerrar acessos em outros aparelhos.',
           ),
-          _HelpItem(
+          const _HelpItem(
             title: 'Problemas com notificações ou GPS?',
             body:
                 'Abra Perfil > Configurações para acessar as permissões do '

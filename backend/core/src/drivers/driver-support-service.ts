@@ -98,6 +98,7 @@ export async function createDriverSupportTicket(input: {
   const instant = now.toISOString();
   const ticket: DriverSupportTicketRecord = {
     id: randomUUID(),
+    requesterType: 'driver',
     driverId: input.driverId,
     category: category as DriverSupportCategory,
     subject: cleanText(
@@ -120,6 +121,67 @@ export async function createDriverSupportTicket(input: {
   };
 
   return supportTicketView(await input.repository.create(ticket));
+}
+
+export async function createPassengerSupportTicket(input: {
+  repository: DriverSupportRepository;
+  passengerId: string;
+  category: unknown;
+  subject: unknown;
+  message: unknown;
+  now?: Date;
+}) {
+  const category =
+    typeof input.category === 'string' ? input.category.trim() : '';
+  if (
+    !CATEGORIES.has(category as DriverSupportCategory) ||
+    category === 'document'
+  ) {
+    throw new DriverSupportError(
+      'INVALID_SUPPORT_CATEGORY',
+      'Categoria de suporte inválida.',
+    );
+  }
+
+  const instant = (input.now ?? new Date()).toISOString();
+  const ticket: DriverSupportTicketRecord = {
+    id: randomUUID(),
+    requesterType: 'passenger',
+    passengerId: input.passengerId,
+    category: category as DriverSupportCategory,
+    subject: cleanText(
+      input.subject,
+      3,
+      120,
+      'INVALID_SUPPORT_SUBJECT',
+      'Assunto',
+    ),
+    message: cleanText(
+      input.message,
+      10,
+      2000,
+      'INVALID_SUPPORT_MESSAGE',
+      'Mensagem',
+    ),
+    status: 'open',
+    createdAt: instant,
+    updatedAt: instant,
+  };
+
+  return supportTicketView(await input.repository.create(ticket));
+}
+
+export async function listPassengerSupportTickets(input: {
+  repository: DriverSupportRepository;
+  passengerId: string;
+  limit?: number;
+}) {
+  const limit = Math.max(1, Math.min(100, input.limit ?? 30));
+  const tickets = await input.repository.listByPassenger(
+    input.passengerId,
+    limit,
+  );
+  return { tickets: tickets.map(supportTicketView) };
 }
 
 export async function listDriverSupportTickets(input: {
@@ -152,7 +214,17 @@ export async function listSupportTicketsForAdmin(input: {
   const last = page.tickets[page.tickets.length - 1];
   return {
     tickets: page.tickets.map((ticket) => ({
-      driverId: ticket.driverId,
+      requesterType: ticket.requesterType,
+      requesterId:
+        ticket.requesterType === 'driver'
+          ? ticket.driverId
+          : ticket.passengerId,
+      driverId:
+        ticket.requesterType === 'driver' ? ticket.driverId : null,
+      passengerId:
+        ticket.requesterType === 'passenger'
+          ? ticket.passengerId
+          : null,
       ...supportTicketView(ticket),
     })),
     nextCursor:
@@ -201,7 +273,17 @@ export async function respondToSupportTicket(input: {
     );
   }
   return {
-    driverId: updated.driverId,
+    requesterType: updated.requesterType,
+    requesterId:
+      updated.requesterType === 'driver'
+        ? updated.driverId
+        : updated.passengerId,
+    driverId:
+      updated.requesterType === 'driver' ? updated.driverId : null,
+    passengerId:
+      updated.requesterType === 'passenger'
+        ? updated.passengerId
+        : null,
     ticket: supportTicketView(updated),
   };
 }

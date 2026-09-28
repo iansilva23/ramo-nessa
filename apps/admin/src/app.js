@@ -7572,6 +7572,14 @@ function selectedSupportTicket() {
   ) ?? null;
 }
 
+function supportRequesterLabel(ticket) {
+  const type = ticket?.requesterType === 'passenger'
+    ? 'passageiro'
+    : 'motorista';
+  const id = ticket?.requesterId || ticket?.passengerId || ticket?.driverId;
+  return `${type} ${id || 'não identificado'}`;
+}
+
 function renderSupportSelection() {
   const ticket = selectedSupportTicket();
   const card = byId('support-response-card');
@@ -7586,7 +7594,7 @@ function renderSupportSelection() {
   byId('support-ticket-id').value = ticket.id;
   byId('support-response-title').textContent = ticket.subject;
   byId('support-response-meta').textContent =
-    `${supportCategoryLabel(ticket.category)} · motorista ${ticket.driverId} · ${formatDateTime(ticket.createdAt)}`;
+    `${supportCategoryLabel(ticket.category)} · ${supportRequesterLabel(ticket)} · ${formatDateTime(ticket.createdAt)}`;
   byId('support-response-status').textContent =
     supportStatusLabel(ticket.status);
   byId('support-driver-message').textContent = ticket.message;
@@ -7644,7 +7652,7 @@ function renderSupport() {
 
     const meta = document.createElement('small');
     meta.textContent =
-      `${supportCategoryLabel(ticket.category)} · ${ticket.driverId} · ${formatDateTime(ticket.createdAt)}`;
+      `${supportCategoryLabel(ticket.category)} · ${supportRequesterLabel(ticket)} · ${formatDateTime(ticket.createdAt)}`;
 
     const message = document.createElement('p');
     message.textContent = ticket.message;
@@ -7752,7 +7760,7 @@ async function handleSupportResponse(event) {
     });
     setMessage(
       globalMessage,
-      'Resposta registrada e motorista avisado.',
+      'Resposta registrada e solicitante avisado.',
       'success',
     );
     await loadSupport({ announce: false });

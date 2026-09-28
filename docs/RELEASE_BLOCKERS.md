@@ -46,6 +46,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Admin já possui visão financeira somente leitura baseada no ledger, sem ações de mutação financeira;
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
    - ainda faltam configurar credenciais reais, webhook no domínio público, validar sandbox externo e implementar a confirmação real de recarga da carteira;
+   - por segurança, o Passageiro consulta e usa o saldo existente, mas o app não oferece botão de recarga enquanto a intenção criada pelo Core continuar `simulated: true` e `actionable: false`; a interface de recarga só deve ser liberada junto da confirmação real do gateway;
    - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão ficam em `REFUND_PENDING`; ainda faltam confirmação de estorno/chargeback do gateway externo, conciliação e repasse Pix real.
 
 5. **Assinatura Android de produção ainda não existe**
@@ -89,6 +90,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - dois aparelhos simultâneos Passageiro/Motorista;
    - entrega real de Push FCM em Android e iPhone, incluindo app aberto, background e token renovado;
    - cenários reais de pagamento e cancelamento.
+
+## Suporte
+
+- Motoristas e passageiros abrem e acompanham chamados autenticados nos respectivos apps;
+- o ADM usa uma única fila paginada, identifica o tipo de solicitante, responde e registra a ação na auditoria;
+- as referências de motorista e passageiro permanecem protegidas por foreign keys próprias no PostgreSQL.
 
 10. **Regras de acesso/eligibilidade e geografia**
    - preço não substitui autorização operacional;

@@ -11,9 +11,8 @@ export type DriverSupportStatus =
   | 'resolved'
   | 'closed';
 
-export interface DriverSupportTicketRecord {
+interface SupportTicketBase {
   id: string;
-  driverId: string;
   category: DriverSupportCategory;
   subject: string;
   message: string;
@@ -23,6 +22,11 @@ export interface DriverSupportTicketRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+export type DriverSupportTicketRecord = SupportTicketBase & (
+  | { requesterType: 'driver'; driverId: string; passengerId?: never }
+  | { requesterType: 'passenger'; passengerId: string; driverId?: never }
+);
 
 export interface DriverSupportCursor {
   createdAt: string;
@@ -46,6 +50,10 @@ export interface DriverSupportRepository {
   ): Promise<DriverSupportTicketRecord>;
   listByDriver(
     driverId: string,
+    limit: number,
+  ): Promise<DriverSupportTicketRecord[]>;
+  listByPassenger(
+    passengerId: string,
     limit: number,
   ): Promise<DriverSupportTicketRecord[]>;
   findById(id: string): Promise<DriverSupportTicketRecord | null>;

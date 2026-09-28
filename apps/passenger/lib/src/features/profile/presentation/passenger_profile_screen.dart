@@ -15,6 +15,7 @@ import 'passenger_settings_screen.dart';
 import '../../map/data/place_search_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../data/passenger_saved_place_service.dart';
+import '../data/passenger_support_service.dart';
 import 'passenger_saved_places_screen.dart';
 import '../../payments/domain/passenger_payment_policy.dart';
 
@@ -29,6 +30,7 @@ class PassengerProfileScreen extends StatefulWidget {
     this.savedPlaceService,
     this.placeSearchService,
     this.socialLinksService,
+    this.supportService,
     this.onLogout,
     this.previewMode = false,
   });
@@ -41,6 +43,7 @@ class PassengerProfileScreen extends StatefulWidget {
   final PassengerSavedPlaceService? savedPlaceService;
   final PlaceSearchService? placeSearchService;
   final SocialLinksService? socialLinksService;
+  final PassengerSupportService? supportService;
   final Future<bool> Function()? onLogout;
   final bool previewMode;
 
@@ -463,7 +466,9 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const PassengerHelpScreen(),
+                      builder: (_) => PassengerHelpScreen(
+                        supportService: widget.supportService,
+                      ),
                     ),
                   );
                 },

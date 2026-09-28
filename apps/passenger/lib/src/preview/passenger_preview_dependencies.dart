@@ -14,6 +14,7 @@ import '../features/payments/domain/passenger_payment_policy.dart';
 import '../features/payments/domain/pix_ride_payment_result.dart';
 import '../features/payments/domain/wallet_ride_payment_result.dart';
 import '../features/pricing/data/pricing_quote_service.dart';
+import '../features/profile/data/passenger_support_service.dart';
 import '../features/pricing/domain/pricing_quote.dart';
 import '../features/rides/data/passenger_activity_service.dart';
 import '../features/rides/data/passenger_ride_tracking_service.dart';
@@ -40,6 +41,35 @@ final class PassengerPreviewDependencies {
       _PreviewRideTrackingService();
   final PassengerActivityService activity =
       const _PreviewPassengerActivityService();
+  final PassengerSupportService support = _PreviewPassengerSupportService();
+}
+
+final class _PreviewPassengerSupportService
+    implements PassengerSupportService {
+  final List<PassengerSupportTicket> _tickets = [];
+
+  @override
+  Future<PassengerSupportTicket> createTicket({
+    required String category,
+    required String subject,
+    required String message,
+  }) async {
+    final now = DateTime.now();
+    final ticket = PassengerSupportTicket(
+      id: 'preview-support-${now.microsecondsSinceEpoch}',
+      category: category,
+      subject: subject,
+      message: message,
+      status: 'open',
+      createdAt: now,
+    );
+    _tickets.insert(0, ticket);
+    return ticket;
+  }
+
+  @override
+  Future<List<PassengerSupportTicket>> listTickets() async =>
+      List.unmodifiable(_tickets);
 }
 
 final class _PreviewLocationService implements LocationService {
