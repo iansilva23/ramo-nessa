@@ -4974,24 +4974,62 @@ const server = createServer(async (request, response) => {
         idempotencyKey: readIdempotencyKey(request.headers),
       });
 
+      let payout = result.payout;
+      let automated = driverPayoutProvider != null;
+      let providerRetryPending = false;
+
+      if (driverPayoutProvider != null) {
+        try {
+          const processed = await processDriverPayout({
+            finance: financeRepository,
+            provider: driverPayoutProvider,
+            payoutId: payout.id,
+          });
+          payout = processed.payout;
+        } catch (error) {
+          providerRetryPending = true;
+          logWarn('driver.payout.provider_retry_pending', {
+            payoutId: payout.id,
+            driverId,
+            ...errorFields(error),
+          });
+        }
+      }
+
+      const finance = await driverFinanceSummary(
+        financeRepository,
+        driverId,
+      );
+      const message =
+        payout.status === 'paid'
+          ? 'Repasse Pix concluído.'
+          : payout.status === 'failed'
+            ? 'O repasse Pix falhou e o valor voltou ao seu saldo.'
+            : driverPayoutProvider == null
+              ? 'Saque reservado. O repasse será processado pela operação.'
+              : providerRetryPending
+                ? 'Saque reservado. O provedor será consultado novamente automaticamente.'
+                : 'Saque enviado para processamento Pix.';
+
       json(response, 201, {
         payout: {
-          id: result.payout.id,
-          amountCents: result.payout.amountCents,
-          status: result.payout.status,
-          pixKeyType: result.payout.pixKeyType,
+          id: payout.id,
+          amountCents: payout.amountCents,
+          status: payout.status,
+          pixKeyType: payout.pixKeyType,
           pixKeyMasked:
-            result.payout.pixKey.length > 4
-              ? `••••${result.payout.pixKey.slice(-4)}`
+            payout.pixKey.length > 4
+              ? `••••${payout.pixKey.slice(-4)}`
               : '••••',
-          createdAt: result.payout.createdAt,
+          createdAt: payout.createdAt,
+          updatedAt: payout.updatedAt,
         },
         duplicateRequest: result.duplicateRequest,
-        finance: result.finance,
-        actionable: false,
-        message:
-          'Saque reservado. O repasse Pix real será executado quando ' +
-          'o provedor de repasses estiver conectado.',
+        finance,
+        actionable: automated,
+        automated,
+        providerRetryPending,
+        message,
       });
       return;
     }
