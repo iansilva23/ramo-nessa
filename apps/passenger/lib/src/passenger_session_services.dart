@@ -3,6 +3,7 @@ import 'features/payments/data/passenger_payment_service.dart';
 import 'features/profile/data/http_passenger_privacy_service.dart';
 import 'features/profile/data/http_passenger_saved_place_service.dart';
 import 'features/profile/data/http_passenger_support_service.dart';
+import 'features/profile/data/passenger_privacy_service.dart';
 import 'features/profile/data/passenger_saved_place_service.dart';
 import 'features/profile/data/passenger_support_service.dart';
 import 'features/rides/data/http_passenger_activity_service.dart';
