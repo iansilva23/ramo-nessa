@@ -246,6 +246,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       {
         driverOfferTtlSeconds,
         driverPaymentHoldSeconds,
+        noDriverDecisionTimeoutSeconds,
         driverLocationMaxAgeSeconds,
         nearbyDriverMaxDistanceKm,
         showNearbyDrivers,
@@ -259,6 +260,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
         body: {
           driverOfferTtlSeconds,
           driverPaymentHoldSeconds,
+          noDriverDecisionTimeoutSeconds,
           driverLocationMaxAgeSeconds,
           nearbyDriverMaxDistanceKm,
           showNearbyDrivers,
