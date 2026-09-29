@@ -14,6 +14,7 @@ on:
       - "deploy/prod/**"
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
+      - "tooling/validate-google-maps-key.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
   push:
@@ -27,6 +28,7 @@ on:
       - "deploy/prod/**"
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
+      - "tooling/validate-google-maps-key.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
 
