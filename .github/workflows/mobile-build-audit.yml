@@ -50,12 +50,11 @@ jobs:
 
       - name: Validate Passenger Google Maps key
         env:
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
-        run: |
-          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
-            echo "::error::Configure RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY before building Passenger."
-            exit 1
-          fi
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY
+          --surface="Passenger Android"
 
       - name: Validate Passenger Android Firebase push config
         env:
@@ -76,7 +75,7 @@ jobs:
         env:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
           RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
@@ -135,12 +134,11 @@ jobs:
 
       - name: Validate Driver Google Maps key
         env:
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
-        run: |
-          if [ -z "$RAMO_GOOGLE_MAPS_ANDROID_API_KEY" ]; then
-            echo "::error::Configure RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY before building Driver."
-            exit 1
-          fi
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY
+          --surface="Driver Android"
 
       - name: Validate Driver Android Firebase push config
         env:
@@ -160,7 +158,7 @@ jobs:
         working-directory: apps/driver
         env:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
-          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
           RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
@@ -213,17 +211,16 @@ jobs:
 
       - name: Validate Passenger Google Maps iOS key
         env:
-          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
-        run: |
-          if [ -z "$RAMO_GOOGLE_MAPS_IOS_API_KEY" ]; then
-            echo "::error::Configure RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY before building Passenger iOS."
-            exit 1
-          fi
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_IOS_API_KEY
+          --surface="Passenger iOS"
 
       - name: Configure Passenger Google Maps iOS key
         working-directory: apps/passenger/ios/Flutter
         env:
-          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
         run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
       - name: Validate Passenger iOS Firebase push config
@@ -293,17 +290,16 @@ jobs:
 
       - name: Validate Driver Google Maps iOS key
         env:
-          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
-        run: |
-          if [ -z "$RAMO_GOOGLE_MAPS_IOS_API_KEY" ]; then
-            echo "::error::Configure RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY before building Driver iOS."
-            exit 1
-          fi
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_IOS_API_KEY
+          --surface="Driver iOS"
 
       - name: Configure Driver Google Maps iOS key
         working-directory: apps/driver/ios/Flutter
         env:
-          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY || secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
         run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
 
       - name: Validate Driver iOS Firebase push config
