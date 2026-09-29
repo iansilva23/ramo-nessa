@@ -10,7 +10,13 @@ import {
 const zone = (zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external', localityId?: string) =>
   localityId == null ? { zoneId } : { zoneId, localityId };
 
-test('Jeri <-> Preá é somente Comfort/Black por R$150 dia e R$200 após 22h', () => {
+test('Jeri <-> Preá aplica Carro R$140 e Comfort/Black R$150/R$200', () => {
+  const car = quoteFare({
+    origin: zone('prea'),
+    destination: zone('jericoacoara'),
+    category: 'car',
+    period: 'day',
+  });
   const day = quoteFare({
     origin: zone('prea'),
     destination: zone('jericoacoara'),
@@ -24,23 +30,18 @@ test('Jeri <-> Preá é somente Comfort/Black por R$150 dia e R$200 após 22h', 
     period: 'after_22',
   });
 
+  assert.equal(car.kind, 'exact');
   assert.equal(day.kind, 'exact');
   assert.equal(night.kind, 'exact');
-  if (day.kind === 'exact' && night.kind === 'exact') {
+  if (
+    car.kind === 'exact' &&
+    day.kind === 'exact' &&
+    night.kind === 'exact'
+  ) {
+    assert.equal(car.totalAmountCents, 14000);
     assert.equal(day.totalAmountCents, 15000);
     assert.equal(night.totalAmountCents, 20000);
   }
-
-  assert.throws(
-    () =>
-      quoteFare({
-        origin: zone('prea'),
-        destination: zone('jericoacoara'),
-        category: 'car',
-        period: 'day',
-      }),
-    /Não há tarifa v1/,
-  );
 });
 
 test('Jijoca <-> Jeri fecha R$160 dia / R$200 após 22h', () => {
@@ -147,32 +148,49 @@ test('Buggy em Jeri mantém o preço-base para 1 pessoa e soma R$2 só por adici
   }
 });
 
-test('Entrega em Jeri usa faixas de R$5 a R$10', () => {
-  const quote = quoteFare({
+test('Entrega em Jeri custa R$5 até 2 km e R$6 acima, sem adicional noturno', () => {
+  const local = quoteFare({
     origin: zone('jericoacoara'),
     destination: zone('jericoacoara'),
     category: 'delivery',
     period: 'day',
     tripDistanceKm: 1.5,
   });
+  const above = quoteFare({
+    origin: zone('jericoacoara'),
+    destination: zone('jericoacoara'),
+    category: 'delivery',
+    period: 'after_22',
+    tripDistanceKm: 2.4,
+  });
 
-  assert.equal(quote.kind, 'exact');
-  if (quote.kind === 'exact') {
-    assert.equal(quote.baseAmountCents, 800);
+  assert.equal(local.kind, 'exact');
+  assert.equal(above.kind, 'exact');
+  if (local.kind === 'exact' && above.kind === 'exact') {
+    assert.equal(local.baseAmountCents, 500);
+    assert.equal(above.baseAmountCents, 600);
   }
 });
 
-test('Comfort no Preá adiciona R$50 sobre carro quando permitido', () => {
-  const quote = quoteFare({
+test('Comfort local do Preá soma R$40 e viagens longas preservam os valores aprovados', () => {
+  const local = quoteFare({
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'comfort_black',
+    period: 'day',
+  });
+  const long = quoteFare({
     origin: zone('prea'),
     destination: zone('external', 'sobral'),
     category: 'comfort_black',
     period: 'day',
   });
 
-  assert.equal(quote.kind, 'exact');
-  if (quote.kind === 'exact') {
-    assert.equal(quote.baseAmountCents, 57000);
+  assert.equal(local.kind, 'exact');
+  assert.equal(long.kind, 'exact');
+  if (local.kind === 'exact' && long.kind === 'exact') {
+    assert.equal(local.baseAmountCents, 7500);
+    assert.equal(long.baseAmountCents, 57000);
   }
 });
 
@@ -198,26 +216,26 @@ test('noturno local do Preá soma R$10, mas viagem longa mantém preço-base', (
   }
 });
 
-test('faixas ainda não fechadas permanecem faixa e impedem falsa precisão', () => {
+test('faixas ainda não fechadas em Jijoca permanecem faixa e impedem falsa precisão', () => {
   const quote = quoteFare({
-    origin: zone('prea', 'prea'),
-    destination: zone('prea', 'formosa'),
+    origin: zone('jijoca', 'jijoca'),
+    destination: zone('jijoca', 'corrego-do-mourao'),
     category: 'moto',
     period: 'day',
   });
 
   assert.equal(quote.kind, 'range');
   if (quote.kind === 'range') {
-    assert.equal(quote.minBaseAmountCents, 800);
-    assert.equal(quote.maxBaseAmountCents, 1000);
+    assert.equal(quote.minBaseAmountCents, 3500);
+    assert.equal(quote.maxBaseAmountCents, 4000);
     assert.equal(quote.requiresExactResolution, true);
   }
 });
 
-test('coleta distante cobra só combustível excedente aos 3 km', () => {
-  assert.equal(pickupCompensationCents('moto', 30), 700);
-  assert.equal(pickupCompensationCents('car', 30), 2100);
-  assert.equal(pickupCompensationCents('moto', 3), 0);
+test('coleta distante cobra só combustível excedente aos 8 km', () => {
+  assert.equal(pickupCompensationCents('moto', 30), 600);
+  assert.equal(pickupCompensationCents('car', 30), 1800);
+  assert.equal(pickupCompensationCents('moto', 8), 0);
 });
 
 test('compensação de coleta é 100% do motorista e não sofre comissão', () => {
@@ -232,10 +250,55 @@ test('compensação de coleta é 100% do motorista e não sofre comissão', () =
   assert.equal(quote.kind, 'exact');
   if (quote.kind === 'exact') {
     assert.equal(quote.baseAmountCents, 6000);
-    assert.equal(quote.pickupCompensationCents, 700);
-    assert.equal(quote.totalAmountCents, 6700);
+    assert.equal(quote.pickupCompensationCents, 600);
+    assert.equal(quote.totalAmountCents, 6600);
     assert.equal(quote.platformCommissionCents, 600);
-    assert.equal(quote.driverNetCents, 6100);
+    assert.equal(quote.driverNetCents, 6000);
+  }
+});
+
+test('Entrega no Preá mantém o mesmo preço depois das 22h', () => {
+  const day = quoteFare({
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'delivery',
+    period: 'day',
+  });
+  const night = quoteFare({
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'delivery',
+    period: 'after_22',
+  });
+
+  assert.equal(day.kind, 'exact');
+  assert.equal(night.kind, 'exact');
+  if (day.kind === 'exact' && night.kind === 'exact') {
+    assert.equal(day.baseAmountCents, 1900);
+    assert.equal(night.baseAmountCents, 1900);
+  }
+});
+
+test('Moto Preá <-> Aeroporto custa R$60 dia e R$80 após 22h', () => {
+  const airport = zone('external', 'airport-jjd');
+  const day = quoteFare({
+    origin: zone('prea'),
+    destination: airport,
+    category: 'moto',
+    period: 'day',
+  });
+  const night = quoteFare({
+    origin: airport,
+    destination: zone('prea'),
+    category: 'moto',
+    period: 'after_22',
+  });
+
+  assert.equal(day.kind, 'exact');
+  assert.equal(night.kind, 'exact');
+  if (day.kind === 'exact' && night.kind === 'exact') {
+    assert.equal(day.baseAmountCents, 6000);
+    assert.equal(night.baseAmountCents, 8000);
   }
 });
 
