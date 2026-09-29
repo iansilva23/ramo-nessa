@@ -56,6 +56,22 @@ class PassengerRideChatMessage {
   bool get fromPassenger => senderType == 'passenger';
 }
 
+class PassengerRideRecoveryResult {
+  const PassengerRideRecoveryResult({
+    this.dispatchStatus,
+    this.refundStatus,
+  });
+
+  final String? dispatchStatus;
+  final String? refundStatus;
+}
+
+abstract interface class PassengerRideRecoveryService {
+  Future<PassengerRideRecoveryResult> retryDriverSearch(String rideId);
+
+  Future<PassengerRideRecoveryResult> cancelSearch(String rideId);
+}
+
 abstract interface class PassengerRideTrackingService {
   Future<PassengerRideTrackingSnapshot> tracking(String rideId);
 
