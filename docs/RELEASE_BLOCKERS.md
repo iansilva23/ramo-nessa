@@ -56,10 +56,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - solicitação de estorno integral e reconciliação da confirmação Orders já existem no Core, inclusive retry idempotente e varredura automática de `REFUND_PENDING`;
    - ainda é necessário validar pagamento/estorno no sandbox externo e domínio público; conciliação operacional completa, tratamento operacional de chargebacks/estornos parciais e repasse Pix real continuam pendentes.
 
-5. **Assinatura Android de produção ainda não existe**
+5. **Assinatura Android de produção está preparada no código, mas ainda depende da chave real**
    - a auditoria removeu o fallback de release para chave debug;
-   - builds sem keystore servem apenas para validação técnica e não devem ser distribuídos;
-   - a keystore de produção deve ficar fora do Git e ser injetada somente na publicação.
+   - Passenger e Driver possuem caminho de assinatura de produção separado do Preview, sem armazenar keystore ou senhas no Git;
+   - o `Mobile Build Audit` exige a keystore via Secrets, valida senha/alias e verifica os APKs com `apksigner` antes de publicar os artefatos;
+   - ainda faltam gerar/proteger a upload key real, configurar os Secrets, registrar os certificados no Google Play/integrações e validar os APKs assinados em aparelhos físicos;
+   - detalhes operacionais: `docs/ANDROID_SIGNING_PRODUCTION.md`.
 
 6. **Cobertura iOS é parcial**
    - Passageiro foi validado em Simulator;
