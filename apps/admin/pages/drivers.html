@@ -60,6 +60,27 @@
                 </label>
 
                 <label class="field">
+                  <span>Prazo após não encontrar motorista</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="no-driver-decision-timeout-seconds"
+                      type="number"
+                      min="60"
+                      max="3600"
+                      step="60"
+                      disabled
+                      required
+                    >
+                    <strong>segundos</strong>
+                  </div>
+                  <small>
+                    Se o passageiro não tentar novamente nem cancelar, o Core
+                    encerra a busca e inicia o reembolso automaticamente.
+                    O padrão é 900 segundos (15 minutos).
+                  </small>
+                </label>
+
+                <label class="field">
                   <span>Validade máxima do GPS do motorista</span>
                   <div class="operational-settings-number">
                     <input
