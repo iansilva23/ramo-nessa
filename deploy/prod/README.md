@@ -26,7 +26,7 @@ Antes do deploy real:
 4. horário/NTP do host correto;
 5. acesso SSH administrativo protegido.
 
-Backup, monitoramento e hardening do host são tratados no Passo 3.
+Backup, monitoramento e hardening básico já possuem procedimentos neste diretório. A implantação real no VPS continua pendente.
 
 ## 2. Gerar o arquivo privado de ambiente
 
@@ -88,13 +88,40 @@ Com o stack já saudável:
 
 A senha inicial e o segredo TOTP devem ser guardados fora do Git e nunca copiados para logs, commits ou chats públicos.
 
+## 7. Backup verificado
+
+Com o stack real em execução, grave os backups fora do repositório:
+
+    node deploy/prod/backup.mjs --output-dir=/var/backups/ramo-nessa
+
+O script cria um pg_dump em formato custom, um arquivo dos documentos privados e um manifesto com SHA-256. Ele valida os dois artefatos antes de marcar o diretório como concluído e nunca inclui deploy/prod/.env.
+
+Para verificar novamente um snapshot sem restaurar nada:
+
+    node deploy/prod/verify-backup.mjs --backup-dir=/var/backups/ramo-nessa/<snapshot>
+
+Um restore real não é executado automaticamente. O teste de recuperação/disaster recovery permanece como etapa posterior e deve usar ambiente isolado.
+
+## 8. Monitor de saúde
+
+Depois do domínio real estar ativo:
+
+    node deploy/prod/health-check.mjs
+
+O comando valida HTTPS em /health, /ready e /admin/. Ele imprime JSON por endpoint e retorna código diferente de zero quando algo falha, podendo ser chamado por cron/systemd ou por monitor externo.
+
+## 9. Baseline de segurança
+
+As regras mínimas do host estão em deploy/prod/SECURITY_BASELINE.md. O Compose também limita logs Docker e aplica no-new-privileges/cap_drop no Core e migrations.
+
 ## Estado atual
 
-Este diretório cobre a preparação da infraestrutura. Ainda não significa Go-Live.
+Este diretório cobre a preparação da infraestrutura, backup verificado, monitoramento básico e hardening de containers. Ainda não significa Go-Live.
 
 Ficam para os próximos passos:
 
-- backup/restore, monitoramento, alertas e hardening operacional;
+- implantação real e teste de recuperação em VPS isolado;
+- monitoramento/alertas externos e retenção off-site de backup;
 - chaves e billing de Google Maps;
 - provider OTP real;
 - Firebase/FCM/APNs;
