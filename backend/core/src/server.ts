@@ -5723,7 +5723,6 @@ const server = createServer(async (request, response) => {
         gateway: mercadoPagoOrdersClient,
         rideId,
         passengerId: stored.passengerId,
-        idempotencyPrefix: 'driver-cancel',
       });
 
       if (
@@ -6268,7 +6267,6 @@ const server = createServer(async (request, response) => {
         gateway: mercadoPagoOrdersClient,
         rideId: cancelled.id,
         passengerId,
-        idempotencyPrefix: 'passenger-no-driver-cancel',
       });
 
       const tracking = await passengerRideTracking({
