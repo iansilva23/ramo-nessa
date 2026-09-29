@@ -124,7 +124,7 @@ Ficam para os próximos passos:
 - monitoramento/alertas externos e retenção off-site de backup;
 - chaves e billing de Google Maps;
 - provider OTP real;
-- Firebase/FCM/APNs;
+- credenciais reais e homologação Firebase/FCM/APNs;
 - homologação externa Mercado Pago;
 - homologação de repasse Pix;
 - testes físicos, carga/segurança, piloto e lojas.
