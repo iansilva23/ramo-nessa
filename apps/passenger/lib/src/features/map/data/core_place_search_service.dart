@@ -208,8 +208,15 @@ class CorePlaceSearchService
       throw const FormatException('Resposta de lugar inválida.');
     }
 
+    final approvedPricingZoneId =
+        raw['approvedPricingZoneId']?.toString().trim();
+    final approvedPricingLocalityId =
+        raw['approvedPricingLocalityId']?.toString().trim();
+
     final place = RamoPlace(
-      name: suggestion.mainText,
+      name: raw['name']?.toString().trim().isNotEmpty == true
+          ? raw['name'].toString().trim()
+          : suggestion.mainText,
       address: address,
       position: LatLng(
         latitude.toDouble(),
@@ -220,6 +227,14 @@ class CorePlaceSearchService
           raw['approvedExternalId']?.toString().trim().isNotEmpty == true
               ? raw['approvedExternalId'].toString().trim()
               : suggestion.approvedExternalId,
+      approvedPricingZoneId:
+          approvedPricingZoneId?.isNotEmpty == true
+              ? approvedPricingZoneId
+              : null,
+      approvedPricingLocalityId:
+          approvedPricingLocalityId?.isNotEmpty == true
+              ? approvedPricingLocalityId
+              : null,
       placeProof: raw['placeProof']?.toString().trim().isNotEmpty == true
           ? raw['placeProof'].toString().trim()
           : null,
