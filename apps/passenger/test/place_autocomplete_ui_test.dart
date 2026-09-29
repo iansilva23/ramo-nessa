@@ -82,6 +82,7 @@ void main() {
       await tester.tap(find.text('Casa'));
       await tester.pumpAndSettle();
 
+      expect(search.resolveCalls, 1);
       expect(
         find.text('Selecionado: Pousada Casa do Vento'),
         findsOneWidget,
@@ -175,10 +176,18 @@ class _FakeAutocompleteService
   }) async {
     resolveCalls += 1;
     lastResolveToken = sessionToken;
-    return const RamoPlace(
-      name: 'Jericoacoara',
-      address: 'Jericoacoara, Jijoca de Jericoacoara - CE',
-      position: LatLng(-2.7956, -40.5142),
+    return RamoPlace(
+      name: suggestion.mainText,
+      address: suggestion.secondaryText,
+      position: const LatLng(-2.7956, -40.5142),
+      providerPlaceId: suggestion.placeId,
+      approvedPricingZoneId:
+          suggestion.approvedExternalId == null
+              ? 'jericoacoara'
+              : 'external',
+      approvedPricingLocalityId:
+          suggestion.approvedExternalId ?? 'jericoacoara',
+      placeProof: 'refreshed-place-proof-abcdefghijklmnopqrstuvwxyz',
     );
   }
 
@@ -205,6 +214,9 @@ class _FakeSavedPlaceService implements PassengerSavedPlaceService {
         name: 'Pousada Casa do Vento',
         address: 'Rua Principal, Jericoacoara - CE',
         position: const LatLng(-2.7956, -40.5142),
+        providerPlaceId: 'saved-home-google-place',
+        approvedPricingZoneId: 'jericoacoara',
+        approvedPricingLocalityId: 'jericoacoara',
         createdAt: now,
         updatedAt: now,
       ),
