@@ -40,6 +40,7 @@ export async function dispatchNextDriver(input: {
   paymentPolicySettings?: PaymentPolicySettingsRepository;
   operationalSettings?: OperationalSettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
+  allowPreviouslyAttemptedDrivers?: boolean;
 }): Promise<DispatchNextResult> {
   const now = input.now ?? new Date();
   const ride = await input.rides.findById(input.rideId);
@@ -80,7 +81,12 @@ export async function dispatchNextDriver(input: {
       input.maxLocationAgeSeconds ??
       operationalSettings?.driverLocationMaxAgeSeconds ??
       120,
-  }).filter((candidate) => !attemptedDriverIds.has(candidate.supply.driverId));
+  });
+  if (!input.allowPreviouslyAttemptedDrivers) {
+    candidates = candidates.filter(
+      (candidate) => !attemptedDriverIds.has(candidate.supply.driverId),
+    );
+  }
 
   const holdIsActive =
     ride.reservedDriverId != null &&
@@ -142,7 +148,8 @@ export async function dispatchNextDriver(input: {
       message: {
         type: 'passenger.ride.no_driver',
         title: 'Nenhum motorista disponível',
-        body: 'Não encontramos um motorista para esta corrida.',
+        body:
+          'Não encontramos motorista nesta rodada. Você pode tentar novamente ou cancelar e receber o reembolso.',
         data: { rideId: ride.id },
       },
     });
