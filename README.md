@@ -34,18 +34,20 @@ O Passageiro já possui cliente HTTP para pedir a cotação ao Core. O antigo pr
 
 ## Ainda não é produção
 
-Ainda faltam, entre outros pontos:
+A base funcional já inclui autenticação/sessões, PostgreSQL, matching, realtime, máquina de estados, ledger/carteira, repasses e catálogo comercial versionado com edição pelo ADM.
 
-- autenticação e autorização;
-- banco/persistência;
-- matching real;
-- localização em tempo real do Motorista;
-- máquina de estados autoritativa da viagem;
-- provedor real de Pix/cartão;
-- ledger/carteira e repasses;
-- Admin para editar preços;
-- deploy de produção do Core;
-- testes físicos e preparação de lojas.
+A passagem para produção ainda depende, entre outros pontos, de:
+
+- infraestrutura hospedada e deploy operacional do Core/Admin;
+- backup, restore testado, monitoramento e alertas;
+- credenciais/homologação externa de Mercado Pago;
+- provider OTP/SMS real;
+- Firebase/Push/APNs de produção;
+- storage privado persistente para documentos;
+- chaves comerciais restritas e billing/quotas do Google Maps;
+- testes em aparelhos físicos, carga/segurança, piloto controlado e preparação das lojas.
+
+Os preços e regras comerciais ainda em revisão só devem ser atualizados depois de aprovação explícita da tabela oficial.
 
 Consulte `docs/RELEASE_BLOCKERS.md` antes de tratar qualquer build como pronto para distribuição.
 
