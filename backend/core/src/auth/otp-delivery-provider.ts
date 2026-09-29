@@ -28,6 +28,25 @@ export class DevOtpDeliveryProvider implements OtpDeliveryProvider {
   }
 }
 
+const OTP_WEBHOOK_MAX_ATTEMPTS = 3;
+const OTP_WEBHOOK_ATTEMPT_TIMEOUT_MS = 2500;
+const OTP_WEBHOOK_RETRY_DELAYS_MS = [100, 250] as const;
+
+function retryableOtpStatus(status: number): boolean {
+  return (
+    status === 408 ||
+    status === 425 ||
+    status === 429 ||
+    status >= 500
+  );
+}
+
+async function waitForOtpRetry(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export class WebhookOtpDeliveryProvider implements OtpDeliveryProvider {
   constructor(
     private readonly endpoint: URL,
@@ -40,32 +59,59 @@ export class WebhookOtpDeliveryProvider implements OtpDeliveryProvider {
     challengeId: string;
     expiresInSeconds: number;
   }): Promise<void> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    timeout.unref();
+    const body = JSON.stringify(input);
 
-    try {
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.token}`,
-          'idempotency-key': input.challengeId,
-          'x-ramo-nessa-webhook-version': '1',
-        },
-        body: JSON.stringify(input),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new OtpDeliveryError(
-          `Provider OTP recusou o envio com HTTP ${response.status}.`,
-        );
+    for (
+      let attempt = 1;
+      attempt <= OTP_WEBHOOK_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        OTP_WEBHOOK_ATTEMPT_TIMEOUT_MS,
+      );
+      timeout.unref();
+
+      try {
+        const response = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${this.token}`,
+            'idempotency-key': input.challengeId,
+            'x-ramo-nessa-webhook-version': '1',
+          },
+          body,
+          signal: controller.signal,
+        });
+
+        if (response.ok) return;
+
+        if (
+          !retryableOtpStatus(response.status) ||
+          attempt === OTP_WEBHOOK_MAX_ATTEMPTS
+        ) {
+          throw new OtpDeliveryError(
+            `Provider OTP recusou o envio com HTTP ${response.status}.`,
+          );
+        }
+      } catch (error) {
+        if (error instanceof OtpDeliveryError) throw error;
+        if (attempt === OTP_WEBHOOK_MAX_ATTEMPTS) {
+          throw new OtpDeliveryError(
+            'Provider OTP está indisponível.',
+          );
+        }
+      } finally {
+        clearTimeout(timeout);
       }
-    } catch (error) {
-      if (error instanceof OtpDeliveryError) throw error;
-      throw new OtpDeliveryError('Provider OTP está indisponível.');
-    } finally {
-      clearTimeout(timeout);
+
+      const retryDelay =
+        OTP_WEBHOOK_RETRY_DELAYS_MS[attempt - 1] ?? 0;
+      if (retryDelay > 0) {
+        await waitForOtpRetry(retryDelay);
+      }
     }
   }
 }
