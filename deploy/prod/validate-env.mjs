@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,6 +62,78 @@ function assertHttps(value, key) {
   if (url.protocol !== 'https:') {
     throw new Error(key + ' precisa usar HTTPS.');
   }
+}
+
+async function validateFirebaseServiceAccountFile(filePath) {
+  let raw;
+  let info;
+  try {
+    [raw, info] = await Promise.all([
+      readFile(filePath, 'utf8'),
+      stat(filePath),
+    ]);
+  } catch {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_HOST_FILE não pôde ser lido.',
+    );
+  }
+
+  if (!info.isFile()) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_HOST_FILE precisa apontar para um arquivo.',
+    );
+  }
+
+  if ((info.mode & 0o077) !== 0) {
+    throw new Error(
+      'Service Account Firebase deve ter permissão 0600 ou mais restritiva.',
+    );
+  }
+
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      'Service Account Firebase não contém JSON válido.',
+    );
+  }
+
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Service Account Firebase possui formato inválido.');
+  }
+
+  const projectId =
+    typeof value.project_id === 'string'
+      ? value.project_id.trim()
+      : '';
+  const clientEmail =
+    typeof value.client_email === 'string'
+      ? value.client_email.trim()
+      : '';
+  const privateKey =
+    typeof value.private_key === 'string'
+      ? value.private_key.trim()
+      : '';
+  const type =
+    typeof value.type === 'string'
+      ? value.type.trim()
+      : '';
+
+  if (
+    type !== 'service_account' ||
+    projectId.length < 3 ||
+    clientEmail.length < 6 ||
+    !clientEmail.includes('@') ||
+    !privateKey.includes('-----BEGIN PRIVATE KEY-----') ||
+    !privateKey.includes('-----END PRIVATE KEY-----')
+  ) {
+    throw new Error(
+      'Service Account Firebase precisa de type=service_account, project_id, client_email e private_key.',
+    );
+  }
+
+  return { projectId, clientEmail };
 }
 
 export function validateProductionEnvironment(env) {
@@ -202,13 +274,22 @@ const envFile = resolve(
 
 const raw = await readFile(envFile, 'utf8');
 const result = validateProductionEnvironment(parseEnv(raw));
+const firebaseServiceAccountPath = resolve(
+  here,
+  result.firebaseServiceAccountHostFile,
+);
+const firebase = await validateFirebaseServiceAccountFile(
+  firebaseServiceAccountPath,
+);
 
 console.log(
   'Configuração de produção válida para ' +
     result.domain +
     '. Push: ' +
     result.pushProvider +
-    '. Repasse automático: ' +
+    ' (' +
+    firebase.projectId +
+    '). Repasse automático: ' +
     (result.payoutConfigured ? 'configurado' : 'desativado') +
     '.',
 );
