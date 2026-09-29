@@ -1,9 +1,9 @@
 # Regras Comerciais v1 — Ramo Nessa
 
-Status: REVISADO para implementação.
-Data-base: 2026-09-29.
+Status: BASE IMPLEMENTADA EM REVISÃO COMERCIAL — NÃO PUBLICAR COMO TABELA OFICIAL.
+Data-base técnica: 2026-09-29.
 
-Este documento é a fonte comercial de verdade da v1. Os valores abaixo são servidos pelo Core/backend. O Passageiro consulta o Core para obter a cotação e não mantém preço comercial autoritativo no Flutter. O catálogo é versionado e administrável pelo ADM.
+Este documento registra a base atualmente implementada no Core/backend, mas os valores e regras comerciais ainda estão em revisão e não devem ser tratados como tabela oficial até aprovação explícita. O Passageiro consulta o Core para obter a cotação e não mantém preço comercial autoritativo no Flutter. O catálogo é versionado e administrável pelo ADM.
 
 ## Regras globais
 
