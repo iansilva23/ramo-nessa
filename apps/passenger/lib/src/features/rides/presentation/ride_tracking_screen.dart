@@ -56,6 +56,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   int _ratingStars = 0;
   bool _ratingSubmitting = false;
   bool _ratingSubmitted = false;
+  bool _recoveryAction = false;
   String? _ratingError;
 
   @override
@@ -173,6 +174,105 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       });
     } finally {
       _requestInFlight = false;
+    }
+  }
+
+  PassengerRideRecoveryService? get _recoveryService {
+    final service = widget.trackingService;
+    return service is PassengerRideRecoveryService ? service : null;
+  }
+
+  Future<void> _retryDriverSearch() async {
+    final service = _recoveryService;
+    if (service == null || _recoveryAction) return;
+
+    setState(() {
+      _recoveryAction = true;
+      _error = null;
+    });
+    try {
+      final result = await service.retryDriverSearch(widget.rideId);
+      if (!mounted) return;
+      setState(() {
+        _error = result.dispatchStatus == 'NO_DRIVER_FOUND'
+            ? 'Ainda não encontramos motorista. Você pode tentar novamente ou cancelar a corrida.'
+            : null;
+      });
+      await _refresh();
+    } on PassengerRideTrackingException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Não conseguimos procurar outro motorista agora.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _recoveryAction = false);
+      } else {
+        _recoveryAction = false;
+      }
+    }
+  }
+
+  Future<void> _cancelNoDriverSearch() async {
+    final service = _recoveryService;
+    if (service == null || _recoveryAction) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancelar corrida?'),
+        content: const Text(
+          'Vamos encerrar a busca e devolver integralmente o pagamento. '
+          'No Pix ou cartão, o prazo para aparecer na conta depende do banco.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Continuar buscando'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancelar e reembolsar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _recoveryAction = true;
+      _error = null;
+    });
+    try {
+      final result = await service.cancelSearch(widget.rideId);
+      if (!mounted) return;
+      await _refresh();
+      if (!mounted) return;
+      final message = switch (result.refundStatus) {
+        'refunded' => 'Corrida cancelada. Seu pagamento foi devolvido.',
+        'not_charged' => 'Corrida cancelada. Nenhum valor foi cobrado.',
+        _ => 'Corrida cancelada. Seu reembolso está em processamento.',
+      };
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    } on PassengerRideTrackingException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Não conseguimos cancelar a corrida agora.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _recoveryAction = false);
+      } else {
+        _recoveryAction = false;
+      }
     }
   }
 
@@ -368,6 +468,46 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                         ),
                         label: const Text('Mensagem com motorista'),
                       ),
+                    ),
+                  ],
+                  if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
+                    const SizedBox(height: RamoSpacing.md),
+                    Text(
+                      'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente ou cancelar a corrida e receber o reembolso integral. Se não escolher, a busca será encerrada automaticamente após o prazo configurado.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: RamoSpacing.sm),
+                    Row(
+                      children: [
+                        Flexible(
+                          flex: 2,
+                          child: OutlinedButton(
+                            onPressed:
+                                _recoveryAction || _recoveryService == null
+                                    ? null
+                                    : _retryDriverSearch,
+                            child: const Text('Tentar novamente'),
+                          ),
+                        ),
+                        const SizedBox(width: RamoSpacing.sm),
+                        Expanded(
+                          flex: 3,
+                          child: FilledButton(
+                            onPressed:
+                                _recoveryAction || _recoveryService == null
+                                    ? null
+                                    : _cancelNoDriverSearch,
+                            child: _recoveryAction
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Cancelar corrida'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   if (snapshot?.state == 'COMPLETED' &&
