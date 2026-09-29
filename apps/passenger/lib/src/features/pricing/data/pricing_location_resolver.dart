@@ -29,6 +29,20 @@ abstract final class PricingLocationResolver {
     required RamoPlace place,
     required String serviceZoneId,
   }) {
+    final approvedZoneId = place.approvedPricingZoneId?.trim();
+    final approvedLocalityId = place.approvedPricingLocalityId?.trim();
+    if (
+      approvedZoneId != null &&
+      approvedZoneId.isNotEmpty &&
+      approvedLocalityId != null &&
+      approvedLocalityId.isNotEmpty
+    ) {
+      return PricingLocationRef(
+        zoneId: approvedZoneId,
+        localityId: approvedLocalityId,
+      );
+    }
+
     if (serviceZoneId == 'airport-jjd') {
       return const PricingLocationRef(
         zoneId: 'external',
