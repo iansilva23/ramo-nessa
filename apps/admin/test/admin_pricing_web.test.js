@@ -198,6 +198,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-buggy-passenger-price',
     'pricing-delivery-bands-fields',
     'pricing-delivery-bands',
+    'pricing-delivery-above-max',
     'pricing-versions-body',
     'pricing-create-draft-button',
     'pricing-editor-status',
@@ -245,6 +246,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /delivery_bands/);
   assert.match(app, /pricing-commission-percent/);
   assert.match(app, /pricing-delivery-bands/);
+  assert.match(app, /pricing-delivery-above-max/);
   assert.match(app, /pricing-zone-policies-body/);
   assert.match(app, /pricing-external-localities-body/);
   assert.match(
