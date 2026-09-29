@@ -61,6 +61,10 @@ export interface RideRepository {
   create(ride: RideRecord): Promise<RideRecord>;
   findById(id: string): Promise<RideRecord | null>;
   findActiveByDriverId(driverId: string): Promise<RideRecord | null>;
+  listNoDriverFoundBefore(
+    before: string,
+    limit: number,
+  ): Promise<RideRecord[]>;
   listAdminActive(limit: number): Promise<RideRecord[]>;
   listAdminRecentByPassengerId(
     passengerId: string,
