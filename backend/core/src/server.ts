@@ -1820,6 +1820,22 @@ const server = createServer(async (request, response) => {
               }),
             };
           });
+        } else {
+          const localityId = placesLocalityId(query);
+          responsePlaces = safePlaces.map((place) => ({
+            ...place,
+            approvedExternalId: localityId,
+            approvedPricingZoneId: 'external' as const,
+            approvedPricingLocalityId: localityId,
+            placeProof: issuePlaceProof({
+              localityId,
+              placeId: place.id,
+              latitude: place.latitude,
+              longitude: place.longitude,
+              secret: placeProofSecret,
+              ttlSeconds: placeProofTtlSeconds,
+            }),
+          }));
         }
 
         json(response, 200, {
@@ -2348,6 +2364,9 @@ const server = createServer(async (request, response) => {
           address: value.address,
           latitude: value.latitude,
           longitude: value.longitude,
+          providerPlaceId: value.providerPlaceId,
+          approvedPricingZoneId: value.approvedPricingZoneId,
+          approvedPricingLocalityId: value.approvedPricingLocalityId,
         }),
       );
       return;
