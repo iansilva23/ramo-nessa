@@ -4,6 +4,7 @@ import test from 'node:test';
 import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { cancelDriverRide } from '../src/drivers/driver-ride-service.js';
+import { InMemoryRideMatchingRepository } from '../src/matching/in-memory-ride-matching-repository.js';
 import {
   createWalletTopup,
   passengerWalletBalanceCents,
@@ -11,8 +12,12 @@ import {
 } from '../src/payments/wallet-services.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { automaticallyRefundRide } from '../src/rides/automatic-ride-refund-service.js';
+import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { confirmRidePayment } from '../src/rides/confirm-payment.js';
-import { cancelPassengerRideAfterNoDriver } from '../src/rides/passenger-ride-recovery-service.js';
+import {
+  cancelPassengerRideAfterNoDriver,
+  retryPassengerRideSearch,
+} from '../src/rides/passenger-ride-recovery-service.js';
 import { expireNoDriverDecisions } from '../src/rides/no-driver-decision-timeout-service.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import { transitionRide } from '../src/rides/ride-state.js';
@@ -81,6 +86,89 @@ async function setupWalletPaidRide(id: string) {
   });
   return { rides, finance, paid, payment: payment.payment };
 }
+
+test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode reofertar o mesmo motorista em nova rodada', async () => {
+  const ctx = await setupWalletPaidRide(
+    '44444444-4444-4444-8444-444444444444',
+  );
+  const driverId = 'driver-retry-same-round';
+  const drivers = new InMemoryDriverSupplyRepository();
+  await drivers.upsert({
+    driverId,
+    vehicleId: 'vehicle-retry-same-round',
+    categories: ['car'],
+    fourByFour: false,
+    seatCapacity: 4,
+    online: true,
+    busy: false,
+    latitude: -2.821,
+    longitude: -40.414,
+    locationUpdatedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  const matching = new InMemoryRideMatchingRepository(
+    ctx.rides,
+    drivers,
+  );
+
+  const firstDispatch = await dispatchRideAfterPayment({
+    ride: ctx.paid,
+    rides: ctx.rides,
+    drivers,
+    matching,
+    finance: ctx.finance,
+    now,
+  });
+  assert.equal(firstDispatch.kind, 'OFFER_CREATED');
+  if (firstDispatch.kind !== 'OFFER_CREATED') {
+    throw new Error('A primeira rodada deveria criar uma oferta.');
+  }
+
+  await matching.rejectOffer({
+    offerId: firstDispatch.offer.id,
+    driverId,
+    rejectedAt: new Date(now.getTime() + 1000).toISOString(),
+  });
+  const noDriver = await matching.markNoDriverFound({
+    rideId: ctx.paid.id,
+    at: new Date(now.getTime() + 2000).toISOString(),
+  });
+  assert.equal(noDriver.state, 'NO_DRIVER_FOUND');
+
+  const balanceBeforeRetry = await passengerWalletBalanceCents(
+    ctx.finance,
+    noDriver.passengerId,
+  );
+  assert.equal(balanceBeforeRetry, 3000);
+
+  const retried = await retryPassengerRideSearch({
+    rides: ctx.rides,
+    drivers,
+    matching,
+    finance: ctx.finance,
+    passengerId: noDriver.passengerId,
+    rideId: noDriver.id,
+    now: new Date(now.getTime() + 3000),
+  });
+
+  assert.equal(retried.dispatchStatus, 'SEARCHING_DRIVER');
+  assert.equal(retried.ride.state, 'SEARCHING_DRIVER');
+  assert.equal(retried.offer?.driverId, driverId);
+
+  const offers = await matching.listOffersForRide(noDriver.id);
+  assert.equal(offers.length, 2);
+  assert.deepEqual(
+    offers.map((offer) => offer.driverId),
+    [driverId, driverId],
+  );
+  assert.equal(
+    await passengerWalletBalanceCents(
+      ctx.finance,
+      noDriver.passengerId,
+    ),
+    balanceBeforeRetry,
+  );
+});
 
 test('passageiro cancela após NO_DRIVER_FOUND e recebe carteira integralmente', async () => {
   const ctx = await setupWalletPaidRide(
