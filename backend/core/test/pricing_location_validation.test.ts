@@ -72,6 +72,38 @@ test('localityId incompatível com a tabela da zona é rejeitado', () => {
 });
 
 
+test('prova local assinada permite localidade específica fora do raio genérico', () => {
+  assert.throws(
+    () =>
+      assertPricingLocationMatchesPoint({
+        ref: { zoneId: 'prea', localityId: 'aranau' },
+        point: { latitude: -3.05, longitude: -40.10 },
+        field: 'destination',
+      }),
+    PricingLocationMismatchError,
+  );
+
+  assert.doesNotThrow(() =>
+    assertPricingLocationMatchesPoint({
+      ref: { zoneId: 'prea', localityId: 'aranau' },
+      point: { latitude: -3.05, longitude: -40.10 },
+      field: 'destination',
+      localityProofVerified: true,
+    }),
+  );
+
+  assert.throws(
+    () =>
+      assertPricingLocationMatchesPoint({
+        ref: { zoneId: 'jijoca', localityId: 'aranau' },
+        point: { latitude: -3.05, longitude: -40.10 },
+        field: 'destination',
+        localityProofVerified: true,
+      }),
+    PricingLocationMismatchError,
+  );
+});
+
 test('validação de GPS usa localidades e zonas do catálogo vigente', () => {
   const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
   catalog.localities.prea['novo-ponto'] = {};
