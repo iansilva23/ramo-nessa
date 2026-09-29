@@ -24,6 +24,7 @@ export async function dispatchRideAfterPayment(input: {
   paymentPolicySettings?: PaymentPolicySettingsRepository;
   operationalSettings?: OperationalSettingsRepository;
   canOfferDriver?: (driverId: string) => Promise<boolean>;
+  allowPreviouslyAttemptedDrivers?: boolean;
 }): Promise<PostPaymentDispatchResult> {
   if (
     input.ride.pickupLatitude == null ||
@@ -52,5 +53,11 @@ export async function dispatchRideAfterPayment(input: {
     ...(input.canOfferDriver != null
       ? { canOfferDriver: input.canOfferDriver }
       : {}),
+    ...(input.allowPreviouslyAttemptedDrivers == null
+      ? {}
+      : {
+          allowPreviouslyAttemptedDrivers:
+            input.allowPreviouslyAttemptedDrivers,
+        }),
   });
 }
