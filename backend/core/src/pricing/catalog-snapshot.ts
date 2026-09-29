@@ -4,6 +4,7 @@ import {
   FIXED_ROUTES,
   FREE_PICKUP_KM,
   FUEL_PRICE_CENTS_PER_LITER,
+  JERI_DELIVERY_ABOVE_MAX_CENTS,
   JIJOCA_LOCALITIES,
   MOTO_REFERENCE_KM_PER_LITER,
   PREA_COMFORT_SURCHARGE_CENTS,
@@ -61,6 +62,7 @@ export interface PricingCatalogSnapshot {
       maxKm: number;
       amountCents: number;
     }>;
+    deliveryAboveMaxCents: number;
   };
   localities: {
     prea: Record<string, LocalityPricing>;
@@ -96,7 +98,8 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
     },
     car: {
       enabled: true,
-      requiresFourByFourOnJeriBoundary: false,
+      // A tarifa de Carro Preá ↔ Jeri só pode casar com veículo 4x4 aprovado.
+      requiresFourByFourOnJeriBoundary: true,
     },
     comfort_black: {
       enabled: true,
@@ -154,10 +157,11 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
     },
     deliveryBands: [
       { maxKm: 0.7, amountCents: 500 },
-      { maxKm: 1.2, amountCents: 700 },
-      { maxKm: 1.6, amountCents: 800 },
-      { maxKm: 2.0, amountCents: 1000 },
+      { maxKm: 1.2, amountCents: 500 },
+      { maxKm: 1.6, amountCents: 500 },
+      { maxKm: 2.0, amountCents: 500 },
     ],
+    deliveryAboveMaxCents: JERI_DELIVERY_ABOVE_MAX_CENTS,
   },
   localities: {
     prea: structuredClone(PREA_LOCALITIES),
@@ -178,6 +182,12 @@ export function normalizePricingCatalogSnapshot(
 
   return {
     ...structuredClone(value),
+    jeri: {
+      ...structuredClone(value.jeri),
+      deliveryAboveMaxCents:
+        value.jeri?.deliveryAboveMaxCents ??
+        STATIC_PRICING_CATALOG_V1.jeri.deliveryAboveMaxCents,
+    },
     periodPolicy:
       value.periodPolicy == null
         ? { nightStartHour: 22, dayStartHour: 6 }
