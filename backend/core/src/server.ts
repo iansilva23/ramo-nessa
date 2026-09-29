@@ -1006,22 +1006,35 @@ async function runNoDriverDecisionSweep(): Promise<void> {
 
   noDriverDecisionSweepRunning = true;
   try {
+    const onFailure = (failure: {
+      rideId: string;
+      passengerId: string;
+      error: unknown;
+    }) => {
+      logWarn('ride.refund.sweep_item_failed', {
+        rideId: failure.rideId,
+        passengerId: failure.passengerId,
+        ...errorFields(failure.error),
+      });
+    };
+
     const expired = await expireNoDriverDecisions({
       rides: rideRepository,
       finance: financeRepository,
       operationalSettings: operationalSettingsRepository,
       gateway: mercadoPagoOrdersClient,
       limit: 100,
+      onFailure,
     });
     const reconciled = await reconcilePendingRideRefunds({
       rides: rideRepository,
       finance: financeRepository,
       gateway: mercadoPagoOrdersClient,
       limit: 100,
+      onFailure,
     });
-    const results = [...expired, ...reconciled];
 
-    for (const result of results) {
+    for (const result of expired) {
       const tracking = await passengerRideTracking({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -1052,9 +1065,38 @@ async function runNoDriverDecisionSweep(): Promise<void> {
       });
     }
 
-    if (results.length > 0) {
-      logInfo('ride.no_driver_decision.expired', {
-        processed: results.length,
+    for (const result of reconciled) {
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rideId: result.rideId,
+        passengerId: result.passengerId,
+      });
+      if (tracking != null) {
+        realtimeHub.publishPassengerRide(result.rideId, {
+          type: 'passenger.ride.tracking',
+          tracking,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      if (result.refundStatus === 'refunded') {
+        sendPushBestEffort({
+          subjectType: 'passenger',
+          subjectId: result.passengerId,
+          type: 'passenger.payment.refunded',
+          title: 'Reembolso concluído',
+          body: 'A devolução do pagamento da sua corrida foi confirmada.',
+          data: { rideId: result.rideId },
+        });
+      }
+    }
+
+    if (expired.length > 0 || reconciled.length > 0) {
+      logInfo('ride.refund.sweep_completed', {
+        expiredNoDriver: expired.length,
+        reconciledRefunds: reconciled.length,
       });
     }
   } catch (error) {
