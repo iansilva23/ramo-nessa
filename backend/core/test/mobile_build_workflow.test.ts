@@ -78,6 +78,33 @@ test('audit final mobile exige Firebase e chaves Maps dedicadas', async () => {
     (yaml.match(/tooling\/validate-google-maps-key\.mjs/g) ?? []).length,
     4,
   );
+
+  for (const secretName of [
+    'RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID',
+    'RAMO_FIREBASE_ANDROID_DRIVER_APP_ID',
+    'RAMO_FIREBASE_IOS_PASSENGER_APP_ID',
+    'RAMO_FIREBASE_IOS_DRIVER_APP_ID',
+  ]) {
+    assert.equal(yaml.includes('secrets.' + secretName), true);
+  }
+
+  assert.equal(
+    yaml.includes('secrets.RAMO_FIREBASE_PASSENGER_APP_ID ||'),
+    false,
+  );
+  assert.equal(
+    yaml.includes('secrets.RAMO_FIREBASE_DRIVER_APP_ID ||'),
+    false,
+  );
+  assert.equal(
+    yaml.includes('secrets.RAMO_FIREBASE_APP_ID }}'),
+    false,
+  );
+  assert.equal(
+    (yaml.match(/tooling\/validate-firebase-mobile-config\.mjs/g) ?? [])
+      .length,
+    4,
+  );
 });
 
 test('previews e audit iOS injetam Firebase quando disponível', async () => {
