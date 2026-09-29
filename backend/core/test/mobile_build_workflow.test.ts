@@ -9,6 +9,13 @@ async function workflow(name: string): Promise<string> {
   );
 }
 
+async function repoFile(path: string): Promise<string> {
+  return readFile(
+    new URL(`../../../${path}`, import.meta.url),
+    'utf8',
+  );
+}
+
 test('audit final mobile exige Firebase e chaves Maps dedicadas', async () => {
   const yaml = await workflow('mobile-build-audit.yml');
 
@@ -105,6 +112,53 @@ test('audit final mobile exige Firebase e chaves Maps dedicadas', async () => {
       .length,
     4,
   );
+});
+
+test('audit final Android exige assinatura de produção e verifica APK', async () => {
+  const yaml = await workflow('mobile-build-audit.yml');
+
+  assert.match(yaml, /Prepare Passenger Android production signing/);
+  assert.match(yaml, /Prepare Driver Android production signing/);
+  assert.match(yaml, /Verify Passenger production APK signature/);
+  assert.match(yaml, /Verify Driver production APK signature/);
+
+  assert.equal(
+    (yaml.match(/RAMO_PRODUCTION_SIGNING: "true"/g) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (yaml.match(/"\$APKSIGNER" verify --verbose --print-certs/g) ?? []).length,
+    2,
+  );
+
+  for (const secretName of [
+    'RAMO_ANDROID_KEYSTORE_BASE64',
+    'RAMO_ANDROID_KEYSTORE_PASSWORD',
+    'RAMO_ANDROID_KEY_ALIAS',
+    'RAMO_ANDROID_KEY_PASSWORD',
+  ]) {
+    assert.equal(yaml.includes('secrets.' + secretName), true);
+  }
+
+  const [passengerGradle, driverGradle] = await Promise.all([
+    repoFile('apps/passenger/android/app/build.gradle.kts'),
+    repoFile('apps/driver/android/app/build.gradle.kts'),
+  ]);
+
+  for (const gradle of [passengerGradle, driverGradle]) {
+    assert.match(gradle, /RAMO_PRODUCTION_SIGNING/);
+    assert.match(gradle, /RAMO_ANDROID_KEYSTORE_PATH/);
+    assert.match(gradle, /create\("production"\)/);
+    assert.match(
+      gradle,
+      /signingConfig = signingConfigs\.getByName\("production"\)/,
+    );
+    assert.equal(
+      gradle.includes('signingConfig = signingConfigs.getByName("debug")'),
+      false,
+    );
+    assert.match(gradle, /applicationIdSuffix = "\.preview"/);
+  }
 });
 
 test('previews e audit iOS injetam Firebase quando disponível', async () => {
