@@ -16,6 +16,7 @@ export interface GooglePlacePrediction {
 
 export interface GooglePlaceDetailsResult {
   id: string;
+  name: string;
   address: string;
   latitude: number;
   longitude: number;
@@ -68,6 +69,10 @@ interface GoogleAutocompletePayload {
 
 interface GooglePlaceDetailsPayload {
   id?: string;
+  displayName?: {
+    text?: string;
+    languageCode?: string;
+  };
   formattedAddress?: string;
   location?: {
     latitude?: number;
@@ -331,7 +336,7 @@ export class GooglePlacesService {
           accept: 'application/json',
           'x-goog-api-key': this.apiKey,
           'x-goog-fieldmask':
-            'id,formattedAddress,location,addressComponents',
+            'id,displayName,formattedAddress,location,addressComponents',
         },
       });
     } catch {
@@ -368,11 +373,13 @@ export class GooglePlacesService {
     }
 
     const id = payload.id?.trim() ?? placeId;
+    const name = payload.displayName?.text?.trim() ?? '';
     const address = payload.formattedAddress?.trim() ?? '';
     const latitude = payload.location?.latitude;
     const longitude = payload.location?.longitude;
     if (
       !id ||
+      !name ||
       !address ||
       typeof latitude !== 'number' ||
       !Number.isFinite(latitude) ||
@@ -401,6 +408,7 @@ export class GooglePlacesService {
 
     return {
       id,
+      name,
       address,
       latitude,
       longitude,
