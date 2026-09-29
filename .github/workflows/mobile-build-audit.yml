@@ -67,10 +67,32 @@ jobs:
           --platform=android
           --surface="Passenger Android"
 
+      - name: Prepare Passenger Android production signing
+        env:
+          RAMO_ANDROID_KEYSTORE_BASE64: ${{ secrets.RAMO_ANDROID_KEYSTORE_BASE64 }}
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+        run: |
+          for variable in RAMO_ANDROID_KEYSTORE_BASE64 RAMO_ANDROID_KEYSTORE_PASSWORD RAMO_ANDROID_KEY_ALIAS RAMO_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Configure o Secret $variable antes do build Android de produção."
+              exit 1
+            fi
+          done
+          printf '%s' "$RAMO_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ramo-android-release.jks"
+          chmod 600 "$RUNNER_TEMP/ramo-android-release.jks"
+          keytool -list             -keystore "$RUNNER_TEMP/ramo-android-release.jks"             -storepass "$RAMO_ANDROID_KEYSTORE_PASSWORD"             -alias "$RAMO_ANDROID_KEY_ALIAS" > /dev/null
+
       - name: Build Passenger Android release
         working-directory: apps/passenger
         env:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_PRODUCTION_SIGNING: "true"
+          RAMO_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ramo-android-release.jks
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
@@ -87,6 +109,17 @@ jobs:
           --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
           --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
           --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
+
+      - name: Verify Passenger production APK signature
+        run: |
+          APK="apps/passenger/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$APKSIGNER" ]]; then
+            echo "::error::apksigner não foi encontrado no Android SDK."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - name: Upload Passenger APK
         uses: actions/upload-artifact@v7.0.1
@@ -148,10 +181,32 @@ jobs:
           --platform=android
           --surface="Driver Android"
 
+      - name: Prepare Driver Android production signing
+        env:
+          RAMO_ANDROID_KEYSTORE_BASE64: ${{ secrets.RAMO_ANDROID_KEYSTORE_BASE64 }}
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+        run: |
+          for variable in RAMO_ANDROID_KEYSTORE_BASE64 RAMO_ANDROID_KEYSTORE_PASSWORD RAMO_ANDROID_KEY_ALIAS RAMO_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Configure o Secret $variable antes do build Android de produção."
+              exit 1
+            fi
+          done
+          printf '%s' "$RAMO_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ramo-android-release.jks"
+          chmod 600 "$RUNNER_TEMP/ramo-android-release.jks"
+          keytool -list             -keystore "$RUNNER_TEMP/ramo-android-release.jks"             -storepass "$RAMO_ANDROID_KEYSTORE_PASSWORD"             -alias "$RAMO_ANDROID_KEY_ALIAS" > /dev/null
+
       - name: Build Driver Android release
         working-directory: apps/driver
         env:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_PRODUCTION_SIGNING: "true"
+          RAMO_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ramo-android-release.jks
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
           RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
@@ -166,6 +221,17 @@ jobs:
           --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
           --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
           --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
+
+      - name: Verify Driver production APK signature
+        run: |
+          APK="apps/driver/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$APKSIGNER" ]]; then
+            echo "::error::apksigner não foi encontrado no Android SDK."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - name: Upload Driver APK
         uses: actions/upload-artifact@v7.0.1
