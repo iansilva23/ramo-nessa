@@ -47,7 +47,7 @@ function optionalProviderPlaceId(value: unknown): string | undefined {
 }
 
 function optionalPricingIdentity(input: {
-  providerPlaceId?: string;
+  providerPlaceId: string | undefined;
   zoneId: unknown;
   localityId: unknown;
 }): {
