@@ -331,6 +331,7 @@ import {
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import { automaticallyRefundRide } from './rides/automatic-ride-refund-service.js';
 import {
   cancelPassengerRideAfterNoDriver,
   PassengerRideRecoveryError,
