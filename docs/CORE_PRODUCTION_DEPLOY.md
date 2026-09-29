@@ -2,6 +2,11 @@
 
 Este documento descreve o contrato mínimo de execução do Core em produção.
 
+O stack inicial de VPS está preparado em `deploy/prod/`: PostgreSQL privado,
+migrations separadas, Core sem porta pública, Admin/API same-origin atrás de
+Caddy com TLS automático e volumes persistentes. A existência desses arquivos
+não significa que o deploy real já foi executado.
+
 ## Imagem
 
 O `Dockerfile` usa Node.js 22, compila TypeScript para `dist/` e executa o
