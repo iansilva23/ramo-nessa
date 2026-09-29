@@ -25,7 +25,7 @@ A regra comercial v1 já foi consolidada no Core:
 - Moto, Entrega, Carro, Comfort/Black e Buggy;
 - tabelas de Jeri, Jijoca e Preá;
 - corredores 4x4 e Aeroporto JJD;
-- regras noturnas aprovadas;
+- regras noturnas revisadas, com Entrega sem adicional após 22h;
 - compensação de combustível por coleta distante;
 - comissão Ramo Nessa de 10%;
 - política de lançamento 100% digital.
