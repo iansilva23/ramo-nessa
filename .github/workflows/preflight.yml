@@ -15,6 +15,7 @@ on:
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - "tooling/validate-google-maps-key.mjs"
+      - "tooling/validate-firebase-mobile-config.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
   push:
@@ -29,6 +30,7 @@ on:
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - "tooling/validate-google-maps-key.mjs"
+      - "tooling/validate-firebase-mobile-config.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
 
@@ -122,6 +124,26 @@ jobs:
           node --check deploy/prod/verify-backup.mjs
           node --check deploy/prod/health-check.mjs
           node --check tooling/validate-google-maps-key.mjs
+          node --check tooling/validate-firebase-mobile-config.mjs
+
+          RAMO_FIREBASE_API_KEY=AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+          RAMO_FIREBASE_APP_ID=1:123456789012:android:abc123def456 \
+          RAMO_FIREBASE_MESSAGING_SENDER_ID=123456789012 \
+          RAMO_FIREBASE_PROJECT_ID=ramo-nessa-ci \
+            node tooling/validate-firebase-mobile-config.mjs \
+            --platform=android \
+            --surface="CI Firebase"
+
+          if RAMO_FIREBASE_API_KEY=AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
+            RAMO_FIREBASE_APP_ID=1:999999999999:android:abc123def456 \
+            RAMO_FIREBASE_MESSAGING_SENDER_ID=123456789012 \
+            RAMO_FIREBASE_PROJECT_ID=ramo-nessa-ci \
+            node tooling/validate-firebase-mobile-config.mjs \
+            --platform=android \
+            --surface="CI Firebase mismatch"; then
+            echo "::error::O validador Firebase aceitou App ID de outro Sender ID."
+            exit 1
+          fi
 
           RAMO_MAPS_TEST_KEY=55555555555555555555555555555555 \
             node tooling/validate-google-maps-key.mjs \
