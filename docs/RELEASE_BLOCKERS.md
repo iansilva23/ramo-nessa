@@ -25,7 +25,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - Pix/cartão para corridas e recarga de carteira já possuem integração estrutural com o gateway; ainda faltam homologação externa da confirmação de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
    - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
    - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
-   - ainda faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy de produção.
+   - o repositório já possui `deploy/prod` com PostgreSQL privado, migrations separadas, Core privado, volume persistente de documentos, gateway Caddy/TLS, gerador de segredos e validação de ambiente; o stack ainda não foi implantado em VPS;
+   - ainda faltam coleta/alertas/APM, backup/restore, hardening do host e a operação do deploy real.
 
 2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
    - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;
@@ -47,7 +48,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Admin mantém ledger e pagamentos históricos somente leitura; políticas financeiras e o fluxo legítimo de conclusão/cancelamento de saques são administráveis, sem edição arbitrária do ledger;
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
    - ainda faltam configurar credenciais reais, webhook no domínio público e validar no sandbox externo a confirmação de recarga da carteira já implementada no Core;
-   - por segurança, o Passageiro consulta e usa o saldo existente, mas o app não oferece botão de recarga enquanto a intenção criada pelo Core continuar `simulated: true` e `actionable: false`; a interface de recarga só deve ser liberada junto da confirmação real do gateway;
+   - o Passenger já oferece recarga Pix da Carteira, mostra QR/copia-e-cola e acompanha o status; o Core já cria a Order real e credita apenas após confirmação do processador. O que ainda falta é homologar esse fluxo no sandbox/domínio público com credenciais reais antes de produção;
    - cancelamento e reembolso já possuem fluxo autoritativo no Core: Passageiro pode cancelar após uma rodada sem motorista; Motorista pode cancelar corrida atribuída inclusive em andamento; Admin mantém cancelamento protegido; carteira é estornada internamente e Pix/cartão usam `REFUND_PENDING` até confirmação;
    - quando nenhuma oferta é aceita, o Passageiro pode tentar uma nova rodada sem nova cobrança ou cancelar e receber reembolso integral; se não decidir, o Core encerra automaticamente após o prazo operacional configurável (padrão 15 minutos) e inicia o reembolso;
    - cancelamento do Motorista durante `IN_PROGRESS` não liquida a corrida para o Motorista: o Passageiro recebe reembolso integral e a eventual compensação do Motorista fica separada para revisão administrativa;
