@@ -99,7 +99,7 @@ As fundações citadas acima já existem e são cobertas pelos gates de CI. O qu
 - infraestrutura hospedada do Core/Admin, domínio, HTTPS e operação de deploy;
 - backup automatizado, restore testado, coleta centralizada de logs, monitoramento e alertas/APM;
 - chaves comerciais/restrições/billing/quotas do Google Maps;
-- provider OTP/SMS real e segredos de produção;
+- provider OTP/SMS real e segredos de produção; o adapter webhook HTTPS, retry idempotente e contrato de integração já estão implementados;
 - Firebase/FCM/APNs com credenciais finais;
 - storage privado persistente para documentos;
 - homologação externa de Mercado Pago para Pix/cartão, webhook, estornos e reconciliação;
