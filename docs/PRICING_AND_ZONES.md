@@ -1,13 +1,13 @@
 # Zonas e preço — Passageiro + Core
 
-## Base comercial em revisão
+## Fonte comercial vigente na branch
 
-A implementação atual está documentada em:
+A base revisada aplicada em 29/09/2026 está documentada em:
 
 - `docs/COMMERCIAL_RULES_V1.md`
 - `docs/PAYMENTS_AND_COMMISSION_V1.md`
 
-Esses documentos descrevem a base técnica vigente no Core, mas valores e regras sujeitos à revisão comercial não devem ser tratados como tabela oficial até aprovação explícita.
+Esses documentos são a referência comercial da v1 implementada no Core. Entradas que ainda aparecem como faixa sem valor único permanecem não despacháveis até definição específica.
 
 ## Estado implementado
 
@@ -30,7 +30,7 @@ O Core já implementa:
 
 - catálogo comercial v1;
 - preços fixos por localidade/corredor;
-- regras após 22h presentes na base comercial em revisão;
+- regras após 22h da base comercial revisada, incluindo Entrega sem adicional noturno;
 - Comfort/Black quando permitido;
 - compensação de coleta distante;
 - comissão de 10%;
@@ -98,6 +98,6 @@ Ainda dependem de fechamento operacional ou infraestrutura externa:
 - chaves/restrições/billing de produção do Google Maps;
 - testes físicos, piloto controlado e preparação das lojas.
 
-Os valores e regras comerciais que ainda aguardam decisão oficial não devem ser tratados como confirmados apenas porque existe infraestrutura de edição no ADM.
+Faixas sem valor único e qualquer nova alteração comercial futura não devem ser tratadas como tarifa exata apenas porque existe infraestrutura de edição no ADM.
 
 O preço, a comissão e a elegibilidade final continuam sob autoridade do Core.
