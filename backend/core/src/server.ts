@@ -760,8 +760,8 @@ async function processConfirmedMercadoPagoRide(
     ride.state === 'REFUND_PENDING' ||
     ride.state === 'NO_DRIVER_FOUND'
   ) {
-    if (ride.state !== 'REFUNDED') {
-      await refundMercadoPagoRideAfterNoDriver({
+    if (ride.state === 'REFUND_PENDING') {
+      await refundMercadoPagoRide({
         rides: rideRepository,
         finance: financeRepository,
         gateway: mercadoPagoOrdersClient!,
@@ -824,11 +824,8 @@ async function processConfirmedMercadoPagoRide(
     return;
   }
 
-  if (
-    dispatch.kind === 'NO_DRIVER_FOUND' ||
-    dispatch.kind === 'NOT_PREPARED'
-  ) {
-    await refundMercadoPagoRideAfterNoDriver({
+  if (dispatch.kind === 'NOT_PREPARED') {
+    await refundMercadoPagoRide({
       rides: rideRepository,
       finance: financeRepository,
       gateway: mercadoPagoOrdersClient!,
@@ -6479,11 +6476,10 @@ const server = createServer(async (request, response) => {
             payment: result.payment,
           });
 
-          if (
-            currentRide.state === 'NO_DRIVER_FOUND' ||
-            currentRide.state === 'REFUND_PENDING'
-          ) {
-            const refund = await refundWalletRideAfterNoDriver({
+          if (currentRide.state === 'NO_DRIVER_FOUND') {
+            dispatchStatus = 'NO_DRIVER_FOUND';
+          } else if (currentRide.state === 'REFUND_PENDING') {
+            const refund = await refundWalletRide({
               rides: rideRepository,
               finance: financeRepository,
               rideId: ride.id,
@@ -6545,11 +6541,8 @@ const server = createServer(async (request, response) => {
                     serverTime: new Date().toISOString(),
                   });
                 }
-              } else if (
-                dispatch.kind === 'NO_DRIVER_FOUND' ||
-                dispatch.kind === 'NOT_PREPARED'
-              ) {
-                const refund = await refundWalletRideAfterNoDriver({
+              } else if (dispatch.kind === 'NOT_PREPARED') {
+                const refund = await refundWalletRide({
                   rides: rideRepository,
                   finance: financeRepository,
                   rideId: ride.id,
@@ -6559,9 +6552,7 @@ const server = createServer(async (request, response) => {
                 currentRide = refund.ride;
                 responsePayment = refund.payment;
                 duplicateRefund = refund.duplicateRefund;
-                if (dispatch.kind === 'NOT_PREPARED') {
-                  dispatchStatus = 'NOT_PREPARED';
-                }
+                dispatchStatus = 'NOT_PREPARED';
               }
             }
           }
