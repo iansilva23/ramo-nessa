@@ -79,6 +79,7 @@ export function adminPricingCatalogView(
       deliveryBands: snapshot.jeri.deliveryBands.map((band) => ({
         ...band,
       })),
+      deliveryAboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     },
     localities: {
       prea: Object.entries(snapshot.localities.prea)
