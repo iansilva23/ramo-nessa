@@ -68,10 +68,10 @@ const PREA_RULES: readonly AliasRule[] = [
   ['marco', 'marco'],
   ['cruz', 'cruz'],
   ['ius', 'ius'],
-].map(([localityId, alias]) => ({
+].map((entry) => ({
   zoneId: 'prea' as const,
-  localityId,
-  aliases: [alias],
+  localityId: entry[0]!,
+  aliases: [entry[1]!],
 }));
 
 const JIJOCA_RULES: readonly AliasRule[] = [
@@ -90,10 +90,10 @@ const JIJOCA_RULES: readonly AliasRule[] = [
   ['mangue-seco', 'mangue seco'],
   ['chapadinha', 'chapadinha'],
   ['baixio', 'baixio'],
-].map(([localityId, alias]) => ({
+].map((entry) => ({
   zoneId: 'jijoca' as const,
-  localityId,
-  aliases: [alias],
+  localityId: entry[0]!,
+  aliases: [entry[1]!],
 }));
 
 const SPECIFIC_RULES = [...PREA_RULES, ...JIJOCA_RULES].sort(
