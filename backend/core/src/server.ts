@@ -333,7 +333,10 @@ import {
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { automaticallyRefundRide } from './rides/automatic-ride-refund-service.js';
-import { expireNoDriverDecisions } from './rides/no-driver-decision-timeout-service.js';
+import {
+  expireNoDriverDecisions,
+  reconcilePendingRideRefunds,
+} from './rides/no-driver-decision-timeout-service.js';
 import {
   cancelPassengerRideAfterNoDriver,
   PassengerRideRecoveryError,
@@ -1003,13 +1006,20 @@ async function runNoDriverDecisionSweep(): Promise<void> {
 
   noDriverDecisionSweepRunning = true;
   try {
-    const results = await expireNoDriverDecisions({
+    const expired = await expireNoDriverDecisions({
       rides: rideRepository,
       finance: financeRepository,
       operationalSettings: operationalSettingsRepository,
       gateway: mercadoPagoOrdersClient,
       limit: 100,
     });
+    const reconciled = await reconcilePendingRideRefunds({
+      rides: rideRepository,
+      finance: financeRepository,
+      gateway: mercadoPagoOrdersClient,
+      limit: 100,
+    });
+    const results = [...expired, ...reconciled];
 
     for (const result of results) {
       const tracking = await passengerRideTracking({
