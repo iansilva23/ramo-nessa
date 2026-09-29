@@ -1,6 +1,7 @@
 export interface OperationalSettingsRecord {
   driverOfferTtlSeconds: number;
   driverPaymentHoldSeconds: number;
+  noDriverDecisionTimeoutSeconds: number;
   driverLocationMaxAgeSeconds: number;
   nearbyDriverMaxDistanceKm: number;
   showNearbyDrivers: boolean;
@@ -14,6 +15,7 @@ export interface OperationalSettingsRepository {
   update(input: {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
+    noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
     showNearbyDrivers?: boolean;
