@@ -31,6 +31,7 @@ import '../data/http_driver_api.dart';
 import '../data/io_driver_realtime_service.dart';
 import '../domain/driver_models.dart';
 import '../domain/driver_route_info.dart';
+import 'driver_cancellation_message.dart';
 import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'widgets/driver_live_map.dart';
@@ -1097,24 +1098,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
 
-      final refundText = result.refundStatus == 'refunded'
-          ? 'O passageiro foi reembolsado.'
-          : result.refundStatus == 'not_charged'
-              ? 'Nenhum valor havia sido cobrado.'
-              : 'O reembolso do passageiro está em processamento.';
-      final reviewText = result.compensationReviewRequired
-          ? ' Sua compensação será analisada separadamente.'
-          : result.adminReviewCreated
-              ? ' A ocorrência foi enviada para análise.'
-              : '';
+      final cancellationMessage =
+          driverRideCancellationOutcomeMessage(result);
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              'Corrida cancelada. $refundText$reviewText',
-            ),
+            content: Text(cancellationMessage),
           ),
         );
 
