@@ -280,9 +280,11 @@ export async function updatePricingCatalogDraft(input: {
     snapshot.jeri.deliveryBands = patch.bands.map((band) => ({
       ...band,
     }));
+    snapshot.jeri.deliveryAboveMaxCents = patch.aboveMaxCents;
     auditMetadata = {
       kind: patch.kind,
       bands: snapshot.jeri.deliveryBands,
+      aboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     };
   } else {
     const referencedByFixedRoute = snapshot.fixedRoutes.some(
