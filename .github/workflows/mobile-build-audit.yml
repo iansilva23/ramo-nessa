@@ -59,16 +59,13 @@ jobs:
       - name: Validate Passenger Android Firebase push config
         env:
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-        run: |
-          for name in RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::${name} é obrigatório para o release Passenger Android com push real."
-              exit 1
-            fi
-          done
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=android
+          --surface="Passenger Android"
 
       - name: Build Passenger Android release
         working-directory: apps/passenger
@@ -77,7 +74,7 @@ jobs:
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
           RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
@@ -143,16 +140,13 @@ jobs:
       - name: Validate Driver Android Firebase push config
         env:
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-        run: |
-          for name in RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::${name} é obrigatório para o release Driver Android com push real."
-              exit 1
-            fi
-          done
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=android
+          --surface="Driver Android"
 
       - name: Build Driver Android release
         working-directory: apps/driver
@@ -160,7 +154,7 @@ jobs:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
           RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
           RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
@@ -226,16 +220,13 @@ jobs:
       - name: Validate Passenger iOS Firebase push config
         env:
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-        run: |
-          for name in RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::${name} é obrigatório para o release Passenger iOS com push real."
-              exit 1
-            fi
-          done
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=ios
+          --surface="Passenger iOS"
 
       - name: Build Passenger iOS simulator
         working-directory: apps/passenger
@@ -243,7 +234,7 @@ jobs:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
           RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_PASSENGER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
           RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
@@ -305,23 +296,20 @@ jobs:
       - name: Validate Driver iOS Firebase push config
         env:
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
-        run: |
-          for name in RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::${name} é obrigatório para o release Driver iOS com push real."
-              exit 1
-            fi
-          done
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=ios
+          --surface="Driver iOS"
 
       - name: Build Driver iOS simulator
         working-directory: apps/driver
         env:
           RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
           RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
-          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID || secrets.RAMO_FIREBASE_DRIVER_APP_ID || secrets.RAMO_FIREBASE_APP_ID }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
           RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
           RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
           RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
