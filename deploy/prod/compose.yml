@@ -38,9 +38,8 @@ x-core-environment: &core-environment
   GOOGLE_PLACES_BASE_URL: https://places.googleapis.com/v1/
   PLACE_PROOF_SECRET: ${PLACE_PROOF_SECRET:?PLACE_PROOF_SECRET is required}
   PLACE_PROOF_TTL_SECONDS: ${PLACE_PROOF_TTL_SECONDS:-1800}
-  PUSH_PROVIDER: ${PUSH_PROVIDER:-disabled}
-  PUSH_WEBHOOK_URL: ${PUSH_WEBHOOK_URL:-}
-  PUSH_WEBHOOK_SECRET: ${PUSH_WEBHOOK_SECRET:-}
+  PUSH_PROVIDER: ${PUSH_PROVIDER:?PUSH_PROVIDER is required}
+  FIREBASE_SERVICE_ACCOUNT_FILE: /run/secrets/ramo-nessa-firebase.json
   DOCUMENT_STORAGE_LOCAL_DIR: /var/lib/ramo-nessa/documents
   DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY:?DOCUMENT_INSPECTION_ENCRYPTION_KEY is required}
   DOCUMENT_INSPECTION_TTL_SECONDS: ${DOCUMENT_INSPECTION_TTL_SECONDS:-60}
@@ -106,6 +105,7 @@ services:
       ]
     volumes:
       - driver_documents:/var/lib/ramo-nessa
+      - ${FIREBASE_SERVICE_ACCOUNT_HOST_FILE:?FIREBASE_SERVICE_ACCOUNT_HOST_FILE is required}:/run/secrets/ramo-nessa-firebase.json:ro
     logging: *default-logging
     restart: "no"
 
