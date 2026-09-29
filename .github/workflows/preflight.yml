@@ -123,6 +123,19 @@ jobs:
           node --check deploy/prod/health-check.mjs
           node --check tooling/validate-google-maps-key.mjs
 
+          RAMO_MAPS_TEST_KEY=55555555555555555555555555555555 \
+            node tooling/validate-google-maps-key.mjs \
+            --env=RAMO_MAPS_TEST_KEY \
+            --surface="CI Google Maps"
+
+          if RAMO_MAPS_TEST_KEY=CHANGE_ME \
+            node tooling/validate-google-maps-key.mjs \
+            --env=RAMO_MAPS_TEST_KEY \
+            --surface="CI placeholder"; then
+            echo "::error::O validador Google Maps aceitou um placeholder."
+            exit 1
+          fi
+
       - name: Validate test-stack Compose
         env:
           POSTGRES_PASSWORD: ci-compose-only
