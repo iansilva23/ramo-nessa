@@ -5932,6 +5932,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ride: driverRideView(refund.ride),
         refundStatus: refund.refundStatus,
+        adminReviewRequired: cancelled.requiresAdminReview,
         adminReviewCreated,
         compensationReviewRequired:
           cancelled.compensationReviewRequired,
