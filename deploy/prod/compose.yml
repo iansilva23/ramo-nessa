@@ -108,6 +108,27 @@ services:
     logging: *default-logging
     restart: "no"
 
+  document-storage-check:
+    <<: *core-image
+    command: ["node", "/ops/check-document-storage.mjs"]
+    environment:
+      DOCUMENT_STORAGE_LOCAL_DIR: /var/lib/ramo-nessa/documents
+    depends_on:
+      document-storage-init:
+        condition: service_completed_successfully
+      document-storage-check:
+        condition: service_completed_successfully
+    volumes:
+      - driver_documents:/var/lib/ramo-nessa
+      - ./check-document-storage.mjs:/ops/check-document-storage.mjs:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+    restart: "no"
+
   core:
     <<: *core-image
     environment: *core-environment
