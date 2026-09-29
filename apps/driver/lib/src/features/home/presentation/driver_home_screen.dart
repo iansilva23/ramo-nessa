@@ -959,6 +959,185 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  Future<void> _cancelRide() async {
+    final api = _api;
+    final ride = _activeRide;
+    if (
+      api == null ||
+      ride == null ||
+      _rideAction ||
+      api is! DriverRideCancellationApi
+    ) {
+      if (api != null && api is! DriverRideCancellationApi && mounted) {
+        setState(() {
+          _message = 'O cancelamento da corrida ainda não está disponível.';
+        });
+      }
+      return;
+    }
+
+    final noteController = TextEditingController();
+    String reason = 'passenger_no_show';
+    const labels = <String, String>{
+      'passenger_no_show': 'Passageiro não apareceu',
+      'passenger_requested': 'Passageiro pediu o cancelamento',
+      'inappropriate_behavior': 'Comportamento inadequado ou ofensivo',
+      'threat_aggression': 'Ameaça ou agressão',
+      'harassment': 'Assédio',
+      'unsafe_or_inaccessible_location': 'Local inseguro ou inacessível',
+      'vehicle_problem': 'Problema com o veículo',
+      'personal_emergency': 'Emergência pessoal',
+      'other': 'Outro motivo',
+    };
+
+    final choice = await showDialog<({String reason, String? note})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final started = ride.state == 'IN_PROGRESS';
+          return AlertDialog(
+            title: const Text('Cancelar corrida?'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    started
+                        ? 'O passageiro receberá reembolso integral. Como a corrida já começou, o caso também irá para análise de possível compensação a você.'
+                        : 'O passageiro receberá reembolso integral automaticamente.',
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: reason,
+                    decoration: const InputDecoration(
+                      labelText: 'Motivo do cancelamento',
+                    ),
+                    items: labels.entries
+                        .map(
+                          (entry) => DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => reason = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    maxLength: 1000,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: reason == 'other'
+                          ? 'Explique o motivo *'
+                          : 'Observação (opcional)',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Voltar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final note = noteController.text.trim();
+                  if (reason == 'other' && note.length < 5) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Explique brevemente o motivo do cancelamento.',
+                          ),
+                        ),
+                      );
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop((
+                    reason: reason,
+                    note: note.isEmpty ? null : note,
+                  ));
+                },
+                child: const Text('Confirmar cancelamento'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    noteController.dispose();
+
+    if (choice == null || !mounted) return;
+    setState(() => _rideAction = true);
+
+    try {
+      final result = await api.cancelRide(
+        rideId: ride.id,
+        reason: choice.reason,
+        note: choice.note,
+      );
+      final supply = await _api?.getSupply();
+      if (!mounted) return;
+
+      setState(() {
+        _activeRide = null;
+        _activeRoute = null;
+        _navigationMode = false;
+        if (supply != null) _supply = supply;
+        _rideAction = false;
+        _message = null;
+      });
+
+      final refundText = result.refundStatus == 'refunded'
+          ? 'O passageiro foi reembolsado.'
+          : result.refundStatus == 'not_charged'
+              ? 'Nenhum valor havia sido cobrado.'
+              : 'O reembolso do passageiro está em processamento.';
+      final reviewText = result.compensationReviewRequired
+          ? ' Sua compensação será analisada separadamente.'
+          : result.adminReviewCreated
+              ? ' A ocorrência foi enviada para análise.'
+              : '';
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Corrida cancelada. $refundText$reviewText',
+            ),
+          ),
+        );
+
+      unawaited(_refreshFinance(showError: false));
+      unawaited(_refreshActivity());
+      if (supply?.online == true && supply?.busy == false) {
+        _startPolling();
+        _startNearbyPolling();
+      }
+    } on DriverApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _rideAction = false;
+        _message = 'Não conseguimos cancelar a corrida agora.';
+      });
+    }
+  }
+
   Future<void> _refreshFinance({bool showError = true}) async {
     final api = _api;
     if (api == null || _financeLoading) return;
@@ -1737,6 +1916,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                               onArrived: _markArrived,
                               onStart: _startRide,
                               onComplete: _completeRide,
+                              onCancel: _cancelRide,
                               onChat: _openRideChat,
                               onMinimize: _navigationMode
                                   ? () => setState(
@@ -1887,6 +2067,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onArrived: _markArrived,
                 onStart: _startRide,
                 onComplete: _completeRide,
+                onCancel: _cancelRide,
                 onChat: _openRideChat,
                 route: _activeRoute,
                 currentPosition: LatLng(
@@ -4222,6 +4403,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onArrived,
     required this.onStart,
     required this.onComplete,
+    required this.onCancel,
     required this.onChat,
     required this.currentPosition,
     this.onMinimize,
@@ -4237,6 +4419,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onStart;
   final VoidCallback onComplete;
+  final VoidCallback onCancel;
   final VoidCallback onChat;
   final LatLng currentPosition;
   final VoidCallback? onMinimize;
@@ -4480,6 +4663,21 @@ class _ActiveRideCard extends StatelessWidget {
                 ),
               ),
             ],
+          ],
+          if (ride.state != 'COMPLETED') ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : onCancel,
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('Cancelar corrida'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
           ],
           if (_actionLabel != null) ...[
             const SizedBox(height: 12),
