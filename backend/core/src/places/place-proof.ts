@@ -231,3 +231,9 @@ export function verifyExternalPlaceProof(input: {
 
   return payload;
 }
+
+  
+// Alias genérico para provas de lugares aprovados pelo Core.
+// Mantemos os nomes antigos para compatibilidade com o fluxo externo existente.
+export const issuePlaceProof = issueExternalPlaceProof;
+export const verifyPlaceProof = verifyExternalPlaceProof;
