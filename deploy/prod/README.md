@@ -70,9 +70,10 @@ A ordem é protegida pelo Compose:
 
 1. PostgreSQL precisa ficar saudável;
 2. migrations precisam terminar com sucesso;
-3. o volume privado de documentos é preparado com dono correto;
-4. Core precisa ficar saudável;
-5. só então o gateway público inicia.
+3. o volume privado de documentos é preparado com dono e permissões corretos;
+4. o storage check precisa confirmar escrita/leitura como usuário não-root;
+5. Core precisa ficar saudável;
+6. só então o gateway público inicia.
 
 Nunca use docker compose down -v em produção.
 
