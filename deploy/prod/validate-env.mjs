@@ -141,15 +141,28 @@ export function validateProductionEnvironment(env) {
   requireValue(env, 'MERCADO_PAGO_WEBHOOK_SECRET', 16);
 
   const pushProvider = requireValue(env, 'PUSH_PROVIDER');
-  if (!['disabled', 'webhook', 'fcm'].includes(pushProvider)) {
-    throw new Error('PUSH_PROVIDER deve ser disabled, webhook ou fcm.');
-  }
-  if (pushProvider === 'webhook') {
-    assertHttps(
-      requireValue(env, 'PUSH_WEBHOOK_URL', 12),
-      'PUSH_WEBHOOK_URL',
+  if (pushProvider !== 'fcm') {
+    throw new Error(
+      'PUSH_PROVIDER deve ser fcm no deploy de produção.',
     );
-    requireValue(env, 'PUSH_WEBHOOK_SECRET', 20);
+  }
+
+  const firebaseServiceAccountHostFile = requireValue(
+    env,
+    'FIREBASE_SERVICE_ACCOUNT_HOST_FILE',
+    6,
+  );
+  if (
+    firebaseServiceAccountHostFile.includes('\n') ||
+    firebaseServiceAccountHostFile.includes('\r') ||
+    firebaseServiceAccountHostFile.trim() !==
+      firebaseServiceAccountHostFile ||
+    firebaseServiceAccountHostFile.startsWith('{') ||
+    !firebaseServiceAccountHostFile.toLowerCase().endsWith('.json')
+  ) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_HOST_FILE deve apontar para um arquivo JSON privado.',
+    );
   }
 
   const payoutName = env.get('DRIVER_PAYOUT_PROVIDER_NAME') ?? '';
@@ -173,6 +186,7 @@ export function validateProductionEnvironment(env) {
   return {
     domain,
     pushProvider,
+    firebaseServiceAccountHostFile,
     payoutConfigured: Boolean(payoutName),
   };
 }
