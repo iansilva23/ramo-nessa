@@ -1,9 +1,9 @@
 # Pagamentos e comissão v1 — Ramo Nessa
 
-Status: BASE IMPLEMENTADA — PARÂMETROS COMERCIAIS SUJEITOS À REVISÃO FINAL.
-Data-base técnica: 2026-09-29.
+Status: APROVADO para implementação.
+Data-base: 2026-09-29.
 
-A arquitetura de pagamentos e comissão descrita abaixo está implementada. Percentuais, ajustes e demais parâmetros comerciais que forem incluídos na revisão da tabela oficial só devem ser publicados após aprovação explícita.
+A arquitetura de pagamentos e comissão descrita abaixo está implementada. Alterações futuras de percentuais, ajustes ou políticas financeiras continuam sujeitas ao fluxo versionado/auditado do ADM e à homologação operacional dos provedores antes da produção.
 
 ## Lançamento: 100% digital
 
