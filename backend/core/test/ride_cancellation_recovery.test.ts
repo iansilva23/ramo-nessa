@@ -91,7 +91,7 @@ test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode
   const ctx = await setupWalletPaidRide(
     '44444444-4444-4444-8444-444444444444',
   );
-  const driverId = 'driver-retry-same-round';
+  const driverId = 'driver-payment-hold';
   const drivers = new InMemoryDriverSupplyRepository();
   await drivers.upsert({
     driverId,
