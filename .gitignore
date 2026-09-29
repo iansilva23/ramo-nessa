@@ -51,6 +51,7 @@ docker-data/
 postgres-data/
 redis-data/
 deploy/prod/secrets/
+deploy/prod/backups/
 
 # Generated
 *.g.dart
