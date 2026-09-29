@@ -41,8 +41,11 @@ test('corrida não nasce quando a cotação ainda é uma faixa', async () => {
       createRide(repository, {
         passengerId: 'passenger-test-2',
         quoteRequest: {
-          origin: { zoneId: 'prea', localityId: 'prea' },
-          destination: { zoneId: 'prea', localityId: 'formosa' },
+          origin: { zoneId: 'jijoca', localityId: 'jijoca' },
+          destination: {
+            zoneId: 'jijoca',
+            localityId: 'corrego-do-mourao',
+          },
           category: 'moto',
           period: 'day',
         },
