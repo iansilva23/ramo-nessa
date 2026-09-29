@@ -8,6 +8,7 @@ import type {
 interface OperationalSettingsRow {
   driver_offer_ttl_seconds: number;
   driver_payment_hold_seconds: number;
+  no_driver_decision_timeout_seconds: number;
   driver_location_max_age_seconds: number;
   nearby_driver_max_distance_km: string | number;
   show_nearby_drivers: boolean;
@@ -21,6 +22,8 @@ function mapRow(row: OperationalSettingsRow): OperationalSettingsRecord {
     driverOfferTtlSeconds: row.driver_offer_ttl_seconds,
     driverPaymentHoldSeconds:
       row.driver_payment_hold_seconds,
+    noDriverDecisionTimeoutSeconds:
+      row.no_driver_decision_timeout_seconds,
     driverLocationMaxAgeSeconds:
       row.driver_location_max_age_seconds,
     nearbyDriverMaxDistanceKm:
@@ -43,6 +46,7 @@ export class PostgresOperationalSettingsRepository
   async get(): Promise<OperationalSettingsRecord> {
     const result = await this.pool.query<OperationalSettingsRow>(
       `SELECT driver_offer_ttl_seconds, driver_payment_hold_seconds,
+              no_driver_decision_timeout_seconds,
               driver_location_max_age_seconds,
               nearby_driver_max_distance_km,
               show_nearby_drivers, driver_document_auto_enforcement,
@@ -61,6 +65,7 @@ export class PostgresOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
+    noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
     showNearbyDrivers?: boolean;
@@ -73,15 +78,17 @@ export class PostgresOperationalSettingsRepository
       `UPDATE operational_settings
        SET driver_offer_ttl_seconds = $1,
            driver_payment_hold_seconds = $2,
-           driver_location_max_age_seconds = $3,
-           nearby_driver_max_distance_km = $4,
-           show_nearby_drivers = $5,
-           driver_document_auto_enforcement = $6,
-           mercado_pago_public_key = $7,
-           updated_at = $8
+           no_driver_decision_timeout_seconds = $3,
+           driver_location_max_age_seconds = $4,
+           nearby_driver_max_distance_km = $5,
+           show_nearby_drivers = $6,
+           driver_document_auto_enforcement = $7,
+           mercado_pago_public_key = $8,
+           updated_at = $9
        WHERE id = 1
        RETURNING driver_offer_ttl_seconds,
                  driver_payment_hold_seconds,
+                 no_driver_decision_timeout_seconds,
                  driver_location_max_age_seconds,
                  nearby_driver_max_distance_km,
                  show_nearby_drivers,
@@ -91,6 +98,8 @@ export class PostgresOperationalSettingsRepository
         input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds,
         input.driverPaymentHoldSeconds ??
           current.driverPaymentHoldSeconds,
+        input.noDriverDecisionTimeoutSeconds ??
+          current.noDriverDecisionTimeoutSeconds,
         input.driverLocationMaxAgeSeconds ??
           current.driverLocationMaxAgeSeconds,
         input.nearbyDriverMaxDistanceKm ??
