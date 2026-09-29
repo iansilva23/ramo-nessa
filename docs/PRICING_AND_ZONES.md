@@ -75,17 +75,29 @@ Preço não equivale a autorização operacional.
 
 O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou ainda validação entre zona local declarada e coordenadas antes de congelar a tarifa. A validação geográfica exata de cada localidade específica continua dependendo de um catálogo geoespacial autoritativo.
 
-## Próximas implementações
+## Estado de implementação e pendências de produção
 
-Ainda faltam:
+Já estão implementados no Core/ADM:
 
-- persistência/versionamento das tabelas comerciais e sua vigência;
-- Admin para alterar preços e vigência;
+- persistência e versionamento do catálogo comercial em PostgreSQL;
+- rascunhos, edição administrativa, publicação e vigência de versões;
+- autenticação/sessão e autorização por escopos;
+- matching e máquina de estados autoritativos;
+- ledger/carteira e fluxo de repasses;
+- integração estrutural de Pix/cartão, estorno e reconciliação;
+- Google Maps/Places/Routes integrados ao fluxo de mobilidade.
+
+Ainda dependem de fechamento operacional ou infraestrutura externa:
+
 - catálogo geoespacial autoritativo para todas as localidades específicas e destinos externos;
-- autenticação/autorização real;
-- gateway Pix/cartão e confirmação real de recargas;
-- estornos/chargebacks, repasse Pix e conciliação com provedor;
-- deploy seguro e observabilidade do Core;
-- provedor comercial de mapas/geocoding/rotas.
+- credenciais e homologação comercial dos provedores de pagamento;
+- provider OTP/SMS real de produção;
+- Firebase/Push/APNs com credenciais finais;
+- storage privado persistente para documentos;
+- infraestrutura hospedada, backup, monitoramento e alertas;
+- chaves/restrições/billing de produção do Google Maps;
+- testes físicos, piloto controlado e preparação das lojas.
 
-O preço, a comissão e a elegibilidade final devem continuar sob autoridade do Core.
+Os valores e regras comerciais que ainda aguardam decisão oficial não devem ser tratados como confirmados apenas porque existe infraestrutura de edição no ADM.
+
+O preço, a comissão e a elegibilidade final continuam sob autoridade do Core.
