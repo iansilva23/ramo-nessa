@@ -8,12 +8,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 - Passageiro Flutter Android/iOS;
 - mapa, GPS, busca, rota, distância e ETA em desenvolvimento;
-- Core inicial em Node.js + TypeScript;
+- Core em Node.js + TypeScript com PostgreSQL, autenticação, matching, realtime, ledger/carteira e máquina de estados;
 - motor comercial v1 e comissão de 10%;
 - regras de Moto, Entrega, Carro, Comfort/Black e Buggy;
 - cliente do Passageiro para cotação pelo Core;
 - política digital de pagamentos definida em código;
-- CI para Passageiro/Design System e Core.
+- CI para Core, Admin, Design System, Passageiro e Motorista, com Preflight, Test Stack Audit, Preview APKs e auditoria iOS.
 
 ## Bloqueios obrigatórios
 
@@ -22,7 +22,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
    - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; para produção ainda faltam `PUSH_PROVIDER=fcm`, Service Account Firebase privada no Core e os Secrets Firebase de build dos apps;
    - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
-   - Pix/cartão para corridas já possuem integração com o gateway; ainda faltam confirmação real de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
+   - Pix/cartão para corridas e recarga de carteira já possuem integração estrutural com o gateway; ainda faltam homologação externa da confirmação de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
    - readiness, logs estruturados, shutdown gracioso e container de produção já existem;
    - existe stack Docker same-origin para teste controlado do Admin + Core, com smoke E2E efêmero;
    - ainda faltam coleta/alertas/APM, infraestrutura hospedada e operação do deploy de produção.
@@ -45,9 +45,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - Access Token e webhook secret continuam restritos ao ambiente seguro do Core e não aparecem no ADM nem nos apps;
    - o Admin mantém ledger e pagamentos históricos somente leitura; políticas financeiras e o fluxo legítimo de conclusão/cancelamento de saques são administráveis, sem edição arbitrária do ledger;
    - dinheiro continua desativado por padrão; o fluxo cash de dívida, limite, compensação e liquidação já existe e a ativação é manual e auditada no Admin;
-   - ainda faltam configurar credenciais reais, webhook no domínio público, validar sandbox externo e implementar a confirmação real de recarga da carteira;
+   - ainda faltam configurar credenciais reais, webhook no domínio público e validar no sandbox externo a confirmação de recarga da carteira já implementada no Core;
    - por segurança, o Passageiro consulta e usa o saldo existente, mas o app não oferece botão de recarga enquanto a intenção criada pelo Core continuar `simulated: true` e `actionable: false`; a interface de recarga só deve ser liberada junto da confirmação real do gateway;
-   - cancelamento administrativo antes do início da viagem já existe: carteira é estornada internamente e Pix/cartão usam `REFUND_PENDING` até confirmação; solicitação de estorno integral e reconciliação da confirmação Orders já existem no Core, inclusive retry idempotente;
+   - cancelamento e reembolso já possuem fluxo autoritativo no Core: Passageiro pode cancelar após uma rodada sem motorista; Motorista pode cancelar corrida atribuída inclusive em andamento; Admin mantém cancelamento protegido; carteira é estornada internamente e Pix/cartão usam `REFUND_PENDING` até confirmação;
+   - quando nenhuma oferta é aceita, o Passageiro pode tentar uma nova rodada sem nova cobrança ou cancelar e receber reembolso integral; se não decidir, o Core encerra automaticamente após o prazo operacional configurável (padrão 15 minutos) e inicia o reembolso;
+   - cancelamento do Motorista durante `IN_PROGRESS` não liquida a corrida para o Motorista: o Passageiro recebe reembolso integral e a eventual compensação do Motorista fica separada para revisão administrativa;
+   - solicitação de estorno integral e reconciliação da confirmação Orders já existem no Core, inclusive retry idempotente e varredura automática de `REFUND_PENDING`;
    - ainda é necessário validar pagamento/estorno no sandbox externo e domínio público; conciliação operacional completa, tratamento operacional de chargebacks/estornos parciais e repasse Pix real continuam pendentes.
 
 5. **Assinatura Android de produção ainda não existe**
@@ -80,7 +83,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - upload de CNH/CRLV no app e no Core já existe, com validação de conteúdo e status pendente; os adapters de storage HTTP privado e diretório privado também existem;
    - ainda faltam configurar storage privado persistente, permissões, backup/retenção e validar envio/revisão no ambiente final, além de concluir o onboarding operacional;
    - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria, ledger histórico protegido e inspeção segura de documentos; ainda falta a implantação operacional e demais itens de Go-Live;
-   - faltam consentimentos, política de privacidade, termos, retenção e exclusão de dados.
+   - o Core já possui documentos legais versionados, aceite, preferências de privacidade e solicitações de acesso/correção/exclusão-anonimização/portabilidade/revogação; antes do lançamento ainda faltam conteúdo jurídico final revisado, política operacional de retenção/exclusão e validação ponta a ponta desses procedimentos em produção.
 
 9. **Testes reais ainda faltam**
    - Android físico;
