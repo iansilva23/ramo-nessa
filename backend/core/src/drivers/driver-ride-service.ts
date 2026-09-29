@@ -218,3 +218,144 @@ export async function performDriverRideAction(input: {
     },
   };
 }
+
+
+export const DRIVER_RIDE_CANCELLATION_REASONS = [
+  'passenger_no_show',
+  'passenger_requested',
+  'inappropriate_behavior',
+  'threat_aggression',
+  'harassment',
+  'unsafe_or_inaccessible_location',
+  'vehicle_problem',
+  'personal_emergency',
+  'other',
+] as const;
+
+export type DriverRideCancellationReason =
+  (typeof DRIVER_RIDE_CANCELLATION_REASONS)[number];
+
+const DRIVER_CANCELLABLE_STATES = new Set<RideRecord['state']>([
+  'DRIVER_ASSIGNED',
+  'DRIVER_ARRIVING',
+  'DRIVER_ARRIVED',
+  'IN_PROGRESS',
+]);
+
+const SAFETY_REVIEW_REASONS = new Set<DriverRideCancellationReason>([
+  'inappropriate_behavior',
+  'threat_aggression',
+  'harassment',
+  'unsafe_or_inaccessible_location',
+]);
+
+function normalizeCancellationNote(value?: string): string | undefined {
+  const note = value?.trim().replace(/\s+/g, ' ');
+  if (!note) return undefined;
+  if (
+    note.length > 1000 ||
+    /[\u0000-\u001f\u007f]/.test(note)
+  ) {
+    throw new DriverAppError(
+      'INVALID_CANCELLATION_REASON',
+      'A observação do cancelamento deve ter até 1000 caracteres.',
+    );
+  }
+  return note;
+}
+
+export async function cancelDriverRide(input: {
+  rides: RideRepository;
+  drivers: DriverSupplyRepository;
+  driverId: string;
+  rideId: string;
+  reason: unknown;
+  note?: string;
+  now?: Date;
+}) {
+  const reason =
+    typeof input.reason === 'string'
+      ? input.reason.trim() as DriverRideCancellationReason
+      : ('' as DriverRideCancellationReason);
+
+  if (
+    !DRIVER_RIDE_CANCELLATION_REASONS.includes(
+      reason as DriverRideCancellationReason,
+    )
+  ) {
+    throw new DriverAppError(
+      'INVALID_CANCELLATION_REASON',
+      'Selecione um motivo válido para cancelar a corrida.',
+    );
+  }
+  const note = normalizeCancellationNote(input.note);
+  if (reason === 'other' && (note == null || note.length < 5)) {
+    throw new DriverAppError(
+      'INVALID_CANCELLATION_REASON',
+      'Explique brevemente o motivo do cancelamento.',
+    );
+  }
+
+  const now = input.now ?? new Date();
+  const instant = now.toISOString();
+  const stored = await input.rides.findById(input.rideId);
+  if (stored == null) {
+    throw new DriverAppError(
+      'RIDE_NOT_FOUND',
+      'Corrida não encontrada.',
+    );
+  }
+
+  assertAssignedToDriver(stored, input.driverId);
+
+  if (stored.state === 'CANCELLED_BY_DRIVER') {
+    return {
+      ride: driverRideView(stored),
+      previousState: stored.state,
+      reason,
+      ...(note == null ? {} : { note }),
+      requiresAdminReview:
+        SAFETY_REVIEW_REASONS.has(reason),
+      compensationReviewRequired: false,
+      duplicateCancellation: true,
+    };
+  }
+
+  if (!DRIVER_CANCELLABLE_STATES.has(stored.state)) {
+    invalidAction(stored, 'cancel' as DriverRideAction);
+  }
+
+  const previousState = stored.state;
+  const cancelled = await input.rides.save({
+    ...stored,
+    state: transitionRide(stored.state, 'CANCELLED_BY_DRIVER'),
+    updatedAt: instant,
+  });
+
+  const supply = await input.drivers.findByDriverId(input.driverId);
+  if (supply != null) {
+    const {
+      reservedRideId: _reservedRideId,
+      reservedUntil: _reservedUntil,
+      ...released
+    } = supply;
+    await input.drivers.upsert({
+      ...released,
+      busy: false,
+      updatedAt: instant,
+    });
+  }
+
+  const compensationReviewRequired = previousState === 'IN_PROGRESS';
+  return {
+    ride: driverRideView(cancelled),
+    previousState,
+    reason,
+    ...(note == null ? {} : { note }),
+    requiresAdminReview:
+      compensationReviewRequired ||
+      SAFETY_REVIEW_REASONS.has(reason),
+    compensationReviewRequired,
+    duplicateCancellation: false,
+  };
+}
