@@ -228,6 +228,9 @@ class _FakeSavedPlaceService implements PassengerSavedPlaceService {
     required String name,
     required String address,
     required LatLng position,
+    String? providerPlaceId,
+    String? approvedPricingZoneId,
+    String? approvedPricingLocalityId,
   }) {
     throw UnimplementedError();
   }
