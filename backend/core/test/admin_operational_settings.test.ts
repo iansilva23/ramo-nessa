@@ -22,6 +22,7 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
   const initial = await adminOperationalSettingsView(repository);
   assert.equal(initial.driverOfferTtlSeconds, 35);
   assert.equal(initial.driverPaymentHoldSeconds, 90);
+  assert.equal(initial.noDriverDecisionTimeoutSeconds, 900);
   assert.equal(initial.driverLocationMaxAgeSeconds, 120);
   assert.equal(initial.nearbyDriverMaxDistanceKm, 15);
 
@@ -31,6 +32,7 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
     actor,
     driverOfferTtlSeconds: 42,
     driverPaymentHoldSeconds: 135,
+    noDriverDecisionTimeoutSeconds: 1200,
     driverLocationMaxAgeSeconds: 75,
     nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: true,
@@ -39,12 +41,14 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
 
   assert.equal(updated.driverOfferTtlSeconds, 42);
   assert.equal(updated.driverPaymentHoldSeconds, 135);
+  assert.equal(updated.noDriverDecisionTimeoutSeconds, 1200);
   assert.equal(updated.driverLocationMaxAgeSeconds, 75);
   assert.equal(updated.nearbyDriverMaxDistanceKm, 8.5);
   assert.equal(updated.showNearbyDrivers, true);
 
   const stored = await repository.get();
   assert.equal(stored.driverPaymentHoldSeconds, 135);
+  assert.equal(stored.noDriverDecisionTimeoutSeconds, 1200);
   assert.equal(stored.driverLocationMaxAgeSeconds, 75);
   assert.equal(stored.nearbyDriverMaxDistanceKm, 8.5);
 
@@ -57,6 +61,14 @@ test('Admin controla oferta e reserva do motorista durante pagamento', async () 
   assert.equal(
     audit[0]?.metadata?.driverPaymentHoldSeconds,
     135,
+  );
+  assert.equal(
+    audit[0]?.metadata?.previousNoDriverDecisionTimeoutSeconds,
+    900,
+  );
+  assert.equal(
+    audit[0]?.metadata?.noDriverDecisionTimeoutSeconds,
+    1200,
   );
   assert.equal(
     audit[0]?.metadata?.driverLocationMaxAgeSeconds,
@@ -87,6 +99,25 @@ test('Admin rejeita reserva de pagamento fora de 30 a 300 segundos', async () =>
   }
 });
 
+
+test('Admin rejeita prazo sem motorista fora de 60 a 3600 segundos', async () => {
+  const repository = new InMemoryOperationalSettingsRepository();
+  const admin = new InMemoryAdminRepository();
+
+  for (const value of [59, 3601, 90.5]) {
+    await assert.rejects(
+      updateAdminOperationalSettings({
+        repository,
+        admin,
+        actor,
+        noDriverDecisionTimeoutSeconds: value,
+      }),
+      (error: unknown) =>
+        error instanceof AdminOperationalSettingsError &&
+        error.code === 'INVALID_NO_DRIVER_DECISION_TIMEOUT',
+    );
+  }
+});
 
 test('Admin rejeita parâmetros de localização fora dos limites operacionais', async () => {
   const repository = new InMemoryOperationalSettingsRepository();
