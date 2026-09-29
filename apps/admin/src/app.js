@@ -3695,6 +3695,8 @@ function fillPricingPolicyFields(payload) {
         `${String(band.maxKm).replace('.', ',')} | ${pricingCentsToReais(band.amountCents).replace('.', ',')}`,
     )
     .join('\n');
+  byId('pricing-delivery-above-max').value =
+    pricingCentsToReais(payload.jeri?.deliveryAboveMaxCents);
 }
 
 function pricingVersionStatusPresentation(version) {
@@ -4298,6 +4300,10 @@ function buildPricingDraftPatch() {
       kind,
       bands: parsePricingDeliveryBands(
         byId('pricing-delivery-bands').value,
+      ),
+      aboveMaxCents: pricingMoneyToCents(
+        byId('pricing-delivery-above-max').value,
+        'Preço acima da última faixa',
       ),
     };
   }
