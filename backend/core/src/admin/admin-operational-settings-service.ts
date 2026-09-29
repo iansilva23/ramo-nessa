@@ -11,6 +11,7 @@ export class AdminOperationalSettingsError extends Error {
     public readonly code:
       | 'INVALID_DRIVER_OFFER_TTL'
       | 'INVALID_DRIVER_PAYMENT_HOLD'
+      | 'INVALID_NO_DRIVER_DECISION_TIMEOUT'
       | 'INVALID_DRIVER_LOCATION_MAX_AGE'
       | 'INVALID_NEARBY_DRIVER_MAX_DISTANCE'
       | 'INVALID_MERCADO_PAGO_PUBLIC_KEY',
@@ -33,6 +34,7 @@ export async function updateAdminOperationalSettings(input: {
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
   driverPaymentHoldSeconds?: number;
+  noDriverDecisionTimeoutSeconds?: number;
   driverLocationMaxAgeSeconds?: number;
   nearbyDriverMaxDistanceKm?: number;
   showNearbyDrivers?: boolean;
@@ -61,6 +63,18 @@ export async function updateAdminOperationalSettings(input: {
     throw new AdminOperationalSettingsError(
       'INVALID_DRIVER_PAYMENT_HOLD',
       'A reserva durante o pagamento deve ficar entre 30 e 300 segundos.',
+    );
+  }
+
+  if (
+    input.noDriverDecisionTimeoutSeconds != null &&
+    (!Number.isInteger(input.noDriverDecisionTimeoutSeconds) ||
+      input.noDriverDecisionTimeoutSeconds < 60 ||
+      input.noDriverDecisionTimeoutSeconds > 3600)
+  ) {
+    throw new AdminOperationalSettingsError(
+      'INVALID_NO_DRIVER_DECISION_TIMEOUT',
+      'O prazo para decidir após não encontrar motorista deve ficar entre 60 e 3600 segundos.',
     );
   }
 
@@ -114,6 +128,9 @@ export async function updateAdminOperationalSettings(input: {
   const nextPaymentHold =
     input.driverPaymentHoldSeconds ??
     current.driverPaymentHoldSeconds;
+  const nextNoDriverDecisionTimeout =
+    input.noDriverDecisionTimeoutSeconds ??
+    current.noDriverDecisionTimeoutSeconds;
   const nextLocationMaxAge =
     input.driverLocationMaxAgeSeconds ??
     current.driverLocationMaxAgeSeconds;
@@ -135,6 +152,8 @@ export async function updateAdminOperationalSettings(input: {
   if (
     nextTtl === current.driverOfferTtlSeconds &&
     nextPaymentHold === current.driverPaymentHoldSeconds &&
+    nextNoDriverDecisionTimeout ===
+      current.noDriverDecisionTimeoutSeconds &&
     nextLocationMaxAge === current.driverLocationMaxAgeSeconds &&
     nextNearbyDistance === current.nearbyDriverMaxDistanceKm &&
     nextNearby === current.showNearbyDrivers &&
@@ -149,6 +168,7 @@ export async function updateAdminOperationalSettings(input: {
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
     driverPaymentHoldSeconds: nextPaymentHold,
+    noDriverDecisionTimeoutSeconds: nextNoDriverDecisionTimeout,
     driverLocationMaxAgeSeconds: nextLocationMaxAge,
     nearbyDriverMaxDistanceKm: nextNearbyDistance,
     showNearbyDrivers: nextNearby,
@@ -171,6 +191,10 @@ export async function updateAdminOperationalSettings(input: {
         current.driverPaymentHoldSeconds,
       driverPaymentHoldSeconds:
         updated.driverPaymentHoldSeconds,
+      previousNoDriverDecisionTimeoutSeconds:
+        current.noDriverDecisionTimeoutSeconds,
+      noDriverDecisionTimeoutSeconds:
+        updated.noDriverDecisionTimeoutSeconds,
       previousDriverLocationMaxAgeSeconds:
         current.driverLocationMaxAgeSeconds,
       driverLocationMaxAgeSeconds:
