@@ -116,6 +116,9 @@ jobs:
           node --check deploy/prod/env.mjs
           node --check deploy/prod/generate-env.mjs
           node --check deploy/prod/validate-env.mjs
+          node --check deploy/prod/backup.mjs
+          node --check deploy/prod/verify-backup.mjs
+          node --check deploy/prod/health-check.mjs
 
       - name: Validate test-stack Compose
         env:
