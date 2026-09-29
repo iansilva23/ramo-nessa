@@ -119,6 +119,7 @@ jobs:
           node --check deploy/prod/backup.mjs
           node --check deploy/prod/verify-backup.mjs
           node --check deploy/prod/health-check.mjs
+          node --check tooling/validate-google-maps-key.mjs
 
       - name: Validate test-stack Compose
         env:
