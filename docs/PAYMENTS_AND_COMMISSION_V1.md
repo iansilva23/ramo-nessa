@@ -56,10 +56,30 @@ Requisitos:
 - histórico de entradas e saídas;
 - recarga por meios suportados pelo provedor;
 - débito somente após confirmação da solicitação;
-- estorno conforme a política de cancelamento quando ela for definida;
+- estorno conforme a política de cancelamento e falta de motorista descrita abaixo;
 - créditos promocionais separados do saldo financeiro quando necessário.
 
 A implementação financeira real deve usar provedor de pagamentos adequado; não construir custódia financeira própria no app.
+
+## Falta de motorista, cancelamento e reembolso
+
+Depois do pagamento, se uma rodada de busca terminar sem motorista:
+
+- a corrida fica em `NO_DRIVER_FOUND`; o pagamento continua protegido e não é repassado a motorista;
+- o Passageiro pode escolher **Tentar novamente**, sem nova cobrança, iniciando outra rodada de busca;
+- o Passageiro pode escolher **Cancelar corrida**, o que inicia reembolso integral automático;
+- se o Passageiro não escolher nenhuma opção, o Core encerra a busca depois do prazo operacional configurado no ADM. O padrão é 900 segundos (15 minutos), configurável entre 60 e 3600 segundos, e inicia o reembolso integral;
+- uma nova tentativa reinicia o prazo quando a nova rodada também termina sem motorista.
+
+O Motorista pode cancelar uma corrida atribuída antes ou depois do início, sempre informando um motivo. O cancelamento encerra a corrida para o Motorista e inicia reembolso integral automático ao Passageiro.
+
+Motivos operacionais incluem passageiro ausente, pedido do passageiro, comportamento inadequado, ameaça/agressão, assédio, local inseguro/inacessível, problema no veículo, emergência pessoal ou outro motivo justificado.
+
+Quando o cancelamento ocorre durante `IN_PROGRESS`, o reembolso integral ao Passageiro não espera análise manual. O caso é enviado ao ADM para avaliar separadamente eventual compensação ao Motorista. Motivos de segurança também geram revisão administrativa.
+
+Para Carteira Ramo Nessa, o estorno é conciliado no ledger interno. Para Pix/cartão Mercado Pago, o Core solicita o reembolso ao provedor com idempotência e só marca a corrida como `REFUNDED` após confirmação. Enquanto isso, usa `REFUND_PENDING`. Reembolsos pendentes são reconciliados automaticamente; o app não deve prometer que o banco/cartão exibirá o valor instantaneamente.
+
+Nenhum cancelamento do Motorista liquida a corrida como concluída nem libera os 90% ao Motorista. Qualquer compensação aprovada após cancelamento em andamento é uma decisão financeira separada da tarifa da corrida.
 
 ## Saldo do Motorista
 
