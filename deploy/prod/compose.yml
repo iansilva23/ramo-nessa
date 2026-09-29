@@ -6,6 +6,12 @@ x-core-image: &core-image
     context: ../../backend/core
     dockerfile: Dockerfile
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 x-core-environment: &core-environment
   NODE_ENV: production
   PORT: "8080"
@@ -66,6 +72,7 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+    logging: *default-logging
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -81,6 +88,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
     restart: "no"
 
   document-storage-init:
@@ -94,6 +106,7 @@ services:
       ]
     volumes:
       - driver_documents:/var/lib/ramo-nessa
+    logging: *default-logging
     restart: "no"
 
   core:
@@ -110,6 +123,11 @@ services:
       - driver_documents:/var/lib/ramo-nessa
     expose:
       - "8080"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
     restart: unless-stopped
     stop_grace_period: 30s
 
@@ -142,6 +160,7 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
+    logging: *default-logging
     restart: unless-stopped
     stop_grace_period: 30s
 
