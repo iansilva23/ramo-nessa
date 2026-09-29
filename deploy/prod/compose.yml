@@ -105,7 +105,6 @@ services:
       ]
     volumes:
       - driver_documents:/var/lib/ramo-nessa
-      - ${FIREBASE_SERVICE_ACCOUNT_HOST_FILE:?FIREBASE_SERVICE_ACCOUNT_HOST_FILE is required}:/run/secrets/ramo-nessa-firebase.json:ro
     logging: *default-logging
     restart: "no"
 
@@ -121,6 +120,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - driver_documents:/var/lib/ramo-nessa
+      - ${FIREBASE_SERVICE_ACCOUNT_HOST_FILE:?FIREBASE_SERVICE_ACCOUNT_HOST_FILE is required}:/run/secrets/ramo-nessa-firebase.json:ro
     expose:
       - "8080"
     security_opt:
