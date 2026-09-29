@@ -344,6 +344,11 @@ class CorePlaceSearchService
       return null;
     }
 
+    final approvedPricingZoneId =
+        raw['approvedPricingZoneId']?.toString().trim();
+    final approvedPricingLocalityId =
+        raw['approvedPricingLocalityId']?.toString().trim();
+
     return RamoPlace(
       name: name,
       address: address,
@@ -351,6 +356,18 @@ class CorePlaceSearchService
         latitude.toDouble(),
         longitude.toDouble(),
       ),
+      providerPlaceId: raw['id']?.toString().trim(),
+      approvedPricingZoneId:
+          approvedPricingZoneId?.isNotEmpty == true
+              ? approvedPricingZoneId
+              : null,
+      approvedPricingLocalityId:
+          approvedPricingLocalityId?.isNotEmpty == true
+              ? approvedPricingLocalityId
+              : null,
+      placeProof: raw['placeProof']?.toString().trim().isNotEmpty == true
+          ? raw['placeProof'].toString().trim()
+          : null,
     );
   }
 }
