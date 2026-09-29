@@ -390,12 +390,11 @@ function quoteJeriLocal(
       );
     }
 
-    const maxKm = Math.max(
-      ...catalog.jeri.deliveryBands.map((candidate) => candidate.maxKm),
-    );
-    throw new PricingError(
-      'UNKNOWN_ROUTE',
-      `Entrega acima de ${maxKm} km dentro de Jeri exige regra específica.`,
+    return exactQuote(
+      'jeri-delivery-above-max',
+      catalog.jeri.deliveryAboveMaxCents,
+      request,
+      catalog,
     );
   }
 
