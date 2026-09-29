@@ -66,11 +66,12 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - Motorista possui host iOS com Keychain e localização em segundo plano configurados e foi validado em Simulator pelo CI;
    - falta Apple Developer Team, assinatura de distribuição e aparelho físico para os dois apps.
 
-7. **Google Maps Platform está integrado, mas falta configuração comercial de produção**
+7. **Google Maps Platform está integrado; configuração externa de produção ainda falta**
    - Passenger e Driver renderizam com Google Maps SDK via `google_maps_flutter`;
    - Places e Routes passam pelo Core, sem expor a chave de servidor nos apps;
    - CI/Test Stack usa mock local para não consumir APIs pagas;
-   - antes do lançamento faltam chaves de produção restritas, billing/quotas, alertas de custo e validação em aparelhos físicos.
+   - o repositório já define cinco credenciais de produção separadas, IDs finais dos apps, validação de chave móvel no gate de release e matriz de restrições em `docs/GOOGLE_MAPS_PRODUCTION.md`;
+   - ainda faltam criar/configurar as chaves reais no Google Cloud, billing/budgets/quotas, restrições efetivas, IP público do VPS, SHA-1 final da assinatura Android e validação em aparelhos físicos.
 
 8. **Privacidade, LGPD e operação da autenticação**
    - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem; sessões expiradas/revogadas fora da retenção são limpas automaticamente;
