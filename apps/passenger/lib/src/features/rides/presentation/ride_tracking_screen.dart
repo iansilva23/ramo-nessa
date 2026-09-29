@@ -179,7 +179,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
   PassengerRideRecoveryService? get _recoveryService {
     final service = widget.trackingService;
-    return service is PassengerRideRecoveryService ? service : null;
+    if (service is PassengerRideRecoveryService) {
+      return service as PassengerRideRecoveryService;
+    }
+    return null;
   }
 
   Future<void> _retryDriverSearch() async {
