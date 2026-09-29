@@ -325,8 +325,12 @@
                     <div id="pricing-delivery-bands-fields" class="pricing-edit-group" hidden>
                       <label class="field pricing-edit-span">
                         <span>Faixas de distância e preço</span>
-                        <textarea id="pricing-delivery-bands" rows="7" spellcheck="false" placeholder="0,7 | 5,00&#10;1,2 | 7,00&#10;1,6 | 8,00&#10;2,0 | 10,00"></textarea>
+                        <textarea id="pricing-delivery-bands" rows="7" spellcheck="false" placeholder="0,7 | 5,00&#10;1,2 | 5,00&#10;1,6 | 5,00&#10;2,0 | 5,00"></textarea>
                         <small>Uma faixa por linha no formato “km | R$”. As distâncias precisam estar em ordem crescente.</small>
+                      </label>
+                      <label class="field">
+                        <span>Preço acima da última faixa (R$)</span>
+                        <input id="pricing-delivery-above-max" type="number" min="0.01" step="0.01" inputmode="decimal">
                       </label>
                     </div>
 
