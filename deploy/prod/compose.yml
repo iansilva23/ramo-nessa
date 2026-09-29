@@ -101,7 +101,7 @@ services:
       [
         "sh",
         "-c",
-        "mkdir -p /var/lib/ramo-nessa/documents && chown -R 1000:1000 /var/lib/ramo-nessa",
+        "mkdir -p /var/lib/ramo-nessa/documents && chown -R 1000:1000 /var/lib/ramo-nessa && chmod 700 /var/lib/ramo-nessa /var/lib/ramo-nessa/documents",
       ]
     volumes:
       - driver_documents:/var/lib/ramo-nessa
