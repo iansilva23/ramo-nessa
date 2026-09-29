@@ -8,6 +8,9 @@ class PassengerSavedPlace {
     required this.name,
     required this.address,
     required this.position,
+    this.providerPlaceId,
+    this.approvedPricingZoneId,
+    this.approvedPricingLocalityId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -23,6 +26,22 @@ class PassengerSavedPlace {
         (json['latitude'] as num).toDouble(),
         (json['longitude'] as num).toDouble(),
       ),
+      providerPlaceId:
+          json['providerPlaceId']?.toString().trim().isNotEmpty == true
+              ? json['providerPlaceId'].toString().trim()
+              : null,
+      approvedPricingZoneId:
+          json['approvedPricingZoneId']?.toString().trim().isNotEmpty == true
+              ? json['approvedPricingZoneId'].toString().trim()
+              : null,
+      approvedPricingLocalityId:
+          json['approvedPricingLocalityId']
+                      ?.toString()
+                      .trim()
+                      .isNotEmpty ==
+                  true
+              ? json['approvedPricingLocalityId'].toString().trim()
+              : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -34,6 +53,9 @@ class PassengerSavedPlace {
   final String name;
   final String address;
   final LatLng position;
+  final String? providerPlaceId;
+  final String? approvedPricingZoneId;
+  final String? approvedPricingLocalityId;
   final DateTime createdAt;
   final DateTime updatedAt;
 }
@@ -56,6 +78,9 @@ abstract interface class PassengerSavedPlaceService {
     required String name,
     required String address,
     required LatLng position,
+    String? providerPlaceId,
+    String? approvedPricingZoneId,
+    String? approvedPricingLocalityId,
   });
 
   Future<void> delete(String id);
