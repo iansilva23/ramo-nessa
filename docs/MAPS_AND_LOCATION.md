@@ -21,7 +21,10 @@ Os apps não acessam Routes ou Places diretamente. O Passenger e o Driver falam 
   demonstrativos;
 - Preview com `RAMO_PREVIEW_CORE_BASE_URL` HTTPS: Passageiro usa Places/Routes
   e Motorista usa Routes via Core de teste, sem expor a chave de servidor;
-- Test Stack: mock local compatível com os contratos de Routes/Places, sem consumo externo.
+- Test Stack: mock local compatível com os contratos de Routes/Places, sem consumo externo;
+- Place Details e a busca manual podem devolver `approvedPricingZoneId`, `approvedPricingLocalityId` e `placeProof` quando o Core reconhece uma localidade presente no catálogo vigente;
+- a `placeProof` é assinada pelo Core e vinculada ao Place ID, localidade e coordenadas; na preparação da corrida ela é verificada antes de confiar na localidade específica;
+- sem prova aprovada (por exemplo GPS puro), permanece o fallback de validação por zona/raio.
 
 ## Segurança das chaves
 
@@ -50,6 +53,6 @@ O Passageiro solicita localização em primeiro plano. O Motorista usa localiza�
 ## Próximos pontos
 
 - favoritos e locais salvos;
-- melhorias de geofencing das áreas atendidas;
+- ampliar a cobertura geoespacial para GPS puro e pontos que não tenham uma localidade aprovada pelo Core;
 - telemetria e monitoramento de falhas/custos;
 - testes físicos de GPS, rota e tracking em condições reais de rede.
