@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import { createReadStream } from 'node:fs';
 import {
   chmod,
   mkdir,
   open,
-  readFile,
   rename,
   stat,
   writeFile,
@@ -63,8 +63,11 @@ function utcStamp() {
 }
 
 async function sha256File(path) {
-  const content = await readFile(path);
-  return createHash('sha256').update(content).digest('hex');
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) {
+    hash.update(chunk);
+  }
+  return hash.digest('hex');
 }
 
 async function describeFile(path, name) {
