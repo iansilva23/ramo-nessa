@@ -1,0 +1,152 @@
+name: ramo-nessa-prod
+
+x-core-image: &core-image
+  image: ramo-nessa-core:prod
+  build:
+    context: ../../backend/core
+    dockerfile: Dockerfile
+
+x-core-environment: &core-environment
+  NODE_ENV: production
+  PORT: "8080"
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  DB_POOL_MAX: ${DB_POOL_MAX:-20}
+  DB_SSL: ${DB_SSL:-false}
+  DB_SSL_CA: ${DB_SSL_CA:-}
+  TRUST_PROXY: "true"
+  ALLOW_DEV_IDENTITY: "false"
+  ALLOW_DEV_OTP: "false"
+  ALLOW_DEV_PAYMENT_GATEWAY: "false"
+  SHUTDOWN_TIMEOUT_MS: ${SHUTDOWN_TIMEOUT_MS:-10000}
+  OTP_PROVIDER: webhook
+  OTP_HASH_SECRET: ${OTP_HASH_SECRET:?OTP_HASH_SECRET is required}
+  OTP_RATE_LIMIT_SECRET: ${OTP_RATE_LIMIT_SECRET:?OTP_RATE_LIMIT_SECRET is required}
+  OTP_WEBHOOK_URL: ${OTP_WEBHOOK_URL:?OTP_WEBHOOK_URL is required}
+  OTP_WEBHOOK_TOKEN: ${OTP_WEBHOOK_TOKEN:?OTP_WEBHOOK_TOKEN is required}
+  ADMIN_MFA_ENCRYPTION_KEY: ${ADMIN_MFA_ENCRYPTION_KEY:?ADMIN_MFA_ENCRYPTION_KEY is required}
+  ADMIN_LOGIN_RATE_LIMIT_SECRET: ${ADMIN_LOGIN_RATE_LIMIT_SECRET:?ADMIN_LOGIN_RATE_LIMIT_SECRET is required}
+  ROUTING_PROVIDER: google
+  ROUTING_TIMEOUT_MS: ${ROUTING_TIMEOUT_MS:-5000}
+  GOOGLE_MAPS_SERVER_API_KEY: ${GOOGLE_MAPS_SERVER_API_KEY:?GOOGLE_MAPS_SERVER_API_KEY is required}
+  GOOGLE_ROUTES_BASE_URL: https://routes.googleapis.com/
+  GOOGLE_PLACES_BASE_URL: https://places.googleapis.com/v1/
+  PLACE_PROOF_SECRET: ${PLACE_PROOF_SECRET:?PLACE_PROOF_SECRET is required}
+  PLACE_PROOF_TTL_SECONDS: ${PLACE_PROOF_TTL_SECONDS:-1800}
+  PUSH_PROVIDER: ${PUSH_PROVIDER:-disabled}
+  PUSH_WEBHOOK_URL: ${PUSH_WEBHOOK_URL:-}
+  PUSH_WEBHOOK_SECRET: ${PUSH_WEBHOOK_SECRET:-}
+  DOCUMENT_STORAGE_LOCAL_DIR: /var/lib/ramo-nessa/documents
+  DOCUMENT_INSPECTION_ENCRYPTION_KEY: ${DOCUMENT_INSPECTION_ENCRYPTION_KEY:?DOCUMENT_INSPECTION_ENCRYPTION_KEY is required}
+  DOCUMENT_INSPECTION_TTL_SECONDS: ${DOCUMENT_INSPECTION_TTL_SECONDS:-60}
+  MERCADO_PAGO_MODE: production
+  MERCADO_PAGO_ACCESS_TOKEN: ${MERCADO_PAGO_ACCESS_TOKEN:?MERCADO_PAGO_ACCESS_TOKEN is required}
+  MERCADO_PAGO_WEBHOOK_SECRET: ${MERCADO_PAGO_WEBHOOK_SECRET:?MERCADO_PAGO_WEBHOOK_SECRET is required}
+  DRIVER_PAYOUT_PROVIDER_NAME: ${DRIVER_PAYOUT_PROVIDER_NAME:-}
+  DRIVER_PAYOUT_PROVIDER_URL: ${DRIVER_PAYOUT_PROVIDER_URL:-}
+  DRIVER_PAYOUT_PROVIDER_TOKEN: ${DRIVER_PAYOUT_PROVIDER_TOKEN:-}
+  DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS: ${DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS:-60}
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ramonessa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-ramonessa}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-ramonessa} -d ${POSTGRES_DB:-ramonessa}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  migrate:
+    <<: *core-image
+    command: ["node", "dist/scripts/migrate.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_SSL: ${DB_SSL:-false}
+      DB_SSL_CA: ${DB_SSL_CA:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  document-storage-init:
+    <<: *core-image
+    user: "0:0"
+    command:
+      [
+        "sh",
+        "-c",
+        "mkdir -p /var/lib/ramo-nessa/documents && chown -R 1000:1000 /var/lib/ramo-nessa",
+      ]
+    volumes:
+      - driver_documents:/var/lib/ramo-nessa
+    restart: "no"
+
+  core:
+    <<: *core-image
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      document-storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - driver_documents:/var/lib/ramo-nessa
+    expose:
+      - "8080"
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  gateway:
+    image: ramo-nessa-admin-gateway:prod
+    build:
+      context: ../../apps/admin
+      dockerfile: Dockerfile
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required}
+    depends_on:
+      core:
+        condition: service_healthy
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+volumes:
+  postgres_data:
+  driver_documents:
+  caddy_data:
+  caddy_config:
