@@ -15,7 +15,10 @@ void main() {
         '{"provider":"google","places":['
         '{"id":"jeri","name":"Jericoacoara",'
         '"address":"Jericoacoara, Jijoca de Jericoacoara - CE",'
-        '"latitude":-2.7956,"longitude":-40.5142}]}',
+        '"latitude":-2.7956,"longitude":-40.5142,'
+        '"approvedPricingZoneId":"jericoacoara",'
+        '"approvedPricingLocalityId":"jericoacoara",'
+        '"placeProof":"signed-local-jeri-proof-abcdefghijklmnopqrstuvwxyz"}]}',
         200,
         headers: {'content-type': 'application/json'},
       );
@@ -40,6 +43,12 @@ void main() {
     expect(results.first.name, 'Jericoacoara');
     expect(results.first.position.latitude, closeTo(-2.7956, 0.0001));
     expect(results.first.position.longitude, closeTo(-40.5142, 0.0001));
+    expect(results.first.approvedPricingZoneId, 'jericoacoara');
+    expect(results.first.approvedPricingLocalityId, 'jericoacoara');
+    expect(
+      results.first.placeProof,
+      'signed-local-jeri-proof-abcdefghijklmnopqrstuvwxyz',
+    );
   });
 
   test('Core libera destino externo aprovado sem filtro local', () async {
@@ -180,8 +189,12 @@ void main() {
       if (request.url.path == '/v1/maps/places/details') {
         return http.Response(
           '{"provider":"google","place":{'
-          '"id":"jeri","address":"Jericoacoara, CE",'
-          '"latitude":-2.7956,"longitude":-40.5142}}',
+          '"id":"jeri","name":"Jericoacoara",'
+          '"address":"Jericoacoara, CE",'
+          '"latitude":-2.7956,"longitude":-40.5142,'
+          '"approvedPricingZoneId":"jericoacoara",'
+          '"approvedPricingLocalityId":"jericoacoara",'
+          '"placeProof":"signed-local-jeri-details-proof-abcdefghijklmnopqrstuvwxyz"}}',
           200,
           headers: {'content-type': 'application/json'},
         );
@@ -219,6 +232,12 @@ void main() {
     expect(place.name, 'Jericoacoara');
     expect(place.address, 'Jericoacoara, CE');
     expect(place.position.latitude, closeTo(-2.7956, 0.0001));
+    expect(place.approvedPricingZoneId, 'jericoacoara');
+    expect(place.approvedPricingLocalityId, 'jericoacoara');
+    expect(
+      place.placeProof,
+      'signed-local-jeri-details-proof-abcdefghijklmnopqrstuvwxyz',
+    );
   });
 
   test('autocomplete só abre área externa para destino aprovado único', () async {
