@@ -31,7 +31,7 @@ export interface ExternalRideRefundResult {
   duplicateRefund: boolean;
 }
 
-export async function refundMercadoPagoRideAfterNoDriver(input: {
+export async function refundMercadoPagoRide(input: {
   rides: RideRepository;
   finance: FinanceRepository;
   gateway: MercadoPagoOrdersClient;
@@ -93,17 +93,26 @@ export async function refundMercadoPagoRideAfterNoDriver(input: {
   if (
     ride.state !== 'PAID' &&
     ride.state !== 'NO_DRIVER_FOUND' &&
+    ride.state !== 'CANCELLED_BY_PASSENGER' &&
+    ride.state !== 'CANCELLED_BY_DRIVER' &&
+    ride.state !== 'CANCELLED_BY_ADMIN' &&
     ride.state !== 'REFUND_PENDING'
   ) {
     throw new ExternalRideRefundError(
       'REFUND_NOT_ALLOWED',
-      `Corrida em estado ${ride.state} não pode ser estornada por falta de motorista.`,
+      `Corrida em estado ${ride.state} não pode ser estornada.`,
     );
   }
 
   const instant = (input.now ?? new Date()).toISOString();
 
-  if (ride.state === 'PAID' || ride.state === 'NO_DRIVER_FOUND') {
+  if (
+    ride.state === 'PAID' ||
+    ride.state === 'NO_DRIVER_FOUND' ||
+    ride.state === 'CANCELLED_BY_PASSENGER' ||
+    ride.state === 'CANCELLED_BY_DRIVER' ||
+    ride.state === 'CANCELLED_BY_ADMIN'
+  ) {
     const {
       reservedDriverId: _reservedDriverId,
       driverHoldExpiresAt: _driverHoldExpiresAt,
@@ -196,3 +205,6 @@ export async function refundMercadoPagoRideAfterNoDriver(input: {
     duplicateRefund: refund.duplicateRefund,
   };
 }
+
+
+export const refundMercadoPagoRideAfterNoDriver = refundMercadoPagoRide;
