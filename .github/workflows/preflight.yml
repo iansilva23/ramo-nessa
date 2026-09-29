@@ -125,6 +125,15 @@ jobs:
           node --check deploy/prod/backup.mjs
           node --check deploy/prod/verify-backup.mjs
           node --check deploy/prod/health-check.mjs
+          node --check deploy/prod/check-document-storage.mjs
+
+          STORAGE_PROBE_DIR="$(mktemp -d)"
+          chmod 700 "$STORAGE_PROBE_DIR"
+          DOCUMENT_STORAGE_LOCAL_DIR="$STORAGE_PROBE_DIR" \
+            node deploy/prod/check-document-storage.mjs
+          test -z "$(find "$STORAGE_PROBE_DIR" -mindepth 1 -maxdepth 1 -print -quit)"
+          rm -rf "$STORAGE_PROBE_DIR"
+
           node --check tooling/validate-google-maps-key.mjs
           node --check tooling/validate-firebase-mobile-config.mjs
           node --check tooling/validate-ios-push-config.mjs
