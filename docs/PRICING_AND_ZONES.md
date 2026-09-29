@@ -30,7 +30,7 @@ O Core já implementa:
 
 - catálogo comercial v1;
 - preços fixos por localidade/corredor;
-- regras após 22h aprovadas;
+- regras após 22h presentes na base comercial em revisão;
 - Comfort/Black quando permitido;
 - compensação de coleta distante;
 - comissão de 10%;
@@ -73,7 +73,7 @@ Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são reto
 
 Preço não equivale a autorização operacional.
 
-O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou ainda validação entre zona local declarada e coordenadas antes de congelar a tarifa. A validação geográfica exata de cada localidade específica continua dependendo de um catálogo geoespacial autoritativo.
+O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou validação entre zona local declarada e coordenadas antes de congelar a tarifa. Para lugares selecionados via Google Places, o Core agora classifica localidades reconhecidas contra o catálogo vigente, devolve `approvedPricingZoneId` + `approvedPricingLocalityId` e emite uma `placeProof` assinada vinculada ao Place ID e às coordenadas. Na preparação da corrida, essa prova é verificada pelo Core antes de aceitar a localidade específica. GPS puro e pontos sem localidade aprovada continuam usando a validação por zona/raio como fallback.
 
 ## Estado de implementação e pendências de produção
 
@@ -89,7 +89,7 @@ Já estão implementados no Core/ADM:
 
 Ainda dependem de fechamento operacional ou infraestrutura externa:
 
-- catálogo geoespacial autoritativo para todas as localidades específicas e destinos externos;
+- cobertura geoespacial completa para GPS puro e para localidades que não consigam ser classificadas por um lugar aprovado do Google; destinos externos aprovados e localidades locais reconhecidas via Places já usam prova assinada pelo Core;
 - credenciais e homologação comercial dos provedores de pagamento;
 - provider OTP/SMS real de produção;
 - Firebase/Push/APNs com credenciais finais;
