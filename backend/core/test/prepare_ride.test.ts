@@ -83,10 +83,10 @@ test('preparação usa distância roteada e congela compensação antes do pagam
   assert.equal(ride.reservedDriverId, 'driver-prepare-near');
   assert.equal(ride.driverPickupDistanceKm, 9);
   assert.equal(ride.quote.baseAmountCents, 12000);
-  assert.equal(ride.quote.pickupCompensationCents, 500);
-  assert.equal(ride.quote.totalAmountCents, 12500);
+  assert.equal(ride.quote.pickupCompensationCents, 100);
+  assert.equal(ride.quote.totalAmountCents, 12100);
   assert.equal(ride.quote.platformCommissionCents, 1200);
-  assert.equal(ride.quote.driverNetCents, 11300);
+  assert.equal(ride.quote.driverNetCents, 10900);
 
   const held = await ctx.drivers.findByDriverId('driver-prepare-near');
   assert.equal(held?.reservedRideId, ride.id);
@@ -165,8 +165,8 @@ test('entrega em Jeri ignora distância enviada pelo cliente', async () => {
   });
 
   assert.equal(ride.tripDistanceKm, 1.5);
-  assert.equal(ride.quote.baseAmountCents, 800);
-  assert.equal(ride.quote.totalAmountCents, 800);
+  assert.equal(ride.quote.baseAmountCents, 500);
+  assert.equal(ride.quote.totalAmountCents, 500);
 });
 
 test('preparação ignora período do cliente e usa horário local do Core', async () => {
