@@ -49,6 +49,23 @@ export class InMemoryRideRepository implements RideRepository {
     return rides[0] == null ? null : structuredClone(rides[0]);
   }
 
+  async listNoDriverFoundBefore(
+    before: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const beforeMs = Date.parse(before);
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    return [...this.rides.values()]
+      .filter(
+        (ride) =>
+          ride.state === 'NO_DRIVER_FOUND' &&
+          Date.parse(ride.updatedAt) <= beforeMs,
+      )
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+      .slice(0, safeLimit)
+      .map((ride) => structuredClone(ride));
+  }
+
   async listAdminActive(limit: number): Promise<RideRecord[]> {
     const activeStates = new Set<RideRecord['state']>([
       'PAID',
