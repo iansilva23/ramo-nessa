@@ -16,6 +16,7 @@ on:
       - "packages/design_system/**"
       - "tooling/validate-google-maps-key.mjs"
       - "tooling/validate-firebase-mobile-config.mjs"
+      - "tooling/validate-ios-push-config.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
   push:
@@ -31,6 +32,7 @@ on:
       - "packages/design_system/**"
       - "tooling/validate-google-maps-key.mjs"
       - "tooling/validate-firebase-mobile-config.mjs"
+      - "tooling/validate-ios-push-config.mjs"
       - ".github/workflows/preflight.yml"
       - ".github/workflows/mobile-build-audit.yml"
 
@@ -125,6 +127,15 @@ jobs:
           node --check deploy/prod/health-check.mjs
           node --check tooling/validate-google-maps-key.mjs
           node --check tooling/validate-firebase-mobile-config.mjs
+          node --check tooling/validate-ios-push-config.mjs
+
+          node tooling/validate-ios-push-config.mjs \
+            --app-dir=apps/passenger/ios \
+            --surface="Passenger iOS"
+
+          node tooling/validate-ios-push-config.mjs \
+            --app-dir=apps/driver/ios \
+            --surface="Driver iOS"
 
           RAMO_FIREBASE_API_KEY=AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \
           RAMO_FIREBASE_APP_ID=1:123456789012:android:abc123def456 \
@@ -170,6 +181,17 @@ jobs:
 
       - name: Validate production deployment config
         run: |
+          cat > /tmp/ramo-firebase-service-account.json <<'EOF'
+          {
+            "type": "service_account",
+            "project_id": "ramo-nessa-ci",
+            "private_key_id": "ci-fixture",
+            "private_key": "-----BEGIN PRIVATE KEY-----\\nfixture-only\\n-----END PRIVATE KEY-----\\n",
+            "client_email": "firebase-adminsdk@ramo-nessa-ci.iam.gserviceaccount.com"
+          }
+          EOF
+          chmod 600 /tmp/ramo-firebase-service-account.json
+
           cat > /tmp/ramo-prod.env <<'EOF'
           APP_DOMAIN=ci.ramonessa.test
           ACME_EMAIL=ops@ramonessa.test
@@ -209,6 +231,17 @@ jobs:
           sed -i 's/^PUSH_PROVIDER=fcm$/PUSH_PROVIDER=disabled/' /tmp/ramo-prod-push-disabled.env
           if node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod-push-disabled.env; then
             echo "::error::O deploy de produção aceitou PUSH_PROVIDER=disabled."
+            exit 1
+          fi
+
+          cat > /tmp/ramo-firebase-invalid.json <<'EOF'
+          {"type":"service_account","project_id":"ramo-nessa-ci"}
+          EOF
+          chmod 600 /tmp/ramo-firebase-invalid.json
+          cp /tmp/ramo-prod.env /tmp/ramo-prod-invalid-firebase.env
+          sed -i 's#^FIREBASE_SERVICE_ACCOUNT_HOST_FILE=.*$#FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/tmp/ramo-firebase-invalid.json#' /tmp/ramo-prod-invalid-firebase.env
+          if node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod-invalid-firebase.env; then
+            echo "::error::O deploy de produção aceitou Service Account Firebase incompleta."
             exit 1
           fi
 
