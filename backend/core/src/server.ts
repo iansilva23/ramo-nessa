@@ -5856,6 +5856,7 @@ const server = createServer(async (request, response) => {
         passengerId: stored.passengerId,
       });
 
+      let adminReviewCreated = false;
       if (
         cancelled.requiresAdminReview &&
         !cancelled.duplicateCancellation
@@ -5883,6 +5884,7 @@ const server = createServer(async (request, response) => {
             subject,
             message,
           });
+          adminReviewCreated = true;
         } catch (supportError) {
           logWarn('driver.ride.cancel.review_ticket_failed', {
             rideId,
@@ -5930,7 +5932,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         ride: driverRideView(refund.ride),
         refundStatus: refund.refundStatus,
-        adminReviewCreated: cancelled.requiresAdminReview,
+        adminReviewCreated,
         compensationReviewRequired:
           cancelled.compensationReviewRequired,
         duplicateCancellation:
