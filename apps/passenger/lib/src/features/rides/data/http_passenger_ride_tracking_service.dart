@@ -8,7 +8,7 @@ import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
 
 class HttpPassengerRideTrackingService
-    implements PassengerRideTrackingService {
+    implements PassengerRideTrackingService, PassengerRideRecoveryService {
   HttpPassengerRideTrackingService({
     required Uri baseUrl,
     String? accessToken,
@@ -56,6 +56,54 @@ class HttpPassengerRideTrackingService
       apiErrorMessage(
         decoded,
         'Não conseguimos atualizar sua corrida agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerRideRecoveryResult> retryDriverSearch(
+    String rideId,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/retry-search'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      return PassengerRideRecoveryResult(
+        dispatchStatus: decoded['dispatchStatus'] as String?,
+      );
+    }
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos procurar outro motorista agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerRideRecoveryResult> cancelSearch(
+    String rideId,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/cancel-search'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      return PassengerRideRecoveryResult(
+        refundStatus: decoded['refundStatus'] as String?,
+      );
+    }
+    throw PassengerRideTrackingException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos cancelar a busca agora.',
       ),
     );
   }
