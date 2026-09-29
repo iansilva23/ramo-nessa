@@ -113,9 +113,13 @@ No host, restrinja as permissões do arquivo e, se o Core rodar em container,
 monte-o como volume/secret somente-leitura em
 `/run/secrets/ramo-nessa-firebase.json`.
 
-O Core aceita a Service Account por **uma destas duas formas**:
-`FIREBASE_SERVICE_ACCOUNT_JSON` (JSON completo vindo de secret) ou
-`FIREBASE_SERVICE_ACCOUNT_FILE` (arquivo privado montado no host/container).
+O Core genérico aceita a Service Account por `FIREBASE_SERVICE_ACCOUNT_JSON`
+ou `FIREBASE_SERVICE_ACCOUNT_FILE`. O perfil `deploy/prod` é mais restritivo:
+exige `PUSH_PROVIDER=fcm`, recebe no host
+`FIREBASE_SERVICE_ACCOUNT_HOST_FILE` e monta esse arquivo somente-leitura no
+Core como `/run/secrets/ramo-nessa-firebase.json`. A credencial não é montada
+em PostgreSQL, migrations, gateway nem no inicializador de documentos.
+
 Variáveis separadas como `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e
 `FIREBASE_PRIVATE_KEY` **não fazem parte do contrato runtime atual**.
 
@@ -132,22 +136,26 @@ Secrets compartilhados obrigatórios:
 
 `RAMO_FIREBASE_STORAGE_BUCKET` é opcional para o Push atual.
 
-Para API key e App ID, prefira os Secrets específicos por app/plataforma:
+No `Mobile Build Audit` final, os **App IDs são obrigatoriamente específicos**
+por app/plataforma:
 
-- Android Passenger: `RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY` e
-  `RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID`;
-- Android Driver: `RAMO_FIREBASE_ANDROID_DRIVER_API_KEY` e
-  `RAMO_FIREBASE_ANDROID_DRIVER_APP_ID`;
-- iOS Passenger: `RAMO_FIREBASE_IOS_PASSENGER_API_KEY` e
-  `RAMO_FIREBASE_IOS_PASSENGER_APP_ID`;
-- iOS Driver: `RAMO_FIREBASE_IOS_DRIVER_API_KEY` e
-  `RAMO_FIREBASE_IOS_DRIVER_APP_ID`.
+- Android Passenger: `RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID`;
+- Android Driver: `RAMO_FIREBASE_ANDROID_DRIVER_APP_ID`;
+- iOS Passenger: `RAMO_FIREBASE_IOS_PASSENGER_APP_ID`;
+- iOS Driver: `RAMO_FIREBASE_IOS_DRIVER_APP_ID`.
 
-Os workflows mantêm fallbacks genéricos (`RAMO_FIREBASE_API_KEY`,
-`RAMO_FIREBASE_APP_ID`, `RAMO_FIREBASE_PASSENGER_APP_ID` e
-`RAMO_FIREBASE_DRIVER_APP_ID`) apenas para compatibilidade. Como cada app
-Firebase possui App ID próprio, a configuração específica por plataforma/app é
-a opção recomendada para produção.
+Para API key, prefira também os Secrets específicos
+`RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY`,
+`RAMO_FIREBASE_ANDROID_DRIVER_API_KEY`,
+`RAMO_FIREBASE_IOS_PASSENGER_API_KEY` e
+`RAMO_FIREBASE_IOS_DRIVER_API_KEY`; o release ainda aceita
+`RAMO_FIREBASE_API_KEY` como fallback quando o mesmo projeto Firebase usa uma
+API key compartilhada. O gate valida que cada App ID corresponde à plataforma
+e ao `RAMO_FIREBASE_MESSAGING_SENDER_ID` configurado.
+
+No iOS, os entitlements de Push já existem no projeto. Para entrega real ainda
+é necessário habilitar/configurar APNs na conta Apple e associar a chave APNs
+ao projeto Firebase correto.
 
 Os workflows de Preview e iOS Payment Audit permitem compilação sem esses
 Secrets e emitem warning; nesses binários o Push fica desativado. O
