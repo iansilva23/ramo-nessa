@@ -11,6 +11,7 @@ on:
       - "apps/driver/**"
       - "apps/admin/**"
       - "deploy/test/**"
+      - "deploy/prod/**"
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
@@ -23,6 +24,7 @@ on:
       - "apps/driver/**"
       - "apps/admin/**"
       - "deploy/test/**"
+      - "deploy/prod/**"
       - ".github/workflows/test-stack-audit.yml"
       - "packages/design_system/**"
       - ".github/workflows/preflight.yml"
@@ -104,13 +106,16 @@ jobs:
         working-directory: apps/admin
         run: npm test
 
-      - name: Check test-stack scripts
+      - name: Check deployment scripts
         run: |
           node --check deploy/test/env.mjs
           node --check deploy/test/generate-env.mjs
           node --check deploy/test/start.mjs
           node --check deploy/test/create-admin.mjs
           node --check deploy/test/smoke.mjs
+          node --check deploy/prod/env.mjs
+          node --check deploy/prod/generate-env.mjs
+          node --check deploy/prod/validate-env.mjs
 
       - name: Validate test-stack Compose
         env:
@@ -121,6 +126,55 @@ jobs:
           ADMIN_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
           ADMIN_LOGIN_RATE_LIMIT_SECRET: 3333333333333333333333333333333333333333333333333333333333333333
         run: docker compose -f deploy/test/compose.yml config > /dev/null
+
+      - name: Validate production deployment config
+        run: |
+          cat > /tmp/ramo-prod.env <<'EOF'
+          APP_DOMAIN=ci.ramonessa.test
+          ACME_EMAIL=ops@ramonessa.test
+          POSTGRES_USER=ramonessa
+          POSTGRES_DB=ramonessa
+          POSTGRES_PASSWORD=cccccccccccccccccccccccccccccccc
+          DATABASE_URL=postgresql://ramonessa:cccccccccccccccccccccccccccccccc@postgres:5432/ramonessa
+          DB_POOL_MAX=20
+          DB_SSL=false
+          DB_SSL_CA=
+          SHUTDOWN_TIMEOUT_MS=10000
+          OTP_HASH_SECRET=1111111111111111111111111111111111111111111111111111111111111111
+          OTP_RATE_LIMIT_SECRET=2222222222222222222222222222222222222222222222222222222222222222
+          OTP_WEBHOOK_URL=https://otp.ramonessa.test/send
+          OTP_WEBHOOK_TOKEN=33333333333333333333333333333333
+          ADMIN_MFA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          ADMIN_LOGIN_RATE_LIMIT_SECRET=4444444444444444444444444444444444444444444444444444444444444444
+          ROUTING_TIMEOUT_MS=5000
+          GOOGLE_MAPS_SERVER_API_KEY=55555555555555555555555555555555
+          PLACE_PROOF_SECRET=6666666666666666666666666666666666666666666666666666666666666666
+          PLACE_PROOF_TTL_SECONDS=1800
+          PUSH_PROVIDER=disabled
+          PUSH_WEBHOOK_URL=
+          PUSH_WEBHOOK_SECRET=
+          DOCUMENT_INSPECTION_ENCRYPTION_KEY=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
+          DOCUMENT_INSPECTION_TTL_SECONDS=60
+          MERCADO_PAGO_ACCESS_TOKEN=7777777777777777777777777777777777777777
+          MERCADO_PAGO_WEBHOOK_SECRET=88888888888888888888888888888888
+          DRIVER_PAYOUT_PROVIDER_NAME=
+          DRIVER_PAYOUT_PROVIDER_URL=
+          DRIVER_PAYOUT_PROVIDER_TOKEN=
+          DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS=60
+          EOF
+
+          node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod.env
+          docker compose \
+            --env-file /tmp/ramo-prod.env \
+            -f deploy/prod/compose.yml \
+            config > /dev/null
+
+          docker run --rm \
+            -e APP_DOMAIN=ci.ramonessa.test \
+            -e ACME_EMAIL=ops@ramonessa.test \
+            -v "$PWD/deploy/prod/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2.23.0
