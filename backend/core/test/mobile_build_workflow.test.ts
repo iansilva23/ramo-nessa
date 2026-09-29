@@ -78,6 +78,7 @@ test('audit final mobile exige Firebase e chaves Maps dedicadas', async () => {
     (yaml.match(/tooling\/validate-google-maps-key\.mjs/g) ?? []).length,
     4,
   );
+});
 
 test('previews e audit iOS injetam Firebase quando disponível', async () => {
   const [preview, iosAudit] = await Promise.all([
