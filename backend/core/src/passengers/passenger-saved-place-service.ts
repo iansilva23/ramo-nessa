@@ -41,6 +41,54 @@ function cleanText(
   return text;
 }
 
+function optionalProviderPlaceId(value: unknown): string | undefined {
+  if (value == null || value === '') return undefined;
+  return cleanText(value, 3, 256, 'Identificador do lugar');
+}
+
+function optionalPricingIdentity(input: {
+  providerPlaceId?: string;
+  zoneId: unknown;
+  localityId: unknown;
+}): {
+  providerPlaceId?: string;
+  approvedPricingZoneId?: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+  approvedPricingLocalityId?: string;
+} {
+  const zone =
+    typeof input.zoneId === 'string' ? input.zoneId.trim() : '';
+  const locality =
+    typeof input.localityId === 'string' ? input.localityId.trim() : '';
+
+  if (zone === '' && locality === '') {
+    return input.providerPlaceId == null
+      ? {}
+      : { providerPlaceId: input.providerPlaceId };
+  }
+
+  if (
+    input.providerPlaceId == null ||
+    (
+      zone !== 'jericoacoara' &&
+      zone !== 'jijoca' &&
+      zone !== 'prea' &&
+      zone !== 'external'
+    ) ||
+    !/^[a-z0-9][a-z0-9-]{0,119}$/.test(locality)
+  ) {
+    throw new PassengerSavedPlaceError(
+      'INVALID_SAVED_PLACE',
+      'Identidade de preço do local salvo é inválida.',
+    );
+  }
+
+  return {
+    providerPlaceId: input.providerPlaceId,
+    approvedPricingZoneId: zone,
+    approvedPricingLocalityId: locality,
+  };
+}
+
 function coordinates(input: {
   latitude: unknown;
   longitude: unknown;
@@ -80,6 +128,15 @@ function savedPlaceView(place: PassengerSavedPlaceRecord) {
     address: place.address,
     latitude: place.latitude,
     longitude: place.longitude,
+    ...(place.providerPlaceId == null
+      ? {}
+      : { providerPlaceId: place.providerPlaceId }),
+    ...(place.approvedPricingZoneId == null
+      ? {}
+      : { approvedPricingZoneId: place.approvedPricingZoneId }),
+    ...(place.approvedPricingLocalityId == null
+      ? {}
+      : { approvedPricingLocalityId: place.approvedPricingLocalityId }),
     createdAt: place.createdAt,
     updatedAt: place.updatedAt,
   };
@@ -104,6 +161,9 @@ export async function savePassengerSavedPlace(input: {
   address: unknown;
   latitude: unknown;
   longitude: unknown;
+  providerPlaceId?: unknown;
+  approvedPricingZoneId?: unknown;
+  approvedPricingLocalityId?: unknown;
   now?: Date;
 }) {
   const kind = input.kind;
@@ -133,6 +193,12 @@ export async function savePassengerSavedPlace(input: {
     'Endereço',
   );
   const point = coordinates(input);
+  const providerPlaceId = optionalProviderPlaceId(input.providerPlaceId);
+  const pricingIdentity = optionalPricingIdentity({
+    providerPlaceId,
+    zoneId: input.approvedPricingZoneId,
+    localityId: input.approvedPricingLocalityId,
+  });
   const existing = await input.repository.listByPassenger(
     input.passengerId,
   );
@@ -160,6 +226,7 @@ export async function savePassengerSavedPlace(input: {
     address,
     latitude: point.latitude,
     longitude: point.longitude,
+    ...pricingIdentity,
     createdAt: slot?.createdAt ?? now,
     updatedAt: now,
   });
