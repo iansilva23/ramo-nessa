@@ -28,6 +28,7 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
     return jsonResponse(200, {
       driverOfferTtlSeconds: 35,
       driverPaymentHoldSeconds: 120,
+      noDriverDecisionTimeoutSeconds: 900,
       driverLocationMaxAgeSeconds: 75,
       nearbyDriverMaxDistanceKm: 8.5,
       showNearbyDrivers: false,
@@ -41,6 +42,7 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
   await api.updateOperationalSettings(token, {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 120,
+    noDriverDecisionTimeoutSeconds: 900,
     driverLocationMaxAgeSeconds: 75,
     nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
@@ -59,6 +61,7 @@ test('Admin envia tempo de oferta e reserva do pagamento ao Core', async () => {
   assert.deepEqual(JSON.parse(calls[0].options.body), {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 120,
+    noDriverDecisionTimeoutSeconds: 900,
     driverLocationMaxAgeSeconds: 75,
     nearbyDriverMaxDistanceKm: 8.5,
     showNearbyDrivers: false,
@@ -91,6 +94,13 @@ test('página Motoristas expõe e valida a reserva durante pagamento', () => {
   assert.match(app, /driver-payment-hold-seconds/);
   assert.match(
     html,
+    /id=["']no-driver-decision-timeout-seconds["'][^>]*min=["']60["'][^>]*max=["']3600["']/,
+  );
+  assert.match(app, /noDriverDecisionTimeoutSeconds/);
+  assert.match(app, /noDriverDecisionTimeoutSeconds < 60/);
+  assert.match(app, /noDriverDecisionTimeoutSeconds > 3600/);
+  assert.match(
+    html,
     /id=["']driver-location-max-age-seconds["'][^>]*min=["']15["'][^>]*max=["']600["']/,
   );
   assert.match(
@@ -105,6 +115,7 @@ test('página Motoristas expõe e valida a reserva durante pagamento', () => {
   for (const id of [
     'driver-offer-ttl-seconds',
     'driver-payment-hold-seconds',
+    'no-driver-decision-timeout-seconds',
     'driver-location-max-age-seconds',
     'nearby-driver-max-distance-km',
   ]) {
