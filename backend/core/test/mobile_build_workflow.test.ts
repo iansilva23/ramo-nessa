@@ -9,7 +9,7 @@ async function workflow(name: string): Promise<string> {
   );
 }
 
-test('audit final mobile exige Firebase em Android e iOS', async () => {
+test('audit final mobile exige Firebase e chaves Maps dedicadas', async () => {
   const yaml = await workflow('mobile-build-audit.yml');
 
   for (const step of [
@@ -57,11 +57,27 @@ test('audit final mobile exige Firebase em Android e iOS', async () => {
     /RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release/,
   );
 
-  assert.match(
-    yaml,
-    /Configure Driver Google Maps iOS key[\s\S]*?RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY \|\| secrets\.RAMO_GOOGLE_MAPS_IOS_API_KEY/,
+  for (const secretName of [
+    'RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY',
+    'RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY',
+    'RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY',
+    'RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY',
+  ]) {
+    assert.equal(yaml.includes('secrets.' + secretName), true);
+  }
+
+  assert.equal(
+    yaml.includes('secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}'),
+    false,
   );
-});
+  assert.equal(
+    yaml.includes('secrets.RAMO_GOOGLE_MAPS_IOS_API_KEY }}'),
+    false,
+  );
+  assert.equal(
+    (yaml.match(/tooling\/validate-google-maps-key\.mjs/g) ?? []).length,
+    4,
+  );
 
 test('previews e audit iOS injetam Firebase quando disponível', async () => {
   const [preview, iosAudit] = await Promise.all([
