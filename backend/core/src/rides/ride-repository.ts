@@ -65,6 +65,10 @@ export interface RideRepository {
     before: string,
     limit: number,
   ): Promise<RideRecord[]>;
+  listRefundPendingBefore(
+    before: string,
+    limit: number,
+  ): Promise<RideRecord[]>;
   listAdminActive(limit: number): Promise<RideRecord[]>;
   listAdminRecentByPassengerId(
     passengerId: string,
