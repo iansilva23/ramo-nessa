@@ -1,13 +1,13 @@
 # Zonas e preço — Passageiro + Core
 
-## Fonte comercial vigente
+## Base comercial em revisão
 
-A especificação aprovada está em:
+A implementação atual está documentada em:
 
 - `docs/COMMERCIAL_RULES_V1.md`
 - `docs/PAYMENTS_AND_COMMISSION_V1.md`
 
-Esses documentos são a referência comercial da v1.
+Esses documentos descrevem a base técnica vigente no Core, mas valores e regras sujeitos à revisão comercial não devem ser tratados como tabela oficial até aprovação explícita.
 
 ## Estado implementado
 
@@ -16,7 +16,7 @@ O Passageiro já possui:
 - origem por GPS e origem manual;
 - destino manual;
 - busca local limitada a Jeri/Jijoca/Preá e entorno;
-- busca externa liberada somente para destinos longos presentes na tabela aprovada;
+- busca externa liberada somente para destinos longos presentes na base comercial atualmente implementada;
 - Aeroporto JJD;
 - rota, distância e ETA em ambiente de desenvolvimento;
 - Carro, Moto, Entrega, Comfort/Black e Buggy;
