@@ -132,12 +132,62 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     await _loadSavedPlaces();
   }
 
-  void _selectSavedPlace(PassengerSavedPlace place) {
+  Future<void> _selectSavedPlace(
+    PassengerSavedPlace place,
+  ) async {
+    final autocomplete = _autocompleteService;
+    final providerPlaceId = place.providerPlaceId?.trim();
+    final approvedZoneId = place.approvedPricingZoneId?.trim();
+    final approvedLocalityId =
+        place.approvedPricingLocalityId?.trim();
+
+    if (
+      autocomplete != null &&
+      providerPlaceId?.isNotEmpty == true &&
+      approvedZoneId?.isNotEmpty == true &&
+      approvedLocalityId?.isNotEmpty == true
+    ) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+
+      try {
+        final refreshed = await autocomplete.resolve(
+          PlaceAutocompleteSuggestion(
+            placeId: providerPlaceId!,
+            mainText: place.name,
+            secondaryText: place.address,
+            localOnly: approvedZoneId != 'external',
+            approvedExternalId: approvedZoneId == 'external'
+                ? approvedLocalityId
+                : null,
+          ),
+          sessionToken: autocomplete.beginSession(),
+        );
+        if (!mounted) return;
+        Navigator.of(context).pop(refreshed);
+        return;
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error =
+              'Não conseguimos validar este endereço salvo agora. Tente novamente.';
+        });
+        return;
+      }
+    }
+
     Navigator.of(context).pop(
       RamoPlace(
         name: place.name,
         address: place.address,
         position: place.position,
+        providerPlaceId: place.providerPlaceId,
+        approvedPricingZoneId: place.approvedPricingZoneId,
+        approvedPricingLocalityId:
+            place.approvedPricingLocalityId,
       ),
     );
   }
@@ -450,9 +500,8 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                                                 Icons.north_west_rounded,
                                                 size: 17,
                                               ),
-                                              onTap: () =>
-                                                  _selectSavedPlace(
-                                                place,
+                                              onTap: () => unawaited(
+                                                _selectSavedPlace(place),
                                               ),
                                             );
                                           },
