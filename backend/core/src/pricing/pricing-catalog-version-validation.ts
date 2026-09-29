@@ -79,6 +79,7 @@ export type PricingCatalogDraftPatch =
         maxKm: number;
         amountCents: number;
       }>;
+      aboveMaxCents: number;
     };
 
 function objectValue(
@@ -518,7 +519,14 @@ export function parsePricingCatalogDraftPatch(
         );
       }
     }
-    return { kind, bands };
+    return {
+      kind,
+      bands,
+      aboveMaxCents: centsValue(
+        value.aboveMaxCents,
+        'aboveMaxCents',
+      ),
+    };
   }
 
   throw new InvalidPricingCatalogPatchError(
