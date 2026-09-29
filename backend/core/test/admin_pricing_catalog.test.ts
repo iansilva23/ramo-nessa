@@ -36,6 +36,16 @@ test('catálogo Admin é somente leitura e preserva a autoridade do Core', () =>
     },
   );
   assert.deepEqual(
+    catalog.categoryPolicies.find(
+      (item) => item.category === 'car',
+    ),
+    {
+      category: 'car',
+      enabled: true,
+      requiresFourByFourOnJeriBoundary: true,
+    },
+  );
+  assert.deepEqual(
     catalog.zonePolicies.find(
       (item) => item.zoneId === 'external',
     ),
@@ -69,9 +79,8 @@ test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tari
     (item) => item.localityId === 'formosa',
   );
   assert.deepEqual(formosa?.prices.moto, {
-    kind: 'range',
-    minCents: 800,
-    maxCents: 1000,
+    kind: 'exact',
+    amountCents: 700,
   });
 
   const route = catalog.fixedRoutes.find(
@@ -79,6 +88,13 @@ test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tari
   );
   assert.equal(route?.dayCents, 12000);
   assert.equal(route?.after22Cents, 14000);
+
+  const airportMoto = catalog.fixedRoutes.find(
+    (item) => item.id === 'prea-airport-moto',
+  );
+  assert.equal(airportMoto?.dayCents, 6000);
+  assert.equal(airportMoto?.after22Cents, 8000);
+  assert.equal(catalog.jeri.deliveryAboveMaxCents, 600);
 
   assert.equal(
     catalog.surcharges.preaLocalCarAfter22LocalityIds.includes(
