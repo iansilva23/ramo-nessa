@@ -229,6 +229,7 @@ test('Place Details encerra a mesma sessão com campos Essentials', async () => 
     return new Response(
       JSON.stringify({
         id: 'jeri-place',
+        displayName: { text: 'Jericoacoara' },
         formattedAddress:
           'Jericoacoara, Jijoca de Jericoacoara - CE, Brasil',
         location: {
@@ -277,10 +278,11 @@ test('Place Details encerra a mesma sessão com campos Essentials', async () => 
   const headers = new Headers(capturedHeaders);
   assert.equal(
     headers.get('x-goog-fieldmask'),
-    'id,formattedAddress,location,addressComponents',
+    'id,displayName,formattedAddress,location,addressComponents',
   );
   assert.deepEqual(result, {
     id: 'jeri-place',
+    name: 'Jericoacoara',
     address: 'Jericoacoara, Jijoca de Jericoacoara - CE, Brasil',
     latitude: -2.7956,
     longitude: -40.5142,
@@ -298,6 +300,7 @@ test('Place Details bloqueia resultado fora da área quando localOnly', async ()
     new Response(
       JSON.stringify({
         id: 'fortaleza-place',
+        displayName: { text: 'Fortaleza' },
         formattedAddress: 'Fortaleza - CE, Brasil',
         location: {
           latitude: -3.7319,
