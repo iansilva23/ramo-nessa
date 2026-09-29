@@ -380,6 +380,10 @@ class _SavedPlaceEditorScreenState
         name: existing.name,
         address: existing.address,
         position: existing.position,
+        providerPlaceId: existing.providerPlaceId,
+        approvedPricingZoneId: existing.approvedPricingZoneId,
+        approvedPricingLocalityId:
+            existing.approvedPricingLocalityId,
       );
       _queryController.text = existing.name;
     }
@@ -452,6 +456,10 @@ class _SavedPlaceEditorScreenState
         name: selected.name,
         address: selected.address,
         position: selected.position,
+        providerPlaceId: selected.providerPlaceId,
+        approvedPricingZoneId: selected.approvedPricingZoneId,
+        approvedPricingLocalityId:
+            selected.approvedPricingLocalityId,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
