@@ -169,9 +169,8 @@ jobs:
           GOOGLE_MAPS_SERVER_API_KEY=55555555555555555555555555555555
           PLACE_PROOF_SECRET=6666666666666666666666666666666666666666666666666666666666666666
           PLACE_PROOF_TTL_SECONDS=1800
-          PUSH_PROVIDER=disabled
-          PUSH_WEBHOOK_URL=
-          PUSH_WEBHOOK_SECRET=
+          PUSH_PROVIDER=fcm
+          FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/tmp/ramo-firebase-service-account.json
           DOCUMENT_INSPECTION_ENCRYPTION_KEY=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=
           DOCUMENT_INSPECTION_TTL_SECONDS=60
           MERCADO_PAGO_ACCESS_TOKEN=7777777777777777777777777777777777777777
@@ -183,6 +182,14 @@ jobs:
           EOF
 
           node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod.env
+
+          cp /tmp/ramo-prod.env /tmp/ramo-prod-push-disabled.env
+          sed -i 's/^PUSH_PROVIDER=fcm$/PUSH_PROVIDER=disabled/' /tmp/ramo-prod-push-disabled.env
+          if node deploy/prod/validate-env.mjs --env-file=/tmp/ramo-prod-push-disabled.env; then
+            echo "::error::O deploy de produção aceitou PUSH_PROVIDER=disabled."
+            exit 1
+          fi
+
           docker compose \
             --env-file /tmp/ramo-prod.env \
             -f deploy/prod/compose.yml \
