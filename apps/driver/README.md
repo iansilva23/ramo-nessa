@@ -40,11 +40,16 @@ Use:
 
 A identidade de desenvolvimento é recusada pelo Core em produção.
 
-## Ainda falta
-- autenticação real;
-- onboarding/documentos;
-- realtime/push;
-- validar tracking em background em celular Android real;
-- navegação interna/turn-by-turn própria;
-- ganhos, saque, histórico e avaliações;
-- iOS e assinatura de release.
+## Estado de produção / pendências externas
+Já existem login OTP/sessão Bearer, cadastro aprovado, documentos, realtime com fallback HTTP, infraestrutura de push, ganhos, saque, histórico, avaliações e ciclo completo da corrida no app/Core.
+
+Antes de tratar o app como pronto para lançamento ainda é necessário:
+- configurar provider OTP/SMS e credenciais de produção;
+- configurar Firebase/FCM e APNs finais;
+- conectar storage privado persistente para documentos e validar o onboarding operacional;
+- validar tracking/background, navegação e notificações em aparelhos Android/iPhone reais;
+- concluir assinatura Android de produção e signing/provisioning iOS;
+- homologar os fluxos financeiros reais e executar piloto controlado;
+- validar a experiência de navegação guiada final em uso de rua.
+
+A identidade `RAMO_DEV_DRIVER_ID` continua sendo apenas fallback explícito de desenvolvimento e é recusada pelo Core em produção.
