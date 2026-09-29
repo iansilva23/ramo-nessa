@@ -116,8 +116,6 @@ services:
     depends_on:
       document-storage-init:
         condition: service_completed_successfully
-      document-storage-check:
-        condition: service_completed_successfully
     volumes:
       - driver_documents:/var/lib/ramo-nessa
       - ./check-document-storage.mjs:/ops/check-document-storage.mjs:ro
@@ -138,6 +136,8 @@ services:
       migrate:
         condition: service_completed_successfully
       document-storage-init:
+        condition: service_completed_successfully
+      document-storage-check:
         condition: service_completed_successfully
     volumes:
       - driver_documents:/var/lib/ramo-nessa
