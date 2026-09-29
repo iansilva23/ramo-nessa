@@ -144,3 +144,82 @@ test('webhook OTP converte HTTP não-2xx e indisponibilidade em erro seguro', as
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test('webhook OTP repete falha transitória com a mesma chave idempotente', async () => {
+  const originalFetch = globalThis.fetch;
+  const capturedKeys: string[] = [];
+  const capturedBodies: string[] = [];
+  let calls = 0;
+
+  globalThis.fetch = (async (
+    _input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
+    calls += 1;
+    const headers = new Headers(init?.headers);
+    capturedKeys.push(headers.get('idempotency-key') ?? '');
+    capturedBodies.push(String(init?.body ?? ''));
+
+    if (calls === 1) {
+      return new Response('', { status: 503 });
+    }
+    return new Response('', { status: 202 });
+  }) as typeof fetch;
+
+  try {
+    const provider = new WebhookOtpDeliveryProvider(
+      new URL('https://sms.example.com/v1/otp'),
+      'provider-token-abcdefghijklmnopqrstuvwxyz',
+    );
+
+    await provider.sendCode({
+      phoneE164: '+5588999991234',
+      code: '654321',
+      challengeId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      expiresInSeconds: 300,
+    });
+
+    assert.equal(calls, 2);
+    assert.deepEqual(capturedKeys, [
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    ]);
+    assert.equal(capturedBodies[0], capturedBodies[1]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('webhook OTP não repete erro HTTP definitivo', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response('', { status: 400 });
+  }) as typeof fetch;
+
+  try {
+    const provider = new WebhookOtpDeliveryProvider(
+      new URL('https://sms.example.com/v1/otp'),
+      'provider-token-abcdefghijklmnopqrstuvwxyz',
+    );
+
+    await assert.rejects(
+      () =>
+        provider.sendCode({
+          phoneE164: '+5588999991234',
+          code: '123456',
+          challengeId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+          expiresInSeconds: 300,
+        }),
+      (error: unknown) =>
+        error instanceof OtpDeliveryError &&
+        /HTTP 400/.test(error.message),
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
