@@ -245,6 +245,25 @@ export class PostgresRideRepository implements RideRepository {
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
   }
 
+  async listNoDriverFoundBefore(
+    before: string,
+    limit: number,
+  ): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const result = await this.pool.query<RideRow>(
+      `
+      SELECT ${RETURNING}
+      FROM rides
+      WHERE state = 'NO_DRIVER_FOUND'
+        AND updated_at <= $1::timestamptz
+      ORDER BY updated_at ASC, id ASC
+      LIMIT $2
+      `,
+      [before, safeLimit],
+    );
+    return result.rows.map(mapRow);
+  }
+
   async listAdminActive(limit: number): Promise<RideRecord[]> {
     const result = await this.pool.query<RideRow>(
       `
