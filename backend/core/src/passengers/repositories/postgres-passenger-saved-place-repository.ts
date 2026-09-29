@@ -15,6 +15,14 @@ interface PassengerSavedPlaceRow {
   address: string;
   latitude: string | number;
   longitude: string | number;
+  provider_place_id: string | null;
+  approved_pricing_zone_id:
+    | 'jericoacoara'
+    | 'jijoca'
+    | 'prea'
+    | 'external'
+    | null;
+  approved_pricing_locality_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -31,6 +39,15 @@ function mapPlace(
     address: row.address,
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
+    ...(row.provider_place_id == null
+      ? {}
+      : { providerPlaceId: row.provider_place_id }),
+    ...(row.approved_pricing_zone_id == null
+      ? {}
+      : { approvedPricingZoneId: row.approved_pricing_zone_id }),
+    ...(row.approved_pricing_locality_id == null
+      ? {}
+      : { approvedPricingLocalityId: row.approved_pricing_locality_id }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -38,7 +55,9 @@ function mapPlace(
 
 const COLUMNS = `
   id, passenger_id, kind, label, name, address,
-  latitude, longitude, created_at, updated_at
+  latitude, longitude, provider_place_id,
+  approved_pricing_zone_id, approved_pricing_locality_id,
+  created_at, updated_at
 `;
 
 export class PostgresPassengerSavedPlaceRepository
@@ -75,8 +94,10 @@ export class PostgresPassengerSavedPlaceRepository
       ? `
         INSERT INTO passenger_saved_places (
           id, passenger_id, kind, label, name, address,
-          latitude, longitude, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          latitude, longitude, provider_place_id,
+          approved_pricing_zone_id, approved_pricing_locality_id,
+          created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         ON CONFLICT (passenger_id, kind)
           WHERE kind IN ('home', 'work')
         DO UPDATE SET
@@ -85,14 +106,20 @@ export class PostgresPassengerSavedPlaceRepository
           address = EXCLUDED.address,
           latitude = EXCLUDED.latitude,
           longitude = EXCLUDED.longitude,
+          provider_place_id = EXCLUDED.provider_place_id,
+          approved_pricing_zone_id = EXCLUDED.approved_pricing_zone_id,
+          approved_pricing_locality_id =
+            EXCLUDED.approved_pricing_locality_id,
           updated_at = EXCLUDED.updated_at
         RETURNING ${COLUMNS}
         `
       : `
         INSERT INTO passenger_saved_places (
           id, passenger_id, kind, label, name, address,
-          latitude, longitude, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          latitude, longitude, provider_place_id,
+          approved_pricing_zone_id, approved_pricing_locality_id,
+          created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         RETURNING ${COLUMNS}
         `;
 
@@ -107,6 +134,9 @@ export class PostgresPassengerSavedPlaceRepository
         place.address,
         place.latitude,
         place.longitude,
+        place.providerPlaceId ?? null,
+        place.approvedPricingZoneId ?? null,
+        place.approvedPricingLocalityId ?? null,
         place.createdAt,
         place.updatedAt,
       ],
