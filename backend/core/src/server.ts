@@ -200,6 +200,7 @@ import {
 import {
   cancelDriverRide,
   currentDriverRide,
+  driverRideView,
   performDriverRideAction,
 } from './drivers/driver-ride-service.js';
 import {
@@ -5683,6 +5684,131 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const driverRideCancelMatch = requestUrl.pathname.match(
+      /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/cancel$/,
+    );
+    if (request.method === 'POST' && driverRideCancelMatch != null) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const record =
+        body != null && typeof body === 'object'
+          ? body as { reason?: unknown; note?: unknown }
+          : {};
+      const rideId = driverRideCancelMatch[1]!;
+      const cancelled = await cancelDriverRide({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        driverId,
+        rideId,
+        reason: record.reason,
+        ...(typeof record.note === 'string'
+          ? { note: record.note }
+          : {}),
+      });
+      const stored = await rideRepository.findById(rideId);
+      if (stored == null) {
+        throw new DriverAppError(
+          'RIDE_NOT_FOUND',
+          'Corrida não encontrada após o cancelamento.',
+        );
+      }
+
+      const refund = await automaticallyRefundRide({
+        rides: rideRepository,
+        finance: financeRepository,
+        gateway: mercadoPagoOrdersClient,
+        rideId,
+        passengerId: stored.passengerId,
+        idempotencyPrefix: 'driver-cancel',
+      });
+
+      if (
+        cancelled.requiresAdminReview &&
+        !cancelled.duplicateCancellation
+      ) {
+        const subject = cancelled.compensationReviewRequired
+          ? 'Revisar compensação após cancelamento'
+          : 'Revisar ocorrência de segurança';
+        const message = [
+          `Corrida ${rideId} cancelada pelo motorista.`,
+          `Motivo: ${cancelled.reason}.`,
+          `Estado anterior: ${cancelled.previousState}.`,
+          cancelled.note == null
+            ? null
+            : `Observação: ${cancelled.note}`,
+          cancelled.compensationReviewRequired
+            ? 'O passageiro recebeu reembolso integral; avaliar eventual compensação ao motorista separadamente.'
+            : 'Revisar a ocorrência e tomar medidas operacionais se necessário.',
+        ].filter((item): item is string => item != null).join(' ');
+
+        try {
+          await createDriverSupportTicket({
+            repository: driverSupportRepository,
+            driverId,
+            category: 'ride',
+            subject,
+            message,
+          });
+        } catch (supportError) {
+          logWarn('driver.ride.cancel.review_ticket_failed', {
+            rideId,
+            driverId,
+            ...errorFields(supportError),
+          });
+        }
+      }
+
+      realtimeHub.publishDriver(driverId, {
+        type: 'driver.ride.updated',
+        ride: null,
+        serverTime: new Date().toISOString(),
+      });
+
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rideId,
+        passengerId: stored.passengerId,
+      });
+      if (tracking != null) {
+        realtimeHub.publishPassengerRide(rideId, {
+          type: 'passenger.ride.tracking',
+          tracking,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      sendPushBestEffort({
+        subjectType: 'passenger',
+        subjectId: stored.passengerId,
+        type: 'passenger.ride.cancelled_by_driver',
+        title: 'Corrida cancelada pelo motorista',
+        body:
+          refund.refundStatus === 'refunded'
+            ? 'O valor da corrida foi devolvido integralmente.'
+            : refund.refundStatus === 'not_charged'
+              ? 'A corrida foi cancelada e nenhum valor foi cobrado.'
+              : 'O reembolso integral já foi solicitado e está em processamento.',
+        data: { rideId },
+      });
+
+      json(response, 200, {
+        ride: driverRideView(refund.ride),
+        refundStatus: refund.refundStatus,
+        adminReviewCreated: cancelled.requiresAdminReview,
+        compensationReviewRequired:
+          cancelled.compensationReviewRequired,
+        duplicateCancellation:
+          cancelled.duplicateCancellation,
+      });
+      return;
+    }
+
     const driverRideAction = requestUrl.pathname.match(
       /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/(arrive|start|complete)$/,
     );
@@ -6060,6 +6186,125 @@ const server = createServer(async (request, response) => {
         now,
       });
       json(response, 201, passengerRideView(ride));
+      return;
+    }
+
+    const passengerRetryMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/retry-search$/,
+    );
+    if (request.method === 'POST' && passengerRetryMatch != null) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const result = await retryPassengerRideSearch({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        matching: rideMatchingRepository,
+        passengerId,
+        rideId: passengerRetryMatch[1]!,
+        finance: financeRepository,
+        paymentPolicySettings: paymentPolicySettingsRepository,
+        operationalSettings: operationalSettingsRepository,
+        canOfferDriver: (candidateDriverId) =>
+          canDriverReceiveNewWorkUnderPolicy(candidateDriverId),
+      });
+
+      if (result.offer != null) {
+        const offerRide =
+          await rideRepository.findById(result.offer.rideId);
+        if (offerRide != null) {
+          realtimeHub.publishDriver(result.offer.driverId, {
+            type: 'driver.offer.updated',
+            offer: driverOfferView(result.offer, offerRide),
+            serverTime: new Date().toISOString(),
+          });
+        }
+      }
+
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rideId: result.ride.id,
+        passengerId,
+      });
+      if (tracking != null) {
+        realtimeHub.publishPassengerRide(result.ride.id, {
+          type: 'passenger.ride.tracking',
+          tracking,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      json(response, 200, {
+        ride: passengerRideView(result.ride),
+        dispatchStatus: result.dispatchStatus,
+      });
+      return;
+    }
+
+    const passengerCancelNoDriverMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/cancel-search$/,
+    );
+    if (
+      request.method === 'POST' &&
+      passengerCancelNoDriverMatch != null
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const cancelled = await cancelPassengerRideAfterNoDriver({
+        rides: rideRepository,
+        passengerId,
+        rideId: passengerCancelNoDriverMatch[1]!,
+      });
+      const refund = await automaticallyRefundRide({
+        rides: rideRepository,
+        finance: financeRepository,
+        gateway: mercadoPagoOrdersClient,
+        rideId: cancelled.id,
+        passengerId,
+        idempotencyPrefix: 'passenger-no-driver-cancel',
+      });
+
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rideId: refund.ride.id,
+        passengerId,
+      });
+      if (tracking != null) {
+        realtimeHub.publishPassengerRide(refund.ride.id, {
+          type: 'passenger.ride.tracking',
+          tracking,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      sendPushBestEffort({
+        subjectType: 'passenger',
+        subjectId: passengerId,
+        type: 'passenger.ride.cancelled_after_no_driver',
+        title: 'Corrida cancelada',
+        body:
+          refund.refundStatus === 'refunded'
+            ? 'Sua corrida foi cancelada e o pagamento foi devolvido.'
+            : refund.refundStatus === 'not_charged'
+              ? 'Sua corrida foi cancelada. Nenhum valor foi cobrado.'
+              : 'Sua corrida foi cancelada e o reembolso está em processamento.',
+        data: { rideId: refund.ride.id },
+      });
+
+      json(response, 200, {
+        ride: passengerRideView(refund.ride),
+        refundStatus: refund.refundStatus,
+        duplicateRefund: refund.duplicateRefund,
+      });
       return;
     }
 
@@ -7258,6 +7503,20 @@ const server = createServer(async (request, response) => {
     if (error instanceof PricingLocationMismatchError) {
       json(response, 422, {
         error: 'PRICING_LOCATION_MISMATCH',
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PassengerRideRecoveryError) {
+      const status =
+        error.code === 'RIDE_NOT_FOUND'
+          ? 404
+          : error.code === 'RIDE_PASSENGER_MISMATCH'
+            ? 403
+            : 409;
+      json(response, status, {
+        error: error.code,
         message: error.message,
       });
       return;
