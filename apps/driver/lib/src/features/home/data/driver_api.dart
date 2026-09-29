@@ -82,6 +82,41 @@ abstract interface class DriverApi {
   });
 }
 
+class DriverRideCancellationResult {
+  const DriverRideCancellationResult({
+    required this.refundStatus,
+    required this.adminReviewCreated,
+    required this.compensationReviewRequired,
+    required this.duplicateCancellation,
+  });
+
+  factory DriverRideCancellationResult.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return DriverRideCancellationResult(
+      refundStatus: json['refundStatus'] as String? ?? 'pending_external_gateway',
+      adminReviewCreated: json['adminReviewCreated'] as bool? ?? false,
+      compensationReviewRequired:
+          json['compensationReviewRequired'] as bool? ?? false,
+      duplicateCancellation:
+          json['duplicateCancellation'] as bool? ?? false,
+    );
+  }
+
+  final String refundStatus;
+  final bool adminReviewCreated;
+  final bool compensationReviewRequired;
+  final bool duplicateCancellation;
+}
+
+abstract interface class DriverRideCancellationApi {
+  Future<DriverRideCancellationResult> cancelRide({
+    required String rideId,
+    required String reason,
+    String? note,
+  });
+}
+
 class DriverApiException implements Exception {
   const DriverApiException(
     this.message, {
