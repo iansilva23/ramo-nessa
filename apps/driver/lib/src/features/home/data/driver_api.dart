@@ -85,6 +85,7 @@ abstract interface class DriverApi {
 class DriverRideCancellationResult {
   const DriverRideCancellationResult({
     required this.refundStatus,
+    required this.adminReviewRequired,
     required this.adminReviewCreated,
     required this.compensationReviewRequired,
     required this.duplicateCancellation,
@@ -95,6 +96,7 @@ class DriverRideCancellationResult {
   ) {
     return DriverRideCancellationResult(
       refundStatus: json['refundStatus'] as String? ?? 'pending_external_gateway',
+      adminReviewRequired: json['adminReviewRequired'] as bool? ?? false,
       adminReviewCreated: json['adminReviewCreated'] as bool? ?? false,
       compensationReviewRequired:
           json['compensationReviewRequired'] as bool? ?? false,
@@ -104,6 +106,7 @@ class DriverRideCancellationResult {
   }
 
   final String refundStatus;
+  final bool adminReviewRequired;
   final bool adminReviewCreated;
   final bool compensationReviewRequired;
   final bool duplicateCancellation;
