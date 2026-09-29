@@ -56,3 +56,41 @@ export async function expireNoDriverDecisions(input: {
   }
   return results;
 }
+
+
+export async function reconcilePendingRideRefunds(input: {
+  rides: RideRepository;
+  finance: FinanceRepository;
+  gateway: MercadoPagoOrdersClient | null;
+  now?: Date;
+  limit?: number;
+}): Promise<ExpiredNoDriverDecisionResult[]> {
+  if (input.gateway == null) return [];
+
+  const now = input.now ?? new Date();
+  const pending = await input.rides.listRefundPendingBefore(
+    now.toISOString(),
+    input.limit ?? 100,
+  );
+  const results: ExpiredNoDriverDecisionResult[] = [];
+
+  for (const ride of pending) {
+    const latest = await input.rides.findById(ride.id);
+    if (latest?.state !== 'REFUND_PENDING') continue;
+
+    const refund = await automaticallyRefundRide({
+      rides: input.rides,
+      finance: input.finance,
+      gateway: input.gateway,
+      rideId: latest.id,
+      passengerId: latest.passengerId,
+      now,
+    });
+    results.push({
+      rideId: refund.ride.id,
+      passengerId: refund.ride.passengerId,
+      refundStatus: refund.refundStatus,
+    });
+  }
+  return results;
+}
