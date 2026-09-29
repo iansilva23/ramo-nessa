@@ -12,6 +12,9 @@ export interface PassengerSavedPlaceRecord {
   address: string;
   latitude: number;
   longitude: number;
+  providerPlaceId?: string;
+  approvedPricingZoneId?: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+  approvedPricingLocalityId?: string;
   createdAt: string;
   updatedAt: string;
 }
