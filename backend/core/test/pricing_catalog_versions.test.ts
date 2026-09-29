@@ -646,6 +646,7 @@ test('Admin versiona comissão, horário, coleta, adicionais, Buggy e entrega', 
         { maxKm: 1.5, amountCents: 900 },
         { maxKm: 2.5, amountCents: 1200 },
       ],
+      aboveMaxCents: 1500,
     }),
   ];
 
@@ -688,10 +689,13 @@ test('Admin versiona comissão, horário, coleta, adicionais, Buggy e entrega', 
     { maxKm: 1.5, amountCents: 900 },
     { maxKm: 2.5, amountCents: 1200 },
   ]);
+  assert.equal(updated.snapshot.jeri.deliveryAboveMaxCents, 1500);
 
   assert.equal(STATIC_PRICING_CATALOG_V1.commissionBps, 1000);
   assert.equal(STATIC_PRICING_CATALOG_V1.periodPolicy.nightStartHour, 22);
+  assert.equal(STATIC_PRICING_CATALOG_V1.pickupPolicy.freeKm, 8);
   assert.equal(STATIC_PRICING_CATALOG_V1.jeri.buggy.dayBaseCents, 4000);
+  assert.equal(STATIC_PRICING_CATALOG_V1.jeri.deliveryAboveMaxCents, 600);
 });
 
 test('rejeita políticas comerciais inválidas antes de alterar o rascunho', () => {
