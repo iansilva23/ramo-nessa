@@ -32,6 +32,7 @@ export class DriverAppError extends Error {
       | 'RIDE_NOT_PREPARED'
       | 'RIDE_NOT_ASSIGNED_TO_DRIVER'
       | 'INVALID_RIDE_ACTION'
+      | 'INVALID_CANCELLATION_REASON'
       | 'PAID_PAYMENT_NOT_FOUND',
     message: string,
   ) {
