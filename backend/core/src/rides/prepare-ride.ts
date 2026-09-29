@@ -45,6 +45,8 @@ export async function prepareRideForPayment(input: {
   pricing?: PricingCatalogContext;
   pickup: GeoPoint;
   dropoff: GeoPoint;
+  originLocalityProofVerified?: boolean;
+  destinationLocalityProofVerified?: boolean;
   now?: Date;
   holdSeconds?: number;
   maxCandidates?: number;
@@ -123,12 +125,16 @@ export async function prepareRideForPayment(input: {
     point: input.pickup,
     field: 'origin',
     catalog: pricing.snapshot,
+    localityProofVerified:
+      input.originLocalityProofVerified === true,
   });
   assertPricingLocationMatchesPoint({
     ref: trustedQuoteRequest.destination,
     point: input.dropoff,
     field: 'destination',
     catalog: pricing.snapshot,
+    localityProofVerified:
+      input.destinationLocalityProofVerified === true,
   });
 
   const baseFare = quoteFare(
