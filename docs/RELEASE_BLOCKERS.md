@@ -36,7 +36,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 3. **Preço v1 existe, mas a operação ainda precisa de infraestrutura**
    - o Core já contém a regra comercial;
    - o Passageiro consulta o Core quando `RAMO_CORE_BASE_URL` está configurado;
-   - o Admin já possui catálogo ativo protegido, rascunhos editáveis, versionamento persistente, publicação auditada, vigência imediata/programada e edição estrutural versionada das zonas/localidades suportadas; ainda falta resolução geoespacial robusta de todas as localidades externas;
+   - o Admin já possui catálogo ativo protegido, rascunhos editáveis, versionamento persistente, publicação auditada, vigência imediata/programada e edição estrutural versionada das zonas/localidades suportadas;
+   - destinos externos aprovados e localidades locais reconhecidas via Google Places já recebem prova assinada pelo Core, vinculada à localidade e coordenadas; ainda falta ampliar a cobertura geoespacial para GPS puro e pontos não reconhecidos pelo catálogo de lugares;
    - faixas comerciais que ainda não possuem valor único não podem virar cobrança exata automaticamente.
 
 4. **Gateway financeiro real está integrado, mas depende da operação externa**
@@ -101,7 +102,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já valida categoria, lotação, disponibilidade e 4x4 antes da oferta;
    - disponibilidade de categorias e exigência 4x4 ao cruzar Jeri já são políticas versionadas e publicáveis pelo Admin;
    - cada corrida congela sua exigência 4x4 para não mudar com versões futuras;
-   - falta um catálogo geoespacial autoritativo para validar a localidade exata de todas as tarifas locais/externas, além da validação de zona/GPS já implementada.
+   - a validação específica já existe para destinos externos aprovados e para localidades locais reconhecidas via Google Places, usando `placeProof` assinada pelo Core; falta cobertura geoespacial completa para GPS puro e pontos sem classificação aprovada, além de validação física em condições reais.
 
 ## Suporte e separação Preview/real
 
