@@ -1,9 +1,11 @@
 # Regras Comerciais v1 — Ramo Nessa
 
-Status: BASE IMPLEMENTADA EM REVISÃO COMERCIAL — NÃO PUBLICAR COMO TABELA OFICIAL.
-Data-base técnica: 2026-09-29.
+Status: REVISADO para implementação.
+Data-base: 2026-09-29.
 
-Este documento registra a base atualmente implementada no Core/backend, mas os valores e regras comerciais ainda estão em revisão e não devem ser tratados como tabela oficial até aprovação explícita. O Passageiro consulta o Core para obter a cotação e não mantém preço comercial autoritativo no Flutter. O catálogo é versionado e administrável pelo ADM.
+Este documento registra a base comercial revisada e aplicada no Core/backend em 29/09/2026. O Passageiro consulta o Core para obter a cotação e não mantém preço comercial autoritativo no Flutter. O catálogo é versionado e administrável pelo ADM.
+
+As poucas entradas que permanecem como faixa, sem valor único, continuam explicitamente bloqueadas para despacho como tarifa exata até uma decisão comercial específica.
 
 ## Regras globais
 
@@ -247,7 +249,7 @@ O backend deve impedir oferta de categoria/veículo incompatível com a rota. Na
 
 ## Configuração no backend/Admin
 
-O Core/ADM já possui catálogo comercial persistente e versionado com fluxo de rascunho, revisão, publicação e vigência. As regras abaixo são tratadas como parâmetros comerciais versionáveis; alterações só devem ser publicadas depois da aprovação da tabela oficial:
+O Core/ADM já possui catálogo comercial persistente e versionado com fluxo de rascunho, revisão, publicação e vigência. As regras abaixo são parâmetros comerciais versionáveis; alterações futuras só devem ser publicadas depois da aprovação da nova versão comercial:
 
 - preço por origem/destino/localidade;
 - categoria;
