@@ -85,7 +85,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Admin já consulta somente metadados sanitizados e registra a decisão humana de aprovação/rejeição, sem receber storageKey ou hash do arquivo;
    - inspeção segura já existe no Core/Admin: sessão humana obrigatória, token criptografado curto, proxy `no-store`, validação de hash/MIME/tamanho/assinatura e preview temporário; o stack E2E usa um storage privado de teste;
    - upload de CNH/CRLV no app e no Core já existe, com validação de conteúdo e status pendente; os adapters de storage HTTP privado e diretório privado também existem;
-   - ainda faltam configurar storage privado persistente, permissões, backup/retenção e validar envio/revisão no ambiente final, além de concluir o onboarding operacional;
+   - o perfil `deploy/prod` já possui storage privado persistente para CNH/CRLV, raiz `0700`, arquivos `0600`, probe de escrita/leitura antes do Core iniciar e backup com SHA-256; o modelo está documentado em `docs/DRIVER_DOCUMENT_STORAGE_PRODUCTION.md`; ainda faltam validar upload/revisão/backup/restore no VPS real, aprovar a política formal de retenção/exclusão e concluir o onboarding operacional;
    - o Admin já cobre histórico/cancelamento seguro de viagens, bloqueios de acesso, auditoria, ledger histórico protegido e inspeção segura de documentos; ainda falta a implantação operacional e demais itens de Go-Live;
    - o Core já possui documentos legais versionados, aceite, preferências de privacidade e solicitações de acesso/correção/exclusão-anonimização/portabilidade/revogação; antes do lançamento ainda faltam conteúdo jurídico final revisado, política operacional de retenção/exclusão e validação ponta a ponta desses procedimentos em produção.
 
