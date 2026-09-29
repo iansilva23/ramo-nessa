@@ -7,7 +7,7 @@ import '../../../core/location/driver_location_service.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
 
-class HttpDriverApi implements DriverApi {
+class HttpDriverApi implements DriverApi, DriverRideCancellationApi {
   HttpDriverApi({
     required Uri baseUrl,
     String? accessToken,
@@ -327,6 +327,28 @@ class HttpDriverApi implements DriverApi {
   @override
   Future<AcceptedDriverRide> startRide(String rideId) =>
       _rideAction(rideId, 'start');
+
+  @override
+  Future<DriverRideCancellationResult> cancelRide({
+    required String rideId,
+    required String reason,
+    String? note,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/cancel'),
+          headers: _headers,
+          body: jsonEncode({
+            'reason': reason,
+            if (note?.trim().isNotEmpty == true) 'note': note!.trim(),
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+
+    return DriverRideCancellationResult.fromJson(
+      _expectObject(response, expectedStatus: 200),
+    );
+  }
 
   @override
   Future<DriverRideCompletion> completeRide(String rideId) async {
