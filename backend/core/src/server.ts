@@ -1782,9 +1782,49 @@ const server = createServer(async (request, response) => {
               (place) =>
                 placesLocalityId(place.name) === placesLocalityId(query),
             );
+
+        let responsePlaces = safePlaces;
+        if (localOnly) {
+          const pricing = await resolvePricingCatalogContext({
+            versions: pricingCatalogVersionRepository,
+            at: new Date(),
+          });
+          responsePlaces = safePlaces.map((place) => {
+            const candidate = resolveApprovedLocalPlace({
+              name: place.name,
+              address: place.address,
+            });
+            if (candidate == null) return place;
+
+            try {
+              assertCatalogLocationSupported({
+                catalog: pricing.snapshot,
+                ref: candidate,
+                field: 'destination',
+              });
+            } catch {
+              return place;
+            }
+
+            return {
+              ...place,
+              approvedPricingZoneId: candidate.zoneId,
+              approvedPricingLocalityId: candidate.localityId,
+              placeProof: issuePlaceProof({
+                localityId: candidate.localityId,
+                placeId: place.id,
+                latitude: place.latitude,
+                longitude: place.longitude,
+                secret: placeProofSecret,
+                ttlSeconds: placeProofTtlSeconds,
+              }),
+            };
+          });
+        }
+
         json(response, 200, {
           provider: 'google',
-          places: safePlaces,
+          places: responsePlaces,
         });
       } catch (error) {
         if (error instanceof GooglePlacesError) {
