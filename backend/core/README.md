@@ -2,9 +2,9 @@
 
 Backend central e autoridade das regras críticas do ecossistema.
 
-## Stack inicial
+## Stack
 
-O Core passa a usar **Node.js + TypeScript**. A primeira camada implementada é o domínio de preço/comissão/política de pagamento sem acoplamento a banco ou gateway.
+O Core usa **Node.js + TypeScript** com PostgreSQL como persistência autoritativa. As regras críticas de preço, corrida, matching, autenticação, pagamentos, ledger, carteira, repasses, realtime e administração permanecem sob autoridade do backend; integrações externas são isoladas por adapters/providers.
 
 ## Implementado
 
@@ -91,35 +91,28 @@ npm test
 npm start
 ```
 
-## Ainda pendente
+## Pendências para produção
 
-- autenticação/autorização;
-- autenticação/autorização integrada ao endpoint de corrida;
-- resolver coordenadas -> localidade;
-- trocar roteamento de desenvolvimento por provedor comercial de produção;
-- endpoints do Motorista para disponibilidade, localização e oferta ativa;
-- aceite/recusa do Motorista reutilizam o matching transacional;
-- app não pode autodeclarar categoria, 4x4, capacidade ou veículo;
-- motorista recupera a corrida ativa após reabrir o app;
-- ciclo operacional protegido: Cheguei -> Iniciar -> Finalizar;
-- Finalizar liquida a corrida de forma idempotente e só então libera o motorista;
-- recusa limpa a reserva e tenta o próximo motorista;
-- entrega realtime das ofertas de matching;
-- localização em tempo real;
-- máquina de estados;
-- integração real com gateway Pix/cartão;
-- interface da carteira no Passageiro;
-- repasses;
-- notificações;
-- chat;
-- observabilidade externa (coleta/alertas/APM) e infraestrutura de produção.
+As fundações citadas acima já existem e são cobertas pelos gates de CI. O que ainda bloqueia produção é principalmente configuração externa, operação e homologação:
+
+- catálogo geoespacial autoritativo para localidades específicas ainda não fechadas;
+- infraestrutura hospedada do Core/Admin, domínio, HTTPS e operação de deploy;
+- backup automatizado, restore testado, coleta centralizada de logs, monitoramento e alertas/APM;
+- chaves comerciais/restrições/billing/quotas do Google Maps;
+- provider OTP/SMS real e segredos de produção;
+- Firebase/FCM/APNs com credenciais finais;
+- storage privado persistente para documentos;
+- homologação externa de Mercado Pago para Pix/cartão, webhook, estornos e reconciliação;
+- homologação do provider de repasse Pix ao Motorista;
+- políticas operacionais/jurídicas finais e validação contábil/fiscal;
+- testes em aparelhos físicos, carga, segurança, recuperação, piloto e preparação das lojas.
 
 A autoridade de preço deve permanecer no Core. O Flutter nunca deve decidir sozinho preço final, comissão ou elegibilidade de veículo.
 
 
 ## Realtime
-- WebSocket /v1/realtime/driver para ofertas e corrida ativa;
-- WebSocket /v1/realtime/passenger?rideId=<id> para tracking da corrida;
-- identidade continua validada por header de desenvolvimento;
-- produção continua bloqueada até autenticação real;
-- HTTP/polling permanece como fallback de reconexão.
+- WebSocket `/v1/realtime/driver` para ofertas e corrida ativa;
+- WebSocket `/v1/realtime/passenger?rideId=<id>` para tracking da corrida;
+- identidade de produção usa sessão Bearer; headers `x-dev-*` ficam restritos ao fallback explícito fora de produção;
+- HTTP/polling permanece como fallback de reconexão;
+- Push usa a arquitetura FCM do Core/apps e depende das credenciais finais de produção.
