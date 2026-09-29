@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { InMemoryOperationalSettingsRepository } from '../src/config/in-memory-operational-settings-repository.js';
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { cancelDriverRide } from '../src/drivers/driver-ride-service.js';
 import {
@@ -12,6 +13,7 @@ import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memor
 import { automaticallyRefundRide } from '../src/rides/automatic-ride-refund-service.js';
 import { confirmRidePayment } from '../src/rides/confirm-payment.js';
 import { cancelPassengerRideAfterNoDriver } from '../src/rides/passenger-ride-recovery-service.js';
+import { expireNoDriverDecisions } from '../src/rides/no-driver-decision-timeout-service.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import { transitionRide } from '../src/rides/ride-state.js';
 import type { RideRecord } from '../src/rides/ride.js';
@@ -177,6 +179,54 @@ test('motorista pode cancelar corrida já iniciada e o passageiro é reembolsado
   assert.equal(refunded.refundStatus, 'refunded');
   assert.equal(
     await passengerWalletBalanceCents(ctx.finance, inProgress.passengerId),
+    15000,
+  );
+});
+
+
+test('busca NO_DRIVER_FOUND abandonada expira no prazo configurado e reembolsa automaticamente', async () => {
+  const ctx = await setupWalletPaidRide(
+    '33333333-3333-4333-8333-333333333333',
+  );
+  const searching = await ctx.rides.save({
+    ...ctx.paid,
+    state: transitionRide(ctx.paid.state, 'SEARCHING_DRIVER'),
+  });
+  const noDriverAt = new Date('2026-09-29T14:00:00.000Z');
+  const noDriver = await ctx.rides.save({
+    ...searching,
+    state: transitionRide(searching.state, 'NO_DRIVER_FOUND'),
+    updatedAt: noDriverAt.toISOString(),
+  });
+  const settings = new InMemoryOperationalSettingsRepository();
+  await settings.update({
+    noDriverDecisionTimeoutSeconds: 900,
+    updatedAt: noDriverAt.toISOString(),
+  });
+
+  const before = await expireNoDriverDecisions({
+    rides: ctx.rides,
+    finance: ctx.finance,
+    operationalSettings: settings,
+    gateway: null,
+    now: new Date('2026-09-29T14:14:59.000Z'),
+  });
+  assert.equal(before.length, 0);
+  assert.equal((await ctx.rides.findById(noDriver.id))?.state, 'NO_DRIVER_FOUND');
+
+  const expired = await expireNoDriverDecisions({
+    rides: ctx.rides,
+    finance: ctx.finance,
+    operationalSettings: settings,
+    gateway: null,
+    now: new Date('2026-09-29T14:15:00.000Z'),
+  });
+
+  assert.equal(expired.length, 1);
+  assert.equal(expired[0]?.refundStatus, 'refunded');
+  assert.equal((await ctx.rides.findById(noDriver.id))?.state, 'REFUNDED');
+  assert.equal(
+    await passengerWalletBalanceCents(ctx.finance, noDriver.passengerId),
     15000,
   );
 });
