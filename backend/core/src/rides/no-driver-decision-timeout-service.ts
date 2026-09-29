@@ -11,6 +11,12 @@ export interface ExpiredNoDriverDecisionResult {
   refundStatus: 'refunded' | 'pending_external_gateway' | 'not_charged';
 }
 
+export interface RideRefundSweepFailure {
+  rideId: string;
+  passengerId: string;
+  error: unknown;
+}
+
 export async function expireNoDriverDecisions(input: {
   rides: RideRepository;
   finance: FinanceRepository;
@@ -18,6 +24,7 @@ export async function expireNoDriverDecisions(input: {
   gateway: MercadoPagoOrdersClient | null;
   now?: Date;
   limit?: number;
+  onFailure?: (failure: RideRefundSweepFailure) => void;
 }): Promise<ExpiredNoDriverDecisionResult[]> {
   const now = input.now ?? new Date();
   const settings = await input.operationalSettings.get();
@@ -31,28 +38,36 @@ export async function expireNoDriverDecisions(input: {
 
   const results: ExpiredNoDriverDecisionResult[] = [];
   for (const ride of stale) {
-    const latest = await input.rides.findById(ride.id);
-    if (latest?.state !== 'NO_DRIVER_FOUND') continue;
+    try {
+      const latest = await input.rides.findById(ride.id);
+      if (latest?.state !== 'NO_DRIVER_FOUND') continue;
 
-    const cancelled = await cancelPassengerRideAfterNoDriver({
-      rides: input.rides,
-      passengerId: latest.passengerId,
-      rideId: latest.id,
-      now,
-    });
-    const refund = await automaticallyRefundRide({
-      rides: input.rides,
-      finance: input.finance,
-      gateway: input.gateway,
-      rideId: cancelled.id,
-      passengerId: cancelled.passengerId,
-      now,
-    });
-    results.push({
-      rideId: refund.ride.id,
-      passengerId: refund.ride.passengerId,
-      refundStatus: refund.refundStatus,
-    });
+      const cancelled = await cancelPassengerRideAfterNoDriver({
+        rides: input.rides,
+        passengerId: latest.passengerId,
+        rideId: latest.id,
+        now,
+      });
+      const refund = await automaticallyRefundRide({
+        rides: input.rides,
+        finance: input.finance,
+        gateway: input.gateway,
+        rideId: cancelled.id,
+        passengerId: cancelled.passengerId,
+        now,
+      });
+      results.push({
+        rideId: refund.ride.id,
+        passengerId: refund.ride.passengerId,
+        refundStatus: refund.refundStatus,
+      });
+    } catch (error) {
+      input.onFailure?.({
+        rideId: ride.id,
+        passengerId: ride.passengerId,
+        error,
+      });
+    }
   }
   return results;
 }
@@ -64,6 +79,7 @@ export async function reconcilePendingRideRefunds(input: {
   gateway: MercadoPagoOrdersClient | null;
   now?: Date;
   limit?: number;
+  onFailure?: (failure: RideRefundSweepFailure) => void;
 }): Promise<ExpiredNoDriverDecisionResult[]> {
   if (input.gateway == null) return [];
 
@@ -75,22 +91,30 @@ export async function reconcilePendingRideRefunds(input: {
   const results: ExpiredNoDriverDecisionResult[] = [];
 
   for (const ride of pending) {
-    const latest = await input.rides.findById(ride.id);
-    if (latest?.state !== 'REFUND_PENDING') continue;
+    try {
+      const latest = await input.rides.findById(ride.id);
+      if (latest?.state !== 'REFUND_PENDING') continue;
 
-    const refund = await automaticallyRefundRide({
-      rides: input.rides,
-      finance: input.finance,
-      gateway: input.gateway,
-      rideId: latest.id,
-      passengerId: latest.passengerId,
-      now,
-    });
-    results.push({
-      rideId: refund.ride.id,
-      passengerId: refund.ride.passengerId,
-      refundStatus: refund.refundStatus,
-    });
+      const refund = await automaticallyRefundRide({
+        rides: input.rides,
+        finance: input.finance,
+        gateway: input.gateway,
+        rideId: latest.id,
+        passengerId: latest.passengerId,
+        now,
+      });
+      results.push({
+        rideId: refund.ride.id,
+        passengerId: refund.ride.passengerId,
+        refundStatus: refund.refundStatus,
+      });
+    } catch (error) {
+      input.onFailure?.({
+        rideId: ride.id,
+        passengerId: ride.passengerId,
+        error,
+      });
+    }
   }
   return results;
 }
