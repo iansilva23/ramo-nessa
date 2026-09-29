@@ -125,6 +125,7 @@ export function assertPricingLocationMatchesPoint(input: {
   point: GeoPoint;
   field: 'origin' | 'destination';
   catalog?: PricingCatalogSnapshot;
+  localityProofVerified?: boolean;
 }): void {
   const catalog = input.catalog ?? STATIC_PRICING_CATALOG_V1;
 
@@ -135,6 +136,13 @@ export function assertPricingLocationMatchesPoint(input: {
   }
 
   assertKnownLocality(input.ref, input.field, catalog);
+
+  if (
+    input.localityProofVerified === true &&
+    input.ref.localityId != null
+  ) {
+    return;
+  }
 
   const localZone = containingLocalZone(input.point);
 
