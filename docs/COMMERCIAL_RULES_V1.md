@@ -247,7 +247,7 @@ O backend deve impedir oferta de categoria/veículo incompatível com a rota. Na
 
 ## Configuração no backend/Admin
 
-Todas as regras devem ser configuráveis e versionadas:
+O Core/ADM já possui catálogo comercial persistente e versionado com fluxo de rascunho, revisão, publicação e vigência. As regras abaixo são tratadas como parâmetros comerciais versionáveis; alterações só devem ser publicadas depois da aprovação da tabela oficial:
 
 - preço por origem/destino/localidade;
 - categoria;
