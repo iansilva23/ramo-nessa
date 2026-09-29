@@ -26,6 +26,8 @@ function preparedRide(id: string): RideRecord {
     passengerId: 'passenger-cancel-flow',
     state: 'AWAITING_PAYMENT',
     paymentStatus: 'created',
+    reservedDriverId: 'driver-payment-hold',
+    driverHoldExpiresAt: '2026-09-29T14:05:00.000Z',
     pickupLatitude: -2.82017,
     pickupLongitude: -40.41467,
     dropoffLatitude: -2.8986,
