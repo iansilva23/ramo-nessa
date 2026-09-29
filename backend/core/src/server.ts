@@ -3093,6 +3093,7 @@ const server = createServer(async (request, response) => {
       const payload = body as {
         driverOfferTtlSeconds?: unknown;
         driverPaymentHoldSeconds?: unknown;
+        noDriverDecisionTimeoutSeconds?: unknown;
         driverLocationMaxAgeSeconds?: unknown;
         nearbyDriverMaxDistanceKm?: unknown;
         showNearbyDrivers?: unknown;
@@ -3107,6 +3108,10 @@ const server = createServer(async (request, response) => {
         payload.driverPaymentHoldSeconds == null
           ? undefined
           : Number(payload.driverPaymentHoldSeconds);
+      const noDriverDecisionTimeoutSeconds =
+        payload.noDriverDecisionTimeoutSeconds == null
+          ? undefined
+          : Number(payload.noDriverDecisionTimeoutSeconds);
       const driverLocationMaxAgeSeconds =
         payload.driverLocationMaxAgeSeconds == null
           ? undefined
@@ -3144,6 +3149,14 @@ const server = createServer(async (request, response) => {
       ) {
         throw new InvalidAdminRequestError(
           'driverPaymentHoldSeconds deve ser inteiro.',
+        );
+      }
+      if (
+        noDriverDecisionTimeoutSeconds != null &&
+        !Number.isInteger(noDriverDecisionTimeoutSeconds)
+      ) {
+        throw new InvalidAdminRequestError(
+          'noDriverDecisionTimeoutSeconds deve ser inteiro.',
         );
       }
       if (
@@ -3206,6 +3219,7 @@ const server = createServer(async (request, response) => {
       if (
         driverOfferTtlSeconds == null &&
         driverPaymentHoldSeconds == null &&
+        noDriverDecisionTimeoutSeconds == null &&
         driverLocationMaxAgeSeconds == null &&
         nearbyDriverMaxDistanceKm == null &&
         showNearbyDrivers == null &&
@@ -3227,6 +3241,9 @@ const server = createServer(async (request, response) => {
         ...(driverPaymentHoldSeconds == null
           ? {}
           : { driverPaymentHoldSeconds }),
+        ...(noDriverDecisionTimeoutSeconds == null
+          ? {}
+          : { noDriverDecisionTimeoutSeconds }),
         ...(driverLocationMaxAgeSeconds == null
           ? {}
           : { driverLocationMaxAgeSeconds }),
