@@ -45,7 +45,13 @@ Depois edite somente os campos CHANGE_ME:
 - MERCADO_PAGO_ACCESS_TOKEN;
 - MERCADO_PAGO_WEBHOOK_SECRET.
 
-Nunca coloque deploy/prod/.env no Git.
+Também coloque a Service Account Firebase de produção em
+`deploy/prod/secrets/firebase-service-account.json` (ou ajuste
+`FIREBASE_SERVICE_ACCOUNT_HOST_FILE`) e restrinja o arquivo para `0600`.
+O projeto Firebase e o fluxo APNs estão documentados em
+`docs/FIREBASE_PUSH_PRODUCTION.md`.
+
+Nunca coloque deploy/prod/.env nem a Service Account no Git.
 
 ## 3. Validar antes de qualquer deploy
 
