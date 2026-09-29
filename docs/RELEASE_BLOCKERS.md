@@ -19,7 +19,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 1. **Core ainda não está pronto para produção**
    - PostgreSQL, máquina de estados, matching, ledger/carteira, realtime e sessão Bearer já existem;
-   - autenticação por telefone/OTP já existe, mas falta configurar o provider SMS real de produção e o segredo OTP;
+   - autenticação por telefone/OTP já existe; produção força webhook HTTPS autenticado, possui contrato versionado, idempotency-key, retry limitado para falhas transitórias e invalida a challenge quando a entrega falha; ainda falta configurar/homologar o provider SMS real e suas credenciais;
    - Push FCM já existe no Core e nos dois apps, com registro de token, renovação, invalidação e status seguro no Admin; para produção ainda faltam `PUSH_PROVIDER=fcm`, Service Account Firebase privada no Core e os Secrets Firebase de build dos apps;
    - na auditoria de 27/09/2026, Preview Android e iOS compilaram com sucesso, mas os logs confirmaram ausência dos Secrets `RAMO_FIREBASE_*`, portanto esses binários foram gerados com Push desativado; o `Mobile Build Audit` final bloqueia release enquanto a configuração obrigatória estiver ausente;
    - Pix/cartão para corridas e recarga de carteira já possuem integração estrutural com o gateway; ainda faltam homologação externa da confirmação de recarga, conciliação operacional completa, validação externa dos estornos e repasse Pix, conforme o item financeiro abaixo;
@@ -76,8 +76,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 8. **Privacidade, LGPD e operação da autenticação**
    - sessão Bearer, expiração, revogação e token em Keychain/Keystore já existem; sessões expiradas/revogadas fora da retenção são limpas automaticamente;
    - código OTP fica armazenado somente como HMAC no Core, tem expiração/limite de tentativas e desafios antigos são removidos automaticamente;
-   - falta provider SMS real e credenciais de produção;
-   - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; o provider/edge de produção deve manter proteção adicional contra abuso;
+   - o contrato do adapter OTP está documentado em `docs/OTP_PRODUCTION.md`; ainda faltam provider SMS real, credenciais e homologação em números/aparelhos físicos;
+   - o Core aplica cooldown atômico e rate-limit persistente por telefone, dispositivo e IP, remove buckets expirados e evita revelar por resposta OTP se um cadastro de motorista existe/está suspenso; falhas transitórias de entrega reutilizam a mesma challenge/idempotency-key antes de cancelar o desafio, e o provider/edge deve manter proteção adicional contra abuso;
    - o Core já possui processo administrativo via API/CLI com chaves com expiração/revogação, escopos e auditoria, além de login humano com senha + TOTP + sessão curta conectado às operações administrativas;
    - o frontend inicial cobre login, diretórios paginados de acesso de motoristas e passageiros, indicadores de aprovação/suspensão e auditoria, e já possui stack same-origin de teste;
    - o Core e o Admin já possuem cadastro separado de perfil do motorista + veículo, com aprovação explícita e auditoria;
