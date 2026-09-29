@@ -5583,6 +5583,7 @@ function renderOperationalSettings(
   const numericIds = [
     'driver-offer-ttl-seconds',
     'driver-payment-hold-seconds',
+    'no-driver-decision-timeout-seconds',
     'driver-location-max-age-seconds',
     'nearby-driver-max-distance-km',
   ];
@@ -5620,6 +5621,9 @@ function renderOperationalSettings(
 
   const ttl = Number(payload.driverOfferTtlSeconds);
   const paymentHold = Number(payload.driverPaymentHoldSeconds);
+  const noDriverDecisionTimeout = Number(
+    payload.noDriverDecisionTimeoutSeconds,
+  );
   const locationMaxAge = Number(
     payload.driverLocationMaxAgeSeconds,
   );
@@ -5634,6 +5638,9 @@ function renderOperationalSettings(
     Number.isInteger(paymentHold) &&
     paymentHold >= 30 &&
     paymentHold <= 300 &&
+    Number.isInteger(noDriverDecisionTimeout) &&
+    noDriverDecisionTimeout >= 60 &&
+    noDriverDecisionTimeout <= 3600 &&
     Number.isInteger(locationMaxAge) &&
     locationMaxAge >= 15 &&
     locationMaxAge <= 600 &&
@@ -5662,6 +5669,7 @@ function renderOperationalSettings(
   state.operationalSettings = {
     driverOfferTtlSeconds: ttl,
     driverPaymentHoldSeconds: paymentHold,
+    noDriverDecisionTimeoutSeconds: noDriverDecisionTimeout,
     driverLocationMaxAgeSeconds: locationMaxAge,
     nearbyDriverMaxDistanceKm: nearbyDistance,
     showNearbyDrivers,
@@ -5672,6 +5680,8 @@ function renderOperationalSettings(
   byId('driver-offer-ttl-seconds').value = String(ttl);
   byId('driver-payment-hold-seconds').value =
     String(paymentHold);
+  byId('no-driver-decision-timeout-seconds').value =
+    String(noDriverDecisionTimeout);
   byId('driver-location-max-age-seconds').value =
     String(locationMaxAge);
   byId('nearby-driver-max-distance-km').value =
@@ -5694,6 +5704,7 @@ function renderOperationalSettings(
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
   byId('driver-payment-hold-seconds').disabled = !canWrite;
+  byId('no-driver-decision-timeout-seconds').disabled = !canWrite;
   byId('driver-location-max-age-seconds').disabled = !canWrite;
   byId('nearby-driver-max-distance-km').disabled = !canWrite;
   byId('show-nearby-drivers').disabled = !canWrite;
@@ -5742,6 +5753,9 @@ async function handleOperationalSettingsSubmit(event) {
   const paymentHoldSeconds = Number(
     byId('driver-payment-hold-seconds').value,
   );
+  const noDriverDecisionTimeoutSeconds = Number(
+    byId('no-driver-decision-timeout-seconds').value,
+  );
   const locationMaxAgeSeconds = Number(
     byId('driver-location-max-age-seconds').value,
   );
@@ -5767,6 +5781,18 @@ async function handleOperationalSettingsSubmit(event) {
     setMessage(
       globalMessage,
       'A reserva durante o pagamento deve ficar entre 30 e 300 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isInteger(noDriverDecisionTimeoutSeconds) ||
+    noDriverDecisionTimeoutSeconds < 60 ||
+    noDriverDecisionTimeoutSeconds > 3600
+  ) {
+    setMessage(
+      globalMessage,
+      'O prazo após não encontrar motorista deve ficar entre 60 e 3600 segundos.',
       'danger',
     );
     return;
@@ -5802,6 +5828,7 @@ async function handleOperationalSettingsSubmit(event) {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
       driverPaymentHoldSeconds: paymentHoldSeconds,
+      noDriverDecisionTimeoutSeconds,
       driverLocationMaxAgeSeconds: locationMaxAgeSeconds,
       nearbyDriverMaxDistanceKm: nearbyMaxDistanceKm,
       showNearbyDrivers,
@@ -5812,7 +5839,7 @@ async function handleOperationalSettingsSubmit(event) {
     renderOperationalSettings(settings);
     setMessage(
       globalMessage,
-      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva: ${settings.driverPaymentHoldSeconds}s · GPS válido por ${settings.driverLocationMaxAgeSeconds}s.`,
+      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva: ${settings.driverPaymentHoldSeconds}s · decisão sem motorista: ${settings.noDriverDecisionTimeoutSeconds}s · GPS válido por ${settings.driverLocationMaxAgeSeconds}s.`,
       'success',
     );
     if (state.currentDriver?.driverId) {
