@@ -333,6 +333,7 @@ import {
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { automaticallyRefundRide } from './rides/automatic-ride-refund-service.js';
+import { expireNoDriverDecisions } from './rides/no-driver-decision-timeout-service.js';
 import {
   cancelPassengerRideAfterNoDriver,
   PassengerRideRecoveryError,
@@ -959,6 +960,8 @@ async function finalizeMercadoPagoRefundedRide(
 let shuttingDown = false;
 let payoutReconciliationRunning = false;
 let payoutReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+let noDriverDecisionSweepRunning = false;
+let noDriverDecisionSweepTimer: ReturnType<typeof setInterval> | null = null;
 
 function payoutReconciliationIntervalMs(): number {
   const raw = process.env.DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS?.trim();
@@ -992,6 +995,65 @@ async function runPayoutReconciliation(): Promise<void> {
     logWarn('driver.payout.reconciliation.failed', errorFields(error));
   } finally {
     payoutReconciliationRunning = false;
+  }
+}
+
+async function runNoDriverDecisionSweep(): Promise<void> {
+  if (noDriverDecisionSweepRunning || shuttingDown) return;
+
+  noDriverDecisionSweepRunning = true;
+  try {
+    const results = await expireNoDriverDecisions({
+      rides: rideRepository,
+      finance: financeRepository,
+      operationalSettings: operationalSettingsRepository,
+      gateway: mercadoPagoOrdersClient,
+      limit: 100,
+    });
+
+    for (const result of results) {
+      const tracking = await passengerRideTracking({
+        rides: rideRepository,
+        drivers: driverSupplyRepository,
+        registry: driverRegistryRepository,
+        rideId: result.rideId,
+        passengerId: result.passengerId,
+      });
+      if (tracking != null) {
+        realtimeHub.publishPassengerRide(result.rideId, {
+          type: 'passenger.ride.tracking',
+          tracking,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      sendPushBestEffort({
+        subjectType: 'passenger',
+        subjectId: result.passengerId,
+        type: 'passenger.ride.no_driver_timeout',
+        title: 'Busca encerrada',
+        body:
+          result.refundStatus === 'refunded'
+            ? 'A busca ficou sem resposta e o pagamento foi devolvido.'
+            : result.refundStatus === 'not_charged'
+              ? 'A busca foi encerrada automaticamente. Nenhum valor foi cobrado.'
+              : 'A busca foi encerrada e o reembolso está em processamento.',
+        data: { rideId: result.rideId },
+      });
+    }
+
+    if (results.length > 0) {
+      logInfo('ride.no_driver_decision.expired', {
+        processed: results.length,
+      });
+    }
+  } catch (error) {
+    logWarn(
+      'ride.no_driver_decision.sweep_failed',
+      errorFields(error),
+    );
+  } finally {
+    noDriverDecisionSweepRunning = false;
   }
 }
 
@@ -7635,6 +7697,10 @@ function shutdown(signal: string): Promise<void> {
       clearInterval(payoutReconciliationTimer);
       payoutReconciliationTimer = null;
     }
+    if (noDriverDecisionSweepTimer != null) {
+      clearInterval(noDriverDecisionSweepTimer);
+      noDriverDecisionSweepTimer = null;
+    }
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -7692,4 +7758,11 @@ server.listen(port, '0.0.0.0', () => {
     payoutReconciliationTimer.unref();
     void runPayoutReconciliation();
   }
+
+  noDriverDecisionSweepTimer = setInterval(
+    () => void runNoDriverDecisionSweep(),
+    60_000,
+  );
+  noDriverDecisionSweepTimer.unref();
+  void runNoDriverDecisionSweep();
 });
