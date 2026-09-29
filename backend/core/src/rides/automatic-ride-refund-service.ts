@@ -44,7 +44,6 @@ export async function automaticallyRefundRide(input: {
   gateway: MercadoPagoOrdersClient | null;
   rideId: string;
   passengerId: string;
-  idempotencyPrefix: string;
   now?: Date;
 }): Promise<AutomaticRideRefundResult> {
   const now = input.now ?? new Date();
