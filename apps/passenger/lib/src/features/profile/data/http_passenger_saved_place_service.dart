@@ -57,6 +57,9 @@ class HttpPassengerSavedPlaceService
     required String name,
     required String address,
     required LatLng position,
+    String? providerPlaceId,
+    String? approvedPricingZoneId,
+    String? approvedPricingLocalityId,
   }) async {
     final response = await _client
         .post(
@@ -70,6 +73,13 @@ class HttpPassengerSavedPlaceService
             'address': address,
             'latitude': position.latitude,
             'longitude': position.longitude,
+            if (providerPlaceId?.trim().isNotEmpty == true)
+              'providerPlaceId': providerPlaceId!.trim(),
+            if (approvedPricingZoneId?.trim().isNotEmpty == true)
+              'approvedPricingZoneId': approvedPricingZoneId!.trim(),
+            if (approvedPricingLocalityId?.trim().isNotEmpty == true)
+              'approvedPricingLocalityId':
+                  approvedPricingLocalityId!.trim(),
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);
