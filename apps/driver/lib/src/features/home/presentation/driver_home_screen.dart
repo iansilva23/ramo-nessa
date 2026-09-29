@@ -976,6 +976,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       return;
     }
 
+    final cancellationApi = api as DriverRideCancellationApi;
     final noteController = TextEditingController();
     String reason = 'passenger_no_show';
     const labels = <String, String>{
@@ -1079,7 +1080,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     setState(() => _rideAction = true);
 
     try {
-      final result = await api.cancelRide(
+      final result = await cancellationApi.cancelRide(
         rideId: ride.id,
         reason: choice.reason,
         note: choice.note,
