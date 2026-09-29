@@ -102,6 +102,23 @@ const SPECIFIC_RULES = [...PREA_RULES, ...JIJOCA_RULES].sort(
     Math.max(...a.aliases.map((item) => item.length)),
 );
 
+const NAME_ONLY_LOCALITY_IDS = new Set([
+  'triangulo-do-marco',
+  'santana-do-acarau',
+  'bela-cruz',
+  'parazinha',
+  'itapipoca',
+  'morrinhos',
+  'amontada',
+  'camocim',
+  'granja',
+  'itarema',
+  'sobral',
+  'acarau',
+  'marco',
+  'cruz',
+]);
+
 function containsAlias(text: string, alias: string): boolean {
   if (!text || !alias) return false;
   return ` ${text} `.includes(` ${alias} `);
@@ -116,13 +133,27 @@ export function resolveApprovedLocalPlace(input: {
   const address = normalize(input.address);
   const components = (input.addressComponentNames ?? []).map(normalize);
 
+  // Aeroporto precisa ser reconhecido antes de municípios presentes
+  // no endereço (por exemplo "Cruz - CE").
+  if (containsAlias(name, 'aeroporto regional de jericoacoara') ||
+      containsAlias(name, 'aeroporto de jericoacoara') ||
+      containsAlias(name, 'airport jjd')) {
+    return { zoneId: 'external', localityId: 'airport-jjd' };
+  }
+
   for (const rule of SPECIFIC_RULES) {
+    const nameOnly = NAME_ONLY_LOCALITY_IDS.has(rule.localityId);
     for (const rawAlias of rule.aliases) {
       const alias = normalize(rawAlias);
       if (
         containsAlias(name, alias) ||
-        containsAlias(address, alias) ||
-        components.some((component) => containsAlias(component, alias))
+        (!nameOnly &&
+          (
+            containsAlias(address, alias) ||
+            components.some((component) =>
+              containsAlias(component, alias)
+            )
+          ))
       ) {
         return {
           zoneId: rule.zoneId,
@@ -134,11 +165,6 @@ export function resolveApprovedLocalPlace(input: {
 
   // Hubs usam o nome do lugar, não o endereço inteiro, para evitar que
   // "Jijoca de Jericoacoara" classifique qualquer hotel local como Jeri.
-  if (containsAlias(name, 'aeroporto regional de jericoacoara') ||
-      containsAlias(name, 'aeroporto de jericoacoara') ||
-      containsAlias(name, 'airport jjd')) {
-    return { zoneId: 'external', localityId: 'airport-jjd' };
-  }
   if (containsAlias(name, 'jericoacoara')) {
     return { zoneId: 'jericoacoara', localityId: 'jericoacoara' };
   }
