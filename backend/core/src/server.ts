@@ -307,12 +307,14 @@ import {
   isApprovedExternalPlacesQuery,
   placesLocalityId,
 } from './places/places-access-policy.js';
+import { resolveApprovedLocalPlace } from './places/local-place-policy.js';
+import { assertCatalogLocationSupported } from './pricing/catalog-location-policy.js';
 import {
-  issueExternalPlaceProof,
+  issuePlaceProof,
   PlaceProofError,
   resolvePlaceProofSecret,
   resolvePlaceProofTtlSeconds,
-  verifyExternalPlaceProof,
+  verifyPlaceProof,
 } from './places/place-proof.js';
 import { RoutingRouteError } from './routing/route-provider.js';
 import {
@@ -1639,25 +1641,68 @@ const server = createServer(async (request, response) => {
           return;
         }
 
-        const placeProof = !localOnly
-          ? issueExternalPlaceProof({
-              localityId: externalLocalityId,
+        let approvedPricingLocation:
+          | { zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external'; localityId: string }
+          | null = null;
+
+        if (localOnly) {
+          const candidate = resolveApprovedLocalPlace({
+            name: place.name,
+            address: place.address,
+            addressComponentNames: place.addressComponentNames,
+          });
+          if (candidate != null) {
+            const pricing = await resolvePricingCatalogContext({
+              versions: pricingCatalogVersionRepository,
+              at: new Date(),
+            });
+            try {
+              assertCatalogLocationSupported({
+                catalog: pricing.snapshot,
+                ref: candidate,
+                field: 'destination',
+              });
+              approvedPricingLocation = candidate;
+            } catch {
+              approvedPricingLocation = null;
+            }
+          }
+        } else {
+          approvedPricingLocation = {
+            zoneId: 'external',
+            localityId: externalLocalityId,
+          };
+        }
+
+        const proofLocalityId = approvedPricingLocation?.localityId;
+        const placeProof = proofLocalityId == null
+          ? undefined
+          : issuePlaceProof({
+              localityId: proofLocalityId,
               placeId: place.id,
               latitude: place.latitude,
               longitude: place.longitude,
               secret: placeProofSecret,
               ttlSeconds: placeProofTtlSeconds,
-            })
-          : undefined;
+            });
 
         json(response, 200, {
           provider: 'google',
           place: {
             id: place.id,
+            name: place.name,
             address: place.address,
             latitude: place.latitude,
             longitude: place.longitude,
             ...(placeProof == null ? {} : { placeProof }),
+            ...(approvedPricingLocation == null
+              ? {}
+              : {
+                  approvedPricingZoneId:
+                    approvedPricingLocation.zoneId,
+                  approvedPricingLocalityId:
+                    approvedPricingLocation.localityId,
+                }),
             ...(externalLocalityId
               ? { approvedExternalId: externalLocalityId }
               : {}),
@@ -6227,25 +6272,34 @@ const server = createServer(async (request, response) => {
       const body = parsePrepareRideRequest(await readJson(request));
       const now = new Date();
 
-      const verifyExternalRef = (
+      const verifyPlaceRef = (
         ref: typeof body.quoteRequest.origin,
         point: typeof body.pickup,
         proof: string | undefined,
         field: 'origin' | 'destination',
-      ) => {
-        if (
-          ref.zoneId !== 'external' ||
-          ref.localityId === 'airport-jjd'
-        ) {
-          return;
+      ): boolean => {
+        const externalProofRequired =
+          ref.zoneId === 'external' &&
+          ref.localityId !== 'airport-jjd';
+
+        if (proof == null) {
+          if (externalProofRequired) {
+            throw new PlaceProofError(
+              'PLACE_PROOF_INVALID',
+              `Selecione novamente o ${field === 'origin' ? 'local de partida' : 'destino'} externo para validar a localidade.`,
+            );
+          }
+          return false;
         }
-        if (ref.localityId == null || proof == null) {
+
+        if (ref.localityId == null) {
           throw new PlaceProofError(
             'PLACE_PROOF_INVALID',
-            `Selecione novamente o ${field === 'origin' ? 'local de partida' : 'destino'} externo para validar a localidade.`,
+            `A prova do ${field === 'origin' ? 'local de partida' : 'destino'} não possui localidade compatível.`,
           );
         }
-        verifyExternalPlaceProof({
+
+        verifyPlaceProof({
           proof,
           localityId: ref.localityId,
           latitude: point.latitude,
@@ -6253,15 +6307,16 @@ const server = createServer(async (request, response) => {
           secret: placeProofSecret,
           now,
         });
+        return true;
       };
 
-      verifyExternalRef(
+      const originLocalityProofVerified = verifyPlaceRef(
         body.quoteRequest.origin,
         body.pickup,
         body.pickupPlaceProof,
         'origin',
       );
-      verifyExternalRef(
+      const destinationLocalityProofVerified = verifyPlaceRef(
         body.quoteRequest.destination,
         body.dropoff,
         body.dropoffPlaceProof,
@@ -6283,6 +6338,8 @@ const server = createServer(async (request, response) => {
         pricing,
         pickup: body.pickup,
         dropoff: body.dropoff,
+        originLocalityProofVerified,
+        destinationLocalityProofVerified,
         holdSeconds: operationalSettings.driverPaymentHoldSeconds,
         canUseDriver: (candidateDriverId) =>
           canDriverReceiveNewWorkUnderPolicy(
