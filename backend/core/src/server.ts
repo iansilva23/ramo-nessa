@@ -198,6 +198,7 @@ import {
   parseUpsertDriverRegistryRequest,
 } from './drivers/driver-registry-validation.js';
 import {
+  cancelDriverRide,
   currentDriverRide,
   performDriverRideAction,
 } from './drivers/driver-ride-service.js';
@@ -320,14 +321,21 @@ import {
 import { authorizeCashRide } from './rides/authorize-cash.js';
 import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
 import {
+  refundWalletRide,
   refundWalletRideAfterNoDriver,
   RideRefundError,
 } from './rides/refund-no-driver.js';
 import {
   ExternalRideRefundError,
+  refundMercadoPagoRide,
   refundMercadoPagoRideAfterNoDriver,
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
+import {
+  cancelPassengerRideAfterNoDriver,
+  PassengerRideRecoveryError,
+  retryPassengerRideSearch,
+} from './rides/passenger-ride-recovery-service.js';
 import {
   DriverRatingError,
   submitPassengerDriverRating,
