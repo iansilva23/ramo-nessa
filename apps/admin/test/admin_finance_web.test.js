@@ -230,6 +230,12 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
     'finance-company-payouts-visible',
     'finance-company-payouts-body',
     'finance-company-payouts-empty',
+    'finance-external-adjustments-card',
+    'finance-external-adjustments-visible',
+    'finance-external-review-total',
+    'finance-external-review-count',
+    'finance-external-adjustments-body',
+    'finance-external-adjustments-empty',
     'finance-cash-status',
     'finance-cash-debt-limit',
     'finance-cash-readiness',
@@ -353,6 +359,13 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Enviar saldo por Pix/i);
   assert.match(html, /Usar saldo total/i);
   assert.match(html, /Comissão cash ainda não recebida/i);
+  assert.match(html, /Refunds parciais e contestações/i);
+  assert.match(html, /sem debitar motorista automaticamente/i);
+  assert.match(app, /renderExternalAdjustments/);
+  assert.match(app, /externalAdjustmentReviewCents/);
+  assert.match(app, /externalAdjustmentReviewCount/);
+  assert.equal(api.includes('clawbackDriver'), false);
+  assert.equal(api.includes('debitDriver'), false);
   assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
