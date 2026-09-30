@@ -22,6 +22,15 @@ export type PricingCatalogDraftPatch =
         | { kind: 'range'; minCents: number; maxCents: number };
     }
   | {
+      kind: 'locality_policy';
+      hub: 'prea' | 'jijoca';
+      localityId: string;
+      enabledCategories: Array<
+        'moto' | 'delivery' | 'car' | 'comfort_black'
+      >;
+      applyNightSurcharge: boolean;
+    }
+  | {
       kind: 'category_policy';
       category:
         | 'moto'
@@ -315,6 +324,77 @@ export function parsePricingCatalogDraftPatch(
     throw new InvalidPricingCatalogPatchError(
       'price.kind deve ser exact ou range.',
     );
+  }
+
+  if (kind === 'locality_policy') {
+    const hub = textValue(value.hub, 'hub', 20);
+    if (hub !== 'prea' && hub !== 'jijoca') {
+      throw new InvalidPricingCatalogPatchError(
+        'hub deve ser prea ou jijoca.',
+      );
+    }
+
+    const localityId = identifierValue(
+      value.localityId,
+      'localityId',
+    );
+    if (!Array.isArray(value.enabledCategories)) {
+      throw new InvalidPricingCatalogPatchError(
+        'enabledCategories deve ser uma lista.',
+      );
+    }
+
+    const enabledCategories = [
+      ...new Set(
+        value.enabledCategories.map((item, index) => {
+          const category = textValue(
+            item,
+            `enabledCategories[${index}]`,
+            30,
+          );
+          if (
+            category !== 'moto' &&
+            category !== 'delivery' &&
+            category !== 'car' &&
+            category !== 'comfort_black'
+          ) {
+            throw new InvalidPricingCatalogPatchError(
+              'Categoria da localidade é inválida.',
+            );
+          }
+          return category;
+        }),
+      ),
+    ] as Array<
+      'moto' | 'delivery' | 'car' | 'comfort_black'
+    >;
+
+    if (
+      hub === 'jijoca' &&
+      enabledCategories.includes('comfort_black')
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'Comfort/Black por localidade está disponível somente no Preá.',
+      );
+    }
+
+    const applyNightSurcharge = booleanValue(
+      value.applyNightSurcharge,
+      'applyNightSurcharge',
+    );
+    if (hub !== 'prea' && applyNightSurcharge) {
+      throw new InvalidPricingCatalogPatchError(
+        'Adicional noturno por localidade está disponível somente no Preá.',
+      );
+    }
+
+    return {
+      kind,
+      hub,
+      localityId,
+      enabledCategories,
+      applyNightSurcharge,
+    };
   }
 
   if (kind === 'category_policy') {
