@@ -4870,7 +4870,7 @@ function renderPricingCatalog(payload = null) {
 
       const actions = document.createElement('td');
       if (
-        state.selectedPricingVersion?.status === 'draft' &&
+        payload?.editable === true &&
         hasScope('pricing:write')
       ) {
         const edit = document.createElement('button');
