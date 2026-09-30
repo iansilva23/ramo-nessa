@@ -44,6 +44,7 @@ export function buildProductionEnvironment() {
     '',
     'ADMIN_MFA_ENCRYPTION_KEY=' + secretBase64(32),
     'ADMIN_LOGIN_RATE_LIMIT_SECRET=' + secretHex(32),
+    'ADMIN_PAYOUT_APPROVER_USER_ID=',
     '',
     'ROUTING_TIMEOUT_MS=5000',
     'GOOGLE_MAPS_SERVER_API_KEY=CHANGE_ME',
