@@ -77,6 +77,23 @@ abstract final class RamoServiceArea {
   }
 
   static ServiceAreaEndpoint? endpointForPlace(RamoPlace place) {
+    final approvedZone = place.approvedPricingZoneId?.trim();
+    final approvedLocality =
+        place.approvedPricingLocalityId?.trim();
+    if (
+      approvedZone == 'jericoacoara' ||
+      approvedZone == 'jijoca' ||
+      approvedZone == 'prea' ||
+      approvedZone == 'external'
+    ) {
+      return ServiceAreaEndpoint(
+        id: approvedZone!,
+        label: approvedLocality?.isNotEmpty == true
+            ? approvedLocality!
+            : approvedZone,
+      );
+    }
+
     final local = zoneFor(place.position);
     if (local != null) {
       return ServiceAreaEndpoint(id: local.id, label: local.label);
