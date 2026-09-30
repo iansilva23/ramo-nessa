@@ -3,12 +3,19 @@ import { randomUUID } from 'node:crypto';
 import type { FinanceRepository } from './finance-repository.js';
 import {
   PayoutDomainError,
+  type DriverPayoutKind,
   type DriverPayoutRecord,
 } from './payout.js';
 
 export interface RequestDriverPayoutInput {
   driverId: string;
+  /** Valor líquido a enviar por Pix. */
   amountCents: number;
+  /** Valor bruto reservado do saldo. */
+  requestedAmountCents?: number;
+  feeCents?: number;
+  payoutKind?: DriverPayoutKind;
+  approvedAt?: Date;
   idempotencyKey: string;
   now?: Date;
 }
@@ -25,10 +32,22 @@ export async function requestDriverPayout(
     );
   }
 
-  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+  const amountCents = input.amountCents;
+  const requestedAmountCents =
+    input.requestedAmountCents ?? amountCents;
+  const feeCents = input.feeCents ?? 0;
+  if (
+    !Number.isInteger(amountCents) ||
+    amountCents <= 0 ||
+    !Number.isInteger(requestedAmountCents) ||
+    requestedAmountCents <= 0 ||
+    !Number.isInteger(feeCents) ||
+    feeCents < 0 ||
+    requestedAmountCents !== amountCents + feeCents
+  ) {
     throw new PayoutDomainError(
       'INVALID_PAYOUT_AMOUNT',
-      'Valor do saque deve ser inteiro positivo em centavos.',
+      'Composição do valor do saque é inválida.',
     );
   }
 
@@ -53,11 +72,17 @@ export async function requestDriverPayout(
   const payout: DriverPayoutRecord = {
     id: randomUUID(),
     driverId,
-    amountCents: input.amountCents,
+    amountCents,
+    requestedAmountCents,
+    feeCents,
+    payoutKind: input.payoutKind ?? 'legacy',
     status: 'requested',
     idempotencyKey,
     pixKeyType: destination.pixKeyType,
     pixKey: destination.pixKey,
+    ...(input.approvedAt == null
+      ? {}
+      : { approvedAt: input.approvedAt.toISOString() }),
     createdAt: instant,
     updatedAt: instant,
   };
