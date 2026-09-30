@@ -457,11 +457,39 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         return;
       }
 
-      final origin = RamoPlace(
+      var origin = RamoPlace(
         name: 'Minha localização',
         address: 'Localização atual do aparelho',
         position: location,
       );
+
+      final placeSearch = _placeSearchService;
+      if (placeSearch is CoordinatePlaceResolver) {
+        try {
+          final classified =
+              await placeSearch.classifyCoordinate(location);
+          if (classified != null) {
+            origin = RamoPlace(
+              name: 'Minha localização',
+              address: classified.address,
+              position: location,
+              providerPlaceId: classified.providerPlaceId,
+              approvedPricingZoneId:
+                  classified.approvedPricingZoneId,
+              approvedPricingLocalityId:
+                  classified.approvedPricingLocalityId,
+              placeProof: classified.placeProof,
+            );
+          }
+        } catch (_) {
+          // A classificação remota é autoritativa para preço, mas não
+          // deve impedir o mapa de mostrar o GPS enquanto a rede oscila.
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _origin = origin;
