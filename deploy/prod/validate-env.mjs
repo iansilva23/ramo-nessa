@@ -1,3 +1,4 @@
+import { createPrivateKey } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -252,14 +253,68 @@ export function validateProductionEnvironment(env) {
   const payoutName = env.get('DRIVER_PAYOUT_PROVIDER_NAME') ?? '';
   const payoutUrl = env.get('DRIVER_PAYOUT_PROVIDER_URL') ?? '';
   const payoutToken = env.get('DRIVER_PAYOUT_PROVIDER_TOKEN') ?? '';
-  if (payoutName || payoutUrl || payoutToken) {
+  const mercadoPagoPayoutMode =
+    env.get('MERCADO_PAGO_PAYOUT_MODE') ?? '';
+  const mercadoPagoPayoutToken =
+    env.get('MERCADO_PAGO_PAYOUT_ACCESS_TOKEN') ?? '';
+  const mercadoPagoPayoutPrivateKeyBase64 =
+    env.get('MERCADO_PAGO_PAYOUT_PRIVATE_KEY_BASE64') ?? '';
+
+  if (payoutName === 'mercado-pago-payouts') {
+    if (mercadoPagoPayoutMode !== 'production') {
+      throw new Error(
+        'MERCADO_PAGO_PAYOUT_MODE deve ser production no deploy produtivo.',
+      );
+    }
+    requireValue(env, 'MERCADO_PAGO_PAYOUT_ACCESS_TOKEN', 20);
+    const encodedPrivateKey = requireValue(
+      env,
+      'MERCADO_PAGO_PAYOUT_PRIVATE_KEY_BASE64',
+      80,
+    );
+    let privateKey;
+    try {
+      const pem = Buffer.from(encodedPrivateKey, 'base64').toString('utf8');
+      privateKey = createPrivateKey(pem);
+    } catch {
+      throw new Error(
+        'MERCADO_PAGO_PAYOUT_PRIVATE_KEY_BASE64 deve conter uma chave privada PEM válida em base64.',
+      );
+    }
+    if (privateKey.asymmetricKeyType !== 'ed25519') {
+      throw new Error(
+        'MERCADO_PAGO_PAYOUT_PRIVATE_KEY_BASE64 deve ser uma chave Ed25519.',
+      );
+    }
+    if (payoutUrl || payoutToken) {
+      throw new Error(
+        'Não combine Mercado Pago Payouts com DRIVER_PAYOUT_PROVIDER_URL/TOKEN.',
+      );
+    }
+  } else if (payoutName || payoutUrl || payoutToken) {
     requireValue(env, 'DRIVER_PAYOUT_PROVIDER_NAME', 2);
     assertHttps(
       requireValue(env, 'DRIVER_PAYOUT_PROVIDER_URL', 12),
       'DRIVER_PAYOUT_PROVIDER_URL',
     );
     requireValue(env, 'DRIVER_PAYOUT_PROVIDER_TOKEN', 20);
+    if (
+      mercadoPagoPayoutToken ||
+      mercadoPagoPayoutPrivateKeyBase64
+    ) {
+      throw new Error(
+        'Credenciais Mercado Pago Payouts exigem DRIVER_PAYOUT_PROVIDER_NAME=mercado-pago-payouts.',
+      );
+    }
+  } else if (
+    mercadoPagoPayoutToken ||
+    mercadoPagoPayoutPrivateKeyBase64
+  ) {
+    throw new Error(
+      'Defina DRIVER_PAYOUT_PROVIDER_NAME=mercado-pago-payouts para ativar as credenciais Payouts.',
+    );
   }
+
   requireInteger(
     env,
     'DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS',
