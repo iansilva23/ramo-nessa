@@ -34,6 +34,10 @@ import {
   reconcileDriverPayouts,
 } from './payments/driver-payout-processing-service.js';
 import {
+  createScheduledDriverPayouts,
+  scheduledDriverPayoutCycleDate,
+} from './payments/driver-payout-policy-service.js';
+import {
   applyMercadoPagoOrderStatus,
   createMercadoPagoCardIntent,
   createMercadoPagoPixIntent,
@@ -242,9 +246,13 @@ import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminFinanceView } from './admin/admin-finance-service.js';
 import {
   AdminPayoutError,
+  adminPayoutDetailView,
+  approveAdminPayout,
   cancelAdminPayout,
   completeAdminPayout,
+  createAdminManualPayoutBatch,
   getAdminPayoutDetail,
+  updateAdminPayoutAutomaticMode,
 } from './admin/admin-payout-service.js';
 import { adminIntegrationSetupView } from './admin/admin-integrations-service.js';
 import {
@@ -965,6 +973,7 @@ async function finalizeMercadoPagoRefundedRide(
 let shuttingDown = false;
 let payoutReconciliationRunning = false;
 let payoutReconciliationTimer: ReturnType<typeof setInterval> | null = null;
+let lastScheduledPayoutCycleDate: string | null = null;
 let noDriverDecisionSweepRunning = false;
 let noDriverDecisionSweepTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -988,6 +997,47 @@ async function runPayoutReconciliation(): Promise<void> {
 
   payoutReconciliationRunning = true;
   try {
+    const cycleDate = scheduledDriverPayoutCycleDate(new Date());
+    if (
+      cycleDate != null &&
+      cycleDate !== lastScheduledPayoutCycleDate
+    ) {
+      lastScheduledPayoutCycleDate = cycleDate;
+      const scheduled = await createScheduledDriverPayouts({
+        finance: financeRepository,
+        limit: 500,
+      });
+
+      for (const payout of scheduled.created) {
+        try {
+          await processDriverPayout({
+            finance: financeRepository,
+            provider: driverPayoutProvider,
+            payoutId: payout.id,
+          });
+        } catch (error) {
+          logWarn('driver.payout.scheduled_provider_retry_pending', {
+            payoutId: payout.id,
+            driverId: payout.driverId,
+            ...errorFields(error),
+          });
+        }
+      }
+
+      if (
+        scheduled.created.length > 0 ||
+        scheduled.skippedNoPix > 0
+      ) {
+        logInfo('driver.payout.scheduled_cycle.completed', {
+          cycleDate,
+          automaticEnabled: scheduled.automaticEnabled,
+          created: scheduled.created.length,
+          skippedNoPix: scheduled.skippedNoPix,
+          skippedIdempotent: scheduled.skippedIdempotent,
+        });
+      }
+    }
+
     const result = await reconcileDriverPayouts({
       finance: financeRepository,
       provider: driverPayoutProvider,
@@ -3087,6 +3137,122 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (
+      request.method === 'PATCH' &&
+      requestUrl.pathname === '/v1/admin/finance/payout-policy'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      const body = await readJson(request);
+      const automaticEnabled =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body)
+          ? (body as { automaticEnabled?: unknown }).automaticEnabled
+          : undefined;
+      if (typeof automaticEnabled !== 'boolean') {
+        throw new InvalidAdminRequestError(
+          'automaticEnabled deve ser booleano.',
+        );
+      }
+      json(
+        response,
+        200,
+        await updateAdminPayoutAutomaticMode({
+          finance: financeRepository,
+          admin: adminRepository,
+          actor,
+          automaticEnabled,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/finance/payouts/manual'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      if (driverPayoutProvider == null) {
+        json(response, 503, {
+          error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
+          message: 'Provedor automático de repasse Pix não configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const payload =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body)
+          ? body as { driverIds?: unknown; batchId?: unknown }
+          : {};
+      if (
+        !Array.isArray(payload.driverIds) ||
+        !payload.driverIds.every(
+          (value) => typeof value === 'string',
+        ) ||
+        typeof payload.batchId !== 'string' ||
+        !/^[0-9a-fA-F-]{36}$/.test(payload.batchId)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Lote manual de repasses inválido.',
+        );
+      }
+
+      const batch = await createAdminManualPayoutBatch({
+        finance: financeRepository,
+        admin: adminRepository,
+        actor,
+        driverIds: payload.driverIds as string[],
+        batchId: payload.batchId,
+      });
+      const created = [];
+      for (const payout of batch.created) {
+        try {
+          const processed = await processDriverPayout({
+            finance: financeRepository,
+            provider: driverPayoutProvider,
+            payoutId: payout.id,
+          });
+          created.push({
+            payoutId: payout.id,
+            driverId: payout.driverId,
+            status: processed.payout.status,
+          });
+        } catch (error) {
+          logWarn('driver.payout.manual_provider_retry_pending', {
+            payoutId: payout.id,
+            driverId: payout.driverId,
+            ...errorFields(error),
+          });
+          created.push({
+            payoutId: payout.id,
+            driverId: payout.driverId,
+            status: 'requested',
+            providerRetryPending: true,
+          });
+        }
+      }
+
+      json(response, 200, {
+        batchId: payload.batchId,
+        created,
+        skipped: batch.skipped,
+      });
+      return;
+    }
+
     const adminPayoutMatch = requestUrl.pathname.match(
       /^\/v1\/admin\/finance\/payouts\/([0-9a-fA-F-]{36})$/,
     );
@@ -3141,6 +3307,46 @@ const server = createServer(async (request, response) => {
           ? payload.action.trim()
           : '';
 
+      if (action === 'approved') {
+        if (driverPayoutProvider == null) {
+          json(response, 503, {
+            error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
+            message: 'Provedor automático de repasse Pix não configurado.',
+          });
+          return;
+        }
+
+        const approved = await approveAdminPayout({
+          finance: financeRepository,
+          admin: adminRepository,
+          actor,
+          payoutId: adminPayoutMatch[1]!,
+        });
+        let payout = approved.payout;
+        let providerRetryPending = false;
+        try {
+          const processed = await processDriverPayout({
+            finance: financeRepository,
+            provider: driverPayoutProvider,
+            payoutId: adminPayoutMatch[1]!,
+          });
+          payout = adminPayoutDetailView(processed.payout);
+        } catch (error) {
+          providerRetryPending = true;
+          logWarn('driver.payout.approved_provider_retry_pending', {
+            payoutId: adminPayoutMatch[1]!,
+            ...errorFields(error),
+          });
+        }
+
+        json(response, 200, {
+          payout,
+          duplicate: approved.duplicate,
+          providerRetryPending,
+        });
+        return;
+      }
+
       if (action === 'paid') {
         if (typeof payload.processor !== 'string') {
           throw new InvalidAdminRequestError(
@@ -3187,7 +3393,7 @@ const server = createServer(async (request, response) => {
       }
 
       throw new InvalidAdminRequestError(
-        'action deve ser paid ou cancelled.',
+        'action deve ser approved, paid ou cancelled.',
       );
     }
 
@@ -5570,47 +5776,20 @@ const server = createServer(async (request, response) => {
         idempotencyKey: readIdempotencyKey(request.headers),
       });
 
-      let payout = result.payout;
-      let automated = driverPayoutProvider != null;
-      let providerRetryPending = false;
-
-      if (driverPayoutProvider != null) {
-        try {
-          const processed = await processDriverPayout({
-            finance: financeRepository,
-            provider: driverPayoutProvider,
-            payoutId: payout.id,
-          });
-          payout = processed.payout;
-        } catch (error) {
-          providerRetryPending = true;
-          logWarn('driver.payout.provider_retry_pending', {
-            payoutId: payout.id,
-            driverId,
-            ...errorFields(error),
-          });
-        }
-      }
-
+      const payout = result.payout;
       const finance = await driverFinanceSummary(
         financeRepository,
         driverId,
       );
-      const message =
-        payout.status === 'paid'
-          ? 'Repasse Pix concluído.'
-          : payout.status === 'failed'
-            ? 'O repasse Pix falhou e o valor voltou ao seu saldo.'
-            : driverPayoutProvider == null
-              ? 'Saque reservado. O repasse será processado pela operação.'
-              : providerRetryPending
-                ? 'Saque reservado. O provedor será consultado novamente automaticamente.'
-                : 'Saque enviado para processamento Pix.';
 
       json(response, 201, {
         payout: {
           id: payout.id,
           amountCents: payout.amountCents,
+          requestedAmountCents:
+            payout.requestedAmountCents ?? payout.amountCents,
+          feeCents: payout.feeCents ?? 0,
+          payoutKind: payout.payoutKind ?? 'anticipation',
           status: payout.status,
           pixKeyType: payout.pixKeyType,
           pixKeyMasked:
@@ -5622,10 +5801,11 @@ const server = createServer(async (request, response) => {
         },
         duplicateRequest: result.duplicateRequest,
         finance,
-        actionable: automated,
-        automated,
-        providerRetryPending,
-        message,
+        actionable: false,
+        automated: false,
+        providerRetryPending: false,
+        message:
+          'Antecipação enviada para análise. O Pix só será enviado após aprovação do ADM.',
       });
       return;
     }
