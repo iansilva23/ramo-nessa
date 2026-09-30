@@ -109,7 +109,7 @@ export function classifyCoordinateByCatalog(input: {
       assertCatalogLocationSupported({
         catalog: input.catalog,
         ref,
-        field: 'coordinate',
+        field: 'destination',
       });
       return ref;
     } catch {
