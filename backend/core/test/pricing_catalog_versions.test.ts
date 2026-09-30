@@ -933,3 +933,126 @@ test('edita geofence versionada por alfinete e raio sem deixar resíduo', async 
     false,
   );
 });
+
+
+test('regras por localidade habilitam categorias e adicional noturno sem perder preço', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-locality-policy',
+    name: 'Admin Locality Policy',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-30T12:00:00.000Z'),
+  });
+
+  await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'add',
+      scope: 'prea',
+      localityId: 'lagoa-nova',
+    }),
+    now: new Date('2026-09-30T12:01:00.000Z'),
+  });
+
+  const priced = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_price',
+      hub: 'prea',
+      localityId: 'lagoa-nova',
+      category: 'moto',
+      price: {
+        kind: 'exact',
+        amountCents: 1800,
+      },
+    }),
+    now: new Date('2026-09-30T12:02:00.000Z'),
+  });
+
+  assert.deepEqual(
+    priced.snapshot.localityPolicies.prea['lagoa-nova'],
+    {
+      enabledCategories: ['moto'],
+      applyNightSurcharge: false,
+    },
+  );
+
+  const ruled = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_policy',
+      hub: 'prea',
+      localityId: 'lagoa-nova',
+      enabledCategories: [
+        'moto',
+        'car',
+        'comfort_black',
+      ],
+      applyNightSurcharge: true,
+    }),
+    now: new Date('2026-09-30T12:03:00.000Z'),
+  });
+
+  assert.deepEqual(
+    ruled.snapshot.localityPolicies.prea['lagoa-nova'],
+    {
+      enabledCategories: [
+        'moto',
+        'car',
+        'comfort_black',
+      ],
+      applyNightSurcharge: true,
+    },
+  );
+  assert.equal(
+    ruled.snapshot.surcharges
+      .preaLocalCarAfter22LocalityIds
+      .includes('lagoa-nova'),
+    true,
+  );
+  assert.equal(
+    ruled.snapshot.localities.prea['lagoa-nova']?.moto,
+    1800,
+  );
+
+  const removed = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'remove',
+      scope: 'prea',
+      localityId: 'lagoa-nova',
+    }),
+    now: new Date('2026-09-30T12:04:00.000Z'),
+  });
+
+  assert.equal(
+    removed.snapshot.localityPolicies.prea['lagoa-nova'],
+    undefined,
+  );
+  assert.equal(
+    removed.snapshot.surcharges
+      .preaLocalCarAfter22LocalityIds
+      .includes('lagoa-nova'),
+    false,
+  );
+});
