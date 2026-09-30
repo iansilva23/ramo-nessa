@@ -8,16 +8,26 @@ function safeLimit(limit: number | undefined): number {
 export async function adminFinanceView(input: {
   finance: FinanceRepository;
   limit?: number;
+  canManageCompanyPayouts?: boolean;
 }) {
   const limit = safeLimit(input.limit);
-  const [summary, payments, payouts, payoutSettings, payoutCandidates] =
-    await Promise.all([
-      input.finance.adminFinanceSummary(),
-      input.finance.listRecentPayments(limit),
-      input.finance.listRecentDriverPayouts(limit),
-      input.finance.getDriverPayoutSettings(),
-      input.finance.listDriverPayoutCandidates(500),
-    ]);
+  const [
+    summary,
+    payments,
+    payouts,
+    payoutSettings,
+    payoutCandidates,
+    companyDestination,
+    companyPayouts,
+  ] = await Promise.all([
+    input.finance.adminFinanceSummary(),
+    input.finance.listRecentPayments(limit),
+    input.finance.listRecentDriverPayouts(limit),
+    input.finance.getDriverPayoutSettings(),
+    input.finance.listDriverPayoutCandidates(500),
+    input.finance.getCompanyPayoutDestination(),
+    input.finance.listRecentCompanyPayouts(limit),
+  ]);
 
   return {
     readOnly: false,
@@ -43,6 +53,37 @@ export async function adminFinanceView(input: {
         candidate.destination == null
           ? null
           : `••••${candidate.destination.pixKey.slice(-4)}`,
+    })),
+    companyPayout: {
+      canManage: input.canManageCompanyPayouts === true,
+      destinationConfigured: companyDestination != null,
+      pixKeyType: companyDestination?.pixKeyType ?? null,
+      pixKeyMasked:
+        companyDestination == null
+          ? null
+          : `••••${companyDestination.pixKey.slice(-4)}`,
+      destinationUpdatedAt: companyDestination?.updatedAt ?? null,
+      availableCents: summary.companyProfitAvailableCents,
+      pendingCents: summary.companyPayoutPendingCents,
+      accountingRevenueCents: summary.platformRevenueCents,
+      unrecoveredCashCommissionCents:
+        summary.driverCashCommissionDebtCents,
+      note:
+        'Saldo disponível considera a receita da plataforma menos comissão cash ainda não recuperada. Não representa lucro contábil após impostos/despesas.',
+    },
+    companyPayouts: companyPayouts.map((payout) => ({
+      id: payout.id,
+      amountCents: payout.amountCents,
+      status: payout.status,
+      pixKeyType: payout.pixKeyType,
+      pixKeyMasked:
+        payout.pixKey.length > 4
+          ? `••••${payout.pixKey.slice(-4)}`
+          : '••••',
+      processor: payout.processor ?? null,
+      processorPayoutId: payout.processorPayoutId ?? null,
+      createdAt: payout.createdAt,
+      updatedAt: payout.updatedAt,
     })),
     payments: payments.map((payment) => ({
       id: payment.id,
