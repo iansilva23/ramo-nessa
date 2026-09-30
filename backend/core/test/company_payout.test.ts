@@ -18,6 +18,23 @@ async function financeWithCompanyRevenue() {
     updatedAt: '2026-09-30T08:00:00.000Z',
   });
 
+  await finance.createPayment({
+    id: '33333333-3333-4333-8333-333333333333',
+    rideId: '22222222-2222-4222-8222-222222222222',
+    method: 'pix',
+    processor: 'company-payout-test',
+    status: 'pending',
+    amountCents: 10_000,
+    idempotencyKey: 'company-payout-payment-seed',
+    createdAt: '2026-09-30T08:05:00.000Z',
+    updatedAt: '2026-09-30T08:05:00.000Z',
+  });
+  await finance.capturePayment({
+    paymentId: '33333333-3333-4333-8333-333333333333',
+    processorEventId: 'company-payout-capture-seed',
+    capturedAt: new Date('2026-09-30T08:06:00.000Z'),
+  });
+
   await finance.settleRide({
     rideId: '22222222-2222-4222-8222-222222222222',
     paymentId: '33333333-3333-4333-8333-333333333333',
