@@ -716,10 +716,43 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     if (policy == null) return services;
+
+    final sameLocalZone =
+        origin == destination &&
+        (origin == 'prea' || origin == 'jijoca');
+    final originLocality =
+        coverage.originZone?.localityId?.trim();
+    final destinationLocality =
+        coverage.destinationZone?.localityId?.trim();
+
+    bool localityAllows(ServiceType service) {
+      if (!sameLocalZone) return true;
+      final originAllowed =
+          originLocality == null || originLocality.isEmpty
+              ? null
+              : policy.localityCategories(
+                  zoneId: origin!,
+                  localityId: originLocality,
+                );
+      final destinationAllowed =
+          destinationLocality == null ||
+                  destinationLocality.isEmpty
+              ? null
+              : policy.localityCategories(
+                  zoneId: destination!,
+                  localityId: destinationLocality,
+                );
+      return (originAllowed == null ||
+              originAllowed.contains(service.backendKey)) &&
+          (destinationAllowed == null ||
+              destinationAllowed.contains(service.backendKey));
+    }
+
     return services
         .where(
           (service) =>
-              policy.enabledCategories.contains(service.backendKey),
+              policy.enabledCategories.contains(service.backendKey) &&
+              localityAllows(service),
         )
         .toList(growable: false);
   }
