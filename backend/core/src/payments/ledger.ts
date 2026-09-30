@@ -95,14 +95,43 @@ export function externalRideRefundLedger(input: {
   paymentId: string;
   processor: string;
   amountCents: number;
+  escrowAppliedCents?: number;
+  reviewRequiredCents?: number;
   createdAt: string;
 }): LedgerTransaction {
+  const escrowAppliedCents =
+    input.escrowAppliedCents ?? input.amountCents;
+  const reviewRequiredCents =
+    input.reviewRequiredCents ?? 0;
+  if (
+    !Number.isInteger(input.amountCents) ||
+    input.amountCents <= 0 ||
+    !Number.isInteger(escrowAppliedCents) ||
+    escrowAppliedCents < 0 ||
+    !Number.isInteger(reviewRequiredCents) ||
+    reviewRequiredCents < 0 ||
+    escrowAppliedCents + reviewRequiredCents !== input.amountCents
+  ) {
+    throw new LedgerError(
+      'Distribuição do estorno externo não fecha com o valor restante.',
+    );
+  }
+
   const entries: LedgerEntry[] = [
-    {
-      accountKey: `ride:${input.rideId}:escrow`,
-      direction: 'debit',
-      amountCents: input.amountCents,
-    },
+    ...(escrowAppliedCents > 0
+      ? [{
+          accountKey: `ride:${input.rideId}:escrow`,
+          direction: 'debit' as const,
+          amountCents: escrowAppliedCents,
+        }]
+      : []),
+    ...(reviewRequiredCents > 0
+      ? [{
+          accountKey: 'platform:external_adjustment_review',
+          direction: 'debit' as const,
+          amountCents: reviewRequiredCents,
+        }]
+      : []),
     {
       accountKey: `processor:${input.processor}:clearing`,
       direction: 'credit',
