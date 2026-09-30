@@ -7,8 +7,14 @@ import type {
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import {
   PayoutDomainError,
+  payoutFeeCents,
+  payoutKind,
+  payoutRequestedAmountCents,
   type DriverPayoutRecord,
 } from '../payments/payout.js';
+import {
+  createManualDriverPayouts,
+} from '../payments/driver-payout-policy-service.js';
 
 export class AdminPayoutError extends Error {
   constructor(
@@ -51,6 +57,12 @@ export function adminPayoutDetailView(payout: DriverPayoutRecord) {
     id: payout.id,
     driverId: payout.driverId,
     amountCents: payout.amountCents,
+    requestedAmountCents: payoutRequestedAmountCents(payout),
+    feeCents: payoutFeeCents(payout),
+    payoutKind: payoutKind(payout),
+    approvedAt: payout.approvedAt ?? null,
+    requiresApproval:
+      payoutKind(payout) === 'anticipation' && payout.approvedAt == null,
     status: payout.status,
     pixKeyType: payout.pixKeyType,
     pixKey: payout.pixKey,
@@ -180,4 +192,106 @@ export async function cancelAdminPayout(input: {
     payout: adminPayoutDetailView(result.payout),
     duplicate: result.duplicateCancellation,
   };
+}
+
+
+export async function approveAdminPayout(input: {
+  finance: FinanceRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  payoutId: string;
+  now?: Date;
+}) {
+  const result = await input.finance.approveDriverPayout({
+    payoutId: input.payoutId,
+    ...(input.now == null ? {} : { approvedAt: input.now }),
+  });
+
+  if (!result.duplicateApproval) {
+    await input.admin.appendAudit({
+      id: randomUUID(),
+      actor: input.actor,
+      action: 'finance.payout.approved',
+      targetType: 'driver_payout',
+      targetId: result.payout.id,
+      metadata: {
+        driverId: result.payout.driverId,
+        requestedAmountCents: payoutRequestedAmountCents(result.payout),
+        feeCents: payoutFeeCents(result.payout),
+        amountCents: result.payout.amountCents,
+        payoutKind: payoutKind(result.payout),
+      },
+      createdAt: result.payout.updatedAt,
+    });
+  }
+
+  return {
+    payout: adminPayoutDetailView(result.payout),
+    duplicate: result.duplicateApproval,
+  };
+}
+
+export async function updateAdminPayoutAutomaticMode(input: {
+  finance: FinanceRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  automaticEnabled: boolean;
+  now?: Date;
+}) {
+  const current = await input.finance.getDriverPayoutSettings();
+  if (current.automaticEnabled === input.automaticEnabled) {
+    return current;
+  }
+
+  const updated = await input.finance.setDriverPayoutAutomaticEnabled({
+    automaticEnabled: input.automaticEnabled,
+    ...(input.now == null ? {} : { updatedAt: input.now }),
+  });
+
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'finance.payout.mode.updated',
+    targetType: 'driver_payout_settings',
+    targetId: 'default',
+    metadata: {
+      previousAutomaticEnabled: current.automaticEnabled,
+      automaticEnabled: updated.automaticEnabled,
+    },
+    createdAt: updated.updatedAt,
+  });
+  return updated;
+}
+
+export async function createAdminManualPayoutBatch(input: {
+  finance: FinanceRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  driverIds: readonly string[];
+  batchId: string;
+  now?: Date;
+}) {
+  const result = await createManualDriverPayouts({
+    finance: input.finance,
+    driverIds: input.driverIds,
+    batchId: input.batchId,
+    ...(input.now == null ? {} : { now: input.now }),
+  });
+
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'finance.payout.manual_batch.created',
+    targetType: 'driver_payout_batch',
+    targetId: input.batchId,
+    metadata: {
+      requestedDrivers: input.driverIds.length,
+      created: result.created.length,
+      skipped: result.skipped.length,
+      payoutIds: result.created.map((payout) => payout.id),
+    },
+    createdAt: (input.now ?? new Date()).toISOString(),
+  });
+
+  return result;
 }
