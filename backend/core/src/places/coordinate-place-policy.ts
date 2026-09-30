@@ -2,7 +2,7 @@ import type {
   PricingCatalogSnapshot,
   PricingLocalityGeofence,
 } from '../pricing/catalog-snapshot.js';
-import type { LocationRef, ZoneId } from '../pricing/types.js';
+import type { ZoneId } from '../pricing/types.js';
 import { assertCatalogLocationSupported } from '../pricing/catalog-location-policy.js';
 
 export class CoordinateClassificationError extends Error {
