@@ -148,6 +148,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     new URL('../styles.css', import.meta.url),
     'utf8',
   );
+  const geofenceMap = readFileSync(
+    new URL('../src/pricing-geofence-map.js', import.meta.url),
+    'utf8',
+  );
 
   for (const id of [
     'view-pricing',
@@ -172,6 +176,21 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-zone-policy-fields',
     'pricing-zone-policy-id',
     'pricing-zone-policy-enabled',
+    'pricing-locality-map-fields',
+    'pricing-locality-map-scope',
+    'pricing-locality-map-id',
+    'pricing-locality-map-radius',
+    'pricing-locality-map-coordinate-label',
+    'pricing-locality-map-latitude',
+    'pricing-locality-map-longitude',
+    'pricing-locality-map',
+    'pricing-locality-map-tiles',
+    'pricing-locality-map-overlay',
+    'pricing-locality-map-zoom-in',
+    'pricing-locality-map-zoom-out',
+    'pricing-geofence-count',
+    'pricing-geofences-body',
+    'pricing-geofences-empty',
     'pricing-locality-structure-fields',
     'pricing-locality-structure-operation',
     'pricing-locality-structure-scope',
@@ -222,6 +241,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
 
   assert.match(html, /data-view=["']pricing["']/);
   assert.match(html, /Catálogo ativo protegido/i);
+  assert.match(html, /alfinete \+ raio/i);
+  assert.match(html, /Clique para posicionar o alfinete/i);
+  assert.match(html, /Raio da localidade/i);
+  assert.match(html, /ÁREAS NO MAPA/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);
@@ -237,6 +260,12 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /pricing-category-policies-body/);
   assert.match(app, /pricing-policy-four-by-four/);
   assert.match(app, /zone_policy/);
+  assert.match(app, /locality_map/);
+  assert.match(app, /locality_geofence/);
+  assert.match(app, /createPricingGeofenceMap/);
+  assert.match(app, /openPricingGeofenceEditor/);
+  assert.match(app, /pricing-locality-map-radius/);
+  assert.match(app, /Localidade e área salvas no rascunho/);
   assert.match(app, /locality_structure/);
   assert.match(app, /commission_policy/);
   assert.match(app, /period_policy/);
@@ -262,6 +291,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     /bindRouteEvent\('pricing-publish-button', 'click'/,
   );
   assert.equal(app.includes('.innerHTML'), false);
+  assert.match(geofenceMap, /pointerdown/);
+  assert.match(geofenceMap, /radiusKm/);
+  assert.match(geofenceMap, /tile\.openstreetmap\.org/);
+  assert.equal(geofenceMap.includes('.innerHTML'), false);
 
   for (const selector of [
     '.pricing-summary-grid',
@@ -270,6 +303,9 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     '.pricing-workflow-grid',
     '.pricing-edit-form',
     '.pricing-publish-panel',
+    '.pricing-geofence-map',
+    '.pricing-geofence-map__radius',
+    '.pricing-geofence-map__pin',
   ]) {
     assert.equal(css.includes(selector), true);
   }
