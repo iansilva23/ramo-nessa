@@ -286,6 +286,75 @@ export async function updatePricingCatalogDraft(input: {
       bands: snapshot.jeri.deliveryBands,
       aboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     };
+  } else if (patch.kind === 'locality_geofence') {
+    const localityExists =
+      patch.zoneId === 'jericoacoara'
+        ? patch.localityId === 'jericoacoara'
+        : patch.zoneId === 'prea'
+          ? snapshot.localities.prea[patch.localityId] != null
+          : patch.zoneId === 'jijoca'
+            ? snapshot.localities.jijoca[patch.localityId] != null
+            : snapshot.externalLocalities.includes(patch.localityId);
+
+    if (!localityExists) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'A localidade da geofence não pertence ao catálogo.',
+      );
+    }
+
+    const sameLocality = (
+      candidate: typeof snapshot.localityGeofences[number],
+    ) =>
+      candidate.zoneId === patch.zoneId &&
+      candidate.localityId === patch.localityId;
+
+    const exists = snapshot.localityGeofences.some(sameLocality);
+    if (patch.operation === 'remove') {
+      if (!exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_RULE_NOT_FOUND',
+          'Geofence da localidade não encontrada.',
+        );
+      }
+      snapshot.localityGeofences =
+        snapshot.localityGeofences.filter(
+          (candidate) => !sameLocality(candidate),
+        );
+    } else {
+      const next = {
+        zoneId: patch.zoneId,
+        localityId: patch.localityId,
+        centerLatitude: patch.centerLatitude,
+        centerLongitude: patch.centerLongitude,
+        radiusKm: patch.radiusKm,
+      };
+      snapshot.localityGeofences = exists
+        ? snapshot.localityGeofences.map((candidate) =>
+            sameLocality(candidate) ? next : candidate,
+          )
+        : [...snapshot.localityGeofences, next];
+      snapshot.localityGeofences.sort((a, b) => {
+        const zone = a.zoneId.localeCompare(b.zoneId);
+        return zone !== 0
+          ? zone
+          : a.localityId.localeCompare(b.localityId);
+      });
+    }
+
+    auditMetadata = {
+      kind: patch.kind,
+      operation: patch.operation,
+      zoneId: patch.zoneId,
+      localityId: patch.localityId,
+      ...(patch.operation === 'upsert'
+        ? {
+            centerLatitude: patch.centerLatitude,
+            centerLongitude: patch.centerLongitude,
+            radiusKm: patch.radiusKm,
+          }
+        : {}),
+    };
   } else {
     const referencedByFixedRoute = snapshot.fixedRoutes.some(
       (route) =>
@@ -334,6 +403,16 @@ export async function updatePricingCatalogDraft(input: {
           : snapshot.externalLocalities.filter(
               (id) => id !== patch.localityId,
             );
+      if (patch.operation === 'remove') {
+        snapshot.localityGeofences =
+          snapshot.localityGeofences.filter(
+            (candidate) =>
+              !(
+                candidate.zoneId === 'external' &&
+                candidate.localityId === patch.localityId
+              ),
+          );
+      }
     } else {
       const table = snapshot.localities[patch.scope];
       const exists = table[patch.localityId] != null;
@@ -354,6 +433,14 @@ export async function updatePricingCatalogDraft(input: {
         table[patch.localityId] = {};
       } else {
         delete table[patch.localityId];
+        snapshot.localityGeofences =
+          snapshot.localityGeofences.filter(
+            (candidate) =>
+              !(
+                candidate.zoneId === patch.scope &&
+                candidate.localityId === patch.localityId
+              ),
+          );
         if (patch.scope === 'prea') {
           snapshot.surcharges.preaLocalCarAfter22LocalityIds =
             snapshot.surcharges.preaLocalCarAfter22LocalityIds.filter(
