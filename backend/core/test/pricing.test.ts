@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { PAYMENT_POLICY_V1 } from '../src/payments/payment-policy.js';
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
+import { PricingError } from '../src/pricing/types.js';
 import {
   pickupCompensationCents,
   quoteFare,
@@ -307,4 +309,56 @@ test('lançamento aceita somente Pix, cartão e carteira', () => {
   assert.equal(PAYMENT_POLICY_V1.cashEnabled, false);
   assert.equal(PAYMENT_POLICY_V1.paymentRequiredBeforeDispatch, true);
   assert.equal(PAYMENT_POLICY_V1.futureCashDebtLimitCents, 12000);
+});
+
+
+test('regra da localidade pode desligar categoria sem apagar o preço salvo', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const policy = catalog.localityPolicies.prea['buraco-azul'];
+  assert.ok(policy);
+  policy.enabledCategories = policy.enabledCategories.filter(
+    (category) => category !== 'car',
+  );
+
+  assert.equal(
+    catalog.localities.prea['buraco-azul']?.car,
+    3500,
+  );
+  assert.throws(
+    () =>
+      quoteFare(
+        {
+          origin: zone('prea', 'prea'),
+          destination: zone('prea', 'buraco-azul'),
+          category: 'car',
+          period: 'day',
+        },
+        catalog,
+      ),
+    (error: unknown) =>
+      error instanceof PricingError &&
+      error.code === 'UNKNOWN_ROUTE',
+  );
+});
+
+test('regra local controla adicional noturno do Preá', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const policy = catalog.localityPolicies.prea['buraco-azul'];
+  assert.ok(policy);
+  policy.applyNightSurcharge = false;
+
+  const quote = quoteFare(
+    {
+      origin: zone('prea', 'prea'),
+      destination: zone('prea', 'buraco-azul'),
+      category: 'car',
+      period: 'after_22',
+    },
+    catalog,
+  );
+
+  assert.equal(quote.kind, 'exact');
+  if (quote.kind === 'exact') {
+    assert.equal(quote.baseAmountCents, 3500);
+  }
 });
