@@ -433,6 +433,9 @@ class DriverPayoutReservation {
     required this.status,
     required this.finance,
     required this.duplicateRequest,
+    this.requestedAmountCents,
+    this.feeCents = 0,
+    this.payoutKind = 'legacy',
   });
 
   factory DriverPayoutReservation.fromJson(Map<String, dynamic> json) {
@@ -440,6 +443,10 @@ class DriverPayoutReservation {
     return DriverPayoutReservation(
       id: payout['id'] as String,
       amountCents: (payout['amountCents'] as num).toInt(),
+      requestedAmountCents:
+          (payout['requestedAmountCents'] as num?)?.toInt(),
+      feeCents: (payout['feeCents'] as num?)?.toInt() ?? 0,
+      payoutKind: payout['payoutKind'] as String? ?? 'legacy',
       status: payout['status'] as String,
       finance: DriverFinanceSummary.fromJson(
         json['finance'] as Map<String, dynamic>,
@@ -450,9 +457,14 @@ class DriverPayoutReservation {
 
   final String id;
   final int amountCents;
+  final int? requestedAmountCents;
+  final int feeCents;
+  final String payoutKind;
   final String status;
   final DriverFinanceSummary finance;
   final bool duplicateRequest;
+
+  int get grossAmountCents => requestedAmountCents ?? amountCents;
 }
 
 
