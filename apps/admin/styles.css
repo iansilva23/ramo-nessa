@@ -2130,6 +2130,26 @@ td strong {
   display: none;
 }
 
+.pricing-toggle-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.pricing-toggle-field input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.pricing-toggle-field small {
+  grid-column: 1 / -1;
+}
+
+.pricing-toggle-field[hidden] {
+  display: none;
+}
+
 
 .pricing-edit-group--map {
   grid-template-columns: repeat(2, minmax(0, 1fr));
