@@ -118,7 +118,24 @@ descartável e remove os recursos isolados ao final. Ele não usa os volumes
 
 A existência desse comando não substitui o exercício operacional. Antes do
 Go-Live, ele ainda deve ser executado com um snapshot real do VPS, registrando o
-resultado, e a estratégia de retenção/off-site precisa ser validada.
+resultado.
+
+### Retenção local segura
+
+A retenção local é separada da criação do backup e começa sempre em modo de
+simulação:
+
+    node deploy/prod/backup-retention.mjs --backup-dir=/var/backups/ramo-nessa --keep=14 --apply=false
+
+Revise a lista `removable` impressa pelo comando. Somente depois dessa revisão,
+para aplicar a política:
+
+    node deploy/prod/backup-retention.mjs --backup-dir=/var/backups/ramo-nessa --keep=14 --apply=true
+
+O script aceita no mínimo 7 snapshots, remove apenas diretórios completos com
+manifesto reconhecido do Ramo Nessa e preserva `.incomplete`, links e pastas
+estranhas. A retenção local não substitui uma cópia off-site. Não automatize a
+exclusão local sem antes definir e testar a estratégia externa de backup.
 
 ## 8. Monitor de saúde
 
