@@ -44,6 +44,21 @@ export type PricingCatalogDraftPatch =
       localityId: string;
     }
   | {
+      kind: 'locality_geofence';
+      operation: 'upsert';
+      zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+      localityId: string;
+      centerLatitude: number;
+      centerLongitude: number;
+      radiusKm: number;
+    }
+  | {
+      kind: 'locality_geofence';
+      operation: 'remove';
+      zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+      localityId: string;
+    }
+  | {
       kind: 'commission_policy';
       commissionBps: number;
     }
@@ -372,6 +387,65 @@ export function parsePricingCatalogDraftPatch(
       localityId: identifierValue(
         value.localityId,
         'localityId',
+      ),
+    };
+  }
+
+  if (kind === 'locality_geofence') {
+    const operation = textValue(value.operation, 'operation', 20);
+    if (operation !== 'upsert' && operation !== 'remove') {
+      throw new InvalidPricingCatalogPatchError(
+        'operation deve ser upsert ou remove.',
+      );
+    }
+
+    const zoneId = textValue(value.zoneId, 'zoneId', 30);
+    if (
+      zoneId !== 'jericoacoara' &&
+      zoneId !== 'jijoca' &&
+      zoneId !== 'prea' &&
+      zoneId !== 'external'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'zoneId da geofence é inválida.',
+      );
+    }
+
+    const localityId = identifierValue(
+      value.localityId,
+      'localityId',
+    );
+    if (operation === 'remove') {
+      return {
+        kind,
+        operation,
+        zoneId,
+        localityId,
+      };
+    }
+
+    return {
+      kind,
+      operation,
+      zoneId,
+      localityId,
+      centerLatitude: decimalValue(
+        value.centerLatitude,
+        'centerLatitude',
+        -90,
+        90,
+      ),
+      centerLongitude: decimalValue(
+        value.centerLongitude,
+        'centerLongitude',
+        -180,
+        180,
+      ),
+      radiusKm: decimalValue(
+        value.radiusKm,
+        'radiusKm',
+        0.05,
+        100,
       ),
     };
   }
