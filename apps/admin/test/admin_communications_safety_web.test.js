@@ -135,7 +135,7 @@ test('Comunicação permanece bloqueada até o Core carregar', () => {
   );
 });
 
-test('Suporte não depende do carregamento de Comunicação', () => {
+test('Suporte usa permissão própria e não depende do carregamento de Comunicação', () => {
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
     'utf8',
@@ -157,7 +157,7 @@ test('Suporte não depende do carregamento de Comunicação', () => {
   );
   assert.match(
     support,
-    /button\.disabled = !hasScope\('communications:write'\)/,
+    /button\.disabled = !hasScope\('support:write'\)/,
   );
   assert.match(app, /supportRequesterLabel/);
   assert.match(app, /requesterType === 'passenger'/);
