@@ -229,7 +229,8 @@ jobs:
           EOF
 
           node deploy/staging/validate-env.mjs --env-file=/tmp/ramo-staging.env
-          docker compose --env-file /tmp/ramo-staging.env -f deploy/staging/compose.yml config > /dev/null
+          docker compose --env-file /tmp/ramo-staging.env -f deploy/staging/compose.yml config > /tmp/ramo-staging-compose.yml
+          grep -F "http://127.0.0.1:8091/health" /tmp/ramo-staging-compose.yml > /dev/null
           docker run --rm \
             -e APP_DOMAIN=staging.ramonessa.test \
             -e ACME_EMAIL=ops@ramonessa.test \
