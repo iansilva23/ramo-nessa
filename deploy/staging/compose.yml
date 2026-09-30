@@ -90,6 +90,12 @@ services:
       GOOGLE_MAPS_MOCK_PORT: "8091"
       GOOGLE_MAPS_SERVER_API_KEY: "staging-google-mock-key"
     expose: ["8091"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8091/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
     logging: *default-logging
@@ -130,7 +136,7 @@ services:
       migrate:
         condition: service_completed_successfully
       google-maps-mock:
-        condition: service_started
+        condition: service_healthy
       document-storage-init:
         condition: service_completed_successfully
       document-storage-check:
