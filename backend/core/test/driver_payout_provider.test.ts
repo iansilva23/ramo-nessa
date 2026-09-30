@@ -1,8 +1,10 @@
+import { generateKeyPairSync, verify as verifySignature } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
   HttpDriverPayoutProvider,
+  MercadoPagoDriverPayoutProvider,
   type DriverPayoutProvider,
 } from '../src/payments/driver-payout-provider.js';
 import {
@@ -119,6 +121,165 @@ test('provedor HTTP envia Pix sem expor token no payload', async () => {
   assert.equal(capturedIdempotency, 'payout-internal-001');
   assert.equal(capturedBody.includes('provider-token'), false);
   assert.equal(result.status, 'processing');
+});
+
+
+test('Mercado Pago Payouts cria Pix em modo teste com idempotência', async () => {
+  let capturedUrl = '';
+  let capturedHeaders: Record<string, string> = {};
+  let capturedBody = '';
+
+  const provider = new MercadoPagoDriverPayoutProvider(
+    'test',
+    'APP_USR-' + 'x'.repeat(40),
+    undefined,
+    async (url, init) => {
+      capturedUrl = url;
+      capturedHeaders = Object.fromEntries(
+        new Headers(init?.headers).entries(),
+      );
+      capturedBody = String(init?.body ?? '');
+      return new Response(
+        JSON.stringify({
+          id: 'POP01TESTPAYOUT123',
+          status: 'created',
+          transactions: [
+            { id: 'TOP01TESTTRANSACTION456' },
+          ],
+        }),
+        { status: 202, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+
+  const result = await provider.createPixPayout({
+    payoutId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    amountCents: 9000,
+    pixKeyType: 'random',
+    pixKey: '40404040-4040-4040-8040-404040404040',
+  });
+
+  assert.equal(capturedUrl, 'https://api.mercadopago.com/v1/payouts');
+  assert.equal(
+    capturedHeaders.authorization,
+    'Bearer APP_USR-' + 'x'.repeat(40),
+  );
+  assert.equal(capturedHeaders['x-test-token'], 'true');
+  assert.equal(
+    capturedHeaders['x-idempotency-key'],
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
+  assert.equal(capturedHeaders['x-signature'], undefined);
+
+  const body = JSON.parse(capturedBody) as {
+    transactions: Array<{
+      type: string;
+      pix: { type: string; chave: string };
+      amount: { currency: string; value: number };
+    }>;
+  };
+  assert.equal(body.transactions[0]?.type, 'pix');
+  assert.equal(body.transactions[0]?.pix.type, 'PIX_CODE');
+  assert.equal(
+    body.transactions[0]?.pix.chave,
+    '40404040-4040-4040-8040-404040404040',
+  );
+  assert.equal(body.transactions[0]?.amount.currency, 'BRL');
+  assert.equal(body.transactions[0]?.amount.value, 90);
+  assert.equal(
+    result.providerPayoutId,
+    'POP01TESTPAYOUT123/TOP01TESTTRANSACTION456',
+  );
+  assert.equal(result.status, 'processing');
+});
+
+test('Mercado Pago Payouts reconcilia transação creditada como paga', async () => {
+  let capturedUrl = '';
+  const provider = new MercadoPagoDriverPayoutProvider(
+    'test',
+    'APP_USR-' + 'x'.repeat(40),
+    undefined,
+    async (url) => {
+      capturedUrl = url;
+      return new Response(
+        JSON.stringify({
+          id: 'TOP01TESTTRANSACTION456',
+          status: 'success',
+          status_detail: 'accredited',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+
+  const result = await provider.getPayoutStatus(
+    'POP01TESTPAYOUT123/TOP01TESTTRANSACTION456',
+  );
+
+  assert.equal(
+    capturedUrl,
+    'https://api.mercadopago.com/v1/payouts/POP01TESTPAYOUT123/transactions/TOP01TESTTRANSACTION456',
+  );
+  assert.equal(result.status, 'paid');
+});
+
+test('Mercado Pago Payouts assina body Ed25519 em produção', async () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const privateKeyPem = privateKey.export({
+    type: 'pkcs8',
+    format: 'pem',
+  }).toString();
+
+  let signature = '';
+  let body = '';
+  let enforceSignature = '';
+  let testToken = '';
+
+  const provider = new MercadoPagoDriverPayoutProvider(
+    'production',
+    'APP_USR-' + 'p'.repeat(40),
+    privateKeyPem,
+    async (_url, init) => {
+      const headers = Object.fromEntries(
+        new Headers(init?.headers).entries(),
+      );
+      signature = headers['x-signature'] ?? '';
+      enforceSignature = headers['x-enforce-signature'] ?? '';
+      testToken = headers['x-test-token'] ?? '';
+      body = String(init?.body ?? '');
+
+      return new Response(
+        JSON.stringify({
+          id: 'POP01PRODPAYOUT123',
+          status: 'created',
+          transactions: [
+            { id: 'TOP01PRODTRANSACTION456' },
+          ],
+        }),
+        { status: 202, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+
+  await provider.createPixPayout({
+    payoutId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    amountCents: 8000,
+    pixKeyType: 'email',
+    pixKey: 'driver@example.com',
+  });
+
+  assert.equal(enforceSignature, 'true');
+  assert.equal(testToken, '');
+  assert.ok(signature.length > 20);
+  assert.equal(
+    verifySignature(
+      null,
+      Buffer.from(body, 'utf8'),
+      publicKey,
+      Buffer.from(signature, 'base64'),
+    ),
+    true,
+  );
 });
 
 test('saque vai de reservado para processing e depois paid uma única vez', async () => {
