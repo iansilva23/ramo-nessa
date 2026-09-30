@@ -41,7 +41,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já contém a regra comercial;
    - o Passageiro consulta o Core quando `RAMO_CORE_BASE_URL` está configurado;
    - o Admin já possui catálogo ativo protegido, rascunhos editáveis, versionamento persistente, publicação auditada, vigência imediata/programada e edição estrutural versionada das zonas/localidades suportadas;
-   - destinos externos aprovados e localidades locais reconhecidas via Google Places já recebem prova assinada pelo Core, vinculada à localidade e coordenadas; ainda falta ampliar a cobertura geoespacial para GPS puro e pontos não reconhecidos pelo catálogo de lugares;
+   - destinos externos aprovados e localidades locais reconhecidas via Google Places recebem prova assinada pelo Core, vinculada à localidade e coordenadas; o catálogo versionado agora também possui geofences de localidade criadas visualmente no ADM por alfinete + raio, e o Core classifica GPS puro/coordenadas por essas áreas publicadas e emite `placeProof` assinada; alterações feitas no mapa ficam isoladas no rascunho e só passam a valer quando a versão é publicada; ainda é necessário calibrar e validar essas áreas com GPS real antes do Go-Live;
    - faixas comerciais que ainda não possuem valor único não podem virar cobrança exata automaticamente.
 
 4. **Gateway financeiro real está integrado, mas depende da operação externa**
@@ -111,7 +111,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já valida categoria, lotação, disponibilidade e 4x4 antes da oferta;
    - disponibilidade de categorias e exigência 4x4 ao cruzar Jeri já são políticas versionadas e publicáveis pelo Admin;
    - cada corrida congela sua exigência 4x4 para não mudar com versões futuras;
-   - a validação específica já existe para destinos externos aprovados e para localidades locais reconhecidas via Google Places, usando `placeProof` assinada pelo Core; falta cobertura geoespacial completa para GPS puro e pontos sem classificação aprovada, além de validação física em condições reais.
+   - a validação geográfica estrutural cobre destinos externos aprovados, localidades reconhecidas via Google Places e GPS puro/pontos de mapa classificados por geofences versionadas de alfinete + raio; o Core é a autoridade, escolhe a área publicada aplicável e emite `placeProof` assinada vinculada à coordenada; pontos fora das áreas publicadas falham fechados. Ainda faltam calibração operacional dos raios e validação física em condições reais de GPS antes do Go-Live.
 
 ## Suporte e separação Preview/real
 
