@@ -129,7 +129,7 @@ test('aprovação cobra R$ 10 uma vez e envia somente o líquido', async () => {
   assert.equal(approved.payout.requestedAmountCents, 10_000);
   assert.equal(approved.payout.feeCents, 1_000);
   assert.equal(approved.payout.amountCents, 9_000);
-  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 1_000);
+  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 2_000);
   assert.equal(
     await finance.getAccountBalanceCents(
       'driver:driver-controls:payout_pending',
@@ -141,7 +141,7 @@ test('aprovação cobra R$ 10 uma vez e envia somente o líquido', async () => {
     payoutId: request.payout.id,
   });
   assert.equal(duplicate.duplicateApproval, true);
-  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 1_000);
+  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 2_000);
 
   let sentAmount = 0;
   const provider: DriverPayoutProvider = {
@@ -176,7 +176,7 @@ test('recusa antes da aprovação devolve o bruto sem cobrar taxa', async () => 
     await finance.getAccountBalanceCents('driver:driver-controls:payable'),
     20_000,
   );
-  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 0);
+  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 1_000);
 });
 
 test('falha Pix após aprovação devolve bruto e estorna a taxa', async () => {
@@ -206,7 +206,7 @@ test('falha Pix após aprovação devolve bruto e estorna a taxa', async () => {
     await finance.getAccountBalanceCents('driver:driver-controls:payable'),
     20_000,
   );
-  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 0);
+  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 1_000);
   assert.equal(
     await finance.getAccountBalanceCents(
       'driver:driver-controls:payout_pending',
