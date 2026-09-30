@@ -34,6 +34,11 @@ import {
   reconcileDriverPayouts,
 } from './payments/driver-payout-processing-service.js';
 import {
+  processCompanyPayout,
+  reconcileCompanyPayouts,
+} from './payments/company-payout-processing-service.js';
+import { CompanyPayoutError } from './payments/company-payout.js';
+import {
   createScheduledDriverPayouts,
   scheduledDriverPayoutCycleDate,
 } from './payments/driver-payout-policy-service.js';
@@ -247,7 +252,14 @@ import { adminFinanceView } from './admin/admin-finance-service.js';
 import {
   AdminPayoutOwnerAuthorizationError,
   assertAdminPayoutOwner,
+  isAdminPayoutOwner,
 } from './admin/admin-payout-owner-authorization.js';
+import {
+  adminCompanyPayoutView,
+  cancelAdminCompanyPayout,
+  createAdminCompanyPayout,
+  saveAdminCompanyPayoutDestination,
+} from './admin/admin-company-payout-service.js';
 import {
   AdminPayoutError,
   adminPayoutDetailView,
@@ -1049,6 +1061,15 @@ async function runPayoutReconciliation(): Promise<void> {
     });
     if (result.processed > 0 || result.errors > 0) {
       logInfo('driver.payout.reconciliation.completed', result);
+    }
+
+    const companyResult = await reconcileCompanyPayouts({
+      finance: financeRepository,
+      provider: driverPayoutProvider,
+      limit: 100,
+    });
+    if (companyResult.processed > 0 || companyResult.errors > 0) {
+      logInfo('company.payout.reconciliation.completed', companyResult);
     }
   } catch (error) {
     logWarn('driver.payout.reconciliation.failed', errorFields(error));
@@ -3090,7 +3111,7 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/finance'
     ) {
-      await authenticateAdminPrincipal({
+      const actor = await authenticateAdminPrincipal({
         apiKeys: adminRepository,
         humanAuth: adminHumanAuthRepository,
         headers: request.headers,
@@ -3100,8 +3121,155 @@ const server = createServer(async (request, response) => {
       const finance = await adminFinanceView({
         finance: financeRepository,
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
+        canManageCompanyPayouts: isAdminPayoutOwner(actor),
       });
       json(response, 200, finance);
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname ===
+        '/v1/admin/finance/company-payout-destination'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      assertAdminPayoutOwner(actor);
+      const destination = parseDriverPayoutDestinationRequest(
+        await readJson(request),
+      );
+      json(
+        response,
+        200,
+        await saveAdminCompanyPayoutDestination({
+          finance: financeRepository,
+          admin: adminRepository,
+          actor,
+          pixKeyType: destination.pixKeyType,
+          pixKey: destination.pixKey,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/finance/company-payouts'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      assertAdminPayoutOwner(actor);
+      if (driverPayoutProvider == null) {
+        json(response, 503, {
+          error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
+          message: 'Provedor de repasse Pix não configurado.',
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const payload =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body)
+          ? body as { amountCents?: unknown; requestId?: unknown }
+          : {};
+      if (
+        typeof payload.amountCents !== 'number' ||
+        !Number.isInteger(payload.amountCents) ||
+        payload.amountCents < 100 ||
+        typeof payload.requestId !== 'string' ||
+        !/^[0-9a-fA-F-]{36}$/.test(payload.requestId)
+      ) {
+        throw new InvalidAdminRequestError(
+          'Repasse da empresa inválido.',
+        );
+      }
+
+      const requested = await createAdminCompanyPayout({
+        finance: financeRepository,
+        admin: adminRepository,
+        actor,
+        amountCents: payload.amountCents,
+        idempotencyKey: `company:${payload.requestId}`,
+      });
+
+      let payout = requested.payout;
+      let providerRetryPending = false;
+      try {
+        const processed = await processCompanyPayout({
+          finance: financeRepository,
+          provider: driverPayoutProvider,
+          payoutId: requested.payout.id,
+        });
+        if (processed.payout != null) {
+          payout = adminCompanyPayoutView(processed.payout);
+        }
+      } catch (error) {
+        providerRetryPending = true;
+        logWarn('company.payout.provider_retry_pending', {
+          payoutId: requested.payout.id,
+          ...errorFields(error),
+        });
+      }
+
+      json(response, 201, {
+        payout,
+        duplicate: requested.duplicate,
+        providerRetryPending,
+      });
+      return;
+    }
+
+    const adminCompanyPayoutMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/finance\/company-payouts\/([0-9a-fA-F-]{36})$/,
+    );
+    if (
+      request.method === 'PATCH' &&
+      adminCompanyPayoutMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'finance:write',
+      });
+      assertAdminPayoutOwner(actor);
+      const body = await readJson(request);
+      const action =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        typeof (body as { action?: unknown }).action === 'string'
+          ? String((body as { action?: unknown }).action).trim()
+          : '';
+      if (action !== 'cancelled') {
+        throw new InvalidAdminRequestError(
+          'action deve ser cancelled.',
+        );
+      }
+      const cancelled = await cancelAdminCompanyPayout({
+        finance: financeRepository,
+        admin: adminRepository,
+        actor,
+        payoutId: adminCompanyPayoutMatch[1]!,
+      });
+      if (cancelled == null) {
+        json(response, 404, {
+          error: 'COMPANY_PAYOUT_NOT_FOUND',
+          message: 'Repasse da empresa não encontrado.',
+        });
+        return;
+      }
+      json(response, 200, cancelled);
       return;
     }
 
@@ -3124,16 +3292,25 @@ const server = createServer(async (request, response) => {
         return;
       }
 
-      const reconciliation = await reconcileDriverPayouts({
+      const driverReconciliation = await reconcileDriverPayouts({
         finance: financeRepository,
         provider: driverPayoutProvider,
         limit: 100,
       });
+      const companyReconciliation = await reconcileCompanyPayouts({
+        finance: financeRepository,
+        provider: driverPayoutProvider,
+        limit: 100,
+      });
+      const reconciliation = {
+        drivers: driverReconciliation,
+        company: companyReconciliation,
+      };
       await adminRepository.appendAudit({
         id: randomUUID(),
         actor,
         action: 'finance.payout.reconciled',
-        targetType: 'driver_payout_batch',
+        targetType: 'payout_batch',
         targetId: 'automatic-provider',
         metadata: reconciliation,
         createdAt: new Date().toISOString(),
@@ -7920,6 +8097,21 @@ const server = createServer(async (request, response) => {
 
     if (error instanceof AdminPayoutError) {
       const status = error.code === 'PAYOUT_NOT_FOUND' ? 404 : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof CompanyPayoutError) {
+      const status =
+        error.code === 'COMPANY_PAYOUT_NOT_FOUND'
+          ? 404
+          : error.code === 'INSUFFICIENT_COMPANY_BALANCE' ||
+              error.code === 'COMPANY_PAYOUT_IDEMPOTENCY_CONFLICT'
+            ? 409
+            : 422;
       json(response, status, {
         error: error.code,
         message: error.message,
