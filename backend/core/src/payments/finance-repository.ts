@@ -5,6 +5,10 @@ import type {
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
 import type {
+  ExternalPaymentAdjustmentKind,
+  ExternalPaymentAdjustmentRecord,
+} from './external-payment-adjustment.js';
+import type {
   DriverPayoutDestination,
   DriverPayoutRecord,
   DriverPayoutSettings,
@@ -32,6 +36,23 @@ export interface RefundExternalPaymentResult {
   payment: PaymentRecord;
   ledgerTransaction: LedgerTransaction;
   duplicateRefund: boolean;
+}
+
+export interface RecordExternalPaymentAdjustmentInput {
+  paymentId: string;
+  processorAdjustmentId: string;
+  kind: ExternalPaymentAdjustmentKind;
+  processorStatus: string;
+  processorStatusDetail: string;
+  amountCents: number;
+  applyToAccounting: boolean;
+  observedAt?: Date;
+}
+
+export interface RecordExternalPaymentAdjustmentResult {
+  adjustment: ExternalPaymentAdjustmentRecord;
+  ledgerTransaction?: LedgerTransaction;
+  duplicateAdjustment: boolean;
 }
 
 export interface CapturePaymentInput {
@@ -283,6 +304,8 @@ export interface AdminFinanceSummary {
   platformRevenueCents: number;
   companyProfitAvailableCents: number;
   companyPayoutPendingCents: number;
+  externalAdjustmentReviewCents: number;
+  externalAdjustmentReviewCount: number;
   driverPayableCents: number;
   driverPayoutPendingCents: number;
   driverCashCommissionDebtCents: number;
@@ -309,6 +332,12 @@ export interface FinanceRepository {
   refundExternalPayment(
     input: RefundExternalPaymentInput,
   ): Promise<RefundExternalPaymentResult>;
+  recordExternalPaymentAdjustment(
+    input: RecordExternalPaymentAdjustmentInput,
+  ): Promise<RecordExternalPaymentAdjustmentResult>;
+  listRecentExternalPaymentAdjustments(
+    limit: number,
+  ): Promise<ExternalPaymentAdjustmentRecord[]>;
 
   findWalletTopupById(id: string): Promise<WalletTopupRecord | null>;
   listWalletTopups(
