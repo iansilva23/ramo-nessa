@@ -53,6 +53,27 @@ O projeto Firebase e o fluxo APNs estão documentados em
 
 Nunca coloque deploy/prod/.env nem a Service Account no Git.
 
+### Mercado Pago Payouts para repasses Pix
+
+O provedor nativo de repasses fica desligado até a homologação externa terminar.
+Quando o Mercado Pago liberar o produto Payouts para a aplicação/conta:
+
+1. siga `docs/MERCADO_PAGO_PAYOUTS.md`;
+2. valide primeiro com `MERCADO_PAGO_PAYOUT_MODE=test` fora do stack produtivo;
+3. gere o par Ed25519 e envie somente a chave pública ao Mercado Pago;
+4. mantenha a chave privada fora do Git e configure sua versão base64 somente no
+   arquivo privado `deploy/prod/.env`;
+5. depois da homologação, configure:
+
+       DRIVER_PAYOUT_PROVIDER_NAME=mercado-pago-payouts
+       MERCADO_PAGO_PAYOUT_MODE=production
+       MERCADO_PAGO_PAYOUT_ACCESS_TOKEN=<token Payouts produtivo>
+       MERCADO_PAGO_PAYOUT_PRIVATE_KEY_BASE64=<chave privada PEM em base64>
+
+O validador de produção recusa modo diferente de `production`, token ausente,
+chave inválida ou chave que não seja Ed25519. Se o nome do provedor ficar vazio,
+Payouts permanece desativado.
+
 ## 3. Validar antes de qualquer deploy
 
     node deploy/prod/validate-env.mjs
