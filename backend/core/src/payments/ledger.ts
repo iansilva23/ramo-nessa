@@ -14,6 +14,7 @@ export interface LedgerTransaction {
   rideId?: string;
   paymentId?: string;
   payoutId?: string;
+  companyPayoutId?: string;
   walletTopupId?: string;
   referenceKey: string;
   entries: LedgerEntry[];
@@ -620,3 +621,130 @@ export function driverPayoutCancelledLedger(input: {
     createdAt: input.createdAt,
   };
 }
+
+export function companyPayoutReserveLedger(input: {
+  companyPayoutId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new LedgerError('Valor do repasse da empresa deve ser positivo.');
+  }
+
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:revenue',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: 'platform:company_payout_pending',
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'COMPANY_PAYOUT_RESERVED',
+    companyPayoutId: input.companyPayoutId,
+    referenceKey: `company-payout-reserve:${input.companyPayoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function companyPayoutPaidLedger(input: {
+  companyPayoutId: string;
+  processor: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const processor = input.processor.trim();
+  if (processor.length < 2) {
+    throw new LedgerError('Processador do repasse da empresa é obrigatório.');
+  }
+
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:company_payout_pending',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `processor:${processor}:payouts`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'COMPANY_PAYOUT_PAID',
+    companyPayoutId: input.companyPayoutId,
+    referenceKey: `company-payout-paid:${input.companyPayoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function companyPayoutFailedLedger(input: {
+  companyPayoutId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:company_payout_pending',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: 'platform:revenue',
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'COMPANY_PAYOUT_FAILED',
+    companyPayoutId: input.companyPayoutId,
+    referenceKey: `company-payout-failed:${input.companyPayoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function companyPayoutCancelledLedger(input: {
+  companyPayoutId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:company_payout_pending',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: 'platform:revenue',
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'COMPANY_PAYOUT_CANCELLED',
+    companyPayoutId: input.companyPayoutId,
+    referenceKey: `company-payout-cancelled:${input.companyPayoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
