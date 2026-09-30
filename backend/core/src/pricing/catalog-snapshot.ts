@@ -20,6 +20,14 @@ import type {
   ZoneId,
 } from './types.js';
 
+export interface PricingLocalityGeofence {
+  zoneId: ZoneId;
+  localityId: string;
+  centerLatitude: number;
+  centerLongitude: number;
+  radiusKm: number;
+}
+
 export interface PricingCatalogSnapshot {
   catalogVersion: string;
   categories: ServiceCategory[];
@@ -39,6 +47,7 @@ export interface PricingCatalogSnapshot {
   >;
   zonePolicies: Record<ZoneId, { enabled: boolean }>;
   externalLocalities: string[];
+  localityGeofences: PricingLocalityGeofence[];
   pickupPolicy: {
     freeKm: number;
     fuelPriceCentsPerLiter: number;
@@ -133,6 +142,36 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
     'marco',
     'cruz',
   ].sort(),
+  localityGeofences: [
+    {
+      zoneId: 'jericoacoara',
+      localityId: 'jericoacoara',
+      centerLatitude: -2.80023,
+      centerLongitude: -40.51638,
+      radiusKm: 7,
+    },
+    {
+      zoneId: 'jijoca',
+      localityId: 'jijoca',
+      centerLatitude: -2.89860,
+      centerLongitude: -40.45060,
+      radiusKm: 7.5,
+    },
+    {
+      zoneId: 'prea',
+      localityId: 'prea',
+      centerLatitude: -2.82017,
+      centerLongitude: -40.41467,
+      radiusKm: 6.5,
+    },
+    {
+      zoneId: 'external',
+      localityId: 'airport-jjd',
+      centerLatitude: -2.906425,
+      centerLongitude: -40.357338,
+      radiusKm: 3,
+    },
+  ],
   pickupPolicy: {
     freeKm: FREE_PICKUP_KM,
     fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
@@ -177,6 +216,7 @@ export function normalizePricingCatalogSnapshot(
   const value = input as PricingCatalogSnapshot & {
     zonePolicies?: PricingCatalogSnapshot['zonePolicies'];
     externalLocalities?: string[];
+    localityGeofences?: PricingCatalogSnapshot['localityGeofences'];
     categoryPolicies?: PricingCatalogSnapshot['categoryPolicies'];
   };
 
@@ -207,5 +247,9 @@ export function normalizePricingCatalogSnapshot(
       value.externalLocalities == null
         ? [...STATIC_PRICING_CATALOG_V1.externalLocalities]
         : [...value.externalLocalities],
+    localityGeofences:
+      value.localityGeofences == null
+        ? structuredClone(STATIC_PRICING_CATALOG_V1.localityGeofences)
+        : structuredClone(value.localityGeofences),
   };
 }
