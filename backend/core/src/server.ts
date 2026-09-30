@@ -245,6 +245,10 @@ import {
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
 import { adminFinanceView } from './admin/admin-finance-service.js';
 import {
+  AdminPayoutOwnerAuthorizationError,
+  assertAdminPayoutOwner,
+} from './admin/admin-payout-owner-authorization.js';
+import {
   AdminPayoutError,
   adminPayoutDetailView,
   approveAdminPayout,
@@ -1002,11 +1006,11 @@ async function runPayoutReconciliation(): Promise<void> {
       cycleDate != null &&
       cycleDate !== lastScheduledPayoutCycleDate
     ) {
-      lastScheduledPayoutCycleDate = cycleDate;
       const scheduled = await createScheduledDriverPayouts({
         finance: financeRepository,
         limit: 500,
       });
+      lastScheduledPayoutCycleDate = cycleDate;
 
       for (const payout of scheduled.created) {
         try {
@@ -3147,6 +3151,7 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'finance:write',
       });
+      assertAdminPayoutOwner(actor);
       const body = await readJson(request);
       const automaticEnabled =
         body != null &&
@@ -3182,6 +3187,7 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'finance:write',
       });
+      assertAdminPayoutOwner(actor);
       if (driverPayoutProvider == null) {
         json(response, 503, {
           error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
@@ -3287,6 +3293,7 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'finance:write',
       });
+      assertAdminPayoutOwner(actor);
       const body = await readJson(request);
       if (
         body == null ||
@@ -7895,6 +7902,18 @@ const server = createServer(async (request, response) => {
     if (error instanceof RideOfferError) {
       const status = error.code === 'OFFER_NOT_FOUND' ? 404 : 409;
       json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof AdminPayoutOwnerAuthorizationError) {
+      json(
+        response,
+        error.code === 'PAYOUT_APPROVER_NOT_CONFIGURED' ? 503 : 403,
+        {
+          error: error.code,
+          message: error.message,
+        },
+      );
       return;
     }
 
