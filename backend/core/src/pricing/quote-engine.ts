@@ -158,6 +158,26 @@ function localityPrice(
   }
 }
 
+function localityCategoryEnabled(
+  catalog: PricingCatalogSnapshot,
+  hub: 'prea' | 'jijoca',
+  localityId: string,
+  category: 'moto' | 'delivery' | 'car' | 'comfort_black',
+): boolean {
+  const policy = catalog.localityPolicies[hub][localityId];
+  return policy?.enabledCategories.includes(category) === true;
+}
+
+function localityNightSurchargeEnabled(
+  catalog: PricingCatalogSnapshot,
+  localityId: string,
+): boolean {
+  return (
+    catalog.localityPolicies.prea[localityId]
+      ?.applyNightSurcharge === true
+  );
+}
+
 function quoteFixedRoute(
   request: QuoteRequest,
   catalog: PricingCatalogSnapshot,
@@ -241,6 +261,16 @@ function quotePrea(
   if (localityId == null) return null;
 
   if (request.category === 'comfort_black') {
+    if (
+      !localityCategoryEnabled(
+        catalog,
+        'prea',
+        localityId,
+        'comfort_black',
+      )
+    ) {
+      return null;
+    }
     const car = localityPrice(catalog.localities.prea, localityId, 'car');
     if (car == null) return null;
     if (isBand(car)) {
@@ -257,7 +287,7 @@ function quotePrea(
 
     const night =
       request.period === 'after_22' &&
-      catalog.surcharges.preaLocalCarAfter22LocalityIds.includes(localityId)
+      localityNightSurchargeEnabled(catalog, localityId)
         ? catalog.surcharges.preaLocalCarAfter22Cents
         : 0;
 
@@ -267,6 +297,24 @@ function quotePrea(
       request,
       catalog,
     );
+  }
+
+  if (
+    request.category !== 'moto' &&
+    request.category !== 'delivery' &&
+    request.category !== 'car'
+  ) {
+    return null;
+  }
+  if (
+    !localityCategoryEnabled(
+      catalog,
+      'prea',
+      localityId,
+      request.category,
+    )
+  ) {
+    return null;
   }
 
   const value = localityPrice(catalog.localities.prea, localityId, request.category);
@@ -284,7 +332,7 @@ function quotePrea(
   const localCarNight =
     request.category === 'car' &&
     request.period === 'after_22' &&
-    catalog.surcharges.preaLocalCarAfter22LocalityIds.includes(localityId)
+    localityNightSurchargeEnabled(catalog, localityId)
       ? catalog.surcharges.preaLocalCarAfter22Cents
       : 0;
 
@@ -306,6 +354,24 @@ function quoteJijoca(
     'jijoca',
   );
   if (localityId == null) return null;
+
+  if (
+    request.category !== 'moto' &&
+    request.category !== 'delivery' &&
+    request.category !== 'car'
+  ) {
+    return null;
+  }
+  if (
+    !localityCategoryEnabled(
+      catalog,
+      'jijoca',
+      localityId,
+      request.category,
+    )
+  ) {
+    return null;
+  }
 
   const value = localityPrice(catalog.localities.jijoca, localityId, request.category);
   if (value == null) return null;
