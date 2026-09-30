@@ -18,18 +18,18 @@ void main() {
     );
   }
 
-  test('mensagem de saque reflete o status real do repasse Pix', () {
+  test('mensagem de repasse reflete o status real do Pix', () {
     expect(
       driverPayoutStatusMessage(payout('requested')),
-      'Saque solicitado: R\$ 110,00.',
+      'Repasse solicitado: R\$ 110,00.',
     );
     expect(
       driverPayoutStatusMessage(payout('processing')),
-      'Saque em processamento: R\$ 110,00.',
+      'Repasse em processamento: R\$ 110,00.',
     );
     expect(
       driverPayoutStatusMessage(payout('paid')),
-      'Saque concluído: R\$ 110,00 enviado via Pix.',
+      'Repasse concluído: R\$ 110,00 enviado via Pix.',
     );
     expect(
       driverPayoutStatusMessage(payout('failed')),
