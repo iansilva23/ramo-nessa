@@ -317,4 +317,64 @@ void main() {
     );
   });
 
+  test('Core classifica GPS puro e devolve prova assinada', () async {
+    late http.Request captured;
+    final client = MockClient((request) async {
+      captured = request;
+      return http.Response(
+        '{"place":{'
+        '"id":"coordinate:prea:lagoa-grande",'
+        '"name":"lagoa-grande",'
+        '"address":"Coordenada aprovada pelo catálogo vigente",'
+        '"latitude":-2.835,"longitude":-40.405,'
+        '"approvedPricingZoneId":"prea",'
+        '"approvedPricingLocalityId":"lagoa-grande",'
+        '"placeProof":"signed-coordinate-proof-abcdefghijklmnopqrstuvwxyz"}}',
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      accessToken: 'passenger-place-token-abcdefghijklmnopqrstuvwxyz',
+      client: client,
+    );
+
+    final place = await service.classifyCoordinate(
+      const LatLng(-2.835, -40.405),
+    );
+
+    expect(captured.url.path, '/v1/maps/places/classify-coordinate');
+    expect(captured.body, contains('"latitude":-2.835'));
+    expect(place, isNotNull);
+    expect(place?.approvedPricingZoneId, 'prea');
+    expect(place?.approvedPricingLocalityId, 'lagoa-grande');
+    expect(
+      place?.placeProof,
+      'signed-coordinate-proof-abcdefghijklmnopqrstuvwxyz',
+    );
+  });
+
+  test('Core retorna null quando GPS não pertence a área publicada', () async {
+    final client = MockClient(
+      (_) async => http.Response(
+        '{"error":"COORDINATE_NOT_CLASSIFIED"}',
+        422,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+    final service = CorePlaceSearchService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      client: client,
+    );
+
+    expect(
+      await service.classifyCoordinate(
+        const LatLng(-3.7319, -38.5267),
+      ),
+      isNull,
+    );
+  });
+
 }
