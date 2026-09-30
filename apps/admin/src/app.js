@@ -78,6 +78,8 @@ const state = {
     },
     payments: [],
     payouts: [],
+    payoutPolicy: null,
+    payoutCandidates: [],
     policy: null,
     selectedPayout: null,
     writeLocked: true,
@@ -2915,6 +2917,19 @@ function renderPaymentPolicy(policy = null) {
       : 'Cartão está sem acréscimo de processamento.';
 }
 
+function payoutKindLabel(kind) {
+  switch (kind) {
+    case 'anticipation':
+      return 'Antecipação';
+    case 'scheduled':
+      return 'Programado';
+    case 'manual':
+      return 'Manual';
+    default:
+      return 'Legado';
+  }
+}
+
 function renderFinance(payload = null) {
   const summary = payload?.summary ?? {};
   const payments = Array.isArray(payload?.payments)
@@ -2923,6 +2938,14 @@ function renderFinance(payload = null) {
   const payouts = Array.isArray(payload?.payouts)
     ? payload.payouts
     : [];
+  const payoutCandidates = Array.isArray(payload?.payoutCandidates)
+    ? payload.payoutCandidates
+    : [];
+  const payoutPolicy =
+    payload?.payoutPolicy != null &&
+    typeof payload.payoutPolicy === 'object'
+      ? payload.payoutPolicy
+      : state.finance.payoutPolicy;
 
   state.finance = {
     generatedAt:
@@ -2956,6 +2979,8 @@ function renderFinance(payload = null) {
     },
     payments,
     payouts,
+    payoutPolicy,
+    payoutCandidates,
     policy: state.finance.policy,
     selectedPayout: state.finance.selectedPayout ?? null,
     writeLocked: state.finance.writeLocked === true,
@@ -2994,6 +3019,8 @@ function renderFinance(payload = null) {
     String(current.paymentsCancelled);
   byId('finance-payments-refunded').textContent =
     String(current.paymentsRefunded);
+
+  renderFinancePayoutPolicy();
 
   const paymentBody = byId('finance-payments-body');
   paymentBody.replaceChildren();
@@ -3051,10 +3078,15 @@ function renderFinance(payload = null) {
     driver.textContent = payout.driverId ?? '—';
 
     const amount = document.createElement('td');
-    amount.textContent = formatCurrencyCents(payout.amountCents);
+    amount.textContent = formatCurrencyCents(
+      payout.requestedAmountCents ?? payout.amountCents,
+    );
 
     const processor = document.createElement('td');
-    processor.textContent = payout.processor ?? 'Aguardando integração';
+    processor.textContent =
+      payout.requiresApproval === true
+        ? 'Aguardando sua aprovação'
+        : payout.processor ?? 'Aguardando integração';
 
     const created = document.createElement('td');
     created.textContent = formatDateTime(payout.createdAt);
@@ -3063,7 +3095,8 @@ function renderFinance(payload = null) {
     const manageButton = document.createElement('button');
     manageButton.type = 'button';
     manageButton.className = 'button button--ghost-dark button--compact';
-    manageButton.textContent = 'Gerenciar';
+    manageButton.textContent =
+      payout.requiresApproval === true ? 'Analisar' : 'Gerenciar';
     manageButton.disabled = !hasScope('finance:write');
     manageButton.addEventListener('click', () => {
       void openFinancePayout(payout.id);
@@ -3085,6 +3118,155 @@ function renderFinance(payload = null) {
   byId('finance-payouts-empty').hidden = payouts.length !== 0;
 }
 
+function renderFinancePayoutPolicy() {
+  const policy = state.finance.payoutPolicy;
+  const candidates = state.finance.payoutCandidates ?? [];
+  const status = byId('finance-payout-policy-status');
+  const toggle = byId('finance-payout-mode-toggle');
+  const note = byId('finance-payout-policy-note');
+  const manual = byId('finance-manual-payouts');
+  const body = byId('finance-manual-payouts-body');
+  const empty = byId('finance-manual-payouts-empty');
+
+  if (
+    status == null ||
+    toggle == null ||
+    note == null ||
+    manual == null ||
+    body == null ||
+    empty == null
+  ) {
+    return;
+  }
+
+  const loaded = policy != null;
+  const automaticEnabled = policy?.automaticEnabled === true;
+  const canWrite = financeWritesAvailable();
+
+  status.className = automaticEnabled
+    ? 'pill pill--success'
+    : loaded
+      ? 'pill pill--warning'
+      : 'pill pill--neutral';
+  status.textContent = automaticEnabled
+    ? 'Automático'
+    : loaded
+      ? 'Manual'
+      : 'Indisponível';
+
+  toggle.textContent = automaticEnabled
+    ? 'Pausar automáticos / usar modo manual'
+    : 'Reativar repasses automáticos';
+  toggle.disabled = !loaded || !canWrite;
+  note.textContent = automaticEnabled
+    ? 'Próximos ciclos: segunda, quarta e sexta às 07:00.'
+    : loaded
+      ? 'Repasses programados estão pausados. Você decide quem receberá.'
+      : 'Política de repasses ainda não carregada.';
+
+  manual.hidden = !loaded || automaticEnabled;
+  body.replaceChildren();
+
+  if (!manual.hidden) {
+    for (const candidate of candidates) {
+      const row = document.createElement('tr');
+
+      const selection = document.createElement('td');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'finance-manual-payout-checkbox';
+      checkbox.dataset.driverId = candidate.driverId ?? '';
+      checkbox.disabled =
+        !canWrite ||
+        candidate.pixConfigured !== true ||
+        numericMetric(candidate.availableBalanceCents) <= 0;
+      checkbox.setAttribute(
+        'aria-label',
+        `Selecionar motorista ${candidate.driverId ?? ''}`,
+      );
+      checkbox.addEventListener('change', syncManualPayoutSelection);
+      selection.append(checkbox);
+
+      const driver = document.createElement('td');
+      driver.textContent = candidate.driverId ?? '—';
+
+      const balance = document.createElement('td');
+      balance.textContent = formatCurrencyCents(
+        candidate.availableBalanceCents,
+      );
+
+      const pix = document.createElement('td');
+      pix.textContent =
+        candidate.pixConfigured === true
+          ? `${String(candidate.pixKeyType ?? '').toUpperCase()} · ${candidate.pixKeyMasked ?? '••••'}`
+          : 'Chave Pix não cadastrada';
+
+      const action = document.createElement('td');
+      const payButton = document.createElement('button');
+      payButton.type = 'button';
+      payButton.className =
+        'button button--ghost-dark button--compact';
+      payButton.textContent = 'Pagar';
+      payButton.disabled = checkbox.disabled;
+      payButton.addEventListener('click', () => {
+        void handleManualFinancePayouts([candidate.driverId]);
+      });
+      action.append(payButton);
+
+      row.append(selection, driver, balance, pix, action);
+      body.append(row);
+    }
+  }
+
+  empty.hidden = candidates.length !== 0;
+  const selectAll = byId('finance-manual-select-all');
+  if (selectAll != null) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    selectAll.disabled = !canWrite || candidates.length === 0;
+  }
+  syncManualPayoutSelection();
+}
+
+function syncManualPayoutSelection() {
+  const checkboxes = [
+    ...document.querySelectorAll(
+      '.finance-manual-payout-checkbox:not(:disabled)',
+    ),
+  ];
+  const selected = checkboxes.filter((checkbox) => checkbox.checked);
+  const selectAll = byId('finance-manual-select-all');
+  if (selectAll != null) {
+    selectAll.checked =
+      checkboxes.length > 0 && selected.length === checkboxes.length;
+    selectAll.indeterminate =
+      selected.length > 0 && selected.length < checkboxes.length;
+  }
+
+  const button = byId('finance-manual-payout-selected');
+  if (button != null) {
+    button.disabled =
+      !financeWritesAvailable() || selected.length === 0;
+  }
+  const note = byId('finance-manual-payout-selection-note');
+  if (note != null) {
+    note.textContent =
+      selected.length === 0
+        ? 'Nenhum motorista selecionado.'
+        : `${selected.length} motorista(s) selecionado(s).`;
+  }
+}
+
+function selectedManualDriverIds() {
+  return [
+    ...document.querySelectorAll(
+      '.finance-manual-payout-checkbox:checked',
+    ),
+  ]
+    .map((checkbox) => checkbox.dataset.driverId ?? '')
+    .filter(Boolean);
+}
+
 function renderFinancePayoutDetail(payout = null) {
   state.finance.selectedPayout = payout;
   const panel = byId('finance-payout-detail');
@@ -3097,10 +3279,29 @@ function renderFinancePayoutDetail(payout = null) {
 
   panel.hidden = false;
   const presentation = payoutStatusPresentation(payout.status);
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const feeCents = numericMetric(payout.feeCents);
+  const requiresApproval =
+    payout.requiresApproval === true ||
+    (
+      payout.payoutKind === 'anticipation' &&
+      payout.approvedAt == null &&
+      payout.status === 'requested'
+    );
+
   byId('finance-payout-detail-status').textContent =
     presentation.label;
   byId('finance-payout-detail-driver').textContent =
     payout.driverId ?? '—';
+  byId('finance-payout-detail-kind').textContent =
+    payoutKindLabel(payout.payoutKind);
+  byId('finance-payout-detail-gross').textContent =
+    formatCurrencyCents(grossCents);
+  byId('finance-payout-detail-fee').textContent =
+    feeCents > 0
+      ? `- ${formatCurrencyCents(feeCents)}`
+      : formatCurrencyCents(0);
   byId('finance-payout-detail-amount').textContent =
     formatCurrencyCents(payout.amountCents);
   byId('finance-payout-detail-pix').textContent =
@@ -3112,6 +3313,17 @@ function renderFinancePayoutDetail(payout = null) {
   byId('finance-payout-detail-reference').textContent =
     payout.processorPayoutId ?? '—';
 
+  const detailCopy = byId('finance-payout-detail-copy');
+  if (detailCopy != null) {
+    detailCopy.textContent = requiresApproval
+      ? `O motorista solicitou ${formatCurrencyCents(grossCents)}. A taxa é ${formatCurrencyCents(feeCents)} e o Pix líquido será ${formatCurrencyCents(payout.amountCents)}. Só será enviado após sua aprovação.`
+      : payout.payoutKind === 'scheduled'
+        ? 'Repasse normal criado pelo ciclo de segunda, quarta e sexta às 07:00.'
+        : payout.payoutKind === 'manual'
+          ? 'Repasse criado manualmente pelo ADM.'
+          : 'Use a conciliação manual apenas para um pagamento realizado fora do provedor automático.';
+  }
+
   const processorInput = byId('finance-payout-processor');
   const referenceInput = byId('finance-payout-reference');
   processorInput.value = payout.processor ?? '';
@@ -3120,20 +3332,42 @@ function renderFinancePayoutDetail(payout = null) {
   const actionable =
     payout.status === 'requested' ||
     payout.status === 'processing';
-  const canWrite =
-    financeWritesAvailable() && actionable;
-  processorInput.disabled = !canWrite;
-  referenceInput.disabled = !canWrite;
-  byId('finance-payout-paid-button').disabled = !canWrite;
-  byId('finance-payout-cancel-button').disabled = !canWrite;
+  const canWrite = financeWritesAvailable() && actionable;
+  const approveButton = byId('finance-payout-approve-button');
+  const paidButton = byId('finance-payout-paid-button');
+  const cancelButton = byId('finance-payout-cancel-button');
+
+  approveButton.hidden = !requiresApproval;
+  approveButton.disabled = !canWrite || !requiresApproval;
+
+  const externalPaymentAllowed =
+    canWrite && !requiresApproval;
+  paidButton.hidden = requiresApproval;
+  paidButton.disabled = !externalPaymentAllowed;
+  processorInput.disabled = !externalPaymentAllowed;
+  referenceInput.disabled = !externalPaymentAllowed;
+
+  const cancellationAllowed =
+    canWrite &&
+    (
+      requiresApproval ||
+      payout.approvedAt == null ||
+      payout.payoutKind === 'legacy'
+    );
+  cancelButton.disabled = !cancellationAllowed;
+  cancelButton.textContent = requiresApproval
+    ? 'Recusar antecipação'
+    : 'Cancelar solicitação';
 
   byId('finance-payout-action-note').textContent = actionable
     ? state.finance.writeLocked === true
-      ? 'Atualize o financeiro antes de executar ações neste saque.'
-      : hasScope('finance:write')
-        ? 'Confirme o repasse externo antes de registrar como pago.'
-        : 'Sua conta não possui permissão finance:write.'
-    : 'Este saque já foi finalizado e não aceita novas alterações.';
+      ? 'Atualize o financeiro antes de executar ações neste repasse.'
+      : requiresApproval
+        ? 'Aprovar envia o Pix líquido pelo provedor configurado. Recusar devolve o valor bruto e não cobra a taxa.'
+        : hasScope('finance:write')
+          ? 'O repasse já está autorizado. Use conciliação manual somente quando necessário.'
+          : 'Sua conta não possui permissão finance:write.'
+    : 'Este repasse já foi finalizado e não aceita novas alterações.';
 }
 
 function closeFinancePayoutDetail() {
@@ -3155,13 +3389,65 @@ async function openFinancePayout(payoutId) {
   }
 }
 
+async function handleFinancePayoutApprove() {
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    payout == null ||
+    payout.status !== 'requested'
+  ) {
+    return;
+  }
+
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const confirmed = window.confirm(
+    `Aprovar a antecipação de ${formatCurrencyCents(grossCents)}? A taxa de ${formatCurrencyCents(payout.feeCents ?? 0)} será descontada e o Pix líquido de ${formatCurrencyCents(payout.amountCents)} será enviado pelo provedor configurado.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-approve-button');
+  button.disabled = true;
+  try {
+    const result = await api.approveFinancePayout(
+      state.token,
+      payout.id,
+    );
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.providerRetryPending === true
+        ? 'Antecipação aprovada. O provedor Pix ainda não confirmou o envio e a conciliação continuará automaticamente.'
+        : result.duplicate === true
+          ? 'Essa antecipação já estava aprovada.'
+          : 'Antecipação aprovada e enviada ao provedor Pix.',
+      result.providerRetryPending === true ? 'warning' : 'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !financeWritesAvailable() ||
+      current == null ||
+      current.status !== 'requested' ||
+      current.approvedAt != null;
+  }
+}
+
 async function handleFinancePayoutPaid(event) {
   event.preventDefault();
   const payout = state.finance.selectedPayout;
   if (
     !state.token ||
     !financeWritesAvailable() ||
-    payout == null
+    payout == null ||
+    payout.requiresApproval === true
   ) {
     return;
   }
@@ -3196,7 +3482,7 @@ async function handleFinancePayoutPaid(event) {
     setMessage(
       globalMessage,
       result.duplicate
-        ? 'Esse saque já estava registrado como pago.'
+        ? 'Esse repasse já estava registrado como pago.'
         : 'Repasse registrado como pago e conciliado no ledger.',
       'success',
     );
@@ -3208,7 +3494,7 @@ async function handleFinancePayoutPaid(event) {
   } finally {
     const current = state.finance.selectedPayout;
     button.disabled =
-      !hasScope('finance:write') ||
+      !financeWritesAvailable() ||
       current == null ||
       !['requested', 'processing'].includes(current.status);
   }
@@ -3224,8 +3510,18 @@ async function handleFinancePayoutCancel() {
     return;
   }
 
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const requiresApproval =
+    payout.requiresApproval === true ||
+    (
+      payout.payoutKind === 'anticipation' &&
+      payout.approvedAt == null
+    );
   const confirmed = window.confirm(
-    `Cancelar o saque de ${formatCurrencyCents(payout.amountCents)}? O valor reservado voltará ao saldo disponível do motorista.`,
+    requiresApproval
+      ? `Recusar a antecipação de ${formatCurrencyCents(grossCents)}? O valor reservado voltará ao saldo do motorista e a taxa não será cobrada.`
+      : `Cancelar o repasse de ${formatCurrencyCents(grossCents)}? O saldo será devolvido conforme o estado do ledger.`,
   );
   if (!confirmed) return;
 
@@ -3241,8 +3537,10 @@ async function handleFinancePayoutCancel() {
     setMessage(
       globalMessage,
       result.duplicate
-        ? 'Esse saque já estava cancelado.'
-        : 'Saque cancelado e valor devolvido ao saldo do motorista.',
+        ? 'Esse repasse já estava cancelado.'
+        : requiresApproval
+          ? 'Antecipação recusada. O valor bruto voltou ao saldo e nenhuma taxa foi cobrada.'
+          : 'Repasse cancelado e saldo devolvido conforme o ledger.',
       'success',
     );
     if (hasScope('audit:read')) {
@@ -3253,10 +3551,108 @@ async function handleFinancePayoutCancel() {
   } finally {
     const current = state.finance.selectedPayout;
     button.disabled =
-      !hasScope('finance:write') ||
+      !financeWritesAvailable() ||
       current == null ||
       !['requested', 'processing'].includes(current.status);
   }
+}
+
+async function handleFinancePayoutModeToggle() {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    state.finance.payoutPolicy == null
+  ) {
+    return;
+  }
+
+  const enable =
+    state.finance.payoutPolicy.automaticEnabled !== true;
+  const confirmed = window.confirm(
+    enable
+      ? 'Reativar repasses automáticos de segunda, quarta e sexta às 07:00?'
+      : 'Pausar os repasses automáticos? Enquanto estiver no modo manual, nenhum ciclo programado será criado.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-mode-toggle');
+  button.disabled = true;
+  try {
+    await api.updateFinancePayoutPolicy(state.token, {
+      automaticEnabled: enable,
+    });
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      enable
+        ? 'Repasses automáticos reativados.'
+        : 'Repasses automáticos pausados. O Financeiro está em modo manual.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleManualFinancePayouts(driverIds) {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    !Array.isArray(driverIds) ||
+    driverIds.length === 0
+  ) {
+    return;
+  }
+
+  const candidates = new Map(
+    (state.finance.payoutCandidates ?? []).map((candidate) => [
+      candidate.driverId,
+      candidate,
+    ]),
+  );
+  const totalCents = driverIds.reduce(
+    (sum, driverId) =>
+      sum + numericMetric(candidates.get(driverId)?.availableBalanceCents),
+    0,
+  );
+
+  const confirmed = window.confirm(
+    `Enviar agora ${formatCurrencyCents(totalCents)} para ${driverIds.length} motorista(s) selecionado(s)? O Core usará o provedor Pix configurado.`,
+  );
+  if (!confirmed) return;
+
+  try {
+    const result = await api.createManualFinancePayouts(state.token, {
+      driverIds,
+      batchId: globalThis.crypto.randomUUID(),
+    });
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      `Lote manual processado: ${result.created?.length ?? 0} repasse(s) criado(s), ${result.skipped?.length ?? 0} ignorado(s).`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+function handleManualPayoutSelectAll(event) {
+  const checked = event.currentTarget.checked === true;
+  for (const checkbox of document.querySelectorAll(
+    '.finance-manual-payout-checkbox:not(:disabled)',
+  )) {
+    checkbox.checked = checked;
+  }
+  syncManualPayoutSelection();
 }
 
 async function loadFinance({ announce = true } = {}) {
@@ -8289,6 +8685,18 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('finance-card-price-form', 'submit', (event) => {
       void handleCardPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-payout-mode-toggle', 'click', () => {
+      void handleFinancePayoutModeToggle();
+    });
+    bindRouteEvent('finance-manual-select-all', 'change', (event) => {
+      handleManualPayoutSelectAll(event);
+    });
+    bindRouteEvent('finance-manual-payout-selected', 'click', () => {
+      void handleManualFinancePayouts(selectedManualDriverIds());
+    });
+    bindRouteEvent('finance-payout-approve-button', 'click', () => {
+      void handleFinancePayoutApprove();
     });
     bindRouteEvent('finance-payout-paid-form', 'submit', (event) => {
       void handleFinancePayoutPaid(event);
