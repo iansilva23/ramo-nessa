@@ -464,10 +464,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       );
 
       final placeSearch = _placeSearchService;
-      if (placeSearch is CoordinatePlaceResolver) {
+      final coordinateResolver =
+          placeSearch is CoordinatePlaceResolver
+              ? placeSearch as CoordinatePlaceResolver
+              : null;
+      if (coordinateResolver != null) {
         try {
           final classified =
-              await placeSearch.classifyCoordinate(location);
+              await coordinateResolver.classifyCoordinate(location);
           if (classified != null) {
             origin = RamoPlace(
               name: 'Minha localização',
