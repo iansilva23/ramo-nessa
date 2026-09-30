@@ -360,7 +360,10 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Usar saldo total/i);
   assert.match(html, /Comissão cash ainda não recebida/i);
   assert.match(html, /Refunds parciais e contestações/i);
-  assert.match(html, /sem debitar motorista automaticamente/i);
+  assert.match(
+    html,
+    /sem debitar motorista\s+automaticamente/i,
+  );
   assert.match(app, /renderExternalAdjustments/);
   assert.match(app, /externalAdjustmentReviewCents/);
   assert.match(app, /externalAdjustmentReviewCount/);
