@@ -731,7 +731,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           originLocality == null || originLocality.isEmpty
               ? null
               : policy.localityCategories(
-                  zoneId: origin!,
+                  zoneId: origin,
                   localityId: originLocality,
                 );
       final destinationAllowed =
@@ -739,7 +739,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   destinationLocality.isEmpty
               ? null
               : policy.localityCategories(
-                  zoneId: destination!,
+                  zoneId: destination,
                   localityId: destinationLocality,
                 );
       return (originAllowed == null ||
