@@ -1,6 +1,7 @@
 import {
   cashRideCommissionDebtLedger,
   driverPayoutReserveLedger,
+  driverPayoutAnticipationFeeLedger,
   driverPayoutPaidLedger,
   driverPayoutCancelledLedger,
   driverPayoutFailedLedger,
@@ -15,6 +16,8 @@ import {
 } from '../ledger.js';
 import {
   type AdminFinanceSummary,
+  type ApproveDriverPayoutInput,
+  type ApproveDriverPayoutResult,
   type CancelDriverPayoutInput,
   type CancelDriverPayoutResult,
   type CapturePaymentInput,
@@ -33,6 +36,7 @@ import {
   type RefundWalletTopupResult,
   type CaptureWalletTopupInput,
   type CaptureWalletTopupResult,
+  type DriverPayoutCandidate,
   type FinanceRepository,
   type PayRideFromWalletInput,
   type PayRideFromWalletResult,
@@ -43,6 +47,7 @@ import {
   type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
+  type SetDriverPayoutAutomaticEnabledInput,
   type StartDriverPayoutInput,
   type StartDriverPayoutResult,
 } from '../finance-repository.js';
@@ -50,8 +55,12 @@ import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
   PayoutDomainError,
+  payoutFeeCents,
+  payoutRequestedAmountCents,
+  payoutRequiresAdminApproval,
   type DriverPayoutDestination,
   type DriverPayoutRecord,
+  type DriverPayoutSettings,
 } from '../payout.js';
 import {
   WalletDomainError,
@@ -73,6 +82,10 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly payoutIdempotencyIndex = new Map<string, string>();
   private readonly payoutDestinations =
       new Map<string, DriverPayoutDestination>();
+  private payoutSettings: DriverPayoutSettings = {
+    automaticEnabled: true,
+    updatedAt: '1970-01-01T00:00:00.000Z',
+  };
 
   private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
@@ -939,8 +952,9 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const available = await this.getAccountBalanceCents(
       `driver:${payout.driverId}:payable`,
     );
+    const requestedAmountCents = payoutRequestedAmountCents(payout);
 
-    if (payout.amountCents > available) {
+    if (requestedAmountCents > available) {
       throw new PayoutDomainError(
         'INSUFFICIENT_DRIVER_BALANCE',
         'Saldo disponível insuficiente para o saque.',
@@ -950,7 +964,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const ledger = driverPayoutReserveLedger({
       payoutId: payout.id,
       driverId: payout.driverId,
-      amountCents: payout.amountCents,
+      amountCents: requestedAmountCents,
       createdAt: payout.createdAt,
     });
 
@@ -970,6 +984,72 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   ): Promise<DriverPayoutRecord | null> {
     const payout = this.payouts.get(id);
     return payout == null ? null : structuredClone(payout);
+  }
+
+  async approveDriverPayout(
+    input: ApproveDriverPayoutInput,
+  ): Promise<ApproveDriverPayoutResult> {
+    const payout = this.payouts.get(input.payoutId);
+    if (payout == null) {
+      throw new PayoutDomainError('PAYOUT_NOT_FOUND', 'Saque não encontrado.');
+    }
+    if (payout.approvedAt != null) {
+      const existing = this.ledgerByReference.get(
+        `driver-payout-anticipation-fee:${payout.id}`,
+      );
+      return {
+        payout: structuredClone(payout),
+        ...(existing == null
+          ? {}
+          : { ledgerTransaction: structuredClone(existing) }),
+        duplicateApproval: true,
+      };
+    }
+    if (payout.status !== 'requested') {
+      throw new PayoutDomainError(
+        'INVALID_PAYOUT_TRANSITION',
+        `Saque em estado ${payout.status} não pode ser aprovado.`,
+      );
+    }
+
+    const approvedAt = (input.approvedAt ?? new Date()).toISOString();
+    const feeCents = payoutFeeCents(payout);
+    let ledgerTransaction: LedgerTransaction | undefined;
+    if (feeCents > 0) {
+      const pending = await this.getAccountBalanceCents(
+        `driver:${payout.driverId}:payout_pending`,
+      );
+      if (pending < payoutRequestedAmountCents(payout)) {
+        throw new PayoutDomainError(
+          'INVALID_PAYOUT_TRANSITION',
+          'Saldo reservado não fecha com a antecipação.',
+        );
+      }
+      ledgerTransaction = driverPayoutAnticipationFeeLedger({
+        payoutId: payout.id,
+        driverId: payout.driverId,
+        feeCents,
+        createdAt: approvedAt,
+      });
+      this.ledgerByReference.set(
+        ledgerTransaction.referenceKey,
+        structuredClone(ledgerTransaction),
+      );
+    }
+
+    const updated: DriverPayoutRecord = {
+      ...payout,
+      approvedAt,
+      updatedAt: approvedAt,
+    };
+    this.payouts.set(payout.id, structuredClone(updated));
+    return {
+      payout: structuredClone(updated),
+      ...(ledgerTransaction == null
+        ? {}
+        : { ledgerTransaction: structuredClone(ledgerTransaction) }),
+      duplicateApproval: false,
+    };
   }
 
   async listDriverPayoutsByStatus(
@@ -992,6 +1072,13 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       throw new PayoutDomainError(
         'PAYOUT_NOT_FOUND',
         'Saque não encontrado.',
+      );
+    }
+
+    if (payoutRequiresAdminApproval(payout)) {
+      throw new PayoutDomainError(
+        'PAYOUT_APPROVAL_REQUIRED',
+        'Antecipação aguarda aprovação administrativa.',
       );
     }
 
@@ -1074,10 +1161,15 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       );
     }
 
+    const feeApplied =
+      payout.approvedAt != null && payoutFeeCents(payout) > 0;
+    const expectedPendingCents = feeApplied
+      ? payout.amountCents
+      : payoutRequestedAmountCents(payout);
     const pending = await this.getAccountBalanceCents(
       `driver:${payout.driverId}:payout_pending`,
     );
-    if (pending < payout.amountCents) {
+    if (pending < expectedPendingCents) {
       throw new PayoutDomainError(
         'INVALID_PAYOUT_TRANSITION',
         'Saldo pendente do saque não fecha com o ledger.',
@@ -1096,10 +1188,14 @@ export class InMemoryFinanceRepository implements FinanceRepository {
         : {}),
       updatedAt: failedAt,
     };
+    const feeCents = payoutFeeCents(payout);
     const ledger = driverPayoutFailedLedger({
       payoutId: payout.id,
       driverId: payout.driverId,
       amountCents: payout.amountCents,
+      requestedAmountCents: payoutRequestedAmountCents(payout),
+      feeCents,
+      feeWasApplied: payout.approvedAt != null && feeCents > 0,
       createdAt: failedAt,
     });
 
@@ -1135,6 +1231,13 @@ export class InMemoryFinanceRepository implements FinanceRepository {
         ledgerTransaction: structuredClone(existing),
         duplicateCompletion: true,
       };
+    }
+
+    if (payoutRequiresAdminApproval(payout)) {
+      throw new PayoutDomainError(
+        'PAYOUT_APPROVAL_REQUIRED',
+        'Antecipação aguarda aprovação administrativa.',
+      );
     }
 
     if (payout.status !== 'requested' && payout.status !== 'processing') {
@@ -1226,10 +1329,15 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       );
     }
 
+    const feeApplied =
+      payout.approvedAt != null && payoutFeeCents(payout) > 0;
+    const expectedPendingCents = feeApplied
+      ? payout.amountCents
+      : payoutRequestedAmountCents(payout);
     const pending = await this.getAccountBalanceCents(
       `driver:${payout.driverId}:payout_pending`,
     );
-    if (pending < payout.amountCents) {
+    if (pending < expectedPendingCents) {
       throw new PayoutDomainError(
         'INVALID_PAYOUT_TRANSITION',
         'Saldo pendente do saque não fecha com o ledger.',
@@ -1242,10 +1350,14 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       status: 'cancelled',
       updatedAt: cancelledAt,
     };
+    const feeCents = payoutFeeCents(payout);
     const ledger = driverPayoutCancelledLedger({
       payoutId: payout.id,
       driverId: payout.driverId,
       amountCents: payout.amountCents,
+      requestedAmountCents: payoutRequestedAmountCents(payout),
+      feeCents,
+      feeWasApplied: payout.approvedAt != null && feeCents > 0,
       createdAt: cancelledAt,
     });
 
@@ -1260,6 +1372,47 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       ledgerTransaction: structuredClone(ledger),
       duplicateCancellation: false,
     };
+  }
+
+  async getDriverPayoutSettings(): Promise<DriverPayoutSettings> {
+    return structuredClone(this.payoutSettings);
+  }
+
+  async setDriverPayoutAutomaticEnabled(
+    input: SetDriverPayoutAutomaticEnabledInput,
+  ): Promise<DriverPayoutSettings> {
+    this.payoutSettings = {
+      automaticEnabled: input.automaticEnabled,
+      updatedAt: (input.updatedAt ?? new Date()).toISOString(),
+    };
+    return structuredClone(this.payoutSettings);
+  }
+
+  async listDriverPayoutCandidates(
+    limit: number,
+  ): Promise<DriverPayoutCandidate[]> {
+    const driverIds = new Set<string>(this.payoutDestinations.keys());
+    for (const transaction of this.ledgerByReference.values()) {
+      for (const entry of transaction.entries) {
+        const match = entry.accountKey.match(/^driver:(.+):payable$/);
+        if (match?.[1]) driverIds.add(match[1]);
+      }
+    }
+    const rows: DriverPayoutCandidate[] = [];
+    for (const driverId of driverIds) {
+      const availableBalanceCents = await this.getAccountBalanceCents(
+        `driver:${driverId}:payable`,
+      );
+      if (availableBalanceCents <= 0) continue;
+      rows.push({
+        driverId,
+        availableBalanceCents,
+        destination: await this.getDriverPayoutDestination(driverId),
+      });
+    }
+    return rows
+      .sort((a, b) => b.availableBalanceCents - a.availableBalanceCents)
+      .slice(0, Math.max(1, Math.min(500, Math.trunc(limit))));
   }
 
   async adminFinanceSummary(): Promise<AdminFinanceSummary> {
