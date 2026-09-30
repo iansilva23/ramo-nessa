@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   cashRideCommissionDebtLedger,
   companyPayoutCancelledLedger,
@@ -9,6 +11,7 @@ import {
   driverPayoutPaidLedger,
   driverPayoutCancelledLedger,
   driverPayoutFailedLedger,
+  externalPaymentAdjustmentLedger,
   externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -40,6 +43,8 @@ import {
   type MarkPaymentTerminalInput,
   type MarkWalletTopupPendingInput,
   type MarkWalletTopupTerminalInput,
+  type RecordExternalPaymentAdjustmentInput,
+  type RecordExternalPaymentAdjustmentResult,
   type RefundExternalPaymentInput,
   type RefundExternalPaymentResult,
   type RefundWalletTopupInput,
@@ -69,6 +74,10 @@ import {
   type CompanyPayoutDestination,
   type CompanyPayoutRecord,
 } from '../company-payout.js';
+import {
+  ExternalPaymentAdjustmentError,
+  type ExternalPaymentAdjustmentRecord,
+} from '../external-payment-adjustment.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
@@ -110,6 +119,8 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     updatedAt: '1970-01-01T00:00:00.000Z',
   };
 
+  private readonly externalAdjustments =
+      new Map<string, ExternalPaymentAdjustmentRecord>();
   private readonly ledgerByReference = new Map<string, LedgerTransaction>();
   private readonly processedEvents = new Map<
     string,
@@ -392,6 +403,217 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       ledgerTransaction: structuredClone(ledger),
       duplicateRefund: false,
     };
+  }
+
+  async recordExternalPaymentAdjustment(
+    input: RecordExternalPaymentAdjustmentInput,
+  ): Promise<RecordExternalPaymentAdjustmentResult> {
+    const payment = this.payments.get(input.paymentId);
+    if (payment == null) {
+      throw new ExternalPaymentAdjustmentError(
+        'PAYMENT_NOT_FOUND',
+        'Pagamento não encontrado para ajuste externo.',
+      );
+    }
+    if (
+      payment.processor !== 'mercado-pago-orders' ||
+      payment.status !== 'paid'
+    ) {
+      throw new ExternalPaymentAdjustmentError(
+        'PAYMENT_ADJUSTMENT_MISMATCH',
+        'Pagamento não está elegível para ajuste externo.',
+      );
+    }
+    if (
+      !Number.isInteger(input.amountCents) ||
+      input.amountCents <= 0
+    ) {
+      throw new ExternalPaymentAdjustmentError(
+        'INVALID_ADJUSTMENT_AMOUNT',
+        'Valor do ajuste externo é inválido.',
+      );
+    }
+
+    const key =
+      `${payment.processor}:${input.processorAdjustmentId.trim()}`;
+    if (input.processorAdjustmentId.trim().length < 3) {
+      throw new ExternalPaymentAdjustmentError(
+        'PAYMENT_ADJUSTMENT_MISMATCH',
+        'Identificador do ajuste externo é inválido.',
+      );
+    }
+
+    const existing = this.externalAdjustments.get(key);
+    if (existing != null) {
+      if (
+        existing.paymentId !== payment.id ||
+        existing.kind !== input.kind ||
+        existing.amountCents !== input.amountCents
+      ) {
+        throw new ExternalPaymentAdjustmentError(
+          'PAYMENT_ADJUSTMENT_MISMATCH',
+          'Ajuste externo já pertence a outro pagamento ou valor.',
+        );
+      }
+
+      if (
+        input.applyToAccounting &&
+        existing.accountingStatus === 'observed'
+      ) {
+        const escrowAccount = `ride:${payment.rideId}:escrow`;
+        const availableEscrow = Math.max(
+          0,
+          await this.getAccountBalanceCents(escrowAccount),
+        );
+        const escrowAppliedCents = Math.min(
+          availableEscrow,
+          existing.amountCents,
+        );
+        const reviewRequiredCents =
+          existing.amountCents - escrowAppliedCents;
+        const appliedAt =
+          (input.observedAt ?? new Date()).toISOString();
+        const ledger = externalPaymentAdjustmentLedger({
+          rideId: payment.rideId,
+          paymentId: payment.id,
+          processor: payment.processor,
+          processorAdjustmentId: existing.processorAdjustmentId,
+          escrowAppliedCents,
+          reviewRequiredCents,
+          createdAt: appliedAt,
+        });
+        const updated: ExternalPaymentAdjustmentRecord = {
+          ...existing,
+          processorStatus: input.processorStatus,
+          processorStatusDetail: input.processorStatusDetail,
+          escrowAppliedCents,
+          reviewRequiredCents,
+          accountingStatus:
+            reviewRequiredCents > 0
+              ? 'review_required'
+              : 'applied_to_escrow',
+          updatedAt: appliedAt,
+        };
+        this.externalAdjustments.set(key, structuredClone(updated));
+        this.ledgerByReference.set(
+          ledger.referenceKey,
+          structuredClone(ledger),
+        );
+        return {
+          adjustment: structuredClone(updated),
+          ledgerTransaction: structuredClone(ledger),
+          duplicateAdjustment: true,
+        };
+      }
+
+      const updated: ExternalPaymentAdjustmentRecord = {
+        ...existing,
+        processorStatus: input.processorStatus,
+        processorStatusDetail: input.processorStatusDetail,
+        updatedAt: (input.observedAt ?? new Date()).toISOString(),
+      };
+      this.externalAdjustments.set(key, structuredClone(updated));
+      const ledger = this.ledgerByReference.get(
+        `external-adjustment:${payment.processor}:${existing.processorAdjustmentId}`,
+      );
+      return {
+        adjustment: structuredClone(updated),
+        ...(ledger == null
+          ? {}
+          : { ledgerTransaction: structuredClone(ledger) }),
+        duplicateAdjustment: true,
+      };
+    }
+
+    if (input.kind === 'partial_refund') {
+      const existingRefundedCents = [...this.externalAdjustments.values()]
+        .filter(
+          (item) =>
+            item.paymentId === payment.id &&
+            item.kind === 'partial_refund',
+        )
+        .reduce((sum, item) => sum + item.amountCents, 0);
+      if (existingRefundedCents + input.amountCents > payment.amountCents) {
+        throw new ExternalPaymentAdjustmentError(
+          'ADJUSTMENT_EXCEEDS_PAYMENT',
+          'Reembolsos parciais acumulados ultrapassam o pagamento.',
+        );
+      }
+    }
+
+    const instant = (input.observedAt ?? new Date()).toISOString();
+    let escrowAppliedCents = 0;
+    let reviewRequiredCents = 0;
+    let accountingStatus:
+      ExternalPaymentAdjustmentRecord['accountingStatus'] = 'observed';
+    let ledger: LedgerTransaction | undefined;
+
+    if (input.applyToAccounting) {
+      const escrowAccount = `ride:${payment.rideId}:escrow`;
+      const availableEscrow = Math.max(
+        0,
+        await this.getAccountBalanceCents(escrowAccount),
+      );
+      escrowAppliedCents = Math.min(
+        availableEscrow,
+        input.amountCents,
+      );
+      reviewRequiredCents =
+        input.amountCents - escrowAppliedCents;
+      ledger = externalPaymentAdjustmentLedger({
+        rideId: payment.rideId,
+        paymentId: payment.id,
+        processor: payment.processor,
+        processorAdjustmentId: input.processorAdjustmentId.trim(),
+        escrowAppliedCents,
+        reviewRequiredCents,
+        createdAt: instant,
+      });
+      accountingStatus =
+        reviewRequiredCents > 0
+          ? 'review_required'
+          : 'applied_to_escrow';
+    }
+
+    const adjustment: ExternalPaymentAdjustmentRecord = {
+      id: randomUUID(),
+      paymentId: payment.id,
+      processor: payment.processor,
+      processorAdjustmentId: input.processorAdjustmentId.trim(),
+      kind: input.kind,
+      processorStatus: input.processorStatus,
+      processorStatusDetail: input.processorStatusDetail,
+      amountCents: input.amountCents,
+      escrowAppliedCents,
+      reviewRequiredCents,
+      accountingStatus,
+      createdAt: instant,
+      updatedAt: instant,
+    };
+    this.externalAdjustments.set(key, structuredClone(adjustment));
+    if (ledger != null) {
+      this.ledgerByReference.set(
+        ledger.referenceKey,
+        structuredClone(ledger),
+      );
+    }
+
+    return {
+      adjustment: structuredClone(adjustment),
+      ...(ledger == null
+        ? {}
+        : { ledgerTransaction: structuredClone(ledger) }),
+      duplicateAdjustment: false,
+    };
+  }
+
+  async listRecentExternalPaymentAdjustments(
+    limit: number,
+  ): Promise<ExternalPaymentAdjustmentRecord[]> {
+    return [...this.externalAdjustments.values()]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((item) => structuredClone(item));
   }
 
   async listWalletTopups(
@@ -1819,9 +2041,24 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const companyPayoutPendingCents = familyBalance(
       (accountKey) => accountKey === 'platform:company_payout_pending',
     );
+    const externalAdjustmentReviewCents = Math.max(
+      0,
+      -familyBalance(
+        (accountKey) =>
+          accountKey === 'platform:external_adjustment_review',
+      ),
+    );
+    const externalAdjustmentReviewCount = [
+      ...this.externalAdjustments.values(),
+    ].filter(
+      (adjustment) =>
+        adjustment.accountingStatus === 'review_required',
+    ).length;
     const companyProfitAvailableCents = Math.max(
       0,
-      platformRevenueCents - driverCashCommissionDebtCents,
+      platformRevenueCents -
+        driverCashCommissionDebtCents -
+        externalAdjustmentReviewCents,
     );
 
     return {
@@ -1847,6 +2084,8 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       platformRevenueCents,
       companyProfitAvailableCents,
       companyPayoutPendingCents,
+      externalAdjustmentReviewCents,
+      externalAdjustmentReviewCount,
       driverPayableCents: familyBalance(
         (accountKey) =>
           accountKey.startsWith('driver:') &&
