@@ -1,3 +1,7 @@
+import type {
+  CompanyPayoutDestination,
+  CompanyPayoutRecord,
+} from './company-payout.js';
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
 import type {
@@ -153,6 +157,61 @@ export interface CancelDriverPayoutResult {
   duplicateCancellation: boolean;
 }
 
+export interface ReserveCompanyPayoutResult {
+  payout: CompanyPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateRequest: boolean;
+}
+
+export interface StartCompanyPayoutInput {
+  payoutId: string;
+  processor: string;
+  processorPayoutId: string;
+  startedAt?: Date;
+}
+
+export interface StartCompanyPayoutResult {
+  payout: CompanyPayoutRecord;
+  duplicateStart: boolean;
+}
+
+export interface FailCompanyPayoutInput {
+  payoutId: string;
+  processor?: string;
+  processorPayoutId?: string;
+  failedAt?: Date;
+}
+
+export interface FailCompanyPayoutResult {
+  payout: CompanyPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateFailure: boolean;
+}
+
+export interface CompleteCompanyPayoutInput {
+  payoutId: string;
+  processor: string;
+  processorPayoutId?: string;
+  completedAt?: Date;
+}
+
+export interface CompleteCompanyPayoutResult {
+  payout: CompanyPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateCompletion: boolean;
+}
+
+export interface CancelCompanyPayoutInput {
+  payoutId: string;
+  cancelledAt?: Date;
+}
+
+export interface CancelCompanyPayoutResult {
+  payout: CompanyPayoutRecord;
+  ledgerTransaction: LedgerTransaction;
+  duplicateCancellation: boolean;
+}
+
 export interface MarkWalletTopupPendingInput {
   walletTopupId: string;
   processorTopupId: string;
@@ -222,6 +281,8 @@ export interface AdminFinanceSummary {
   paymentsCancelled: number;
   paymentsRefunded: number;
   platformRevenueCents: number;
+  companyProfitAvailableCents: number;
+  companyPayoutPendingCents: number;
   driverPayableCents: number;
   driverPayoutPendingCents: number;
   driverCashCommissionDebtCents: number;
@@ -317,6 +378,32 @@ export interface FinanceRepository {
   listDriverPayoutCandidates(
     limit: number,
   ): Promise<DriverPayoutCandidate[]>;
+
+  reserveCompanyPayout(
+    payout: CompanyPayoutRecord,
+  ): Promise<ReserveCompanyPayoutResult>;
+  findCompanyPayoutById(id: string): Promise<CompanyPayoutRecord | null>;
+  listCompanyPayoutsByStatus(
+    statuses: readonly CompanyPayoutRecord['status'][],
+    limit: number,
+  ): Promise<CompanyPayoutRecord[]>;
+  startCompanyPayout(
+    input: StartCompanyPayoutInput,
+  ): Promise<StartCompanyPayoutResult>;
+  failCompanyPayout(
+    input: FailCompanyPayoutInput,
+  ): Promise<FailCompanyPayoutResult>;
+  completeCompanyPayout(
+    input: CompleteCompanyPayoutInput,
+  ): Promise<CompleteCompanyPayoutResult>;
+  cancelCompanyPayout(
+    input: CancelCompanyPayoutInput,
+  ): Promise<CancelCompanyPayoutResult>;
+  getCompanyPayoutDestination(): Promise<CompanyPayoutDestination | null>;
+  upsertCompanyPayoutDestination(
+    destination: CompanyPayoutDestination,
+  ): Promise<CompanyPayoutDestination>;
+  listRecentCompanyPayouts(limit: number): Promise<CompanyPayoutRecord[]>;
 
   getAccountBalanceCents(accountKey: string): Promise<number>;
   getDriverCashDebtCents(driverId: string): Promise<number>;
