@@ -11,7 +11,10 @@ import 'place_autocomplete_service.dart';
 import 'place_search_service.dart';
 
 class CorePlaceSearchService
-    implements PlaceSearchService, PlaceAutocompleteService {
+    implements
+        PlaceSearchService,
+        PlaceAutocompleteService,
+        CoordinatePlaceResolver {
   CorePlaceSearchService({
     required Uri baseUrl,
     String? accessToken,
@@ -252,6 +255,54 @@ class CorePlaceSearchService
     }
 
     return place;
+  }
+
+  @override
+  Future<RamoPlace?> classifyCoordinate(LatLng coordinate) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/maps/places/classify-coordinate'),
+          headers: _headers,
+          body: jsonEncode({
+            'latitude': coordinate.latitude,
+            'longitude': coordinate.longitude,
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      throw const FormatException(
+        'Resposta de classificação geográfica inválida.',
+      );
+    }
+
+    if (response.statusCode == 422) {
+      return null;
+    }
+    if (response.statusCode != 200 || decoded is! Map<String, dynamic>) {
+      final message = decoded is Map
+          ? decoded['message']?.toString().trim()
+          : null;
+      throw StateError(
+        message?.isNotEmpty == true
+            ? message!
+            : 'Não foi possível validar esta coordenada agora.',
+      );
+    }
+
+    final rawPlace = decoded['place'];
+    if (rawPlace is! Map) {
+      throw const FormatException(
+        'Resposta de classificação geográfica inválida.',
+      );
+    }
+
+    return _parsePlace(
+      Map<String, dynamic>.from(rawPlace),
+    );
   }
 
   @override
