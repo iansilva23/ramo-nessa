@@ -4562,6 +4562,7 @@ function syncPricingEditFields() {
   const groups = {
     'pricing-fixed-route-fields': 'fixed_route',
     'pricing-locality-fields': 'locality_price',
+    'pricing-locality-policy-fields': 'locality_policy',
     'pricing-category-policy-fields': 'category_policy',
     'pricing-zone-policy-fields': 'zone_policy',
     'pricing-locality-map-fields': 'locality_map',
@@ -4582,6 +4583,9 @@ function syncPricingEditFields() {
     requestAnimationFrame(() => {
       state.pricingGeofenceMap?.render();
     });
+  }
+  if (kind === 'locality_policy') {
+    syncPricingLocalityPolicyFields();
   }
 }
 
@@ -4736,6 +4740,74 @@ function openPricingGeofenceEditor(geofence) {
   });
 }
 
+function findPricingLocalityEntry(hub, localityId) {
+  if (!localityId) return null;
+  const items = Array.isArray(
+    state.pricingCatalog?.localities?.[hub],
+  )
+    ? state.pricingCatalog.localities[hub]
+    : [];
+  return items.find(
+    (item) => item.localityId === localityId,
+  ) ?? null;
+}
+
+function syncPricingLocalityPolicyFields() {
+  const hub = byId('pricing-locality-policy-hub')?.value;
+  const localityId =
+    byId('pricing-locality-policy-id')?.value.trim() ?? '';
+  const entry = findPricingLocalityEntry(hub, localityId);
+  const enabled = new Set(
+    Array.isArray(entry?.policy?.enabledCategories)
+      ? entry.policy.enabledCategories
+      : [],
+  );
+
+  const moto = byId('pricing-locality-policy-moto');
+  const delivery = byId('pricing-locality-policy-delivery');
+  const car = byId('pricing-locality-policy-car');
+  const comfort = byId('pricing-locality-policy-comfort');
+  const night = byId('pricing-locality-policy-night');
+  if (moto != null) moto.checked = enabled.has('moto');
+  if (delivery != null) {
+    delivery.checked = enabled.has('delivery');
+  }
+  if (car != null) car.checked = enabled.has('car');
+  if (comfort != null) {
+    comfort.checked =
+      hub === 'prea' && enabled.has('comfort_black');
+  }
+  if (night != null) {
+    night.checked =
+      hub === 'prea' &&
+      entry?.policy?.applyNightSurcharge === true;
+  }
+
+  const comfortField =
+    byId('pricing-locality-policy-comfort-field');
+  const nightField =
+    byId('pricing-locality-policy-night-field');
+  if (comfortField != null) {
+    comfortField.hidden = hub !== 'prea';
+  }
+  if (nightField != null) {
+    nightField.hidden = hub !== 'prea';
+  }
+}
+
+function openPricingLocalityPolicyEditor(hub, item) {
+  byId('pricing-edit-kind').value = 'locality_policy';
+  byId('pricing-locality-policy-hub').value = hub;
+  byId('pricing-locality-policy-id').value =
+    item.localityId;
+  syncPricingEditFields();
+  syncPricingLocalityPolicyFields();
+  byId('pricing-locality-policy-fields')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+}
+
 function renderPricingCatalog(payload = null) {
   state.pricingCatalog = payload;
 
@@ -4746,8 +4818,16 @@ function renderPricingCatalog(payload = null) {
     ? payload.localities.jijoca
     : [];
   const localities = [
-    ...prea.map((item) => ({ base: 'Preá', item })),
-    ...jijoca.map((item) => ({ base: 'Jijoca', item })),
+    ...prea.map((item) => ({
+      base: 'Preá',
+      hub: 'prea',
+      item,
+    })),
+    ...jijoca.map((item) => ({
+      base: 'Jijoca',
+      hub: 'jijoca',
+      item,
+    })),
   ];
   const fixedRoutes = Array.isArray(payload?.fixedRoutes)
     ? payload.fixedRoutes
@@ -4950,7 +5030,50 @@ function renderPricingCatalog(payload = null) {
     const car = document.createElement('td');
     car.textContent = pricingValueLabel(entry.item.prices?.car);
 
-    row.append(base, locality, moto, delivery, car);
+    const rules = document.createElement('td');
+    const enabledCategories = Array.isArray(
+      entry.item.policy?.enabledCategories,
+    )
+      ? entry.item.policy.enabledCategories
+      : [];
+    const ruleLabels = enabledCategories.map((category) =>
+      serviceCategoryLabel(category),
+    );
+    if (
+      entry.hub === 'prea' &&
+      entry.item.policy?.applyNightSurcharge === true
+    ) {
+      ruleLabels.push('Adicional noturno');
+    }
+    rules.textContent =
+      ruleLabels.length > 0 ? ruleLabels.join(' · ') : 'Nenhum serviço';
+
+    const actions = document.createElement('td');
+    if (payload?.editable === true && hasScope('pricing:write')) {
+      const editRules = document.createElement('button');
+      editRules.type = 'button';
+      editRules.className = 'button button--table';
+      editRules.textContent = 'Editar regras';
+      editRules.addEventListener('click', () => {
+        openPricingLocalityPolicyEditor(
+          entry.hub,
+          entry.item,
+        );
+      });
+      actions.append(editRules);
+    } else {
+      actions.textContent = '—';
+    }
+
+    row.append(
+      base,
+      locality,
+      moto,
+      delivery,
+      car,
+      rules,
+      actions,
+    );
     localityBody.append(row);
   }
   byId('pricing-localities-empty').hidden =
@@ -5099,6 +5222,42 @@ function buildPricingDraftPatch() {
         byId('pricing-route-night').value,
         'Preço noturno',
       ),
+    };
+  }
+
+  if (kind === 'locality_policy') {
+    const hub = byId('pricing-locality-policy-hub').value;
+    const localityId =
+      byId('pricing-locality-policy-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+
+    const enabledCategories = [];
+    if (byId('pricing-locality-policy-moto').checked) {
+      enabledCategories.push('moto');
+    }
+    if (byId('pricing-locality-policy-delivery').checked) {
+      enabledCategories.push('delivery');
+    }
+    if (byId('pricing-locality-policy-car').checked) {
+      enabledCategories.push('car');
+    }
+    if (
+      hub === 'prea' &&
+      byId('pricing-locality-policy-comfort').checked
+    ) {
+      enabledCategories.push('comfort_black');
+    }
+
+    return {
+      kind,
+      hub,
+      localityId,
+      enabledCategories,
+      applyNightSurcharge:
+        hub === 'prea' &&
+        byId('pricing-locality-policy-night').checked,
     };
   }
 
@@ -9410,6 +9569,12 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('pricing-locality-price-kind', 'change', () => {
       syncPricingLocalityPriceFields();
+    });
+    bindRouteEvent('pricing-locality-policy-hub', 'change', () => {
+      syncPricingLocalityPolicyFields();
+    });
+    bindRouteEvent('pricing-locality-policy-id', 'change', () => {
+      syncPricingLocalityPolicyFields();
     });
     bindRouteEvent('pricing-publish-button', 'click', () => {
       void handlePricingPublish();
