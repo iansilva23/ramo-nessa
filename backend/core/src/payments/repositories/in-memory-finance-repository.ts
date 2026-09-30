@@ -372,14 +372,42 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       );
     }
 
-    const escrowAccount = `ride:${payment.rideId}:escrow`;
-    const escrowBalance = await this.getAccountBalanceCents(escrowAccount);
-    if (escrowBalance < payment.amountCents) {
+    const alreadyAdjustedCents = [
+      ...this.externalAdjustments.values(),
+    ]
+      .filter(
+        (adjustment) =>
+          adjustment.paymentId === payment.id &&
+          adjustment.kind === 'partial_refund' &&
+          adjustment.accountingStatus !== 'observed',
+      )
+      .reduce(
+        (sum, adjustment) =>
+          sum +
+          adjustment.escrowAppliedCents +
+          adjustment.reviewRequiredCents,
+        0,
+      );
+    const remainingRefundCents =
+      payment.amountCents - alreadyAdjustedCents;
+    if (remainingRefundCents <= 0) {
       throw new PaymentDomainError(
-        'INSUFFICIENT_RIDE_ESCROW',
-        'Escrow da corrida não possui saldo suficiente para o estorno.',
+        'INVALID_PAYMENT_TRANSITION',
+        'Pagamento já foi integralmente ajustado por refunds anteriores.',
       );
     }
+
+    const escrowAccount = `ride:${payment.rideId}:escrow`;
+    const escrowBalance = Math.max(
+      0,
+      await this.getAccountBalanceCents(escrowAccount),
+    );
+    const escrowAppliedCents = Math.min(
+      escrowBalance,
+      remainingRefundCents,
+    );
+    const reviewRequiredCents =
+      remainingRefundCents - escrowAppliedCents;
 
     const refundedAt = (input.refundedAt ?? new Date()).toISOString();
     const updated = {
@@ -391,7 +419,9 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       rideId: payment.rideId,
       paymentId: payment.id,
       processor: payment.processor,
-      amountCents: payment.amountCents,
+      amountCents: remainingRefundCents,
+      escrowAppliedCents,
+      reviewRequiredCents,
       createdAt: refundedAt,
     });
 
