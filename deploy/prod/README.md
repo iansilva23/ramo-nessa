@@ -107,7 +107,18 @@ Para verificar novamente um snapshot sem restaurar nada:
 
     node deploy/prod/verify-backup.mjs --backup-dir=/var/backups/ramo-nessa/<snapshot>
 
-Um restore real não é executado automaticamente. O teste de recuperação/disaster recovery permanece como etapa posterior e deve usar ambiente isolado.
+Para provar a restaurabilidade sem tocar no stack de produção:
+
+    node deploy/prod/restore-drill.mjs --backup-dir=/var/backups/ramo-nessa/<snapshot>
+
+O restore drill revalida o manifesto/hashes, cria um PostgreSQL efêmero sem rede,
+restaura o dump com `--exit-on-error`, extrai os documentos em um volume Docker
+descartável e remove os recursos isolados ao final. Ele não usa os volumes
+`postgres_data` ou `driver_documents` do Compose de produção.
+
+A existência desse comando não substitui o exercício operacional. Antes do
+Go-Live, ele ainda deve ser executado com um snapshot real do VPS, registrando o
+resultado, e a estratégia de retenção/off-site precisa ser validada.
 
 ## 8. Monitor de saúde
 
