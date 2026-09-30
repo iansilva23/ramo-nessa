@@ -1,5 +1,9 @@
 import {
   cashRideCommissionDebtLedger,
+  companyPayoutCancelledLedger,
+  companyPayoutFailedLedger,
+  companyPayoutPaidLedger,
+  companyPayoutReserveLedger,
   driverPayoutReserveLedger,
   driverPayoutAnticipationFeeLedger,
   driverPayoutPaidLedger,
@@ -18,12 +22,18 @@ import {
   type AdminFinanceSummary,
   type ApproveDriverPayoutInput,
   type ApproveDriverPayoutResult,
+  type CancelCompanyPayoutInput,
+  type CancelCompanyPayoutResult,
   type CancelDriverPayoutInput,
   type CancelDriverPayoutResult,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type CompleteCompanyPayoutInput,
+  type CompleteCompanyPayoutResult,
   type CompleteDriverPayoutInput,
   type CompleteDriverPayoutResult,
+  type FailCompanyPayoutInput,
+  type FailCompanyPayoutResult,
   type FailDriverPayoutInput,
   type FailDriverPayoutResult,
   type MarkPaymentPendingInput,
@@ -42,15 +52,23 @@ import {
   type PayRideFromWalletResult,
   type RefundWalletRideInput,
   type RefundWalletRideResult,
+  type ReserveCompanyPayoutResult,
   type ReserveDriverPayoutResult,
   type SettleCashRideInput,
   type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
   type SetDriverPayoutAutomaticEnabledInput,
+  type StartCompanyPayoutInput,
+  type StartCompanyPayoutResult,
   type StartDriverPayoutInput,
   type StartDriverPayoutResult,
 } from '../finance-repository.js';
+import {
+  CompanyPayoutError,
+  type CompanyPayoutDestination,
+  type CompanyPayoutRecord,
+} from '../company-payout.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
@@ -82,6 +100,11 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly payoutIdempotencyIndex = new Map<string, string>();
   private readonly payoutDestinations =
       new Map<string, DriverPayoutDestination>();
+  private readonly companyPayouts =
+      new Map<string, CompanyPayoutRecord>();
+  private readonly companyPayoutIdempotencyIndex =
+      new Map<string, string>();
+  private companyPayoutDestination: CompanyPayoutDestination | null = null;
   private payoutSettings: DriverPayoutSettings = {
     automaticEnabled: true,
     updatedAt: '1970-01-01T00:00:00.000Z',
@@ -1374,6 +1397,355 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     };
   }
 
+  async reserveCompanyPayout(
+    payout: CompanyPayoutRecord,
+  ): Promise<ReserveCompanyPayoutResult> {
+    const existingId = this.companyPayoutIdempotencyIndex.get(
+      payout.idempotencyKey,
+    );
+    if (existingId != null) {
+      const existing = this.companyPayouts.get(existingId);
+      if (existing == null) {
+        throw new Error(
+          'Índice de repasse da empresa aponta para registro inexistente.',
+        );
+      }
+      if (existing.amountCents !== payout.amountCents) {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência já utilizada em outro repasse da empresa.',
+        );
+      }
+      const ledger = this.ledgerByReference.get(
+        `company-payout-reserve:${existing.id}`,
+      );
+      if (ledger == null) {
+        throw new Error(
+          'Repasse idempotente da empresa sem lançamento no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(existing),
+        ledgerTransaction: structuredClone(ledger),
+        duplicateRequest: true,
+      };
+    }
+
+    const summary = await this.adminFinanceSummary();
+    if (payout.amountCents > summary.companyProfitAvailableCents) {
+      throw new CompanyPayoutError(
+        'INSUFFICIENT_COMPANY_BALANCE',
+        'Saldo disponível da empresa insuficiente para o repasse.',
+      );
+    }
+
+    const ledger = companyPayoutReserveLedger({
+      companyPayoutId: payout.id,
+      amountCents: payout.amountCents,
+      createdAt: payout.createdAt,
+    });
+    this.companyPayouts.set(payout.id, structuredClone(payout));
+    this.companyPayoutIdempotencyIndex.set(
+      payout.idempotencyKey,
+      payout.id,
+    );
+    this.ledgerByReference.set(
+      ledger.referenceKey,
+      structuredClone(ledger),
+    );
+    return {
+      payout: structuredClone(payout),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateRequest: false,
+    };
+  }
+
+  async findCompanyPayoutById(
+    id: string,
+  ): Promise<CompanyPayoutRecord | null> {
+    const payout = this.companyPayouts.get(id);
+    return payout == null ? null : structuredClone(payout);
+  }
+
+  async listCompanyPayoutsByStatus(
+    statuses: readonly CompanyPayoutRecord['status'][],
+    limit: number,
+  ): Promise<CompanyPayoutRecord[]> {
+    const allowed = new Set(statuses);
+    return [...this.companyPayouts.values()]
+      .filter((payout) => allowed.has(payout.status))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((payout) => structuredClone(payout));
+  }
+
+  async startCompanyPayout(
+    input: StartCompanyPayoutInput,
+  ): Promise<StartCompanyPayoutResult> {
+    const payout = this.companyPayouts.get(input.payoutId);
+    if (payout == null) {
+      throw new CompanyPayoutError(
+        'COMPANY_PAYOUT_NOT_FOUND',
+        'Repasse da empresa não encontrado.',
+      );
+    }
+    if (payout.status === 'processing') {
+      if (
+        payout.processor === input.processor &&
+        payout.processorPayoutId === input.processorPayoutId
+      ) {
+        return { payout: structuredClone(payout), duplicateStart: true };
+      }
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Repasse da empresa já está em processamento por outra referência.',
+      );
+    }
+    if (payout.status !== 'requested') {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        `Repasse da empresa em estado ${payout.status} não pode iniciar.`,
+      );
+    }
+
+    const processor = input.processor.trim();
+    const processorPayoutId = input.processorPayoutId.trim();
+    if (processor.length < 2 || processorPayoutId.length < 3) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Processador do repasse da empresa é inválido.',
+      );
+    }
+    const updated: CompanyPayoutRecord = {
+      ...payout,
+      status: 'processing',
+      processor,
+      processorPayoutId,
+      updatedAt: (input.startedAt ?? new Date()).toISOString(),
+    };
+    this.companyPayouts.set(payout.id, structuredClone(updated));
+    return { payout: structuredClone(updated), duplicateStart: false };
+  }
+
+  async failCompanyPayout(
+    input: FailCompanyPayoutInput,
+  ): Promise<FailCompanyPayoutResult> {
+    const payout = this.companyPayouts.get(input.payoutId);
+    if (payout == null) {
+      throw new CompanyPayoutError(
+        'COMPANY_PAYOUT_NOT_FOUND',
+        'Repasse da empresa não encontrado.',
+      );
+    }
+    const referenceKey = `company-payout-failed:${payout.id}`;
+    if (payout.status === 'failed') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error(
+          'Repasse da empresa falho sem devolução no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateFailure: true,
+      };
+    }
+    if (payout.status !== 'requested' && payout.status !== 'processing') {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        `Repasse da empresa em estado ${payout.status} não pode falhar.`,
+      );
+    }
+    const pending = await this.getAccountBalanceCents(
+      'platform:company_payout_pending',
+    );
+    if (pending < payout.amountCents) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Saldo pendente da empresa não fecha com o ledger.',
+      );
+    }
+    const failedAt = (input.failedAt ?? new Date()).toISOString();
+    const updated: CompanyPayoutRecord = {
+      ...payout,
+      status: 'failed',
+      ...(input.processor?.trim()
+        ? { processor: input.processor.trim() }
+        : {}),
+      ...(input.processorPayoutId?.trim()
+        ? { processorPayoutId: input.processorPayoutId.trim() }
+        : {}),
+      updatedAt: failedAt,
+    };
+    const ledger = companyPayoutFailedLedger({
+      companyPayoutId: payout.id,
+      amountCents: payout.amountCents,
+      createdAt: failedAt,
+    });
+    this.companyPayouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateFailure: false,
+    };
+  }
+
+  async completeCompanyPayout(
+    input: CompleteCompanyPayoutInput,
+  ): Promise<CompleteCompanyPayoutResult> {
+    const payout = this.companyPayouts.get(input.payoutId);
+    if (payout == null) {
+      throw new CompanyPayoutError(
+        'COMPANY_PAYOUT_NOT_FOUND',
+        'Repasse da empresa não encontrado.',
+      );
+    }
+    const referenceKey = `company-payout-paid:${payout.id}`;
+    if (payout.status === 'paid') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error(
+          'Repasse da empresa pago sem conclusão no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateCompletion: true,
+      };
+    }
+    if (payout.status !== 'requested' && payout.status !== 'processing') {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        `Repasse da empresa em estado ${payout.status} não pode concluir.`,
+      );
+    }
+    const processor = input.processor.trim();
+    if (processor.length < 2 || processor.length > 80) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Processador do repasse da empresa é inválido.',
+      );
+    }
+    const pending = await this.getAccountBalanceCents(
+      'platform:company_payout_pending',
+    );
+    if (pending < payout.amountCents) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Saldo pendente da empresa não fecha com o ledger.',
+      );
+    }
+    const completedAt = (input.completedAt ?? new Date()).toISOString();
+    const updated: CompanyPayoutRecord = {
+      ...payout,
+      status: 'paid',
+      processor,
+      ...(input.processorPayoutId?.trim()
+        ? { processorPayoutId: input.processorPayoutId.trim() }
+        : {}),
+      updatedAt: completedAt,
+    };
+    const ledger = companyPayoutPaidLedger({
+      companyPayoutId: payout.id,
+      processor,
+      amountCents: payout.amountCents,
+      createdAt: completedAt,
+    });
+    this.companyPayouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateCompletion: false,
+    };
+  }
+
+  async cancelCompanyPayout(
+    input: CancelCompanyPayoutInput,
+  ): Promise<CancelCompanyPayoutResult> {
+    const payout = this.companyPayouts.get(input.payoutId);
+    if (payout == null) {
+      throw new CompanyPayoutError(
+        'COMPANY_PAYOUT_NOT_FOUND',
+        'Repasse da empresa não encontrado.',
+      );
+    }
+    const referenceKey = `company-payout-cancelled:${payout.id}`;
+    if (payout.status === 'cancelled') {
+      const existing = this.ledgerByReference.get(referenceKey);
+      if (existing == null) {
+        throw new Error(
+          'Repasse da empresa cancelado sem devolução no ledger.',
+        );
+      }
+      return {
+        payout: structuredClone(payout),
+        ledgerTransaction: structuredClone(existing),
+        duplicateCancellation: true,
+      };
+    }
+    if (payout.status !== 'requested') {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Só é possível cancelar repasse da empresa ainda não enviado.',
+      );
+    }
+    const pending = await this.getAccountBalanceCents(
+      'platform:company_payout_pending',
+    );
+    if (pending < payout.amountCents) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Saldo pendente da empresa não fecha com o ledger.',
+      );
+    }
+    const cancelledAt =
+      (input.cancelledAt ?? new Date()).toISOString();
+    const updated: CompanyPayoutRecord = {
+      ...payout,
+      status: 'cancelled',
+      updatedAt: cancelledAt,
+    };
+    const ledger = companyPayoutCancelledLedger({
+      companyPayoutId: payout.id,
+      amountCents: payout.amountCents,
+      createdAt: cancelledAt,
+    });
+    this.companyPayouts.set(payout.id, structuredClone(updated));
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      payout: structuredClone(updated),
+      ledgerTransaction: structuredClone(ledger),
+      duplicateCancellation: false,
+    };
+  }
+
+  async getCompanyPayoutDestination():
+    Promise<CompanyPayoutDestination | null> {
+    return this.companyPayoutDestination == null
+      ? null
+      : structuredClone(this.companyPayoutDestination);
+  }
+
+  async upsertCompanyPayoutDestination(
+    destination: CompanyPayoutDestination,
+  ): Promise<CompanyPayoutDestination> {
+    this.companyPayoutDestination = structuredClone(destination);
+    return structuredClone(destination);
+  }
+
+  async listRecentCompanyPayouts(
+    limit: number,
+  ): Promise<CompanyPayoutRecord[]> {
+    return [...this.companyPayouts.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((payout) => structuredClone(payout));
+  }
+
   async getDriverPayoutSettings(): Promise<DriverPayoutSettings> {
     return structuredClone(this.payoutSettings);
   }
@@ -1433,6 +1805,25 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       return balance;
     };
 
+    const platformRevenueCents = familyBalance(
+      (accountKey) => accountKey === 'platform:revenue',
+    );
+    const driverCashCommissionDebtCents = Math.max(
+      0,
+      -familyBalance(
+        (accountKey) =>
+          accountKey.startsWith('driver:') &&
+          accountKey.endsWith(':commission_debt'),
+      ),
+    );
+    const companyPayoutPendingCents = familyBalance(
+      (accountKey) => accountKey === 'platform:company_payout_pending',
+    );
+    const companyProfitAvailableCents = Math.max(
+      0,
+      platformRevenueCents - driverCashCommissionDebtCents,
+    );
+
     return {
       paymentsTotal: payments.length,
       paymentsPaid: payments.filter(
@@ -1453,9 +1844,9 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       paymentsRefunded: payments.filter(
         (payment) => payment.status === 'refunded',
       ).length,
-      platformRevenueCents: familyBalance(
-        (accountKey) => accountKey === 'platform:revenue',
-      ),
+      platformRevenueCents,
+      companyProfitAvailableCents,
+      companyPayoutPendingCents,
       driverPayableCents: familyBalance(
         (accountKey) =>
           accountKey.startsWith('driver:') &&
@@ -1466,14 +1857,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
           accountKey.startsWith('driver:') &&
           accountKey.endsWith(':payout_pending'),
       ),
-      driverCashCommissionDebtCents: Math.max(
-        0,
-        -familyBalance(
-          (accountKey) =>
-            accountKey.startsWith('driver:') &&
-            accountKey.endsWith(':commission_debt'),
-        ),
-      ),
+      driverCashCommissionDebtCents,
       rideEscrowCents: familyBalance(
         (accountKey) =>
           accountKey.startsWith('ride:') &&
