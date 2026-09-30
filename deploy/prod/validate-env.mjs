@@ -187,6 +187,17 @@ export function validateProductionEnvironment(env) {
   const mfaKey = requireValue(env, 'ADMIN_MFA_ENCRYPTION_KEY', 32);
   assertBase64Bytes(mfaKey, 32, 'ADMIN_MFA_ENCRYPTION_KEY');
   requireValue(env, 'ADMIN_LOGIN_RATE_LIMIT_SECRET', 32);
+  const adminOwnerUserId = env.get('ADMIN_OWNER_USER_ID') ?? '';
+  if (
+    adminOwnerUserId !== '' &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      adminOwnerUserId,
+    )
+  ) {
+    throw new Error(
+      'ADMIN_OWNER_USER_ID deve ser um UUID de usuário Admin válido.',
+    );
+  }
   const payoutApproverUserId =
     env.get('ADMIN_PAYOUT_APPROVER_USER_ID') ?? '';
   if (

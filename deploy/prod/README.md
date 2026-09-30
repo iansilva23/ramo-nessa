@@ -116,12 +116,13 @@ Com o stack já saudável:
 
 A senha inicial e o segredo TOTP devem ser guardados fora do Git e nunca copiados para logs, commits ou chats públicos.
 
-O comando também imprime o `userId` do usuário criado. Para manter aprovações,
-modo manual e comandos de repasse Pix exclusivos do proprietário, copie somente
-esse UUID para `ADMIN_PAYOUT_APPROVER_USER_ID` no arquivo privado
-`deploy/prod/.env` e reinicie apenas o Core/gateway conforme o procedimento
-operacional. Enquanto essa variável estiver vazia ou inválida, os comandos de
-repasse protegidos permanecem bloqueados com fail-closed; API keys e outros
+O comando também imprime o `userId` do usuário criado. Copie somente esse UUID
+para `ADMIN_OWNER_USER_ID` e `ADMIN_PAYOUT_APPROVER_USER_ID` no arquivo privado
+`deploy/prod/.env`. A primeira variável identifica a conta proprietária para a
+gestão de funcionários; a segunda mantém aprovações, modo manual e comandos de
+repasse Pix exclusivos do proprietário. Reinicie o Core para aplicar. Enquanto
+a variável financeira estiver vazia ou inválida, os comandos de repasse
+protegidos permanecem bloqueados com fail-closed; API keys e outros
 administradores com `finance:write` não podem substituir o proprietário.
 
 ## 7. Backup verificado
