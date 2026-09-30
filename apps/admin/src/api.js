@@ -222,6 +222,17 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    approveFinancePayout(token, payoutId) {
+      return request(
+        `/v1/admin/finance/payouts/${encodeURIComponent(payoutId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: { action: 'approved' },
+        },
+      );
+    },
+
     cancelFinancePayout(token, payoutId) {
       return request(
         `/v1/admin/finance/payouts/${encodeURIComponent(payoutId)}`,
@@ -231,6 +242,22 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
           body: { action: 'cancelled' },
         },
       );
+    },
+
+    updateFinancePayoutPolicy(token, { automaticEnabled }) {
+      return request('/v1/admin/finance/payout-policy', {
+        method: 'PATCH',
+        token,
+        body: { automaticEnabled },
+      });
+    },
+
+    createManualFinancePayouts(token, { driverIds, batchId }) {
+      return request('/v1/admin/finance/payouts/manual', {
+        method: 'POST',
+        token,
+        body: { driverIds, batchId },
+      });
     },
 
     integrations(token) {
