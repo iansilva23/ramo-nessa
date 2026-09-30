@@ -332,6 +332,10 @@ import {
   placesLocalityId,
 } from './places/places-access-policy.js';
 import { resolveApprovedLocalPlace } from './places/local-place-policy.js';
+import {
+  classifyCoordinateByCatalog,
+  CoordinateClassificationError,
+} from './places/coordinate-place-policy.js';
 import { assertCatalogLocationSupported } from './pricing/catalog-location-policy.js';
 import {
   issuePlaceProof,
@@ -1633,6 +1637,74 @@ const server = createServer(async (request, response) => {
               message: error.message,
             },
           );
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/maps/places/classify-coordinate'
+    ) {
+      const authorization = headerValue(request, 'authorization');
+      if (process.env.NODE_ENV === 'production' || authorization != null) {
+        await authenticateBearer({
+          repository: authSessionRepository,
+          identities: authOtpRepository,
+          headers: request.headers,
+        });
+      }
+
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      const latitude = Number(value.latitude);
+      const longitude = Number(value.longitude);
+
+      try {
+        const pricing = await resolvePricingCatalogContext({
+          versions: pricingCatalogVersionRepository,
+          at: new Date(),
+        });
+        const approved = classifyCoordinateByCatalog({
+          catalog: pricing.snapshot,
+          latitude,
+          longitude,
+        });
+        const syntheticPlaceId =
+          `coordinate:${approved.zoneId}:${approved.localityId}`;
+        const placeProof = issuePlaceProof({
+          localityId: approved.localityId,
+          placeId: syntheticPlaceId,
+          latitude,
+          longitude,
+          secret: placeProofSecret,
+          ttlSeconds: placeProofTtlSeconds,
+        });
+
+        json(response, 200, {
+          place: {
+            id: syntheticPlaceId,
+            name: approved.localityId,
+            address: 'Coordenada aprovada pelo catálogo vigente',
+            latitude,
+            longitude,
+            approvedPricingZoneId: approved.zoneId,
+            approvedPricingLocalityId: approved.localityId,
+            placeProof,
+          },
+          catalogReference: pricing.reference,
+        });
+      } catch (error) {
+        if (error instanceof CoordinateClassificationError) {
+          json(response, 422, {
+            error: error.code,
+            message: error.message,
+          });
           return;
         }
         throw error;
