@@ -185,10 +185,21 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
     'finance-payments-refunded',
     'finance-payments-body',
     'finance-payouts-body',
+    'finance-payout-policy-status',
+    'finance-payout-mode-toggle',
+    'finance-payout-policy-note',
+    'finance-manual-payouts',
+    'finance-manual-payout-selected',
+    'finance-manual-select-all',
+    'finance-manual-payouts-body',
+    'finance-manual-payout-selection-note',
     'finance-payout-detail',
     'finance-payout-close',
     'finance-payout-detail-status',
     'finance-payout-detail-driver',
+    'finance-payout-detail-kind',
+    'finance-payout-detail-gross',
+    'finance-payout-detail-fee',
     'finance-payout-detail-amount',
     'finance-payout-detail-pix',
     'finance-payout-detail-processor',
@@ -196,6 +207,7 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
     'finance-payout-paid-form',
     'finance-payout-processor',
     'finance-payout-reference',
+    'finance-payout-approve-button',
     'finance-payout-paid-button',
     'finance-payout-cancel-button',
     'finance-payout-action-note',
@@ -294,14 +306,21 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.equal(api.includes('financeUpdate('), false);
   assert.equal(api.includes('refundPayment('), false);
   assert.match(api, /financePayout\(/);
+  assert.match(api, /approveFinancePayout\(/);
   assert.match(api, /completeFinancePayout\(/);
   assert.match(api, /cancelFinancePayout\(/);
+  assert.match(api, /updateFinancePayoutPolicy\(/);
+  assert.match(api, /createManualFinancePayouts\(/);
   assert.match(app, /openFinancePayout/);
+  assert.match(app, /handleFinancePayoutApprove/);
   assert.match(app, /handleFinancePayoutPaid/);
   assert.match(app, /handleFinancePayoutCancel/);
+  assert.match(app, /handleFinancePayoutModeToggle/);
+  assert.match(app, /handleManualFinancePayouts/);
   assert.match(app, /finance:write/);
-  assert.match(html, /Registrar como pago/);
-  assert.match(html, /Cancelar solicitação/);
+  assert.match(html, /Aprovar e enviar Pix/);
+  assert.match(html, /Recusar \/ cancelar/);
+  assert.match(html, /Pagar selecionados/);
   assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
