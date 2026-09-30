@@ -13,6 +13,7 @@ import {
   driverPayoutPaidLedger,
   driverPayoutCancelledLedger,
   driverPayoutFailedLedger,
+  externalPaymentAdjustmentLedger,
   externalRideRefundLedger,
   paymentCaptureLedger,
   rideSettlementLedger,
@@ -44,6 +45,8 @@ import {
   type MarkPaymentTerminalInput,
   type MarkWalletTopupPendingInput,
   type MarkWalletTopupTerminalInput,
+  type RecordExternalPaymentAdjustmentInput,
+  type RecordExternalPaymentAdjustmentResult,
   type RefundExternalPaymentInput,
   type RefundExternalPaymentResult,
   type RefundWalletTopupInput,
@@ -73,6 +76,10 @@ import {
   type CompanyPayoutDestination,
   type CompanyPayoutRecord,
 } from '../company-payout.js';
+import {
+  ExternalPaymentAdjustmentError,
+  type ExternalPaymentAdjustmentRecord,
+} from '../external-payment-adjustment.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
@@ -98,6 +105,22 @@ interface PaymentRow {
   status: PaymentRecord['status'];
   amount_cents: number;
   idempotency_key: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface ExternalPaymentAdjustmentRow {
+  id: string;
+  payment_id: string;
+  processor: string;
+  processor_adjustment_id: string;
+  kind: ExternalPaymentAdjustmentRecord['kind'];
+  processor_status: string;
+  processor_status_detail: string;
+  amount_cents: number;
+  escrow_applied_cents: number;
+  review_required_cents: number;
+  accounting_status: ExternalPaymentAdjustmentRecord['accountingStatus'];
   created_at: Date;
   updated_at: Date;
 }
@@ -196,6 +219,26 @@ function mapPayment(row: PaymentRow): PaymentRecord {
   };
 }
 
+function mapExternalPaymentAdjustment(
+  row: ExternalPaymentAdjustmentRow,
+): ExternalPaymentAdjustmentRecord {
+  return {
+    id: row.id,
+    paymentId: row.payment_id,
+    processor: row.processor,
+    processorAdjustmentId: row.processor_adjustment_id,
+    kind: row.kind,
+    processorStatus: row.processor_status,
+    processorStatusDetail: row.processor_status_detail,
+    amountCents: row.amount_cents,
+    escrowAppliedCents: row.escrow_applied_cents,
+    reviewRequiredCents: row.review_required_cents,
+    accountingStatus: row.accounting_status,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 function mapTopup(row: WalletTopupRow): WalletTopupRecord {
   return {
     id: row.id,
@@ -259,6 +302,13 @@ function mapCompanyPayout(
 const PAYMENT_COLUMNS = `
   id, ride_id, method, processor, processor_payment_id, status,
   amount_cents, idempotency_key, created_at, updated_at
+`;
+
+const EXTERNAL_ADJUSTMENT_COLUMNS = `
+  id, payment_id, processor, processor_adjustment_id, kind,
+  processor_status, processor_status_detail, amount_cents,
+  escrow_applied_cents, review_required_cents, accounting_status,
+  created_at, updated_at
 `;
 
 const TOPUP_COLUMNS = `
@@ -908,6 +958,286 @@ export class PostgresFinanceRepository implements FinanceRepository {
     } finally {
       client.release();
     }
+  }
+
+  async recordExternalPaymentAdjustment(
+    input: RecordExternalPaymentAdjustmentInput,
+  ): Promise<RecordExternalPaymentAdjustmentResult> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const processorAdjustmentId =
+        input.processorAdjustmentId.trim();
+      if (processorAdjustmentId.length < 3) {
+        throw new ExternalPaymentAdjustmentError(
+          'PAYMENT_ADJUSTMENT_MISMATCH',
+          'Identificador do ajuste externo é inválido.',
+        );
+      }
+      if (
+        !Number.isInteger(input.amountCents) ||
+        input.amountCents <= 0
+      ) {
+        throw new ExternalPaymentAdjustmentError(
+          'INVALID_ADJUSTMENT_AMOUNT',
+          'Valor do ajuste externo é inválido.',
+        );
+      }
+
+      const paymentResult = await client.query<PaymentRow>(
+        `SELECT ${PAYMENT_COLUMNS}
+         FROM payments
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.paymentId],
+      );
+      const paymentRow = paymentResult.rows[0];
+      if (paymentRow == null) {
+        throw new ExternalPaymentAdjustmentError(
+          'PAYMENT_NOT_FOUND',
+          'Pagamento não encontrado para ajuste externo.',
+        );
+      }
+      const payment = mapPayment(paymentRow);
+      if (
+        payment.processor !== 'mercado-pago-orders' ||
+        payment.status !== 'paid'
+      ) {
+        throw new ExternalPaymentAdjustmentError(
+          'PAYMENT_ADJUSTMENT_MISMATCH',
+          'Pagamento não está elegível para ajuste externo.',
+        );
+      }
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`external-adjustment:${payment.processor}:${processorAdjustmentId}`],
+      );
+
+      const existingResult =
+        await client.query<ExternalPaymentAdjustmentRow>(
+          `SELECT ${EXTERNAL_ADJUSTMENT_COLUMNS}
+           FROM payment_external_adjustments
+           WHERE processor = $1
+             AND processor_adjustment_id = $2
+           FOR UPDATE`,
+          [payment.processor, processorAdjustmentId],
+        );
+      const existingRow = existingResult.rows[0];
+      if (existingRow != null) {
+        const existing = mapExternalPaymentAdjustment(existingRow);
+        if (
+          existing.paymentId !== payment.id ||
+          existing.kind !== input.kind ||
+          existing.amountCents !== input.amountCents
+        ) {
+          throw new ExternalPaymentAdjustmentError(
+            'PAYMENT_ADJUSTMENT_MISMATCH',
+            'Ajuste externo já pertence a outro pagamento ou valor.',
+          );
+        }
+
+        const instant = (input.observedAt ?? new Date()).toISOString();
+        let ledger: LedgerTransaction | undefined;
+        let escrowAppliedCents = existing.escrowAppliedCents;
+        let reviewRequiredCents = existing.reviewRequiredCents;
+        let accountingStatus = existing.accountingStatus;
+
+        if (
+          input.applyToAccounting &&
+          existing.accountingStatus === 'observed'
+        ) {
+          const escrowAccount = `ride:${payment.rideId}:escrow`;
+          await client.query(
+            'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+            [escrowAccount],
+          );
+          const availableEscrow = Math.max(
+            0,
+            await accountBalanceCents(client, escrowAccount),
+          );
+          escrowAppliedCents = Math.min(
+            availableEscrow,
+            existing.amountCents,
+          );
+          reviewRequiredCents =
+            existing.amountCents - escrowAppliedCents;
+          ledger = externalPaymentAdjustmentLedger({
+            rideId: payment.rideId,
+            paymentId: payment.id,
+            processor: payment.processor,
+            processorAdjustmentId,
+            escrowAppliedCents,
+            reviewRequiredCents,
+            createdAt: instant,
+          });
+          await insertLedger(client, ledger);
+          accountingStatus =
+            reviewRequiredCents > 0
+              ? 'review_required'
+              : 'applied_to_escrow';
+        }
+
+        const updatedResult =
+          await client.query<ExternalPaymentAdjustmentRow>(
+            `UPDATE payment_external_adjustments
+             SET processor_status = $3,
+                 processor_status_detail = $4,
+                 escrow_applied_cents = $5,
+                 review_required_cents = $6,
+                 accounting_status = $7,
+                 updated_at = $8
+             WHERE processor = $1
+               AND processor_adjustment_id = $2
+             RETURNING ${EXTERNAL_ADJUSTMENT_COLUMNS}`,
+            [
+              payment.processor,
+              processorAdjustmentId,
+              input.processorStatus,
+              input.processorStatusDetail,
+              escrowAppliedCents,
+              reviewRequiredCents,
+              accountingStatus,
+              instant,
+            ],
+          );
+        const updatedRow = updatedResult.rows[0];
+        if (updatedRow == null) {
+          throw new Error(
+            'PostgreSQL não retornou ajuste externo atualizado.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          adjustment: mapExternalPaymentAdjustment(updatedRow),
+          ...(ledger == null ? {} : { ledgerTransaction: ledger }),
+          duplicateAdjustment: true,
+        };
+      }
+
+      if (input.kind === 'partial_refund') {
+        const sumResult = await client.query<{ amount_cents: string }>(
+          `SELECT COALESCE(SUM(amount_cents), 0)::text AS amount_cents
+           FROM payment_external_adjustments
+           WHERE payment_id = $1
+             AND kind = 'partial_refund'`,
+          [payment.id],
+        );
+        const existingRefundedCents = Number(
+          sumResult.rows[0]?.amount_cents ?? '0',
+        );
+        if (
+          existingRefundedCents + input.amountCents >
+          payment.amountCents
+        ) {
+          throw new ExternalPaymentAdjustmentError(
+            'ADJUSTMENT_EXCEEDS_PAYMENT',
+            'Reembolsos parciais acumulados ultrapassam o pagamento.',
+          );
+        }
+      }
+
+      const instant = (input.observedAt ?? new Date()).toISOString();
+      let escrowAppliedCents = 0;
+      let reviewRequiredCents = 0;
+      let accountingStatus:
+        ExternalPaymentAdjustmentRecord['accountingStatus'] = 'observed';
+      let ledger: LedgerTransaction | undefined;
+
+      if (input.applyToAccounting) {
+        const escrowAccount = `ride:${payment.rideId}:escrow`;
+        await client.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [escrowAccount],
+        );
+        const availableEscrow = Math.max(
+          0,
+          await accountBalanceCents(client, escrowAccount),
+        );
+        escrowAppliedCents = Math.min(
+          availableEscrow,
+          input.amountCents,
+        );
+        reviewRequiredCents =
+          input.amountCents - escrowAppliedCents;
+        ledger = externalPaymentAdjustmentLedger({
+          rideId: payment.rideId,
+          paymentId: payment.id,
+          processor: payment.processor,
+          processorAdjustmentId,
+          escrowAppliedCents,
+          reviewRequiredCents,
+          createdAt: instant,
+        });
+        await insertLedger(client, ledger);
+        accountingStatus =
+          reviewRequiredCents > 0
+            ? 'review_required'
+            : 'applied_to_escrow';
+      }
+
+      const inserted =
+        await client.query<ExternalPaymentAdjustmentRow>(
+          `INSERT INTO payment_external_adjustments (
+             id, payment_id, processor, processor_adjustment_id, kind,
+             processor_status, processor_status_detail, amount_cents,
+             escrow_applied_cents, review_required_cents,
+             accounting_status, created_at, updated_at
+           ) VALUES (
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+           )
+           RETURNING ${EXTERNAL_ADJUSTMENT_COLUMNS}`,
+          [
+            randomUUID(),
+            payment.id,
+            payment.processor,
+            processorAdjustmentId,
+            input.kind,
+            input.processorStatus,
+            input.processorStatusDetail,
+            input.amountCents,
+            escrowAppliedCents,
+            reviewRequiredCents,
+            accountingStatus,
+            instant,
+            instant,
+          ],
+        );
+      const insertedRow = inserted.rows[0];
+      if (insertedRow == null) {
+        throw new Error(
+          'PostgreSQL não retornou ajuste externo criado.',
+        );
+      }
+
+      await client.query('COMMIT');
+      return {
+        adjustment: mapExternalPaymentAdjustment(insertedRow),
+        ...(ledger == null ? {} : { ledgerTransaction: ledger }),
+        duplicateAdjustment: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listRecentExternalPaymentAdjustments(
+    limit: number,
+  ): Promise<ExternalPaymentAdjustmentRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<ExternalPaymentAdjustmentRow>(
+      `SELECT ${EXTERNAL_ADJUSTMENT_COLUMNS}
+       FROM payment_external_adjustments
+       ORDER BY updated_at DESC, id DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+    return result.rows.map(mapExternalPaymentAdjustment);
   }
 
   async listWalletTopups(
@@ -3273,7 +3603,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
   }
 
   async adminFinanceSummary(): Promise<AdminFinanceSummary> {
-    const [payments, ledger, payouts] = await Promise.all([
+    const [payments, ledger, payouts, externalAdjustments] =
+      await Promise.all([
       this.pool.query<{
         payments_total: string;
         payments_paid: string;
@@ -3304,6 +3635,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
       this.pool.query<{
         platform_revenue_cents: string;
         company_payout_pending_cents: string;
+        external_adjustment_review_cents: string;
         driver_payable_cents: string;
         driver_payout_pending_cents: string;
         driver_cash_commission_debt_cents: string;
@@ -3327,6 +3659,17 @@ export class PostgresFinanceRepository implements FinanceRepository {
               ELSE 0
             END
           ), 0)::text AS company_payout_pending_cents,
+          GREATEST(
+            -COALESCE(SUM(
+              CASE
+                WHEN account_key = 'platform:external_adjustment_review'
+                THEN CASE WHEN direction = 'credit'
+                  THEN amount_cents ELSE -amount_cents END
+                ELSE 0
+              END
+            ), 0),
+            0
+          )::text AS external_adjustment_review_cents,
           COALESCE(SUM(
             CASE
               WHEN account_key LIKE 'driver:%:payable'
@@ -3385,11 +3728,17 @@ export class PostgresFinanceRepository implements FinanceRepository {
           )::text AS payouts_requested_cents
         FROM driver_payouts
       `),
+      this.pool.query<{ review_count: string }>(`
+        SELECT COUNT(*)::text AS review_count
+        FROM payment_external_adjustments
+        WHERE accounting_status = 'review_required'
+      `),
     ]);
 
     const paymentRow = payments.rows[0];
     const ledgerRow = ledger.rows[0];
     const payoutRow = payouts.rows[0];
+    const externalAdjustmentRow = externalAdjustments.rows[0];
 
     return {
       paymentsTotal: Number(paymentRow?.payments_total ?? '0'),
@@ -3411,10 +3760,17 @@ export class PostgresFinanceRepository implements FinanceRepository {
       companyProfitAvailableCents: Math.max(
         0,
         Number(ledgerRow?.platform_revenue_cents ?? '0') -
-          Number(ledgerRow?.driver_cash_commission_debt_cents ?? '0'),
+          Number(ledgerRow?.driver_cash_commission_debt_cents ?? '0') -
+          Number(ledgerRow?.external_adjustment_review_cents ?? '0'),
       ),
       companyPayoutPendingCents: Number(
         ledgerRow?.company_payout_pending_cents ?? '0',
+      ),
+      externalAdjustmentReviewCents: Number(
+        ledgerRow?.external_adjustment_review_cents ?? '0',
+      ),
+      externalAdjustmentReviewCount: Number(
+        externalAdjustmentRow?.review_count ?? '0',
       ),
       driverPayableCents: Number(
         ledgerRow?.driver_payable_cents ?? '0',
