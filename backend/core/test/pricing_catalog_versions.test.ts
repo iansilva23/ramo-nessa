@@ -823,3 +823,113 @@ test('rejeita edição e publicação com revisão stale do rascunho', async () 
   });
   assert.equal(published.status, 'published');
 });
+
+
+test('edita geofence versionada por alfinete e raio sem deixar resíduo', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-geofence',
+    name: 'Admin Pricing Geofence',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-30T10:00:00.000Z'),
+  });
+
+  const added = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'add',
+      scope: 'prea',
+      localityId: 'lagoa-grande',
+    }),
+    now: new Date('2026-09-30T10:01:00.000Z'),
+  });
+  assert.ok(added.snapshot.localities.prea['lagoa-grande']);
+
+  const geofenced = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_geofence',
+      operation: 'upsert',
+      zoneId: 'prea',
+      localityId: 'lagoa-grande',
+      centerLatitude: -2.835,
+      centerLongitude: -40.405,
+      radiusKm: 1.75,
+    }),
+    now: new Date('2026-09-30T10:02:00.000Z'),
+  });
+
+  assert.deepEqual(
+    geofenced.snapshot.localityGeofences.find(
+      (item) =>
+        item.zoneId === 'prea' &&
+        item.localityId === 'lagoa-grande',
+    ),
+    {
+      zoneId: 'prea',
+      localityId: 'lagoa-grande',
+      centerLatitude: -2.835,
+      centerLongitude: -40.405,
+      radiusKm: 1.75,
+    },
+  );
+
+  const moved = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_geofence',
+      operation: 'upsert',
+      zoneId: 'prea',
+      localityId: 'lagoa-grande',
+      centerLatitude: -2.836,
+      centerLongitude: -40.406,
+      radiusKm: 2.25,
+    }),
+    now: new Date('2026-09-30T10:03:00.000Z'),
+  });
+  const area = moved.snapshot.localityGeofences.find(
+    (item) =>
+      item.zoneId === 'prea' &&
+      item.localityId === 'lagoa-grande',
+  );
+  assert.equal(area?.centerLatitude, -2.836);
+  assert.equal(area?.radiusKm, 2.25);
+
+  const removed = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'remove',
+      scope: 'prea',
+      localityId: 'lagoa-grande',
+    }),
+    now: new Date('2026-09-30T10:04:00.000Z'),
+  });
+  assert.equal(
+    removed.snapshot.localityGeofences.some(
+      (item) =>
+        item.zoneId === 'prea' &&
+        item.localityId === 'lagoa-grande',
+    ),
+    false,
+  );
+});
