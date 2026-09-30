@@ -1,5 +1,9 @@
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import { requestDriverPayout } from '../payments/request-payout.js';
+import { PayoutDomainError } from '../payments/payout.js';
+
+export const DRIVER_ANTICIPATION_MINIMUM_CENTS = 8_000;
+export const DRIVER_ANTICIPATION_FEE_CENTS = 1_000;
 
 export interface DriverFinanceSummary {
   availableBalanceCents: number;
@@ -94,9 +98,21 @@ export async function requestDriverPayoutFromApp(input: {
   amountCents: number;
   idempotencyKey: string;
 }) {
+  if (input.amountCents < DRIVER_ANTICIPATION_MINIMUM_CENTS) {
+    throw new PayoutDomainError(
+      'PAYOUT_ANTICIPATION_MINIMUM',
+      'A antecipação mínima é de R$ 80,00.',
+    );
+  }
+
+  const netAmountCents =
+    input.amountCents - DRIVER_ANTICIPATION_FEE_CENTS;
   const result = await requestDriverPayout(input.repository, {
     driverId: input.driverId,
-    amountCents: input.amountCents,
+    amountCents: netAmountCents,
+    requestedAmountCents: input.amountCents,
+    feeCents: DRIVER_ANTICIPATION_FEE_CENTS,
+    payoutKind: 'anticipation',
     idempotencyKey: input.idempotencyKey,
   });
 
