@@ -4,6 +4,10 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   cashRideCommissionDebtLedger,
+  companyPayoutCancelledLedger,
+  companyPayoutFailedLedger,
+  companyPayoutPaidLedger,
+  companyPayoutReserveLedger,
   driverPayoutReserveLedger,
   driverPayoutAnticipationFeeLedger,
   driverPayoutPaidLedger,
@@ -22,12 +26,18 @@ import {
   type AdminFinanceSummary,
   type ApproveDriverPayoutInput,
   type ApproveDriverPayoutResult,
+  type CancelCompanyPayoutInput,
+  type CancelCompanyPayoutResult,
   type CancelDriverPayoutInput,
   type CancelDriverPayoutResult,
   type CapturePaymentInput,
   type CapturePaymentResult,
+  type CompleteCompanyPayoutInput,
+  type CompleteCompanyPayoutResult,
   type CompleteDriverPayoutInput,
   type CompleteDriverPayoutResult,
+  type FailCompanyPayoutInput,
+  type FailCompanyPayoutResult,
   type FailDriverPayoutInput,
   type FailDriverPayoutResult,
   type MarkPaymentPendingInput,
@@ -46,15 +56,23 @@ import {
   type PayRideFromWalletResult,
   type RefundWalletRideInput,
   type RefundWalletRideResult,
+  type ReserveCompanyPayoutResult,
   type ReserveDriverPayoutResult,
   type SettleCashRideInput,
   type SettleCashRideResult,
   type SettleRideInput,
   type SettleRideResult,
   type SetDriverPayoutAutomaticEnabledInput,
+  type StartCompanyPayoutInput,
+  type StartCompanyPayoutResult,
   type StartDriverPayoutInput,
   type StartDriverPayoutResult,
 } from '../finance-repository.js';
+import {
+  CompanyPayoutError,
+  type CompanyPayoutDestination,
+  type CompanyPayoutRecord,
+} from '../company-payout.js';
 import { transitionPayment } from '../payment-state.js';
 import { PaymentDomainError, type PaymentRecord } from '../payment.js';
 import {
@@ -123,12 +141,33 @@ interface DriverPayoutDestinationRow {
   updated_at: Date;
 }
 
+interface CompanyPayoutRow {
+  id: string;
+  amount_cents: number;
+  status: CompanyPayoutRecord['status'];
+  idempotency_key: string;
+  pix_key_type: CompanyPayoutRecord['pixKeyType'];
+  pix_key: string;
+  processor: string | null;
+  processor_payout_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface CompanyPayoutDestinationRow {
+  pix_key_type: CompanyPayoutDestination['pixKeyType'];
+  pix_key: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
 interface LedgerTransactionRow {
   id: string;
   kind: string;
   ride_id: string | null;
   payment_id: string | null;
   payout_id: string | null;
+  company_payout_id: string | null;
   wallet_topup_id: string | null;
   reference_key: string;
   created_at: Date;
@@ -198,6 +237,25 @@ function mapPayout(row: DriverPayoutRow): DriverPayoutRecord {
   };
 }
 
+function mapCompanyPayout(
+  row: CompanyPayoutRow,
+): CompanyPayoutRecord {
+  return {
+    id: row.id,
+    amountCents: row.amount_cents,
+    status: row.status,
+    idempotencyKey: row.idempotency_key,
+    pixKeyType: row.pix_key_type,
+    pixKey: row.pix_key,
+    ...(row.processor != null ? { processor: row.processor } : {}),
+    ...(row.processor_payout_id != null
+      ? { processorPayoutId: row.processor_payout_id }
+      : {}),
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 const PAYMENT_COLUMNS = `
   id, ride_id, method, processor, processor_payment_id, status,
   amount_cents, idempotency_key, created_at, updated_at
@@ -215,6 +273,12 @@ const PAYOUT_COLUMNS = `
   processor, processor_payout_id, created_at, updated_at
 `;
 
+const COMPANY_PAYOUT_COLUMNS = `
+  id, amount_cents, status, idempotency_key,
+  pix_key_type, pix_key,
+  processor, processor_payout_id, created_at, updated_at
+`;
+
 async function insertLedger(
   client: PoolClient,
   transaction: LedgerTransaction,
@@ -222,9 +286,9 @@ async function insertLedger(
   await client.query(
     `
     INSERT INTO ledger_transactions (
-      id, kind, ride_id, payment_id, payout_id, wallet_topup_id,
-      reference_key, created_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      id, kind, ride_id, payment_id, payout_id, company_payout_id,
+      wallet_topup_id, reference_key, created_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
     `,
     [
       transaction.id,
@@ -232,6 +296,7 @@ async function insertLedger(
       transaction.rideId ?? null,
       transaction.paymentId ?? null,
       transaction.payoutId ?? null,
+      transaction.companyPayoutId ?? null,
       transaction.walletTopupId ?? null,
       transaction.referenceKey,
       transaction.createdAt,
@@ -264,8 +329,8 @@ async function loadLedgerByReference(
   const transactionResult = await client.query<LedgerTransactionRow>(
     `
     SELECT
-      id, kind, ride_id, payment_id, payout_id, wallet_topup_id,
-      reference_key, created_at
+      id, kind, ride_id, payment_id, payout_id, company_payout_id,
+      wallet_topup_id, reference_key, created_at
     FROM ledger_transactions
     WHERE reference_key = $1
     LIMIT 1
@@ -292,6 +357,9 @@ async function loadLedgerByReference(
     ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
     ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
     ...(row.payout_id != null ? { payoutId: row.payout_id } : {}),
+    ...(row.company_payout_id != null
+      ? { companyPayoutId: row.company_payout_id }
+      : {}),
     ...(row.wallet_topup_id != null
       ? { walletTopupId: row.wallet_topup_id }
       : {}),
@@ -324,6 +392,28 @@ async function accountBalanceCents(
   );
 
   return Number(result.rows[0]?.balance_cents ?? '0');
+}
+
+async function totalDriverCashDebtCents(
+  client: PoolClient,
+): Promise<number> {
+  const result = await client.query<{ debt_cents: string }>(
+    `
+    SELECT GREATEST(
+      COALESCE(SUM(
+        CASE
+          WHEN account_key LIKE 'driver:%:commission_debt'
+          THEN CASE WHEN direction = 'debit'
+            THEN amount_cents ELSE -amount_cents END
+          ELSE 0
+        END
+      ), 0),
+      0
+    )::text AS debt_cents
+    FROM ledger_entries
+    `,
+  );
+  return Number(result.rows[0]?.debt_cents ?? '0');
 }
 
 export class PostgresFinanceRepository implements FinanceRepository {
@@ -2469,6 +2559,615 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async reserveCompanyPayout(
+    payout: CompanyPayoutRecord,
+  ): Promise<ReserveCompanyPayoutResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`company-payout-idempotency:${payout.idempotencyKey}`],
+      );
+
+      const existingResult = await client.query<CompanyPayoutRow>(
+        `SELECT ${COMPANY_PAYOUT_COLUMNS}
+         FROM company_payouts
+         WHERE idempotency_key = $1
+         LIMIT 1`,
+        [payout.idempotencyKey],
+      );
+      const existingRow = existingResult.rows[0];
+      if (existingRow != null) {
+        const existing = mapCompanyPayout(existingRow);
+        if (existing.amountCents !== payout.amountCents) {
+          throw new CompanyPayoutError(
+            'COMPANY_PAYOUT_IDEMPOTENCY_CONFLICT',
+            'Chave de idempotência já utilizada em outro repasse da empresa.',
+          );
+        }
+        const ledger = await loadLedgerByReference(
+          client,
+          `company-payout-reserve:${existing.id}`,
+        );
+        if (ledger == null) {
+          throw new Error(
+            'Repasse idempotente da empresa sem lançamento no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout: existing,
+          ledgerTransaction: ledger,
+          duplicateRequest: true,
+        };
+      }
+
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        ['platform:company-payout'],
+      );
+      const platformRevenueCents = await accountBalanceCents(
+        client,
+        'platform:revenue',
+      );
+      const driverCashDebtCents = await totalDriverCashDebtCents(client);
+      const availableCents = Math.max(
+        0,
+        platformRevenueCents - driverCashDebtCents,
+      );
+      if (payout.amountCents > availableCents) {
+        throw new CompanyPayoutError(
+          'INSUFFICIENT_COMPANY_BALANCE',
+          'Saldo disponível da empresa insuficiente para o repasse.',
+        );
+      }
+
+      const inserted = await client.query<CompanyPayoutRow>(
+        `INSERT INTO company_payouts (
+          id, amount_cents, status, idempotency_key,
+          pix_key_type, pix_key,
+          processor, processor_payout_id, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING ${COMPANY_PAYOUT_COLUMNS}`,
+        [
+          payout.id,
+          payout.amountCents,
+          payout.status,
+          payout.idempotencyKey,
+          payout.pixKeyType,
+          payout.pixKey,
+          payout.processor ?? null,
+          payout.processorPayoutId ?? null,
+          payout.createdAt,
+          payout.updatedAt,
+        ],
+      );
+
+      const ledger = companyPayoutReserveLedger({
+        companyPayoutId: payout.id,
+        amountCents: payout.amountCents,
+        createdAt: payout.createdAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+
+      const row = inserted.rows[0];
+      if (row == null) {
+        throw new Error(
+          'PostgreSQL não retornou o repasse da empresa criado.',
+        );
+      }
+      return {
+        payout: mapCompanyPayout(row),
+        ledgerTransaction: ledger,
+        duplicateRequest: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      const code =
+        typeof error === 'object' && error != null && 'code' in error
+          ? String((error as { code?: unknown }).code ?? '')
+          : '';
+      if (code === '23505') {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_IDEMPOTENCY_CONFLICT',
+          'Chave de idempotência do repasse da empresa já utilizada.',
+        );
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async findCompanyPayoutById(
+    id: string,
+  ): Promise<CompanyPayoutRecord | null> {
+    const result = await this.pool.query<CompanyPayoutRow>(
+      `SELECT ${COMPANY_PAYOUT_COLUMNS}
+       FROM company_payouts
+       WHERE id = $1
+       LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] == null
+      ? null
+      : mapCompanyPayout(result.rows[0]);
+  }
+
+  async listCompanyPayoutsByStatus(
+    statuses: readonly CompanyPayoutRecord['status'][],
+    limit: number,
+  ): Promise<CompanyPayoutRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    if (statuses.length === 0) return [];
+    const result = await this.pool.query<CompanyPayoutRow>(
+      `SELECT ${COMPANY_PAYOUT_COLUMNS}
+       FROM company_payouts
+       WHERE status = ANY($1::text[])
+       ORDER BY created_at ASC, id ASC
+       LIMIT $2`,
+      [statuses, safeLimit],
+    );
+    return result.rows.map(mapCompanyPayout);
+  }
+
+  async startCompanyPayout(
+    input: StartCompanyPayoutInput,
+  ): Promise<StartCompanyPayoutResult> {
+    const processor = input.processor.trim();
+    const processorPayoutId = input.processorPayoutId.trim();
+    if (processor.length < 2 || processorPayoutId.length < 3) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Processador do repasse da empresa é inválido.',
+      );
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`company-payout:${input.payoutId}`],
+      );
+      const current = await client.query<CompanyPayoutRow>(
+        `SELECT ${COMPANY_PAYOUT_COLUMNS}
+         FROM company_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = current.rows[0];
+      if (row == null) {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_NOT_FOUND',
+          'Repasse da empresa não encontrado.',
+        );
+      }
+      const payout = mapCompanyPayout(row);
+      if (payout.status === 'processing') {
+        if (
+          payout.processor === processor &&
+          payout.processorPayoutId === processorPayoutId
+        ) {
+          await client.query('COMMIT');
+          return { payout, duplicateStart: true };
+        }
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          'Repasse da empresa já está em processamento por outra referência.',
+        );
+      }
+      if (payout.status !== 'requested') {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          `Repasse da empresa em estado ${payout.status} não pode iniciar.`,
+        );
+      }
+      const startedAt = (input.startedAt ?? new Date()).toISOString();
+      const updated = await client.query<CompanyPayoutRow>(
+        `UPDATE company_payouts
+         SET status = 'processing',
+             processor = $2,
+             processor_payout_id = $3,
+             updated_at = $4
+         WHERE id = $1
+         RETURNING ${COMPANY_PAYOUT_COLUMNS}`,
+        [payout.id, processor, processorPayoutId, startedAt],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow == null) {
+        throw new Error(
+          'PostgreSQL não retornou repasse da empresa em processamento.',
+        );
+      }
+      await client.query('COMMIT');
+      return {
+        payout: mapCompanyPayout(updatedRow),
+        duplicateStart: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async failCompanyPayout(
+    input: FailCompanyPayoutInput,
+  ): Promise<FailCompanyPayoutResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`company-payout:${input.payoutId}`],
+      );
+      const current = await client.query<CompanyPayoutRow>(
+        `SELECT ${COMPANY_PAYOUT_COLUMNS}
+         FROM company_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = current.rows[0];
+      if (row == null) {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_NOT_FOUND',
+          'Repasse da empresa não encontrado.',
+        );
+      }
+      const payout = mapCompanyPayout(row);
+      const referenceKey = `company-payout-failed:${payout.id}`;
+      if (payout.status === 'failed') {
+        const existing = await loadLedgerByReference(client, referenceKey);
+        if (existing == null) {
+          throw new Error(
+            'Repasse da empresa falho sem devolução no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout,
+          ledgerTransaction: existing,
+          duplicateFailure: true,
+        };
+      }
+      if (payout.status !== 'requested' && payout.status !== 'processing') {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          `Repasse da empresa em estado ${payout.status} não pode falhar.`,
+        );
+      }
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        ['platform:company_payout_pending'],
+      );
+      const pending = await accountBalanceCents(
+        client,
+        'platform:company_payout_pending',
+      );
+      if (pending < payout.amountCents) {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          'Saldo pendente da empresa não fecha com o ledger.',
+        );
+      }
+
+      const failedAt = (input.failedAt ?? new Date()).toISOString();
+      const updated = await client.query<CompanyPayoutRow>(
+        `UPDATE company_payouts
+         SET status = 'failed',
+             processor = COALESCE($2, processor),
+             processor_payout_id = COALESCE($3, processor_payout_id),
+             updated_at = $4
+         WHERE id = $1
+         RETURNING ${COMPANY_PAYOUT_COLUMNS}`,
+        [
+          payout.id,
+          input.processor?.trim() || null,
+          input.processorPayoutId?.trim() || null,
+          failedAt,
+        ],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou repasse da empresa falho.');
+      }
+      const ledger = companyPayoutFailedLedger({
+        companyPayoutId: payout.id,
+        amountCents: payout.amountCents,
+        createdAt: failedAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return {
+        payout: mapCompanyPayout(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateFailure: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async completeCompanyPayout(
+    input: CompleteCompanyPayoutInput,
+  ): Promise<CompleteCompanyPayoutResult> {
+    const processor = input.processor.trim();
+    if (processor.length < 2 || processor.length > 80) {
+      throw new CompanyPayoutError(
+        'INVALID_COMPANY_PAYOUT_TRANSITION',
+        'Processador do repasse da empresa é inválido.',
+      );
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`company-payout:${input.payoutId}`],
+      );
+      const current = await client.query<CompanyPayoutRow>(
+        `SELECT ${COMPANY_PAYOUT_COLUMNS}
+         FROM company_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = current.rows[0];
+      if (row == null) {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_NOT_FOUND',
+          'Repasse da empresa não encontrado.',
+        );
+      }
+      const payout = mapCompanyPayout(row);
+      const referenceKey = `company-payout-paid:${payout.id}`;
+      if (payout.status === 'paid') {
+        const existing = await loadLedgerByReference(client, referenceKey);
+        if (existing == null) {
+          throw new Error(
+            'Repasse da empresa pago sem conclusão no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout,
+          ledgerTransaction: existing,
+          duplicateCompletion: true,
+        };
+      }
+      if (payout.status !== 'requested' && payout.status !== 'processing') {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          `Repasse da empresa em estado ${payout.status} não pode concluir.`,
+        );
+      }
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        ['platform:company_payout_pending'],
+      );
+      const pending = await accountBalanceCents(
+        client,
+        'platform:company_payout_pending',
+      );
+      if (pending < payout.amountCents) {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          'Saldo pendente da empresa não fecha com o ledger.',
+        );
+      }
+
+      const completedAt =
+        (input.completedAt ?? new Date()).toISOString();
+      const updated = await client.query<CompanyPayoutRow>(
+        `UPDATE company_payouts
+         SET status = 'paid',
+             processor = $2,
+             processor_payout_id = $3,
+             updated_at = $4
+         WHERE id = $1
+         RETURNING ${COMPANY_PAYOUT_COLUMNS}`,
+        [
+          payout.id,
+          processor,
+          input.processorPayoutId?.trim() || null,
+          completedAt,
+        ],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow == null) {
+        throw new Error('PostgreSQL não retornou repasse da empresa pago.');
+      }
+      const ledger = companyPayoutPaidLedger({
+        companyPayoutId: payout.id,
+        processor,
+        amountCents: payout.amountCents,
+        createdAt: completedAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return {
+        payout: mapCompanyPayout(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateCompletion: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async cancelCompanyPayout(
+    input: CancelCompanyPayoutInput,
+  ): Promise<CancelCompanyPayoutResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`company-payout:${input.payoutId}`],
+      );
+      const current = await client.query<CompanyPayoutRow>(
+        `SELECT ${COMPANY_PAYOUT_COLUMNS}
+         FROM company_payouts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.payoutId],
+      );
+      const row = current.rows[0];
+      if (row == null) {
+        throw new CompanyPayoutError(
+          'COMPANY_PAYOUT_NOT_FOUND',
+          'Repasse da empresa não encontrado.',
+        );
+      }
+      const payout = mapCompanyPayout(row);
+      const referenceKey = `company-payout-cancelled:${payout.id}`;
+      if (payout.status === 'cancelled') {
+        const existing = await loadLedgerByReference(client, referenceKey);
+        if (existing == null) {
+          throw new Error(
+            'Repasse da empresa cancelado sem devolução no ledger.',
+          );
+        }
+        await client.query('COMMIT');
+        return {
+          payout,
+          ledgerTransaction: existing,
+          duplicateCancellation: true,
+        };
+      }
+      if (payout.status !== 'requested') {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          'Só é possível cancelar repasse da empresa ainda não enviado.',
+        );
+      }
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        ['platform:company_payout_pending'],
+      );
+      const pending = await accountBalanceCents(
+        client,
+        'platform:company_payout_pending',
+      );
+      if (pending < payout.amountCents) {
+        throw new CompanyPayoutError(
+          'INVALID_COMPANY_PAYOUT_TRANSITION',
+          'Saldo pendente da empresa não fecha com o ledger.',
+        );
+      }
+      const cancelledAt =
+        (input.cancelledAt ?? new Date()).toISOString();
+      const updated = await client.query<CompanyPayoutRow>(
+        `UPDATE company_payouts
+         SET status = 'cancelled', updated_at = $2
+         WHERE id = $1
+         RETURNING ${COMPANY_PAYOUT_COLUMNS}`,
+        [payout.id, cancelledAt],
+      );
+      const updatedRow = updated.rows[0];
+      if (updatedRow == null) {
+        throw new Error(
+          'PostgreSQL não retornou repasse da empresa cancelado.',
+        );
+      }
+      const ledger = companyPayoutCancelledLedger({
+        companyPayoutId: payout.id,
+        amountCents: payout.amountCents,
+        createdAt: cancelledAt,
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return {
+        payout: mapCompanyPayout(updatedRow),
+        ledgerTransaction: ledger,
+        duplicateCancellation: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getCompanyPayoutDestination():
+    Promise<CompanyPayoutDestination | null> {
+    const result = await this.pool.query<CompanyPayoutDestinationRow>(
+      `SELECT pix_key_type, pix_key, created_at, updated_at
+       FROM company_payout_destination
+       WHERE id = 1
+       LIMIT 1`,
+    );
+    const row = result.rows[0];
+    return row == null
+      ? null
+      : {
+          pixKeyType: row.pix_key_type,
+          pixKey: row.pix_key,
+          createdAt: row.created_at.toISOString(),
+          updatedAt: row.updated_at.toISOString(),
+        };
+  }
+
+  async upsertCompanyPayoutDestination(
+    destination: CompanyPayoutDestination,
+  ): Promise<CompanyPayoutDestination> {
+    const result = await this.pool.query<CompanyPayoutDestinationRow>(
+      `INSERT INTO company_payout_destination (
+         id, pix_key_type, pix_key, created_at, updated_at
+       ) VALUES (1, $1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET
+         pix_key_type = EXCLUDED.pix_key_type,
+         pix_key = EXCLUDED.pix_key,
+         updated_at = EXCLUDED.updated_at
+       RETURNING pix_key_type, pix_key, created_at, updated_at`,
+      [
+        destination.pixKeyType,
+        destination.pixKey,
+        destination.createdAt,
+        destination.updatedAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (row == null) {
+      throw new Error(
+        'PostgreSQL não retornou destino Pix da empresa.',
+      );
+    }
+    return {
+      pixKeyType: row.pix_key_type,
+      pixKey: row.pix_key,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  async listRecentCompanyPayouts(
+    limit: number,
+  ): Promise<CompanyPayoutRecord[]> {
+    const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const result = await this.pool.query<CompanyPayoutRow>(
+      `SELECT ${COMPANY_PAYOUT_COLUMNS}
+       FROM company_payouts
+       ORDER BY created_at DESC, id DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+    return result.rows.map(mapCompanyPayout);
+  }
+
   async getDriverPayoutSettings(): Promise<DriverPayoutSettings> {
     const result = await this.pool.query<{
       automatic_enabled: boolean;
@@ -2604,6 +3303,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
       `),
       this.pool.query<{
         platform_revenue_cents: string;
+        company_payout_pending_cents: string;
         driver_payable_cents: string;
         driver_payout_pending_cents: string;
         driver_cash_commission_debt_cents: string;
@@ -2619,6 +3319,14 @@ export class PostgresFinanceRepository implements FinanceRepository {
               ELSE 0
             END
           ), 0)::text AS platform_revenue_cents,
+          COALESCE(SUM(
+            CASE
+              WHEN account_key = 'platform:company_payout_pending'
+              THEN CASE WHEN direction = 'credit'
+                THEN amount_cents ELSE -amount_cents END
+              ELSE 0
+            END
+          ), 0)::text AS company_payout_pending_cents,
           COALESCE(SUM(
             CASE
               WHEN account_key LIKE 'driver:%:payable'
@@ -2699,6 +3407,14 @@ export class PostgresFinanceRepository implements FinanceRepository {
       ),
       platformRevenueCents: Number(
         ledgerRow?.platform_revenue_cents ?? '0',
+      ),
+      companyProfitAvailableCents: Math.max(
+        0,
+        Number(ledgerRow?.platform_revenue_cents ?? '0') -
+          Number(ledgerRow?.driver_cash_commission_debt_cents ?? '0'),
+      ),
+      companyPayoutPendingCents: Number(
+        ledgerRow?.company_payout_pending_cents ?? '0',
       ),
       driverPayableCents: Number(
         ledgerRow?.driver_payable_cents ?? '0',
@@ -2798,6 +3514,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
         transaction.ride_id,
         transaction.payment_id,
         transaction.payout_id,
+        transaction.company_payout_id,
         transaction.wallet_topup_id,
         transaction.reference_key,
         transaction.created_at
@@ -2829,6 +3546,9 @@ export class PostgresFinanceRepository implements FinanceRepository {
         ...(row.ride_id != null ? { rideId: row.ride_id } : {}),
         ...(row.payment_id != null ? { paymentId: row.payment_id } : {}),
         ...(row.payout_id != null ? { payoutId: row.payout_id } : {}),
+        ...(row.company_payout_id != null
+          ? { companyPayoutId: row.company_payout_id }
+          : {}),
         ...(row.wallet_topup_id != null
           ? { walletTopupId: row.wallet_topup_id }
           : {}),
