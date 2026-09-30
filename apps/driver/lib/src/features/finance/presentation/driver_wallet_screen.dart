@@ -8,13 +8,18 @@ import 'driver_statement_screen.dart';
 String driverPayoutStatusMessage(DriverPayoutReservation result) {
   return switch (result.status) {
     'paid' =>
-      'Saque concluído: ${formatCents(result.amountCents)} enviado via Pix.',
+      'Repasse concluído: ${formatCents(result.amountCents)} enviado via Pix.',
     'processing' =>
-      'Saque em processamento: ${formatCents(result.amountCents)}.',
+      'Repasse em processamento: ${formatCents(result.amountCents)}.',
     'failed' =>
       'O repasse Pix falhou e o valor voltou para seu saldo.',
+    _ when result.payoutKind == 'anticipation' =>
+      'Antecipação enviada para análise. '
+      'Solicitado: ${formatCents(result.grossAmountCents)} · '
+      'taxa: ${formatCents(result.feeCents)} · '
+      'líquido: ${formatCents(result.amountCents)}.',
     _ =>
-      'Saque solicitado: ${formatCents(result.amountCents)}.',
+      'Repasse solicitado: ${formatCents(result.amountCents)}.',
   };
 }
 
@@ -140,8 +145,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
               ),
               const SizedBox(height: RamoSpacing.sm),
               const Text(
-                'O saque só será enviado para a chave Pix cadastrada '
-                'no momento da solicitação.',
+                'Os repasses e antecipações só serão enviados para '
+                'a chave Pix cadastrada neste perfil.',
                 style: TextStyle(
                   color: RamoColors.muted,
                   fontSize: 12,
@@ -207,37 +212,159 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
     }
   }
 
+  int? _parseMoneyToCents(String raw) {
+    final cleaned = raw
+        .replaceAll(RegExp(r'[^0-9,.]'), '')
+        .trim();
+    if (cleaned.isEmpty) return null;
+
+    final normalized = cleaned.contains(',')
+        ? cleaned.replaceAll('.', '').replaceAll(',', '.')
+        : cleaned;
+    final value = double.tryParse(normalized);
+    if (value == null || !value.isFinite) return null;
+    return (value * 100).round();
+  }
+
+  Future<int?> _chooseAnticipationAmount(int availableCents) async {
+    final controller = TextEditingController(
+      text: (availableCents / 100)
+          .toStringAsFixed(2)
+          .replaceAll('.', ','),
+    );
+    String? validationMessage;
+
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Solicitar antecipação'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Os repasses normais acontecem segunda, quarta e sexta '
+                'às 07:00, sem taxa. A antecipação precisa ser aprovada '
+                'pelo Ramo Nessa e tem taxa fixa de R\$ 10,00.',
+              ),
+              const SizedBox(height: RamoSpacing.md),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Valor que deseja antecipar',
+                  prefixText: 'R\$ ',
+                  errorText: validationMessage,
+                  helperText: 'Mínimo: R\$ 80,00',
+                ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                'Saldo disponível: ${formatCents(availableCents)}',
+                style: const TextStyle(
+                  color: RamoColors.muted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final cents = _parseMoneyToCents(controller.text);
+                if (cents == null || cents < 8000) {
+                  setDialogState(() {
+                    validationMessage =
+                        'A antecipação mínima é de R\$ 80,00.';
+                  });
+                  return;
+                }
+                if (cents > availableCents) {
+                  setDialogState(() {
+                    validationMessage =
+                        'O valor é maior que seu saldo disponível.';
+                  });
+                  return;
+                }
+                Navigator.of(dialogContext).pop(cents);
+              },
+              child: const Text('Continuar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    controller.dispose();
+    return amount;
+  }
+
   Future<void> _requestPayout() async {
     final finance = _finance;
     if (_payoutDestination?.configured != true) {
       setState(() {
-        _error = 'Cadastre uma chave Pix antes de solicitar o saque.';
+        _error =
+            'Cadastre uma chave Pix antes de solicitar antecipação.';
       });
       return;
     }
     if (finance == null ||
-        finance.availableBalanceCents <= 0 ||
+        finance.availableBalanceCents < 8000 ||
         _requestingPayout) {
       return;
     }
 
-    final amount = _pendingAmountCents ?? finance.availableBalanceCents;
+    int? amount = _pendingAmountCents;
+    amount ??= await _chooseAnticipationAmount(
+      finance.availableBalanceCents,
+    );
+    if (amount == null || !mounted) return;
+
+    const feeCents = 1000;
+    final netCents = amount - feeCents;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Solicitar saque?'),
-        content: Text(
-          'Vamos reservar ${formatCents(amount)} do seu saldo disponível '
-          'para repasse.',
+        title: const Text('Confirmar antecipação?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Valor solicitado: ${formatCents(amount!)}'),
+            const SizedBox(height: 6),
+            Text('Taxa de antecipação: - ${formatCents(feeCents)}'),
+            const SizedBox(height: 6),
+            Text(
+              'Você receberá: ${formatCents(netCents)}',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: RamoSpacing.md),
+            const Text(
+              'A solicitação ficará aguardando análise do Ramo Nessa. '
+              'O Pix só será enviado após aprovação.',
+              style: TextStyle(
+                color: RamoColors.muted,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
+            child: const Text('Voltar'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Solicitar'),
+            child: const Text('Solicitar antecipação'),
           ),
         ],
       ),
@@ -267,12 +394,10 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
         _pendingAmountCents = null;
       });
 
-      final payoutMessage = driverPayoutStatusMessage(result);
-
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(payoutMessage)),
+          SnackBar(content: Text(driverPayoutStatusMessage(result))),
         );
     } on DriverApiException catch (error) {
       if (!mounted) return;
@@ -287,7 +412,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
       setState(() {
         _requestingPayout = false;
         _error =
-            'Não foi possível confirmar o saque. Tente novamente; '
+            'Não foi possível confirmar a antecipação. Tente novamente; '
             'a mesma solicitação será reutilizada com segurança.';
       });
     }
@@ -381,6 +506,52 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 color: RamoColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
+              child: const Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: RamoColors.brandYellow,
+                    foregroundColor: RamoColors.brandBlack,
+                    child: Icon(Icons.calendar_month_rounded),
+                  ),
+                  SizedBox(width: RamoSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Repasse padrão',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Segunda, quarta e sexta às 07:00 · sem taxa',
+                          style: TextStyle(
+                            color: RamoColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: RamoSpacing.sm),
+            const Text(
+              'O saldo disponível entra automaticamente no próximo ciclo. '
+              'Se precisar antes, você pode solicitar uma antecipação.',
+              style: TextStyle(
+                color: RamoColors.muted,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: RamoSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(RamoSpacing.md),
+              decoration: BoxDecoration(
+                color: RamoColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(RamoRadius.md),
+              ),
               child: Row(
                 children: [
                   const CircleAvatar(
@@ -394,7 +565,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Chave Pix para saque',
+                          'Chave Pix para repasses',
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 3),
@@ -438,18 +609,29 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
-              onPressed: available > 0 &&
+              onPressed: available >= 8000 &&
                       !_requestingPayout &&
                       _payoutDestination?.configured == true
                   ? _requestPayout
                   : null,
-              icon: const Icon(Icons.account_balance_rounded),
+              icon: const Icon(Icons.bolt_rounded),
               label: _requestingPayout
                   ? const SizedBox.square(
                       dimension: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Solicitar saque'),
+                  : const Text('Solicitar antecipação'),
+            ),
+            const SizedBox(height: RamoSpacing.xs),
+            Text(
+              available > 0 && available < 8000
+                  ? 'Antecipação disponível a partir de R\$ 80,00.'
+                  : 'Mínimo R\$ 80,00 · taxa fixa R\$ 10,00 · sujeito à aprovação.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: RamoColors.muted,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: RamoSpacing.sm),
             OutlinedButton.icon(
@@ -480,11 +662,18 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                   'Se necessário, ela é compensada pelos próximos recebimentos.',
             ),
             const _WalletInfoTile(
-              icon: Icons.account_balance_outlined,
-              title: 'Saques',
+              icon: Icons.event_repeat_rounded,
+              title: 'Repasses normais',
               subtitle:
-                  'A solicitação reserva o saldo com idempotência. '
-                  'O envio Pix real depende da conexão do provedor de repasses.',
+                  'Seu saldo disponível é enviado segunda, quarta e sexta '
+                  'às 07:00, sem taxa de antecipação.',
+            ),
+            const _WalletInfoTile(
+              icon: Icons.bolt_rounded,
+              title: 'Antecipação',
+              subtitle:
+                  'A partir de R\$ 80,00. Há taxa fixa de R\$ 10,00 e '
+                  'a solicitação precisa ser aprovada pelo Ramo Nessa.',
             ),
           ],
         ),
