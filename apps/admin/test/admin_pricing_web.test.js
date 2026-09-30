@@ -176,6 +176,16 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-zone-policy-fields',
     'pricing-zone-policy-id',
     'pricing-zone-policy-enabled',
+    'pricing-locality-policy-fields',
+    'pricing-locality-policy-hub',
+    'pricing-locality-policy-id',
+    'pricing-locality-policy-moto',
+    'pricing-locality-policy-delivery',
+    'pricing-locality-policy-car',
+    'pricing-locality-policy-comfort-field',
+    'pricing-locality-policy-comfort',
+    'pricing-locality-policy-night-field',
+    'pricing-locality-policy-night',
     'pricing-locality-map-fields',
     'pricing-locality-map-scope',
     'pricing-locality-map-id',
@@ -245,6 +255,8 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
   assert.match(html, /ÁREAS NO MAPA/i);
+  assert.match(html, /Regras da localidade/i);
+  assert.match(html, /Adicional noturno do Preá/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);
@@ -260,6 +272,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /pricing-category-policies-body/);
   assert.match(app, /pricing-policy-four-by-four/);
   assert.match(app, /zone_policy/);
+  assert.match(app, /locality_policy/);
+  assert.match(app, /openPricingLocalityPolicyEditor/);
+  assert.match(app, /pricing-locality-policy-comfort/);
+  assert.match(app, /applyNightSurcharge/);
   assert.match(app, /locality_map/);
   assert.match(app, /locality_geofence/);
   assert.match(app, /createPricingGeofenceMap/);
@@ -306,6 +322,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     '.pricing-geofence-map',
     '.pricing-geofence-map__radius',
     '.pricing-geofence-map__pin',
+    '.pricing-toggle-field',
   ]) {
     assert.equal(css.includes(selector), true);
   }
