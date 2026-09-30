@@ -146,12 +146,16 @@ try {
       'docker',
       [
         'exec',
+        '-e',
+        'PGPASSWORD=' + postgresPassword,
         dbContainer,
-        'pg_isready',
-        '-U',
-        postgresUser,
-        '-d',
-        postgresDb,
+        'sh',
+        '-lc',
+        [
+          'test "$(cat /proc/1/comm)" = "postgres"',
+          'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null',
+          'test "$(psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1")" = "1"',
+        ].join(' && '),
       ],
       { stdio: 'ignore', allowFailure: true },
     );
@@ -164,7 +168,7 @@ try {
 
   if (!ready) {
     throw new Error(
-      'PostgreSQL isolado não ficou pronto para o teste de recuperação.',
+      'PostgreSQL isolado não concluiu a inicialização final para o teste de recuperação.',
     );
   }
 
