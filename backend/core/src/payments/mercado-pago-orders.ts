@@ -31,6 +31,22 @@ export interface MercadoPagoCardOrder {
   challengeUrl?: string;
 }
 
+export interface MercadoPagoOrderRefund {
+  id: string;
+  transactionId: string;
+  referenceId?: string;
+  amountCents: number;
+  status: string;
+}
+
+export interface MercadoPagoOrderChargeback {
+  id: string;
+  transactionId: string;
+  caseId?: string;
+  amountCents: number;
+  status: string;
+}
+
 export interface MercadoPagoOrderStatus {
   orderId: string;
   externalReference: string;
@@ -40,6 +56,8 @@ export interface MercadoPagoOrderStatus {
   paymentId: string;
   paymentStatus: string;
   paymentStatusDetail: string;
+  refunds: MercadoPagoOrderRefund[];
+  chargebacks: MercadoPagoOrderChargeback[];
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -95,6 +113,80 @@ function cents(value: unknown): number {
   }
   const [whole, decimal = ''] = raw.split('.');
   return Number(whole) * 100 + Number(decimal.padEnd(2, '0'));
+}
+
+function transactionArray(
+  payload: Record<string, unknown>,
+  field: 'refunds' | 'chargebacks',
+): Record<string, unknown>[] {
+  const transactions = asObject(payload.transactions);
+  const raw = transactions[field];
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) {
+    throw new MercadoPagoOrdersError(
+      `transactions.${field} inválido no retorno do Mercado Pago.`,
+    );
+  }
+  return raw.map(asObject);
+}
+
+function parseRefunds(
+  payload: Record<string, unknown>,
+): MercadoPagoOrderRefund[] {
+  return transactionArray(payload, 'refunds').map((item) => {
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
+    const transactionId =
+      typeof item.transaction_id === 'string'
+        ? item.transaction_id.trim()
+        : '';
+    if (!id || !transactionId) {
+      throw new MercadoPagoOrdersError(
+        'Refund sem identificador válido no retorno do Mercado Pago.',
+      );
+    }
+    const referenceId =
+      typeof item.reference_id === 'string' &&
+      item.reference_id.trim()
+        ? item.reference_id.trim()
+        : undefined;
+    return {
+      id,
+      transactionId,
+      ...(referenceId == null ? {} : { referenceId }),
+      amountCents: cents(item.amount),
+      status: typeof item.status === 'string' ? item.status : '',
+    };
+  });
+}
+
+function parseChargebacks(
+  payload: Record<string, unknown>,
+): MercadoPagoOrderChargeback[] {
+  return transactionArray(payload, 'chargebacks').map((item) => {
+    const id = typeof item.id === 'string' ? item.id.trim() : '';
+    const transactionId =
+      typeof item.transaction_id === 'string'
+        ? item.transaction_id.trim()
+        : '';
+    if (!id || !transactionId) {
+      throw new MercadoPagoOrdersError(
+        'Chargeback sem identificador válido no retorno do Mercado Pago.',
+      );
+    }
+    const caseId =
+      typeof item.case_id === 'string' && item.case_id.trim()
+        ? item.case_id.trim()
+        : typeof item.case_id === 'number'
+          ? String(item.case_id)
+          : undefined;
+    return {
+      id,
+      transactionId,
+      ...(caseId == null ? {} : { caseId }),
+      amountCents: cents(item.amount),
+      status: typeof item.status === 'string' ? item.status : '',
+    };
+  });
 }
 
 function amount(amountCents: number): string {
@@ -353,6 +445,8 @@ export class MercadoPagoOrdersClient {
         typeof payment.status_detail === 'string'
           ? payment.status_detail
           : '',
+      refunds: parseRefunds(payload),
+      chargebacks: parseChargebacks(payload),
     };
   }
 
