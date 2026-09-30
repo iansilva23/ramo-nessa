@@ -67,4 +67,29 @@ void main() {
     expect(unsupported.isSupported, isFalse);
     expect(unsupported.message, contains('destino'));
   });
+  test('localidade aprovada pelo Core vence os círculos legados', () {
+    const origin = RamoPlace(
+      name: 'Ponto específico',
+      address: 'Ponto específico, CE',
+      position: LatLng(-3.2, -41.2),
+      approvedPricingZoneId: 'prea',
+      approvedPricingLocalityId: 'lagoa-grande',
+      placeProof: 'signed-proof',
+    );
+    const destination = RamoPlace(
+      name: 'Preá',
+      address: 'Preá, CE',
+      position: LatLng(-2.82017, -40.41467),
+    );
+
+    final check = RamoServiceArea.checkPlaceTrip(
+      origin: origin,
+      destination: destination,
+    );
+
+    expect(check.isSupported, isTrue);
+    expect(check.originZone?.id, 'prea');
+    expect(check.originZone?.label, 'lagoa-grande');
+  });
+
 }
