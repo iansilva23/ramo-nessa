@@ -150,6 +150,8 @@ try {
         'run',
         '--rm',
         '--read-only',
+        '--user',
+        '1000:1000',
         '--security-opt',
         'no-new-privileges',
         '--cap-drop',
