@@ -903,22 +903,46 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      const adjustedResult = await client.query<{
+        adjusted_cents: string;
+      }>(
+        `SELECT COALESCE(SUM(
+           escrow_applied_cents + review_required_cents
+         ), 0)::text AS adjusted_cents
+         FROM payment_external_adjustments
+         WHERE payment_id = $1
+           AND kind = 'partial_refund'
+           AND accounting_status <> 'observed'`,
+        [payment.id],
+      );
+      const alreadyAdjustedCents = Number(
+        adjustedResult.rows[0]?.adjusted_cents ?? '0',
+      );
+      const remainingRefundCents =
+        payment.amountCents - alreadyAdjustedCents;
+      if (remainingRefundCents <= 0) {
+        throw new PaymentDomainError(
+          'INVALID_PAYMENT_TRANSITION',
+          'Pagamento já foi integralmente ajustado por refunds anteriores.',
+        );
+      }
+
       const escrowAccount = `ride:${payment.rideId}:escrow`;
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         [escrowAccount],
       );
 
-      const escrowBalance = await accountBalanceCents(
-        client,
-        escrowAccount,
+      const escrowBalance = Math.max(
+        0,
+        await accountBalanceCents(client, escrowAccount),
       );
-      if (escrowBalance < payment.amountCents) {
-        throw new PaymentDomainError(
-          'INSUFFICIENT_RIDE_ESCROW',
-          'Escrow da corrida não possui saldo suficiente para o estorno.',
-        );
-      }
+      const escrowAppliedCents = Math.min(
+        escrowBalance,
+        remainingRefundCents,
+      );
+      const reviewRequiredCents =
+        remainingRefundCents - escrowAppliedCents;
 
       const refundedAt = (input.refundedAt ?? new Date()).toISOString();
       const nextStatus = transitionPayment(payment.status, 'refunded');
@@ -936,7 +960,9 @@ export class PostgresFinanceRepository implements FinanceRepository {
         rideId: payment.rideId,
         paymentId: payment.id,
         processor: payment.processor,
-        amountCents: payment.amountCents,
+        amountCents: remainingRefundCents,
+        escrowAppliedCents,
+        reviewRequiredCents,
         createdAt: refundedAt,
       });
       await insertLedger(client, ledger);
