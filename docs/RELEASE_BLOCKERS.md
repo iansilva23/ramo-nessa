@@ -28,7 +28,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o repositório já possui `deploy/prod` com PostgreSQL privado, migrations separadas, Core privado, volume persistente de documentos, gateway Caddy/TLS, gerador de segredos e validação de ambiente; o stack ainda não foi implantado em VPS;
    - o baseline operacional já inclui rotação de logs Docker, hardening do Core/migrations, backup consistente de PostgreSQL + documentos privados com SHA-256, verificação sem restore, restore drill isolado e health check HTTPS;
    - o restore drill restaura banco e documentos somente em recursos Docker efêmeros, sem rede e sem reutilizar volumes de produção; ainda falta executá-lo com snapshot real do VPS e registrar o exercício;
-   - ainda faltam executar/validar a operação no VPS real, retenção/off-site de backups e alertas/APM externos.
+   - a retenção local de backups agora possui dry-run por padrão, mínimo conservador de snapshots e só remove diretórios completos com manifesto reconhecido; ainda faltam validar essa política com snapshots reais do VPS e configurar/testar a cópia off-site;
+   - ainda faltam executar/validar a operação no VPS real e configurar alertas/APM externos.
 
 2. **Fluxo Passageiro ↔ Motorista já usa sessão real, mas precisa validação operacional**
    - Passageiro e Motorista suportam login OTP, sessão Bearer, restauração segura e logout com revogação;
