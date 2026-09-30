@@ -260,6 +260,33 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    saveCompanyPayoutDestination(token, { pixKeyType, pixKey }) {
+      return request('/v1/admin/finance/company-payout-destination', {
+        method: 'PUT',
+        token,
+        body: { pixKeyType, pixKey },
+      });
+    },
+
+    createCompanyPayout(token, { amountCents, requestId }) {
+      return request('/v1/admin/finance/company-payouts', {
+        method: 'POST',
+        token,
+        body: { amountCents, requestId },
+      });
+    },
+
+    cancelCompanyPayout(token, payoutId) {
+      return request(
+        `/v1/admin/finance/company-payouts/${encodeURIComponent(payoutId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: { action: 'cancelled' },
+        },
+      );
+    },
+
     integrations(token) {
       return request('/v1/admin/integrations', { token });
     },
