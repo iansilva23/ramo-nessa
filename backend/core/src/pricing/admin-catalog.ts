@@ -66,6 +66,14 @@ export function adminPricingCatalogView(
       enabled: snapshot.zonePolicies[zoneId].enabled,
     })),
     externalLocalities: [...snapshot.externalLocalities].sort(),
+    localityGeofences: snapshot.localityGeofences
+      .map((geofence) => ({ ...geofence }))
+      .sort((a, b) => {
+        const zone = a.zoneId.localeCompare(b.zoneId);
+        return zone !== 0
+          ? zone
+          : a.localityId.localeCompare(b.localityId);
+      }),
     commissionBps: snapshot.commissionBps,
     pickupPolicy: { ...snapshot.pickupPolicy },
     surcharges: {
