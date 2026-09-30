@@ -399,6 +399,160 @@
               </div>
             </article>
 
+            <article class="panel-card" id="finance-company-payout-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">SALDO DA EMPRESA</span>
+                  <h2>Repasse do saldo da plataforma</h2>
+                  <p class="muted-copy">
+                    Envie manualmente parte ou todo o saldo disponível da
+                    empresa para uma chave Pix vinculada. A operação é exclusiva
+                    do proprietário autorizado.
+                  </p>
+                </div>
+                <span id="finance-company-owner-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <div class="finance-status-strip">
+                <span>
+                  Disponível
+                  <strong id="finance-company-available">R$ 0,00</strong>
+                </span>
+                <span>
+                  Em processamento
+                  <strong id="finance-company-pending">R$ 0,00</strong>
+                </span>
+                <span>
+                  Comissão cash ainda não recebida
+                  <strong id="finance-company-cash-debt">R$ 0,00</strong>
+                </span>
+              </div>
+
+              <p id="finance-company-note" class="muted-copy">
+                Carregando saldo da empresa.
+              </p>
+
+              <div class="finance-columns">
+                <form id="finance-company-pix-form" class="finance-payout-form">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONTA DE DESTINO</span>
+                    <h3>Chave Pix da empresa</h3>
+                    <p id="finance-company-pix-status" class="muted-copy">
+                      Nenhuma chave cadastrada.
+                    </p>
+                  </div>
+
+                  <label class="field">
+                    <span>Tipo da chave</span>
+                    <select id="finance-company-pix-type" required>
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="phone">Telefone</option>
+                      <option value="random">Chave aleatória</option>
+                    </select>
+                  </label>
+
+                  <label class="field">
+                    <span>Chave Pix</span>
+                    <input
+                      id="finance-company-pix-key"
+                      type="text"
+                      maxlength="160"
+                      autocomplete="off"
+                      placeholder="Digite a chave Pix completa"
+                      required
+                    >
+                  </label>
+
+                  <button
+                    id="finance-company-pix-save"
+                    class="button button--ghost-dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar chave Pix
+                  </button>
+                </form>
+
+                <form id="finance-company-payout-form" class="finance-payout-form">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">RETIRADA</span>
+                    <h3>Enviar saldo por Pix</h3>
+                    <p class="muted-copy">
+                      O valor é reservado no ledger antes de chamar o provedor
+                      Pix. Se a transferência falhar, volta automaticamente ao
+                      saldo disponível da empresa.
+                    </p>
+                  </div>
+
+                  <label class="field">
+                    <span>Valor a transferir</span>
+                    <input
+                      id="finance-company-payout-amount"
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      required
+                    >
+                  </label>
+
+                  <div class="finance-payout-actions">
+                    <button
+                      id="finance-company-use-all"
+                      class="button button--ghost-dark"
+                      type="button"
+                      disabled
+                    >
+                      Usar saldo total
+                    </button>
+                    <button
+                      id="finance-company-payout-submit"
+                      class="button button--dark"
+                      type="submit"
+                      disabled
+                    >
+                      Enviar Pix da empresa
+                    </button>
+                  </div>
+                  <small id="finance-company-payout-action-note">
+                    Cadastre uma chave Pix para habilitar a retirada.
+                  </small>
+                </form>
+              </div>
+
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">HISTÓRICO DA EMPRESA</span>
+                  <h3>Repasses recentes</h3>
+                </div>
+                <span id="finance-company-payouts-visible" class="pill">0 itens</span>
+              </div>
+
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Valor</th>
+                      <th>Destino</th>
+                      <th>Processador</th>
+                      <th>Criado</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="finance-company-payouts-body"></tbody>
+                </table>
+              </div>
+              <div id="finance-company-payouts-empty" class="empty-state">
+                Nenhum repasse da empresa realizado.
+              </div>
+            </article>
+
             <div class="finance-columns">
               <article class="panel-card panel-card--table">
                 <div class="panel-card__header">
