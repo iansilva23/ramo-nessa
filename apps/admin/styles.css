@@ -2130,6 +2130,167 @@ td strong {
   display: none;
 }
 
+
+.pricing-edit-group--map {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pricing-edit-span {
+  grid-column: 1 / -1;
+}
+
+.pricing-geofence-coordinates {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-height: 66px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.pricing-geofence-coordinates span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pricing-geofence-coordinates strong {
+  font-size: 12px;
+}
+
+.pricing-geofence-map-shell {
+  display: grid;
+  gap: 9px;
+}
+
+.pricing-geofence-map {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  touch-action: none;
+  cursor: crosshair;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+  isolation: isolate;
+}
+
+.pricing-geofence-map__tiles,
+.pricing-geofence-map__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.pricing-geofence-map__tiles {
+  z-index: 1;
+  overflow: hidden;
+}
+
+.pricing-geofence-map__tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pricing-geofence-map__overlay {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pricing-geofence-map__radius {
+  position: absolute;
+  border: 2px solid rgba(22, 98, 219, 0.9);
+  border-radius: 50%;
+  background: rgba(22, 98, 219, 0.14);
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.pricing-geofence-map__pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--surface);
+  border-radius: 50% 50% 50% 0;
+  background: var(--danger);
+  box-shadow: 0 5px 14px rgba(13, 13, 13, 0.28);
+  transform: translate(-50%, -100%) rotate(-45deg);
+}
+
+.pricing-geofence-map__pin::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  top: 5px;
+  left: 5px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.pricing-geofence-map__controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  display: grid;
+  gap: 6px;
+}
+
+.pricing-geofence-map__controls button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.pricing-geofence-map__attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  z-index: 5;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.pricing-geofence-map-help {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.pricing-geofence-map-help strong {
+  color: var(--ink-soft);
+}
+
+@media (max-width: 620px) {
+  .pricing-edit-group--map {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-geofence-map {
+    min-height: 330px;
+  }
+}
+
 .pricing-publish-panel {
   display: grid;
   gap: 12px;
