@@ -69,14 +69,14 @@ test('geofence de zona desativada não autoriza coordenada', () => {
 });
 
 test('snapshot legado recebe geofences padrão ao normalizar', () => {
-  const legacy = structuredClone(STATIC_PRICING_CATALOG_V1);
-  delete (
-    legacy as typeof legacy & {
-      localityGeofences?: typeof legacy.localityGeofences;
-    }
-  ).localityGeofences;
-
-  const normalized = normalizePricingCatalogSnapshot(legacy);
+  const full = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const {
+    localityGeofences: _removedGeofences,
+    ...legacyWithoutGeofences
+  } = full;
+  const normalized = normalizePricingCatalogSnapshot(
+    legacyWithoutGeofences as typeof full,
+  );
   assert.ok(normalized.localityGeofences.length >= 4);
   assert.equal(
     normalized.localityGeofences.some(
