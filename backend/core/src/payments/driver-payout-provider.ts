@@ -506,14 +506,8 @@ export function createDriverPayoutProviderFromEnv(
 
     const accessToken =
       rawMode === 'production'
-        ? (
-            env.MERCADO_PAGO_PAYOUT_ACCESS_TOKEN?.trim() ||
-            env.MERCADO_PAGO_ACCESS_TOKEN?.trim()
-          )
-        : (
-            env.MERCADO_PAGO_PAYOUT_ACCESS_TOKEN_TEST?.trim() ||
-            env.MERCADO_PAGO_ACCESS_TOKEN_TEST?.trim()
-          );
+        ? env.MERCADO_PAGO_PAYOUT_ACCESS_TOKEN?.trim()
+        : env.MERCADO_PAGO_PAYOUT_ACCESS_TOKEN_TEST?.trim();
 
     if (!accessToken) {
       throw new DriverPayoutProviderError(
