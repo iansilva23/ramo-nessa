@@ -28,6 +28,47 @@ export interface PricingLocalityGeofence {
   radiusKm: number;
 }
 
+export type PricingLocalityServiceCategory =
+  | 'moto'
+  | 'delivery'
+  | 'car'
+  | 'comfort_black';
+
+export interface PricingLocalityPolicy {
+  enabledCategories: PricingLocalityServiceCategory[];
+  applyNightSurcharge: boolean;
+}
+
+function localityPoliciesFor(
+  table: Record<string, LocalityPricing>,
+  options: {
+    includeComfortBlack: boolean;
+    nightLocalityIds?: ReadonlySet<string>;
+  },
+): Record<string, PricingLocalityPolicy> {
+  return Object.fromEntries(
+    Object.entries(table).map(([localityId, pricing]) => {
+      const enabledCategories: PricingLocalityServiceCategory[] = [];
+      if (pricing.moto != null) enabledCategories.push('moto');
+      if (pricing.delivery != null) enabledCategories.push('delivery');
+      if (pricing.car != null) {
+        enabledCategories.push('car');
+        if (options.includeComfortBlack) {
+          enabledCategories.push('comfort_black');
+        }
+      }
+      return [
+        localityId,
+        {
+          enabledCategories,
+          applyNightSurcharge:
+            options.nightLocalityIds?.has(localityId) === true,
+        },
+      ];
+    }),
+  );
+}
+
 export interface PricingCatalogSnapshot {
   catalogVersion: string;
   categories: ServiceCategory[];
@@ -48,6 +89,10 @@ export interface PricingCatalogSnapshot {
   zonePolicies: Record<ZoneId, { enabled: boolean }>;
   externalLocalities: string[];
   localityGeofences: PricingLocalityGeofence[];
+  localityPolicies: {
+    prea: Record<string, PricingLocalityPolicy>;
+    jijoca: Record<string, PricingLocalityPolicy>;
+  };
   pickupPolicy: {
     freeKm: number;
     fuelPriceCentsPerLiter: number;
@@ -172,6 +217,15 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
       radiusKm: 3,
     },
   ],
+  localityPolicies: {
+    prea: localityPoliciesFor(PREA_LOCALITIES, {
+      includeComfortBlack: true,
+      nightLocalityIds: PREA_LOCAL_CAR_NIGHT_LOCALITY_IDS,
+    }),
+    jijoca: localityPoliciesFor(JIJOCA_LOCALITIES, {
+      includeComfortBlack: false,
+    }),
+  },
   pickupPolicy: {
     freeKm: FREE_PICKUP_KM,
     fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
@@ -217,6 +271,7 @@ export function normalizePricingCatalogSnapshot(
     zonePolicies?: PricingCatalogSnapshot['zonePolicies'];
     externalLocalities?: string[];
     localityGeofences?: PricingCatalogSnapshot['localityGeofences'];
+    localityPolicies?: PricingCatalogSnapshot['localityPolicies'];
     categoryPolicies?: PricingCatalogSnapshot['categoryPolicies'];
   };
 
@@ -251,5 +306,22 @@ export function normalizePricingCatalogSnapshot(
       value.localityGeofences == null
         ? structuredClone(STATIC_PRICING_CATALOG_V1.localityGeofences)
         : structuredClone(value.localityGeofences),
+    localityPolicies:
+      value.localityPolicies == null
+        ? {
+            prea: localityPoliciesFor(value.localities.prea, {
+              includeComfortBlack: true,
+              nightLocalityIds: new Set(
+                value.surcharges
+                  ?.preaLocalCarAfter22LocalityIds ??
+                  STATIC_PRICING_CATALOG_V1.surcharges
+                    .preaLocalCarAfter22LocalityIds,
+              ),
+            }),
+            jijoca: localityPoliciesFor(value.localities.jijoca, {
+              includeComfortBlack: false,
+            }),
+          }
+        : structuredClone(value.localityPolicies),
   };
 }
