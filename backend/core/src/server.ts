@@ -3115,6 +3115,7 @@ const server = createServer(async (request, response) => {
         headers: request.headers,
         requiredScope: 'finance:write',
       });
+      assertAdminPayoutOwner(actor);
       if (driverPayoutProvider == null) {
         json(response, 503, {
           error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
