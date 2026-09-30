@@ -67,16 +67,16 @@ test('resumo separa saldo disponível de saque pendente', async () => {
   const payout = await requestDriverPayoutFromApp({
     repository: finance,
     driverId: 'driver-finance',
-    amountCents: 4000,
+    amountCents: 8000,
     idempotencyKey: 'payout-finance-001',
   });
 
-  assert.equal(payout.payout.amountCents, 4000);
+  assert.equal(payout.payout.amountCents, 7000);
   assert.equal(payout.payout.status, 'requested');
   assert.equal(payout.duplicateRequest, false);
   assert.deepEqual(payout.finance, {
-    availableBalanceCents: 5000,
-    payoutPendingCents: 4000,
+    availableBalanceCents: 1000,
+    payoutPendingCents: 8000,
     cashCommissionDebtCents: 0,
   });
 });
@@ -87,7 +87,7 @@ test('extrato mostra corrida, taxa e saque com saldo real', async () => {
   await requestDriverPayoutFromApp({
     repository: finance,
     driverId: 'driver-finance',
-    amountCents: 4000,
+    amountCents: 8000,
     idempotencyKey: 'payout-finance-statement',
   });
 
@@ -96,16 +96,16 @@ test('extrato mostra corrida, taxa e saque com saldo real', async () => {
     driverId: 'driver-finance',
   });
 
-  assert.equal(statement.finance.availableBalanceCents, 5000);
-  assert.equal(statement.finance.payoutPendingCents, 4000);
+  assert.equal(statement.finance.availableBalanceCents, 1000);
+  assert.equal(statement.finance.payoutPendingCents, 8000);
   assert.equal(statement.items.length, 2);
 
   const payout = statement.items[0]!;
   assert.equal(payout.kind, 'DRIVER_PAYOUT_RESERVED');
   assert.equal(payout.title, 'Saque solicitado');
-  assert.equal(payout.availableDeltaCents, -4000);
-  assert.equal(payout.pendingDeltaCents, 4000);
-  assert.equal(payout.balanceAfterCents, 5000);
+  assert.equal(payout.availableDeltaCents, -8000);
+  assert.equal(payout.pendingDeltaCents, 8000);
+  assert.equal(payout.balanceAfterCents, 1000);
 
   const ride = statement.items[1]!;
   assert.equal(ride.kind, 'RIDE_SETTLED');
@@ -146,20 +146,20 @@ test('solicitação idempotente não reserva saldo duas vezes', async () => {
   await requestDriverPayoutFromApp({
     repository: finance,
     driverId: 'driver-finance',
-    amountCents: 4000,
+    amountCents: 8000,
     idempotencyKey: 'payout-finance-002',
   });
   const repeated = await requestDriverPayoutFromApp({
     repository: finance,
     driverId: 'driver-finance',
-    amountCents: 4000,
+    amountCents: 8000,
     idempotencyKey: 'payout-finance-002',
   });
 
   assert.equal(repeated.duplicateRequest, true);
   assert.deepEqual(repeated.finance, {
-    availableBalanceCents: 5000,
-    payoutPendingCents: 4000,
+    availableBalanceCents: 1000,
+    payoutPendingCents: 8000,
     cashCommissionDebtCents: 0,
   });
 });
