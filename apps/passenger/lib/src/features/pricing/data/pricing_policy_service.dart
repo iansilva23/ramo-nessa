@@ -9,6 +9,8 @@ class PassengerPricingPolicy {
     required this.enabledZones,
     required this.buggyMinPassengers,
     required this.buggyMaxPassengers,
+    this.preaLocalityCategories = const {},
+    this.jijocaLocalityCategories = const {},
   });
 
   factory PassengerPricingPolicy.fromJson(Map<String, dynamic> json) {
@@ -54,6 +56,14 @@ class PassengerPricingPolicy {
           .toSet(),
       buggyMinPassengers: minPassengers,
       buggyMaxPassengers: maxPassengers,
+      preaLocalityCategories: _localityCategories(
+        json['localityPolicies'],
+        'prea',
+      ),
+      jijocaLocalityCategories: _localityCategories(
+        json['localityPolicies'],
+        'jijoca',
+      ),
     );
   }
 
@@ -61,6 +71,43 @@ class PassengerPricingPolicy {
   final Set<String> enabledZones;
   final int buggyMinPassengers;
   final int buggyMaxPassengers;
+  final Map<String, Set<String>> preaLocalityCategories;
+  final Map<String, Set<String>> jijocaLocalityCategories;
+
+  Set<String>? localityCategories({
+    required String zoneId,
+    required String localityId,
+  }) {
+    if (zoneId == 'prea') {
+      return preaLocalityCategories[localityId];
+    }
+    if (zoneId == 'jijoca') {
+      return jijocaLocalityCategories[localityId];
+    }
+    return null;
+  }
+
+  static Map<String, Set<String>> _localityCategories(
+    dynamic rawPolicies,
+    String zoneId,
+  ) {
+    if (rawPolicies is! Map) return const {};
+    final zoneRaw = rawPolicies[zoneId];
+    if (zoneRaw is! List) return const {};
+
+    final output = <String, Set<String>>{};
+    for (final raw in zoneRaw.whereType<Map>()) {
+      final localityId = raw['localityId']?.toString().trim() ?? '';
+      final categories = raw['enabledCategories'];
+      if (localityId.isEmpty || categories is! List) continue;
+      output[localityId] = categories
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+    }
+    return output;
+  }
 }
 
 abstract interface class PricingPolicyService {
