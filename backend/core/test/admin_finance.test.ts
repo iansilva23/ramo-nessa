@@ -81,6 +81,8 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
     platformRevenueCents: 1000,
     companyProfitAvailableCents: 1000,
     companyPayoutPendingCents: 0,
+    externalAdjustmentReviewCents: 0,
+    externalAdjustmentReviewCount: 0,
     driverPayableCents: 6000,
     driverPayoutPendingCents: 3000,
     driverCashCommissionDebtCents: 0,
