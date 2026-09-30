@@ -620,28 +620,3 @@ export function driverPayoutCancelledLedger(input: {
     createdAt: input.createdAt,
   };
 }
-
-  const entries: LedgerEntry[] = [
-    {
-      accountKey: `driver:${input.driverId}:payout_pending`,
-      direction: 'debit',
-      amountCents: input.amountCents,
-    },
-    {
-      accountKey: `driver:${input.driverId}:payable`,
-      direction: 'credit',
-      amountCents: input.amountCents,
-    },
-  ];
-
-  assertBalanced(entries);
-
-  return {
-    id: randomUUID(),
-    kind: 'DRIVER_PAYOUT_CANCELLED',
-    payoutId: input.payoutId,
-    referenceKey: `driver-payout-cancelled:${input.payoutId}`,
-    entries,
-    createdAt: input.createdAt,
-  };
-}
