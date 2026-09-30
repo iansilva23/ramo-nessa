@@ -1,6 +1,10 @@
 import type { LedgerTransaction } from './ledger.js';
 import type { PaymentRecord } from './payment.js';
-import type { DriverPayoutDestination, DriverPayoutRecord } from './payout.js';
+import type {
+  DriverPayoutDestination,
+  DriverPayoutRecord,
+  DriverPayoutSettings,
+} from './payout.js';
 import type { WalletTopupRecord } from './wallet.js';
 
 export interface MarkPaymentPendingInput {
@@ -76,6 +80,28 @@ export interface ReserveDriverPayoutResult {
   payout: DriverPayoutRecord;
   ledgerTransaction: LedgerTransaction;
   duplicateRequest: boolean;
+}
+
+export interface ApproveDriverPayoutInput {
+  payoutId: string;
+  approvedAt?: Date;
+}
+
+export interface ApproveDriverPayoutResult {
+  payout: DriverPayoutRecord;
+  ledgerTransaction?: LedgerTransaction;
+  duplicateApproval: boolean;
+}
+
+export interface DriverPayoutCandidate {
+  driverId: string;
+  availableBalanceCents: number;
+  destination: DriverPayoutDestination | null;
+}
+
+export interface SetDriverPayoutAutomaticEnabledInput {
+  automaticEnabled: boolean;
+  updatedAt?: Date;
 }
 
 export interface StartDriverPayoutInput {
@@ -259,6 +285,9 @@ export interface FinanceRepository {
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
   findDriverPayoutById(id: string): Promise<DriverPayoutRecord | null>;
+  approveDriverPayout(
+    input: ApproveDriverPayoutInput,
+  ): Promise<ApproveDriverPayoutResult>;
   listDriverPayoutsByStatus(
     statuses: readonly DriverPayoutRecord['status'][],
     limit: number,
@@ -281,6 +310,13 @@ export interface FinanceRepository {
   upsertDriverPayoutDestination(
     destination: DriverPayoutDestination,
   ): Promise<DriverPayoutDestination>;
+  getDriverPayoutSettings(): Promise<DriverPayoutSettings>;
+  setDriverPayoutAutomaticEnabled(
+    input: SetDriverPayoutAutomaticEnabledInput,
+  ): Promise<DriverPayoutSettings>;
+  listDriverPayoutCandidates(
+    limit: number,
+  ): Promise<DriverPayoutCandidate[]>;
 
   getAccountBalanceCents(accountKey: string): Promise<number>;
   getDriverCashDebtCents(driverId: string): Promise<number>;
