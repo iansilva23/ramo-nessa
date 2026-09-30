@@ -1,5 +1,6 @@
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
+import { createPricingGeofenceMap } from './pricing-geofence-map.js';
 import {
   actionLabel,
   actorLabel,
@@ -42,6 +43,7 @@ const state = {
     effectiveVersionId: null,
   },
   selectedPricingVersion: null,
+  pricingGeofenceMap: null,
   fleet: {
     generatedAt: null,
     staleAfterSeconds: null,
@@ -4562,6 +4564,7 @@ function syncPricingEditFields() {
     'pricing-locality-fields': 'locality_price',
     'pricing-category-policy-fields': 'category_policy',
     'pricing-zone-policy-fields': 'zone_policy',
+    'pricing-locality-map-fields': 'locality_map',
     'pricing-locality-structure-fields': 'locality_structure',
     'pricing-commission-policy-fields': 'commission_policy',
     'pricing-period-policy-fields': 'period_policy',
@@ -4573,6 +4576,13 @@ function syncPricingEditFields() {
   for (const [id, groupKind] of Object.entries(groups)) {
     byId(id).hidden = kind !== groupKind;
   }
+
+  if (kind === 'locality_map') {
+    ensurePricingGeofenceMap();
+    requestAnimationFrame(() => {
+      state.pricingGeofenceMap?.render();
+    });
+  }
 }
 
 function syncPricingLocalityPriceFields() {
@@ -4581,6 +4591,149 @@ function syncPricingLocalityPriceFields() {
   byId('pricing-locality-max-field').hidden = !range;
   byId('pricing-locality-min-label').textContent =
     range ? 'Mínimo (R$)' : 'Preço (R$)';
+}
+
+function pricingScopeDefault(scope) {
+  if (scope === 'prea') {
+    return { latitude: -2.82017, longitude: -40.41467 };
+  }
+  if (scope === 'jijoca') {
+    return { latitude: -2.89860, longitude: -40.45060 };
+  }
+  return { latitude: -2.906425, longitude: -40.357338 };
+}
+
+function setPricingLocalityMapCoordinate(selection) {
+  const latitude = Number(selection?.latitude);
+  const longitude = Number(selection?.longitude);
+  const radiusKm = Number(selection?.radiusKm);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(radiusKm)
+  ) {
+    return;
+  }
+
+  byId('pricing-locality-map-latitude').value =
+    latitude.toFixed(7);
+  byId('pricing-locality-map-longitude').value =
+    longitude.toFixed(7);
+  byId('pricing-locality-map-coordinate-label').textContent =
+    `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function ensurePricingGeofenceMap() {
+  if (state.pricingGeofenceMap != null) {
+    return state.pricingGeofenceMap;
+  }
+
+  const root = byId('pricing-locality-map');
+  if (root == null) return null;
+
+  state.pricingGeofenceMap = createPricingGeofenceMap({
+    root,
+    tiles: byId('pricing-locality-map-tiles'),
+    overlay: byId('pricing-locality-map-overlay'),
+    zoomIn: byId('pricing-locality-map-zoom-in'),
+    zoomOut: byId('pricing-locality-map-zoom-out'),
+    onChange(selection) {
+      setPricingLocalityMapCoordinate(selection);
+    },
+  });
+
+  const scope = byId('pricing-locality-map-scope').value;
+  const center = pricingScopeDefault(scope);
+  const radiusKm = Number(
+    byId('pricing-locality-map-radius').value || '2',
+  );
+  state.pricingGeofenceMap.setSelection({
+    ...center,
+    radiusKm,
+  });
+  setPricingLocalityMapCoordinate(
+    state.pricingGeofenceMap.getSelection(),
+  );
+  return state.pricingGeofenceMap;
+}
+
+function pricingLocalityExists(scope, localityId) {
+  if (!localityId) return false;
+  if (scope === 'external') {
+    return (state.pricingCatalog?.externalLocalities ?? [])
+      .includes(localityId);
+  }
+  const items = Array.isArray(
+    state.pricingCatalog?.localities?.[scope],
+  )
+    ? state.pricingCatalog.localities[scope]
+    : [];
+  return items.some((item) => item.localityId === localityId);
+}
+
+function findPricingGeofence(scope, localityId) {
+  const geofences = Array.isArray(
+    state.pricingCatalog?.localityGeofences,
+  )
+    ? state.pricingCatalog.localityGeofences
+    : [];
+  return geofences.find(
+    (geofence) =>
+      geofence.zoneId === scope &&
+      geofence.localityId === localityId,
+  ) ?? null;
+}
+
+function syncPricingLocalityMapSelection({ forceDefault = false } = {}) {
+  const map = ensurePricingGeofenceMap();
+  if (map == null) return;
+
+  const scope = byId('pricing-locality-map-scope').value;
+  const localityId =
+    byId('pricing-locality-map-id').value.trim();
+  const existing = findPricingGeofence(scope, localityId);
+  const radiusKm = Number(
+    byId('pricing-locality-map-radius').value || '2',
+  );
+
+  if (existing != null) {
+    byId('pricing-locality-map-radius').value =
+      String(existing.radiusKm);
+    map.setSelection({
+      latitude: existing.centerLatitude,
+      longitude: existing.centerLongitude,
+      radiusKm: existing.radiusKm,
+    });
+  } else if (forceDefault) {
+    map.setSelection({
+      ...pricingScopeDefault(scope),
+      radiusKm,
+    });
+  } else {
+    map.setRadiusKm(radiusKm);
+  }
+
+  setPricingLocalityMapCoordinate(map.getSelection());
+}
+
+function openPricingGeofenceEditor(geofence) {
+  byId('pricing-edit-kind').value = 'locality_map';
+  byId('pricing-locality-map-scope').value = geofence.zoneId;
+  byId('pricing-locality-map-id').value = geofence.localityId;
+  byId('pricing-locality-map-radius').value =
+    String(geofence.radiusKm);
+  syncPricingEditFields();
+  const map = ensurePricingGeofenceMap();
+  map?.setSelection({
+    latitude: geofence.centerLatitude,
+    longitude: geofence.centerLongitude,
+    radiusKm: geofence.radiusKm,
+  });
+  setPricingLocalityMapCoordinate(map?.getSelection());
+  byId('pricing-locality-map')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
 }
 
 function renderPricingCatalog(payload = null) {
@@ -4607,6 +4760,9 @@ function renderPricingCatalog(payload = null) {
     : [];
   const externalLocalities = Array.isArray(payload?.externalLocalities)
     ? payload.externalLocalities
+    : [];
+  const localityGeofences = Array.isArray(payload?.localityGeofences)
+    ? payload.localityGeofences
     : [];
 
   const versionLabel =
@@ -4691,6 +4847,52 @@ function renderPricingCatalog(payload = null) {
   }
   byId('pricing-external-localities-empty').hidden =
     externalLocalities.length !== 0;
+
+  const geofenceBody = byId('pricing-geofences-body');
+  if (geofenceBody != null) {
+    geofenceBody.replaceChildren();
+    for (const geofence of localityGeofences) {
+      const row = document.createElement('tr');
+
+      const zone = document.createElement('td');
+      zone.textContent = pricingIdentifierLabel(geofence.zoneId);
+
+      const locality = document.createElement('td');
+      locality.textContent = geofence.localityId;
+
+      const center = document.createElement('td');
+      center.textContent =
+        `${Number(geofence.centerLatitude).toFixed(5)}, ${Number(geofence.centerLongitude).toFixed(5)}`;
+
+      const radius = document.createElement('td');
+      radius.textContent =
+        `${Number(geofence.radiusKm).toLocaleString('pt-BR')} km`;
+
+      const actions = document.createElement('td');
+      if (
+        state.selectedPricingVersion?.status === 'draft' &&
+        hasScope('pricing:write')
+      ) {
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'button button--table';
+        edit.textContent = 'Editar área';
+        edit.addEventListener('click', () => {
+          openPricingGeofenceEditor(geofence);
+        });
+        actions.append(edit);
+      } else {
+        actions.textContent = '—';
+      }
+
+      row.append(zone, locality, center, radius, actions);
+      geofenceBody.append(row);
+    }
+    byId('pricing-geofence-count').textContent =
+      `${localityGeofences.length} área(s)`;
+    byId('pricing-geofences-empty').hidden =
+      localityGeofences.length !== 0;
+  }
 
   const categoryBody = byId('pricing-category-policies-body');
   categoryBody.replaceChildren();
@@ -4918,6 +5120,43 @@ function buildPricingDraftPatch() {
     };
   }
 
+  if (kind === 'locality_map') {
+    const scope = byId('pricing-locality-map-scope').value;
+    const localityId =
+      byId('pricing-locality-map-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+    const centerLatitude = Number(
+      byId('pricing-locality-map-latitude').value,
+    );
+    const centerLongitude = Number(
+      byId('pricing-locality-map-longitude').value,
+    );
+    const radiusKm = pricingDecimalValue(
+      byId('pricing-locality-map-radius').value,
+      'Raio da localidade',
+      { min: 0.05, max: 100 },
+    );
+    if (
+      !Number.isFinite(centerLatitude) ||
+      !Number.isFinite(centerLongitude)
+    ) {
+      throw new Error(
+        'Clique no mapa para posicionar o alfinete da localidade.',
+      );
+    }
+    return {
+      kind: 'locality_map',
+      scope,
+      zoneId: scope,
+      localityId,
+      centerLatitude,
+      centerLongitude,
+      radiusKm,
+    };
+  }
+
   if (kind === 'locality_structure') {
     const localityId =
       byId('pricing-locality-structure-id').value.trim();
@@ -5100,19 +5339,86 @@ async function handlePricingEditSubmit(event) {
   const button = byId('pricing-save-draft-button');
   button.disabled = true;
   try {
-    const payload = await api.updatePricingVersion(state.token, {
-      versionId: version.id,
-      patch: buildPricingDraftPatch(),
-      expectedUpdatedAt: version.updatedAt,
-    });
-    renderPricingCatalog(payload.catalog);
-    renderPricingEditor(payload.version);
+    const patch = buildPricingDraftPatch();
+    let payload;
+
+    if (patch.kind === 'locality_map') {
+      let expectedUpdatedAt = version.updatedAt;
+      const exists = pricingLocalityExists(
+        patch.scope,
+        patch.localityId,
+      );
+
+      if (!exists) {
+        const created = await api.updatePricingVersion(
+          state.token,
+          {
+            versionId: version.id,
+            patch: {
+              kind: 'locality_structure',
+              operation: 'add',
+              scope: patch.scope,
+              localityId: patch.localityId,
+            },
+            expectedUpdatedAt,
+          },
+        );
+        expectedUpdatedAt = created.version.updatedAt;
+        renderPricingCatalog(created.catalog);
+        renderPricingEditor(created.version);
+      }
+
+      payload = await api.updatePricingVersion(state.token, {
+        versionId: version.id,
+        patch: {
+          kind: 'locality_geofence',
+          operation: 'upsert',
+          zoneId: patch.zoneId,
+          localityId: patch.localityId,
+          centerLatitude: patch.centerLatitude,
+          centerLongitude: patch.centerLongitude,
+          radiusKm: patch.radiusKm,
+        },
+        expectedUpdatedAt,
+      });
+
+      renderPricingCatalog(payload.catalog);
+      renderPricingEditor(payload.version);
+
+      if (patch.scope === 'prea' || patch.scope === 'jijoca') {
+        byId('pricing-edit-kind').value = 'locality_price';
+        byId('pricing-locality-hub').value = patch.scope;
+        byId('pricing-locality-id').value = patch.localityId;
+        syncPricingEditFields();
+        setMessage(
+          globalMessage,
+          'Localidade e área salvas no rascunho. Agora configure o preço desta localidade.',
+          'success',
+        );
+      } else {
+        setMessage(
+          globalMessage,
+          'Destino externo e área salvos no rascunho. Agora configure a rota/preço aplicável.',
+          'success',
+        );
+      }
+    } else {
+      payload = await api.updatePricingVersion(state.token, {
+        versionId: version.id,
+        patch,
+        expectedUpdatedAt: version.updatedAt,
+      });
+      renderPricingCatalog(payload.catalog);
+      renderPricingEditor(payload.version);
+    }
     await loadPricingVersions({ announce: false });
-    setMessage(
-      globalMessage,
-      'Alteração salva somente no rascunho.',
-      'success',
-    );
+    if (patch.kind !== 'locality_map') {
+      setMessage(
+        globalMessage,
+        'Alteração salva somente no rascunho.',
+        'success',
+      );
+    }
     if (hasScope('audit:read')) {
       void loadAudit({ announce: false });
     }
@@ -9088,6 +9394,20 @@ function bindRouteEvents(view) {
     bindRouteEvent('pricing-edit-kind', 'change', () => {
       syncPricingEditFields();
     });
+    bindRouteEvent('pricing-locality-map-radius', 'input', () => {
+      const radius = Number(
+        byId('pricing-locality-map-radius').value,
+      );
+      if (Number.isFinite(radius) && radius >= 0.05) {
+        ensurePricingGeofenceMap()?.setRadiusKm(radius);
+      }
+    });
+    bindRouteEvent('pricing-locality-map-scope', 'change', () => {
+      syncPricingLocalityMapSelection({ forceDefault: true });
+    });
+    bindRouteEvent('pricing-locality-map-id', 'change', () => {
+      syncPricingLocalityMapSelection({ forceDefault: false });
+    });
     bindRouteEvent('pricing-locality-price-kind', 'change', () => {
       syncPricingLocalityPriceFields();
     });
@@ -9419,6 +9739,9 @@ function initializeRouteView(view) {
     renderPricingEditor();
     syncPricingEditFields();
     syncPricingLocalityPriceFields();
+    if (byId('pricing-locality-map-radius') != null) {
+      byId('pricing-locality-map-radius').value = '2';
+    }
     if (hasScope('pricing:read')) {
       void loadPricingCatalog({ announce: false });
       void loadPricingVersions({ announce: false });
