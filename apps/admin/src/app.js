@@ -69,6 +69,9 @@ const state = {
       paymentsCancelled: 0,
       paymentsRefunded: 0,
       platformRevenueCents: 0,
+      companyProfitAvailableCents: 0,
+      companyPayoutPendingCents: 0,
+      driverCashCommissionDebtCents: 0,
       driverPayableCents: 0,
       driverPayoutPendingCents: 0,
       rideEscrowCents: 0,
@@ -80,6 +83,9 @@ const state = {
     payouts: [],
     payoutPolicy: null,
     payoutCandidates: [],
+    companyPayout: null,
+    companyPayouts: [],
+    pendingCompanyPayoutRequestId: null,
     policy: null,
     selectedPayout: null,
     writeLocked: true,
@@ -437,6 +443,9 @@ function clearSession(message = '') {
       paymentsCancelled: 0,
       paymentsRefunded: 0,
       platformRevenueCents: 0,
+      companyProfitAvailableCents: 0,
+      companyPayoutPendingCents: 0,
+      driverCashCommissionDebtCents: 0,
       driverPayableCents: 0,
       driverPayoutPendingCents: 0,
       rideEscrowCents: 0,
@@ -446,8 +455,14 @@ function clearSession(message = '') {
     },
     payments: [],
     payouts: [],
+    payoutPolicy: null,
+    payoutCandidates: [],
+    companyPayout: null,
+    companyPayouts: [],
+    pendingCompanyPayoutRequestId: null,
     policy: null,
     selectedPayout: null,
+    writeLocked: true,
   };
   if (fleetMap != null) {
     fleetMap.update([]);
@@ -2946,6 +2961,16 @@ function renderFinance(payload = null) {
     typeof payload.payoutPolicy === 'object'
       ? payload.payoutPolicy
       : state.finance.payoutPolicy;
+  const companyPayout =
+    payload?.companyPayout != null &&
+    typeof payload.companyPayout === 'object'
+      ? payload.companyPayout
+      : state.finance.companyPayout;
+  const companyPayouts = Array.isArray(payload?.companyPayouts)
+    ? payload.companyPayouts
+    : state.finance.companyPayouts ?? [];
+  const pendingCompanyPayoutRequestId =
+    state.finance.pendingCompanyPayoutRequestId ?? null;
 
   state.finance = {
     generatedAt:
@@ -2964,6 +2989,15 @@ function renderFinance(payload = null) {
       platformRevenueCents: numericMetric(
         summary.platformRevenueCents,
       ),
+      companyProfitAvailableCents: numericMetric(
+        summary.companyProfitAvailableCents,
+      ),
+      companyPayoutPendingCents: numericMetric(
+        summary.companyPayoutPendingCents,
+      ),
+      driverCashCommissionDebtCents: numericMetric(
+        summary.driverCashCommissionDebtCents,
+      ),
       driverPayableCents: numericMetric(summary.driverPayableCents),
       driverPayoutPendingCents: numericMetric(
         summary.driverPayoutPendingCents,
@@ -2981,6 +3015,9 @@ function renderFinance(payload = null) {
     payouts,
     payoutPolicy,
     payoutCandidates,
+    companyPayout,
+    companyPayouts,
+    pendingCompanyPayoutRequestId,
     policy: state.finance.policy,
     selectedPayout: state.finance.selectedPayout ?? null,
     writeLocked: state.finance.writeLocked === true,
@@ -3021,6 +3058,7 @@ function renderFinance(payload = null) {
     String(current.paymentsRefunded);
 
   renderFinancePayoutPolicy();
+  renderCompanyPayoutControls();
 
   const paymentBody = byId('finance-payments-body');
   paymentBody.replaceChildren();
@@ -3116,6 +3154,168 @@ function renderFinance(payload = null) {
   byId('finance-payouts-visible').textContent =
     `${payouts.length} item(ns)`;
   byId('finance-payouts-empty').hidden = payouts.length !== 0;
+}
+
+function companyPayoutWritesAvailable() {
+  return (
+    financeWritesAvailable() &&
+    state.finance.companyPayout?.canManage === true
+  );
+}
+
+function renderCompanyPayoutControls() {
+  const company = state.finance.companyPayout ?? {};
+  const payouts = Array.isArray(state.finance.companyPayouts)
+    ? state.finance.companyPayouts
+    : [];
+  const canManage = companyPayoutWritesAvailable();
+  const availableCents = numericMetric(company.availableCents);
+  const pendingCents = numericMetric(company.pendingCents);
+  const cashDebtCents = numericMetric(
+    company.unrecoveredCashCommissionCents,
+  );
+
+  const ownerStatus = byId('finance-company-owner-status');
+  if (ownerStatus != null) {
+    ownerStatus.className = company.canManage === true
+      ? 'pill pill--success'
+      : 'pill pill--neutral';
+    ownerStatus.textContent = company.canManage === true
+      ? 'Proprietário'
+      : 'Somente proprietário';
+  }
+
+  const available = byId('finance-company-available');
+  const pending = byId('finance-company-pending');
+  const cashDebt = byId('finance-company-cash-debt');
+  if (available != null) {
+    available.textContent = formatCurrencyCents(availableCents);
+  }
+  if (pending != null) {
+    pending.textContent = formatCurrencyCents(pendingCents);
+  }
+  if (cashDebt != null) {
+    cashDebt.textContent = formatCurrencyCents(cashDebtCents);
+  }
+
+  const note = byId('finance-company-note');
+  if (note != null) {
+    note.textContent =
+      company.note ??
+      'O saldo da empresa será carregado a partir do ledger.';
+  }
+
+  const destinationStatus = byId('finance-company-pix-status');
+  if (destinationStatus != null) {
+    destinationStatus.textContent =
+      company.destinationConfigured === true
+        ? `${String(company.pixKeyType ?? '').toUpperCase()} · ${company.pixKeyMasked ?? '••••'}`
+        : 'Nenhuma chave Pix cadastrada.';
+  }
+
+  const pixType = byId('finance-company-pix-type');
+  const pixKey = byId('finance-company-pix-key');
+  const pixSave = byId('finance-company-pix-save');
+  if (pixType != null) {
+    if (company.pixKeyType) {
+      pixType.value = company.pixKeyType;
+    }
+    pixType.disabled = !canManage;
+  }
+  if (pixKey != null) {
+    pixKey.disabled = !canManage;
+  }
+  if (pixSave != null) {
+    pixSave.disabled = !canManage;
+  }
+
+  const amount = byId('finance-company-payout-amount');
+  const useAll = byId('finance-company-use-all');
+  const submit = byId('finance-company-payout-submit');
+  const payoutReady =
+    canManage &&
+    company.destinationConfigured === true &&
+    availableCents >= 100;
+
+  if (amount != null) {
+    amount.disabled = !payoutReady;
+    amount.max = (availableCents / 100).toFixed(2);
+  }
+  if (useAll != null) {
+    useAll.disabled = !payoutReady;
+  }
+  if (submit != null) {
+    submit.disabled = !payoutReady;
+  }
+
+  const actionNote = byId('finance-company-payout-action-note');
+  if (actionNote != null) {
+    actionNote.textContent =
+      company.canManage !== true
+        ? 'Somente o proprietário autorizado pode movimentar este saldo.'
+        : company.destinationConfigured !== true
+          ? 'Cadastre uma chave Pix para habilitar a retirada.'
+          : availableCents < 100
+            ? 'Não há saldo mínimo de R$ 1,00 disponível para retirada.'
+            : 'Você pode retirar parte ou todo o saldo disponível.';
+  }
+
+  const body = byId('finance-company-payouts-body');
+  const empty = byId('finance-company-payouts-empty');
+  const visible = byId('finance-company-payouts-visible');
+  if (body == null || empty == null || visible == null) return;
+
+  body.replaceChildren();
+  for (const payout of payouts) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const presentation = payoutStatusPresentation(payout.status);
+    const statusPill = document.createElement('span');
+    statusPill.className = `pill pill--${presentation.tone}`;
+    statusPill.textContent = presentation.label;
+    statusCell.append(statusPill);
+
+    const payoutAmount = document.createElement('td');
+    payoutAmount.textContent = formatCurrencyCents(payout.amountCents);
+
+    const destination = document.createElement('td');
+    destination.textContent =
+      `${String(payout.pixKeyType ?? '').toUpperCase()} · ${payout.pixKeyMasked ?? '••••'}`;
+
+    const processor = document.createElement('td');
+    processor.textContent = payout.processor ?? 'Aguardando provedor';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payout.createdAt);
+
+    const action = document.createElement('td');
+    if (payout.status === 'requested' && canManage) {
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'button button--danger button--compact';
+      cancel.textContent = 'Cancelar';
+      cancel.addEventListener('click', () => {
+        void handleCompanyPayoutCancel(payout.id);
+      });
+      action.append(cancel);
+    } else {
+      action.textContent = '—';
+    }
+
+    row.append(
+      statusCell,
+      payoutAmount,
+      destination,
+      processor,
+      created,
+      action,
+    );
+    body.append(row);
+  }
+
+  visible.textContent = `${payouts.length} item(ns)`;
+  empty.hidden = payouts.length !== 0;
 }
 
 function renderFinancePayoutPolicy() {
@@ -3653,6 +3853,149 @@ function handleManualPayoutSelectAll(event) {
     checkbox.checked = checked;
   }
   syncManualPayoutSelection();
+}
+
+async function handleCompanyPayoutDestinationSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+
+  const pixKeyType = byId('finance-company-pix-type').value;
+  const pixKey = byId('finance-company-pix-key').value.trim();
+  if (!pixKey) {
+    setMessage(
+      globalMessage,
+      'Informe a chave Pix da empresa.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-company-pix-save');
+  button.disabled = true;
+  try {
+    await api.saveCompanyPayoutDestination(state.token, {
+      pixKeyType,
+      pixKey,
+    });
+    byId('finance-company-pix-key').value = '';
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      'Chave Pix da empresa salva e auditada.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    renderCompanyPayoutControls();
+  }
+}
+
+function handleCompanyPayoutUseAll() {
+  const availableCents = numericMetric(
+    state.finance.companyPayout?.availableCents,
+  );
+  const input = byId('finance-company-payout-amount');
+  if (input == null || availableCents < 100) return;
+  input.value = (availableCents / 100).toFixed(2);
+}
+
+async function handleCompanyPayoutSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+
+  const company = state.finance.companyPayout ?? {};
+  const availableCents = numericMetric(company.availableCents);
+  const amount = Number(byId('finance-company-payout-amount').value);
+  const amountCents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amountCents < 100 ||
+    amountCents > availableCents ||
+    Math.abs(amount * 100 - amountCents) > 0.000001
+  ) {
+    setMessage(
+      globalMessage,
+      `Informe um valor entre R$ 1,00 e ${formatCurrencyCents(availableCents)}.`,
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Enviar ${formatCurrencyCents(amountCents)} do saldo da empresa para ${String(company.pixKeyType ?? '').toUpperCase()} · ${company.pixKeyMasked ?? '••••'}? O valor será reservado antes do envio Pix.`,
+  );
+  if (!confirmed) return;
+
+  const requestId =
+    state.finance.pendingCompanyPayoutRequestId ??
+    globalThis.crypto.randomUUID();
+  state.finance.pendingCompanyPayoutRequestId = requestId;
+
+  const button = byId('finance-company-payout-submit');
+  button.disabled = true;
+  try {
+    const result = await api.createCompanyPayout(state.token, {
+      amountCents,
+      requestId,
+    });
+    state.finance.pendingCompanyPayoutRequestId = null;
+    byId('finance-company-payout-amount').value = '';
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.providerRetryPending === true
+        ? 'Repasse da empresa reservado. O provedor Pix ainda não confirmou o envio e a reconciliação continuará automaticamente.'
+        : result.payout?.status === 'paid'
+          ? 'Repasse da empresa concluído por Pix.'
+          : 'Repasse da empresa enviado ao provedor Pix.',
+      result.providerRetryPending === true ? 'warning' : 'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.code !== 'NETWORK_ERROR'
+    ) {
+      state.finance.pendingCompanyPayoutRequestId = null;
+    }
+    handleAuthenticatedError(error);
+  } finally {
+    renderCompanyPayoutControls();
+  }
+}
+
+async function handleCompanyPayoutCancel(payoutId) {
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+  const payout = (state.finance.companyPayouts ?? []).find(
+    (item) => item.id === payoutId,
+  );
+  if (payout == null || payout.status !== 'requested') return;
+
+  const confirmed = window.confirm(
+    `Cancelar o repasse de ${formatCurrencyCents(payout.amountCents)} da empresa? O valor reservado voltará ao saldo disponível.`,
+  );
+  if (!confirmed) return;
+
+  try {
+    await api.cancelCompanyPayout(state.token, payoutId);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      'Repasse da empresa cancelado e saldo devolvido.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
 }
 
 async function loadFinance({ announce = true } = {}) {
@@ -8685,6 +9028,15 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('finance-card-price-form', 'submit', (event) => {
       void handleCardPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-company-pix-form', 'submit', (event) => {
+      void handleCompanyPayoutDestinationSubmit(event);
+    });
+    bindRouteEvent('finance-company-payout-form', 'submit', (event) => {
+      void handleCompanyPayoutSubmit(event);
+    });
+    bindRouteEvent('finance-company-use-all', 'click', () => {
+      handleCompanyPayoutUseAll();
     });
     bindRouteEvent('finance-payout-mode-toggle', 'click', () => {
       void handleFinancePayoutModeToggle();
