@@ -20,6 +20,7 @@ interface UserRow {
   last_totp_counter: string | number | null;
   created_at: Date;
   updated_at: Date;
+  deleted_at: Date | null;
 }
 
 interface SessionRow {
@@ -53,6 +54,7 @@ function mapUser(row: UserRow): AdminHumanUserRecord {
       : {}),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    ...(row.deleted_at != null ? { deletedAt: row.deleted_at.toISOString() } : {}),
   };
 }
 
@@ -84,8 +86,8 @@ export class PostgresAdminHumanAuthRepository
       INSERT INTO admin_users (
         id, name, email_normalized, password_hash,
         totp_secret_ciphertext, scopes, status, last_totp_counter,
-        created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        created_at, updated_at, deleted_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
       `,
       [
@@ -99,6 +101,7 @@ export class PostgresAdminHumanAuthRepository
         user.lastTotpCounter ?? null,
         user.createdAt,
         user.updatedAt,
+        user.deletedAt ?? null,
       ],
     );
     const row = result.rows[0];
@@ -110,7 +113,7 @@ export class PostgresAdminHumanAuthRepository
     emailNormalized: string,
   ): Promise<AdminHumanUserRecord | null> {
     const result = await this.pool.query<UserRow>(
-      'SELECT * FROM admin_users WHERE email_normalized = $1 LIMIT 1',
+      'SELECT * FROM admin_users WHERE email_normalized = $1 AND deleted_at IS NULL LIMIT 1',
       [emailNormalized],
     );
     return result.rows[0] == null ? null : mapUser(result.rows[0]);
@@ -124,6 +127,55 @@ export class PostgresAdminHumanAuthRepository
     return result.rows[0] == null ? null : mapUser(result.rows[0]);
   }
 
+  async listUsers(): Promise<AdminHumanUserRecord[]> {
+    const result = await this.pool.query<UserRow>(
+      `SELECT * FROM admin_users WHERE deleted_at IS NULL ORDER BY created_at DESC, name ASC`,
+    );
+    return result.rows.map(mapUser);
+  }
+
+  async updateUser(input: {
+    id: string;
+    name?: string;
+    scopes?: AdminScope[];
+    status?: AdminHumanStatus;
+    updatedAt: string;
+  }): Promise<AdminHumanUserRecord | null> {
+    const result = await this.pool.query<UserRow>(
+      `
+      UPDATE admin_users
+      SET name = COALESCE($2::text, name),
+          scopes = COALESCE($3::text[], scopes),
+          status = COALESCE($4::text, status),
+          updated_at = $5
+      WHERE id = $1 AND deleted_at IS NULL
+      RETURNING *
+      `,
+      [input.id, input.name ?? null, input.scopes ?? null, input.status ?? null, input.updatedAt],
+    );
+    return result.rows[0] == null ? null : mapUser(result.rows[0]);
+  }
+
+  async softDeleteUser(input: {
+    id: string;
+    tombstoneEmail: string;
+    deletedAt: string;
+  }): Promise<AdminHumanUserRecord | null> {
+    const result = await this.pool.query<UserRow>(
+      `
+      UPDATE admin_users
+      SET email_normalized = $2,
+          status = 'suspended',
+          deleted_at = $3,
+          updated_at = $3
+      WHERE id = $1 AND deleted_at IS NULL
+      RETURNING *
+      `,
+      [input.id, input.tombstoneEmail, input.deletedAt],
+    );
+    return result.rows[0] == null ? null : mapUser(result.rows[0]);
+  }
+
   async setUserStatus(input: {
     id: string;
     status: AdminHumanStatus;
@@ -133,7 +185,7 @@ export class PostgresAdminHumanAuthRepository
       `
       UPDATE admin_users
       SET status = $2, updated_at = $3
-      WHERE id = $1
+      WHERE id = $1 AND deleted_at IS NULL
       RETURNING *
       `,
       [input.id, input.status, input.updatedAt],
@@ -151,6 +203,7 @@ export class PostgresAdminHumanAuthRepository
       UPDATE admin_users
       SET last_totp_counter = $2, updated_at = $3
       WHERE id = $1
+        AND deleted_at IS NULL
         AND (
           last_totp_counter IS NULL
           OR last_totp_counter < $2

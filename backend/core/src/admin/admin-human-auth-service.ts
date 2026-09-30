@@ -327,7 +327,7 @@ export async function authenticateAdminHumanSession(input: {
   }
 
   const user = await input.repository.findUserById(session.userId);
-  if (user == null || user.status !== 'active') {
+  if (user == null || user.status !== 'active' || user.deletedAt != null) {
     throw new AdminHumanAuthenticationError(
       'ADMIN_SESSION_INVALID',
       'Sessão administrativa inválida.',

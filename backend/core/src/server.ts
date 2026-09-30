@@ -138,6 +138,19 @@ import {
   resolveAdminMfaEncryptionKey,
 } from './admin/admin-human-crypto.js';
 import {
+  AdminOwnerAuthorizationError,
+  assertAdminOwner,
+  isAdminOwner,
+  resolveAdminOwnerUserId,
+} from './admin/admin-owner-authorization.js';
+import {
+  AdminStaffError,
+  createAdminStaff,
+  deleteAdminStaff,
+  listAdminStaff,
+  updateAdminStaff,
+} from './admin/admin-staff-service.js';
+import {
   AdminDriverAuthError,
   getDriverAuthForAdmin,
   provisionDriverAuthFromAdmin,
@@ -2781,6 +2794,13 @@ const server = createServer(async (request, response) => {
           name: logged.user.name,
           email: logged.user.emailNormalized,
           scopes: logged.user.scopes,
+          capabilities: {
+            manageStaff: isAdminOwner({
+              kind: 'user',
+              id: logged.user.id,
+              name: logged.user.name,
+            }),
+          },
         },
       });
       return;
@@ -2800,6 +2820,13 @@ const server = createServer(async (request, response) => {
           name: authenticated.user.name,
           email: authenticated.user.emailNormalized,
           scopes: authenticated.user.scopes,
+          capabilities: {
+            manageStaff: isAdminOwner({
+              kind: 'user',
+              id: authenticated.user.id,
+              name: authenticated.user.name,
+            }),
+          },
         },
         expiresAt: authenticated.session.expiresAt,
       });
@@ -2818,6 +2845,112 @@ const server = createServer(async (request, response) => {
         'cache-control': 'no-store',
       });
       response.end();
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/staff'
+    ) {
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      const actor = {
+        kind: 'user' as const,
+        id: authenticated.user.id,
+        name: authenticated.user.name,
+      };
+      assertAdminOwner(actor);
+      json(response, 200, await listAdminStaff({
+        repository: adminHumanAuthRepository,
+        ownerUserId: resolveAdminOwnerUserId(),
+      }));
+      return;
+    }
+
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/v1/admin/staff'
+    ) {
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      const actor = {
+        kind: 'user' as const,
+        id: authenticated.user.id,
+        name: authenticated.user.name,
+      };
+      assertAdminOwner(actor);
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(response, 201, await createAdminStaff({
+        repository: adminHumanAuthRepository,
+        admin: adminRepository,
+        actor,
+        ownerUserId: resolveAdminOwnerUserId(),
+        name: value.name,
+        email: value.email,
+        scopes: value.scopes,
+        encryptionKey: adminMfaEncryptionKey,
+      }));
+      return;
+    }
+
+    const adminStaffMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/staff\/([0-9a-fA-F-]+)$/,
+    );
+    if (request.method === 'PATCH' && adminStaffMatch != null) {
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      const actor = {
+        kind: 'user' as const,
+        id: authenticated.user.id,
+        name: authenticated.user.name,
+      };
+      assertAdminOwner(actor);
+      const body = await readJson(request);
+      const value =
+        body != null && typeof body === 'object' && !Array.isArray(body)
+          ? body as Record<string, unknown>
+          : {};
+      json(response, 200, await updateAdminStaff({
+        repository: adminHumanAuthRepository,
+        admin: adminRepository,
+        actor,
+        ownerUserId: resolveAdminOwnerUserId(),
+        userId: adminStaffMatch[1]!,
+        ...(Object.hasOwn(value, 'name') ? { name: value.name } : {}),
+        ...(Object.hasOwn(value, 'scopes') ? { scopes: value.scopes } : {}),
+        ...(Object.hasOwn(value, 'status') ? { status: value.status } : {}),
+      }));
+      return;
+    }
+
+    if (request.method === 'DELETE' && adminStaffMatch != null) {
+      const authenticated = await authenticateAdminHumanSession({
+        repository: adminHumanAuthRepository,
+        headers: request.headers,
+      });
+      const actor = {
+        kind: 'user' as const,
+        id: authenticated.user.id,
+        name: authenticated.user.name,
+      };
+      assertAdminOwner(actor);
+      json(response, 200, await deleteAdminStaff({
+        repository: adminHumanAuthRepository,
+        admin: adminRepository,
+        actor,
+        ownerUserId: resolveAdminOwnerUserId(),
+        userId: adminStaffMatch[1]!,
+      }));
       return;
     }
 
@@ -5628,7 +5761,7 @@ const server = createServer(async (request, response) => {
         apiKeys: adminRepository,
         humanAuth: adminHumanAuthRepository,
         headers: request.headers,
-        requiredScope: 'communications:read',
+        requiredScope: 'support:read',
       });
       const rawLimit = requestUrl.searchParams.get('limit');
       const limit =
@@ -5703,7 +5836,7 @@ const server = createServer(async (request, response) => {
         apiKeys: adminRepository,
         humanAuth: adminHumanAuthRepository,
         headers: request.headers,
-        requiredScope: 'communications:write',
+        requiredScope: 'support:write',
       });
       const body = await readJson(request);
       const value =
@@ -7743,6 +7876,26 @@ const server = createServer(async (request, response) => {
         error: error.code,
         message: error.message,
       });
+      return;
+    }
+
+    if (error instanceof AdminStaffError) {
+      const status =
+        error.code === 'ADMIN_STAFF_NOT_FOUND'
+          ? 404
+          : error.code === 'ADMIN_STAFF_OWNER_IMMUTABLE'
+            ? 409
+            : 422;
+      json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof AdminOwnerAuthorizationError) {
+      json(
+        response,
+        error.code === 'ADMIN_OWNER_NOT_CONFIGURED' ? 503 : 403,
+        { error: error.code, message: error.message },
+      );
       return;
     }
 

@@ -34,7 +34,8 @@ export class InMemoryAdminHumanAuthRepository
     emailNormalized: string,
   ): Promise<AdminHumanUserRecord | null> {
     const found = [...this.users.values()].find(
-      (candidate) => candidate.emailNormalized === emailNormalized,
+      (candidate) =>
+        candidate.emailNormalized === emailNormalized && candidate.deletedAt == null,
     );
     return found == null ? null : structuredClone(found);
   }
@@ -44,13 +45,58 @@ export class InMemoryAdminHumanAuthRepository
     return found == null ? null : structuredClone(found);
   }
 
+  async listUsers(): Promise<AdminHumanUserRecord[]> {
+    return [...this.users.values()]
+      .filter((user) => user.deletedAt == null)
+      .sort((x, y) => y.createdAt.localeCompare(x.createdAt) || x.name.localeCompare(y.name, 'pt-BR'))
+      .map((user) => structuredClone(user));
+  }
+
+  async updateUser(input: {
+    id: string;
+    name?: string;
+    scopes?: AdminHumanUserRecord['scopes'];
+    status?: AdminHumanStatus;
+    updatedAt: string;
+  }): Promise<AdminHumanUserRecord | null> {
+    const found = this.users.get(input.id);
+    if (found == null || found.deletedAt != null) return null;
+    const updated: AdminHumanUserRecord = {
+      ...found,
+      ...(input.name == null ? {} : { name: input.name }),
+      ...(input.scopes == null ? {} : { scopes: [...input.scopes] }),
+      ...(input.status == null ? {} : { status: input.status }),
+      updatedAt: input.updatedAt,
+    };
+    this.users.set(input.id, updated);
+    return structuredClone(updated);
+  }
+
+  async softDeleteUser(input: {
+    id: string;
+    tombstoneEmail: string;
+    deletedAt: string;
+  }): Promise<AdminHumanUserRecord | null> {
+    const found = this.users.get(input.id);
+    if (found == null || found.deletedAt != null) return null;
+    const updated: AdminHumanUserRecord = {
+      ...found,
+      emailNormalized: input.tombstoneEmail,
+      status: 'suspended',
+      updatedAt: input.deletedAt,
+      deletedAt: input.deletedAt,
+    };
+    this.users.set(input.id, updated);
+    return structuredClone(updated);
+  }
+
   async setUserStatus(input: {
     id: string;
     status: AdminHumanStatus;
     updatedAt: string;
   }): Promise<AdminHumanUserRecord | null> {
     const found = this.users.get(input.id);
-    if (found == null) return null;
+    if (found == null || found.deletedAt != null) return null;
     const updated = {
       ...found,
       status: input.status,
@@ -68,6 +114,7 @@ export class InMemoryAdminHumanAuthRepository
     const found = this.users.get(input.userId);
     if (
       found == null ||
+      found.deletedAt != null ||
       (found.lastTotpCounter != null &&
         found.lastTotpCounter >= input.counter)
     ) {

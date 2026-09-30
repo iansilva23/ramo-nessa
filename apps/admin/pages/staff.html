@@ -1,0 +1,158 @@
+<section id="view-staff" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">EQUIPE</span>
+      <h1>Funcionários e permissões</h1>
+      <p>
+        Crie acessos individuais, escolha exatamente o que cada pessoa pode
+        consultar ou alterar e revogue o acesso quando precisar.
+      </p>
+    </div>
+    <button id="staff-refresh-button" class="button button--ghost-dark" type="button">
+      Atualizar
+    </button>
+  </div>
+
+  <article class="panel-card">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">NOVO ACESSO</span>
+        <h2>Adicionar funcionário</h2>
+        <p class="muted-copy">
+          Cada conta usa senha própria, MFA TOTP e sessão administrativa curta.
+        </p>
+      </div>
+      <span id="staff-summary" class="pill">0 usuários</span>
+    </div>
+
+    <form id="staff-create-form" class="stack-form">
+      <div class="directory-toolbar">
+        <label class="field">
+          <span>Nome</span>
+          <input id="staff-create-name" type="text" minlength="3" maxlength="80" required>
+        </label>
+        <label class="field">
+          <span>E-mail</span>
+          <input id="staff-create-email" type="email" maxlength="254" required>
+        </label>
+      </div>
+
+      <div class="integration-checklist-grid">
+        <label><input type="checkbox" data-staff-create-scope="rides:read"> Viagens · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="rides:write"> Viagens · administrar</label>
+        <label><input type="checkbox" data-staff-create-scope="fleet:read"> Frota · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:auth:read"> Motoristas · acessos</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:auth:write"> Motoristas · aprovar/suspender</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:profile:read"> Motoristas · perfis</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:profile:write"> Motoristas · editar perfis</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:documents:read"> Motoristas · documentos</label>
+        <label><input type="checkbox" data-staff-create-scope="drivers:documents:write"> Motoristas · revisar documentos</label>
+        <label><input type="checkbox" data-staff-create-scope="passengers:auth:read"> Passageiros · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="passengers:auth:write"> Passageiros · bloquear/desbloquear</label>
+        <label><input type="checkbox" data-staff-create-scope="finance:read"> Financeiro · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="finance:write"> Financeiro · administrar</label>
+        <label><input type="checkbox" data-staff-create-scope="pricing:read"> Preços · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="pricing:write"> Preços · editar/publicar</label>
+        <label><input type="checkbox" data-staff-create-scope="communications:read"> Comunicação/Agência · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="communications:write"> Comunicação/Agência · administrar</label>
+        <label><input type="checkbox" data-staff-create-scope="support:read"> Suporte · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="support:write"> Suporte · responder</label>
+        <label><input type="checkbox" data-staff-create-scope="privacy:read"> LGPD · visualizar</label>
+        <label><input type="checkbox" data-staff-create-scope="privacy:write"> LGPD · administrar</label>
+        <label><input type="checkbox" data-staff-create-scope="audit:read"> Auditoria · visualizar</label>
+      </div>
+
+      <button id="staff-create-button" class="button button--primary" type="submit">
+        Criar acesso
+      </button>
+    </form>
+  </article>
+
+  <article id="staff-onboarding-card" class="panel-card" hidden>
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">ENTREGA ÚNICA</span>
+        <h2>Credenciais iniciais</h2>
+        <p class="muted-copy">
+          Estes dados são mostrados somente agora. Entregue ao funcionário por
+          um canal seguro e peça para cadastrar o código no aplicativo autenticador.
+        </p>
+      </div>
+      <button id="staff-onboarding-dismiss" class="button button--ghost-dark" type="button">
+        Fechar
+      </button>
+    </div>
+    <div class="driver-registry-summary">
+      <div><span class="driver-detail__label">Senha inicial</span><strong id="staff-onboarding-password">—</strong></div>
+      <div><span class="driver-detail__label">Segredo MFA</span><strong id="staff-onboarding-totp">—</strong></div>
+      <div><span class="driver-detail__label">URI autenticador</span><strong id="staff-onboarding-uri">—</strong></div>
+    </div>
+  </article>
+
+  <article class="panel-card">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">EQUIPE</span>
+        <h2>Acessos cadastrados</h2>
+      </div>
+    </div>
+    <div id="staff-list" class="support-list"></div>
+    <div id="staff-empty" class="empty-state">Nenhum funcionário cadastrado.</div>
+  </article>
+
+  <article id="staff-editor-card" class="panel-card" hidden>
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">PERMISSÕES</span>
+        <h2 id="staff-editor-title">Editar funcionário</h2>
+        <p id="staff-editor-email" class="muted-copy"></p>
+      </div>
+      <span id="staff-editor-status-pill" class="pill">Ativo</span>
+    </div>
+
+    <form id="staff-edit-form" class="stack-form">
+      <input id="staff-edit-user-id" type="hidden">
+      <label class="field">
+        <span>Nome</span>
+        <input id="staff-edit-name" type="text" minlength="3" maxlength="80" required>
+      </label>
+
+      <div class="integration-checklist-grid">
+        <label><input type="checkbox" data-staff-edit-scope="rides:read"> Viagens · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="rides:write"> Viagens · administrar</label>
+        <label><input type="checkbox" data-staff-edit-scope="fleet:read"> Frota · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:auth:read"> Motoristas · acessos</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:auth:write"> Motoristas · aprovar/suspender</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:profile:read"> Motoristas · perfis</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:profile:write"> Motoristas · editar perfis</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:documents:read"> Motoristas · documentos</label>
+        <label><input type="checkbox" data-staff-edit-scope="drivers:documents:write"> Motoristas · revisar documentos</label>
+        <label><input type="checkbox" data-staff-edit-scope="passengers:auth:read"> Passageiros · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="passengers:auth:write"> Passageiros · bloquear/desbloquear</label>
+        <label><input type="checkbox" data-staff-edit-scope="finance:read"> Financeiro · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="finance:write"> Financeiro · administrar</label>
+        <label><input type="checkbox" data-staff-edit-scope="pricing:read"> Preços · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="pricing:write"> Preços · editar/publicar</label>
+        <label><input type="checkbox" data-staff-edit-scope="communications:read"> Comunicação/Agência · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="communications:write"> Comunicação/Agência · administrar</label>
+        <label><input type="checkbox" data-staff-edit-scope="support:read"> Suporte · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="support:write"> Suporte · responder</label>
+        <label><input type="checkbox" data-staff-edit-scope="privacy:read"> LGPD · visualizar</label>
+        <label><input type="checkbox" data-staff-edit-scope="privacy:write"> LGPD · administrar</label>
+        <label><input type="checkbox" data-staff-edit-scope="audit:read"> Auditoria · visualizar</label>
+      </div>
+
+      <div class="integration-public-config-actions">
+        <button id="staff-save-button" class="button button--primary" type="submit">
+          Salvar permissões
+        </button>
+        <button id="staff-access-toggle-button" class="button button--ghost-dark" type="button">
+          Revogar acesso
+        </button>
+        <button id="staff-delete-button" class="button button--danger" type="button">
+          Excluir usuário
+        </button>
+      </div>
+    </form>
+  </article>
+</section>

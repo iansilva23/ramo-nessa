@@ -13,6 +13,7 @@ export interface AdminHumanUserRecord {
   lastTotpCounter?: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface AdminHumanSessionRecord {
@@ -40,6 +41,19 @@ export interface AdminHumanAuthRepository {
   createUser(user: AdminHumanUserRecord): Promise<AdminHumanUserRecord>;
   findUserByEmail(emailNormalized: string): Promise<AdminHumanUserRecord | null>;
   findUserById(id: string): Promise<AdminHumanUserRecord | null>;
+  listUsers(): Promise<AdminHumanUserRecord[]>;
+  updateUser(input: {
+    id: string;
+    name?: string;
+    scopes?: AdminScope[];
+    status?: AdminHumanStatus;
+    updatedAt: string;
+  }): Promise<AdminHumanUserRecord | null>;
+  softDeleteUser(input: {
+    id: string;
+    tombstoneEmail: string;
+    deletedAt: string;
+  }): Promise<AdminHumanUserRecord | null>;
   setUserStatus(input: {
     id: string;
     status: AdminHumanStatus;

@@ -14,6 +14,7 @@ const routes = [
   ['support', 'suporte'],
   ['agency', 'passeios'],
   ['integrations', 'integracoes'],
+  ['staff', 'funcionarios'],
   ['audit', 'auditoria'],
 ];
 

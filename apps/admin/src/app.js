@@ -168,6 +168,11 @@ const state = {
     status: '',
     nextCursor: null,
   },
+  staff: {
+    users: [],
+    selectedId: null,
+    onboarding: null,
+  },
   sessionTimer: null,
 };
 
@@ -248,6 +253,11 @@ const adminRoutes = Object.freeze({
     title: 'Integrações',
     page: 'integrations',
   },
+  staff: {
+    path: '/admin/funcionarios',
+    title: 'Funcionários',
+    page: 'staff',
+  },
   audit: {
     path: '/admin/auditoria',
     title: 'Auditoria',
@@ -301,7 +311,9 @@ const scopeLabels = new Map([
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
   ['pricing:write', 'Editar e publicar versões de preços'],
   ['communications:read', 'Consultar comunicação, versões e agência'],
-  ['communications:write', 'Enviar avisos, responder suporte e editar comunicação'],
+  ['communications:write', 'Enviar avisos e editar comunicação'],
+  ['support:read', 'Consultar chamados de suporte'],
+  ['support:write', 'Responder e encerrar chamados de suporte'],
   ['privacy:read', 'Consultar documentos e solicitações LGPD'],
   ['privacy:write', 'Publicar documentos e atender solicitações LGPD'],
   ['audit:read', 'Consultar auditoria'],
@@ -319,6 +331,41 @@ const ADMIN_CANCELLABLE_RIDE_STATES = new Set([
 
 function hasScope(scope) {
   return state.user?.scopes?.includes(scope) === true;
+}
+
+function canManageStaff() {
+  return state.user?.capabilities?.manageStaff === true;
+}
+
+const viewAccessScopes = Object.freeze({
+  fleet: ['fleet:read'],
+  rides: ['rides:read', 'rides:write'],
+  drivers: [
+    'drivers:auth:read',
+    'drivers:auth:write',
+    'drivers:profile:read',
+    'drivers:profile:write',
+    'drivers:documents:read',
+    'drivers:documents:write',
+    'finance:read',
+    'finance:write',
+  ],
+  passengers: ['passengers:auth:read', 'passengers:auth:write'],
+  pricing: ['pricing:read', 'pricing:write'],
+  finance: ['finance:read', 'finance:write'],
+  notifications: ['communications:read', 'communications:write'],
+  support: ['support:read', 'support:write'],
+  privacy: ['privacy:read', 'privacy:write'],
+  agency: ['communications:read', 'communications:write'],
+  integrations: ['rides:read', 'rides:write'],
+  audit: ['audit:read'],
+});
+
+function canAccessView(view) {
+  if (view === 'staff') return canManageStaff();
+  if (view === 'overview') return true;
+  const scopes = viewAccessScopes[view];
+  return scopes == null || scopes.some((scope) => hasScope(scope));
 }
 
 function setMessage(element, message = '', tone = 'neutral') {
@@ -553,6 +600,11 @@ function clearSession(message = '') {
     status: '',
     nextCursor: null,
   };
+  state.staff = {
+    users: [],
+    selectedId: null,
+    onboarding: null,
+  };
   routeLoadSequence += 1;
   currentView = null;
   destroyFleetMap();
@@ -718,7 +770,9 @@ async function loadRouteMarkup(view) {
 
 function syncRouteNavigation(view) {
   document.querySelectorAll('.nav-item').forEach((link) => {
-    const selected = link.dataset.view === view;
+    const allowed = canAccessView(link.dataset.view);
+    link.hidden = !allowed;
+    const selected = allowed && link.dataset.view === view;
     link.classList.toggle('is-active', selected);
     if (selected) {
       link.setAttribute('aria-current', 'page');
@@ -737,11 +791,18 @@ async function activateView(
   viewName,
   { historyMode = 'push' } = {},
 ) {
-  const view = adminRoutes[viewName] == null ? 'overview' : viewName;
+  const requestedView =
+    adminRoutes[viewName] == null ? 'overview' : viewName;
+  const view = canAccessView(requestedView)
+    ? requestedView
+    : 'overview';
   const targetPath = routePath(view);
 
   stopFleetPolling();
   closeDriverDocumentInspection();
+  if (currentView === 'staff' && view !== 'staff') {
+    state.staff.onboarding = null;
+  }
   if (currentView === 'fleet') {
     destroyFleetMap();
   }
@@ -8970,7 +9031,7 @@ function renderSupportSelection() {
     ticket.status === 'open' ? 'in_progress' : ticket.status;
   byId('support-ticket-response').value = ticket.response ?? '';
 
-  const canWrite = hasScope('communications:write');
+  const canWrite = hasScope('support:write');
   byId('support-ticket-status').disabled = !canWrite;
   byId('support-ticket-response').disabled = !canWrite;
   byId('support-response-button').disabled = !canWrite;
@@ -9041,7 +9102,7 @@ async function loadSupport({
   reset = true,
   announce = true,
 } = {}) {
-  if (!state.token || !hasScope('communications:read')) return;
+  if (!state.token || !hasScope('support:read')) return;
 
   const loadMore = byId('support-load-more');
   if (reset) {
@@ -9104,7 +9165,7 @@ async function loadSupport({
 
 async function handleSupportResponse(event) {
   event.preventDefault();
-  if (!state.token || !hasScope('communications:write')) return;
+  if (!state.token || !hasScope('support:write')) return;
 
   const ticketId = byId('support-ticket-id').value.trim();
   const response = byId('support-ticket-response').value.trim();
@@ -9135,7 +9196,296 @@ async function handleSupportResponse(event) {
   } catch (error) {
     handleAuthenticatedError(error);
   } finally {
-    button.disabled = !hasScope('communications:write');
+    button.disabled = !hasScope('support:write');
+  }
+}
+
+
+function selectedStaffUser() {
+  return state.staff.users.find(
+    (user) => user.id === state.staff.selectedId,
+  ) ?? null;
+}
+
+function staffScopeInputs(kind) {
+  return [...document.querySelectorAll(`[data-staff-${kind}-scope]`)];
+}
+
+function selectedStaffScopes(kind) {
+  const attribute =
+    kind === 'create' ? 'staffCreateScope' : 'staffEditScope';
+  return staffScopeInputs(kind)
+    .filter((input) => input.checked)
+    .map((input) => input.dataset[attribute])
+    .filter(Boolean);
+}
+
+function setStaffScopes(kind, scopes) {
+  const selected = new Set(Array.isArray(scopes) ? scopes : []);
+  const attribute =
+    kind === 'create' ? 'staffCreateScope' : 'staffEditScope';
+  for (const input of staffScopeInputs(kind)) {
+    input.checked = selected.has(input.dataset[attribute]);
+  }
+}
+
+function renderStaffOnboarding() {
+  const card = byId('staff-onboarding-card');
+  if (card == null) return;
+  const onboarding = state.staff.onboarding;
+  card.hidden = onboarding == null;
+  if (onboarding == null) {
+    byId('staff-onboarding-password').textContent = '—';
+    byId('staff-onboarding-totp').textContent = '—';
+    byId('staff-onboarding-uri').textContent = '—';
+    return;
+  }
+  byId('staff-onboarding-password').textContent =
+    onboarding.initialPassword ?? '—';
+  byId('staff-onboarding-totp').textContent =
+    onboarding.totpSecret ?? '—';
+  byId('staff-onboarding-uri').textContent =
+    onboarding.otpauthUri ?? '—';
+}
+
+function renderStaffEditor() {
+  const card = byId('staff-editor-card');
+  if (card == null) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  byId('staff-edit-user-id').value = user.id;
+  byId('staff-edit-name').value = user.name ?? '';
+  byId('staff-editor-title').textContent = user.name ?? 'Funcionário';
+  byId('staff-editor-email').textContent = user.email ?? '—';
+  const pill = byId('staff-editor-status-pill');
+  pill.textContent = user.status === 'active' ? 'Ativo' : 'Acesso revogado';
+  pill.className =
+    user.status === 'active'
+      ? 'pill pill--success'
+      : 'pill pill--warning';
+  setStaffScopes('edit', user.scopes);
+  byId('staff-access-toggle-button').textContent =
+    user.status === 'active' ? 'Revogar acesso' : 'Reativar acesso';
+}
+
+function renderStaff() {
+  const list = byId('staff-list');
+  const empty = byId('staff-empty');
+  const summary = byId('staff-summary');
+  if (list == null || empty == null || summary == null) return;
+
+  const users = Array.isArray(state.staff.users) ? state.staff.users : [];
+  summary.textContent = `${users.length} usuário(s)`;
+  list.replaceChildren();
+
+  for (const user of users) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.disabled = user.isOwner === true;
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const name = document.createElement('strong');
+    name.textContent = user.name ?? 'Usuário Admin';
+    const status = document.createElement('span');
+    status.className =
+      user.status === 'active'
+        ? 'pill pill--success'
+        : 'pill pill--warning';
+    status.textContent =
+      user.isOwner === true
+        ? 'Proprietário'
+        : user.status === 'active'
+          ? 'Ativo'
+          : 'Revogado';
+    heading.append(name, status);
+
+    const email = document.createElement('small');
+    email.textContent = user.email ?? '—';
+    const permissions = document.createElement('p');
+    permissions.textContent =
+      user.isOwner === true
+        ? 'Conta proprietária protegida'
+        : `${Array.isArray(user.scopes) ? user.scopes.length : 0} permissão(ões)`;
+
+    button.append(heading, email, permissions);
+    if (user.isOwner !== true) {
+      button.addEventListener('click', () => {
+        state.staff.selectedId = user.id;
+        renderStaff();
+      });
+    }
+    button.classList.toggle(
+      'is-active',
+      user.id === state.staff.selectedId,
+    );
+    list.append(button);
+  }
+
+  empty.hidden = users.length !== 0;
+  renderStaffEditor();
+  renderStaffOnboarding();
+}
+
+async function loadStaff({ announce = true } = {}) {
+  if (!state.token || !canManageStaff()) return;
+  try {
+    const payload = await api.staff(state.token);
+    state.staff.users = Array.isArray(payload?.users)
+      ? payload.users
+      : [];
+    if (
+      state.staff.selectedId != null &&
+      !state.staff.users.some(
+        (user) =>
+          user.id === state.staff.selectedId &&
+          user.isOwner !== true,
+      )
+    ) {
+      state.staff.selectedId = null;
+    }
+    renderStaff();
+    if (announce) {
+      setMessage(globalMessage, 'Equipe administrativa atualizada.', 'success');
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleStaffCreate(event) {
+  event.preventDefault();
+  if (!state.token || !canManageStaff()) return;
+  const name = byId('staff-create-name').value.trim();
+  const email = byId('staff-create-email').value.trim();
+  const scopes = selectedStaffScopes('create');
+  const button = byId('staff-create-button');
+  if (name.length < 3 || !email || scopes.length === 0) {
+    setMessage(
+      globalMessage,
+      'Informe nome, e-mail e pelo menos uma permissão.',
+      'danger',
+    );
+    return;
+  }
+  button.disabled = true;
+  try {
+    const payload = await api.createStaff(state.token, {
+      name,
+      email,
+      scopes,
+    });
+    state.staff.onboarding = payload?.onboarding ?? null;
+    byId('staff-create-form').reset();
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      'Acesso criado. Guarde as credenciais iniciais exibidas abaixo.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffUpdate(event) {
+  event.preventDefault();
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  const name = byId('staff-edit-name').value.trim();
+  const scopes = selectedStaffScopes('edit');
+  const button = byId('staff-save-button');
+  if (name.length < 3 || scopes.length === 0) {
+    setMessage(
+      globalMessage,
+      'Informe um nome válido e pelo menos uma permissão.',
+      'danger',
+    );
+    return;
+  }
+  button.disabled = true;
+  try {
+    const payload = await api.updateStaff(state.token, user.id, {
+      name,
+      scopes,
+    });
+    await loadStaff({ announce: false });
+    const revoked = Number(payload?.revokedSessions ?? 0);
+    setMessage(
+      globalMessage,
+      revoked > 0
+        ? `Permissões salvas e ${revoked} sessão(ões) anterior(es) revogada(s).`
+        : 'Permissões salvas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffAccessToggle() {
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  const nextStatus =
+    user.status === 'active' ? 'suspended' : 'active';
+  const button = byId('staff-access-toggle-button');
+  button.disabled = true;
+  try {
+    await api.updateStaff(state.token, user.id, {
+      status: nextStatus,
+    });
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      nextStatus === 'active'
+        ? 'Acesso do funcionário reativado.'
+        : 'Acesso revogado e sessões abertas encerradas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffDelete() {
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  if (
+    !window.confirm(
+      `Excluir o usuário ${user.name}? O acesso será encerrado e o histórico de auditoria será preservado.`,
+    )
+  ) {
+    return;
+  }
+  const button = byId('staff-delete-button');
+  button.disabled = true;
+  try {
+    await api.deleteStaff(state.token, user.id);
+    state.staff.selectedId = null;
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      'Usuário administrativo excluído e sessões encerradas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -9883,6 +10233,29 @@ function bindRouteEvents(view) {
     return;
   }
 
+  if (view === 'staff') {
+    bindRouteEvent('staff-refresh-button', 'click', () => {
+      void loadStaff();
+    });
+    bindRouteEvent('staff-create-form', 'submit', (event) => {
+      void handleStaffCreate(event);
+    });
+    bindRouteEvent('staff-edit-form', 'submit', (event) => {
+      void handleStaffUpdate(event);
+    });
+    bindRouteEvent('staff-access-toggle-button', 'click', () => {
+      void handleStaffAccessToggle();
+    });
+    bindRouteEvent('staff-delete-button', 'click', () => {
+      void handleStaffDelete();
+    });
+    bindRouteEvent('staff-onboarding-dismiss', 'click', () => {
+      state.staff.onboarding = null;
+      renderStaffOnboarding();
+    });
+    return;
+  }
+
   if (view === 'audit') {
     bindRouteEvent('audit-filter-form', 'submit', (event) => {
       handleAuditFilter(event);
@@ -10047,7 +10420,7 @@ function initializeRouteView(view) {
 
   if (view === 'support') {
     renderSupport();
-    if (hasScope('communications:read')) {
+    if (hasScope('support:read')) {
       void loadSupport({ announce: false });
     }
     return;
@@ -10059,6 +10432,14 @@ function initializeRouteView(view) {
     renderTourCatalog();
     if (hasScope('communications:read')) {
       void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'staff') {
+    renderStaff();
+    if (canManageStaff()) {
+      void loadStaff({ announce: false });
     }
     return;
   }

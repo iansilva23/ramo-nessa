@@ -177,6 +177,39 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    staff(token) {
+      return request('/v1/admin/staff', { token });
+    },
+
+    createStaff(token, { name, email, scopes }) {
+      return request('/v1/admin/staff', {
+        method: 'POST',
+        token,
+        body: { name, email, scopes },
+      });
+    },
+
+    updateStaff(token, userId, changes) {
+      return request(
+        `/v1/admin/staff/${encodeURIComponent(userId)}`,
+        {
+          method: 'PATCH',
+          token,
+          body: changes,
+        },
+      );
+    },
+
+    deleteStaff(token, userId) {
+      return request(
+        `/v1/admin/staff/${encodeURIComponent(userId)}`,
+        {
+          method: 'DELETE',
+          token,
+        },
+      );
+    },
+
     dashboard(token) {
       return request('/v1/admin/dashboard', { token });
     },
