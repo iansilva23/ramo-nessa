@@ -8,10 +8,12 @@ class ServiceAreaEndpoint {
   const ServiceAreaEndpoint({
     required this.id,
     required this.label,
+    this.localityId,
   });
 
   final String id;
   final String label;
+  final String? localityId;
 }
 
 class ServiceAreaCheck {
@@ -91,12 +93,20 @@ abstract final class RamoServiceArea {
         label: approvedLocality?.isNotEmpty == true
             ? approvedLocality!
             : approvedZone,
+        localityId:
+            approvedLocality?.isNotEmpty == true
+                ? approvedLocality
+                : approvedZone,
       );
     }
 
     final local = zoneFor(place.position);
     if (local != null) {
-      return ServiceAreaEndpoint(id: local.id, label: local.label);
+      return ServiceAreaEndpoint(
+        id: local.id,
+        label: local.label,
+        localityId: local.id,
+      );
     }
 
     final external = ApprovedDestinationCatalog.matchPlace(place);
@@ -104,6 +114,7 @@ abstract final class RamoServiceArea {
       return ServiceAreaEndpoint(
         id: 'external',
         label: external.label,
+        localityId: external.id,
       );
     }
 
