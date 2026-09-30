@@ -123,6 +123,65 @@ export function externalRideRefundLedger(input: {
   };
 }
 
+export function externalPaymentAdjustmentLedger(input: {
+  rideId: string;
+  paymentId: string;
+  processor: string;
+  processorAdjustmentId: string;
+  escrowAppliedCents: number;
+  reviewRequiredCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  const totalCents =
+    input.escrowAppliedCents + input.reviewRequiredCents;
+  if (
+    !Number.isInteger(input.escrowAppliedCents) ||
+    input.escrowAppliedCents < 0 ||
+    !Number.isInteger(input.reviewRequiredCents) ||
+    input.reviewRequiredCents < 0 ||
+    totalCents <= 0
+  ) {
+    throw new LedgerError(
+      'Ajuste externo precisa ter valor positivo.',
+    );
+  }
+
+  const entries: LedgerEntry[] = [
+    ...(input.escrowAppliedCents > 0
+      ? [{
+          accountKey: `ride:${input.rideId}:escrow`,
+          direction: 'debit' as const,
+          amountCents: input.escrowAppliedCents,
+        }]
+      : []),
+    ...(input.reviewRequiredCents > 0
+      ? [{
+          accountKey: 'platform:external_adjustment_review',
+          direction: 'debit' as const,
+          amountCents: input.reviewRequiredCents,
+        }]
+      : []),
+    {
+      accountKey: `processor:${input.processor}:clearing`,
+      direction: 'credit',
+      amountCents: totalCents,
+    },
+  ];
+
+  assertBalanced(entries);
+
+  return {
+    id: randomUUID(),
+    kind: 'EXTERNAL_PAYMENT_ADJUSTMENT',
+    rideId: input.rideId,
+    paymentId: input.paymentId,
+    referenceKey:
+      `external-adjustment:${input.processor}:${input.processorAdjustmentId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function walletTopupCaptureLedger(input: {
   walletTopupId: string;
   passengerId: string;
