@@ -106,6 +106,7 @@
                       <select id="pricing-edit-kind">
                         <option value="fixed_route">Rota fixa</option>
                         <option value="locality_price">Preço por localidade</option>
+                        <option value="locality_policy">Regras da localidade</option>
                         <option value="category_policy">Categoria e elegibilidade</option>
                         <option value="zone_policy">Disponibilidade de zona</option>
                         <option value="locality_map">Localidade no mapa — alfinete + raio</option>
@@ -168,6 +169,56 @@
                       <label id="pricing-locality-max-field" class="field" hidden>
                         <span>Máximo (R$)</span>
                         <input id="pricing-locality-max" inputmode="decimal" placeholder="30,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Base</span>
+                        <select id="pricing-locality-policy-hub">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-policy-id"
+                          autocomplete="off"
+                          placeholder="lagoa-grande"
+                        >
+                      </label>
+
+                      <label class="field pricing-toggle-field">
+                        <span>Moto</span>
+                        <input id="pricing-locality-policy-moto" type="checkbox">
+                        <small>Permitir corridas de Moto nesta localidade.</small>
+                      </label>
+                      <label class="field pricing-toggle-field">
+                        <span>Entrega</span>
+                        <input id="pricing-locality-policy-delivery" type="checkbox">
+                        <small>Permitir Entrega nesta localidade.</small>
+                      </label>
+                      <label class="field pricing-toggle-field">
+                        <span>Carro</span>
+                        <input id="pricing-locality-policy-car" type="checkbox">
+                        <small>Permitir Carro nesta localidade.</small>
+                      </label>
+                      <label
+                        id="pricing-locality-policy-comfort-field"
+                        class="field pricing-toggle-field"
+                      >
+                        <span>Comfort/Black</span>
+                        <input id="pricing-locality-policy-comfort" type="checkbox">
+                        <small>Disponível para localidades do Preá quando houver preço-base de carro.</small>
+                      </label>
+                      <label
+                        id="pricing-locality-policy-night-field"
+                        class="field pricing-toggle-field pricing-edit-span"
+                      >
+                        <span>Adicional noturno do Preá</span>
+                        <input id="pricing-locality-policy-night" type="checkbox">
+                        <small>Aplica o adicional noturno global configurado para o Preá nesta localidade.</small>
                       </label>
                     </div>
 
@@ -542,6 +593,8 @@
                       <th>Moto</th>
                       <th>Entrega</th>
                       <th>Carro</th>
+                      <th>Regras</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody id="pricing-localities-body"></tbody>
