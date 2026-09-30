@@ -20,6 +20,9 @@ import {
   type PaymentRecord,
 } from './payments/payment.js';
 import {
+  ExternalPaymentAdjustmentError,
+} from './payments/external-payment-adjustment.js';
+import {
   MercadoPagoOrdersError,
   mercadoPagoOrderRefundState,
   mercadoPagoOrdersClientFromEnv,
@@ -1348,10 +1351,19 @@ const server = createServer(async (request, response) => {
       } else if (applied.kind === 'refunded') {
         await finalizeMercadoPagoRefundedRide(applied.payment);
       } else if (applied.kind === 'partially_refunded') {
-        logWarn('payment.mercado_pago.partial_refund_detected', {
+        logWarn('payment.mercado_pago.partial_refund_reconciled', {
           paymentId: applied.payment.id,
           rideId: applied.payment.rideId,
           orderId,
+          appliedAdjustments: applied.appliedAdjustments,
+          reviewRequiredCents: applied.reviewRequiredCents,
+        });
+      } else if (applied.kind === 'charged_back') {
+        logWarn('payment.mercado_pago.chargeback_recorded', {
+          paymentId: applied.payment.id,
+          rideId: applied.payment.rideId,
+          orderId,
+          recordedAdjustments: applied.recordedAdjustments,
         });
       }
 
@@ -8204,6 +8216,20 @@ const server = createServer(async (request, response) => {
     if (error instanceof RidePaymentConfirmationError) {
       const status = error.code === 'RIDE_NOT_FOUND' ? 404 : 422;
       json(response, status, { error: error.code, message: error.message });
+      return;
+    }
+
+    if (error instanceof ExternalPaymentAdjustmentError) {
+      const status =
+        error.code === 'PAYMENT_NOT_FOUND'
+          ? 404
+          : error.code === 'PAYMENT_ADJUSTMENT_MISMATCH'
+            ? 409
+            : 422;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
       return;
     }
 
