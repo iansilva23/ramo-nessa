@@ -29,6 +29,22 @@ test('política pública expõe somente disponibilidade operacional necessária 
     minPassengers: 2,
     maxPassengers: 6,
   });
+  assert.equal(
+    view.localityPolicies.prea.some(
+      (item) =>
+        item.localityId === 'buraco-azul' &&
+        item.enabledCategories.includes('comfort_black'),
+    ),
+    true,
+  );
+  assert.equal(
+    view.localityPolicies.jijoca.some(
+      (item) =>
+        item.localityId === 'jijoca' &&
+        item.enabledCategories.includes('comfort_black'),
+    ),
+    false,
+  );
   assert.deepEqual(view.pricingCatalog, {
     catalogVersion: 'v1',
     catalogVersionId: 'version-public-policy',
