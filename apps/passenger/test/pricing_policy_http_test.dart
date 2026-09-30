@@ -18,6 +18,24 @@ void main() {
             'minPassengers': 2,
             'maxPassengers': 6,
           },
+          'localityPolicies': {
+            'prea': [
+              {
+                'localityId': 'lagoa-grande',
+                'enabledCategories': [
+                  'moto',
+                  'delivery',
+                  'comfort_black',
+                ],
+              },
+            ],
+            'jijoca': [
+              {
+                'localityId': 'mangue-seco',
+                'enabledCategories': ['moto', 'car'],
+              },
+            ],
+          },
           'pricingCatalog': {
             'catalogVersion': 'v1',
             'catalogVersionNumber': 7,
@@ -49,6 +67,27 @@ void main() {
     });
     expect(policy.buggyMinPassengers, 2);
     expect(policy.buggyMaxPassengers, 6);
+    expect(
+      policy.localityCategories(
+        zoneId: 'prea',
+        localityId: 'lagoa-grande',
+      ),
+      {'moto', 'delivery', 'comfort_black'},
+    );
+    expect(
+      policy.localityCategories(
+        zoneId: 'jijoca',
+        localityId: 'mangue-seco',
+      ),
+      {'moto', 'car'},
+    );
+    expect(
+      policy.localityCategories(
+        zoneId: 'external',
+        localityId: 'sobral',
+      ),
+      isNull,
+    );
   });
 
   test('rejeita limites inválidos do Buggy', () {
