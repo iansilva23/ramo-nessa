@@ -73,6 +73,8 @@ const state = {
       platformRevenueCents: 0,
       companyProfitAvailableCents: 0,
       companyPayoutPendingCents: 0,
+      externalAdjustmentReviewCents: 0,
+      externalAdjustmentReviewCount: 0,
       driverCashCommissionDebtCents: 0,
       driverPayableCents: 0,
       driverPayoutPendingCents: 0,
@@ -87,6 +89,7 @@ const state = {
     payoutCandidates: [],
     companyPayout: null,
     companyPayouts: [],
+    externalAdjustments: [],
     pendingCompanyPayoutRequestId: null,
     policy: null,
     selectedPayout: null,
@@ -2971,6 +2974,9 @@ function renderFinance(payload = null) {
   const companyPayouts = Array.isArray(payload?.companyPayouts)
     ? payload.companyPayouts
     : state.finance.companyPayouts ?? [];
+  const externalAdjustments = Array.isArray(payload?.externalAdjustments)
+    ? payload.externalAdjustments
+    : state.finance.externalAdjustments ?? [];
   const pendingCompanyPayoutRequestId =
     state.finance.pendingCompanyPayoutRequestId ?? null;
 
@@ -2997,6 +3003,12 @@ function renderFinance(payload = null) {
       companyPayoutPendingCents: numericMetric(
         summary.companyPayoutPendingCents,
       ),
+      externalAdjustmentReviewCents: numericMetric(
+        summary.externalAdjustmentReviewCents,
+      ),
+      externalAdjustmentReviewCount: numericMetric(
+        summary.externalAdjustmentReviewCount,
+      ),
       driverCashCommissionDebtCents: numericMetric(
         summary.driverCashCommissionDebtCents,
       ),
@@ -3019,6 +3031,7 @@ function renderFinance(payload = null) {
     payoutCandidates,
     companyPayout,
     companyPayouts,
+    externalAdjustments,
     pendingCompanyPayoutRequestId,
     policy: state.finance.policy,
     selectedPayout: state.finance.selectedPayout ?? null,
@@ -3061,6 +3074,7 @@ function renderFinance(payload = null) {
 
   renderFinancePayoutPolicy();
   renderCompanyPayoutControls();
+  renderExternalAdjustments();
 
   const paymentBody = byId('finance-payments-body');
   paymentBody.replaceChildren();
@@ -3318,6 +3332,88 @@ function renderCompanyPayoutControls() {
 
   visible.textContent = `${payouts.length} item(ns)`;
   empty.hidden = payouts.length !== 0;
+}
+
+function externalAdjustmentKindLabel(kind) {
+  return kind === 'chargeback'
+    ? 'Contestação'
+    : kind === 'partial_refund'
+      ? 'Refund parcial'
+      : 'Ajuste externo';
+}
+
+function externalAdjustmentStatusPresentation(adjustment) {
+  if (adjustment.accountingStatus === 'review_required') {
+    return { label: 'Revisão necessária', tone: 'warning' };
+  }
+  if (adjustment.accountingStatus === 'applied_to_escrow') {
+    return { label: 'Aplicado ao escrow', tone: 'success' };
+  }
+  return { label: 'Observado', tone: 'neutral' };
+}
+
+function renderExternalAdjustments() {
+  const adjustments = Array.isArray(state.finance.externalAdjustments)
+    ? state.finance.externalAdjustments
+    : [];
+  const body = byId('finance-external-adjustments-body');
+  const empty = byId('finance-external-adjustments-empty');
+  const visible = byId('finance-external-adjustments-visible');
+  const reviewTotal = byId('finance-external-review-total');
+  const reviewCount = byId('finance-external-review-count');
+
+  if (reviewTotal != null) {
+    reviewTotal.textContent = formatCurrencyCents(
+      state.finance.summary.externalAdjustmentReviewCents,
+    );
+  }
+  if (reviewCount != null) {
+    reviewCount.textContent = String(
+      state.finance.summary.externalAdjustmentReviewCount,
+    );
+  }
+  if (body == null || empty == null || visible == null) return;
+
+  body.replaceChildren();
+  for (const adjustment of adjustments) {
+    const row = document.createElement('tr');
+
+    const kind = document.createElement('td');
+    kind.textContent = externalAdjustmentKindLabel(adjustment.kind);
+
+    const status = document.createElement('td');
+    const presentation =
+      externalAdjustmentStatusPresentation(adjustment);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    status.append(pill);
+
+    const payment = document.createElement('td');
+    payment.textContent = adjustment.paymentId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(adjustment.amountCents);
+
+    const escrow = document.createElement('td');
+    escrow.textContent = formatCurrencyCents(
+      adjustment.escrowAppliedCents,
+    );
+
+    const review = document.createElement('td');
+    review.textContent = formatCurrencyCents(
+      adjustment.reviewRequiredCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(adjustment.updatedAt);
+
+    row.append(kind, status, payment, amount, escrow, review, updated);
+    body.append(row);
+  }
+
+  visible.textContent = `${adjustments.length} item(ns)`;
+  empty.hidden = adjustments.length !== 0;
 }
 
 function renderFinancePayoutPolicy() {
