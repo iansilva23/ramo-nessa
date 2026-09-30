@@ -211,6 +211,25 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
     'finance-payout-paid-button',
     'finance-payout-cancel-button',
     'finance-payout-action-note',
+    'finance-company-payout-card',
+    'finance-company-owner-status',
+    'finance-company-available',
+    'finance-company-pending',
+    'finance-company-cash-debt',
+    'finance-company-note',
+    'finance-company-pix-form',
+    'finance-company-pix-status',
+    'finance-company-pix-type',
+    'finance-company-pix-key',
+    'finance-company-pix-save',
+    'finance-company-payout-form',
+    'finance-company-payout-amount',
+    'finance-company-use-all',
+    'finance-company-payout-submit',
+    'finance-company-payout-action-note',
+    'finance-company-payouts-visible',
+    'finance-company-payouts-body',
+    'finance-company-payouts-empty',
     'finance-cash-status',
     'finance-cash-debt-limit',
     'finance-cash-readiness',
@@ -311,6 +330,15 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(api, /cancelFinancePayout\(/);
   assert.match(api, /updateFinancePayoutPolicy\(/);
   assert.match(api, /createManualFinancePayouts\(/);
+  assert.match(api, /saveCompanyPayoutDestination\(/);
+  assert.match(api, /createCompanyPayout\(/);
+  assert.match(api, /cancelCompanyPayout\(/);
+  assert.match(app, /renderCompanyPayoutControls/);
+  assert.match(app, /handleCompanyPayoutDestinationSubmit/);
+  assert.match(app, /handleCompanyPayoutSubmit/);
+  assert.match(app, /handleCompanyPayoutUseAll/);
+  assert.match(app, /handleCompanyPayoutCancel/);
+  assert.match(app, /pendingCompanyPayoutRequestId/);
   assert.match(app, /openFinancePayout/);
   assert.match(app, /handleFinancePayoutApprove/);
   assert.match(app, /handleFinancePayoutPaid/);
@@ -321,6 +349,10 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Aprovar e enviar Pix/);
   assert.match(html, /Recusar \/ cancelar/);
   assert.match(html, /Pagar selecionados/);
+  assert.match(html, /Saldo da empresa/i);
+  assert.match(html, /Enviar saldo por Pix/i);
+  assert.match(html, /Usar saldo total/i);
+  assert.match(html, /Comissão cash ainda não recebida/i);
   assert.equal(app.includes('.innerHTML'), false);
 
   for (const selector of [
@@ -394,6 +426,71 @@ test('cliente Admin consulta, conclui e cancela saque com Bearer fora da URL', a
 });
 
 
+test('cliente Admin gerencia chave e repasse da empresa com Bearer fora da URL', async () => {
+  const calls = [];
+  const payoutId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const requestId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      payout: {
+        id: payoutId,
+        amountCents: 2500,
+        status: 'requested',
+      },
+      duplicate: false,
+    });
+  });
+
+  const token = 'rn_admin_company_payout_secret';
+  await api.saveCompanyPayoutDestination(token, {
+    pixKeyType: 'email',
+    pixKey: 'empresa@example.com',
+  });
+  await api.createCompanyPayout(token, {
+    amountCents: 2500,
+    requestId,
+  });
+  await api.cancelCompanyPayout(token, payoutId);
+
+  assert.equal(calls.length, 3);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/finance/company-payout-destination',
+  );
+  assert.equal(calls[0].options.method, 'PUT');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    pixKeyType: 'email',
+    pixKey: 'empresa@example.com',
+  });
+  assert.equal(
+    calls[1].url,
+    '/v1/admin/finance/company-payouts',
+  );
+  assert.equal(calls[1].options.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[1].options.body), {
+    amountCents: 2500,
+    requestId,
+  });
+  assert.equal(
+    calls[2].url,
+    `/v1/admin/finance/company-payouts/${payoutId}`,
+  );
+  assert.equal(calls[2].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    action: 'cancelled',
+  });
+
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+  }
+});
+
+
 test('ADM bloqueia mutações financeiras quando o snapshot fica desatualizado', () => {
   const app = readFileSync(
     new URL('../src/app.js', import.meta.url),
@@ -424,6 +521,14 @@ test('ADM bloqueia mutações financeiras quando o snapshot fica desatualizado',
   assert.match(
     app,
     /async function handleCardPricePolicySubmit\(event\)[\s\S]*?!state\.token \|\| !financeWritesAvailable\(\)/,
+  );
+  assert.match(
+    app,
+    /function companyPayoutWritesAvailable\(\)[\s\S]*?financeWritesAvailable\(\)[\s\S]*?companyPayout\?\.canManage === true/,
+  );
+  assert.match(
+    app,
+    /async function handleCompanyPayoutSubmit\(event\)[\s\S]*?!state\.token \|\| !companyPayoutWritesAvailable\(\)/,
   );
   assert.ok(
     (app.match(/button\.disabled = !financeWritesAvailable\(\);/g) ?? [])
