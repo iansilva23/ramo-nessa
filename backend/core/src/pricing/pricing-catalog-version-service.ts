@@ -185,12 +185,63 @@ export async function updatePricingCatalogDraft(input: {
             minCents: patch.price.minCents,
             maxCents: patch.price.maxCents,
           };
+
+    const localityPolicy =
+      snapshot.localityPolicies[patch.hub][patch.localityId] ??
+      {
+        enabledCategories: [],
+        applyNightSurcharge: false,
+      };
+    if (!localityPolicy.enabledCategories.includes(patch.category)) {
+      localityPolicy.enabledCategories = [
+        ...localityPolicy.enabledCategories,
+        patch.category,
+      ];
+    }
+    snapshot.localityPolicies[patch.hub][patch.localityId] =
+      localityPolicy;
+
     auditMetadata = {
       kind: patch.kind,
       hub: patch.hub,
       localityId: patch.localityId,
       category: patch.category,
       price: patch.price,
+    };
+  } else if (patch.kind === 'locality_policy') {
+    const locality =
+      snapshot.localities[patch.hub][patch.localityId];
+    if (locality == null) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'Localidade não encontrada no catálogo.',
+      );
+    }
+
+    snapshot.localityPolicies[patch.hub][patch.localityId] = {
+      enabledCategories: [...patch.enabledCategories],
+      applyNightSurcharge: patch.applyNightSurcharge,
+    };
+
+    if (patch.hub === 'prea') {
+      const nightSet = new Set(
+        snapshot.surcharges.preaLocalCarAfter22LocalityIds,
+      );
+      if (patch.applyNightSurcharge) {
+        nightSet.add(patch.localityId);
+      } else {
+        nightSet.delete(patch.localityId);
+      }
+      snapshot.surcharges.preaLocalCarAfter22LocalityIds =
+        [...nightSet].sort();
+    }
+
+    auditMetadata = {
+      kind: patch.kind,
+      hub: patch.hub,
+      localityId: patch.localityId,
+      enabledCategories: [...patch.enabledCategories],
+      applyNightSurcharge: patch.applyNightSurcharge,
     };
   } else if (patch.kind === 'category_policy') {
     snapshot.categoryPolicies[patch.category] = {
@@ -260,6 +311,14 @@ export async function updatePricingCatalogDraft(input: {
         ...patch.preaLocalCarAfter22LocalityIds,
       ].sort(),
     };
+    const nightLocalities = new Set(
+      snapshot.surcharges.preaLocalCarAfter22LocalityIds,
+    );
+    for (const [localityId, policy] of Object.entries(
+      snapshot.localityPolicies.prea,
+    )) {
+      policy.applyNightSurcharge = nightLocalities.has(localityId);
+    }
     auditMetadata = {
       kind: patch.kind,
       ...snapshot.surcharges,
@@ -431,8 +490,13 @@ export async function updatePricingCatalogDraft(input: {
 
       if (patch.operation === 'add') {
         table[patch.localityId] = {};
+        snapshot.localityPolicies[patch.scope][patch.localityId] = {
+          enabledCategories: [],
+          applyNightSurcharge: false,
+        };
       } else {
         delete table[patch.localityId];
+        delete snapshot.localityPolicies[patch.scope][patch.localityId];
         snapshot.localityGeofences =
           snapshot.localityGeofences.filter(
             (candidate) =>
