@@ -41,7 +41,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - o Core já contém a regra comercial;
    - o Passageiro consulta o Core quando `RAMO_CORE_BASE_URL` está configurado;
    - o Admin já possui catálogo ativo protegido, rascunhos editáveis, versionamento persistente, publicação auditada, vigência imediata/programada e edição estrutural versionada das zonas/localidades suportadas;
-   - destinos externos aprovados e localidades locais reconhecidas via Google Places recebem prova assinada pelo Core, vinculada à localidade e coordenadas; o catálogo versionado agora também possui geofences de localidade criadas visualmente no ADM por alfinete + raio, e o Core classifica GPS puro/coordenadas por essas áreas publicadas e emite `placeProof` assinada; alterações feitas no mapa ficam isoladas no rascunho e só passam a valer quando a versão é publicada; ainda é necessário calibrar e validar essas áreas com GPS real antes do Go-Live;
+   - destinos externos aprovados e localidades locais reconhecidas via Google Places recebem prova assinada pelo Core, vinculada à localidade e coordenadas; o catálogo versionado agora também possui geofences de localidade criadas visualmente no ADM por alfinete + raio, e o Core classifica GPS puro/coordenadas por essas áreas publicadas e emite `placeProof` assinada; cada localidade de Preá/Jijoca também possui regras versionadas de categorias permitidas e, no Preá, aplicação do adicional noturno, com o Passenger ocultando serviços desativados em corridas locais; preço, regras e área ficam preservados no mesmo rascunho e só passam a valer quando a versão é publicada; ainda é necessário calibrar e validar essas áreas com GPS real antes do Go-Live;
    - faixas comerciais que ainda não possuem valor único não podem virar cobrança exata automaticamente.
 
 4. **Gateway financeiro real está integrado, mas depende da operação externa**
@@ -109,7 +109,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 10. **Regras de acesso/eligibilidade e geografia**
    - preço não substitui autorização operacional;
    - o Core já valida categoria, lotação, disponibilidade e 4x4 antes da oferta;
-   - disponibilidade de categorias e exigência 4x4 ao cruzar Jeri já são políticas versionadas e publicáveis pelo Admin;
+   - disponibilidade global de categorias, exigência 4x4 ao cruzar Jeri e disponibilidade por localidade (Moto/Entrega/Carro/Comfort no Preá, além do adicional noturno local) são políticas versionadas e publicáveis pelo Admin;
    - cada corrida congela sua exigência 4x4 para não mudar com versões futuras;
    - a validação geográfica estrutural cobre destinos externos aprovados, localidades reconhecidas via Google Places e GPS puro/pontos de mapa classificados por geofences versionadas de alfinete + raio; o Core é a autoridade, escolhe a área publicada aplicável e emite `placeProof` assinada vinculada à coordenada; pontos fora das áreas publicadas falham fechados. Ainda faltam calibração operacional dos raios e validação física em condições reais de GPS antes do Go-Live.
 
