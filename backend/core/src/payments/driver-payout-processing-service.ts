@@ -3,7 +3,11 @@ import type {
   DriverPayoutProvider,
   DriverPayoutProviderResult,
 } from './driver-payout-provider.js';
-import type { DriverPayoutRecord } from './payout.js';
+import {
+  PayoutDomainError,
+  payoutRequiresAdminApproval,
+  type DriverPayoutRecord,
+} from './payout.js';
 
 export type DriverPayoutProcessingOutcome =
   | {
@@ -93,6 +97,16 @@ export async function processDriverPayout(input: {
     return { kind: 'terminal', payout };
   }
 
+  if (
+    payout.status === 'requested' &&
+    payoutRequiresAdminApproval(payout)
+  ) {
+    throw new PayoutDomainError(
+      'PAYOUT_APPROVAL_REQUIRED',
+      'Antecipação aguarda aprovação administrativa.',
+    );
+  }
+
   if (payout.status === 'processing') {
     if (
       payout.processor !== input.provider.name ||
@@ -153,6 +167,12 @@ export async function reconcileDriverPayouts(input: {
   let errors = 0;
 
   for (const payout of payouts) {
+    if (
+      payout.status === 'requested' &&
+      payoutRequiresAdminApproval(payout)
+    ) {
+      continue;
+    }
     try {
       const result = await processDriverPayout({
         finance: input.finance,
