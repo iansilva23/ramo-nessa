@@ -22,6 +22,7 @@ function priceValueView(value: PriceValue | undefined) {
 function localityView(
   localityId: string,
   pricing: LocalityPricing,
+  policy: PricingCatalogSnapshot['localityPolicies']['prea'][string] | undefined,
 ) {
   return {
     localityId,
@@ -29,6 +30,13 @@ function localityView(
       moto: priceValueView(pricing.moto),
       delivery: priceValueView(pricing.delivery),
       car: priceValueView(pricing.car),
+    },
+    policy: {
+      enabledCategories: [
+        ...(policy?.enabledCategories ?? []),
+      ],
+      applyNightSurcharge:
+        policy?.applyNightSurcharge === true,
     },
   };
 }
@@ -92,14 +100,22 @@ export function adminPricingCatalogView(
     localities: {
       prea: Object.entries(snapshot.localities.prea)
         .map(([localityId, pricing]) =>
-          localityView(localityId, pricing),
+          localityView(
+            localityId,
+            pricing,
+            snapshot.localityPolicies.prea[localityId],
+          ),
         )
         .sort((a, b) =>
           a.localityId.localeCompare(b.localityId),
         ),
       jijoca: Object.entries(snapshot.localities.jijoca)
         .map(([localityId, pricing]) =>
-          localityView(localityId, pricing),
+          localityView(
+            localityId,
+            pricing,
+            snapshot.localityPolicies.jijoca[localityId],
+          ),
         )
         .sort((a, b) =>
           a.localityId.localeCompare(b.localityId),
