@@ -56,8 +56,8 @@ export interface MercadoPagoOrderStatus {
   paymentId: string;
   paymentStatus: string;
   paymentStatusDetail: string;
-  refunds: MercadoPagoOrderRefund[];
-  chargebacks: MercadoPagoOrderChargeback[];
+  refunds?: MercadoPagoOrderRefund[];
+  chargebacks?: MercadoPagoOrderChargeback[];
 }
 
 function asObject(value: unknown): Record<string, unknown> {
