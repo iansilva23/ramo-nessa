@@ -2,7 +2,7 @@ import type {
   PricingCatalogSnapshot,
   PricingLocalityGeofence,
 } from '../pricing/catalog-snapshot.js';
-import type { LocationRef } from '../pricing/types.js';
+import type { LocationRef, ZoneId } from '../pricing/types.js';
 import { assertCatalogLocationSupported } from '../pricing/catalog-location-policy.js';
 
 export class CoordinateClassificationError extends Error {
@@ -55,11 +55,16 @@ function validGeofence(
   );
 }
 
+export interface ClassifiedCoordinateLocation {
+  zoneId: ZoneId;
+  localityId: string;
+}
+
 export function classifyCoordinateByCatalog(input: {
   catalog: PricingCatalogSnapshot;
   latitude: number;
   longitude: number;
-}): LocationRef {
+}): ClassifiedCoordinateLocation {
   if (
     !Number.isFinite(input.latitude) ||
     input.latitude < -90 ||
@@ -101,7 +106,7 @@ export function classifyCoordinateByCatalog(input: {
     });
 
   for (const candidate of candidates) {
-    const ref: LocationRef = {
+    const ref: ClassifiedCoordinateLocation = {
       zoneId: candidate.geofence.zoneId,
       localityId: candidate.geofence.localityId,
     };
