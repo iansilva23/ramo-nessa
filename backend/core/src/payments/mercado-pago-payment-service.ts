@@ -202,7 +202,17 @@ export type MercadoPagoOrderApplication =
   | { kind: 'paid'; payment: PaymentRecord }
   | { kind: 'failed'; payment: PaymentRecord }
   | { kind: 'cancelled'; payment: PaymentRecord }
-  | { kind: 'partially_refunded'; payment: PaymentRecord }
+  | {
+      kind: 'partially_refunded';
+      payment: PaymentRecord;
+      appliedAdjustments: number;
+      reviewRequiredCents: number;
+    }
+  | {
+      kind: 'charged_back';
+      payment: PaymentRecord;
+      recordedAdjustments: number;
+    }
   | { kind: 'refunded'; payment: PaymentRecord; duplicateRefund: boolean };
 
 export async function applyMercadoPagoOrderStatus(input: {
@@ -265,7 +275,76 @@ export async function applyMercadoPagoOrderStatus(input: {
   }
 
   if (refundState === 'partial') {
-    return { kind: 'partially_refunded', payment };
+    let appliedAdjustments = 0;
+    let reviewRequiredCents = 0;
+
+    for (const refund of input.order.refunds ?? []) {
+      if (refund.status.toLowerCase() !== 'processed') {
+        continue;
+      }
+      const result =
+        await input.finance.recordExternalPaymentAdjustment({
+          paymentId: payment.id,
+          processorAdjustmentId: refund.id,
+          kind: 'partial_refund',
+          processorStatus: refund.status,
+          processorStatusDetail: input.order.statusDetail,
+          amountCents: refund.amountCents,
+          applyToAccounting: true,
+          ...(input.now == null ? {} : { observedAt: input.now }),
+        });
+      appliedAdjustments += 1;
+      reviewRequiredCents +=
+        result.adjustment.reviewRequiredCents;
+    }
+
+    return {
+      kind: 'partially_refunded',
+      payment,
+      appliedAdjustments,
+      reviewRequiredCents,
+    };
+  }
+
+  if (
+    status === 'charged_back' ||
+    paymentStatus === 'charged_back'
+  ) {
+    const chargebacks =
+      (input.order.chargebacks ?? []).length > 0
+        ? input.order.chargebacks ?? []
+        : [{
+            id: `order:${input.order.orderId}`,
+            transactionId: input.order.paymentId,
+            amountCents: input.order.totalAmountCents,
+            status:
+              input.order.statusDetail ||
+              input.order.paymentStatusDetail ||
+              'in_process',
+          }];
+
+    let recordedAdjustments = 0;
+    for (const chargeback of chargebacks) {
+      await input.finance.recordExternalPaymentAdjustment({
+        paymentId: payment.id,
+        processorAdjustmentId: chargeback.id,
+        kind: 'chargeback',
+        processorStatus: chargeback.status,
+        processorStatusDetail:
+          input.order.statusDetail ||
+          input.order.paymentStatusDetail,
+        amountCents: chargeback.amountCents,
+        applyToAccounting: false,
+        ...(input.now == null ? {} : { observedAt: input.now }),
+      });
+      recordedAdjustments += 1;
+    }
+
+    return {
+      kind: 'charged_back',
+      payment,
+      recordedAdjustments,
+    };
   }
 
   if (
