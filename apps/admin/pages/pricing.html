@@ -108,6 +108,7 @@
                         <option value="locality_price">Preço por localidade</option>
                         <option value="category_policy">Categoria e elegibilidade</option>
                         <option value="zone_policy">Disponibilidade de zona</option>
+                        <option value="locality_map">Localidade no mapa — alfinete + raio</option>
                         <option value="locality_structure">Estrutura de localidade</option>
                         <option value="commission_policy">Comissão da plataforma</option>
                         <option value="period_policy">Horário diurno / noturno</option>
@@ -214,6 +215,73 @@
                           <option value="false">Desativada</option>
                         </select>
                       </label>
+                    </div>
+
+                    <div id="pricing-locality-map-fields" class="pricing-edit-group pricing-edit-group--map" hidden>
+                      <label class="field">
+                        <span>Base / zona</span>
+                        <select id="pricing-locality-map-scope">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destino externo</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-map-id"
+                          autocomplete="off"
+                          placeholder="lagoa-grande"
+                        >
+                        <small>Use um ID curto sem espaços. Ex.: lagoa-grande.</small>
+                      </label>
+
+                      <label class="field">
+                        <span>Raio da localidade (km)</span>
+                        <input
+                          id="pricing-locality-map-radius"
+                          type="number"
+                          min="0.05"
+                          max="100"
+                          step="0.05"
+                          inputmode="decimal"
+                          value="2"
+                        >
+                        <small>O círculo do mapa muda junto com este valor.</small>
+                      </label>
+                      <div class="pricing-geofence-coordinates">
+                        <span>Alfinete</span>
+                        <strong id="pricing-locality-map-coordinate-label">—</strong>
+                        <input id="pricing-locality-map-latitude" type="hidden">
+                        <input id="pricing-locality-map-longitude" type="hidden">
+                      </div>
+
+                      <div class="pricing-geofence-map-shell pricing-edit-span">
+                        <div
+                          id="pricing-locality-map"
+                          class="pricing-geofence-map"
+                          aria-label="Mapa para posicionar o alfinete e definir o raio da localidade"
+                        >
+                          <div id="pricing-locality-map-tiles" class="pricing-geofence-map__tiles"></div>
+                          <div id="pricing-locality-map-overlay" class="pricing-geofence-map__overlay"></div>
+                          <div class="pricing-geofence-map__controls">
+                            <button id="pricing-locality-map-zoom-in" type="button" aria-label="Aumentar zoom">+</button>
+                            <button id="pricing-locality-map-zoom-out" type="button" aria-label="Diminuir zoom">−</button>
+                          </div>
+                          <a
+                            class="pricing-geofence-map__attribution"
+                            href="https://www.openstreetmap.org/copyright"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            © OpenStreetMap
+                          </a>
+                        </div>
+                        <div class="pricing-geofence-map-help">
+                          <strong>Clique para posicionar o alfinete.</strong>
+                          <span>Arraste o mapa para navegar e ajuste o raio acima. A área só entra em produção quando você publicar o rascunho.</span>
+                        </div>
+                      </div>
                     </div>
 
                     <div id="pricing-locality-structure-fields" class="pricing-edit-group" hidden>
@@ -427,6 +495,33 @@
               </div>
               <div id="pricing-external-localities-empty" class="empty-state">
                 Nenhum destino externo aprovado.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ÁREAS NO MAPA</span>
+                  <h2>Alfinete e raio das localidades</h2>
+                </div>
+                <span id="pricing-geofence-count" class="pill">0 áreas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Zona</th>
+                      <th>Localidade</th>
+                      <th>Centro</th>
+                      <th>Raio</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-geofences-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-geofences-empty" class="empty-state">
+                Nenhuma área geográfica cadastrada.
               </div>
             </article>
 
