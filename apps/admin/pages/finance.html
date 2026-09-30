@@ -321,6 +321,84 @@
               <span><strong id="finance-payments-refunded">0</strong> estornados</span>
             </div>
 
+            <article class="panel-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">REPASSES DOS MOTORISTAS</span>
+                  <h2>Controle de repasses</h2>
+                  <p class="muted-copy">
+                    Por padrão, os saldos disponíveis são enviados
+                    segunda, quarta e sexta às 07:00 (horário de Fortaleza).
+                    Antecipações sempre exigem aprovação do ADM.
+                  </p>
+                </div>
+                <span id="finance-payout-policy-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <div class="finance-payout-actions">
+                <button
+                  id="finance-payout-mode-toggle"
+                  class="button button--dark"
+                  type="button"
+                  disabled
+                >
+                  Alterar modo de repasse
+                </button>
+                <span id="finance-payout-policy-note">
+                  Carregando política de repasses.
+                </span>
+              </div>
+
+              <div id="finance-manual-payouts" hidden>
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">MODO MANUAL</span>
+                    <h3>Motoristas com saldo a receber</h3>
+                    <p class="muted-copy">
+                      Selecione um, vários ou todos. O Core reserva o saldo
+                      e envia o Pix pelo provedor configurado.
+                    </p>
+                  </div>
+                  <button
+                    id="finance-manual-payout-selected"
+                    class="button button--dark"
+                    type="button"
+                    disabled
+                  >
+                    Pagar selecionados
+                  </button>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input
+                            id="finance-manual-select-all"
+                            type="checkbox"
+                            aria-label="Selecionar todos os motoristas"
+                          >
+                        </th>
+                        <th>Motorista</th>
+                        <th>Saldo disponível</th>
+                        <th>Pix</th>
+                        <th>Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-manual-payouts-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-manual-payouts-empty" class="empty-state">
+                  Nenhum motorista com saldo disponível para repasse.
+                </div>
+                <small id="finance-manual-payout-selection-note">
+                  Nenhum motorista selecionado.
+                </small>
+              </div>
+            </article>
+
             <div class="finance-columns">
               <article class="panel-card panel-card--table">
                 <div class="panel-card__header">
@@ -388,9 +466,9 @@
                 <div>
                   <span class="eyebrow eyebrow--dark">CONCILIAÇÃO DE SAQUE</span>
                   <h2>Detalhes da solicitação</h2>
-                  <p class="muted-copy">
-                    Registrar como pago não envia Pix. Use somente depois de confirmar
-                    que o repasse foi realizado fora do sistema.
+                  <p id="finance-payout-detail-copy" class="muted-copy">
+                    Antecipações ficam aguardando sua aprovação. Ao aprovar,
+                    o Core envia o valor líquido pelo provedor Pix configurado.
                   </p>
                 </div>
                 <button
@@ -412,7 +490,19 @@
                   <strong id="finance-payout-detail-driver">—</strong>
                 </div>
                 <div>
-                  <span>Valor</span>
+                  <span>Tipo</span>
+                  <strong id="finance-payout-detail-kind">—</strong>
+                </div>
+                <div>
+                  <span>Valor solicitado</span>
+                  <strong id="finance-payout-detail-gross">—</strong>
+                </div>
+                <div>
+                  <span>Taxa de antecipação</span>
+                  <strong id="finance-payout-detail-fee">—</strong>
+                </div>
+                <div>
+                  <span>Valor líquido do Pix</span>
                   <strong id="finance-payout-detail-amount">—</strong>
                 </div>
                 <div>
@@ -451,22 +541,31 @@
                 </label>
                 <div class="finance-payout-actions">
                   <button
-                    id="finance-payout-paid-button"
+                    id="finance-payout-approve-button"
                     class="button button--dark"
+                    type="button"
+                    hidden
+                    disabled
+                  >
+                    Aprovar e enviar Pix
+                  </button>
+                  <button
+                    id="finance-payout-paid-button"
+                    class="button button--ghost-dark"
                     type="submit"
                   >
-                    Registrar como pago
+                    Registrar pagamento externo
                   </button>
                   <button
                     id="finance-payout-cancel-button"
                     class="button button--danger"
                     type="button"
                   >
-                    Cancelar solicitação
+                    Recusar / cancelar
                   </button>
                 </div>
                 <small id="finance-payout-action-note">
-                  Ações disponíveis somente enquanto o saque estiver solicitado.
+                  Antecipações precisam de aprovação; repasses externos podem ser conciliados manualmente.
                 </small>
               </form>
             </article>
