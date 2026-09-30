@@ -42,3 +42,16 @@ export function assertAdminPayoutOwner(
     );
   }
 }
+
+
+export function isAdminPayoutOwner(
+  actor: AdminActor,
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (actor.kind !== 'user') return false;
+  try {
+    return actor.id === resolvePayoutApproverUserId(environment);
+  } catch {
+    return false;
+  }
+}
