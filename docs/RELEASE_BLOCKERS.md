@@ -56,7 +56,8 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
    - quando nenhuma oferta é aceita, o Passageiro pode tentar uma nova rodada sem nova cobrança ou cancelar e receber reembolso integral; se não decidir, o Core encerra automaticamente após o prazo operacional configurável (padrão 15 minutos) e inicia o reembolso;
    - cancelamento do Motorista durante `IN_PROGRESS` não liquida a corrida para o Motorista: o Passageiro recebe reembolso integral e a eventual compensação do Motorista fica separada para revisão administrativa;
    - solicitação de estorno integral e reconciliação da confirmação Orders já existem no Core, inclusive retry idempotente e varredura automática de `REFUND_PENDING`;
-   - ainda é necessário validar pagamento/estorno no sandbox externo e domínio público; conciliação operacional completa, tratamento operacional de chargebacks/estornos parciais e repasse Pix real continuam pendentes.
+   - o repasse Pix de motoristas agora possui adaptador nativo para Mercado Pago Payouts: criação em /v1/payouts, idempotência, consulta de status, mapeamento de chave Pix, reconciliação pelo Core e assinatura Ed25519 obrigatória em produção; as regras de repasse normal seg/qua/sex às 07h, antecipação mínima de R$ 80 com taxa de R$ 10, aprovação exclusiva do proprietário e modo manual em lote também estão implementadas;
+   - ainda é necessário validar pagamento/estorno no sandbox externo e domínio público; para Payouts faltam habilitação do produto na conta/aplicação, credenciais específicas de teste/produção, cadastro da chave pública Ed25519 com o Mercado Pago, confirmação de limites/tarifas e homologação de um Pix externo real controlado; chargebacks/estornos parciais e a operação externa completa continuam pendentes.
 
 5. **Assinatura Android de produção está preparada no código, mas ainda depende da chave real**
    - a auditoria removeu o fallback de release para chave debug;
