@@ -102,6 +102,71 @@ test('consulta Order e lê status consolidado e da transação', async () => {
   assert.equal(order.paymentStatus, 'processed');
 });
 
+test('consulta Order e lê refunds e chargebacks com valores autoritativos', async () => {
+  const client = new MercadoPagoOrdersClient(
+    'test-token-' + 'x'.repeat(32),
+    async () =>
+      new Response(
+        JSON.stringify({
+          id: 'ORD01ADJUSTMENTS123456',
+          external_reference: 'payment-adjustments-001',
+          status: 'processed',
+          status_detail: 'partially_refunded',
+          total_amount: '120.00',
+          transactions: {
+            payments: [
+              {
+                id: 'PAY01ADJUSTMENTS123456',
+                status: 'processed',
+                status_detail: 'partially_refunded',
+              },
+            ],
+            refunds: [
+              {
+                id: 'REF01PARTIAL123456',
+                transaction_id: 'PAY01ADJUSTMENTS123456',
+                reference_id: 'refund-reference-001',
+                amount: '20.50',
+                status: 'processed',
+              },
+            ],
+            chargebacks: [
+              {
+                id: 'CHB01CASE123456',
+                transaction_id: 'PAY01ADJUSTMENTS123456',
+                case_id: 987654,
+                amount: '35.25',
+                status: 'in_process',
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+  );
+
+  const order = await client.getOrder('ORD01ADJUSTMENTS123456');
+
+  assert.deepEqual(order.refunds, [
+    {
+      id: 'REF01PARTIAL123456',
+      transactionId: 'PAY01ADJUSTMENTS123456',
+      referenceId: 'refund-reference-001',
+      amountCents: 2050,
+      status: 'processed',
+    },
+  ]);
+  assert.deepEqual(order.chargebacks, [
+    {
+      id: 'CHB01CASE123456',
+      transactionId: 'PAY01ADJUSTMENTS123456',
+      caseId: '987654',
+      amountCents: 3525,
+      status: 'in_process',
+    },
+  ]);
+});
+
 test('valida assinatura HMAC com data.id em minúsculas no manifesto', () => {
   const dataId = 'ORD01MiXeDCase123';
   const requestId = 'request-123';
