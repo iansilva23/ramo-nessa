@@ -19,6 +19,7 @@ export async function adminFinanceView(input: {
     payoutCandidates,
     companyDestination,
     companyPayouts,
+    externalAdjustments,
   ] = await Promise.all([
     input.finance.adminFinanceSummary(),
     input.finance.listRecentPayments(limit),
@@ -27,6 +28,7 @@ export async function adminFinanceView(input: {
     input.finance.listDriverPayoutCandidates(500),
     input.finance.getCompanyPayoutDestination(),
     input.finance.listRecentCompanyPayouts(limit),
+    input.finance.listRecentExternalPaymentAdjustments(limit),
   ]);
 
   return {
@@ -69,8 +71,22 @@ export async function adminFinanceView(input: {
       unrecoveredCashCommissionCents:
         summary.driverCashCommissionDebtCents,
       note:
-        'Saldo disponível considera a receita da plataforma menos comissão cash ainda não recuperada. Não representa lucro contábil após impostos/despesas.',
+        'Saldo disponível considera a receita da plataforma menos comissão cash ainda não recuperada e ajustes externos em revisão. Não representa lucro contábil após impostos/despesas.',
     },
+    externalAdjustments: externalAdjustments.map((adjustment) => ({
+      id: adjustment.id,
+      paymentId: adjustment.paymentId,
+      kind: adjustment.kind,
+      processorAdjustmentId: adjustment.processorAdjustmentId,
+      processorStatus: adjustment.processorStatus,
+      processorStatusDetail: adjustment.processorStatusDetail,
+      amountCents: adjustment.amountCents,
+      escrowAppliedCents: adjustment.escrowAppliedCents,
+      reviewRequiredCents: adjustment.reviewRequiredCents,
+      accountingStatus: adjustment.accountingStatus,
+      createdAt: adjustment.createdAt,
+      updatedAt: adjustment.updatedAt,
+    })),
     companyPayouts: companyPayouts.map((payout) => ({
       id: payout.id,
       amountCents: payout.amountCents,
