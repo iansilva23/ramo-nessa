@@ -197,8 +197,17 @@ export function createPricingGeofenceMap(input) {
     );
   }
 
+  function isControlTarget(target) {
+    return (
+      target instanceof Element &&
+      target.closest(
+        '.pricing-geofence-map__controls, .pricing-geofence-map__attribution',
+      ) != null
+    );
+  }
+
   function onPointerDown(event) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || isControlTarget(event.target)) return;
     root.setPointerCapture(event.pointerId);
     pointer = {
       pointerId: event.pointerId,
