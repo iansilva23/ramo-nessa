@@ -789,3 +789,170 @@ test(
     }
   },
 );
+
+
+test(
+  'PostgreSQL registra refund parcial pós-liquidação em revisão sem debitar motorista',
+  { skip: !databaseUrl },
+  async () => {
+    const pool = createPostgresPool(databaseUrl!);
+    const repository = new PostgresFinanceRepository(pool);
+    const rideId = randomUUID();
+    const paymentId = randomUUID();
+    const driverId = `postgres-adjustment-driver-${randomUUID()}`;
+    const processorAdjustmentId =
+      `postgres-refund-${randomUUID()}`;
+    const now = '2026-09-30T05:10:00.000Z';
+
+    try {
+      await pool.query(
+        `
+        INSERT INTO rides (
+          id, passenger_id, state, payment_status, driver_id,
+          origin_zone_id, destination_zone_id,
+          category, price_period, passengers,
+          pricing_rule_id, base_amount_cents,
+          pickup_compensation_cents, total_amount_cents,
+          platform_commission_cents, driver_net_cents,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'postgres-adjustment-passenger',
+          'COMPLETED', 'paid', $2,
+          'prea', 'jijoca', 'car', 'day', 1,
+          'audit-prea-jijoca-car', 12000, 0, 12000, 1200, 10800,
+          $3, $3
+        )
+        `,
+        [rideId, driverId, now],
+      );
+
+      await repository.createPayment({
+        id: paymentId,
+        rideId,
+        method: 'pix',
+        processor: 'mercado-pago-orders',
+        processorPaymentId: 'ORD01POSTGRESADJUSTMENT',
+        status: 'pending',
+        amountCents: 12000,
+        idempotencyKey: `postgres-adjustment-payment-${paymentId}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await repository.capturePayment({
+        paymentId,
+        processorEventId:
+          `postgres-adjustment-capture-${paymentId}`,
+        capturedAt: new Date(now),
+      });
+      await repository.settleRide({
+        rideId,
+        paymentId,
+        driverId,
+        totalAmountCents: 12000,
+        fareAmountCents: 12000,
+        paymentAdjustmentCents: 0,
+        platformCommissionCents: 1200,
+        driverNetCents: 10800,
+        settledAt: new Date('2026-09-30T05:11:00.000Z'),
+      });
+
+      const driverBefore =
+        await repository.getAccountBalanceCents(
+          `driver:${driverId}:payable`,
+        );
+      assert.equal(driverBefore, 10800);
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `ride:${rideId}:escrow`,
+        ),
+        0,
+      );
+
+      const first =
+        await repository.recordExternalPaymentAdjustment({
+          paymentId,
+          processorAdjustmentId,
+          kind: 'partial_refund',
+          processorStatus: 'processed',
+          processorStatusDetail: 'partially_refunded',
+          amountCents: 2000,
+          applyToAccounting: true,
+          observedAt: new Date('2026-09-30T05:12:00.000Z'),
+        });
+
+      assert.equal(first.duplicateAdjustment, false);
+      assert.equal(first.adjustment.escrowAppliedCents, 0);
+      assert.equal(first.adjustment.reviewRequiredCents, 2000);
+      assert.equal(
+        first.adjustment.accountingStatus,
+        'review_required',
+      );
+
+      const duplicate =
+        await repository.recordExternalPaymentAdjustment({
+          paymentId,
+          processorAdjustmentId,
+          kind: 'partial_refund',
+          processorStatus: 'processed',
+          processorStatusDetail: 'partially_refunded',
+          amountCents: 2000,
+          applyToAccounting: true,
+          observedAt: new Date('2026-09-30T05:13:00.000Z'),
+        });
+
+      assert.equal(duplicate.duplicateAdjustment, true);
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          `driver:${driverId}:payable`,
+        ),
+        driverBefore,
+      );
+      assert.equal(
+        await repository.getAccountBalanceCents(
+          'platform:external_adjustment_review',
+        ),
+        -2000,
+      );
+
+      const adjustments =
+        await repository.listRecentExternalPaymentAdjustments(100);
+      const matching = adjustments.filter(
+        (item) =>
+          item.processorAdjustmentId === processorAdjustmentId,
+      );
+      assert.equal(matching.length, 1);
+
+      const summary = await repository.adminFinanceSummary();
+      assert.ok(summary.externalAdjustmentReviewCents >= 2000);
+      assert.ok(summary.externalAdjustmentReviewCount >= 1);
+    } finally {
+      await pool.query(
+        'DELETE FROM payment_external_adjustments WHERE payment_id = $1',
+        [paymentId],
+      );
+      await pool.query(
+        `
+        DELETE FROM ledger_entries
+        WHERE transaction_id IN (
+          SELECT id FROM ledger_transactions WHERE ride_id = $1
+        )
+        `,
+        [rideId],
+      );
+      await pool.query(
+        'DELETE FROM ledger_transactions WHERE ride_id = $1',
+        [rideId],
+      );
+      await pool.query(
+        'DELETE FROM payment_events WHERE payment_id = $1',
+        [paymentId],
+      );
+      await pool.query(
+        'DELETE FROM payments WHERE id = $1',
+        [paymentId],
+      );
+      await pool.query('DELETE FROM rides WHERE id = $1', [rideId]);
+      await pool.end();
+    }
+  },
+);
