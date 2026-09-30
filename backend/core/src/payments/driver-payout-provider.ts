@@ -172,13 +172,18 @@ type MercadoPagoPayoutMode = 'test' | 'production';
 function mercadoPagoPixKeyType(
   pixKeyType: PixKeyType,
 ): 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'PIX_CODE' {
-  return {
-    cpf: 'CPF',
-    cnpj: 'CNPJ',
-    email: 'EMAIL',
-    phone: 'PHONE',
-    random: 'PIX_CODE',
-  }[pixKeyType];
+  switch (pixKeyType) {
+    case 'cpf':
+      return 'CPF';
+    case 'cnpj':
+      return 'CNPJ';
+    case 'email':
+      return 'EMAIL';
+    case 'phone':
+      return 'PHONE';
+    case 'random':
+      return 'PIX_CODE';
+  }
 }
 
 function mercadoPagoAmount(amountCents: number): number {
