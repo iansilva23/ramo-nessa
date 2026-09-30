@@ -26,7 +26,7 @@ async function fundedFinance(amountCents = 20_000) {
     method: 'wallet',
     processor: 'internal-wallet',
     status: 'pending',
-    amountCents,
+    amountCents: amountCents + 1_000,
     idempotencyKey: 'payout-controls-seed',
     createdAt: '2026-09-28T10:00:00.000Z',
     updatedAt: '2026-09-28T10:00:00.000Z',
@@ -39,8 +39,8 @@ async function fundedFinance(amountCents = 20_000) {
     rideId: payment.rideId,
     paymentId: captured.payment.id,
     driverId: 'driver-controls',
-    totalAmountCents: amountCents,
-    platformCommissionCents: 0,
+    totalAmountCents: amountCents + 1_000,
+    platformCommissionCents: 1_000,
     driverNetCents: amountCents,
   });
   await finance.upsertDriverPayoutDestination({
