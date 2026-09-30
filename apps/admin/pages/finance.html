@@ -553,6 +553,53 @@
               </div>
             </article>
 
+            <article class="panel-card panel-card--table" id="finance-external-adjustments-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">AJUSTES EXTERNOS</span>
+                  <h2>Refunds parciais e contestações</h2>
+                  <p class="muted-copy">
+                    Eventos confirmados pelo processador. Valores que já não
+                    estavam no escrow ficam em revisão financeira e reduzem o
+                    saldo disponível da empresa sem debitar motorista
+                    automaticamente.
+                  </p>
+                </div>
+                <span id="finance-external-adjustments-visible" class="pill">0 itens</span>
+              </div>
+
+              <div class="finance-status-strip">
+                <span>
+                  Em revisão
+                  <strong id="finance-external-review-total">R$ 0,00</strong>
+                </span>
+                <span>
+                  Casos em revisão
+                  <strong id="finance-external-review-count">0</strong>
+                </span>
+              </div>
+
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Status</th>
+                      <th>Pagamento</th>
+                      <th>Valor</th>
+                      <th>Escrow</th>
+                      <th>Revisão</th>
+                      <th>Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="finance-external-adjustments-body"></tbody>
+                </table>
+              </div>
+              <div id="finance-external-adjustments-empty" class="empty-state">
+                Nenhum refund parcial ou chargeback registrado.
+              </div>
+            </article>
+
             <div class="finance-columns">
               <article class="panel-card panel-card--table">
                 <div class="panel-card__header">
