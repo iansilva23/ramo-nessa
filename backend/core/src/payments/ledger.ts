@@ -468,6 +468,38 @@ export function driverPayoutReserveLedger(input: {
 }
 
 
+export function driverPayoutAnticipationFeeLedger(input: {
+  payoutId: string;
+  driverId: string;
+  feeCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (!Number.isInteger(input.feeCents) || input.feeCents <= 0) {
+    throw new LedgerError('Taxa de antecipação deve ser positiva.');
+  }
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'debit',
+      amountCents: input.feeCents,
+    },
+    {
+      accountKey: 'platform:revenue',
+      direction: 'credit',
+      amountCents: input.feeCents,
+    },
+  ];
+  assertBalanced(entries);
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_ANTICIPATION_FEE',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-anticipation-fee:${input.payoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function driverPayoutPaidLedger(input: {
   payoutId: string;
   driverId: string;
@@ -509,23 +541,34 @@ export function driverPayoutFailedLedger(input: {
   payoutId: string;
   driverId: string;
   amountCents: number;
+  requestedAmountCents?: number;
+  feeCents?: number;
+  feeWasApplied?: boolean;
   createdAt: string;
 }): LedgerTransaction {
+  const gross = input.requestedAmountCents ?? input.amountCents;
+  const fee = input.feeCents ?? 0;
+  const charged = input.feeWasApplied === true && fee > 0;
   const entries: LedgerEntry[] = [
     {
       accountKey: `driver:${input.driverId}:payout_pending`,
       direction: 'debit',
-      amountCents: input.amountCents,
+      amountCents: charged ? input.amountCents : gross,
     },
+    ...(charged
+      ? [{
+          accountKey: 'platform:revenue',
+          direction: 'debit' as const,
+          amountCents: fee,
+        }]
+      : []),
     {
       accountKey: `driver:${input.driverId}:payable`,
       direction: 'credit',
-      amountCents: input.amountCents,
+      amountCents: gross,
     },
   ];
-
   assertBalanced(entries);
-
   return {
     id: randomUUID(),
     kind: 'DRIVER_PAYOUT_FAILED',
@@ -540,8 +583,44 @@ export function driverPayoutCancelledLedger(input: {
   payoutId: string;
   driverId: string;
   amountCents: number;
+  requestedAmountCents?: number;
+  feeCents?: number;
+  feeWasApplied?: boolean;
   createdAt: string;
 }): LedgerTransaction {
+  const gross = input.requestedAmountCents ?? input.amountCents;
+  const fee = input.feeCents ?? 0;
+  const charged = input.feeWasApplied === true && fee > 0;
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `driver:${input.driverId}:payout_pending`,
+      direction: 'debit',
+      amountCents: charged ? input.amountCents : gross,
+    },
+    ...(charged
+      ? [{
+          accountKey: 'platform:revenue',
+          direction: 'debit' as const,
+          amountCents: fee,
+        }]
+      : []),
+    {
+      accountKey: `driver:${input.driverId}:payable`,
+      direction: 'credit',
+      amountCents: gross,
+    },
+  ];
+  assertBalanced(entries);
+  return {
+    id: randomUUID(),
+    kind: 'DRIVER_PAYOUT_CANCELLED',
+    payoutId: input.payoutId,
+    referenceKey: `driver-payout-cancelled:${input.payoutId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
   const entries: LedgerEntry[] = [
     {
       accountKey: `driver:${input.driverId}:payout_pending`,
