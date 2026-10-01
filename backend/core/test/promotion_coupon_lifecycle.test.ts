@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
+import { automaticallyRefundRide } from '../src/rides/automatic-ride-refund-service.js';
+import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import {
   createFullyPromotionalPayment,
   PromotionError,
@@ -198,5 +200,80 @@ test('confirmação promocional zero rejeita hold expirado no Core', async () =>
   assert.equal(
     await finance.findLatestPaymentByRideId(ride.id),
     null,
+  );
+});
+
+test('cancelamento de corrida grátis libera subsídio e não chama gateway', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const promotions = new InMemoryPromotionRepository();
+  const rides = new InMemoryRideRepository();
+  const ride = freeRide('2026-10-01T05:05:00.000Z');
+
+  await rides.create({
+    ...ride,
+    state: 'CANCELLED_BY_PASSENGER',
+    paymentStatus: 'paid',
+    paymentMethod: 'promotion',
+  });
+  await promotions.reserveRedemption({
+    redemption: {
+      ...redemption({
+        id: ride.promotion!.applicationId,
+        campaignId: ride.promotion!.campaignId,
+        rideId: ride.id,
+      }),
+      discountCents: ride.promotion!.discountCents,
+      passengerPayableCents: 0,
+      driverEarningsCents: ride.promotion!.driverEarningsCents,
+    },
+    maxRedemptions: 10,
+    perPassengerLimit: 10,
+    perDeviceLimit: 10,
+    now,
+  });
+  await finance.createPayment({
+    id: 'payment-free-cancel',
+    rideId: ride.id,
+    method: 'promotion',
+    processor: 'internal-promotion',
+    status: 'paid',
+    amountCents: 0,
+    idempotencyKey: 'promotion-use-free',
+    createdAt: now,
+    updatedAt: now,
+  });
+  await finance.fundRidePromotion({
+    rideId: ride.id,
+    applicationId: ride.promotion!.applicationId,
+    amountCents: ride.promotion!.discountCents,
+    fundedAt: new Date(now),
+  });
+
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    20000,
+  );
+
+  const result = await automaticallyRefundRide({
+    rides,
+    finance,
+    promotions,
+    gateway: null,
+    rideId: ride.id,
+    passengerId: ride.passengerId,
+    now: new Date('2026-10-01T05:00:10.000Z'),
+  });
+
+  assert.equal(result.refundStatus, 'not_charged');
+  assert.equal(result.payment?.method, 'promotion');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+  assert.equal(
+    (await promotions.findRedemptionById(
+      ride.promotion!.applicationId,
+    ))?.status,
+    'released',
   );
 });

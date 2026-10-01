@@ -1,6 +1,8 @@
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { MercadoPagoOrdersClient } from '../payments/mercado-pago-orders.js';
 import type { PaymentRecord } from '../payments/payment.js';
+import type { PromotionRepository } from '../promotions/promotion-repository.js';
+import { releaseFundedRidePromotion } from '../promotions/promotion-service.js';
 import {
   refundMercadoPagoRide,
 } from './refund-external-no-driver.js';
@@ -41,6 +43,7 @@ async function markRefundPending(
 export async function automaticallyRefundRide(input: {
   rides: RideRepository;
   finance: FinanceRepository;
+  promotions: PromotionRepository;
   gateway: MercadoPagoOrdersClient | null;
   rideId: string;
   passengerId: string;
@@ -68,6 +71,25 @@ export async function automaticallyRefundRide(input: {
     throw new Error('Pagamento da corrida não foi encontrado para reembolso.');
   }
 
+  if (
+    payment.method === 'promotion' &&
+    payment.processor === 'internal-promotion' &&
+    payment.amountCents === 0
+  ) {
+    await releaseFundedRidePromotion({
+      promotions: input.promotions,
+      finance: input.finance,
+      ride,
+      now,
+    });
+    return {
+      ride,
+      payment,
+      refundStatus: 'not_charged',
+      duplicateRefund: false,
+    };
+  }
+
   if (payment.method === 'wallet') {
     const refund = await refundWalletRide({
       rides: input.rides,
@@ -75,6 +97,12 @@ export async function automaticallyRefundRide(input: {
       rideId: ride.id,
       paymentId: payment.id,
       passengerId: input.passengerId,
+      now,
+    });
+    await releaseFundedRidePromotion({
+      promotions: input.promotions,
+      finance: input.finance,
+      ride,
       now,
     });
     return {
@@ -91,6 +119,12 @@ export async function automaticallyRefundRide(input: {
   ) {
     if (input.gateway == null) {
       ride = await markRefundPending(input.rides, ride, now);
+      await releaseFundedRidePromotion({
+        promotions: input.promotions,
+        finance: input.finance,
+        ride,
+        now,
+      });
       return {
         ride,
         payment,
@@ -106,6 +140,12 @@ export async function automaticallyRefundRide(input: {
       rideId: ride.id,
       paymentId: payment.id,
       passengerId: input.passengerId,
+      now,
+    });
+    await releaseFundedRidePromotion({
+      promotions: input.promotions,
+      finance: input.finance,
+      ride,
       now,
     });
     return {

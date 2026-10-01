@@ -880,6 +880,17 @@ async function processConfirmedMercadoPagoRide(
         paymentId: payment.id,
         passengerId: ride.passengerId,
       });
+      await releaseFundedRidePromotion({
+        promotions: promotionRepository,
+        finance: financeRepository,
+        ride,
+      });
+    } else if (ride.state === 'REFUNDED') {
+      await releaseFundedRidePromotion({
+        promotions: promotionRepository,
+        finance: financeRepository,
+        ride,
+      });
     }
     return;
   }
@@ -943,6 +954,11 @@ async function processConfirmedMercadoPagoRide(
       rideId: ride.id,
       paymentId: payment.id,
       passengerId: ride.passengerId,
+    });
+    await releaseFundedRidePromotion({
+      promotions: promotionRepository,
+      finance: financeRepository,
+      ride,
     });
   }
 }
@@ -1051,6 +1067,13 @@ async function finalizeMercadoPagoRefundedRide(
     });
     return;
   }
+
+  await releaseFundedRidePromotion({
+    promotions: promotionRepository,
+    finance: financeRepository,
+    ride,
+    now: new Date(instant),
+  });
 
   const refundedRide = await rideRepository.save({
     ...ride,
@@ -6717,6 +6740,7 @@ const server = createServer(async (request, response) => {
       const refund = await automaticallyRefundRide({
         rides: rideRepository,
         finance: financeRepository,
+        promotions: promotionRepository,
         gateway: mercadoPagoOrdersClient,
         rideId,
         passengerId: stored.passengerId,
@@ -7281,6 +7305,7 @@ const server = createServer(async (request, response) => {
       const refund = await automaticallyRefundRide({
         rides: rideRepository,
         finance: financeRepository,
+        promotions: promotionRepository,
         gateway: mercadoPagoOrdersClient,
         rideId: cancelled.id,
         passengerId,
@@ -7955,6 +7980,11 @@ const server = createServer(async (request, response) => {
             paymentId: result.payment.id,
             passengerId,
           });
+          await releaseFundedRidePromotion({
+            promotions: promotionRepository,
+            finance: financeRepository,
+            ride,
+          });
           currentRide = refund.ride;
           responsePayment = refund.payment;
           duplicateRefund = refund.duplicateRefund;
@@ -7975,6 +8005,11 @@ const server = createServer(async (request, response) => {
               rideId: ride.id,
               paymentId: result.payment.id,
               passengerId,
+            });
+            await releaseFundedRidePromotion({
+              promotions: promotionRepository,
+              finance: financeRepository,
+              ride,
             });
             currentRide = refund.ride;
             responsePayment = refund.payment;
@@ -8038,6 +8073,11 @@ const server = createServer(async (request, response) => {
                   rideId: ride.id,
                   paymentId: result.payment.id,
                   passengerId,
+                });
+                await releaseFundedRidePromotion({
+                  promotions: promotionRepository,
+                  finance: financeRepository,
+                  ride,
                 });
                 currentRide = refund.ride;
                 responsePayment = refund.payment;
