@@ -247,7 +247,8 @@
           </label>
         </div>
         <div id="locality-external-services-note" class="locality-inline-note" hidden>
-          Destinos externos usam as regras e preços de rotas em “Operação e Tarifas”.
+          Para uma cidade nova, marque os serviços que poderão usar a cobrança automática por distância.
+          Rotas com preço fixo continuam tendo prioridade.
         </div>
       </section>
 
@@ -316,7 +317,80 @@
           </article>
         </div>
         <div id="locality-external-price-note" class="locality-inline-note" hidden>
-          Nenhum preço local é necessário para destino externo. Configure a rota correspondente em “Operação e Tarifas”.
+          Para destinos externos, preços fixos entre cidades continuam em “Operação e Tarifas”.
+          Abaixo você pode ativar um fallback por distância para qualquer ponto sem preço cadastrado.
+        </div>
+
+        <div class="locality-distance-section">
+          <div class="locality-distance-section__heading">
+            <span class="eyebrow eyebrow--dark">PONTOS SEM PREÇO CADASTRADO</span>
+            <h4>Cobrança automática por distância</h4>
+            <p>
+              Se não existir preço fixo ou tarifa específica para o destino, o Ramo Nessa
+              usa a distância real da rota a partir desta localidade. Preços cadastrados
+              continuam tendo prioridade.
+            </p>
+          </div>
+
+          <div id="locality-distance-grid" class="locality-distance-grid">
+            <article id="locality-distance-moto-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-moto-enabled" type="checkbox">
+                <span><strong>Moto</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-moto-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-moto-minimum-fare" inputmode="decimal" placeholder="10,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-moto-per-km" inputmode="decimal" placeholder="2,50"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-moto-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-moto-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-delivery-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-delivery-enabled" type="checkbox">
+                <span><strong>Entrega</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-delivery-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-delivery-minimum-fare" inputmode="decimal" placeholder="10,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-delivery-per-km" inputmode="decimal" placeholder="2,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-delivery-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-delivery-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-car-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-car-enabled" type="checkbox">
+                <span><strong>Carro</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-car-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-car-minimum-fare" inputmode="decimal" placeholder="15,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-car-per-km" inputmode="decimal" placeholder="3,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-car-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-car-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-comfort-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-comfort_black-enabled" type="checkbox">
+                <span><strong>Comfort/Black</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-comfort_black-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-comfort_black-minimum-fare" inputmode="decimal" placeholder="25,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-comfort_black-per-km" inputmode="decimal" placeholder="4,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-comfort_black-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-comfort_black-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+          </div>
+
+          <div class="locality-inline-note">
+            Exemplo: se Preá → Sobral tiver preço fixo, esse valor continua valendo.
+            Para um ponto no caminho sem preço cadastrado, o sistema usa a distância
+            real da rota e esta regra automática, respeitando corrida mínima e km máximo.
+          </div>
         </div>
       </section>
 
