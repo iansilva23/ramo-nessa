@@ -423,10 +423,13 @@ function promotionValues(
 function restoreOriginalQuote(ride: RideRecord): RideRecord {
   const promotion = ride.promotion;
   if (promotion == null) return ride;
+  const {
+    promotion: _promotion,
+    ...rideWithoutPromotion
+  } = ride;
   return {
-    ...ride,
+    ...rideWithoutPromotion,
     quote: structuredClone(promotion.originalQuote),
-    promotion: undefined,
   };
 }
 
