@@ -8,7 +8,8 @@ const routes = [
   ['rides', 'viagens'],
   ['drivers', 'motoristas'],
   ['passengers', 'passageiros'],
-  ['pricing', 'precos'],
+  ['localities', 'nova-localidade'],
+  ['pricing', 'operacao-tarifas'],
   ['finance', 'financeiro'],
   ['notifications', 'notificacoes'],
   ['support', 'suporte'],
@@ -79,6 +80,9 @@ test('roteador preserva sessão em memória e navega sem recarregar a aplicaçã
 
   assert.match(app, /const adminRoutes = Object\.freeze/);
   assert.match(app, /\/admin\/frota/);
+  assert.match(app, /\/admin\/nova-localidade/);
+  assert.match(app, /\/admin\/operacao-tarifas/);
+  assert.match(app, /routeByPath\.set\('\/admin\/precos', 'pricing'\)/);
   assert.match(app, /\/admin\/passeios/);
   assert.match(app, /loadRouteMarkup/);
   assert.match(app, /\/admin\/pages\/\$\{encodeURIComponent\(route\.page\)\}\.html/);
