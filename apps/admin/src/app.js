@@ -1,5 +1,6 @@
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
+import { createLocalitiesAdmin } from './localities-admin.js';
 import { createPricingGeofenceMap } from './pricing-geofence-map.js';
 import {
   actionLabel,
@@ -189,6 +190,7 @@ const globalMessage = byId('global-message');
 const routeOutlet = byId('route-outlet');
 const routeLoading = byId('route-loading');
 let fleetMap = null;
+let localitiesAdmin = null;
 let currentView = null;
 let routeLoadSequence = 0;
 
@@ -218,9 +220,14 @@ const adminRoutes = Object.freeze({
     title: 'Passageiros',
     page: 'passengers',
   },
+  localities: {
+    path: '/admin/nova-localidade',
+    title: 'Nova localidade',
+    page: 'localities',
+  },
   pricing: {
-    path: '/admin/precos',
-    title: 'Preços',
+    path: '/admin/operacao-tarifas',
+    title: 'Operação e Tarifas',
     page: 'pricing',
   },
   finance: {
@@ -271,6 +278,7 @@ const routeByPath = new Map(
     view,
   ]),
 );
+routeByPath.set('/admin/precos', 'pricing');
 
 function requestedViewFromLocation() {
   const path = window.location.pathname.replace(/\/$/, '') || '/admin';
@@ -351,6 +359,7 @@ const viewAccessScopes = Object.freeze({
     'finance:write',
   ],
   passengers: ['passengers:auth:read', 'passengers:auth:write'],
+  localities: ['pricing:read', 'pricing:write'],
   pricing: ['pricing:read', 'pricing:write'],
   finance: ['finance:read', 'finance:write'],
   notifications: ['communications:read', 'communications:write'],
@@ -409,6 +418,18 @@ function destroyFleetMap() {
   fleetMap = null;
 }
 
+function destroyLocalitiesAdmin() {
+  if (localitiesAdmin == null) return;
+  localitiesAdmin.destroy();
+  localitiesAdmin = null;
+}
+
+function destroyPricingGeofenceMap() {
+  if (state.pricingGeofenceMap == null) return;
+  state.pricingGeofenceMap.destroy();
+  state.pricingGeofenceMap = null;
+}
+
 function closeDriverDocumentInspection() {
   if (state.documentInspectionTimer != null) {
     clearTimeout(state.documentInspectionTimer);
@@ -463,6 +484,8 @@ function clearSession(message = '') {
   state.currentDriverDocumentCompliance = null;
   state.currentDriverCashPolicy = null;
   state.currentDriverFinance = null;
+  destroyLocalitiesAdmin();
+  destroyPricingGeofenceMap();
   state.pricingCatalog = null;
   state.pricingVersions = {
     items: [],
@@ -805,6 +828,12 @@ async function activateView(
   }
   if (currentView === 'fleet') {
     destroyFleetMap();
+  }
+  if (currentView === 'localities') {
+    destroyLocalitiesAdmin();
+  }
+  if (currentView === 'pricing') {
+    destroyPricingGeofenceMap();
   }
 
   setMessage(globalMessage);
@@ -10370,6 +10399,21 @@ function initializeRouteView(view) {
     return;
   }
 
+  if (view === 'localities') {
+    destroyLocalitiesAdmin();
+    localitiesAdmin = createLocalitiesAdmin({
+      api,
+      getToken: () => state.token,
+      hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
+
   if (view === 'pricing') {
     renderPricingCatalog();
     renderPricingVersions();
@@ -10497,6 +10541,8 @@ window.addEventListener('popstate', () => {
 window.addEventListener('pagehide', () => {
   stopFleetPolling();
   destroyFleetMap();
+  destroyLocalitiesAdmin();
+  destroyPricingGeofenceMap();
   closeDriverDocumentInspection();
   state.token = null;
 });
