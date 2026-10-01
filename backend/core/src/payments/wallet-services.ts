@@ -12,6 +12,7 @@ import {
   type WalletTopupMethod,
   type WalletTopupRecord,
 } from './wallet.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
 
 export async function createWalletTopup(
   repository: FinanceRepository,
@@ -109,7 +110,7 @@ export async function payRideWithWallet(
   if (existing != null) {
     if (
       existing.rideId !== input.ride.id ||
-      existing.amountCents !== input.ride.quote.totalAmountCents ||
+      existing.amountCents !== passengerPayableCents(input.ride) ||
       existing.method !== 'wallet' ||
       existing.processor !== 'internal-wallet'
     ) {
@@ -156,7 +157,7 @@ export async function payRideWithWallet(
     method: 'wallet',
     processor: 'internal-wallet',
     status: 'paid',
-    amountCents: input.ride.quote.totalAmountCents,
+    amountCents: passengerPayableCents(input.ride),
     idempotencyKey: key,
     createdAt: instant,
     updatedAt: instant,
