@@ -240,6 +240,11 @@ const adminRoutes = Object.freeze({
     title: 'Notificações',
     page: 'notifications',
   },
+  design: {
+    path: '/admin/design-apps',
+    title: 'Design dos Apps',
+    page: 'design',
+  },
   support: {
     path: '/admin/suporte',
     title: 'Suporte',
@@ -363,6 +368,7 @@ const viewAccessScopes = Object.freeze({
   pricing: ['pricing:read', 'pricing:write'],
   finance: ['finance:read', 'finance:write'],
   notifications: ['communications:read', 'communications:write'],
+  design: ['communications:read', 'communications:write'],
   support: ['support:read', 'support:write'],
   privacy: ['privacy:read', 'privacy:write'],
   agency: ['communications:read', 'communications:write'],
@@ -10010,6 +10016,19 @@ function bindRouteEvents(view) {
     return;
   }
 
+  if (view === 'design') {
+    bindRouteEvent('refresh-design-button', 'click', () => {
+      void loadCommunications();
+    });
+    bindRouteEvent('app-auth-hero-file', 'change', (event) => {
+      previewSelectedAppAuthHero(event.currentTarget.files?.[0] ?? null);
+    });
+    bindRouteEvent('upload-app-auth-hero-button', 'click', () => {
+      void handleAppAuthHeroUpload();
+    });
+    return;
+  }
+
   if (view === 'privacy') {
     bindRouteEvent('refresh-privacy-button', 'click', () => {
       void loadPrivacy();
@@ -10270,6 +10289,14 @@ function initializeRouteView(view) {
 
   if (view === 'notifications') {
     renderNotificationHistory();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'design') {
+    renderCommunications();
     if (hasScope('communications:read')) {
       void loadCommunications({ announce: false });
     }
