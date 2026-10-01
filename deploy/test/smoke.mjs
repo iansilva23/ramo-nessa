@@ -1208,13 +1208,19 @@ try {
     );
   }
 
-  for (const headers of [documentStorageHeaders, authHeaders]) {
-    const deniedReconciliation = await jsonRequest('/v1/admin/finance/payouts/reconcile', {
-      method: 'POST', headers,
-    });
-    if (deniedReconciliation.response.status !== 403) {
-      throw new Error('Conciliação de repasses não preservou scope e exclusividade do proprietário.');
-    }
+  const reconciliationWithoutScope = await jsonRequest('/v1/admin/finance/payouts/reconcile', {
+    method: 'POST', headers: documentStorageHeaders,
+  });
+  if (reconciliationWithoutScope.response.status !== 403) {
+    throw new Error('Conciliação de repasses não preservou o scope financeiro.');
+  }
+  // This isolated stack deliberately has no payout owner configured.
+  const reconciliationWithoutOwner = await jsonRequest('/v1/admin/finance/payouts/reconcile', {
+    method: 'POST', headers: authHeaders,
+  });
+  if (reconciliationWithoutOwner.response.status !== 503 ||
+      reconciliationWithoutOwner.payload?.error !== 'PAYOUT_APPROVER_NOT_CONFIGURED') {
+    throw new Error('Conciliação de repasses não bloqueou a ausência de proprietário configurado.');
   }
 
   const finance = await jsonRequest(
