@@ -10,9 +10,53 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payme
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_coupons_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
+  for (final failRefresh in [false, true]) {
+    testWidgets(
+      'crédito de carteira preserva cupom no perfil (refresh falha: $failRefresh)',
+      (tester) async {
+        final service = _CouponPaymentService(
+          failRefresh: failRefresh,
+          promotedRide: _discountedRide(
+            kind: 'fixed_discount',
+            discountCents: 5000,
+            payableCents: 15000,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: RamoTheme.light,
+            home: PassengerCouponsScreen(service: service),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.text('INFLU50'), findsOneWidget);
+        await tester.enterText(
+          find.byKey(const Key('passenger-coupon-code')),
+          'WALLET7',
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        tester.testTextInput.hide();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(service.walletCreditCalls, 1);
+        expect(service.preferenceCalls, 2);
+        expect(find.text('INFLU50'), findsOneWidget);
+        expect(
+          find.textContaining(r'R$ 7,00 de crédito promocional'),
+          findsOneWidget,
+        );
+        expect(find.text('Nenhum cupom de corrida salvo.'), findsNothing);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
   testWidgets(
     'cupom salvo é aplicado automaticamente e atualiza o preço',
     (tester) async {
@@ -235,10 +279,16 @@ PreparedRide _discountedRide({
 }
 
 class _CouponPaymentService implements PassengerPaymentService {
-  _CouponPaymentService({required this.promotedRide, this.savedCoupon = true});
+  _CouponPaymentService({
+    required this.promotedRide,
+    this.savedCoupon = true,
+    this.failRefresh = false,
+  });
 
   final PreparedRide promotedRide;
   final bool savedCoupon;
+  final bool failRefresh;
+  int walletCreditCalls = 0;
   int preferenceCalls = 0;
   int applyCalls = 0;
   int confirmCalls = 0;
@@ -270,6 +320,9 @@ class _CouponPaymentService implements PassengerPaymentService {
   @override
   Future<PassengerPromotionPreference?> promotionPreference() async {
     preferenceCalls += 1;
+    if (failRefresh && preferenceCalls > 1) {
+      throw StateError('simulated preference refresh failure');
+    }
     return savedCoupon ? _preference : null;
   }
 
@@ -284,6 +337,13 @@ class _CouponPaymentService implements PassengerPaymentService {
 
   @override
   Future<PassengerPromotionSaveResult> savePromotionCode(String code) async {
+    if (code == 'WALLET7') {
+      walletCreditCalls += 1;
+      return const PassengerPromotionSaveResult(
+        mode: 'wallet_credit',
+        walletCreditCents: 700,
+      );
+    }
     return PassengerPromotionSaveResult(
       mode: 'ride_coupon',
       preference: _preference,
