@@ -1205,6 +1205,64 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   }
 }
 
+class _PromotionConfirmedScreen extends StatelessWidget {
+  const _PromotionConfirmedScreen({
+    required this.dispatchStatus,
+  });
+
+  final String dispatchStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = switch (dispatchStatus) {
+      'NO_DRIVER_FOUND' =>
+        'A corrida promocional foi confirmada, mas não encontramos motorista nesta rodada.',
+      'PENDING_RETRY' =>
+        'Sua corrida promocional foi confirmada. Estamos tentando encontrar um motorista.',
+      _ =>
+        'Sua corrida promocional foi confirmada e já estamos procurando um motorista.',
+    };
+
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(RamoSpacing.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.redeem_rounded,
+                size: 82,
+                color: RamoColors.signal,
+              ),
+              const SizedBox(height: RamoSpacing.lg),
+              Text(
+                'Corrida promocional confirmada',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: RamoSpacing.xl),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Voltar ao início'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PixPaymentScreen extends StatefulWidget {
   const _PixPaymentScreen({
     required this.rideId,
