@@ -265,6 +265,7 @@ import {
   savePassengerPromotionPreference,
   PromotionError,
 } from './promotions/promotion-service.js';
+import { createAdminPromotion, setAdminPromotionEnabled } from './admin/admin-promotions-service.js';
 import { PromotionRepositoryError } from './promotions/promotion-repository.js';
 import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
 import { createRepositories } from './db/repositories.js';
@@ -3216,6 +3217,33 @@ const server = createServer(async (request, response) => {
         bytes,
       });
       json(response, 200, { appAuthBranding });
+      return;
+    }
+
+    if (requestUrl.pathname === '/v1/admin/promotions' &&
+        (request.method === 'GET' || request.method === 'POST')) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository, headers: request.headers,
+        requiredScope: request.method === 'GET' ? 'finance:read' : 'finance:write',
+      });
+      if (request.method === 'GET') {
+        json(response, 200, { campaigns: await promotionRepository.listCampaigns() });
+      } else {
+        const campaign = await createAdminPromotion({promotions: promotionRepository,
+          admin: adminRepository, actor, body: await readJson(request)});
+        json(response, 201, { campaign });
+      }
+      return;
+    }
+    const adminPromotionMatch = requestUrl.pathname.match(/^\/v1\/admin\/promotions\/([^/]+)\/enabled$/);
+    if (request.method === 'PATCH' && adminPromotionMatch != null) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: 'finance:write',
+      });
+      const campaign = await setAdminPromotionEnabled({promotions: promotionRepository,
+        admin: adminRepository, actor, id: adminPromotionMatch[1]!, body: await readJson(request)});
+      json(response, 200, { campaign });
       return;
     }
 

@@ -31,6 +31,7 @@ export interface PromotionCampaignRecord {
   percentBps?: number;
   maxDiscountCents?: number;
   fixedDriverFareCents?: number;
+  fixedDriverFaresByCategory?: Partial<Record<PromotionCategory, number>>;
   categories: PromotionCategory[];
   maxRedemptions: number;
   perPassengerLimit: number;

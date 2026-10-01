@@ -25,6 +25,7 @@ interface CampaignRow {
   percent_bps: number | null;
   max_discount_cents: number | null;
   fixed_driver_fare_cents: number | null;
+  fixed_driver_fares_by_category: PromotionCampaignRecord['fixedDriverFaresByCategory'] | null;
   categories: PromotionCampaignRecord['categories'];
   max_redemptions: number;
   per_passenger_limit: number;
@@ -62,7 +63,7 @@ interface RedemptionRow {
 
 const CAMPAIGN_COLUMNS = `
   id, code, name, kind, value_cents, percent_bps,
-  max_discount_cents, fixed_driver_fare_cents, categories,
+  max_discount_cents, fixed_driver_fare_cents, fixed_driver_fares_by_category, categories,
   max_redemptions, per_passenger_limit, per_device_limit,
   starts_at, ends_at, enabled, created_at, updated_at
 `;
@@ -88,6 +89,7 @@ function mapCampaign(row: CampaignRow): PromotionCampaignRecord {
     ...(row.fixed_driver_fare_cents == null
       ? {}
       : { fixedDriverFareCents: row.fixed_driver_fare_cents }),
+    ...(row.fixed_driver_fares_by_category == null ? {} : { fixedDriverFaresByCategory: row.fixed_driver_fares_by_category }),
     categories: row.categories ?? [],
     maxRedemptions: row.max_redemptions,
     perPassengerLimit: row.per_passenger_limit,
@@ -213,9 +215,9 @@ export class PostgresPromotionRepository implements PromotionRepository {
           id, code, name, kind, value_cents, percent_bps,
           max_discount_cents, fixed_driver_fare_cents, categories,
           max_redemptions, per_passenger_limit, per_device_limit,
-          starts_at, ends_at, enabled, created_at, updated_at
+          starts_at, ends_at, enabled, created_at, updated_at, fixed_driver_fares_by_category
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
         )
         RETURNING ${CAMPAIGN_COLUMNS}
         `,
@@ -237,6 +239,7 @@ export class PostgresPromotionRepository implements PromotionRepository {
           record.enabled,
           record.createdAt,
           record.updatedAt,
+          record.fixedDriverFaresByCategory == null ? null : JSON.stringify(record.fixedDriverFaresByCategory),
         ],
       );
       return mapCampaign(result.rows[0]!);

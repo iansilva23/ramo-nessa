@@ -121,6 +121,7 @@ export function createPromotionCampaignRecord(input: {
   percentBps?: number;
   maxDiscountCents?: number;
   fixedDriverFareCents?: number;
+  fixedDriverFaresByCategory?: Partial<Record<PromotionCategory, number>>;
   categories?: PromotionCategory[];
   maxRedemptions: number;
   perPassengerLimit?: number;
@@ -163,8 +164,25 @@ export function createPromotionCampaignRecord(input: {
     input.maxDiscountCents,
     'maxDiscountCents',
   );
+  const fares = input.fixedDriverFaresByCategory;
+  if (fares != null && (input.kind !== 'fixed_driver_fare' ||
+      typeof fares !== 'object' || Array.isArray(fares) ||
+      Object.keys(fares).length === 0 ||
+      Object.keys(fares).some(key => !PROMOTION_CATEGORIES.includes(key as PromotionCategory)) ||
+      categories.length === 0 || categories.some(category => fares[category] == null) ||
+      Object.keys(fares).some(key => !categories.includes(key as PromotionCategory)))) {
+    throw new PromotionError('INVALID_PROMOTION_CAMPAIGN',
+      'Defina uma tarifa para cada categoria permitida, sem categorias adicionais.');
+  }
+  if (fares != null) {
+    for (const [category, fare] of Object.entries(fares)) {
+      if (positiveInt(fare, category) == null) {
+        throw new PromotionError('INVALID_PROMOTION_CAMPAIGN', 'Tarifa por categoria inválida.');
+      }
+    }
+  }
   const fixedDriverFareCents = positiveInt(
-    input.fixedDriverFareCents,
+    fares == null ? input.fixedDriverFareCents : Math.min(...Object.values(fares) as number[]),
     'fixedDriverFareCents',
   );
   if (
@@ -232,6 +250,7 @@ export function createPromotionCampaignRecord(input: {
     ...(fixedDriverFareCents == null
       ? {}
       : { fixedDriverFareCents }),
+    ...(fares == null ? {} : { fixedDriverFaresByCategory: structuredClone(fares) }),
     categories,
     maxRedemptions,
     perPassengerLimit,
@@ -264,6 +283,7 @@ export function publicPromotionCampaignView(
     ...(campaign.fixedDriverFareCents == null
       ? {}
       : { fixedDriverFareCents: campaign.fixedDriverFareCents }),
+    ...(campaign.fixedDriverFaresByCategory == null ? {} : { fixedDriverFaresByCategory: campaign.fixedDriverFaresByCategory }),
     categories: campaign.categories,
     startsAt: campaign.startsAt ?? null,
     endsAt: campaign.endsAt ?? null,
@@ -417,7 +437,12 @@ function promotionValues(
     };
   }
 
-  const fixed = campaign.fixedDriverFareCents!;
+  const fixed = campaign.fixedDriverFaresByCategory == null
+    ? campaign.fixedDriverFareCents!
+    : campaign.fixedDriverFaresByCategory[ride.category as PromotionCategory];
+  if (fixed == null) {
+    throw new PromotionError('PROMOTION_NOT_ELIGIBLE', 'Não há tarifa promocional para esta categoria.');
+  }
   if (fixed >= normalTotal) {
     throw new PromotionError(
       'PROMOTION_NOT_BENEFICIAL',
