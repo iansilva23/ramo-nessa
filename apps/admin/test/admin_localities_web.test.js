@@ -40,6 +40,10 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
   for (const id of [
     'view-localities',
     'localities-new-button',
+    'localities-current-draft',
+    'localities-effective-version',
+    'localities-discard-draft-button',
+    'localities-publish-draft-button',
     'localities-overview-map',
     'localities-list',
     'locality-wizard',
@@ -76,6 +80,9 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
   assert.match(localities, /Desfazer última exclusão/);
   assert.match(localities, /window\.confirm/);
   assert.match(localities, /Nada foi publicado ainda/);
+  assert.match(localities, /api\.deletePricingVersion/);
+  assert.match(localities, /api\.publishPricingVersion/);
+  assert.match(localities, /Excluir o rascunho/);
   assert.match(localities, /createPricingCoverageMap/);
   assert.match(localities, /createPricingGeofenceMap/);
   assert.equal(localities.includes('.innerHTML'), false);
