@@ -44,7 +44,18 @@ void main() {
       expect(find.text('INFLU50'), findsOneWidget);
       expect(find.text(r'R$ 150,00'), findsWidgets);
       expect(find.textContaining(r'Preço normal: R$ 200,00'), findsOneWidget);
-      expect(find.text(r'Pix · R$ 150,00'), findsOneWidget);
+
+      final pixOption =
+          find.byKey(const Key('payment-option-pix'));
+      await tester.ensureVisible(pixOption);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        find.descendant(
+          of: pixOption,
+          matching: find.text(r'Pix · R$ 150,00'),
+        ),
+        findsOneWidget,
+      );
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
