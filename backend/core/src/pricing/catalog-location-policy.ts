@@ -20,10 +20,12 @@ export function assertCatalogLocationSupported(input: {
 
   const localityId = ref.localityId;
   if (ref.zoneId === 'external') {
-    if (
-      localityId == null ||
-      !catalog.externalLocalities.includes(localityId)
-    ) {
+    // Um ponto externo sem localityId representa uma coordenada livre.
+    // Ele só será aceito de fato se alguma regra posterior conseguir
+    // precificá-lo (por exemplo, fallback por distância de um ponto-base).
+    if (localityId == null) return;
+
+    if (!catalog.externalLocalities.includes(localityId)) {
       throw new PricingError(
         'UNKNOWN_LOCALITY',
         `${field}.localityId externo não pertence ao catálogo vigente.`,
