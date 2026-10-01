@@ -55,7 +55,9 @@ export function transitionPayment(
 }
 
 export function assertPaymentReadyForDispatch(
-  payment: Pick<PaymentSnapshot, 'status' | 'amountCents' | 'method'>,
+  payment: Pick<PaymentSnapshot, 'status' | 'amountCents'> & {
+    method?: PaymentSnapshot['method'];
+  },
 ): void {
   if (
     payment.amountCents < 0 ||
