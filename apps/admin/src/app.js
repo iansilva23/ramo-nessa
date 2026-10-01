@@ -1,3 +1,4 @@
+import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
@@ -194,6 +195,7 @@ const routeLoading = byId('route-loading');
 let fleetMap = null;
 let localitiesAdmin = null;
 let promotionsAdmin = null;
+let payoutReconciliationBusy = false;
 let currentView = null;
 let routeLoadSequence = 0;
 
@@ -3141,6 +3143,7 @@ function renderFinance(payload = null) {
     },
     payments,
     payouts,
+    payoutReconciliation: payload?.payoutReconciliation ?? null,
     payoutPolicy,
     payoutCandidates,
     companyPayout,
@@ -3187,6 +3190,7 @@ function renderFinance(payload = null) {
     String(current.paymentsRefunded);
 
   renderFinancePayoutPolicy();
+  renderFinanceReconciliation();
   renderCompanyPayoutControls();
   renderExternalAdjustments();
 
@@ -3284,6 +3288,44 @@ function renderFinance(payload = null) {
   byId('finance-payouts-visible').textContent =
     `${payouts.length} item(ns)`;
   byId('finance-payouts-empty').hidden = payouts.length !== 0;
+}
+
+function renderFinanceReconciliation() {
+  const button = byId('finance-payout-reconcile');
+  const note = byId('finance-payout-reconcile-note');
+  if (button == null || note == null) return;
+  const config = state.finance.payoutReconciliation;
+  button.disabled = !canReconcilePayouts({config, canWrite: financeWritesAvailable(), busy: payoutReconciliationBusy});
+  note.textContent = config?.canManage !== true
+    ? 'Somente o proprietário autorizado pode processar repasses.'
+    : config?.providerConfigured !== true
+      ? 'Configure e homologue o provedor de repasses antes de usar esta ação.'
+      : state.finance.writeLocked === true
+        ? 'Atualize o Financeiro para consultar dados atuais.'
+        : 'Pode enviar repasses autorizados pendentes e consultar transferências em andamento de motoristas e empresa.';
+}
+
+async function handleFinancePayoutReconcile() {
+  if (!state.token || !canReconcilePayouts({config: state.finance.payoutReconciliation,
+    canWrite: financeWritesAvailable(), busy: payoutReconciliationBusy})) return;
+  if (!window.confirm('Processar os repasses já autorizados e conciliar transferências pendentes de motoristas e empresa? Esta ação pode enviar Pix pelo provedor configurado.')) return;
+  const token = state.token;
+  payoutReconciliationBusy = true;
+  renderFinanceReconciliation();
+  try {
+    const result = await api.reconcileFinancePayouts(token);
+    const message = reconciliationMessage(result);
+    if (state.token !== token || currentView !== 'finance') return;
+    await loadFinance({announce: false});
+    if (state.token !== token || currentView !== 'finance') return;
+    if (state.finance.writeLocked === true) return;
+    setMessage(globalMessage, message.text, message.tone);
+  } catch (error) {
+    if (state.token === token && currentView === 'finance') handleAuthenticatedError(error);
+  } finally {
+    payoutReconciliationBusy = false;
+    if (currentView === 'finance') renderFinanceReconciliation();
+  }
 }
 
 function companyPayoutWritesAvailable() {
@@ -4235,6 +4277,7 @@ async function loadFinance({ announce = true } = {}) {
     }
   } catch (error) {
     state.finance.writeLocked = true;
+    renderFinanceReconciliation();
     byId('finance-updated-at').textContent =
       state.finance.generatedAt == null
         ? 'Falha ao atualizar · sem dados atuais'
@@ -9989,6 +10032,9 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('finance-company-use-all', 'click', () => {
       handleCompanyPayoutUseAll();
+    });
+    bindRouteEvent('finance-payout-reconcile', 'click', () => {
+      void handleFinancePayoutReconcile();
     });
     bindRouteEvent('finance-payout-mode-toggle', 'click', () => {
       void handleFinancePayoutModeToggle();

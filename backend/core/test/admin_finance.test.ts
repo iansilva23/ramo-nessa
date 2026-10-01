@@ -115,3 +115,10 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
     false,
   );
 });
+
+test('conciliação no Admin exige proprietário e informa provedor sem configuração por padrão', async () => {
+  const finance = new InMemoryFinanceRepository();
+  assert.deepEqual((await adminFinanceView({finance})).payoutReconciliation, {canManage:false,providerConfigured:false});
+  assert.deepEqual((await adminFinanceView({finance,canManageCompanyPayouts:true})).payoutReconciliation, {canManage:true,providerConfigured:false});
+  assert.deepEqual((await adminFinanceView({finance,canManageCompanyPayouts:true,payoutProviderConfigured:true})).payoutReconciliation, {canManage:true,providerConfigured:true});
+});

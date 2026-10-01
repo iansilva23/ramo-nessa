@@ -9,6 +9,7 @@ export async function adminFinanceView(input: {
   finance: FinanceRepository;
   limit?: number;
   canManageCompanyPayouts?: boolean;
+  payoutProviderConfigured?: boolean;
 }) {
   const limit = safeLimit(input.limit);
   const [
@@ -35,6 +36,10 @@ export async function adminFinanceView(input: {
     readOnly: false,
     paymentsReadOnly: true,
     payoutManagementEnabled: true,
+    payoutReconciliation: {
+      canManage: input.canManageCompanyPayouts === true,
+      providerConfigured: input.payoutProviderConfigured === true,
+    },
     generatedAt: new Date().toISOString(),
     summary,
     payoutPolicy: {

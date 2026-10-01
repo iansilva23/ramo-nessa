@@ -1208,6 +1208,15 @@ try {
     );
   }
 
+  for (const headers of [documentStorageHeaders, authHeaders]) {
+    const deniedReconciliation = await jsonRequest('/v1/admin/finance/payouts/reconcile', {
+      method: 'POST', headers,
+    });
+    if (deniedReconciliation.response.status !== 403) {
+      throw new Error('Conciliação de repasses não preservou scope e exclusividade do proprietário.');
+    }
+  }
+
   const finance = await jsonRequest(
     '/v1/admin/finance?limit=20',
     { headers: authHeaders },
@@ -1217,6 +1226,8 @@ try {
     finance.payload?.readOnly !== false ||
     finance.payload?.paymentsReadOnly !== true ||
     finance.payload?.payoutManagementEnabled !== true ||
+    typeof finance.payload?.payoutReconciliation?.canManage !== 'boolean' ||
+    typeof finance.payload?.payoutReconciliation?.providerConfigured !== 'boolean' ||
     typeof finance.payload?.summary?.paymentsTotal !== 'number' ||
     typeof finance.payload?.summary?.paymentsPaidCents !== 'number' ||
     typeof finance.payload?.summary?.platformRevenueCents !== 'number' ||

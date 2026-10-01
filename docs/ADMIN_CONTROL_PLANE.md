@@ -458,3 +458,33 @@ A migration 069 adiciona a coluna e uma constraint, preservando as anteriores.
 
 O smoke do stack testa página publicada, sessão obrigatória, bloqueio por escopo,
 os cinco tipos, persistência de tarifas, duplicidade de código e ativação/desativação.
+
+
+## Verificação de integração do painel — 01/10/2026
+
+Foi comparado o conjunto de rotas administrativas do servidor com o cliente API,
+os controladores e as páginas do Admin. As lacunas comprovadas foram a gestão
+ de cupons e a ação de processamento/conciliação de repasses pendentes.
+
+| Recurso existente no Core | Página do Admin | Estado da ligação |
+| --- | --- | --- |
+| Cupons e campanhas | `/admin/cupons` | Criação, listagem, valores por categoria e ativação conectados |
+| Repasses pendentes de motorista e empresa | `/admin/financeiro` | Processamento/conciliação conectado; proprietário e provedor obrigatórios |
+| Modo manual e seleção de motoristas | `/admin/financeiro` | Controles já existentes preservados |
+| Chave Pix e retirada da receita da empresa | `/admin/financeiro` | Controles já existentes preservados |
+| Dinheiro, Pix, cartão, carteira e ajustes | `/admin/financeiro` | Controles já existentes preservados |
+| Localidades por alfinete/raio e preços versionados | `/admin/nova-localidade`, `/admin/operacao-tarifas` | Fluxos já existentes preservados |
+| Chave pública e estado das integrações | `/admin/integracoes` | Controles já existentes preservados |
+| Marca, onboarding, avisos e política de versões | `/admin/design-apps`, `/admin/notificacoes` | Fluxos já existentes preservados |
+| Motoristas, documentos, passageiros e viagens | Páginas correspondentes | Diretórios e ações já existentes preservados |
+| Suporte, privacidade, funcionários e auditoria | Páginas correspondentes | Fluxos já existentes preservados |
+
+A ação de conciliação pode enviar repasses autorizados ainda solicitados, além de
+consultar transferências em andamento; a tela pede confirmação e informa esse
+comportamento. Antecipações sem aprovação continuam protegidas pelo Core.
+Contas sem permissão financeira, não proprietários, falhas de atualização e
+provedor ausente deixam o controle bloqueado. Falhas parciais são exibidas.
+
+Esta comparação verifica a exposição das funções administrativas existentes.
+Não ativa serviços externos, não altera configurações comerciais e não substitui
+homologação no VPS, em aparelhos e nos provedores de pagamento/SMS/Push/mapas.

@@ -277,6 +277,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    reconcileFinancePayouts(token) {
+      return request('/v1/admin/finance/payouts/reconcile', { method: 'POST', token });
+    },
+
     updateFinancePayoutPolicy(token, { automaticEnabled }) {
       return request('/v1/admin/finance/payout-policy', {
         method: 'PATCH',

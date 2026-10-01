@@ -3531,6 +3531,7 @@ const server = createServer(async (request, response) => {
         finance: financeRepository,
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
         canManageCompanyPayouts: isAdminPayoutOwner(actor),
+        payoutProviderConfigured: driverPayoutProvider != null,
       });
       json(response, 200, finance);
       return;
