@@ -31,6 +31,17 @@ export type PricingCatalogDraftPatch =
       applyNightSurcharge: boolean;
     }
   | {
+      kind: 'distance_fare_policy';
+      operation: 'upsert' | 'remove';
+      anchorZoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
+      anchorLocalityId: string;
+      category: 'moto' | 'delivery' | 'car' | 'comfort_black';
+      minKm?: number;
+      maxKm?: number;
+      minimumFareCents?: number;
+      pricePerKmCents?: number;
+    }
+  | {
       kind: 'category_policy';
       category:
         | 'moto'
@@ -394,6 +405,80 @@ export function parsePricingCatalogDraftPatch(
       localityId,
       enabledCategories,
       applyNightSurcharge,
+    };
+  }
+
+  if (kind === 'distance_fare_policy') {
+    const operation = textValue(value.operation, 'operation', 20);
+    if (operation !== 'upsert' && operation !== 'remove') {
+      throw new InvalidPricingCatalogPatchError(
+        'operation deve ser upsert ou remove.',
+      );
+    }
+
+    const anchorZoneId = textValue(
+      value.anchorZoneId,
+      'anchorZoneId',
+      30,
+    );
+    if (
+      anchorZoneId !== 'jericoacoara' &&
+      anchorZoneId !== 'jijoca' &&
+      anchorZoneId !== 'prea' &&
+      anchorZoneId !== 'external'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'anchorZoneId é inválido.',
+      );
+    }
+
+    const category = textValue(value.category, 'category', 30);
+    if (
+      category !== 'moto' &&
+      category !== 'delivery' &&
+      category !== 'car' &&
+      category !== 'comfort_black'
+    ) {
+      throw new InvalidPricingCatalogPatchError(
+        'category de cobrança por distância é inválida.',
+      );
+    }
+
+    const base = {
+      kind,
+      operation,
+      anchorZoneId,
+      anchorLocalityId: identifierValue(
+        value.anchorLocalityId,
+        'anchorLocalityId',
+      ),
+      category,
+    } as const;
+
+    if (operation === 'remove') {
+      return base;
+    }
+
+    const minKm = decimalValue(value.minKm, 'minKm', 0, 1000);
+    const maxKm = decimalValue(value.maxKm, 'maxKm', 0.05, 2000);
+    if (maxKm <= minKm) {
+      throw new InvalidPricingCatalogPatchError(
+        'maxKm deve ser maior que minKm.',
+      );
+    }
+
+    return {
+      ...base,
+      minKm,
+      maxKm,
+      minimumFareCents: centsValue(
+        value.minimumFareCents,
+        'minimumFareCents',
+      ),
+      pricePerKmCents: centsValue(
+        value.pricePerKmCents,
+        'pricePerKmCents',
+      ),
     };
   }
 
