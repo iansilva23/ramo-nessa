@@ -75,6 +75,8 @@ for (const kind of ['fixed_discount', 'fixed_driver_fare'] as const) {
         await pool.query(`DELETE FROM ledger_entries WHERE transaction_id IN
           (SELECT id FROM ledger_transactions WHERE ride_id = ANY($1::uuid[]))`, [ids]);
         await pool.query('DELETE FROM ledger_transactions WHERE ride_id = ANY($1::uuid[])', [ids]);
+        await pool.query(`DELETE FROM payment_events WHERE payment_id IN
+          (SELECT id FROM payments WHERE ride_id = ANY($1::uuid[]))`, [ids]);
         await pool.query('DELETE FROM payments WHERE ride_id = ANY($1::uuid[])', [ids]);
         await pool.query('DELETE FROM promotion_redemptions WHERE campaign_id = $1', [campaign.id]);
         await pool.query('DELETE FROM rides WHERE id = ANY($1::uuid[])', [ids]);
