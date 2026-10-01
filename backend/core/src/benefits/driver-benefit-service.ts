@@ -332,7 +332,10 @@ export async function driverBenefitsForApp(input: {
     }[];
   }[] = [];
 
-  for (const campaign of campaigns.sort((a, b) => b.endsAt.localeCompare(a.endsAt))) {
+  campaigns.sort((a, b) =>
+    Date.parse(b.closedAt ?? b.endsAt) - Date.parse(a.closedAt ?? a.endsAt),
+  );
+  for (const campaign of campaigns) {
     const effective = effectiveDriverBenefitStatus(campaign, now);
     if (effective !== 'active' && effective !== 'ended') continue;
     if (effective === 'ended' && history.length >= 6) continue;

@@ -55,7 +55,8 @@ O resultado persistido mantém participantes, nomes e estatísticas apesar de
 alterações posteriores de perfil, aprovação, categoria ou base. Durante uma
 interrupção do Core, a consolidação automática ocorre ao retomá-lo.
 
-Histórico mostra até seis campanhas recentes em que o motorista participou.
+Histórico mostra até seis campanhas recentes em que o motorista participou,
+ordenadas pelo encerramento efetivo, inclusive quando antecipado pelo ADM.
 Vencedores respeitam Top N e só são anunciados quando o mínimo foi atingido.
 O ranking ativo pode existir antes de liberar a premiação, com aviso explícito.
 

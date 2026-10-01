@@ -282,6 +282,28 @@ test('mínimo insuficiente não anuncia vencedores e fim automático é preserva
   assert.deepEqual(history[0]?.winners, []);
 });
 
+test('histórico prioriza os seis encerramentos efetivos mais recentes', async () => {
+  const { repository, admin } = await fixture();
+  const endedIds: string[] = [];
+  for (let index = 0; index < 7; index += 1) {
+    const campaign = await createDriverBenefitCampaign({ repository, admin, actor,
+      body: { ...campaignBody(), name: `Campanha histórica ${index}`,
+        endsAt: index === 0 ? '2027-03-01T00:00:00Z' : '2026-11-01T00:00:00Z' },
+      now: new Date('2026-09-30T12:00:00Z') });
+    const active = await setDriverBenefitCampaignStatus({ repository, admin, actor, id: campaign.id,
+      body: { status: 'active', expectedUpdatedAt: campaign.updatedAt },
+      now: new Date('2026-10-01T12:00:00Z') });
+    repository.setRankingStats(campaign.id, [stats('own')]);
+    await setDriverBenefitCampaignStatus({ repository, admin, actor, id: campaign.id,
+      body: { status: 'ended', expectedUpdatedAt: active.updatedAt },
+      now: new Date(`2026-10-0${index + 2}T12:00:00Z`) });
+    endedIds.push(campaign.id);
+  }
+  const history = (await driverBenefitsForApp({ repository, driverId: 'own', now: during })).history;
+  assert.deepEqual(history.map(item => item.id), endedIds.slice(1).reverse());
+  assert.equal(history[0]?.endsAt, '2026-10-08T12:00:00.000Z');
+});
+
 test('seleção, missões inválidas e prêmios fora do Top são rejeitados sem automação financeira', () => {
   for (const patch of [{ participantMode: 'selected', participantDriverIds: [] },
     { missions: [{ id: 'unsafe', title: 'Dirija mais rápido', kind: 'speed', target: 50, bonusPoints: 20 }] },
