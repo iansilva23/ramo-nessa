@@ -61,6 +61,9 @@ import { InMemoryPromotionRepository } from '../promotions/repositories/in-memor
 import { PostgresPromotionRepository } from '../promotions/repositories/postgres-promotion-repository.js';
 import { InMemoryPrivacyRepository } from '../privacy/repositories/in-memory-privacy-repository.js';
 import { PostgresPrivacyRepository } from '../privacy/repositories/postgres-privacy-repository.js';
+import type { DriverBenefitRepository } from '../benefits/driver-benefit-repository.js';
+import { InMemoryDriverBenefitRepository } from '../benefits/repositories/in-memory-driver-benefit-repository.js';
+import { PostgresDriverBenefitRepository } from '../benefits/repositories/postgres-driver-benefit-repository.js';
 import { createPostgresPool } from './postgres.js';
 
 export interface RepositoryBundle {
@@ -85,6 +88,7 @@ export interface RepositoryBundle {
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
   privacyRepository: PrivacyRepository;
   promotionRepository: PromotionRepository;
+  driverBenefitRepository: DriverBenefitRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -132,6 +136,7 @@ export function createRepositories(): RepositoryBundle {
         new PostgresPassengerSavedPlaceRepository(pool),
       privacyRepository: new PostgresPrivacyRepository(pool),
       promotionRepository: new PostgresPromotionRepository(pool),
+      driverBenefitRepository: new PostgresDriverBenefitRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -189,6 +194,7 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryPassengerSavedPlaceRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
     promotionRepository: new InMemoryPromotionRepository(),
+    driverBenefitRepository: new InMemoryDriverBenefitRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},

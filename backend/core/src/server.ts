@@ -266,6 +266,20 @@ import {
   PromotionError,
 } from './promotions/promotion-service.js';
 import { createAdminPromotion, setAdminPromotionEnabled } from './admin/admin-promotions-service.js';
+import {
+  clearDriverBenefitBase,
+  createDriverBenefitCampaign,
+  setDriverBenefitBase,
+  setDriverBenefitCampaignStatus,
+  setDriverBenefitsGlobalEnabled,
+  updateDriverBenefitCampaign,
+} from './admin/admin-driver-benefits-service.js';
+import {
+  DriverBenefitError,
+  driverBenefitLeaderboard,
+  driverBenefitsAdminView,
+  driverBenefitsForApp,
+} from './benefits/driver-benefit-service.js';
 import { PromotionRepositoryError } from './promotions/promotion-repository.js';
 import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
 import { createRepositories } from './db/repositories.js';
@@ -509,6 +523,7 @@ const {
   passengerSavedPlaceRepository,
   privacyRepository,
   promotionRepository,
+  driverBenefitRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
@@ -3244,6 +3259,176 @@ const server = createServer(async (request, response) => {
       const campaign = await setAdminPromotionEnabled({promotions: promotionRepository,
         admin: adminRepository, actor, id: adminPromotionMatch[1]!, body: await readJson(request)});
       json(response, 200, { campaign });
+      return;
+    }
+
+    if (
+      requestUrl.pathname === '/v1/admin/driver-benefits' &&
+      request.method === 'GET'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:read',
+      });
+      json(
+        response,
+        200,
+        await driverBenefitsAdminView({
+          repository: driverBenefitRepository,
+        }),
+      );
+      return;
+    }
+
+    if (
+      requestUrl.pathname === '/v1/admin/driver-benefits/settings' &&
+      request.method === 'PUT'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:write',
+      });
+      const settings = await setDriverBenefitsGlobalEnabled({
+        repository: driverBenefitRepository,
+        admin: adminRepository,
+        actor,
+        body: await readJson(request),
+      });
+      json(response, 200, { settings });
+      return;
+    }
+
+    if (
+      requestUrl.pathname === '/v1/admin/driver-benefits/campaigns' &&
+      request.method === 'POST'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:write',
+      });
+      const campaign = await createDriverBenefitCampaign({
+        repository: driverBenefitRepository,
+        admin: adminRepository,
+        actor,
+        body: await readJson(request),
+      });
+      json(response, 201, { campaign });
+      return;
+    }
+
+    const adminBenefitCampaignMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/driver-benefits\/campaigns\/([^/]+)$/,
+    );
+    if (
+      adminBenefitCampaignMatch != null &&
+      request.method === 'PATCH'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:write',
+      });
+      const campaign = await updateDriverBenefitCampaign({
+        repository: driverBenefitRepository,
+        admin: adminRepository,
+        actor,
+        id: adminBenefitCampaignMatch[1]!,
+        body: await readJson(request),
+      });
+      json(response, 200, { campaign });
+      return;
+    }
+
+    const adminBenefitStatusMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/driver-benefits\/campaigns\/([^/]+)\/status$/,
+    );
+    if (
+      adminBenefitStatusMatch != null &&
+      request.method === 'PATCH'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:write',
+      });
+      const campaign = await setDriverBenefitCampaignStatus({
+        repository: driverBenefitRepository,
+        admin: adminRepository,
+        actor,
+        id: adminBenefitStatusMatch[1]!,
+        body: await readJson(request),
+      });
+      json(response, 200, { campaign });
+      return;
+    }
+
+    const adminBenefitLeaderboardMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/driver-benefits\/campaigns\/([^/]+)\/leaderboard$/,
+    );
+    if (
+      adminBenefitLeaderboardMatch != null &&
+      request.method === 'GET'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:read',
+      });
+      json(
+        response,
+        200,
+        await driverBenefitLeaderboard({
+          repository: driverBenefitRepository,
+          campaignId: adminBenefitLeaderboardMatch[1]!,
+        }),
+      );
+      return;
+    }
+
+    const adminBenefitBaseMatch = requestUrl.pathname.match(
+      /^\/v1\/admin\/driver-benefits\/driver-bases\/([^/]+)$/,
+    );
+    if (
+      adminBenefitBaseMatch != null &&
+      (request.method === 'PUT' || request.method === 'DELETE')
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'drivers:benefits:write',
+      });
+      const driverId = decodeURIComponent(adminBenefitBaseMatch[1]!);
+      if (request.method === 'PUT') {
+        const base = await setDriverBenefitBase({
+          repository: driverBenefitRepository,
+          admin: adminRepository,
+          actor,
+          driverId,
+          body: await readJson(request),
+        });
+        json(response, 200, { base });
+      } else {
+        json(
+          response,
+          200,
+          await clearDriverBenefitBase({
+            repository: driverBenefitRepository,
+            admin: adminRepository,
+            actor,
+            driverId,
+          }),
+        );
+      }
       return;
     }
 
@@ -6542,6 +6727,26 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
+      requestUrl.pathname === '/v1/driver/me/benefits'
+    ) {
+      const driverId = await resolveDriverId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(
+        response,
+        200,
+        await driverBenefitsForApp({
+          repository: driverBenefitRepository,
+          driverId,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
       requestUrl.pathname === '/v1/driver/me/profile'
     ) {
       const driverId = await resolveDriverId({
@@ -8312,6 +8517,18 @@ const server = createServer(async (request, response) => {
         error: 'INVALID_ADMIN_REQUEST',
         message: error.message,
       });
+      return;
+    }
+
+    if (error instanceof DriverBenefitError) {
+      json(
+        response,
+        error.code === 'DRIVER_BENEFIT_NOT_FOUND' ? 404 : 422,
+        {
+          error: error.code,
+          message: error.message,
+        },
+      );
       return;
     }
 
