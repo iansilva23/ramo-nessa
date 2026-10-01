@@ -224,7 +224,7 @@ test('cupom cobra exatamente o restante no Pix mesmo com ajuste configurado', as
 
   assert.equal(intent.payment.amountCents, 9000);
   assert.equal(intent.pricing.totalAmountCents, 9000);
-  assert.equal(intent.pricing.adjustmentCents, 0);
+  assert.equal(intent.pricing.priceAdjustmentCents, 0);
 });
 
 test('cupom cobra exatamente o restante no cartão mesmo com ajuste configurado', async () => {
@@ -249,7 +249,7 @@ test('cupom cobra exatamente o restante no cartão mesmo com ajuste configurado'
 
   assert.equal(intent.payment.amountCents, 9000);
   assert.equal(intent.pricing.totalAmountCents, 9000);
-  assert.equal(intent.pricing.adjustmentCents, 0);
+  assert.equal(intent.pricing.priceAdjustmentCents, 0);
 });
 
 test('sem motorista estorna Order Mercado Pago e reverte escrow uma vez', async () => {
