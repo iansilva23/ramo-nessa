@@ -56,6 +56,9 @@ import { PostgresPassengerSavedPlaceRepository } from '../passengers/repositorie
 import { InMemoryOperationalSettingsRepository } from '../config/in-memory-operational-settings-repository.js';
 import { PostgresOperationalSettingsRepository } from '../config/postgres-operational-settings-repository.js';
 import type { PrivacyRepository } from '../privacy/privacy-repository.js';
+import type { PromotionRepository } from '../promotions/promotion-repository.js';
+import { InMemoryPromotionRepository } from '../promotions/repositories/in-memory-promotion-repository.js';
+import { PostgresPromotionRepository } from '../promotions/repositories/postgres-promotion-repository.js';
 import { InMemoryPrivacyRepository } from '../privacy/repositories/in-memory-privacy-repository.js';
 import { PostgresPrivacyRepository } from '../privacy/repositories/postgres-privacy-repository.js';
 import { createPostgresPool } from './postgres.js';
@@ -81,6 +84,7 @@ export interface RepositoryBundle {
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
   privacyRepository: PrivacyRepository;
+  promotionRepository: PromotionRepository;
   storageMode: 'postgres' | 'memory';
   readinessCheck(): Promise<void>;
   close(): Promise<void>;
@@ -127,6 +131,7 @@ export function createRepositories(): RepositoryBundle {
       passengerSavedPlaceRepository:
         new PostgresPassengerSavedPlaceRepository(pool),
       privacyRepository: new PostgresPrivacyRepository(pool),
+      promotionRepository: new PostgresPromotionRepository(pool),
       storageMode: 'postgres',
       async readinessCheck(): Promise<void> {
         await pool.query('SELECT 1');
@@ -183,6 +188,7 @@ export function createRepositories(): RepositoryBundle {
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
+    promotionRepository: new InMemoryPromotionRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},
