@@ -1,12 +1,15 @@
 import {
   PromotionRepositoryError,
+  prepareRidePromotionRemoval,
   type PassengerPromotionPreferenceRecord,
   type PromotionCampaignRecord,
   type PromotionRedemptionRecord,
   type PromotionRedemptionStatus,
   type PromotionRepository,
   type ReservePromotionRedemptionInput,
+  type RemoveRidePromotionInput,
 } from '../promotion-repository.js';
+import type { RideRecord } from '../../rides/ride.js';
 
 function activeForLimit(
   item: PromotionRedemptionRecord,
@@ -215,6 +218,21 @@ export class InMemoryPromotionRepository
       this.redemptionByRide.set(item.rideId, item.id);
     }
     return structuredClone(item);
+  }
+
+  async removeFromRide(input: RemoveRidePromotionInput): Promise<RideRecord> {
+    const current = await input.rides.findById(input.expectedRide.id);
+    const redemption = current?.promotion == null
+      ? null
+      : this.redemptions.get(current.promotion.applicationId) ?? null;
+    const restored = prepareRidePromotionRemoval(current, input, redemption);
+    if (current?.promotion == null) return restored;
+    // Save first: a rejected save must keep the reservation counting toward limits.
+    const saved = await input.rides.save(restored);
+    this.redemptions.set(redemption!.id, {
+      ...redemption!, status: 'released', updatedAt: input.updatedAt,
+    });
+    return saved;
   }
 
   async setRedemptionStatus(

@@ -2,13 +2,17 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   PromotionRepositoryError,
+  prepareRidePromotionRemoval,
   type PassengerPromotionPreferenceRecord,
   type PromotionCampaignRecord,
   type PromotionRedemptionRecord,
   type PromotionRedemptionStatus,
   type PromotionRepository,
   type ReservePromotionRedemptionInput,
+  type RemoveRidePromotionInput,
 } from '../promotion-repository.js';
+import type { RideRecord } from '../../rides/ride.js';
+import { PostgresRideRepository } from '../../rides/repositories/postgres-ride-repository.js';
 
 interface CampaignRow {
   id: string;
@@ -504,6 +508,48 @@ export class PostgresPromotionRepository implements PromotionRepository {
       );
       await client.query('COMMIT');
       return mapRedemption(inserted.rows[0]!);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async removeFromRide(input: RemoveRidePromotionInput): Promise<RideRecord> {
+    if (!(input.rides instanceof PostgresRideRepository) ||
+        !input.rides.usesConnection(this.pool)) {
+      throw new Error('Promotion removal requires repositories sharing the same pool.');
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT id FROM rides WHERE id = $1 FOR UPDATE',
+        [input.expectedRide.id]);
+      const rides = new PostgresRideRepository(client);
+      const current = await rides.findById(input.expectedRide.id);
+      let redemption: PromotionRedemptionRecord | null = null;
+      if (current?.promotion != null) {
+        const result = await client.query<RedemptionRow>(
+          `SELECT ${REDEMPTION_COLUMNS} FROM promotion_redemptions
+           WHERE id = $1 FOR UPDATE`,
+          [current.promotion.applicationId],
+        );
+        redemption = result.rows[0] == null ? null : mapRedemption(result.rows[0]);
+      }
+      const restored = prepareRidePromotionRemoval(current, input, redemption);
+      if (current?.promotion == null) {
+        await client.query('COMMIT');
+        return restored;
+      }
+      const saved = await rides.save(restored);
+      await client.query(
+        `UPDATE promotion_redemptions SET status = 'released', updated_at = $2
+         WHERE id = $1`,
+        [redemption!.id, input.updatedAt],
+      );
+      await client.query('COMMIT');
+      return saved;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

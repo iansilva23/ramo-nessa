@@ -9,6 +9,7 @@ import {
   createPromotionCampaignRecord,
   PromotionError,
   redeemWalletPromotionCode,
+  removePromotionFromRide,
   savePassengerPromotionPreference,
 } from '../src/promotions/promotion-service.js';
 import {
@@ -99,6 +100,42 @@ test('troca que falha por limite preserva a reserva anterior', async () => {
   assert.equal(
     (await repository.findRedemptionByRideId(rideId))?.id,
     previous.id,
+  );
+});
+
+test('falha ao salvar remoção preserva corrida e reserva promocional', async () => {
+  class FailingRideRepository extends InMemoryRideRepository {
+    override async save(_ride: RideRecord): Promise<RideRecord> {
+      throw new Error('simulated ride save failure');
+    }
+  }
+  const rides = new FailingRideRepository();
+  const promotions = new InMemoryPromotionRepository();
+  const ride = freeRide('2026-10-01T05:05:00.000Z');
+  await rides.create(ride);
+  await promotions.reserveRedemption({
+    redemption: redemption({
+      id: ride.promotion!.applicationId,
+      campaignId: ride.promotion!.campaignId,
+      passengerId: ride.passengerId,
+      rideId: ride.id,
+    }),
+    maxRedemptions: 10,
+    perPassengerLimit: 10,
+    perDeviceLimit: 10,
+    now,
+  });
+  await assert.rejects(removePromotionFromRide({
+    rides,
+    promotions,
+    rideId: ride.id,
+    passengerId: ride.passengerId,
+    now: new Date(now),
+  }), /simulated ride save failure/);
+  assert.deepEqual(await rides.findById(ride.id), ride);
+  assert.equal(
+    (await promotions.findRedemptionById(ride.promotion!.applicationId))?.status,
+    'reserved',
   );
 });
 
@@ -353,4 +390,3 @@ test('crédito promocional preserva cupom de corrida salvo no perfil', async () 
     700,
   );
 });
-

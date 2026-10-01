@@ -633,21 +633,9 @@ export async function removePromotionFromRide(input: {
       'Cupom só pode ser removido antes do pagamento.',
     );
   }
-  const redemption =
-    ride.promotion == null
-      ? null
-      : await input.promotions.findRedemptionById(
-          ride.promotion.applicationId,
-        );
-  if (redemption?.status === 'reserved') {
-    await input.promotions.setRedemptionStatus(
-      redemption.id,
-      'released',
-      (input.now ?? new Date()).toISOString(),
-    );
-  }
-  return input.rides.save({
-    ...restoreOriginalQuote(ride),
+  return input.promotions.removeFromRide({
+    rides: input.rides,
+    expectedRide: ride,
     updatedAt: (input.now ?? new Date()).toISOString(),
   });
 }

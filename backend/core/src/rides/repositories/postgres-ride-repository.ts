@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 import type { RideRecord } from '../ride.js';
 import type {
@@ -151,7 +151,11 @@ const RETURNING = `
 `;
 
 export class PostgresRideRepository implements RideRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
+
+  usesConnection(pool: Pool): boolean {
+    return this.pool === pool;
+  }
 
   async create(ride: RideRecord): Promise<RideRecord> {
     const result = await this.pool.query<RideRow>(

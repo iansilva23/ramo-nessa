@@ -1,3 +1,6 @@
+import type { RideRecord } from '../rides/ride.js';
+import type { RideRepository } from '../rides/ride-repository.js';
+
 export const PROMOTION_KINDS = [
   'wallet_credit',
   'fixed_discount',
@@ -92,6 +95,46 @@ export interface ReservePromotionRedemptionInput {
   replaceRedemptionId?: string;
 }
 
+export interface RemoveRidePromotionInput {
+  rides: RideRepository;
+  expectedRide: RideRecord;
+  updatedAt: string;
+}
+
+export function prepareRidePromotionRemoval(
+  current: RideRecord | null,
+  input: RemoveRidePromotionInput,
+  redemption: PromotionRedemptionRecord | null,
+): RideRecord {
+  if (current == null || current.passengerId !== input.expectedRide.passengerId) {
+    throw new PromotionRepositoryError('PROMOTION_NOT_FOUND', 'Corrida não encontrada.');
+  }
+  if (current.state !== 'AWAITING_PAYMENT' || current.paymentStatus !== 'created') {
+    throw new PromotionRepositoryError(
+      'PROMOTION_REFERENCE_CONFLICT',
+      'A corrida não permite mais alterar o cupom.',
+    );
+  }
+  if (current.promotion == null) return current;
+  if (
+    current.promotion.applicationId !== input.expectedRide.promotion?.applicationId ||
+    current.updatedAt !== input.expectedRide.updatedAt ||
+    redemption == null || redemption.status !== 'reserved' ||
+    redemption.rideId !== current.id || redemption.passengerId !== current.passengerId
+  ) {
+    throw new PromotionRepositoryError(
+      'PROMOTION_REFERENCE_CONFLICT',
+      'A reserva do cupom mudou. Atualize a corrida antes de tentar novamente.',
+    );
+  }
+  const { promotion, ...withoutPromotion } = current;
+  return {
+    ...withoutPromotion,
+    quote: structuredClone(promotion.originalQuote),
+    updatedAt: input.updatedAt,
+  };
+}
+
 export interface PromotionRepository {
   listCampaigns(): Promise<PromotionCampaignRecord[]>;
   findCampaignById(id: string): Promise<PromotionCampaignRecord | null>;
@@ -125,6 +168,7 @@ export interface PromotionRepository {
   reserveRedemption(
     input: ReservePromotionRedemptionInput,
   ): Promise<PromotionRedemptionRecord>;
+  removeFromRide(input: RemoveRidePromotionInput): Promise<RideRecord>;
   setRedemptionStatus(
     id: string,
     status: PromotionRedemptionStatus,
