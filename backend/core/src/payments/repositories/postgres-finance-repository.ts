@@ -1945,6 +1945,74 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async fundRidePromotion(
+    input: FundRidePromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const client = await this.pool.connect();
+    const referenceKey = `ride-promotion:${input.applicationId}`;
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [referenceKey],
+      );
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        await client.query('COMMIT');
+        return { ledgerTransaction: existing, duplicate: true };
+      }
+
+      const ledger = ridePromotionFundingLedger({
+        rideId: input.rideId,
+        applicationId: input.applicationId,
+        amountCents: input.amountCents,
+        createdAt: (input.fundedAt ?? new Date()).toISOString(),
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return { ledgerTransaction: ledger, duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async grantWalletPromotion(
+    input: GrantWalletPromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const client = await this.pool.connect();
+    const referenceKey = `wallet-promotion:${input.applicationId}`;
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [referenceKey],
+      );
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        await client.query('COMMIT');
+        return { ledgerTransaction: existing, duplicate: true };
+      }
+
+      const ledger = walletPromotionGrantLedger({
+        passengerId: input.passengerId,
+        applicationId: input.applicationId,
+        amountCents: input.amountCents,
+        createdAt: (input.grantedAt ?? new Date()).toISOString(),
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return { ledgerTransaction: ledger, duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
     const client = await this.pool.connect();
     const referenceKey = `ride-settlement:${input.rideId}`;
