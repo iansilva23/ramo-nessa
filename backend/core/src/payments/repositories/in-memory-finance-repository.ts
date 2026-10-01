@@ -15,6 +15,7 @@ import {
   externalRideRefundLedger,
   paymentCaptureLedger,
   ridePromotionFundingLedger,
+  ridePromotionFundingReversalLedger,
   walletPromotionGrantLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
@@ -44,6 +45,7 @@ import {
   type FundRidePromotionInput,
   type GrantWalletPromotionInput,
   type PromotionLedgerResult,
+  type ReverseRidePromotionInput,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
   type MarkWalletTopupPendingInput,
@@ -1055,6 +1057,42 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       applicationId: input.applicationId,
       amountCents: input.amountCents,
       createdAt: (input.fundedAt ?? new Date()).toISOString(),
+    });
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicate: false,
+    };
+  }
+
+  async reverseRidePromotion(
+    input: ReverseRidePromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const referenceKey =
+      `ride-promotion-reversal:${input.applicationId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicate: true,
+      };
+    }
+
+    const escrow = await this.getAccountBalanceCents(
+      `ride:${input.rideId}:escrow`,
+    );
+    if (escrow < input.amountCents) {
+      throw new PaymentDomainError(
+        'INSUFFICIENT_RIDE_ESCROW',
+        'Escrow da corrida não possui saldo promocional suficiente.',
+      );
+    }
+
+    const ledger = ridePromotionFundingReversalLedger({
+      rideId: input.rideId,
+      applicationId: input.applicationId,
+      amountCents: input.amountCents,
+      createdAt: (input.reversedAt ?? new Date()).toISOString(),
     });
     this.ledgerByReference.set(referenceKey, structuredClone(ledger));
     return {
