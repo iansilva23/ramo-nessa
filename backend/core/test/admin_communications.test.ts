@@ -11,6 +11,7 @@ import {
   updateAgencyTour,
   updateAgencyTourCover,
   updateAppAuthHero,
+  updateAppBrandingIcon,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from '../src/admin/admin-communications-service.js';
@@ -424,4 +425,33 @@ test('imagem do login é versionada e toda troca gera auditoria', async () => {
   assert.deepEqual([...(await communications.readAppAuthHero())!.bytes], [...bytes]);
   const audit = await admin.listAudit(10);
   assert.equal(audit[0]?.action, 'communications.app_auth_hero_updated');
+});
+
+
+test('ícone dos apps é versionado e marcado para próximo build', async () => {
+  const communications = new InMemoryAdminCommunicationsRepository();
+  const admin = new InMemoryAdminRepository();
+  const bytes = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4,
+  ]);
+
+  const branding = await updateAppBrandingIcon({
+    communications,
+    admin,
+    actor,
+    mimeType: 'image/png',
+    bytes,
+    now: new Date('2026-09-30T23:30:00.000Z'),
+  });
+
+  assert.equal(branding.appIconVersion, 1);
+  assert.equal(branding.appIconMimeType, 'image/png');
+
+  const stored = await communications.readAppBrandingIcon();
+  assert.ok(stored);
+  assert.deepEqual([...stored.bytes], [...bytes]);
+
+  const audit = await admin.listAudit(10);
+  assert.equal(audit[0]?.action, 'communications.app_icon_updated');
+  assert.equal(audit[0]?.metadata?.requiresNewBuild, true);
 });
