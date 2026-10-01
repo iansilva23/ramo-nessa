@@ -11,6 +11,7 @@ import {
   payRideWithWallet,
 } from '../src/payments/wallet-services.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
+import { InMemoryPromotionRepository } from '../src/promotions/repositories/in-memory-promotion-repository.js';
 import { automaticallyRefundRide } from '../src/rides/automatic-ride-refund-service.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { confirmRidePayment } from '../src/rides/confirm-payment.js';
@@ -58,6 +59,7 @@ function preparedRide(id: string): RideRecord {
 async function setupWalletPaidRide(id: string) {
   const rides = new InMemoryRideRepository();
   const finance = new InMemoryFinanceRepository();
+  const promotions = new InMemoryPromotionRepository();
   const ride = await rides.create(preparedRide(id));
 
   const topup = await createWalletTopup(finance, {
@@ -84,7 +86,7 @@ async function setupWalletPaidRide(id: string) {
     payment: payment.payment,
     confirmedAt: now,
   });
-  return { rides, finance, paid, payment: payment.payment };
+  return { rides, finance, promotions, paid, payment: payment.payment };
 }
 
 test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode reofertar o mesmo motorista em nova rodada', async () => {
@@ -200,6 +202,7 @@ test('passageiro cancela após NO_DRIVER_FOUND e recebe carteira integralmente',
   const refunded = await automaticallyRefundRide({
     rides: ctx.rides,
     finance: ctx.finance,
+    promotions: ctx.promotions,
     gateway: null,
     rideId: cancelled.id,
     passengerId: cancelled.passengerId,
@@ -259,6 +262,7 @@ test('motorista pode cancelar corrida já iniciada e o passageiro é reembolsado
   const refunded = await automaticallyRefundRide({
     rides: ctx.rides,
     finance: ctx.finance,
+    promotions: ctx.promotions,
     gateway: null,
     rideId: inProgress.id,
     passengerId: inProgress.passengerId,
@@ -297,6 +301,7 @@ test('busca NO_DRIVER_FOUND abandonada expira no prazo configurado e reembolsa a
   const before = await expireNoDriverDecisions({
     rides: ctx.rides,
     finance: ctx.finance,
+    promotions: ctx.promotions,
     operationalSettings: settings,
     gateway: null,
     now: new Date('2026-09-29T14:14:59.000Z'),
@@ -307,6 +312,7 @@ test('busca NO_DRIVER_FOUND abandonada expira no prazo configurado e reembolsa a
   const expired = await expireNoDriverDecisions({
     rides: ctx.rides,
     finance: ctx.finance,
+    promotions: ctx.promotions,
     operationalSettings: settings,
     gateway: null,
     now: new Date('2026-09-29T14:15:00.000Z'),

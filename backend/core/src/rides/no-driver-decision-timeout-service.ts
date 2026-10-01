@@ -1,6 +1,7 @@
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { MercadoPagoOrdersClient } from '../payments/mercado-pago-orders.js';
+import type { PromotionRepository } from '../promotions/promotion-repository.js';
 import { automaticallyRefundRide } from './automatic-ride-refund-service.js';
 import { cancelPassengerRideAfterNoDriver } from './passenger-ride-recovery-service.js';
 import type { RideRepository } from './ride-repository.js';
@@ -20,6 +21,7 @@ export interface RideRefundSweepFailure {
 export async function expireNoDriverDecisions(input: {
   rides: RideRepository;
   finance: FinanceRepository;
+  promotions: PromotionRepository;
   operationalSettings: OperationalSettingsRepository;
   gateway: MercadoPagoOrdersClient | null;
   now?: Date;
@@ -51,6 +53,7 @@ export async function expireNoDriverDecisions(input: {
       const refund = await automaticallyRefundRide({
         rides: input.rides,
         finance: input.finance,
+        promotions: input.promotions,
         gateway: input.gateway,
         rideId: cancelled.id,
         passengerId: cancelled.passengerId,
@@ -76,6 +79,7 @@ export async function expireNoDriverDecisions(input: {
 export async function reconcilePendingRideRefunds(input: {
   rides: RideRepository;
   finance: FinanceRepository;
+  promotions: PromotionRepository;
   gateway: MercadoPagoOrdersClient | null;
   now?: Date;
   limit?: number;
@@ -98,6 +102,7 @@ export async function reconcilePendingRideRefunds(input: {
       const refund = await automaticallyRefundRide({
         rides: input.rides,
         finance: input.finance,
+        promotions: input.promotions,
         gateway: input.gateway,
         rideId: latest.id,
         passengerId: latest.passengerId,

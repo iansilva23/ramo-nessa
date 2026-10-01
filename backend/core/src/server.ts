@@ -1205,6 +1205,7 @@ async function runNoDriverDecisionSweep(): Promise<void> {
     const expired = await expireNoDriverDecisions({
       rides: rideRepository,
       finance: financeRepository,
+      promotions: promotionRepository,
       operationalSettings: operationalSettingsRepository,
       gateway: mercadoPagoOrdersClient,
       limit: 100,
@@ -1213,6 +1214,7 @@ async function runNoDriverDecisionSweep(): Promise<void> {
     const reconciled = await reconcilePendingRideRefunds({
       rides: rideRepository,
       finance: financeRepository,
+      promotions: promotionRepository,
       gateway: mercadoPagoOrdersClient,
       limit: 100,
       onFailure,

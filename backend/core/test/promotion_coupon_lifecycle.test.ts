@@ -160,7 +160,7 @@ function freeRide(holdExpiresAt: string): RideRecord {
     dropoffLatitude: -2.9,
     dropoffLongitude: -40.5,
     origin: { zoneId: 'prea' },
-    destination: { zoneId: 'jeri' },
+    destination: { zoneId: 'jericoacoara' },
     category: 'car',
     period: 'day',
     passengers: 1,
