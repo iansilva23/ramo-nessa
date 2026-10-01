@@ -7,6 +7,7 @@ import type {
   ServiceCategory,
 } from '../pricing/types.js';
 import type { RideState } from './ride-state.js';
+import type { RidePromotionSnapshot } from '../promotions/promotion-service.js';
 
 export interface RideQuoteSnapshot {
   ruleId: string;
@@ -44,6 +45,7 @@ export interface RideRecord {
   driverPickupDistanceKm?: number;
 
   quote: RideQuoteSnapshot;
+  promotion?: RidePromotionSnapshot;
 
   createdAt: string;
   updatedAt: string;
