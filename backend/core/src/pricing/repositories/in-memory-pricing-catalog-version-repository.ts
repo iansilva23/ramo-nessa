@@ -87,6 +87,21 @@ export class InMemoryPricingCatalogVersionRepository
     return structuredClone(updated);
   }
 
+  async deleteDraft(
+    input: Parameters<PricingCatalogVersionRepository['deleteDraft']>[0],
+  ): Promise<PricingCatalogVersionRecord | null> {
+    const current = this.versions.get(input.id);
+    if (
+      current == null ||
+      current.status !== 'draft' ||
+      current.updatedAt !== input.expectedUpdatedAt
+    ) {
+      return null;
+    }
+    this.versions.delete(input.id);
+    return structuredClone(current);
+  }
+
   async findEffective(at: string): Promise<PricingCatalogVersionRecord | null> {
     const timestamp = Date.parse(at);
     const found = [...this.versions.values()]
