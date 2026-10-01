@@ -201,6 +201,59 @@ function quoteFixedRoute(
   );
 }
 
+function quoteDistanceFallback(
+  request: QuoteRequest,
+  catalog: PricingCatalogSnapshot,
+): FareQuote | null {
+  const originId = endpointId(request.origin);
+  const destinationId = endpointId(request.destination);
+
+  const candidates = catalog.distanceFarePolicies
+    .filter(
+      (rule) =>
+        rule.category === request.category &&
+        (rule.anchorLocalityId === originId ||
+          rule.anchorLocalityId === destinationId),
+    )
+    .sort((a, b) => {
+      const aOrigin = a.anchorLocalityId === originId ? 0 : 1;
+      const bOrigin = b.anchorLocalityId === originId ? 0 : 1;
+      if (aOrigin !== bOrigin) return aOrigin - bOrigin;
+      return a.id.localeCompare(b.id);
+    });
+
+  if (candidates.length === 0) return null;
+
+  const distance = request.tripDistanceKm;
+  if (distance == null) {
+    throw new PricingError(
+      'MISSING_DISTANCE',
+      'A distância roteada da viagem é obrigatória para esta tarifa.',
+    );
+  }
+
+  const rule = candidates.find(
+    (candidate) => distance <= candidate.maxKm,
+  );
+  if (rule == null) return null;
+
+  const billableKm = Math.max(distance, rule.minKm);
+  const distanceAmountCents = Math.ceil(
+    billableKm * rule.pricePerKmCents,
+  );
+  const baseAmountCents = Math.max(
+    rule.minimumFareCents,
+    distanceAmountCents,
+  );
+
+  return exactQuote(
+    rule.id,
+    baseAmountCents,
+    request,
+    catalog,
+  );
+}
+
 function resolveHubLocality(
   origin: LocationRef,
   destination: LocationRef,
@@ -499,6 +552,9 @@ export function quoteFare(
 
   const jijoca = quoteJijoca(request, catalog);
   if (jijoca != null) return jijoca;
+
+  const distanceFallback = quoteDistanceFallback(request, catalog);
+  if (distanceFallback != null) return distanceFallback;
 
   throw new PricingError(
     'UNKNOWN_ROUTE',
