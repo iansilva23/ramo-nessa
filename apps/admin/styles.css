@@ -5175,3 +5175,93 @@ td strong {
     width: min(72vw, 220px);
   }
 }
+
+
+/* Cobrança automática por distância */
+.locality-distance-section {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.locality-distance-section__heading {
+  max-width: 760px;
+  margin-bottom: 16px;
+}
+
+.locality-distance-section__heading h4 {
+  margin: 6px 0 5px;
+  font-size: 17px;
+  letter-spacing: -.3px;
+}
+
+.locality-distance-section__heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.locality-distance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.locality-distance-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--raised);
+}
+
+.locality-distance-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  cursor: pointer;
+}
+
+.locality-distance-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--yellow);
+}
+
+.locality-distance-toggle strong,
+.locality-distance-toggle small {
+  display: block;
+}
+
+.locality-distance-toggle strong {
+  font-size: 13px;
+}
+
+.locality-distance-toggle small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.locality-distance-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .locality-distance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .locality-distance-fields {
+    grid-template-columns: 1fr;
+  }
+}
