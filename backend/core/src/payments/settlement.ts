@@ -89,6 +89,9 @@ export async function settleCompletedRide(
     paymentAdjustmentCents,
     platformCommissionCents: input.ride.quote.platformCommissionCents,
     driverNetCents: input.ride.quote.driverNetCents,
+    ...(input.ride.promotion?.kind === 'fixed_driver_fare'
+      ? { deferCashDebtRecovery: true as const }
+      : {}),
     ...(input.settledAt != null ? { settledAt: input.settledAt } : {}),
   });
 }

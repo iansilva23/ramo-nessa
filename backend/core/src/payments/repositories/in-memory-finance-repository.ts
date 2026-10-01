@@ -1171,7 +1171,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     const cashDebtCents = await this.getDriverCashDebtCents(
       input.driverId,
     );
-    const cashDebtRecoveredCents = Math.min(
+    const cashDebtRecoveredCents = input.deferCashDebtRecovery === true ? 0 : Math.min(
       cashDebtCents,
       input.driverNetCents,
     );

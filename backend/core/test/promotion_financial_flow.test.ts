@@ -34,6 +34,28 @@ const cases = [
   { kind: 'fixed_driver_fare', payable: 5000, subsidy: 0, driver: 5000, commission: 0 },
 ] as const;
 
+test('tarifa fixa preserva valor integral e mantém dívida anterior para corrida normal', async () => {
+  const context = await setup('fixed_driver_fare');
+  const {finance, rides} = context;
+  await finance.settleCashRide({rideId: randomUUID(), driverId: 'audit-driver', platformCommissionCents: 1000, settledAt: now});
+  const {payment, paid} = await pay(context);
+  const completed = {...paid, state: 'COMPLETED' as const, driverId: 'audit-driver'};
+  const settlement = await settleCompletedRide(finance, {ride: completed, payment});
+  assert.equal(settlement.cashDebtRecoveredCents, 0);
+  assert.equal(await finance.getAccountBalanceCents('driver:audit-driver:payable'), 5000);
+  assert.equal(await finance.getDriverCashDebtCents('audit-driver'), 1000);
+  assert.equal((await settleCompletedRide(finance, {ride: completed, payment})).duplicateSettlement, true);
+  const normal = await rides.create(normalRide());
+  const normalPayment = (await payRideWithWallet(finance, {ride: normal, passengerId: normal.passengerId,
+    idempotencyKey: `normal-${normal.id}`, now})).payment;
+  const normalSettlement = await settleCompletedRide(finance, {
+    ride: {...normal, state: 'COMPLETED', driverId: 'audit-driver'}, payment: normalPayment,
+  });
+  assert.equal(normalSettlement.cashDebtRecoveredCents, 1000);
+  assert.equal(await finance.getDriverCashDebtCents('audit-driver'), 0);
+  assert.equal(await finance.getAccountBalanceCents('driver:audit-driver:payable'), 22000);
+});
+
 function normalRide(passengerId = 'audit-passenger'): RideRecord {
   return {
     id: randomUUID(), passengerId, state: 'AWAITING_PAYMENT', paymentStatus: 'created',

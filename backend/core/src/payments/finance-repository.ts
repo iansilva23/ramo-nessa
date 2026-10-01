@@ -105,6 +105,7 @@ export interface SettleRideInput {
   paymentAdjustmentCents?: number;
   platformCommissionCents: number;
   driverNetCents: number;
+  deferCashDebtRecovery?: true;
   settledAt?: Date;
 }
 
