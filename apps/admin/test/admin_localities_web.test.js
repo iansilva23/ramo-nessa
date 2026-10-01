@@ -59,6 +59,14 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
     'locality-price-moto-card',
     'locality-price-delivery-card',
     'locality-price-car-card',
+    'locality-distance-grid',
+    'locality-distance-moto-enabled',
+    'locality-distance-moto-minimum-fare',
+    'locality-distance-moto-per-km',
+    'locality-distance-moto-min-km',
+    'locality-distance-moto-max-km',
+    'locality-distance-car-enabled',
+    'locality-distance-comfort_black-enabled',
     'locality-night-surcharge',
     'locality-review',
     'locality-wizard-reset',
@@ -76,6 +84,9 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
   assert.match(localities, /kind: 'locality_geofence'/);
   assert.match(localities, /kind: 'locality_price'/);
   assert.match(localities, /kind: 'locality_policy'/);
+  assert.match(localities, /kind: 'distance_fare_policy'/);
+  assert.match(localities, /minimumFareCents/);
+  assert.match(localities, /pricePerKmCents/);
   assert.match(localities, /operation: 'remove'/);
   assert.match(localities, /Desfazer última exclusão/);
   assert.match(localities, /window\.confirm/);
@@ -85,6 +96,9 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
   assert.match(localities, /Excluir o rascunho/);
   assert.match(localities, /createPricingCoverageMap/);
   assert.match(localities, /createPricingGeofenceMap/);
+  assert.match(html, /PONTOS SEM PREÇO CADASTRADO/);
+  assert.match(html, /Cobrança automática por distância/);
+  assert.match(html, /preço fixo.*prioridade/is);
   assert.equal(localities.includes('.innerHTML'), false);
 
   assert.match(map, /export function createPricingCoverageMap/);
@@ -101,6 +115,9 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
     '.locality-wizard-map',
     '.locality-category-grid',
     '.locality-price-grid',
+    '.locality-distance-section',
+    '.locality-distance-grid',
+    '.locality-distance-card',
     '.locality-review',
     '.pricing-coverage-map__radius',
     '.pricing-coverage-map__pin',
