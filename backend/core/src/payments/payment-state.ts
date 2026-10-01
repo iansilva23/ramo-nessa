@@ -1,4 +1,4 @@
-import type { EnabledPaymentMethod } from './payment-policy.js';
+import type { RidePaymentMethod } from './payment-policy.js';
 
 export type PaymentStatus =
   | 'created'
@@ -12,7 +12,7 @@ export type PaymentStatus =
 export interface PaymentSnapshot {
   paymentId: string;
   quoteRuleId: string;
-  method: EnabledPaymentMethod;
+  method: RidePaymentMethod;
   amountCents: number;
   status: PaymentStatus;
   idempotencyKey: string;
@@ -55,10 +55,13 @@ export function transitionPayment(
 }
 
 export function assertPaymentReadyForDispatch(
-  payment: Pick<PaymentSnapshot, 'status' | 'amountCents'>,
+  payment: Pick<PaymentSnapshot, 'status' | 'amountCents' | 'method'>,
 ): void {
-  if (payment.amountCents <= 0) {
-    throw new PaymentStateError('Pagamento precisa ter valor positivo.');
+  if (
+    payment.amountCents < 0 ||
+    (payment.amountCents === 0 && payment.method !== 'promotion')
+  ) {
+    throw new PaymentStateError('Pagamento precisa ter valor válido.');
   }
 
   if (!canDispatchWithPayment(payment.status)) {
