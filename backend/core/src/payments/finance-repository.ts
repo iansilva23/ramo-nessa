@@ -69,6 +69,25 @@ export interface CapturePaymentResult {
   duplicateEvent: boolean;
 }
 
+export interface FundRidePromotionInput {
+  rideId: string;
+  applicationId: string;
+  amountCents: number;
+  fundedAt?: Date;
+}
+
+export interface GrantWalletPromotionInput {
+  passengerId: string;
+  applicationId: string;
+  amountCents: number;
+  grantedAt?: Date;
+}
+
+export interface PromotionLedgerResult {
+  ledgerTransaction: LedgerTransaction;
+  duplicate: boolean;
+}
+
 export interface SettleRideInput {
   rideId: string;
   paymentId: string;
@@ -366,6 +385,13 @@ export interface FinanceRepository {
   refundWalletRide(
     input: RefundWalletRideInput,
   ): Promise<RefundWalletRideResult>;
+
+  fundRidePromotion(
+    input: FundRidePromotionInput,
+  ): Promise<PromotionLedgerResult>;
+  grantWalletPromotion(
+    input: GrantWalletPromotionInput,
+  ): Promise<PromotionLedgerResult>;
 
   settleRide(input: SettleRideInput): Promise<SettleRideResult>;
   settleCashRide(
