@@ -144,6 +144,26 @@ export function assertPricingLocationMatchesPoint(input: {
     return;
   }
 
+  if (input.ref.localityId != null) {
+    const geofence = catalog.localityGeofences.find(
+      (candidate) =>
+        candidate.zoneId === input.ref.zoneId &&
+        candidate.localityId === input.ref.localityId,
+    );
+    if (geofence != null) {
+      const distance = distanceKm(input.point, {
+        latitude: geofence.centerLatitude,
+        longitude: geofence.centerLongitude,
+      });
+      if (distance > geofence.radiusKm) {
+        throw new PricingLocationMismatchError(
+          `${input.field}.localityId não confere com a área cadastrada.`,
+        );
+      }
+      return;
+    }
+  }
+
   const localZone = containingLocalZone(input.point);
 
   if (input.ref.zoneId === 'external') {
@@ -165,9 +185,8 @@ export function assertPricingLocationMatchesPoint(input: {
       return;
     }
 
-    // Destinos externos aprovados não podem usar coordenadas que pertencem
-    // claramente a uma das zonas locais. A validação exata por município
-    // depende do catálogo geográfico autoritativo da próxima etapa.
+    // Destinos externos sem geofence própria continuam protegidos contra
+    // coordenadas que pertençam claramente a uma zona local.
     if (localZone != null) {
       throw new PricingLocationMismatchError(
         `${input.field} externo não confere com uma coordenada de zona local.`,
