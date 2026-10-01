@@ -425,6 +425,23 @@ export function createLocalitiesAdmin(input) {
         max: byId(`locality-price-${category}-max`)?.value ?? '',
       };
     }
+
+    const distancePricing = {};
+    for (const category of DISTANCE_CATEGORIES) {
+      distancePricing[category] = {
+        enabled:
+          byId(`locality-distance-${category}-enabled`)?.checked === true,
+        minimumFare:
+          byId(`locality-distance-${category}-minimum-fare`)?.value ?? '',
+        perKm:
+          byId(`locality-distance-${category}-per-km`)?.value ?? '',
+        minKm:
+          byId(`locality-distance-${category}-min-km`)?.value ?? '0',
+        maxKm:
+          byId(`locality-distance-${category}-max-km`)?.value ?? '',
+      };
+    }
+
     return {
       scope: byId('locality-scope')?.value ?? 'prea',
       name: byId('locality-name')?.value ?? '',
@@ -433,6 +450,7 @@ export function createLocalitiesAdmin(input) {
       selection,
       categories: activeCategoriesFromForm(),
       prices,
+      distancePricing,
       nightSurcharge: byId('locality-night-surcharge')?.checked === true,
     };
   }
@@ -460,6 +478,21 @@ export function createLocalitiesAdmin(input) {
     }
     byId('locality-category-comfort').checked =
       categories.has('comfort_black');
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category] ?? {};
+      byId(`locality-distance-${category}-enabled`).checked =
+        distance.enabled === true;
+      byId(`locality-distance-${category}-minimum-fare`).value =
+        distance.minimumFare ?? '';
+      byId(`locality-distance-${category}-per-km`).value =
+        distance.perKm ?? '';
+      byId(`locality-distance-${category}-min-km`).value =
+        distance.minKm ?? '0';
+      byId(`locality-distance-${category}-max-km`).value =
+        distance.maxKm ?? '';
+    }
+
     byId('locality-night-surcharge').checked =
       model.nightSurcharge === true;
 
@@ -473,7 +506,14 @@ export function createLocalitiesAdmin(input) {
   }
 
   function modelFromEntry(entry) {
-    const categories = categoryList(entry.policy);
+    const categories = [
+      ...new Set([
+        ...categoryList(entry.policy),
+        ...(entry.distancePolicies ?? []).map(
+          (policy) => policy.category,
+        ),
+      ]),
+    ];
     const prices = {};
     for (const category of PRICE_CATEGORIES) {
       const price = entry.prices?.[category];
@@ -489,6 +529,21 @@ export function createLocalitiesAdmin(input) {
             : '',
       };
     }
+
+    const distancePricing = {};
+    for (const category of DISTANCE_CATEGORIES) {
+      const rule = (entry.distancePolicies ?? []).find(
+        (candidate) => candidate.category === category,
+      );
+      distancePricing[category] = {
+        enabled: rule != null,
+        minimumFare: centsToInput(rule?.minimumFareCents),
+        perKm: centsToInput(rule?.pricePerKmCents),
+        minKm: rule == null ? '0' : String(rule.minKm),
+        maxKm: rule == null ? '' : String(rule.maxKm),
+      };
+    }
+
     return {
       scope: entry.scope,
       name: entry.label,
@@ -507,6 +562,7 @@ export function createLocalitiesAdmin(input) {
           },
       categories,
       prices,
+      distancePricing,
       nightSurcharge:
         entry.policy?.applyNightSurcharge === true,
     };
@@ -567,6 +623,16 @@ export function createLocalitiesAdmin(input) {
         ]);
       }
     }
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      if (distance?.enabled !== true) continue;
+      rows.push([
+        `Por distância · ${CATEGORY_LABELS[category]}`,
+        `${distance.perKm || '—'}/km · mínimo R$ ${distance.minimumFare || '—'} · ${distance.minKm || '0'} km mínimos · até ${distance.maxKm || '—'} km`,
+      ]);
+    }
+
     for (const [label, value] of rows) {
       const row = element('div', 'locality-review__row');
       row.append(
@@ -672,6 +738,7 @@ export function createLocalitiesAdmin(input) {
             selection: { ...scopeDefault('prea'), radiusKm: 2 },
             categories: [],
             prices: {},
+            distancePricing: {},
             nightSurcharge: false,
           };
     applyForm(model);
