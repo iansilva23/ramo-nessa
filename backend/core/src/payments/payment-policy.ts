@@ -12,7 +12,8 @@ export type EnabledPaymentMethod =
 
 export type RidePaymentMethod =
   | EnabledPaymentMethod
-  | 'cash';
+  | 'cash'
+  | 'promotion';
 
 export function isPaymentMethodEnabled(
   method: string,
