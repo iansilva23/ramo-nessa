@@ -20,6 +20,7 @@ import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/data/driver_privacy_service.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
 import '../../profile/presentation/driver_privacy_screen.dart';
+import '../../profile/presentation/driver_ranking_benefits_screen.dart';
 import '../../profile/presentation/driver_ride_summary_screen.dart';
 import '../../profile/presentation/driver_security_screen.dart';
 import '../../profile/presentation/driver_settings_screen.dart';
@@ -2185,6 +2186,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         ),
                       );
                     },
+            ),
+            _ProfileOption(
+              icon: Icons.emoji_events_rounded,
+              title: 'Ranking & Benefícios',
+              subtitle: 'Em breve: reconhecimento, rankings e benefícios',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        const DriverRankingBenefitsScreen(),
+                  ),
+                );
+              },
             ),
             _ProfileOption(
               icon: Icons.account_balance_wallet_outlined,
