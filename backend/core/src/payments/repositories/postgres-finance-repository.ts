@@ -2051,7 +2051,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
       if (
         paymentRow == null ||
         paymentRow.status !== 'paid' ||
-        paymentRow.amount_cents !== input.totalAmountCents
+        paymentRow.amount_cents !==
+          (input.paymentAmountCents ?? input.totalAmountCents)
       ) {
         throw new PaymentDomainError(
           'INVALID_PAYMENT_TRANSITION',
