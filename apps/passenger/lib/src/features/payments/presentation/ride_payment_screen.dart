@@ -123,8 +123,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         setState(() {
           _couponLoading = false;
           _couponError =
-              'Seu cupom salvo não pode ser usado nesta corrida. ' +
-              error.message;
+              'Seu cupom salvo não pode ser usado nesta corrida. ${error.message}';
         });
       }
     } on PassengerPaymentException catch (error) {
@@ -172,8 +171,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           _couponLoading = false;
           _couponController.clear();
           _couponMessage = value > 0
-              ? PreparedRide.formatCents(value) +
-                  ' entrou na sua Carteira Ramo Nessa.'
+              ? '${PreparedRide.formatCents(value)} entrou na sua Carteira Ramo Nessa.'
               : 'Crédito promocional adicionado à sua carteira.';
         });
         return;
@@ -827,10 +825,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                         if (_ride.promotion != null) ...[
                           const SizedBox(height: 2),
                           Text(
-                            'Preço normal: ' +
-                                PreparedRide.formatCents(
-                                  _ride.promotion!.normalTotalCents,
-                                ),
+                            'Preço normal: ${PreparedRide.formatCents(_ride.promotion!.normalTotalCents)}',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: RamoColors.muted,
                                   decoration: TextDecoration.lineThrough,
