@@ -746,6 +746,27 @@ export async function redeemRidePromotion(input: {
   );
 }
 
+export async function releaseRidePromotionReservation(input: {
+  promotions: PromotionRepository;
+  ride: RideRecord;
+  now?: Date;
+}): Promise<void> {
+  const promotion = input.ride.promotion;
+  if (promotion == null) return;
+  const redemption = await input.promotions.findRedemptionByRideId(
+    input.ride.id,
+  );
+  if (redemption == null || redemption.status === 'released') return;
+  if (redemption.status === 'redeemed') {
+    return;
+  }
+  await input.promotions.setRedemptionStatus(
+    redemption.id,
+    'released',
+    (input.now ?? new Date()).toISOString(),
+  );
+}
+
 export async function releaseFundedRidePromotion(input: {
   promotions: PromotionRepository;
   finance: FinanceRepository;
