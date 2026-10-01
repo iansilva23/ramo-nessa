@@ -777,7 +777,7 @@ async function releaseExpiredPreparedDriverHold(input: {
 }
 
 
-async function fundAndRedeemRidePromotion(
+async function fundRidePromotionForPayment(
   ride: Awaited<ReturnType<typeof rideRepository.findById>> extends infer T
     ? Exclude<T, null>
     : never,
@@ -785,11 +785,6 @@ async function fundAndRedeemRidePromotion(
 ): Promise<void> {
   await fundRidePromotion({
     finance: financeRepository,
-    ride,
-    now,
-  });
-  await redeemRidePromotion({
-    promotions: promotionRepository,
     ride,
     now,
   });
@@ -809,7 +804,7 @@ async function processConfirmedMercadoPagoRide(
     );
 
   if (!expiredHold && rideBeforeConfirmation != null) {
-    await fundAndRedeemRidePromotion(
+    await fundRidePromotionForPayment(
       rideBeforeConfirmation,
       confirmationTime,
     );
@@ -978,6 +973,11 @@ async function markMercadoPagoRidePaymentFailed(
     });
     return;
   }
+
+  await releaseRidePromotionReservation({
+    promotions: promotionRepository,
+    ride,
+  });
 
   const failedRide = await rideRepository.save({
     ...ride,
@@ -6937,6 +6937,10 @@ const server = createServer(async (request, response) => {
 
         const acceptedRide = await rideRepository.findById(result.ride.id);
         if (acceptedRide != null) {
+          await redeemRidePromotion({
+            promotions: promotionRepository,
+            ride: acceptedRide,
+          });
           const tracking = await passengerRideTracking({
             rides: rideRepository,
             drivers: driverSupplyRepository,
@@ -7622,7 +7626,7 @@ const server = createServer(async (request, response) => {
         ride,
         now,
       });
-      await fundAndRedeemRidePromotion(ride, now);
+      await fundRidePromotionForPayment(ride, now);
 
       let currentRide = await confirmRidePayment(rideRepository, {
         rideId: ride.id,
@@ -7956,7 +7960,7 @@ const server = createServer(async (request, response) => {
           duplicateRefund = refund.duplicateRefund;
           dispatchStatus = 'NO_DRIVER_FOUND';
         } else {
-          await fundAndRedeemRidePromotion(ride, new Date());
+          await fundRidePromotionForPayment(ride, new Date());
           currentRide = await confirmRidePayment(rideRepository, {
             rideId: ride.id,
             payment: result.payment,
