@@ -80,6 +80,10 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
       after22Cents: 15000,
     },
   });
+  await api.deletePricingVersion(token, {
+    versionId,
+    expectedUpdatedAt,
+  });
   await api.publishPricingVersion(token, {
     versionId,
     effectiveFrom: '2026-10-01T03:00:00.000Z',
@@ -98,6 +102,10 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
       [
         '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111',
         'PATCH',
+      ],
+      [
+        '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111',
+        'DELETE',
       ],
       [
         '/v1/admin/pricing/versions/11111111-1111-4111-8111-111111111111/publish',
@@ -124,6 +132,9 @@ test('cliente Admin gerencia versões com Bearer somente no header', async () =>
     expectedUpdatedAt,
   });
   assert.deepEqual(JSON.parse(calls[4].options.body), {
+    expectedUpdatedAt,
+  });
+  assert.deepEqual(JSON.parse(calls[5].options.body), {
     effectiveFrom: '2026-10-01T03:00:00.000Z',
     expectedUpdatedAt,
   });
@@ -222,7 +233,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-delivery-bands-fields',
     'pricing-delivery-bands',
     'pricing-delivery-above-max',
-    'pricing-versions-body',
+    'pricing-current-draft-label',
     'pricing-create-draft-button',
     'pricing-editor-status',
     'pricing-editor-controls',
@@ -237,8 +248,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-locality-price-kind',
     'pricing-locality-min',
     'pricing-locality-max',
-    'pricing-effective-from',
-    'pricing-publish-button',
   ]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
@@ -261,6 +270,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /api\.createPricingVersion\(state\.token\)/);
   assert.match(app, /api\.updatePricingVersion\(state\.token/);
   assert.match(app, /api\.publishPricingVersion/);
+  assert.match(app, /pricing-current-draft-label/);
   assert.match(app, /expectedUpdatedAt: version\.updatedAt/);
   assert.match(app, /window\.confirm/);
   assert.match(app, /vigência imediata/);
@@ -298,10 +308,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     app,
     /bindRouteEvent\('pricing-edit-form', 'submit'/,
   );
-  assert.match(
-    app,
-    /bindRouteEvent\('pricing-publish-button', 'click'/,
-  );
   assert.equal(app.includes('.innerHTML'), false);
   assert.match(geofenceMap, /pointerdown/);
   assert.match(geofenceMap, /radiusKm/);
@@ -311,7 +317,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   for (const selector of [
     '.pricing-summary-grid',
     '.pricing-readonly-note',
-    '.pricing-table-heading',
+    '.pricing-draft-card',
     '.pricing-workflow-grid',
     '.pricing-edit-form',
     '.pricing-publish-panel',
