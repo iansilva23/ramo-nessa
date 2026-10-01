@@ -27,7 +27,7 @@ test('ADM documenta e publica a imagem do login com Bearer', async () => {
   assert.equal(calls[0].url.includes('admin-session'), false);
 
   const [html, app] = await Promise.all([
-    readFile(new URL('../pages/notifications.html', import.meta.url), 'utf8'),
+    readFile(new URL('../pages/design.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
   ]);
   for (const value of [
@@ -39,5 +39,10 @@ test('ADM documenta e publica a imagem do login com Bearer', async () => {
     'Máximo: 5 MB',
   ]) assert.match(html, new RegExp(value));
   assert.match(app, /handleAppAuthHeroUpload/);
+  assert.match(app, /handleAppBrandingIconUpload/);
+  assert.match(app, /uploadAppBrandingIcon/);
+  assert.match(html, /app-branding-icon-file/);
+  assert.match(html, /upload-app-branding-icon-button/);
+  assert.match(html, /1024 × 1024 px/);
   assert.match(app, /communications:write/);
 });
