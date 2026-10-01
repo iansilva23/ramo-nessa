@@ -127,6 +127,8 @@ export function createLocalitiesAdmin(input) {
   const api = input.api;
   let catalog = null;
   let draft = null;
+  let versionItems = [];
+  let effectiveVersionId = null;
   let overviewMap = null;
   let wizardMap = null;
   let step = 1;
@@ -922,14 +924,48 @@ export function createLocalitiesAdmin(input) {
   }
 
   function renderDraftStatus() {
+    const canWrite = hasScope('pricing:write');
+
     const target = byId('localities-draft-status');
-    if (target == null) return;
-    target.textContent =
-      draft?.status === 'draft'
-        ? `Rascunho #${draft.versionNumber} · alterações protegidas`
-        : 'Catálogo publicado · novo rascunho será criado ao salvar';
+    if (target != null) {
+      target.textContent =
+        draft?.status === 'draft'
+          ? `Rascunho #${draft.versionNumber} · ainda não publicado`
+          : 'Sem alterações pendentes';
+    }
+
+    const currentDraft = byId('localities-current-draft');
+    if (currentDraft != null) {
+      currentDraft.textContent =
+        draft?.status === 'draft'
+          ? `#${draft.versionNumber}`
+          : 'Nenhum';
+    }
+
+    const effectiveVersion = byId('localities-effective-version');
+    if (effectiveVersion != null) {
+      const effective = versionItems.find(
+        (version) => version.id === effectiveVersionId,
+      );
+      effectiveVersion.textContent =
+        effective == null
+          ? 'Catálogo padrão'
+          : `#${effective.versionNumber}`;
+    }
+
+    const publish = byId('localities-publish-draft-button');
+    const discard = byId('localities-discard-draft-button');
+    if (publish != null) {
+      publish.hidden = !canWrite || draft?.status !== 'draft';
+      publish.disabled = false;
+    }
+    if (discard != null) {
+      discard.hidden = !canWrite || draft?.status !== 'draft';
+      discard.disabled = false;
+    }
+
     const create = byId('localities-new-button');
-    if (create != null) create.hidden = !hasScope('pricing:write');
+    if (create != null) create.hidden = !canWrite;
   }
 
   async function refresh({ announce = true } = {}) {
@@ -937,6 +973,8 @@ export function createLocalitiesAdmin(input) {
     if (!currentToken || !hasScope('pricing:read')) {
       catalog = null;
       draft = null;
+      versionItems = [];
+      effectiveVersionId = null;
       renderDirectory();
       renderDraftStatus();
       return;
@@ -945,6 +983,11 @@ export function createLocalitiesAdmin(input) {
     const items = Array.isArray(versionsPayload?.items)
       ? versionsPayload.items
       : [];
+    versionItems = items;
+    effectiveVersionId =
+      typeof versionsPayload?.effectiveVersionId === 'string'
+        ? versionsPayload.effectiveVersionId
+        : null;
     const draftVersion =
       items.find((version) => version.status === 'draft') ?? null;
     if (draftVersion != null) {
@@ -964,6 +1007,69 @@ export function createLocalitiesAdmin(input) {
     if (announce) setMessage('Localidades atualizadas.', 'success');
   }
 
+  async function publishDraftNow() {
+    if (
+      draft?.status !== 'draft' ||
+      !hasScope('pricing:write')
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Publicar agora o rascunho #${draft.versionNumber}? As localidades e tarifas deste rascunho passarão a valer no app.`,
+    );
+    if (!confirmed) return;
+
+    const button = byId('localities-publish-draft-button');
+    if (button != null) button.disabled = true;
+    try {
+      await api.publishPricingVersion(token(), {
+        versionId: draft.id,
+        expectedUpdatedAt: draft.updatedAt,
+      });
+      await refresh({ announce: false });
+      setMessage(
+        'Rascunho publicado. As alterações agora estão em vigor.',
+        'success',
+      );
+    } finally {
+      if (button != null) button.disabled = false;
+    }
+  }
+
+  async function discardDraft() {
+    if (
+      draft?.status !== 'draft' ||
+      !hasScope('pricing:write')
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Excluir o rascunho #${draft.versionNumber}? Todas as alterações ainda não publicadas desse rascunho serão descartadas.`,
+    );
+    if (!confirmed) return;
+
+    const button = byId('localities-discard-draft-button');
+    if (button != null) button.disabled = true;
+    try {
+      await api.deletePricingVersion(token(), {
+        versionId: draft.id,
+        expectedUpdatedAt: draft.updatedAt,
+      });
+      closeWizard();
+      lastDeleted = null;
+      renderUndoDelete();
+      await refresh({ announce: false });
+      setMessage(
+        'Rascunho excluído. O catálogo que já estava publicado não foi alterado.',
+        'success',
+      );
+    } finally {
+      if (button != null) button.disabled = false;
+    }
+  }
+
   function bind() {
     byId('localities-refresh-button')?.addEventListener('click', () => {
       void refresh().catch(handleError);
@@ -971,6 +1077,18 @@ export function createLocalitiesAdmin(input) {
     byId('localities-new-button')?.addEventListener('click', () => {
       openWizard('create');
     });
+    byId('localities-publish-draft-button')?.addEventListener(
+      'click',
+      () => {
+        void publishDraftNow().catch(handleError);
+      },
+    );
+    byId('localities-discard-draft-button')?.addEventListener(
+      'click',
+      () => {
+        void discardDraft().catch(handleError);
+      },
+    );
     byId('locality-wizard-close')?.addEventListener('click', closeWizard);
     byId('locality-wizard-cancel')?.addEventListener('click', closeWizard);
     byId('locality-wizard-reset')?.addEventListener('click', () => {
