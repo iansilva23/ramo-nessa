@@ -443,6 +443,7 @@ import {
   updateAgencyTour,
   updateAgencyTourCover,
   updateAppAuthHero,
+  updateAppBrandingIcon,
   updateAppReleasePolicy,
   updateSocialLinks,
 } from './admin/admin-communications-service.js';
@@ -591,6 +592,7 @@ function json(response: ServerResponse, status: number, body: unknown): void {
 
 const MAX_AGENCY_TOUR_COVER_BYTES = 8 * 1024 * 1024;
 const MAX_APP_AUTH_HERO_BYTES = 5 * 1024 * 1024;
+const MAX_APP_BRANDING_ICON_BYTES = 5 * 1024 * 1024;
 
 function hasValidImageMagic(
   bytes: Buffer,
@@ -3046,6 +3048,80 @@ const server = createServer(async (request, response) => {
         return;
       }
       const appAuthBranding = await updateAppAuthHero({
+        communications: adminCommunicationsRepository,
+        admin: adminRepository,
+        actor,
+        mimeType: rawMimeType,
+        bytes,
+      });
+      json(response, 200, { appAuthBranding });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/admin/app-auth-branding/icon'
+    ) {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:read',
+      });
+      const icon = await adminCommunicationsRepository.readAppBrandingIcon();
+      if (icon == null) {
+        json(response, 404, {
+          error: 'APP_BRANDING_ICON_NOT_FOUND',
+          message: 'Nenhum novo ícone foi preparado no ADM.',
+        });
+        return;
+      }
+      response.writeHead(200, {
+        'content-type': icon.mimeType,
+        'content-length': String(icon.bytes.byteLength),
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      response.end(Buffer.from(icon.bytes));
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/admin/app-auth-branding/icon'
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'communications:write',
+      });
+      const rawMimeType = headerValue(request, 'content-type')
+        ?.split(';')[0]
+        ?.trim()
+        .toLowerCase();
+      if (rawMimeType !== 'image/png' && rawMimeType !== 'image/webp') {
+        json(response, 415, {
+          error: 'UNSUPPORTED_APP_BRANDING_ICON_TYPE',
+          message: 'Envie o ícone em PNG ou WebP.',
+        });
+        return;
+      }
+      const bytes = await readBinaryBody(
+        request,
+        MAX_APP_BRANDING_ICON_BYTES,
+      );
+      if (
+        bytes.byteLength < 128 ||
+        !hasValidImageMagic(bytes, rawMimeType)
+      ) {
+        json(response, 422, {
+          error: 'INVALID_APP_BRANDING_ICON',
+          message: 'O conteúdo não corresponde a uma imagem válida.',
+        });
+        return;
+      }
+      const appAuthBranding = await updateAppBrandingIcon({
         communications: adminCommunicationsRepository,
         admin: adminRepository,
         actor,
