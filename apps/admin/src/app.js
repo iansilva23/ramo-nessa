@@ -138,6 +138,7 @@ const state = {
   selectedTourSlug: null,
   tourCoverObjectUrl: null,
   appAuthHeroObjectUrl: null,
+  appBrandingIconObjectUrl: null,
   auditEntries: [],
   auditDirectory: {
     nextCursor: null,
@@ -598,6 +599,10 @@ function clearSession(message = '') {
   if (state.appAuthHeroObjectUrl != null) {
     URL.revokeObjectURL(state.appAuthHeroObjectUrl);
     state.appAuthHeroObjectUrl = null;
+  }
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+    state.appBrandingIconObjectUrl = null;
   }
   state.auditEntries = [];
   state.auditDirectory = {
@@ -8305,6 +8310,147 @@ async function handleAppAuthHeroUpload() {
   }
 }
 
+async function loadAppBrandingIconPreview() {
+  const image = byId('app-branding-icon-preview');
+  if (
+    image == null ||
+    !state.token ||
+    !hasScope('communications:read')
+  ) {
+    return;
+  }
+
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+    state.appBrandingIconObjectUrl = null;
+  }
+
+  const branding = state.communications.appAuthBranding;
+  const placeholder = byId('app-branding-icon-placeholder');
+  if (!branding || Number(branding.appIconVersion || 0) < 1) {
+    image.hidden = true;
+    if (placeholder != null) placeholder.hidden = false;
+    return;
+  }
+
+  try {
+    const payload = await api.appBrandingIcon(state.token);
+    state.appBrandingIconObjectUrl = URL.createObjectURL(
+      new Blob([payload.bytes], { type: payload.contentType }),
+    );
+    image.src = state.appBrandingIconObjectUrl;
+    image.hidden = false;
+    if (placeholder != null) placeholder.hidden = true;
+  } catch {
+    image.hidden = true;
+    if (placeholder != null) placeholder.hidden = false;
+  }
+}
+
+function previewSelectedAppBrandingIcon(file) {
+  if (file == null) return;
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+  }
+  state.appBrandingIconObjectUrl = URL.createObjectURL(file);
+  const image = byId('app-branding-icon-preview');
+  if (image != null) {
+    image.src = state.appBrandingIconObjectUrl;
+    image.hidden = false;
+  }
+  const placeholder = byId('app-branding-icon-placeholder');
+  if (placeholder != null) placeholder.hidden = true;
+}
+
+async function appIconDimensions(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+      image.onerror = () => reject(
+        new Error('Não foi possível ler as dimensões do ícone.'),
+      );
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function handleAppBrandingIconUpload() {
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const file = byId('app-branding-icon-file')?.files?.[0] ?? null;
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha um ícone para os apps.', 'danger');
+    return;
+  }
+  if (
+    !['image/png', 'image/webp'].includes(file.type) ||
+    file.size <= 0 ||
+    file.size > 5 * 1024 * 1024
+  ) {
+    setMessage(
+      globalMessage,
+      'Use PNG ou WebP com no máximo 5 MB.',
+      'danger',
+    );
+    return;
+  }
+
+  try {
+    const dimensions = await appIconDimensions(file);
+    if (
+      dimensions.width !== dimensions.height ||
+      dimensions.width < 512
+    ) {
+      setMessage(
+        globalMessage,
+        'O ícone precisa ser quadrado e ter pelo menos 512 × 512 px. Recomendado: 1024 × 1024 px.',
+        'danger',
+      );
+      return;
+    }
+  } catch (error) {
+    setMessage(globalMessage, errorMessage(error), 'danger');
+    return;
+  }
+
+  if (
+    !window.confirm(
+      'Salvar este ícone para a próxima versão dos apps? Ele não muda os aparelhos já instalados; será aplicado no próximo build.',
+    )
+  ) {
+    return;
+  }
+
+  const button = byId('upload-app-branding-icon-button');
+  if (button != null) button.disabled = true;
+  try {
+    await api.uploadAppBrandingIcon(state.token, {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      contentType: file.type,
+    });
+    byId('app-branding-icon-file').value = '';
+    setMessage(
+      globalMessage,
+      'Novo ícone salvo para a próxima versão dos apps.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    if (button != null) {
+      button.disabled = !hasScope('communications:write');
+    }
+  }
+}
+
 function renderCommunications() {
   const loaded = state.communications.loaded === true;
   const provider = state.communications.deliveryProvider || 'disabled';
@@ -8371,12 +8517,31 @@ function renderCommunications() {
   if (socialButton != null) socialButton.disabled = !canWrite;
   const authHeroButton = byId('upload-app-auth-hero-button');
   if (authHeroButton != null) authHeroButton.disabled = !canWrite;
+  const appIconButton = byId('upload-app-branding-icon-button');
+  if (appIconButton != null) appIconButton.disabled = !canWrite;
   const authHeroMeta = byId('app-auth-hero-meta');
   if (authHeroMeta != null) {
     const branding = state.communications.appAuthBranding;
     authHeroMeta.textContent = branding?.heroImageVersion > 0
       ? `Versão ${branding.heroImageVersion} · atualizada em ${formatDateTime(branding.updatedAt)}`
       : 'Imagem padrão embarcada nos aplicativos.';
+  }
+  const appIconMeta = byId('app-branding-icon-meta');
+  if (appIconMeta != null) {
+    const branding = state.communications.appAuthBranding;
+    appIconMeta.textContent = branding?.appIconVersion > 0
+      ? `Ícone preparado · versão ${branding.appIconVersion} · salvo em ${formatDateTime(branding.updatedAt)} · exige novo build`
+      : 'Nenhum ícone novo preparado no ADM.';
+  }
+  const designUpdatedAt = byId('design-updated-at');
+  if (designUpdatedAt != null) {
+    const branding = state.communications.appAuthBranding;
+    designUpdatedAt.textContent =
+      loaded && branding?.updatedAt
+        ? `Atualizado em ${formatDateTime(branding.updatedAt)}`
+        : loaded
+          ? 'Identidade carregada'
+          : 'Aguardando dados';
   }
 
   if (byId('save-tour-button') != null) {
@@ -8427,6 +8592,9 @@ async function loadCommunications({ announce = true } = {}) {
     };
     renderCommunications();
     if (byId('app-auth-hero-preview') != null) void loadAppAuthHeroPreview();
+    if (byId('app-branding-icon-preview') != null) {
+      void loadAppBrandingIconPreview();
+    }
     if (announce) {
       setMessage(
         globalMessage,
@@ -10025,6 +10193,14 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('upload-app-auth-hero-button', 'click', () => {
       void handleAppAuthHeroUpload();
+    });
+    bindRouteEvent('app-branding-icon-file', 'change', (event) => {
+      previewSelectedAppBrandingIcon(
+        event.currentTarget.files?.[0] ?? null,
+      );
+    });
+    bindRouteEvent('upload-app-branding-icon-button', 'click', () => {
+      void handleAppBrandingIconUpload();
     });
     return;
   }
