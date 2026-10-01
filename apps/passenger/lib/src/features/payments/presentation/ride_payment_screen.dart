@@ -43,6 +43,12 @@ class RidePaymentScreen extends StatefulWidget {
 
 class _RidePaymentScreenState extends State<RidePaymentScreen> {
   Timer? _timer;
+  late PreparedRide _ride;
+  final _couponController = TextEditingController();
+  bool _couponLoading = false;
+  bool _confirmingPromotion = false;
+  String? _couponMessage;
+  String? _couponError;
   Duration _remaining = Duration.zero;
   int? _walletBalanceCents;
   bool _walletLoading = false;
@@ -64,21 +70,23 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _ride = widget.ride;
     final nonce = DateTime.now().microsecondsSinceEpoch;
     _walletIdempotencyKey =
-        'wallet-${widget.ride.id}-$nonce';
+        'wallet-${_ride.id}-$nonce';
     _cashIdempotencyKey =
-        'cash-${widget.ride.id}-$nonce';
+        'cash-${_ride.id}-$nonce';
     _pixIdempotencyKey =
-        'pix-${widget.ride.id}-$nonce';
+        'pix-${_ride.id}-$nonce';
     _cardIdempotencyKey =
-        'card-${widget.ride.id}-$nonce';
+        'card-${_ride.id}-$nonce';
     _updateRemaining();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => _updateRemaining(),
     );
     _loadPaymentPolicy();
+    unawaited(_applySavedCoupon());
   }
 
   Future<void> _loadPaymentPolicy() async {
@@ -153,7 +161,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   }
 
   void _updateRemaining() {
-    final remaining = widget.ride.holdExpiresAt.difference(DateTime.now());
+    final remaining = _ride.holdExpiresAt.difference(DateTime.now());
     if (!mounted) return;
 
     setState(() {
@@ -164,6 +172,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _couponController.dispose();
     super.dispose();
   }
 
@@ -186,32 +195,32 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool get _walletHasEnough =>
       _walletAvailable &&
       _walletBalanceCents != null &&
-      _walletBalanceCents! >= widget.ride.totalAmountCents;
+      _walletBalanceCents! >= _ride.payableAmountCents;
 
   bool get _cashAvailable =>
       _paymentPolicy?.cashAvailable == true;
 
   int get _pixTotalAmountCents =>
       _paymentPolicy?.pixTotalAmountCents(
-        widget.ride.totalAmountCents,
+        _ride.payableAmountCents,
       ) ??
-      widget.ride.totalAmountCents;
+      _ride.payableAmountCents;
 
   int get _pixAdjustmentCents =>
       _paymentPolicy?.pixAdjustmentCents(
-        widget.ride.totalAmountCents,
+        _ride.payableAmountCents,
       ) ??
       0;
 
   int get _cardTotalAmountCents =>
       _paymentPolicy?.cardTotalAmountCents(
-        widget.ride.totalAmountCents,
+        _ride.payableAmountCents,
       ) ??
-      widget.ride.totalAmountCents;
+      _ride.payableAmountCents;
 
   int get _cardAdjustmentCents =>
       _paymentPolicy?.cardAdjustmentCents(
-        widget.ride.totalAmountCents,
+        _ride.payableAmountCents,
       ) ??
       0;
 
@@ -234,7 +243,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     try {
       final result = await service.createPixRidePayment(
-        rideId: widget.ride.id,
+        rideId: _ride.id,
         idempotencyKey: _pixIdempotencyKey,
       );
 
@@ -244,8 +253,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => _PixPaymentScreen(
-            rideId: widget.ride.id,
-            holdExpiresAt: widget.ride.holdExpiresAt,
+            rideId: _ride.id,
+            holdExpiresAt: _ride.holdExpiresAt,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -298,7 +307,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       if (!mounted) return;
 
       final result = await service.createCardRidePayment(
-        rideId: widget.ride.id,
+        rideId: _ride.id,
         idempotencyKey: _cardIdempotencyKey,
         cardToken: tokenized.token,
         paymentMethodId: tokenized.paymentMethodId,
@@ -323,7 +332,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => _CardPaymentStatusScreen(
-            rideId: widget.ride.id,
+            rideId: _ride.id,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -367,7 +376,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     try {
       final result = await service.authorizeCashRide(
-        rideId: widget.ride.id,
+        rideId: _ride.id,
         idempotencyKey: _cashIdempotencyKey,
       );
 
@@ -400,7 +409,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   dispatchStatus: result.dispatchStatus,
                 )
               : RideTrackingScreen(
-                  rideId: widget.ride.id,
+                  rideId: _ride.id,
                   remainingWalletCents: null,
                   paymentMethod: 'cash',
                   trackingService: tracking,
@@ -445,7 +454,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     try {
       final result = await service.payRideWithWallet(
-        rideId: widget.ride.id,
+        rideId: _ride.id,
         idempotencyKey: _walletIdempotencyKey,
       );
 
@@ -482,7 +491,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   dispatchStatus: result.dispatchStatus,
                 )
               : RideTrackingScreen(
-                  rideId: widget.ride.id,
+                  rideId: _ride.id,
                   remainingWalletCents: result.walletBalanceCents,
                   paymentMethod: 'wallet',
                   trackingService: tracking,
@@ -588,7 +597,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          widget.ride.formattedTotal,
+                          _ride.formattedTotal,
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                               ),
@@ -600,11 +609,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                 ],
               ),
             ),
-            if (widget.ride.pickupCompensationCents > 0) ...[
+            if (_ride.pickupCompensationCents > 0) ...[
               const SizedBox(height: RamoSpacing.sm),
               _PriceRow(
                 label: 'Coleta distante · 100% motorista',
-                cents: widget.ride.pickupCompensationCents,
+                cents: _ride.pickupCompensationCents,
               ),
             ],
             const SizedBox(height: RamoSpacing.md),
