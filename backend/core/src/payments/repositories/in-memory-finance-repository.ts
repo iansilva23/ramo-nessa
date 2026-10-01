@@ -1094,7 +1094,8 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       payment == null ||
       payment.rideId !== input.rideId ||
       payment.status !== 'paid' ||
-      payment.amountCents !== input.totalAmountCents
+      payment.amountCents !==
+        (input.paymentAmountCents ?? input.totalAmountCents)
     ) {
       throw new PaymentDomainError(
         'INVALID_PAYMENT_TRANSITION',
