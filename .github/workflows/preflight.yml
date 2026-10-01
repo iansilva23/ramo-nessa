@@ -353,7 +353,7 @@ jobs:
 
       - name: Test Passenger
         working-directory: apps/passenger
-        run: flutter test
+        run: flutter test --reporter expanded
 
       - name: Resolve Driver dependencies
         working-directory: apps/driver
