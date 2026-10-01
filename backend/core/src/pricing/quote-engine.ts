@@ -212,8 +212,10 @@ function quoteDistanceFallback(
     .filter(
       (rule) =>
         rule.category === request.category &&
-        (rule.anchorLocalityId === originId ||
-          rule.anchorLocalityId === destinationId),
+        ((rule.anchorZoneId === request.origin.zoneId &&
+          rule.anchorLocalityId === originId) ||
+          (rule.anchorZoneId === request.destination.zoneId &&
+            rule.anchorLocalityId === destinationId)),
     )
     .sort((a, b) => {
       const aOrigin = a.anchorLocalityId === originId ? 0 : 1;
