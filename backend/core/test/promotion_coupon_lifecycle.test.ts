@@ -15,6 +15,7 @@ import {
 import {
   PromotionRepositoryError,
   type PromotionRedemptionRecord,
+  type PromotionRedemptionStatus,
 } from '../src/promotions/promotion-repository.js';
 import { InMemoryPromotionRepository } from '../src/promotions/repositories/in-memory-promotion-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
@@ -101,6 +102,63 @@ test('troca que falha por limite preserva a reserva anterior', async () => {
     (await repository.findRedemptionByRideId(rideId))?.id,
     previous.id,
   );
+});
+
+test('falha financeira de crédito mantém reserva e permite retry idempotente', async () => {
+  class FailingFinanceRepository extends InMemoryFinanceRepository {
+    fail = true;
+    override async grantWalletPromotion(input: Parameters<InMemoryFinanceRepository['grantWalletPromotion']>[0]) {
+      if (this.fail) throw new Error('simulated wallet credit failure');
+      return super.grantWalletPromotion(input);
+    }
+  }
+  const promotions = new InMemoryPromotionRepository();
+  const finance = new FailingFinanceRepository();
+  const campaign = await promotions.createCampaign(createPromotionCampaignRecord({
+    code: 'RETRY7', name: 'Credit retry audit', kind: 'wallet_credit', valueCents: 700,
+    maxRedemptions: 1, enabled: true, now: new Date(now),
+  }));
+  const redeem = (passengerId: string) => redeemWalletPromotionCode({
+    promotions, finance, passengerId, code: campaign.code,
+    clientInstanceId: `audit-wallet-retry-device-${passengerId}`, now: new Date(now),
+  });
+  await assert.rejects(redeem('audit-retry-passenger'), /simulated wallet credit failure/);
+  finance.fail = false;
+  await assert.rejects(redeem('audit-other-passenger'),
+    (error: unknown) => error instanceof PromotionRepositoryError && error.code === 'PROMOTION_LIMIT_REACHED');
+  await Promise.all(Array.from({length: 4}, () => redeem('audit-retry-passenger')));
+  assert.equal(await promotions.countRedeemed(campaign.id), 1);
+  assert.equal(await finance.getAccountBalanceCents('passenger:audit-retry-passenger:wallet'), 700);
+  assert.equal(await finance.getAccountBalanceCents('passenger:audit-other-passenger:wallet'), 0);
+});
+
+test('falha após creditar carteira não libera uso nem permite ultrapassar limite', async () => {
+  class FailingStatusRepository extends InMemoryPromotionRepository {
+    fail = true;
+    override async setRedemptionStatus(id: string, status: PromotionRedemptionStatus, updatedAt: string) {
+      if (this.fail && status === 'redeemed') throw new Error('simulated redemption save failure');
+      return super.setRedemptionStatus(id, status, updatedAt);
+    }
+  }
+  const promotions = new FailingStatusRepository();
+  const finance = new InMemoryFinanceRepository();
+  const campaign = await promotions.createCampaign(createPromotionCampaignRecord({
+    code: 'CREDIT7', name: 'Credit failure audit', kind: 'wallet_credit', valueCents: 700,
+    maxRedemptions: 1, enabled: true, now: new Date(now),
+  }));
+  const redeem = (passengerId: string) => redeemWalletPromotionCode({
+    promotions, finance, passengerId, code: campaign.code,
+    clientInstanceId: `audit-wallet-failure-device-${passengerId}`, now: new Date(now),
+  });
+  await assert.rejects(redeem('audit-first-passenger'), /simulated redemption save failure/);
+  assert.equal(await finance.getAccountBalanceCents('passenger:audit-first-passenger:wallet'), 700);
+  promotions.fail = false;
+  await assert.rejects(redeem('audit-other-passenger'),
+    (error: unknown) => error instanceof PromotionRepositoryError && error.code === 'PROMOTION_LIMIT_REACHED');
+  await Promise.all(Array.from({length: 4}, () => redeem('audit-first-passenger')));
+  assert.equal(await promotions.countRedeemed(campaign.id), 1);
+  assert.equal(await finance.getAccountBalanceCents('passenger:audit-first-passenger:wallet'), 700);
+  assert.equal(await finance.getAccountBalanceCents('passenger:audit-other-passenger:wallet'), 0);
 });
 
 test('falha ao salvar remoção preserva corrida e reserva promocional', async () => {

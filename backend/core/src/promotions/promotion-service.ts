@@ -691,28 +691,21 @@ export async function redeemWalletPromotionCode(input: {
     now: instant,
   });
 
-  try {
-    await input.finance.grantWalletPromotion({
-      passengerId: input.passengerId,
-      applicationId: reserved.id,
-      amountCents: campaign.valueCents!,
-      grantedAt: now,
-    });
-    await input.promotions.setRedemptionStatus(
-      reserved.id,
-      'redeemed',
-      instant,
+  if (reserved.status === 'released') {
+    throw new PromotionError(
+      'PROMOTION_NOT_ACTIVE',
+      'Este uso promocional foi liberado e não pode ser creditado novamente.',
     );
-  } catch (error) {
-    if (reserved.status === 'reserved') {
-      await input.promotions.setRedemptionStatus(
-        reserved.id,
-        'released',
-        new Date().toISOString(),
-      );
-    }
-    throw error;
   }
+  // A financial write can succeed before its response/status write fails. Keep the
+  // reservation counting toward limits; a retry uses the same ledger reference.
+  await input.finance.grantWalletPromotion({
+    passengerId: input.passengerId,
+    applicationId: reserved.id,
+    amountCents: campaign.valueCents!,
+    grantedAt: now,
+  });
+  await input.promotions.setRedemptionStatus(reserved.id, 'redeemed', instant);
 
   return {
     campaign: publicPromotionCampaignView(campaign),
