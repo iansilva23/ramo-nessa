@@ -4651,60 +4651,25 @@ function pricingVersionStatusPresentation(version) {
 }
 
 function renderPricingVersions() {
-  const body = byId('pricing-versions-body');
-  const empty = byId('pricing-versions-empty');
   const createButton = byId('pricing-create-draft-button');
-  body.replaceChildren();
+  const label = byId('pricing-current-draft-label');
+  const draft =
+    state.pricingVersions.items.find(
+      (version) => version.status === 'draft',
+    ) ?? null;
 
-  createButton.hidden = !hasScope('pricing:write');
-  createButton.disabled = false;
-
-  const items = state.pricingVersions.items;
-  for (const version of items) {
-    const row = document.createElement('tr');
-
-    const versionCell = document.createElement('td');
-    const versionName = document.createElement('strong');
-    versionName.textContent = `#${version.versionNumber}`;
-    const catalog = document.createElement('small');
-    catalog.className = 'table-subtext';
-    catalog.textContent = version.catalogVersion ?? 'v1';
-    versionCell.append(versionName, catalog);
-
-    const statusCell = document.createElement('td');
-    const presentation = pricingVersionStatusPresentation(version);
-    const pill = document.createElement('span');
-    pill.className = `pill pill--${presentation.tone}`;
-    pill.textContent = presentation.label;
-    statusCell.append(pill);
-
-    const effective = document.createElement('td');
-    effective.textContent = formatDateTime(version.effectiveFrom);
-
-    const updated = document.createElement('td');
-    updated.textContent = formatDateTime(version.updatedAt);
-
-    const actions = document.createElement('td');
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'button button--table';
-    open.textContent = 'Abrir';
-    open.addEventListener('click', () => {
-      void openPricingVersion(version.id);
-    });
-    actions.append(open);
-
-    row.append(
-      versionCell,
-      statusCell,
-      effective,
-      updated,
-      actions,
-    );
-    body.append(row);
+  if (label != null) {
+    label.textContent =
+      draft == null
+        ? 'Nenhum'
+        : `#${draft.versionNumber} · alterações não publicadas`;
   }
 
-  empty.hidden = items.length !== 0;
+  if (createButton != null) {
+    createButton.hidden =
+      !hasScope('pricing:write') || draft != null;
+    createButton.disabled = false;
+  }
 }
 
 function renderPricingEditor(version = null) {
@@ -4719,7 +4684,7 @@ function renderPricingEditor(version = null) {
     controls.hidden = true;
     empty.hidden = false;
     empty.textContent =
-      'Abra uma versão em rascunho ou crie uma nova para alterar preços.';
+      'Clique em “Começar alterações” para editar tarifas e regras.';
     return;
   }
 
@@ -5196,10 +5161,19 @@ async function loadPricingVersions({ announce = true } = {}) {
           : null,
     };
     renderPricingVersions();
+    const draft =
+      state.pricingVersions.items.find(
+        (version) => version.status === 'draft',
+      ) ?? null;
+    if (draft != null) {
+      await openPricingVersion(draft.id);
+    } else {
+      renderPricingEditor();
+    }
     if (announce) {
       setMessage(
         globalMessage,
-        'Histórico de versões atualizado.',
+        'Estado das alterações pendentes atualizado.',
         'success',
       );
     }
@@ -5229,7 +5203,6 @@ async function handlePricingCreateDraft() {
   try {
     const created = await api.createPricingVersion(state.token);
     await loadPricingVersions({ announce: false });
-    await openPricingVersion(created.id);
     setMessage(
       globalMessage,
       `Rascunho #${created.versionNumber} criado a partir do catálogo vigente.`,
@@ -9905,9 +9878,6 @@ function bindRouteEvents(view) {
     });
     bindRouteEvent('pricing-locality-policy-id', 'change', () => {
       syncPricingLocalityPolicyFields();
-    });
-    bindRouteEvent('pricing-publish-button', 'click', () => {
-      void handlePricingPublish();
     });
     return;
   }
