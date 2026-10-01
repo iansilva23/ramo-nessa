@@ -2,6 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { RideQuoteSnapshot, RideRecord } from '../rides/ride.js';
 import type { RideRepository } from '../rides/ride-repository.js';
+import type { FinanceRepository } from '../payments/finance-repository.js';
+import type { PaymentRecord } from '../payments/payment.js';
 import {
   PROMOTION_CATEGORIES,
   PROMOTION_KINDS,
@@ -615,6 +617,197 @@ export async function removePromotionFromRide(input: {
   return input.rides.save({
     ...restoreOriginalQuote(ride),
     updatedAt: (input.now ?? new Date()).toISOString(),
+  });
+}
+
+export async function redeemWalletPromotionCode(input: {
+  promotions: PromotionRepository;
+  finance: FinanceRepository;
+  passengerId: string;
+  clientInstanceId: string;
+  code: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const code = normalizePromotionCode(input.code);
+  const campaign = await input.promotions.findCampaignByCode(code);
+  if (campaign == null) {
+    throw new PromotionError(
+      'PROMOTION_NOT_FOUND',
+      'Cupom não encontrado.',
+    );
+  }
+  assertCampaignActive(campaign, now);
+  if (campaign.kind !== 'wallet_credit') {
+    throw new PromotionError(
+      'PROMOTION_NOT_ELIGIBLE',
+      'Este cupom é aplicado diretamente em uma corrida.',
+    );
+  }
+
+  const deviceHash = promotionDeviceHash(input.clientInstanceId);
+  const instant = now.toISOString();
+  const redemption: PromotionRedemptionRecord = {
+    id: randomUUID(),
+    campaignId: campaign.id,
+    passengerId: input.passengerId,
+    deviceHash,
+    referenceKey:
+      `wallet:${campaign.id}:${input.passengerId}:${deviceHash}`,
+    status: 'reserved',
+    normalTotalCents: 0,
+    discountCents: campaign.valueCents!,
+    passengerPayableCents: 0,
+    driverEarningsCents: 0,
+    createdAt: instant,
+    updatedAt: instant,
+  };
+
+  const reserved = await input.promotions.reserveRedemption({
+    redemption,
+    maxRedemptions: campaign.maxRedemptions,
+    perPassengerLimit: campaign.perPassengerLimit,
+    perDeviceLimit: campaign.perDeviceLimit,
+    now: instant,
+  });
+
+  try {
+    await input.finance.grantWalletPromotion({
+      passengerId: input.passengerId,
+      applicationId: reserved.id,
+      amountCents: campaign.valueCents!,
+      grantedAt: now,
+    });
+    await input.promotions.setRedemptionStatus(
+      reserved.id,
+      'redeemed',
+      instant,
+    );
+    await input.promotions.clearPreference(input.passengerId);
+  } catch (error) {
+    if (reserved.status === 'reserved') {
+      await input.promotions.setRedemptionStatus(
+        reserved.id,
+        'released',
+        new Date().toISOString(),
+      );
+    }
+    throw error;
+  }
+
+  return {
+    campaign: publicPromotionCampaignView(campaign),
+    walletCreditCents: campaign.valueCents!,
+    walletBalanceCents: await input.finance.getAccountBalanceCents(
+      `passenger:${input.passengerId}:wallet`,
+    ),
+  };
+}
+
+export async function fundRidePromotion(input: {
+  finance: FinanceRepository;
+  ride: RideRecord;
+  now?: Date;
+}): Promise<void> {
+  const promotion = input.ride.promotion;
+  if (promotion == null || promotion.kind === 'fixed_driver_fare') {
+    return;
+  }
+  if (promotion.discountCents <= 0) return;
+  await input.finance.fundRidePromotion({
+    rideId: input.ride.id,
+    applicationId: promotion.applicationId,
+    amountCents: promotion.discountCents,
+    ...(input.now == null ? {} : { fundedAt: input.now }),
+  });
+}
+
+export async function redeemRidePromotion(input: {
+  promotions: PromotionRepository;
+  ride: RideRecord;
+  now?: Date;
+}): Promise<void> {
+  const promotion = input.ride.promotion;
+  if (promotion == null) return;
+  const redemption = await input.promotions.findRedemptionByRideId(
+    input.ride.id,
+  );
+  if (redemption == null || redemption.status === 'redeemed') return;
+  if (redemption.status !== 'reserved') {
+    throw new PromotionError(
+      'PROMOTION_NOT_ACTIVE',
+      'A reserva deste cupom não está mais ativa.',
+    );
+  }
+  await input.promotions.setRedemptionStatus(
+    redemption.id,
+    'redeemed',
+    (input.now ?? new Date()).toISOString(),
+  );
+}
+
+export async function releaseFundedRidePromotion(input: {
+  promotions: PromotionRepository;
+  finance: FinanceRepository;
+  ride: RideRecord;
+  now?: Date;
+}): Promise<void> {
+  const promotion = input.ride.promotion;
+  if (promotion == null) return;
+  const redemption = await input.promotions.findRedemptionByRideId(
+    input.ride.id,
+  );
+  if (redemption == null || redemption.status === 'released') return;
+
+  if (
+    promotion.kind !== 'fixed_driver_fare' &&
+    promotion.discountCents > 0
+  ) {
+    await input.finance.reverseRidePromotion({
+      rideId: input.ride.id,
+      applicationId: promotion.applicationId,
+      amountCents: promotion.discountCents,
+      ...(input.now == null ? {} : { reversedAt: input.now }),
+    });
+  }
+  await input.promotions.setRedemptionStatus(
+    redemption.id,
+    'released',
+    (input.now ?? new Date()).toISOString(),
+  );
+}
+
+export async function createFullyPromotionalPayment(input: {
+  finance: FinanceRepository;
+  ride: RideRecord;
+  now?: Date;
+}): Promise<PaymentRecord> {
+  if (
+    input.ride.promotion == null ||
+    passengerPayableCents(input.ride) !== 0
+  ) {
+    throw new PromotionError(
+      'PROMOTION_NOT_ELIGIBLE',
+      'Esta corrida ainda possui valor a pagar.',
+    );
+  }
+  const key =
+    `promotion-${input.ride.promotion.applicationId}`;
+  const existing =
+    await input.finance.findPaymentByIdempotencyKey(key);
+  if (existing != null) return existing;
+
+  const instant = (input.now ?? new Date()).toISOString();
+  return input.finance.createPayment({
+    id: randomUUID(),
+    rideId: input.ride.id,
+    method: 'promotion',
+    processor: 'internal-promotion',
+    status: 'paid',
+    amountCents: 0,
+    idempotencyKey: key,
+    createdAt: instant,
+    updatedAt: instant,
   });
 }
 
