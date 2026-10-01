@@ -47,7 +47,17 @@ void main() {
 
       final pixOption =
           find.byKey(const Key('payment-option-pix'));
-      await tester.ensureVisible(pixOption);
+      final paymentScroll = find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        pixOption,
+        300,
+        scrollable: paymentScroll,
+      );
       await tester.pump(const Duration(milliseconds: 100));
       expect(
         find.descendant(
@@ -90,15 +100,21 @@ void main() {
         find.byKey(const Key('payment-option-pix')),
         findsNothing,
       );
-      expect(
-        find.byKey(const Key('ride-payment-promotion-confirm')),
-        findsOneWidget,
-      );
-
       final confirmButton =
           find.byKey(const Key('ride-payment-promotion-confirm'));
-      await tester.ensureVisible(confirmButton);
+      final paymentScroll = find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        confirmButton,
+        300,
+        scrollable: paymentScroll,
+      );
       await tester.pump(const Duration(milliseconds: 100));
+      expect(confirmButton, findsOneWidget);
       await tester.tap(confirmButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
