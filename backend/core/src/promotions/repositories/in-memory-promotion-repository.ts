@@ -1,6 +1,7 @@
 import {
   PromotionRepositoryError,
   prepareRidePromotionRemoval,
+  preparePaidPromotionReservation,
   type PassengerPromotionPreferenceRecord,
   type PromotionCampaignRecord,
   type PromotionRedemptionRecord,
@@ -8,6 +9,7 @@ import {
   type PromotionRepository,
   type ReservePromotionRedemptionInput,
   type RemoveRidePromotionInput,
+  type RetainPaidPromotionInput,
 } from '../promotion-repository.js';
 import type { RideRecord } from '../../rides/ride.js';
 
@@ -233,6 +235,14 @@ export class InMemoryPromotionRepository
       ...redemption!, status: 'released', updatedAt: input.updatedAt,
     });
     return saved;
+  }
+
+  async retainPaidReservation(input: RetainPaidPromotionInput): Promise<PromotionRedemptionRecord> {
+    const retained = preparePaidPromotionReservation(
+      this.redemptions.get(input.redemptionId) ?? null, input,
+    );
+    this.redemptions.set(retained.id, structuredClone(retained));
+    return structuredClone(retained);
   }
 
   async setRedemptionStatus(

@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import {
   PromotionRepositoryError,
   prepareRidePromotionRemoval,
+  preparePaidPromotionReservation,
   type PassengerPromotionPreferenceRecord,
   type PromotionCampaignRecord,
   type PromotionRedemptionRecord,
@@ -10,6 +11,7 @@ import {
   type PromotionRepository,
   type ReservePromotionRedemptionInput,
   type RemoveRidePromotionInput,
+  type RetainPaidPromotionInput,
 } from '../promotion-repository.js';
 import type { RideRecord } from '../../rides/ride.js';
 import { PostgresRideRepository } from '../../rides/repositories/postgres-ride-repository.js';
@@ -550,6 +552,35 @@ export class PostgresPromotionRepository implements PromotionRepository {
       );
       await client.query('COMMIT');
       return saved;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async retainPaidReservation(input: RetainPaidPromotionInput): Promise<PromotionRedemptionRecord> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query<RedemptionRow>(
+        `SELECT ${REDEMPTION_COLUMNS} FROM promotion_redemptions
+         WHERE id = $1 FOR UPDATE`, [input.redemptionId],
+      );
+      const current = result.rows[0] == null ? null : mapRedemption(result.rows[0]);
+      const retained = preparePaidPromotionReservation(current, input);
+      // Serialize with reserveRedemption's campaign lock before changing limit eligibility.
+      await client.query('SELECT id FROM promotion_campaigns WHERE id = $1 FOR UPDATE',
+        [input.campaignId]);
+      if (current?.expiresAt != null && current.status === 'reserved') {
+        await client.query(
+          `UPDATE promotion_redemptions SET expires_at = NULL, updated_at = $2 WHERE id = $1`,
+          [input.redemptionId, input.updatedAt],
+        );
+      }
+      await client.query('COMMIT');
+      return retained;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

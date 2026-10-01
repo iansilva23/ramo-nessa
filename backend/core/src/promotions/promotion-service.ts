@@ -725,13 +725,24 @@ export async function redeemWalletPromotionCode(input: {
 
 export async function fundRidePromotion(input: {
   finance: FinanceRepository;
+  promotions: PromotionRepository;
   ride: RideRecord;
   now?: Date;
 }): Promise<void> {
   const promotion = input.ride.promotion;
-  if (promotion == null || promotion.kind === 'fixed_driver_fare') {
+  if (promotion == null || input.ride.state === 'CANCELLED_BY_PASSENGER' ||
+      input.ride.state === 'CANCELLED_BY_DRIVER' || input.ride.state === 'CANCELLED_BY_ADMIN' ||
+      input.ride.state === 'REFUND_PENDING' || input.ride.state === 'REFUNDED') {
     return;
   }
+  await input.promotions.retainPaidReservation({
+    redemptionId: promotion.applicationId,
+    campaignId: promotion.campaignId,
+    rideId: input.ride.id,
+    passengerId: input.ride.passengerId,
+    updatedAt: (input.now ?? new Date()).toISOString(),
+  });
+  if (promotion.kind === 'fixed_driver_fare') return;
   if (promotion.discountCents <= 0) return;
   await input.finance.fundRidePromotion({
     rideId: input.ride.id,

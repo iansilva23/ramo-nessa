@@ -785,6 +785,7 @@ async function fundRidePromotionForPayment(
 ): Promise<void> {
   await fundRidePromotion({
     finance: financeRepository,
+    promotions: promotionRepository,
     ride,
     now,
   });

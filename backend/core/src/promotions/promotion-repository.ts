@@ -101,6 +101,33 @@ export interface RemoveRidePromotionInput {
   updatedAt: string;
 }
 
+export interface RetainPaidPromotionInput {
+  redemptionId: string;
+  campaignId: string;
+  rideId: string;
+  passengerId: string;
+  updatedAt: string;
+}
+
+export function preparePaidPromotionReservation(
+  current: PromotionRedemptionRecord | null,
+  input: RetainPaidPromotionInput,
+): PromotionRedemptionRecord {
+  if (current == null || current.campaignId !== input.campaignId ||
+      current.rideId !== input.rideId || current.passengerId !== input.passengerId ||
+      current.status === 'released' ||
+      (current.status === 'reserved' && current.expiresAt != null &&
+       current.expiresAt <= input.updatedAt)) {
+    throw new PromotionRepositoryError(
+      'PROMOTION_REFERENCE_CONFLICT',
+      'A reserva deste cupom não está mais ativa para este pagamento.',
+    );
+  }
+  if (current.status === 'redeemed' || current.expiresAt == null) return current;
+  const { expiresAt: _expiresAt, ...retained } = current;
+  return { ...retained, updatedAt: input.updatedAt };
+}
+
 export function prepareRidePromotionRemoval(
   current: RideRecord | null,
   input: RemoveRidePromotionInput,
@@ -169,6 +196,7 @@ export interface PromotionRepository {
     input: ReservePromotionRedemptionInput,
   ): Promise<PromotionRedemptionRecord>;
   removeFromRide(input: RemoveRidePromotionInput): Promise<RideRecord>;
+  retainPaidReservation(input: RetainPaidPromotionInput): Promise<PromotionRedemptionRecord>;
   setRedemptionStatus(
     id: string,
     status: PromotionRedemptionStatus,
