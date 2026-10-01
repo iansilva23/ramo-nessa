@@ -5027,13 +5027,6 @@ function renderPricingCatalog(payload = null) {
   const zonePolicies = Array.isArray(payload?.zonePolicies)
     ? payload.zonePolicies
     : [];
-  const externalLocalities = Array.isArray(payload?.externalLocalities)
-    ? payload.externalLocalities
-    : [];
-  const localityGeofences = Array.isArray(payload?.localityGeofences)
-    ? payload.localityGeofences
-    : [];
-
   const versionLabel =
     payload?.versionNumber == null
       ? payload?.catalogVersion ?? '—'
@@ -5054,17 +5047,12 @@ function renderPricingCatalog(payload = null) {
     String(localities.length);
   byId('pricing-fixed-routes').textContent =
     String(fixedRoutes.length);
-  byId('pricing-locality-count').textContent =
-    `${localities.length} localidade(s)`;
   byId('pricing-route-count').textContent =
     `${fixedRoutes.length} rota(s)`;
   byId('pricing-category-count').textContent =
     `${categoryPolicies.length} categoria(s)`;
   byId('pricing-zone-count').textContent =
     `${zonePolicies.length} zona(s)`;
-  byId('pricing-external-count').textContent =
-    `${externalLocalities.length} destino(s)`;
-
   const mode = byId('pricing-mode');
   if (payload == null) {
     mode.textContent = hasScope('pricing:read')
@@ -5105,64 +5093,6 @@ function renderPricingCatalog(payload = null) {
   byId('pricing-zone-policies-empty').hidden =
     zonePolicies.length !== 0;
 
-  const externalBody = byId('pricing-external-localities-body');
-  externalBody.replaceChildren();
-  for (const localityId of externalLocalities) {
-    const row = document.createElement('tr');
-    const locality = document.createElement('td');
-    locality.textContent = localityId;
-    row.append(locality);
-    externalBody.append(row);
-  }
-  byId('pricing-external-localities-empty').hidden =
-    externalLocalities.length !== 0;
-
-  const geofenceBody = byId('pricing-geofences-body');
-  if (geofenceBody != null) {
-    geofenceBody.replaceChildren();
-    for (const geofence of localityGeofences) {
-      const row = document.createElement('tr');
-
-      const zone = document.createElement('td');
-      zone.textContent = pricingIdentifierLabel(geofence.zoneId);
-
-      const locality = document.createElement('td');
-      locality.textContent = geofence.localityId;
-
-      const center = document.createElement('td');
-      center.textContent =
-        `${Number(geofence.centerLatitude).toFixed(5)}, ${Number(geofence.centerLongitude).toFixed(5)}`;
-
-      const radius = document.createElement('td');
-      radius.textContent =
-        `${Number(geofence.radiusKm).toLocaleString('pt-BR')} km`;
-
-      const actions = document.createElement('td');
-      if (
-        payload?.editable === true &&
-        hasScope('pricing:write')
-      ) {
-        const edit = document.createElement('button');
-        edit.type = 'button';
-        edit.className = 'button button--table';
-        edit.textContent = 'Gerenciar';
-        edit.addEventListener('click', () => {
-          void activateView('localities');
-        });
-        actions.append(edit);
-      } else {
-        actions.textContent = '—';
-      }
-
-      row.append(zone, locality, center, radius, actions);
-      geofenceBody.append(row);
-    }
-    byId('pricing-geofence-count').textContent =
-      `${localityGeofences.length} área(s)`;
-    byId('pricing-geofences-empty').hidden =
-      localityGeofences.length !== 0;
-  }
-
   const categoryBody = byId('pricing-category-policies-body');
   categoryBody.replaceChildren();
   for (const policy of categoryPolicies) {
@@ -5189,81 +5119,6 @@ function renderPricingCatalog(payload = null) {
   }
   byId('pricing-category-policies-empty').hidden =
     categoryPolicies.length !== 0;
-
-  const localityBody = byId('pricing-localities-body');
-  localityBody.replaceChildren();
-  for (const entry of localities) {
-    const row = document.createElement('tr');
-
-    const base = document.createElement('td');
-    base.textContent = entry.base;
-
-    const locality = document.createElement('td');
-    const localityName = document.createElement('strong');
-    localityName.textContent = pricingIdentifierLabel(
-      entry.item.localityId,
-    );
-    const localityId = document.createElement('small');
-    localityId.className = 'table-subtext';
-    localityId.textContent = entry.item.localityId;
-    locality.append(localityName, localityId);
-
-    const moto = document.createElement('td');
-    moto.textContent = pricingValueLabel(entry.item.prices?.moto);
-
-    const delivery = document.createElement('td');
-    delivery.textContent = pricingValueLabel(
-      entry.item.prices?.delivery,
-    );
-
-    const car = document.createElement('td');
-    car.textContent = pricingValueLabel(entry.item.prices?.car);
-
-    const rules = document.createElement('td');
-    const enabledCategories = Array.isArray(
-      entry.item.policy?.enabledCategories,
-    )
-      ? entry.item.policy.enabledCategories
-      : [];
-    const ruleLabels = enabledCategories.map((category) =>
-      serviceCategoryLabel(category),
-    );
-    if (
-      entry.hub === 'prea' &&
-      entry.item.policy?.applyNightSurcharge === true
-    ) {
-      ruleLabels.push('Adicional noturno');
-    }
-    rules.textContent =
-      ruleLabels.length > 0 ? ruleLabels.join(' · ') : 'Nenhum serviço';
-
-    const actions = document.createElement('td');
-    if (payload?.editable === true && hasScope('pricing:write')) {
-      const editRules = document.createElement('button');
-      editRules.type = 'button';
-      editRules.className = 'button button--table';
-      editRules.textContent = 'Gerenciar';
-      editRules.addEventListener('click', () => {
-        void activateView('localities');
-      });
-      actions.append(editRules);
-    } else {
-      actions.textContent = '—';
-    }
-
-    row.append(
-      base,
-      locality,
-      moto,
-      delivery,
-      car,
-      rules,
-      actions,
-    );
-    localityBody.append(row);
-  }
-  byId('pricing-localities-empty').hidden =
-    localities.length !== 0;
 
   const routeBody = byId('pricing-routes-body');
   routeBody.replaceChildren();
