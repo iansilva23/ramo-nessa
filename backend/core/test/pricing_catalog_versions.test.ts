@@ -1124,3 +1124,98 @@ test('regras por localidade habilitam categorias e adicional noturno sem perder 
     false,
   );
 });
+
+
+test('versiona fallback por distância e limpa regra ao remover a localidade-base', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-distance-fallback',
+    name: 'Admin Distance Fallback',
+  };
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-10-01T00:00:00.000Z'),
+  });
+
+  await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'add',
+      scope: 'prea',
+      localityId: 'base-distancia-teste',
+    }),
+    now: new Date('2026-10-01T00:01:00.000Z'),
+  });
+
+  const withRule = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'distance_fare_policy',
+      operation: 'upsert',
+      anchorZoneId: 'prea',
+      anchorLocalityId: 'base-distancia-teste',
+      category: 'car',
+      minKm: 3,
+      maxKm: 120,
+      minimumFareCents: 1800,
+      pricePerKmCents: 320,
+    }),
+    now: new Date('2026-10-01T00:02:00.000Z'),
+  });
+
+  assert.deepEqual(withRule.snapshot.distanceFarePolicies, [
+    {
+      id: 'distance-prea-base-distancia-teste-car',
+      anchorZoneId: 'prea',
+      anchorLocalityId: 'base-distancia-teste',
+      category: 'car',
+      minKm: 3,
+      maxKm: 120,
+      minimumFareCents: 1800,
+      pricePerKmCents: 320,
+    },
+  ]);
+
+  const removed = await updatePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch({
+      kind: 'locality_structure',
+      operation: 'remove',
+      scope: 'prea',
+      localityId: 'base-distancia-teste',
+    }),
+    now: new Date('2026-10-01T00:03:00.000Z'),
+  });
+
+  assert.deepEqual(removed.snapshot.distanceFarePolicies, []);
+
+  assert.throws(
+    () =>
+      parsePricingCatalogDraftPatch({
+        kind: 'distance_fare_policy',
+        operation: 'upsert',
+        anchorZoneId: 'prea',
+        anchorLocalityId: 'prea',
+        category: 'car',
+        minKm: 20,
+        maxKm: 10,
+        minimumFareCents: 1500,
+        pricePerKmCents: 300,
+      }),
+    /maxKm/,
+  );
+});
