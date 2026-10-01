@@ -12,6 +12,7 @@ import type {
   AgencyTourCover,
   AgencyTourRecord,
   AppAuthHero,
+  AppBrandingIcon,
   AppReleasePolicyRecord,
 } from './admin-communications-repository.js';
 import type {
@@ -560,3 +561,35 @@ export async function updateAppAuthHero(input: {
   });
   return branding;
 }
+
+export async function updateAppBrandingIcon(input: {
+  communications: AdminCommunicationsRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  mimeType: AppBrandingIcon['mimeType'];
+  bytes: Uint8Array;
+  now?: Date;
+}) {
+  const now = (input.now ?? new Date()).toISOString();
+  const branding = await input.communications.saveAppBrandingIcon({
+    mimeType: input.mimeType,
+    bytes: input.bytes,
+    updatedAt: now,
+  });
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'communications.app_icon_updated',
+    targetType: 'app_auth_branding',
+    targetId: 'ramo-nessa',
+    metadata: {
+      mimeType: input.mimeType,
+      bytes: input.bytes.byteLength,
+      appIconVersion: branding.appIconVersion,
+      requiresNewBuild: true,
+    },
+    createdAt: now,
+  });
+  return branding;
+}
+
