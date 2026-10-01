@@ -1,0 +1,630 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import type { RideQuoteSnapshot, RideRecord } from '../rides/ride.js';
+import type { RideRepository } from '../rides/ride-repository.js';
+import {
+  PROMOTION_CATEGORIES,
+  PROMOTION_KINDS,
+  PromotionRepositoryError,
+  type PassengerPromotionPreferenceRecord,
+  type PromotionCampaignRecord,
+  type PromotionCategory,
+  type PromotionKind,
+  type PromotionRedemptionRecord,
+  type PromotionRepository,
+} from './promotion-repository.js';
+
+export interface RidePromotionSnapshot {
+  campaignId: string;
+  applicationId: string;
+  code: string;
+  name: string;
+  kind: Exclude<PromotionKind, 'wallet_credit'>;
+  normalTotalCents: number;
+  discountCents: number;
+  passengerPayableCents: number;
+  driverEarningsCents: number;
+  originalQuote: RideQuoteSnapshot;
+}
+
+export class PromotionError extends Error {
+  constructor(
+    public readonly code:
+      | 'INVALID_PROMOTION_CODE'
+      | 'INVALID_PROMOTION_CAMPAIGN'
+      | 'PROMOTION_NOT_FOUND'
+      | 'PROMOTION_NOT_ACTIVE'
+      | 'PROMOTION_NOT_ELIGIBLE'
+      | 'PROMOTION_NOT_BENEFICIAL'
+      | 'PROMOTION_RIDE_STATE_INVALID'
+      | 'PROMOTION_REQUIRES_DEVICE'
+      | 'PROMOTION_WALLET_ONLY',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'PromotionError';
+  }
+}
+
+export function normalizePromotionCode(value: string): string {
+  const code = value.trim().toUpperCase();
+  if (
+    code.length < 3 ||
+    code.length > 32 ||
+    !/^[A-Z0-9_-]+$/.test(code)
+  ) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CODE',
+      'Cupom deve ter de 3 a 32 caracteres, usando letras, números, _ ou -.',
+    );
+  }
+  return code;
+}
+
+export function promotionDeviceHash(clientInstanceId: string): string {
+  const value = clientInstanceId.trim();
+  if (
+    value.length < 32 ||
+    value.length > 128 ||
+    !/^[A-Za-z0-9_-]+$/.test(value)
+  ) {
+    throw new PromotionError(
+      'PROMOTION_REQUIRES_DEVICE',
+      'Não foi possível validar este aparelho para o cupom.',
+    );
+  }
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function positiveInt(
+  value: number | undefined,
+  field: string,
+  max = 100000000,
+): number | undefined {
+  if (value == null) return undefined;
+  if (!Number.isInteger(value) || value <= 0 || value > max) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      `${field} é inválido.`,
+    );
+  }
+  return value;
+}
+
+function optionalInstant(
+  value: string | undefined,
+  field: string,
+): string | undefined {
+  if (value == null || !value.trim()) return undefined;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      `${field} deve ser uma data válida.`,
+    );
+  }
+  return new Date(ms).toISOString();
+}
+
+export function createPromotionCampaignRecord(input: {
+  code: string;
+  name: string;
+  kind: PromotionKind;
+  valueCents?: number;
+  percentBps?: number;
+  maxDiscountCents?: number;
+  fixedDriverFareCents?: number;
+  categories?: PromotionCategory[];
+  maxRedemptions: number;
+  perPassengerLimit?: number;
+  perDeviceLimit?: number;
+  startsAt?: string;
+  endsAt?: string;
+  enabled?: boolean;
+  now?: Date;
+}): PromotionCampaignRecord {
+  const code = normalizePromotionCode(input.code);
+  const name = input.name.trim().replace(/\s+/g, ' ');
+  if (name.length < 3 || name.length > 80) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Nome da campanha deve ter entre 3 e 80 caracteres.',
+    );
+  }
+  if (!PROMOTION_KINDS.includes(input.kind)) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Tipo de cupom inválido.',
+    );
+  }
+
+  const categories = [...new Set(input.categories ?? [])];
+  if (
+    categories.some(
+      (item) => !PROMOTION_CATEGORIES.includes(item),
+    )
+  ) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Categoria promocional inválida.',
+    );
+  }
+
+  const valueCents = positiveInt(input.valueCents, 'valueCents');
+  const percentBps = positiveInt(input.percentBps, 'percentBps', 10000);
+  const maxDiscountCents = positiveInt(
+    input.maxDiscountCents,
+    'maxDiscountCents',
+  );
+  const fixedDriverFareCents = positiveInt(
+    input.fixedDriverFareCents,
+    'fixedDriverFareCents',
+  );
+  if (
+    (input.kind === 'wallet_credit' ||
+      input.kind === 'fixed_discount') &&
+    valueCents == null
+  ) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Este tipo de cupom exige um valor em reais.',
+    );
+  }
+  if (input.kind === 'percent_discount' && percentBps == null) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Cupom percentual exige um percentual.',
+    );
+  }
+  if (
+    input.kind === 'fixed_driver_fare' &&
+    fixedDriverFareCents == null
+  ) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Tarifa promocional exige o valor líquido do motorista.',
+    );
+  }
+
+  const maxRedemptions =
+    positiveInt(input.maxRedemptions, 'maxRedemptions', 1000000)!;
+  const perPassengerLimit =
+    positiveInt(
+      input.perPassengerLimit ?? 1,
+      'perPassengerLimit',
+      1000,
+    )!;
+  const perDeviceLimit =
+    positiveInt(
+      input.perDeviceLimit ?? 1,
+      'perDeviceLimit',
+      1000,
+    )!;
+  const startsAt = optionalInstant(input.startsAt, 'startsAt');
+  const endsAt = optionalInstant(input.endsAt, 'endsAt');
+  if (
+    startsAt != null &&
+    endsAt != null &&
+    Date.parse(endsAt) <= Date.parse(startsAt)
+  ) {
+    throw new PromotionError(
+      'INVALID_PROMOTION_CAMPAIGN',
+      'Fim da campanha deve ser posterior ao início.',
+    );
+  }
+
+  const instant = (input.now ?? new Date()).toISOString();
+  return {
+    id: randomUUID(),
+    code,
+    name,
+    kind: input.kind,
+    ...(valueCents == null ? {} : { valueCents }),
+    ...(percentBps == null ? {} : { percentBps }),
+    ...(maxDiscountCents == null ? {} : { maxDiscountCents }),
+    ...(fixedDriverFareCents == null
+      ? {}
+      : { fixedDriverFareCents }),
+    categories,
+    maxRedemptions,
+    perPassengerLimit,
+    perDeviceLimit,
+    ...(startsAt == null ? {} : { startsAt }),
+    ...(endsAt == null ? {} : { endsAt }),
+    enabled: input.enabled === true,
+    createdAt: instant,
+    updatedAt: instant,
+  };
+}
+
+export function publicPromotionCampaignView(
+  campaign: PromotionCampaignRecord,
+) {
+  return {
+    id: campaign.id,
+    code: campaign.code,
+    name: campaign.name,
+    kind: campaign.kind,
+    ...(campaign.valueCents == null
+      ? {}
+      : { valueCents: campaign.valueCents }),
+    ...(campaign.percentBps == null
+      ? {}
+      : { percentBps: campaign.percentBps }),
+    ...(campaign.maxDiscountCents == null
+      ? {}
+      : { maxDiscountCents: campaign.maxDiscountCents }),
+    ...(campaign.fixedDriverFareCents == null
+      ? {}
+      : { fixedDriverFareCents: campaign.fixedDriverFareCents }),
+    categories: campaign.categories,
+    startsAt: campaign.startsAt ?? null,
+    endsAt: campaign.endsAt ?? null,
+  };
+}
+
+function assertCampaignActive(
+  campaign: PromotionCampaignRecord,
+  now: Date,
+): void {
+  const time = now.getTime();
+  if (
+    !campaign.enabled ||
+    (campaign.startsAt != null &&
+      Date.parse(campaign.startsAt) > time) ||
+    (campaign.endsAt != null &&
+      Date.parse(campaign.endsAt) <= time)
+  ) {
+    throw new PromotionError(
+      'PROMOTION_NOT_ACTIVE',
+      'Este cupom não está ativo neste momento.',
+    );
+  }
+}
+
+export async function savePassengerPromotionPreference(input: {
+  promotions: PromotionRepository;
+  passengerId: string;
+  clientInstanceId: string;
+  code: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const code = normalizePromotionCode(input.code);
+  const campaign = await input.promotions.findCampaignByCode(code);
+  if (campaign == null) {
+    throw new PromotionError(
+      'PROMOTION_NOT_FOUND',
+      'Cupom não encontrado.',
+    );
+  }
+  assertCampaignActive(campaign, now);
+  const preference: PassengerPromotionPreferenceRecord = {
+    passengerId: input.passengerId,
+    campaignId: campaign.id,
+    deviceHash: promotionDeviceHash(input.clientInstanceId),
+    updatedAt: now.toISOString(),
+  };
+  await input.promotions.savePreference(preference);
+  return {
+    campaign: publicPromotionCampaignView(campaign),
+    updatedAt: preference.updatedAt,
+  };
+}
+
+export async function passengerPromotionPreference(input: {
+  promotions: PromotionRepository;
+  passengerId: string;
+  now?: Date;
+}) {
+  const preference = await input.promotions.getPreference(
+    input.passengerId,
+  );
+  if (preference == null) return null;
+  const campaign = await input.promotions.findCampaignById(
+    preference.campaignId,
+  );
+  if (campaign == null) return null;
+  try {
+    assertCampaignActive(campaign, input.now ?? new Date());
+  } catch {
+    return null;
+  }
+  return {
+    campaign: publicPromotionCampaignView(campaign),
+    updatedAt: preference.updatedAt,
+  };
+}
+
+function categoryAllowed(
+  campaign: PromotionCampaignRecord,
+  ride: RideRecord,
+): boolean {
+  return (
+    campaign.categories.length === 0 ||
+    campaign.categories.includes(
+      ride.category as PromotionCategory,
+    )
+  );
+}
+
+function promotionValues(
+  campaign: PromotionCampaignRecord,
+  ride: RideRecord,
+): {
+  discountCents: number;
+  passengerPayableCents: number;
+  driverEarningsCents: number;
+} {
+  const normalTotal = ride.quote.totalAmountCents;
+  if (campaign.kind === 'wallet_credit') {
+    throw new PromotionError(
+      'PROMOTION_WALLET_ONLY',
+      'Este cupom adiciona crédito à carteira e não altera uma corrida diretamente.',
+    );
+  }
+  if (!categoryAllowed(campaign, ride)) {
+    throw new PromotionError(
+      'PROMOTION_NOT_ELIGIBLE',
+      'Este cupom não vale para a categoria escolhida.',
+    );
+  }
+
+  if (campaign.kind === 'fixed_discount') {
+    const discount = Math.min(campaign.valueCents!, normalTotal);
+    return {
+      discountCents: discount,
+      passengerPayableCents: normalTotal - discount,
+      driverEarningsCents: ride.quote.driverNetCents,
+    };
+  }
+
+  if (campaign.kind === 'percent_discount') {
+    const raw = Math.floor(
+      (normalTotal * campaign.percentBps!) / 10000,
+    );
+    const discount = Math.min(
+      normalTotal,
+      campaign.maxDiscountCents == null
+        ? raw
+        : Math.min(raw, campaign.maxDiscountCents),
+    );
+    return {
+      discountCents: discount,
+      passengerPayableCents: normalTotal - discount,
+      driverEarningsCents: ride.quote.driverNetCents,
+    };
+  }
+
+  if (campaign.kind === 'free_ride') {
+    return {
+      discountCents: normalTotal,
+      passengerPayableCents: 0,
+      driverEarningsCents: ride.quote.driverNetCents,
+    };
+  }
+
+  const fixed = campaign.fixedDriverFareCents!;
+  if (fixed >= normalTotal) {
+    throw new PromotionError(
+      'PROMOTION_NOT_BENEFICIAL',
+      'A tarifa promocional precisa ser menor que a tarifa normal desta corrida.',
+    );
+  }
+  return {
+    discountCents: normalTotal - fixed,
+    passengerPayableCents: fixed,
+    driverEarningsCents: fixed,
+  };
+}
+
+function restoreOriginalQuote(ride: RideRecord): RideRecord {
+  const promotion = ride.promotion;
+  if (promotion == null) return ride;
+  return {
+    ...ride,
+    quote: structuredClone(promotion.originalQuote),
+    promotion: undefined,
+  };
+}
+
+export async function applyPromotionToRide(input: {
+  promotions: PromotionRepository;
+  rides: RideRepository;
+  passengerId: string;
+  clientInstanceId: string;
+  rideId: string;
+  code?: string;
+  now?: Date;
+}): Promise<RideRecord> {
+  const now = input.now ?? new Date();
+  let ride = await input.rides.findById(input.rideId);
+  if (ride == null || ride.passengerId !== input.passengerId) {
+    throw new PromotionError(
+      'PROMOTION_NOT_FOUND',
+      'Corrida não encontrada.',
+    );
+  }
+  if (
+    ride.state !== 'AWAITING_PAYMENT' ||
+    ride.paymentStatus !== 'created'
+  ) {
+    throw new PromotionError(
+      'PROMOTION_RIDE_STATE_INVALID',
+      'Cupom só pode ser alterado antes do pagamento.',
+    );
+  }
+
+  const deviceHash = promotionDeviceHash(input.clientInstanceId);
+  let campaign: PromotionCampaignRecord | null = null;
+  if (input.code != null && input.code.trim()) {
+    campaign = await input.promotions.findCampaignByCode(
+      normalizePromotionCode(input.code),
+    );
+  } else {
+    const preference = await input.promotions.getPreference(
+      input.passengerId,
+    );
+    if (preference != null) {
+      campaign = await input.promotions.findCampaignById(
+        preference.campaignId,
+      );
+    }
+  }
+  if (campaign == null) {
+    throw new PromotionError(
+      'PROMOTION_NOT_FOUND',
+      'Cupom não encontrado.',
+    );
+  }
+  assertCampaignActive(campaign, now);
+
+  if (
+    ride.promotion?.campaignId === campaign.id &&
+    ride.promotion.code === campaign.code
+  ) {
+    return ride;
+  }
+
+  const previousRedemption =
+    await input.promotions.findRedemptionByRideId(ride.id);
+  if (
+    previousRedemption != null &&
+    previousRedemption.status === 'reserved'
+  ) {
+    await input.promotions.setRedemptionStatus(
+      previousRedemption.id,
+      'released',
+      now.toISOString(),
+    );
+  }
+  ride = restoreOriginalQuote(ride);
+
+  const values = promotionValues(campaign, ride);
+  const applicationId = randomUUID();
+  const instant = now.toISOString();
+  const redemption: PromotionRedemptionRecord = {
+    id: applicationId,
+    campaignId: campaign.id,
+    passengerId: input.passengerId,
+    deviceHash,
+    rideId: ride.id,
+    referenceKey: `ride:${ride.id}:${applicationId}`,
+    status: 'reserved',
+    normalTotalCents: ride.quote.totalAmountCents,
+    discountCents: values.discountCents,
+    passengerPayableCents: values.passengerPayableCents,
+    driverEarningsCents: values.driverEarningsCents,
+    ...(ride.driverHoldExpiresAt == null
+      ? {}
+      : { expiresAt: ride.driverHoldExpiresAt }),
+    createdAt: instant,
+    updatedAt: instant,
+  };
+
+  let reserved: PromotionRedemptionRecord;
+  try {
+    reserved = await input.promotions.reserveRedemption({
+      redemption,
+      maxRedemptions: campaign.maxRedemptions,
+      perPassengerLimit: campaign.perPassengerLimit,
+      perDeviceLimit: campaign.perDeviceLimit,
+      now: instant,
+    });
+  } catch (error) {
+    if (error instanceof PromotionRepositoryError) throw error;
+    throw error;
+  }
+
+  const originalQuote = structuredClone(ride.quote);
+  const promotion: RidePromotionSnapshot = {
+    campaignId: campaign.id,
+    applicationId: reserved.id,
+    code: campaign.code,
+    name: campaign.name,
+    kind: campaign.kind as RidePromotionSnapshot['kind'],
+    normalTotalCents: originalQuote.totalAmountCents,
+    discountCents: values.discountCents,
+    passengerPayableCents: values.passengerPayableCents,
+    driverEarningsCents: values.driverEarningsCents,
+    originalQuote,
+  };
+
+  const promotedQuote =
+    campaign.kind === 'fixed_driver_fare'
+      ? {
+          ...originalQuote,
+          ruleId: `promotion:${campaign.id}`,
+          baseAmountCents: values.driverEarningsCents,
+          pickupCompensationCents: 0,
+          totalAmountCents: values.driverEarningsCents,
+          platformCommissionCents: 0,
+          driverNetCents: values.driverEarningsCents,
+        }
+      : originalQuote;
+
+  try {
+    return await input.rides.save({
+      ...ride,
+      quote: promotedQuote,
+      promotion,
+      updatedAt: instant,
+    });
+  } catch (error) {
+    await input.promotions.setRedemptionStatus(
+      reserved.id,
+      'released',
+      new Date().toISOString(),
+    );
+    throw error;
+  }
+}
+
+export async function removePromotionFromRide(input: {
+  promotions: PromotionRepository;
+  rides: RideRepository;
+  passengerId: string;
+  rideId: string;
+  now?: Date;
+}): Promise<RideRecord> {
+  const ride = await input.rides.findById(input.rideId);
+  if (ride == null || ride.passengerId !== input.passengerId) {
+    throw new PromotionError(
+      'PROMOTION_NOT_FOUND',
+      'Corrida não encontrada.',
+    );
+  }
+  if (
+    ride.state !== 'AWAITING_PAYMENT' ||
+    ride.paymentStatus !== 'created'
+  ) {
+    throw new PromotionError(
+      'PROMOTION_RIDE_STATE_INVALID',
+      'Cupom só pode ser removido antes do pagamento.',
+    );
+  }
+  const redemption =
+    await input.promotions.findRedemptionByRideId(ride.id);
+  if (redemption?.status === 'reserved') {
+    await input.promotions.setRedemptionStatus(
+      redemption.id,
+      'released',
+      (input.now ?? new Date()).toISOString(),
+    );
+  }
+  return input.rides.save({
+    ...restoreOriginalQuote(ride),
+    updatedAt: (input.now ?? new Date()).toISOString(),
+  });
+}
+
+export function passengerPayableCents(ride: RideRecord): number {
+  return ride.promotion?.passengerPayableCents ??
+    ride.quote.totalAmountCents;
+}
+
+export function promotionSubsidyCents(ride: RideRecord): number {
+  if (ride.promotion == null) return 0;
+  if (ride.promotion.kind === 'fixed_driver_fare') return 0;
+  return ride.promotion.discountCents;
+}
