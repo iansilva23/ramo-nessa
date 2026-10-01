@@ -131,6 +131,9 @@ test('frontend da frota expõe mapa, polling e CSP restrito aos tiles', () => {
   assert.equal(/GPS com mais de 2 minutos/.test(html), false);
   assert.match(map, /https:\/\/tile\.openstreetmap\.org/);
   assert.match(map, /strict-origin-when-cross-origin/);
+  assert.match(map, /function unproject/);
+  assert.match(map, /pointerdown/);
+  assert.match(map, /userPanned/);
   assert.match(html, /name=["']referrer["'] content=["']strict-origin-when-cross-origin["']/);
   assert.match(caddy, /Referrer-Policy "strict-origin-when-cross-origin"/);
   assert.match(map, /marker\.dataset\.availability/);
