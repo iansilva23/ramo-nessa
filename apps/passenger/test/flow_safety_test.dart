@@ -13,6 +13,7 @@ import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_paymen
 import 'package:ramo_nessa_passenger/src/features/payments/domain/card_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
+import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_promotion.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/pix_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
@@ -503,7 +504,38 @@ class _FakeRidePreparationService implements RidePreparationService {
 }
 
 
-class _FakePassengerPaymentService implements PassengerPaymentService {
+abstract class _CouponAwarePaymentService
+    implements PassengerPaymentService {
+  @override
+  Future<PassengerPromotionPreference?> promotionPreference() async => null;
+
+  @override
+  Future<PassengerPromotionSaveResult> savePromotionCode(String code) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> clearPromotionPreference() async {}
+
+  @override
+  Future<PreparedRide> applyPromotionToRide({
+    required String rideId,
+    String? code,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<PreparedRide> removePromotionFromRide(String rideId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<FullyPromotionalRidePaymentResult> confirmFullyPromotionalRide(
+    String rideId,
+  ) =>
+      throw UnimplementedError();
+}
+
+
+class _FakePassengerPaymentService extends _CouponAwarePaymentService {
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
     return const PassengerPaymentPolicy(
@@ -578,7 +610,7 @@ class _FakePassengerPaymentService implements PassengerPaymentService {
 
 
 class _FakeCashPassengerPaymentService
-    implements PassengerPaymentService {
+    extends _CouponAwarePaymentService {
   int cashAuthorizations = 0;
 
   @override
@@ -716,7 +748,7 @@ class _FakeRideTrackingService implements PassengerRideTrackingService {
 
 
 class _FakeRefundedPassengerPaymentService
-    implements PassengerPaymentService {
+    extends _CouponAwarePaymentService {
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
     return const PassengerPaymentPolicy(
@@ -792,7 +824,7 @@ class _FakeRefundedPassengerPaymentService
 
 
 class _FakePixPassengerPaymentService
-    implements PassengerPaymentService {
+    extends _CouponAwarePaymentService {
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
     return const PassengerPaymentPolicy(
