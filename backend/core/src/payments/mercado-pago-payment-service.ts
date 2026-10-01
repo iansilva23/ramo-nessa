@@ -10,6 +10,7 @@ import {
   type MercadoPagoPixOrder,
 } from './mercado-pago-orders.js';
 import { PaymentDomainError, type PaymentRecord } from './payment.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
 import { cardPriceForBaseFare } from './card-price-adjustment.js';
 import { pixPriceForBaseFare } from './pix-price-adjustment.js';
 
@@ -73,7 +74,7 @@ export async function createMercadoPagoPixIntent(input: {
   }
 
   const pricing = pixPriceForBaseFare(
-    input.ride.quote.totalAmountCents,
+    passengerPayableCents(input.ride),
     input.pixPriceAdjustmentBps ?? 0,
   );
 
@@ -152,7 +153,7 @@ export async function createMercadoPagoCardIntent(input: {
   }
 
   const pricing = cardPriceForBaseFare(
-    input.ride.quote.totalAmountCents,
+    passengerPayableCents(input.ride),
     input.cardPriceAdjustmentBps,
   );
 
