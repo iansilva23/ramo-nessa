@@ -325,6 +325,7 @@ import { adminPricingCatalogView } from './pricing/admin-catalog.js';
 import { resolvePricingCatalogContext } from './pricing/effective-catalog.js';
 import {
   createPricingCatalogDraft,
+  deletePricingCatalogDraft,
   pricingCatalogVersionView,
   publishPricingCatalogVersion,
   PricingCatalogVersionError,
@@ -4270,6 +4271,48 @@ const server = createServer(async (request, response) => {
           versionNumber: version.versionNumber,
           effectiveFrom: version.effectiveFrom ?? null,
         }),
+      });
+      return;
+    }
+
+    if (
+      request.method === 'DELETE' &&
+      pricingVersionMatch != null
+    ) {
+      const actor = await authenticateAdminPrincipal({
+        apiKeys: adminRepository,
+        humanAuth: adminHumanAuthRepository,
+        headers: request.headers,
+        requiredScope: 'pricing:write',
+      });
+      const body = await readJson(request);
+      const expectedUpdatedAt =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        'expectedUpdatedAt' in body
+          ? String(
+              (body as { expectedUpdatedAt?: unknown })
+                .expectedUpdatedAt ?? '',
+            ).trim()
+          : '';
+      if (
+        expectedUpdatedAt &&
+        !Number.isFinite(Date.parse(expectedUpdatedAt))
+      ) {
+        throw new InvalidAdminRequestError(
+          'expectedUpdatedAt deve ser uma data ISO válida.',
+        );
+      }
+      const deleted = await deletePricingCatalogDraft({
+        versions: pricingCatalogVersionRepository,
+        admin: adminRepository,
+        actor,
+        versionId: pricingVersionMatch[1]!,
+        ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
+      });
+      json(response, 200, {
+        version: pricingCatalogVersionView(deleted),
       });
       return;
     }
