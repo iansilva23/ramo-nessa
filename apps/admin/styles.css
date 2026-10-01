@@ -4888,3 +4888,138 @@ td strong {
 .fleet-map.is-panning {
   cursor: grabbing;
 }
+
+
+.localities-publish-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, .8fr) auto;
+  gap: 22px;
+  align-items: center;
+  margin-bottom: 24px;
+  border-color: rgba(250, 213, 14, .46);
+  background:
+    linear-gradient(135deg, rgba(250, 213, 14, .1), transparent 56%),
+    var(--surface);
+}
+
+.localities-publish-copy h2 {
+  margin: 6px 0 5px;
+  font-size: 20px;
+}
+
+.localities-publish-copy p {
+  max-width: 700px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.localities-publish-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.localities-publish-status > div {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.localities-publish-status span,
+.localities-publish-status strong {
+  display: block;
+}
+
+.localities-publish-status span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.localities-publish-status strong {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.localities-publish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.pricing-draft-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(190px, .5fr) auto;
+  gap: 20px;
+  align-items: center;
+}
+
+.pricing-draft-card h2 {
+  margin: 6px 0 4px;
+  font-size: 20px;
+}
+
+.pricing-draft-card__status {
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--raised);
+}
+
+.pricing-draft-card__status span,
+.pricing-draft-card__status strong {
+  display: block;
+}
+
+.pricing-draft-card__status span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.pricing-draft-card__status strong {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.pricing-draft-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  justify-content: flex-end;
+}
+
+.fleet-map {
+  touch-action: none;
+}
+
+@media (max-width: 980px) {
+  .localities-publish-card,
+  .pricing-draft-card {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .localities-publish-actions,
+  .pricing-draft-card__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .localities-publish-status {
+    grid-template-columns: 1fr;
+  }
+
+  .localities-publish-actions .button,
+  .pricing-draft-card__actions .button {
+    width: 100%;
+  }
+}
