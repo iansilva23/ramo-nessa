@@ -7,7 +7,10 @@ import { requiresFourByFourForTrip } from '../pricing/category-eligibility.js';
 import type { PricingCatalogContext } from '../pricing/effective-catalog.js';
 import { quoteFare } from '../pricing/quote-engine.js';
 import { pricingPeriodAt } from '../pricing/period.js';
-import type { QuoteRequest } from '../pricing/types.js';
+import {
+  PricingError,
+  type QuoteRequest,
+} from '../pricing/types.js';
 import {
   RoutingDistanceError,
   type RoutingDistanceProvider,
@@ -89,35 +92,9 @@ export async function prepareRideForPayment(input: {
     ...clientQuoteRequest
   } = input.quoteRequest;
 
-  const needsTripDistance =
-    clientQuoteRequest.category === 'delivery' &&
-    clientQuoteRequest.origin.zoneId === 'jericoacoara' &&
-    clientQuoteRequest.destination.zoneId === 'jericoacoara';
-
-  let authoritativeTripDistanceKm: number | undefined;
-  if (needsTripDistance) {
-    try {
-      authoritativeTripDistanceKm = await input.routing.routeDistanceKm({
-        from: input.pickup,
-        to: input.dropoff,
-      });
-    } catch (error) {
-      if (error instanceof RoutingDistanceError) {
-        throw new RidePreparationError(
-          'ROUTING_UNAVAILABLE',
-          'Não foi possível calcular a distância segura da viagem.',
-        );
-      }
-      throw error;
-    }
-  }
-
-  const trustedQuoteRequest: QuoteRequest = {
+  let trustedQuoteRequest: QuoteRequest = {
     ...clientQuoteRequest,
     period: pricingPeriodAt(now, pricing.snapshot.periodPolicy),
-    ...(authoritativeTripDistanceKm != null
-      ? { tripDistanceKm: authoritativeTripDistanceKm }
-      : {}),
   };
 
   assertPricingLocationMatchesPoint({
@@ -137,10 +114,46 @@ export async function prepareRideForPayment(input: {
       input.destinationLocalityProofVerified === true,
   });
 
-  const baseFare = quoteFare(
-    trustedQuoteRequest,
-    pricing.snapshot,
-  );
+  let baseFare;
+  try {
+    baseFare = quoteFare(
+      trustedQuoteRequest,
+      pricing.snapshot,
+    );
+  } catch (error) {
+    if (
+      !(error instanceof PricingError) ||
+      error.code !== 'MISSING_DISTANCE'
+    ) {
+      throw error;
+    }
+
+    let authoritativeTripDistanceKm: number;
+    try {
+      authoritativeTripDistanceKm =
+        await input.routing.routeDistanceKm({
+          from: input.pickup,
+          to: input.dropoff,
+        });
+    } catch (routingError) {
+      if (routingError instanceof RoutingDistanceError) {
+        throw new RidePreparationError(
+          'ROUTING_UNAVAILABLE',
+          'Não foi possível calcular a distância segura da viagem.',
+        );
+      }
+      throw routingError;
+    }
+
+    trustedQuoteRequest = {
+      ...trustedQuoteRequest,
+      tripDistanceKm: authoritativeTripDistanceKm,
+    };
+    baseFare = quoteFare(
+      trustedQuoteRequest,
+      pricing.snapshot,
+    );
+  }
   if (baseFare.kind !== 'exact') {
     throw new RidePreparationError(
       'QUOTE_NOT_EXACT',
