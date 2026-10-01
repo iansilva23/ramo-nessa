@@ -16,6 +16,7 @@ import 'passenger_settings_screen.dart';
 import '../../map/data/place_search_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
 import '../../payments/presentation/passenger_wallet_screen.dart';
+import '../../payments/presentation/passenger_coupons_screen.dart';
 import '../data/passenger_privacy_service.dart';
 import '../data/passenger_saved_place_service.dart';
 import '../data/passenger_support_service.dart';
@@ -383,6 +384,21 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => _PassengerPaymentMethodsScreen(
+                        service: widget.paymentService,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-coupons'),
+                icon: Icons.local_offer_outlined,
+                title: 'Cupons',
+                subtitle: 'Adicione, salve ou remova seus benefícios',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PassengerCouponsScreen(
                         service: widget.paymentService,
                       ),
                     ),
