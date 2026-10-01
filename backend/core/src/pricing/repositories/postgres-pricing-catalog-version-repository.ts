@@ -171,6 +171,22 @@ export class PostgresPricingCatalogVersionRepository
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
   }
 
+  async deleteDraft(
+    input: Parameters<PricingCatalogVersionRepository['deleteDraft']>[0],
+  ): Promise<PricingCatalogVersionRecord | null> {
+    const result = await this.pool.query<PricingCatalogVersionRow>(
+      `
+      DELETE FROM pricing_catalog_versions
+      WHERE id = $1
+        AND status = 'draft'
+        AND updated_at = $2
+      RETURNING *
+      `,
+      [input.id, input.expectedUpdatedAt],
+    );
+    return result.rows[0] == null ? null : mapRow(result.rows[0]);
+  }
+
   async findEffective(at: string): Promise<PricingCatalogVersionRecord | null> {
     const result = await this.pool.query<PricingCatalogVersionRow>(
       `
