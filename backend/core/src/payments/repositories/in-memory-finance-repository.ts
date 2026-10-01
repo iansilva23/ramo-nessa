@@ -1038,6 +1038,56 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     };
   }
 
+  async fundRidePromotion(
+    input: FundRidePromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const referenceKey = `ride-promotion:${input.applicationId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicate: true,
+      };
+    }
+
+    const ledger = ridePromotionFundingLedger({
+      rideId: input.rideId,
+      applicationId: input.applicationId,
+      amountCents: input.amountCents,
+      createdAt: (input.fundedAt ?? new Date()).toISOString(),
+    });
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicate: false,
+    };
+  }
+
+  async grantWalletPromotion(
+    input: GrantWalletPromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const referenceKey = `wallet-promotion:${input.applicationId}`;
+    const existing = this.ledgerByReference.get(referenceKey);
+    if (existing != null) {
+      return {
+        ledgerTransaction: structuredClone(existing),
+        duplicate: true,
+      };
+    }
+
+    const ledger = walletPromotionGrantLedger({
+      passengerId: input.passengerId,
+      applicationId: input.applicationId,
+      amountCents: input.amountCents,
+      createdAt: (input.grantedAt ?? new Date()).toISOString(),
+    });
+    this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    return {
+      ledgerTransaction: structuredClone(ledger),
+      duplicate: false,
+    };
+  }
+
   async settleRide(input: SettleRideInput): Promise<SettleRideResult> {
     const payment = this.payments.get(input.paymentId);
     if (
