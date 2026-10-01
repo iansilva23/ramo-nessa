@@ -4880,3 +4880,11 @@ td strong {
     text-align: left;
   }
 }
+
+.fleet-map {
+  cursor: grab;
+}
+
+.fleet-map.is-panning {
+  cursor: grabbing;
+}
