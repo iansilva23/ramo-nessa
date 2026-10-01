@@ -417,6 +417,7 @@ export function createLocalitiesAdmin(input) {
       scope: entry.scope,
       name: entry.label,
       localityId: entry.localityId,
+      hadGeofence: entry.geofence != null,
       radius: Number(entry.geofence?.radiusKm ?? 2),
       selection: entry.geofence
         ? {
@@ -782,15 +783,17 @@ export function createLocalitiesAdmin(input) {
       scope: model.scope,
       localityId: model.localityId,
     });
-    await applyPatch({
-      kind: 'locality_geofence',
-      operation: 'upsert',
-      zoneId: model.scope,
-      localityId: model.localityId,
-      centerLatitude: model.selection.latitude,
-      centerLongitude: model.selection.longitude,
-      radiusKm: model.radius,
-    });
+    if (model.hadGeofence !== false) {
+      await applyPatch({
+        kind: 'locality_geofence',
+        operation: 'upsert',
+        zoneId: model.scope,
+        localityId: model.localityId,
+        centerLatitude: model.selection.latitude,
+        centerLongitude: model.selection.longitude,
+        radiusKm: model.radius,
+      });
+    }
     if (LOCAL_SCOPES.has(model.scope)) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
