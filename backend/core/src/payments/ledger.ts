@@ -343,6 +343,69 @@ export function walletRideRefundLedger(input: {
   };
 }
 
+export function ridePromotionFundingLedger(input: {
+  rideId: string;
+  applicationId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new LedgerError('Subsídio promocional precisa ser positivo.');
+  }
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:promotion_expense',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `ride:${input.rideId}:escrow`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+  return {
+    id: randomUUID(),
+    kind: 'RIDE_PROMOTION_FUNDED',
+    rideId: input.rideId,
+    referenceKey: `ride-promotion:${input.applicationId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
+export function walletPromotionGrantLedger(input: {
+  passengerId: string;
+  applicationId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new LedgerError('Crédito promocional precisa ser positivo.');
+  }
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: 'platform:promotion_expense',
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: `passenger:${input.passengerId}:wallet`,
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+  return {
+    id: randomUUID(),
+    kind: 'WALLET_PROMOTION_GRANTED',
+    referenceKey: `wallet-promotion:${input.applicationId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function rideSettlementLedger(input: {
   rideId: string;
   paymentId: string;
