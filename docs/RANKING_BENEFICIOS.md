@@ -70,3 +70,28 @@ Prêmios são exclusivamente descrições. “R$ 500 via Pix” não cria pagame
 payout, saldo, crédito, comissão, extrato ou lançamento financeiro. Não existe
 integração com FinanceRepository, Mercado Pago ou carteira. O proprietário
 realiza eventual pagamento manualmente fora deste módulo.
+
+## App Motorista
+
+A entrada existente no Perfil utiliza a capacidade `DriverBenefitsApi` do
+mesmo `HttpDriverApi`: cliente HTTP, Bearer, identidade dev autorizada e timeout
+continuam compartilhados. Não existe uma segunda sessão. A tela aceita injeção
+para testes e mantém a prévia original quando não há API no Preview, o módulo
+está OFF ou não há campanha ativa elegível.
+
+Campanhas reais mostram seleção, tempo restante, posição própria, pontos,
+diferença para a posição anterior, pódio, Top 20 + posição própria, corridas,
+avaliação, detalhamento, missões com progresso, prêmios informativos e mínimo de
+participantes. Empate em pontos explica os demais critérios. O histórico também
+fica disponível quando não há campanha ativa, desde que o módulo esteja ON.
+
+Há atualização manual, atualização a cada minuto enquanto o app está ativo e
+nova consulta ao retornar do background. Erro de rede tem mensagem e tentativa
+novamente; não é convertido em “Em breve”. Uma atualização remove dados antigos
+até concluir a consulta. Respostas anteriores não sobrescrevem uma sessão/tela
+nova. Layout usa largura limitada, adaptação do pódio a telas pequenas e fontes
+ampliadas, além de labels acessíveis para controles e progresso.
+
+O Preflight conserva PNGs dos testes visuais em `driver-benefits-visuals` para
+verificação de layout. Esses testes usam dados de fixture; o Test Stack Audit
+verifica separadamente gateway, autenticação real, scopes, banco e auditoria.

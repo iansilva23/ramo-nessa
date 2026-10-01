@@ -6,12 +6,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/app.dart';
 import 'package:ramo_nessa_driver/src/core/location/driver_location_service.dart';
 import 'package:ramo_nessa_driver/src/core/navigation/driver_navigation_service.dart';
+import 'package:ramo_nessa_driver/src/features/benefits/data/driver_benefits_api.dart';
+import 'package:ramo_nessa_driver/src/features/benefits/domain/driver_benefits_models.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_route_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
 
 void main() {
+  testWidgets('Perfil abre benefícios usando a capacidade do mesmo cliente', (tester) async {
+    final api = _FakeDriverApi();
+    await tester.pumpWidget(RamoNessaDriverApp(api: api, locationService: const _FakeLocationService()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Perfil'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Ranking & Benefícios'), 180, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Ranking & Benefícios'));
+    await tester.pumpAndSettle();
+    expect(api.benefitsCalls, 1);
+    expect(find.text('EM BREVE'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets('motorista fica online, recebe oferta e aceita', (tester) async {
     final api = _FakeDriverApi();
     final navigation = _FakeNavigationService();
@@ -517,7 +532,15 @@ class _StreamingFakeLocationService implements DriverLocationService {
   Stream<DriverPosition> positionStream() => _controller.stream;
 }
 
-class _FakeDriverApi implements DriverApi {
+class _FakeDriverApi implements DriverApi, DriverBenefitsApi {
+  int benefitsCalls = 0;
+
+  @override
+  Future<DriverBenefitsSnapshot> benefits() async {
+    benefitsCalls++;
+    return const DriverBenefitsSnapshot(enabled: false);
+  }
+
   _FakeDriverApi({
     bool initialOnline = false,
     bool initialBusy = false,

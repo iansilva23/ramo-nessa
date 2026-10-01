@@ -225,6 +225,7 @@ try {
     'precos',
     'financeiro',
     'notificacoes',
+    'ranking-beneficios',
     'suporte',
     'passeios',
     'integracoes',
@@ -251,7 +252,7 @@ try {
     }
   }
 
-  for (const page of ['overview', 'fleet', 'agency', 'coupons']) {
+  for (const page of ['overview', 'fleet', 'agency', 'coupons', 'benefits']) {
     const response = await fetch(
       `${baseUrl}/admin/pages/${page}.html`,
       {
@@ -1049,6 +1050,93 @@ try {
   const driverAuthHeaders = {
     authorization: `Bearer ${driverVerify.payload.accessToken}`,
   };
+
+  // The real gateway/session/scopes/PostgreSQL path for Ranking & Benefícios.
+  const benefitWrite = (path, method, body) => jsonRequest(path, {
+    method, headers: { ...authHeaders, 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const benefitsOff = await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders });
+  assert.equal(benefitsOff.response.status, 200);
+  assert.deepEqual(benefitsOff.payload, { enabled: false, campaigns: [], history: [] });
+  assert.equal((await jsonRequest('/v1/driver/me/benefits')).response.status, 401);
+  assert.equal((await jsonRequest('/v1/driver/me/benefits', { headers: passengerAuthHeaders })).response.status, 401);
+  for (const [method, path, body] of [
+    ['GET', '/v1/admin/driver-benefits', undefined],
+    ['PUT', '/v1/admin/driver-benefits/settings', { enabled: true }],
+    ['POST', '/v1/admin/driver-benefits/campaigns', {}],
+    ['PATCH', '/v1/admin/driver-benefits/campaigns/00000000-0000-0000-0000-000000000001', {}],
+    ['PATCH', '/v1/admin/driver-benefits/campaigns/00000000-0000-0000-0000-000000000001/status', { status: 'active' }],
+    ['GET', '/v1/admin/driver-benefits/campaigns/00000000-0000-0000-0000-000000000001/leaderboard', undefined],
+    ['PUT', `/v1/admin/driver-benefits/driver-bases/${driverId}`, { zoneId: 'prea' }],
+    ['DELETE', `/v1/admin/driver-benefits/driver-bases/${driverId}`, undefined],
+  ]) {
+    const denied = await jsonRequest(path, { method,
+      headers: { ...documentStorageHeaders, 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    assert.equal(denied.response.status, 403, `scopes protegem ${method} ${path}`);
+  }
+  const createdBenefit = await benefitWrite('/v1/admin/driver-benefits/campaigns', 'POST', {
+    name: 'CI Ranking independente', category: 'car', regionMode: 'both', participantMode: 'selected',
+    regions: [{ zoneId: 'prea' }], participantDriverIds: [driverId], excludedDriverIds: [],
+    startsAt: new Date(Date.now() - 3600000).toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(),
+    topCount: 1, minParticipants: 2, ridePoints: 20, fiveStarPoints: 5, fourStarPoints: 2,
+    lowCancellationMaxBps: 500, lowCancellationBonusPoints: 100,
+    missions: [{ id: 'one-ride', title: 'Complete uma corrida', kind: 'completed_rides', target: 1, bonusPoints: 20 }],
+    prizes: [{ rank: 1, label: 'R$ 500 via Pix manual' }],
+  });
+  assert.equal(createdBenefit.response.status, 201);
+  let benefitCampaign = createdBenefit.payload.campaign;
+  assert.equal(benefitCampaign.status, 'draft');
+  const benefitPath = `/v1/admin/driver-benefits/campaigns/${benefitCampaign.id}`;
+  const savedBase = await benefitWrite(`/v1/admin/driver-benefits/driver-bases/${driverId}`, 'PUT', { zoneId: 'prea' });
+  assert.equal(savedBase.response.status, 200);
+  assert.equal(savedBase.payload.base.zoneId, 'prea');
+  const benefitStatus = async (status) => {
+    const result = await benefitWrite(`${benefitPath}/status`, 'PATCH', { status, expectedUpdatedAt: benefitCampaign.updatedAt });
+    assert.equal(result.response.status, 200, `status ${status} persistido`);
+    benefitCampaign = result.payload.campaign;
+    return result;
+  };
+  await benefitStatus('active');
+  assert.equal((await benefitWrite('/v1/admin/driver-benefits/settings', 'PUT', { enabled: true })).response.status, 200);
+  const benefitVisible = await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders });
+  assert.equal(benefitVisible.response.status, 200);
+  const ownBenefit = benefitVisible.payload.campaigns.find(item => item.id === benefitCampaign.id);
+  assert.ok(ownBenefit, 'base territorial e seleção tornam campanha elegível');
+  assert.equal(ownBenefit.me.rank, 1);
+  assert.equal(ownBenefit.me.points, 0);
+  assert.equal(ownBenefit.participantCount, 1);
+  assert.equal(ownBenefit.prizesUnlocked, false);
+  assert.equal(ownBenefit.me.missions[0].current, 0);
+  assert.equal(ownBenefit.leaderboard[0].displayName, 'Motorista S.');
+  for (const field of ['driverId', 'phone', 'email', 'cpf', 'plate', 'pixKey', 'baseZoneId', 'baseLocalityId']) {
+    assert.equal(field in ownBenefit.leaderboard[0], false, `ranking público não expõe ${field}`);
+  }
+  const benefitsReloaded = await jsonRequest('/v1/admin/driver-benefits', { headers: authHeaders });
+  const persistedBenefit = benefitsReloaded.payload.campaigns.find(item => item.id === benefitCampaign.id);
+  assert.equal(persistedBenefit.rulesLocked, true);
+  assert.equal(persistedBenefit.prizes[0].label, 'R$ 500 via Pix manual');
+  const staleBenefit = await benefitWrite(benefitPath, 'PATCH', { name: 'Stale overwrite', expectedUpdatedAt: createdBenefit.payload.campaign.updatedAt });
+  assert.equal(staleBenefit.response.status, 409);
+  const changeRules = await benefitWrite(benefitPath, 'PATCH', { ridePoints: 999, expectedUpdatedAt: benefitCampaign.updatedAt });
+  assert.equal(changeRules.response.status, 409);
+  await benefitStatus('paused');
+  assert.equal((await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders })).payload.campaigns.length, 0);
+  await benefitStatus('active');
+  await benefitStatus('ended');
+  const benefitHistory = await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders });
+  const finishedBenefit = benefitHistory.payload.history.find(item => item.id === benefitCampaign.id);
+  assert.equal(finishedBenefit.me.rank, 1);
+  assert.equal(finishedBenefit.prizesUnlocked, false);
+  assert.deepEqual(finishedBenefit.winners, []);
+  const benefitAudit = await jsonRequest(`/v1/admin/audit?action=driver_benefits.campaign_status_changed&targetType=driver_benefit_campaign&query=${encodeURIComponent(benefitCampaign.id)}`, { headers: authHeaders });
+  assert.equal(benefitAudit.response.status, 200);
+  assert.equal(benefitAudit.payload.entries[0]?.targetId, benefitCampaign.id);
+  assert.equal(benefitAudit.payload.entries[0]?.actor?.kind, 'user');
+  assert.equal((await benefitWrite('/v1/admin/driver-benefits/settings', 'PUT', { enabled: false })).response.status, 200);
+  assert.deepEqual((await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders })).payload,
+    { enabled: false, campaigns: [], history: [] });
 
   const supportWrongRole = await jsonRequest('/v1/passenger/me/support', {
     headers: driverAuthHeaders,
@@ -1883,7 +1971,7 @@ try {
   }
 
   console.log(
-    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados com inspeção segura, frota/GPS, ficha de passageiro, suporte autenticado com resposta persistida e scopes, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
+    'Smoke E2E aprovado: gateway, Admin, MFA, cadastro motorista/veículo, documentos privados com inspeção segura, frota/GPS, ficha de passageiro, suporte autenticado com resposta persistida e scopes, Ranking & Benefícios com sessão/scopes/persistência/histórico, diretórios, viagens, dashboard, preços, categorias, zonas e localidades versionados com publicação/vigência, auditoria e logout.',
   );
 } finally {
   const down = compose(['down', '-v', '--remove-orphans']);

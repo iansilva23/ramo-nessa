@@ -1,18 +1,175 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-class DriverRankingBenefitsScreen extends StatelessWidget {
-  const DriverRankingBenefitsScreen({super.key});
+import '../../benefits/data/driver_benefits_api.dart';
+import '../../benefits/domain/driver_benefits_models.dart';
+import '../../benefits/presentation/driver_benefits_content.dart';
+import '../../home/data/driver_api.dart';
+
+class DriverRankingBenefitsScreen extends StatefulWidget {
+  const DriverRankingBenefitsScreen({super.key, this.api, this.clock});
+
+  final DriverBenefitsApi? api;
+  final DateTime Function()? clock;
+
+  @override
+  State<DriverRankingBenefitsScreen> createState() => _DriverRankingBenefitsScreenState();
+}
+
+class _DriverRankingBenefitsScreenState extends State<DriverRankingBenefitsScreen>
+    with WidgetsBindingObserver {
+  DriverBenefitsSnapshot? _snapshot;
+  String? _selectedId;
+  String? _error;
+  bool _loading = false;
+  bool _darkExperience = false;
+  int _requestId = 0;
+  Timer? _refreshTimer;
+
+  DateTime get _now => widget.clock?.call() ?? DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.api != null) {
+      _load();
+      _startRefresh();
+    }
+  }
+
+  void _startRefresh() {
+    _refreshTimer?.cancel();
+    if (widget.api == null) return;
+    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!_loading) _load();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _refreshTimer?.cancel();
+    if (state == AppLifecycleState.resumed && widget.api != null) {
+      _load();
+      _startRefresh();
+    }
+  }
+
+  @override
+  void didUpdateWidget(DriverRankingBenefitsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api) {
+      _load();
+      _startRefresh();
+    }
+  }
+
+  @override
+  void dispose() {
+    _requestId++;
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final requestId = ++_requestId;
+    setState(() {
+      _loading = widget.api != null;
+      _error = null;
+      _snapshot = null;
+      if (widget.api == null) {
+        _darkExperience = false;
+        _selectedId = null;
+      }
+    });
+    if (widget.api == null) return;
+    try {
+      final snapshot = await widget.api!.benefits();
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _snapshot = snapshot;
+        _loading = false;
+        _darkExperience = snapshot.enabled && snapshot.campaigns.any((campaign) =>
+          !_now.isBefore(campaign.startsAt) && _now.isBefore(campaign.endsAt));
+        if (!snapshot.campaigns.any((campaign) => campaign.id == _selectedId)) {
+          _selectedId = snapshot.campaigns.isEmpty ? null : snapshot.campaigns.first.id;
+        }
+      });
+    } on DriverApiException catch (error) {
+      _loadFailed(requestId, error.statusCode == 401
+          ? 'Sua sessão expirou. Entre novamente para ver suas campanhas.' : error.message);
+    } catch (_) {
+      _loadFailed(requestId, 'Não conseguimos carregar o ranking agora. Confira sua conexão e tente novamente.');
+    }
+  }
+
+  void _loadFailed(int requestId, String message) {
+    if (!mounted || requestId != _requestId) return;
+    setState(() { _loading = false; _error = message; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final campaigns = _snapshot?.enabled == true
+        ? _snapshot!.campaigns.where((campaign) => !_now.isBefore(campaign.startsAt) && _now.isBefore(campaign.endsAt)).toList()
+        : const <DriverBenefitCampaign>[];
+    if (campaigns.isEmpty && !_darkExperience) return _scaffold(context, campaigns);
+    return Theme(data: RamoTheme.dark, child: Builder(builder: (context) => _scaffold(context, campaigns)));
+  }
+
+  Widget _scaffold(BuildContext context, List<DriverBenefitCampaign> campaigns) {
+    final history = _snapshot?.enabled == true ? _snapshot!.history : const <DriverBenefitHistory>[];
+    final selected = campaigns.isEmpty ? null : campaigns.firstWhere(
+      (campaign) => campaign.id == _selectedId, orElse: () => campaigns.first,
+    );
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Ranking & Benefícios'),
+        actions: [
+          if (widget.api != null) IconButton(
+            tooltip: 'Atualizar ranking', onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Carregando ranking'))
+          : _error != null
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(RamoSpacing.xl),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.cloud_off_rounded, size: 44),
+                    const SizedBox(height: RamoSpacing.md),
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: RamoSpacing.lg),
+                    OutlinedButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Tentar novamente')),
+                  ]),
+                ))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: selected == null ? _ComingSoonView(history: history) : DriverBenefitsCampaignContent(
+                    campaigns: campaigns, campaign: selected, history: history, now: _now,
+                    onSelect: (id) => setState(() => _selectedId = id),
+                  ),
+                ),
+    );
+  }
+}
+
+class _ComingSoonView extends StatelessWidget {
+  const _ComingSoonView({this.history = const []});
+
+  final List<DriverBenefitHistory> history;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ranking & Benefícios'),
-      ),
-      body: ListView(
+    return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(
           RamoSpacing.lg,
           RamoSpacing.md,
@@ -153,8 +310,13 @@ class DriverRankingBenefitsScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (history.isNotEmpty) ...[
+            const SizedBox(height: RamoSpacing.xl),
+            const Text('Nenhuma campanha ativa disponível agora.'),
+            const SizedBox(height: RamoSpacing.md),
+            DriverBenefitsHistoryContent(history: history),
+          ],
         ],
-      ),
     );
   }
 }

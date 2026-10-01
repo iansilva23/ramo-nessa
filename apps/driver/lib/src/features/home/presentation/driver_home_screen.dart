@@ -16,6 +16,7 @@ import '../../../core/communications/app_release_policy_service.dart';
 import '../../../core/communications/social_links_service.dart';
 import '../../finance/presentation/driver_statement_screen.dart';
 import '../../finance/presentation/driver_wallet_screen.dart';
+import '../../benefits/data/driver_benefits_api.dart';
 import '../../profile/presentation/driver_documents_screen.dart';
 import '../../profile/data/driver_privacy_service.dart';
 import '../../profile/presentation/driver_notifications_screen.dart';
@@ -51,6 +52,7 @@ class DriverHomeScreen extends StatefulWidget {
     this.accessToken,
     this.onLogout,
     this.api,
+    this.benefitsApi,
     this.locationService,
     this.navigationService,
     this.routeService,
@@ -63,6 +65,7 @@ class DriverHomeScreen extends StatefulWidget {
   final String? accessToken;
   final Future<bool> Function()? onLogout;
   final DriverApi? api;
+  final DriverBenefitsApi? benefitsApi;
   final DriverLocationService? locationService;
   final DriverNavigationService? navigationService;
   final DriverRouteService? routeService;
@@ -2194,8 +2197,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        const DriverRankingBenefitsScreen(),
+                    builder: (_) => DriverRankingBenefitsScreen(
+                      api: widget.benefitsApi ?? (_api is DriverBenefitsApi ? _api as DriverBenefitsApi : null),
+                    ),
                   ),
                 );
               },

@@ -381,3 +381,12 @@ jobs:
       - name: Test Driver
         working-directory: apps/driver
         run: flutter test
+
+      - name: Preserve Driver ranking visual checks
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: driver-benefits-visuals-${{ github.run_id }}
+          path: ${{ runner.temp }}/driver-benefits-visuals
+          if-no-files-found: ignore
+          retention-days: 3

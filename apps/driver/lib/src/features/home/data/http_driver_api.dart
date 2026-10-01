@@ -4,10 +4,12 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/driver_core_config.dart';
 import '../../../core/location/driver_location_service.dart';
+import '../../benefits/data/driver_benefits_api.dart';
+import '../../benefits/domain/driver_benefits_models.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
 
-class HttpDriverApi implements DriverApi, DriverRideCancellationApi {
+class HttpDriverApi implements DriverApi, DriverRideCancellationApi, DriverBenefitsApi {
   HttpDriverApi({
     required Uri baseUrl,
     String? accessToken,
@@ -30,6 +32,19 @@ class HttpDriverApi implements DriverApi, DriverRideCancellationApi {
         else if (_driverId.trim().isNotEmpty)
           'x-dev-driver-id': _driverId.trim(),
       };
+
+  @override
+  Future<DriverBenefitsSnapshot> benefits() async {
+    final response = await _client.get(
+      _baseUrl.resolve('/v1/driver/me/benefits'),
+      headers: _headers,
+    ).timeout(DriverCoreConfig.requestTimeout);
+    try {
+      return DriverBenefitsSnapshot.fromJson(_expectObject(response, expectedStatus: 200));
+    } on FormatException {
+      throw const DriverApiException('O servidor retornou um ranking inválido. Tente novamente.');
+    }
+  }
 
   @override
   Future<DriverSupplySnapshot> getSupply() async {
