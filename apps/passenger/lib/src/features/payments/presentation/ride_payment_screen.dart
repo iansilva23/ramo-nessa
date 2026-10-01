@@ -736,11 +736,13 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final expired = _remaining == Duration.zero;
-    final cashSubtitle = _paymentPolicyLoading
-        ? 'Verificando disponibilidade…'
-        : _cashAvailable
-            ? 'Pague diretamente ao motorista no fim da corrida'
-            : 'Em breve · será liberado pelo Ramo Nessa';
+    final cashSubtitle = _ride.promotion != null
+        ? 'Cupons são pagos por Pix, cartão ou carteira'
+        : _paymentPolicyLoading
+            ? 'Verificando disponibilidade…'
+            : _cashAvailable
+                ? 'Pague diretamente ao motorista no fim da corrida'
+                : 'Em breve · será liberado pelo Ramo Nessa';
 
     final pixPrice = PreparedRide.formatCents(_pixTotalAmountCents);
     final pixAdjustment =
@@ -872,11 +874,187 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.xl),
             Text(
-              'Formas de pagamento',
+              'Cupom',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
             ),
+            const SizedBox(height: RamoSpacing.xs),
+            if (_ride.promotion == null)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('ride-payment-coupon-code'),
+                      controller: _couponController,
+                      enabled: !_couponLoading && !expired,
+                      textCapitalization: TextCapitalization.characters,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        hintText: 'Digite seu cupom',
+                        prefixIcon: Icon(Icons.local_offer_outlined),
+                      ),
+                      onSubmitted: (_) => _applyCouponCode(),
+                    ),
+                  ),
+                  const SizedBox(width: RamoSpacing.sm),
+                  FilledButton(
+                    key: const Key('ride-payment-coupon-apply'),
+                    onPressed:
+                        _couponLoading || expired
+                            ? null
+                            : _applyCouponCode,
+                    child: _couponLoading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text('Aplicar'),
+                  ),
+                ],
+              )
+            else
+              Container(
+                key: const Key('ride-payment-coupon-applied'),
+                padding: const EdgeInsets.all(RamoSpacing.md),
+                decoration: BoxDecoration(
+                  color: RamoColors.brandYellow.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(RamoRadius.lg),
+                  border: Border.all(
+                    color: RamoColors.brandYellow.withValues(alpha: .55),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.confirmation_number_rounded),
+                        const SizedBox(width: RamoSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            _ride.promotion!.code,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .7,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed:
+                              _couponLoading || expired
+                                  ? null
+                                  : _removeCouponFromRide,
+                          child: Text(
+                            _couponLoading
+                                ? 'Aguarde…'
+                                : 'Não usar nesta corrida',
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _ride.promotion!.name,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: RamoSpacing.sm),
+                    _PriceRow(
+                      label: 'Preço normal',
+                      cents: _ride.promotion!.normalTotalCents,
+                    ),
+                    _PriceRow(
+                      label: 'Benefício do cupom',
+                      cents: _ride.promotion!.discountCents,
+                    ),
+                    const Divider(),
+                    _PriceRow(
+                      label: 'Você paga',
+                      cents: _ride.promotion!.passengerPayableCents,
+                    ),
+                  ],
+                ),
+              ),
+            if (_couponMessage != null) ...[
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                _couponMessage!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: RamoColors.muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+            if (_couponError != null) ...[
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                _couponError!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
+            const SizedBox(height: RamoSpacing.xl),
+            if (_ride.payableAmountCents == 0) ...[
+              Container(
+                padding: const EdgeInsets.all(RamoSpacing.lg),
+                decoration: BoxDecoration(
+                  color: RamoColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(RamoRadius.lg),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.redeem_rounded,
+                      size: 42,
+                      color: RamoColors.signal,
+                    ),
+                    const SizedBox(height: RamoSpacing.sm),
+                    Text(
+                      'Sua corrida ficou grátis',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: RamoSpacing.xs),
+                    Text(
+                      'Não é necessário gerar Pix nem cobrar cartão. Confirme para procurar seu motorista.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: RamoColors.muted,
+                          ),
+                    ),
+                    const SizedBox(height: RamoSpacing.lg),
+                    FilledButton(
+                      key: const Key('ride-payment-promotion-confirm'),
+                      onPressed:
+                          expired || _confirmingPromotion
+                              ? null
+                              : _confirmFullyPromotionalRide,
+                      child: _confirmingPromotion
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text('Confirmar corrida grátis'),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Text(
+                'Formas de pagamento',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
             const SizedBox(height: RamoSpacing.xs),
             _PaymentOption(
               key: const Key('payment-option-pix'),
@@ -1017,6 +1195,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       color: Theme.of(context).colorScheme.error,
                     ),
               ),
+            ],
             ],
             const SizedBox(height: RamoSpacing.lg),
           ],
