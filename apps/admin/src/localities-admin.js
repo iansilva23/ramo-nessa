@@ -688,25 +688,65 @@ export function createLocalitiesAdmin(input) {
         throw new Error('Escolha pelo menos um serviço para esta localidade.');
       }
     }
-    if (current === 4 && LOCAL_SCOPES.has(scope)) {
+    if (current === 4) {
       const categories = activeCategoriesFromForm();
-      for (const category of PRICE_CATEGORIES) {
-        if (!categories.includes(category)) continue;
-        const kind = byId(`locality-price-${category}-kind`).value;
-        const min = moneyToCents(
-          byId(`locality-price-${category}-min`).value,
-          `Preço de ${CATEGORY_LABELS[category]}`,
-        );
-        if (kind === 'range') {
-          const max = moneyToCents(
-            byId(`locality-price-${category}-max`).value,
-            `Preço máximo de ${CATEGORY_LABELS[category]}`,
+
+      if (LOCAL_SCOPES.has(scope)) {
+        for (const category of PRICE_CATEGORIES) {
+          if (!categories.includes(category)) continue;
+          const kind = byId(`locality-price-${category}-kind`).value;
+          const min = moneyToCents(
+            byId(`locality-price-${category}-min`).value,
+            `Preço de ${CATEGORY_LABELS[category]}`,
           );
-          if (max < min) {
-            throw new Error(
-              `O máximo de ${CATEGORY_LABELS[category]} não pode ser menor que o mínimo.`,
+          if (kind === 'range') {
+            const max = moneyToCents(
+              byId(`locality-price-${category}-max`).value,
+              `Preço máximo de ${CATEGORY_LABELS[category]}`,
             );
+            if (max < min) {
+              throw new Error(
+                `O máximo de ${CATEGORY_LABELS[category]} não pode ser menor que o mínimo.`,
+              );
+            }
           }
+        }
+      }
+
+      for (const category of DISTANCE_CATEGORIES) {
+        if (!categories.includes(category)) continue;
+        const enabled =
+          byId(`locality-distance-${category}-enabled`)?.checked === true;
+        if (!enabled) continue;
+
+        moneyToCents(
+          byId(`locality-distance-${category}-minimum-fare`)?.value,
+          `Corrida mínima de ${CATEGORY_LABELS[category]}`,
+        );
+        moneyToCents(
+          byId(`locality-distance-${category}-per-km`)?.value,
+          `Preço por km de ${CATEGORY_LABELS[category]}`,
+        );
+
+        const minKm = Number(
+          byId(`locality-distance-${category}-min-km`)?.value,
+        );
+        const maxKm = Number(
+          byId(`locality-distance-${category}-max-km`)?.value,
+        );
+        if (!Number.isFinite(minKm) || minKm < 0 || minKm > 1000) {
+          throw new Error(
+            `Mínimo de km de ${CATEGORY_LABELS[category]} é inválido.`,
+          );
+        }
+        if (
+          !Number.isFinite(maxKm) ||
+          maxKm <= minKm ||
+          maxKm > 2000
+        ) {
+          throw new Error(
+            `Km máximo de ${CATEGORY_LABELS[category]} deve ser maior que o mínimo.`,
+          );
         }
       }
     }
@@ -811,6 +851,36 @@ export function createLocalitiesAdmin(input) {
     };
   }
 
+  function buildDistancePolicyPatch(
+    scope,
+    localityId,
+    category,
+    distance,
+    operation = 'upsert',
+  ) {
+    const base = {
+      kind: 'distance_fare_policy',
+      operation,
+      anchorZoneId: scope,
+      anchorLocalityId: localityId,
+      category,
+    };
+    if (operation === 'remove') return base;
+    return {
+      ...base,
+      minKm: Number(distance.minKm || 0),
+      maxKm: Number(distance.maxKm),
+      minimumFareCents: moneyToCents(
+        distance.minimumFare,
+        `Corrida mínima de ${CATEGORY_LABELS[category]}`,
+      ),
+      pricePerKmCents: moneyToCents(
+        distance.perKm,
+        `Preço por km de ${CATEGORY_LABELS[category]}`,
+      ),
+    };
+  }
+
   async function saveWizard() {
     setMessage();
     if (!hasScope('pricing:write')) {
@@ -858,10 +928,45 @@ export function createLocalitiesAdmin(input) {
         kind: 'locality_policy',
         hub: model.scope,
         localityId,
-        enabledCategories: model.categories,
+        enabledCategories: model.categories.filter(
+          (category) =>
+            category !== 'comfort_black' ||
+            model.scope === 'prea',
+        ),
         applyNightSurcharge:
           model.scope === 'prea' && model.nightSurcharge,
       });
+    }
+
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      const existingRule = existing?.distancePolicies?.some(
+        (rule) => rule.category === category,
+      ) === true;
+
+      if (
+        model.categories.includes(category) &&
+        distance?.enabled === true
+      ) {
+        await applyPatch(
+          buildDistancePolicyPatch(
+            model.scope,
+            localityId,
+            category,
+            distance,
+          ),
+        );
+      } else if (existingRule) {
+        await applyPatch(
+          buildDistancePolicyPatch(
+            model.scope,
+            localityId,
+            category,
+            distance ?? {},
+            'remove',
+          ),
+        );
+      }
     }
 
     const savedMode = mode;
@@ -955,10 +1060,26 @@ export function createLocalitiesAdmin(input) {
         kind: 'locality_policy',
         hub: model.scope,
         localityId: model.localityId,
-        enabledCategories: model.categories,
+        enabledCategories: model.categories.filter(
+          (category) =>
+            category !== 'comfort_black' ||
+            model.scope === 'prea',
+        ),
         applyNightSurcharge:
           model.scope === 'prea' && model.nightSurcharge,
       });
+    }
+    for (const category of DISTANCE_CATEGORIES) {
+      const distance = model.distancePricing?.[category];
+      if (distance?.enabled !== true) continue;
+      await applyPatch(
+        buildDistancePolicyPatch(
+          model.scope,
+          model.localityId,
+          category,
+          distance,
+        ),
+      );
     }
     lastDeleted = null;
     await refresh({ announce: false });
