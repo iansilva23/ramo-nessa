@@ -451,6 +451,10 @@ export function rideSettlementLedger(input: {
   createdAt: string;
 }): LedgerTransaction {
   if (
+    !Number.isInteger(input.platformCommissionCents) ||
+    input.platformCommissionCents < 0 ||
+    !Number.isInteger(input.driverNetCents) ||
+    input.driverNetCents < 0 ||
     input.platformCommissionCents + input.driverNetCents !==
     input.fareAmountCents ||
     input.fareAmountCents + input.paymentAdjustmentCents !==
@@ -483,11 +487,13 @@ export function rideSettlementLedger(input: {
       direction: 'debit',
       amountCents: input.totalAmountCents,
     },
-    {
-      accountKey: 'platform:revenue',
-      direction: 'credit',
-      amountCents: input.platformCommissionCents,
-    },
+    ...(input.platformCommissionCents > 0
+      ? [{
+          accountKey: 'platform:revenue',
+          direction: 'credit' as const,
+          amountCents: input.platformCommissionCents,
+        }]
+      : []),
     ...(input.paymentAdjustmentCents > 0
       ? [
           {

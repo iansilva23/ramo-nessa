@@ -5,6 +5,32 @@ import { settleCompletedRide, SettlementError } from '../src/payments/settlement
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import type { PaymentRecord } from '../src/payments/payment.js';
 import type { RideRecord } from '../src/rides/ride.js';
+import { LedgerError, rideSettlementLedger } from '../src/payments/ledger.js';
+
+test('tarifa promocional sem comissão liquida integralmente para motorista', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const normal = completedRide();
+  const ride = {
+    ...normal,
+    quote: { ...normal.quote, platformCommissionCents: 0, driverNetCents: 15000 },
+  };
+  const payment = await seedPaidPayment(finance);
+  const result = await settleCompletedRide(finance, { ride, payment });
+  assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 0);
+  assert.equal(await finance.getAccountBalanceCents('driver:driver-77:payable'), 15000);
+  assert.equal(await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`), 0);
+  assert.ok(result.ledgerTransaction.entries.every(entry => entry.amountCents > 0));
+  assert.equal((await settleCompletedRide(finance, { ride, payment })).duplicateSettlement, true);
+});
+
+test('ledger de liquidação continua rejeitando comissão negativa', () => {
+  assert.throws(() => rideSettlementLedger({
+    rideId: 'audit-negative', paymentId: 'audit-payment', driverId: 'audit-driver',
+    totalAmountCents: 10000, fareAmountCents: 10000, paymentAdjustmentCents: 0,
+    platformCommissionCents: -100, driverNetCents: 10100,
+    createdAt: '2026-10-01T05:00:00.000Z',
+  }), LedgerError);
+});
 
 function completedRide(): RideRecord {
   return {
