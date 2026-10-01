@@ -121,6 +121,66 @@ export async function createPricingCatalogDraft(input: {
   return draft;
 }
 
+export async function deletePricingCatalogDraft(input: {
+  versions: PricingCatalogVersionRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  versionId: string;
+  expectedUpdatedAt?: string;
+  now?: Date;
+}): Promise<PricingCatalogVersionRecord> {
+  const current = await input.versions.findById(input.versionId);
+  if (current == null) {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_FOUND',
+      'Versão de preços não encontrada.',
+    );
+  }
+  if (current.status !== 'draft') {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_DRAFT',
+      'Somente rascunhos podem ser excluídos.',
+    );
+  }
+  assertExpectedPricingVersion(current, input.expectedUpdatedAt);
+
+  const deleted = await input.versions.deleteDraft({
+    id: current.id,
+    expectedUpdatedAt: current.updatedAt,
+  });
+  if (deleted == null) {
+    const latest = await input.versions.findById(current.id);
+    throw new PricingCatalogVersionError(
+      latest == null
+        ? 'PRICING_VERSION_NOT_FOUND'
+        : latest.status !== 'draft'
+          ? 'PRICING_VERSION_NOT_DRAFT'
+          : 'PRICING_VERSION_CONFLICT',
+      latest == null
+        ? 'O rascunho já não existe.'
+        : latest.status !== 'draft'
+          ? 'A versão já foi publicada e não pode ser excluída.'
+          : 'Este rascunho mudou enquanto era excluído. Atualize a tela e tente novamente.',
+    );
+  }
+
+  const instant = (input.now ?? new Date()).toISOString();
+  await input.admin.appendAudit({
+    id: randomUUID(),
+    actor: input.actor,
+    action: 'pricing.catalog_version.deleted',
+    targetType: 'pricing_catalog_version',
+    targetId: deleted.id,
+    metadata: {
+      versionNumber: deleted.versionNumber,
+      sourceCatalogVersion: deleted.snapshot.catalogVersion,
+    },
+    createdAt: instant,
+  });
+
+  return deleted;
+}
+
 export async function updatePricingCatalogDraft(input: {
   versions: PricingCatalogVersionRepository;
   admin: AdminRepository;
