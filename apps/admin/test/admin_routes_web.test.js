@@ -12,6 +12,7 @@ const routes = [
   ['pricing', 'operacao-tarifas'],
   ['finance', 'financeiro'],
   ['notifications', 'notificacoes'],
+  ['design', 'design-apps'],
   ['support', 'suporte'],
   ['agency', 'passeios'],
   ['integrations', 'integracoes'],
@@ -82,6 +83,7 @@ test('roteador preserva sessão em memória e navega sem recarregar a aplicaçã
   assert.match(app, /\/admin\/frota/);
   assert.match(app, /\/admin\/nova-localidade/);
   assert.match(app, /\/admin\/operacao-tarifas/);
+  assert.match(app, /\/admin\/design-apps/);
   assert.match(app, /routeByPath\.set\('\/admin\/precos', 'pricing'\)/);
   assert.match(app, /\/admin\/passeios/);
   assert.match(app, /loadRouteMarkup/);
