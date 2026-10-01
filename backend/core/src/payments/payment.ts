@@ -1,10 +1,10 @@
-import type { EnabledPaymentMethod } from './payment-policy.js';
+import type { RidePaymentMethod } from './payment-policy.js';
 import type { PaymentStatus } from './payment-state.js';
 
 export interface PaymentRecord {
   id: string;
   rideId: string;
-  method: EnabledPaymentMethod;
+  method: RidePaymentMethod;
   processor: string;
   processorPaymentId?: string;
   status: PaymentStatus;
