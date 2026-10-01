@@ -94,7 +94,7 @@ function createTile(url, left, top) {
   image.src = url;
   image.alt = '';
   image.draggable = false;
-  image.referrerPolicy = 'no-referrer';
+  image.referrerPolicy = 'strict-origin-when-cross-origin';
   image.className = 'fleet-map__tile';
   image.style.left = `${left}px`;
   image.style.top = `${top}px`;
