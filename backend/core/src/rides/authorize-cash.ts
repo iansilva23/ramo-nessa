@@ -40,6 +40,13 @@ export async function authorizeCashRide(input: {
     );
   }
 
+  if (ride.promotion != null) {
+    throw new PaymentDomainError(
+      'PAYMENT_METHOD_DISABLED',
+      'Corridas com cupom devem ser pagas por Pix, cartão ou carteira.',
+    );
+  }
+
   if (
     ride.paymentMethod === 'cash' &&
     CASH_CONFIRMED_STATES.has(ride.state)

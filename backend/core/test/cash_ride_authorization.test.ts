@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { DriverCashPolicyError } from '../src/payments/cash-policy.js';
+import { PaymentDomainError } from '../src/payments/payment.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryPaymentPolicySettingsRepository } from '../src/payments/repositories/in-memory-payment-policy-settings-repository.js';
 import { authorizeCashRide } from '../src/rides/authorize-cash.js';
@@ -157,4 +158,45 @@ test('override individual maior libera motorista acima do limite padrão', async
     20000,
   );
   assert.equal(authorized.cashPolicy.projectedDebtCents, 12700);
+});
+
+test('cash rejeita corrida com cupom mesmo quando cash está ativo', async () => {
+  const rides = new InMemoryRideRepository();
+  const settings = new InMemoryPaymentPolicySettingsRepository();
+  const finance = new InMemoryFinanceRepository();
+  const base = preparedRide();
+  const ride = preparedRide({
+    promotion: {
+      campaignId: 'promo-cash-disabled',
+      applicationId: 'promo-use-cash-disabled',
+      code: 'PROMO50',
+      name: 'Promoção sem dinheiro',
+      kind: 'fixed_discount',
+      normalTotalCents: 12000,
+      discountCents: 2000,
+      passengerPayableCents: 10000,
+      driverEarningsCents: 10800,
+      originalQuote: structuredClone(base.quote),
+    },
+  });
+  await rides.create(ride);
+  await settings.setCashEnabled(true, now.toISOString());
+
+  await assert.rejects(
+    authorizeCashRide({
+      rides,
+      settings,
+      finance,
+      rideId: ride.id,
+      passengerId: ride.passengerId,
+      now,
+    }),
+    (error: unknown) =>
+      error instanceof PaymentDomainError &&
+      error.code === 'PAYMENT_METHOD_DISABLED',
+  );
+
+  const stored = await rides.findById(ride.id);
+  assert.equal(stored?.state, 'AWAITING_PAYMENT');
+  assert.equal(stored?.paymentMethod, undefined);
 });
