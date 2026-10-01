@@ -89,6 +89,221 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     unawaited(_applySavedCoupon());
   }
 
+  Future<void> _applySavedCoupon() async {
+    final service = widget.paymentService;
+    if (service == null || _couponLoading) return;
+
+    setState(() {
+      _couponLoading = true;
+      _couponError = null;
+      _couponMessage = null;
+    });
+
+    try {
+      final preference = await service.promotionPreference();
+      if (!mounted) return;
+      if (preference == null) {
+        setState(() => _couponLoading = false);
+        return;
+      }
+
+      _couponController.text = preference.campaign.code;
+      try {
+        final promoted = await service.applyPromotionToRide(
+          rideId: _ride.id,
+        );
+        if (!mounted) return;
+        setState(() {
+          _ride = promoted;
+          _couponLoading = false;
+          _couponMessage = 'Cupom salvo aplicado nesta corrida.';
+        });
+      } on PassengerPaymentException catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _couponLoading = false;
+          _couponError =
+              'Seu cupom salvo não pode ser usado nesta corrida. ' +
+              error.message;
+        });
+      }
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = 'Não conseguimos consultar seu cupom agora.';
+      });
+    }
+  }
+
+  Future<void> _applyCouponCode() async {
+    final service = widget.paymentService;
+    final code = _couponController.text.trim();
+    if (
+      service == null ||
+      code.length < 3 ||
+      _couponLoading ||
+      _remaining == Duration.zero
+    ) {
+      return;
+    }
+
+    setState(() {
+      _couponLoading = true;
+      _couponError = null;
+      _couponMessage = null;
+    });
+
+    try {
+      final saved = await service.savePromotionCode(code);
+      if (!mounted) return;
+
+      if (saved.creditedWallet) {
+        await _loadWallet();
+        if (!mounted) return;
+        final value = saved.walletCreditCents ?? 0;
+        setState(() {
+          _couponLoading = false;
+          _couponController.clear();
+          _couponMessage = value > 0
+              ? PreparedRide.formatCents(value) +
+                  ' entrou na sua Carteira Ramo Nessa.'
+              : 'Crédito promocional adicionado à sua carteira.';
+        });
+        return;
+      }
+
+      final promoted = await service.applyPromotionToRide(
+        rideId: _ride.id,
+        code: saved.preference?.campaign.code ?? code,
+      );
+      if (!mounted) return;
+      setState(() {
+        _ride = promoted;
+        _couponLoading = false;
+        _couponController.text =
+            promoted.promotion?.code ?? code.toUpperCase();
+        _couponMessage = 'Cupom aplicado. O preço da corrida foi atualizado.';
+      });
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = 'Não foi possível aplicar esse cupom agora.';
+      });
+    }
+  }
+
+  Future<void> _removeCouponFromRide() async {
+    final service = widget.paymentService;
+    if (
+      service == null ||
+      _ride.promotion == null ||
+      _couponLoading ||
+      _remaining == Duration.zero
+    ) {
+      return;
+    }
+
+    setState(() {
+      _couponLoading = true;
+      _couponError = null;
+      _couponMessage = null;
+    });
+
+    try {
+      final restored = await service.removePromotionFromRide(_ride.id);
+      if (!mounted) return;
+      setState(() {
+        _ride = restored;
+        _couponLoading = false;
+        _couponMessage =
+            'Cupom removido desta corrida. Ele continua salvo no seu perfil.';
+      });
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _couponLoading = false;
+        _couponError = 'Não foi possível remover o cupom desta corrida.';
+      });
+    }
+  }
+
+  Future<void> _confirmFullyPromotionalRide() async {
+    final service = widget.paymentService;
+    if (
+      service == null ||
+      _confirmingPromotion ||
+      _ride.promotion == null ||
+      _ride.payableAmountCents != 0 ||
+      _remaining == Duration.zero
+    ) {
+      return;
+    }
+
+    setState(() {
+      _confirmingPromotion = true;
+      _couponError = null;
+    });
+
+    try {
+      final result =
+          await service.confirmFullyPromotionalRide(_ride.id);
+      if (!mounted) return;
+
+      final tracking = widget.rideTrackingService;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => tracking == null
+              ? _PromotionConfirmedScreen(
+                  dispatchStatus: result.dispatchStatus,
+                )
+              : RideTrackingScreen(
+                  rideId: _ride.id,
+                  remainingWalletCents: null,
+                  paymentMethod: 'promotion',
+                  trackingService: tracking,
+                  realtimeService: widget.rideRealtimeService,
+                  routeService: widget.routeService,
+                  initialDispatchStatus: result.dispatchStatus,
+                  networkTilesEnabled: widget.networkTilesEnabled,
+                ),
+        ),
+      );
+    } on PassengerPaymentException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _confirmingPromotion = false;
+        _couponError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _confirmingPromotion = false;
+        _couponError =
+            'Não conseguimos confirmar a corrida promocional agora.';
+      });
+    }
+  }
+
   Future<void> _loadPaymentPolicy() async {
     final service = widget.paymentService;
     if (service == null) return;
