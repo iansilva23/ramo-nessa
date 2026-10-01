@@ -17,6 +17,7 @@ import {
   externalRideRefundLedger,
   paymentCaptureLedger,
   ridePromotionFundingLedger,
+  ridePromotionFundingReversalLedger,
   walletPromotionGrantLedger,
   rideSettlementLedger,
   walletRidePaymentLedger,
@@ -46,6 +47,7 @@ import {
   type FundRidePromotionInput,
   type GrantWalletPromotionInput,
   type PromotionLedgerResult,
+  type ReverseRidePromotionInput,
   type MarkPaymentPendingInput,
   type MarkPaymentTerminalInput,
   type MarkWalletTopupPendingInput,
@@ -1967,6 +1969,54 @@ export class PostgresFinanceRepository implements FinanceRepository {
         applicationId: input.applicationId,
         amountCents: input.amountCents,
         createdAt: (input.fundedAt ?? new Date()).toISOString(),
+      });
+      await insertLedger(client, ledger);
+      await client.query('COMMIT');
+      return { ledgerTransaction: ledger, duplicate: false };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async reverseRidePromotion(
+    input: ReverseRidePromotionInput,
+  ): Promise<PromotionLedgerResult> {
+    const client = await this.pool.connect();
+    const referenceKey =
+      `ride-promotion-reversal:${input.applicationId}`;
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [referenceKey],
+      );
+      const existing = await loadLedgerByReference(client, referenceKey);
+      if (existing != null) {
+        await client.query('COMMIT');
+        return { ledgerTransaction: existing, duplicate: true };
+      }
+
+      const escrowAccount = `ride:${input.rideId}:escrow`;
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [escrowAccount],
+      );
+      const escrow = await accountBalanceCents(client, escrowAccount);
+      if (escrow < input.amountCents) {
+        throw new PaymentDomainError(
+          'INSUFFICIENT_RIDE_ESCROW',
+          'Escrow da corrida não possui saldo promocional suficiente.',
+        );
+      }
+
+      const ledger = ridePromotionFundingReversalLedger({
+        rideId: input.rideId,
+        applicationId: input.applicationId,
+        amountCents: input.amountCents,
+        createdAt: (input.reversedAt ?? new Date()).toISOString(),
       });
       await insertLedger(client, ledger);
       await client.query('COMMIT');
