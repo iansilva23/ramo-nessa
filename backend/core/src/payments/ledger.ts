@@ -375,6 +375,38 @@ export function ridePromotionFundingLedger(input: {
   };
 }
 
+export function ridePromotionFundingReversalLedger(input: {
+  rideId: string;
+  applicationId: string;
+  amountCents: number;
+  createdAt: string;
+}): LedgerTransaction {
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new LedgerError('Reversão promocional precisa ser positiva.');
+  }
+  const entries: LedgerEntry[] = [
+    {
+      accountKey: `ride:${input.rideId}:escrow`,
+      direction: 'debit',
+      amountCents: input.amountCents,
+    },
+    {
+      accountKey: 'platform:promotion_expense',
+      direction: 'credit',
+      amountCents: input.amountCents,
+    },
+  ];
+  assertBalanced(entries);
+  return {
+    id: randomUUID(),
+    kind: 'RIDE_PROMOTION_REVERSED',
+    rideId: input.rideId,
+    referenceKey: `ride-promotion-reversal:${input.applicationId}`,
+    entries,
+    createdAt: input.createdAt,
+  };
+}
+
 export function walletPromotionGrantLedger(input: {
   passengerId: string;
   applicationId: string;
