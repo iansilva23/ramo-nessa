@@ -125,18 +125,15 @@ void main() {
       expect(find.text('Preço e pagamento'), findsOneWidget);
       expect(find.text('Tarifa-base da corrida'), findsOneWidget);
       expect(find.text(r'R$ 45,00'), findsOneWidget);
-      expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
-      expect(find.byKey(const Key('payment-option-card')), findsOneWidget);
+      await _showPaymentOption(tester, 'pix');
       expect(find.text(r'Pix · R$ 45,45'), findsOneWidget);
+      await _showPaymentOption(tester, 'card');
       expect(find.text(r'Cartão · R$ 47,36'), findsOneWidget);
+      await _showPaymentOption(tester, 'wallet');
       expect(find.text('Carteira Ramo Nessa'), findsOneWidget);
       expect(find.text(r'Saldo: R$ 100,00'), findsOneWidget);
 
-      await tester.drag(
-        find.byType(ListView).last,
-        const Offset(0, -260),
-      );
-      await tester.pumpAndSettle();
+      await _showPaymentOption(tester, 'cash');
 
       expect(find.text('Dinheiro'), findsOneWidget);
       expect(find.text('Em breve'), findsOneWidget);
@@ -145,13 +142,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.textContaining('Procurando buggy'), findsNothing);
 
-      await tester.drag(
-        find.byType(ListView).last,
-        const Offset(0, 260),
-      );
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Carteira Ramo Nessa'));
-      await tester.pumpAndSettle();
+      await _showPaymentOption(tester, 'wallet', delta: -150);
       await tester.tap(find.text('Carteira Ramo Nessa'));
       await tester.pumpAndSettle();
 
@@ -229,6 +220,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 20));
 
+      await _showPaymentOption(tester, 'wallet');
       expect(find.text('Saldo: R\$ 100,00'), findsOneWidget);
       await tester.tap(find.text('Carteira Ramo Nessa'));
       await tester.pumpAndSettle();
@@ -326,12 +318,7 @@ void main() {
     expect(find.text('Preço e pagamento'), findsOneWidget);
     final walletOption =
         find.byKey(const Key('payment-option-wallet'));
-    await tester.scrollUntilVisible(
-      walletOption,
-      120,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.pumpAndSettle();
+    await _showPaymentOption(tester, 'wallet');
     await tester.tap(walletOption);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -429,6 +416,24 @@ void main() {
   });
 
 
+}
+
+Future<void> _showPaymentOption(
+  WidgetTester tester,
+  String method, {
+  double delta = 150,
+}) async {
+  final list = find.descendant(
+    of: find.byType(RidePaymentScreen),
+    matching: find.byType(ListView),
+  );
+  await tester.scrollUntilVisible(
+    find.byKey(Key('payment-option-$method')),
+    delta,
+    scrollable:
+        find.descendant(of: list, matching: find.byType(Scrollable)).first,
+  );
+  await tester.pumpAndSettle();
 }
 
 class _FakeLocationService implements LocationService {

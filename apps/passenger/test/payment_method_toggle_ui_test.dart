@@ -40,24 +40,33 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(service.walletBalanceCalls, 0);
-      expect(find.text('Indisponível no momento'), findsNWidgets(3));
-
-      expect(
-        _optionOpacity(tester, const Key('payment-option-pix')),
-        .48,
-      );
-      expect(
-        _optionOpacity(tester, const Key('payment-option-card')),
-        .48,
-      );
-      expect(
-        _optionOpacity(tester, const Key('payment-option-wallet')),
-        .48,
-      );
+      final paymentScroll = find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      for (final method in ['pix', 'card', 'wallet', 'cash']) {
+        final key = Key('payment-option-$method');
+        final option = find.byKey(key);
+        await tester.scrollUntilVisible(option, 150, scrollable: paymentScroll);
+        await tester.pump();
+        if (method != 'cash') {
+          expect(_optionOpacity(tester, key), .48);
+          expect(
+            find.descendant(
+              of: option,
+              matching: find.text('Indisponível no momento'),
+            ),
+            findsOneWidget,
+          );
+        }
+      }
       expect(
         _optionOpacity(tester, const Key('payment-option-cash')),
         1,
       );
+      expect(service.walletBalanceCalls, 0);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

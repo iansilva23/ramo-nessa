@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/card_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
@@ -95,7 +96,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Sua corrida ficou grátis'), findsOneWidget);
       expect(
         find.byKey(const Key('payment-option-pix')),
         findsNothing,
@@ -114,6 +114,7 @@ void main() {
         scrollable: paymentScroll,
       );
       await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Sua corrida ficou grátis'), findsOneWidget);
       expect(confirmButton, findsOneWidget);
       await tester.tap(confirmButton);
       await tester.pump();
@@ -129,6 +130,73 @@ void main() {
       await tester.pump();
     },
   );
+  for (final theme in <String, ThemeData>{
+    'claro': RamoTheme.light,
+    'escuro': RamoTheme.dark,
+  }.entries) {
+    testWidgets('cupom manual cabe no tema ${theme.key} em celular', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final service = _CouponPaymentService(
+        savedCoupon: false,
+        promotedRide: _discountedRide(
+          kind: 'fixed_discount',
+          discountCents: 5000,
+          payableCents: 15000,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme.value,
+          home: RidePaymentScreen(
+            ride: _normalRide(),
+            paymentService: service,
+            networkTilesEnabled: false,
+          ),
+        ),
+      );
+      await tester.pump();
+      final apply = find.byKey(const Key('ride-payment-coupon-apply'));
+      await tester.scrollUntilVisible(
+        apply,
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(tester.takeException(), isNull);
+      final button = tester.getRect(apply);
+      expect(button.width.isFinite, isTrue);
+      expect(button.right, lessThanOrEqualTo(360));
+      await tester.enterText(
+        find.byKey(const Key('ride-payment-coupon-code')),
+        'INFLU50',
+      );
+      tester.testTextInput.hide();
+      await tester.pump(const Duration(milliseconds: 300));
+      await Scrollable.ensureVisible(tester.element(apply), alignment: .5);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(apply.hitTestable(), findsOneWidget);
+      await tester.tap(apply);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(service.applyCalls, 1);
+      expect(
+        find.byKey(const Key('ride-payment-coupon-applied')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    });
+  }
 }
 
 PreparedRide _normalRide() {
@@ -167,9 +235,10 @@ PreparedRide _discountedRide({
 }
 
 class _CouponPaymentService implements PassengerPaymentService {
-  _CouponPaymentService({required this.promotedRide});
+  _CouponPaymentService({required this.promotedRide, this.savedCoupon = true});
 
   final PreparedRide promotedRide;
+  final bool savedCoupon;
   int preferenceCalls = 0;
   int applyCalls = 0;
   int confirmCalls = 0;
@@ -201,7 +270,7 @@ class _CouponPaymentService implements PassengerPaymentService {
   @override
   Future<PassengerPromotionPreference?> promotionPreference() async {
     preferenceCalls += 1;
-    return _preference;
+    return savedCoupon ? _preference : null;
   }
 
   @override

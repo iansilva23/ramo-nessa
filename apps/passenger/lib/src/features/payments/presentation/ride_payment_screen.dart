@@ -904,6 +904,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   const SizedBox(width: RamoSpacing.sm),
                   FilledButton(
                     key: const Key('ride-payment-coupon-apply'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 54),
+                    ),
                     onPressed:
                         _couponLoading || expired
                             ? null
@@ -946,15 +949,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                             ),
                           ),
                         ),
-                        TextButton(
-                          onPressed:
-                              _couponLoading || expired
-                                  ? null
-                                  : _removeCouponFromRide,
-                          child: Text(
-                            _couponLoading
-                                ? 'Aguarde…'
-                                : 'Não usar nesta corrida',
+                        Flexible(
+                          child: TextButton(
+                            onPressed:
+                                _couponLoading || expired
+                                    ? null
+                                    : _removeCouponFromRide,
+                            child: Text(
+                              _couponLoading
+                                  ? 'Aguarde…'
+                                  : 'Não usar nesta corrida',
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
                       ],
