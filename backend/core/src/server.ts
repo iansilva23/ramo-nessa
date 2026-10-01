@@ -252,6 +252,19 @@ import { nearbyDriversForApp } from './drivers/driver-nearby-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { passengerRideView } from './rides/passenger-ride-view.js';
+import {
+  applyPromotionToRide,
+  createFullyPromotionalPayment,
+  fundRidePromotion,
+  passengerPromotionPreference,
+  redeemRidePromotion,
+  redeemWalletPromotionCode,
+  releaseFundedRidePromotion,
+  removePromotionFromRide,
+  savePassengerPromotionPreference,
+  PromotionError,
+} from './promotions/promotion-service.js';
+import { PromotionRepositoryError } from './promotions/promotion-repository.js';
 import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
 import { createRepositories } from './db/repositories.js';
 import {
@@ -493,6 +506,7 @@ const {
   operationalSettingsRepository,
   passengerSavedPlaceRepository,
   privacyRepository,
+  promotionRepository,
   storageMode,
   readinessCheck,
   close: closeRepositories,
