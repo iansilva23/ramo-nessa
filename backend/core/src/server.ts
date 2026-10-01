@@ -7040,6 +7040,7 @@ const server = createServer(async (request, response) => {
       ): boolean => {
         const externalProofRequired =
           ref.zoneId === 'external' &&
+          ref.localityId != null &&
           ref.localityId !== 'airport-jjd';
 
         if (proof == null) {
