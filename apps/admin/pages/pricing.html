@@ -63,50 +63,49 @@
             </div>
 
             <div class="pricing-workflow-grid">
-              <article class="panel-card panel-card--table">
-                <div class="pricing-table-heading">
-                  <div>
-                    <span class="eyebrow eyebrow--dark">VERSÕES</span>
-                    <h2>Histórico comercial</h2>
-                  </div>
+              <article class="panel-card pricing-draft-card">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ALTERAÇÕES PENDENTES</span>
+                  <h2>Modo de edição</h2>
+                  <p class="panel-card__copy">
+                    Para evitar confusão, o histórico técnico saiu desta tela.
+                    Aqui você apenas edita. A publicação ou exclusão do rascunho
+                    fica em “Nova localidade”.
+                  </p>
+                </div>
+                <div class="pricing-draft-card__status">
+                  <span>Rascunho atual</span>
+                  <strong id="pricing-current-draft-label">Nenhum</strong>
+                </div>
+                <div class="pricing-draft-card__actions">
                   <button
                     id="pricing-create-draft-button"
                     class="button button--primary"
                     type="button"
                   >
-                    Novo rascunho
+                    Começar alterações
                   </button>
-                </div>
-                <div class="table-wrap">
-                  <table class="pricing-versions-table">
-                    <thead>
-                      <tr>
-                        <th>Versão</th>
-                        <th>Status</th>
-                        <th>Vigência</th>
-                        <th>Atualizada</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="pricing-versions-body"></tbody>
-                  </table>
-                </div>
-                <div id="pricing-versions-empty" class="empty-state">
-                  Nenhuma versão persistida ainda.
+                  <a
+                    class="button button--ghost-dark"
+                    href="/admin/nova-localidade"
+                    data-view="localities"
+                  >
+                    Revisar / publicar
+                  </a>
                 </div>
               </article>
 
               <article id="pricing-section-editor" class="panel-card pricing-editor-card">
                 <div class="panel-card__header">
                   <div>
-                    <span class="eyebrow eyebrow--dark">RASCUNHO</span>
-                    <h2>Editar e publicar</h2>
+                    <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO</span>
+                    <h2>Editar tarifas e regras</h2>
                   </div>
                   <span id="pricing-editor-status" class="pill pill--neutral">Nenhum</span>
                 </div>
 
                 <div id="pricing-editor-empty" class="empty-state">
-                  Abra uma versão em rascunho ou crie uma nova para alterar preços.
+                  Clique em “Começar alterações” para editar tarifas e regras.
                 </div>
 
                 <div id="pricing-editor-controls" hidden>
@@ -469,20 +468,20 @@
                     </button>
                   </form>
 
-                  <div class="pricing-publish-panel">
+                  <div class="pricing-publish-panel pricing-publish-panel--redirect">
                     <div>
-                      <strong>Publicar versão</strong>
+                      <strong>Terminou as alterações?</strong>
                       <small>
-                        Se a vigência ficar vazia, entra em vigor imediatamente.
+                        Revise, publique ou exclua o rascunho na página “Nova localidade”.
                       </small>
                     </div>
-                    <label class="field">
-                      <span>Vigência</span>
-                      <input id="pricing-effective-from" type="datetime-local">
-                    </label>
-                    <button id="pricing-publish-button" class="button button--dark" type="button">
-                      Publicar versão
-                    </button>
+                    <a
+                      class="button button--dark"
+                      href="/admin/nova-localidade"
+                      data-view="localities"
+                    >
+                      Revisar rascunho
+                    </a>
                   </div>
                 </div>
               </article>
