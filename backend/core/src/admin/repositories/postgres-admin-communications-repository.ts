@@ -12,6 +12,7 @@ import type {
   AgencyTourRecord,
   AppAuthBrandingRecord,
   AppAuthHero,
+  AppBrandingIcon,
   AppReleasePolicyRecord,
   SocialLinksRecord,
 } from '../admin-communications-repository.js';
@@ -92,6 +93,9 @@ interface AppAuthBrandingRow {
   hero_image: Buffer | null;
   hero_image_mime_type: AppAuthHero['mimeType'] | null;
   hero_image_version: number;
+  app_icon: Buffer | null;
+  app_icon_mime_type: AppBrandingIcon['mimeType'] | null;
+  app_icon_version: number;
   updated_at: Date;
 }
 
@@ -514,7 +518,8 @@ export class PostgresAdminCommunicationsRepository
 
   async getAppAuthBranding(): Promise<AppAuthBrandingRecord> {
     const result = await this.pool.query<AppAuthBrandingRow>(
-      `SELECT hero_image, hero_image_mime_type, hero_image_version, updated_at
+      `SELECT hero_image, hero_image_mime_type, hero_image_version,
+              app_icon, app_icon_mime_type, app_icon_version, updated_at
        FROM app_auth_branding WHERE id = 'ramo-nessa' LIMIT 1`,
     );
     const row = result.rows[0];
@@ -522,6 +527,8 @@ export class PostgresAdminCommunicationsRepository
     return {
       heroImageVersion: row.hero_image_version,
       ...(row.hero_image_mime_type == null ? {} : { heroImageMimeType: row.hero_image_mime_type }),
+      appIconVersion: row.app_icon_version,
+      ...(row.app_icon_mime_type == null ? {} : { appIconMimeType: row.app_icon_mime_type }),
       updatedAt: row.updated_at.toISOString(),
     };
   }
@@ -552,7 +559,8 @@ export class PostgresAdminCommunicationsRepository
        SET hero_image = $1, hero_image_mime_type = $2,
            hero_image_version = hero_image_version + 1, updated_at = $3
        WHERE id = 'ramo-nessa'
-       RETURNING hero_image, hero_image_mime_type, hero_image_version, updated_at`,
+       RETURNING hero_image, hero_image_mime_type, hero_image_version,
+                 app_icon, app_icon_mime_type, app_icon_version, updated_at`,
       [Buffer.from(input.bytes), input.mimeType, input.updatedAt],
     );
     const row = result.rows[0];
@@ -562,5 +570,51 @@ export class PostgresAdminCommunicationsRepository
       ...(row.hero_image_mime_type == null ? {} : { heroImageMimeType: row.hero_image_mime_type }),
       updatedAt: row.updated_at.toISOString(),
     };
+
+  async readAppBrandingIcon(): Promise<AppBrandingIcon | null> {
+    const result = await this.pool.query<AppAuthBrandingRow>(
+      `SELECT hero_image, hero_image_mime_type, hero_image_version,
+              app_icon, app_icon_mime_type, app_icon_version, updated_at
+       FROM app_auth_branding
+       WHERE id = 'ramo-nessa' AND app_icon IS NOT NULL
+         AND app_icon_mime_type IS NOT NULL LIMIT 1`,
+    );
+    const row = result.rows[0];
+    if (row?.app_icon == null || row.app_icon_mime_type == null) return null;
+    return {
+      mimeType: row.app_icon_mime_type,
+      bytes: row.app_icon,
+      version: row.app_icon_version,
+    };
+  }
+
+  async saveAppBrandingIcon(input: {
+    mimeType: AppBrandingIcon['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AppAuthBrandingRecord> {
+    const result = await this.pool.query<AppAuthBrandingRow>(
+      `UPDATE app_auth_branding
+       SET app_icon = $1, app_icon_mime_type = $2,
+           app_icon_version = app_icon_version + 1, updated_at = $3
+       WHERE id = 'ramo-nessa'
+       RETURNING hero_image, hero_image_mime_type, hero_image_version,
+                 app_icon, app_icon_mime_type, app_icon_version, updated_at`,
+      [Buffer.from(input.bytes), input.mimeType, input.updatedAt],
+    );
+    const row = result.rows[0];
+    if (row == null) throw new Error('Ícone do app não foi persistido.');
+    return {
+      heroImageVersion: row.hero_image_version,
+      ...(row.hero_image_mime_type == null
+        ? {}
+        : { heroImageMimeType: row.hero_image_mime_type }),
+      appIconVersion: row.app_icon_version,
+      ...(row.app_icon_mime_type == null
+        ? {}
+        : { appIconMimeType: row.app_icon_mime_type }),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
   }
 }
