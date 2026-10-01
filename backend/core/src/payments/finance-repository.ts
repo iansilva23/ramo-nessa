@@ -93,6 +93,7 @@ export interface SettleRideInput {
   paymentId: string;
   driverId: string;
   totalAmountCents: number;
+  paymentAmountCents?: number;
   fareAmountCents?: number;
   paymentAdjustmentCents?: number;
   platformCommissionCents: number;
