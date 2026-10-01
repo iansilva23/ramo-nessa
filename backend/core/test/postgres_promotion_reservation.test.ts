@@ -4,6 +4,7 @@ import test from 'node:test';
 import { createPostgresPool } from '../src/db/postgres.js';
 import { PostgresRideRepository } from '../src/rides/repositories/postgres-ride-repository.js';
 import { PostgresPromotionRepository } from '../src/promotions/repositories/postgres-promotion-repository.js';
+import { PostgresDriverSupplyRepository } from '../src/drivers/repositories/postgres-driver-supply-repository.js';
 import { PromotionRepositoryError } from '../src/promotions/promotion-repository.js';
 import { applyPromotionToRide, createPromotionCampaignRecord } from '../src/promotions/promotion-service.js';
 import type { RideRecord } from '../src/rides/ride.js';
@@ -16,6 +17,7 @@ test('PostgreSQL serializa limites e preserva reserva paga até aceite ou libera
     const pool = createPostgresPool(databaseUrl!);
     const rides = new PostgresRideRepository(pool);
     const promotions = new PostgresPromotionRepository(pool);
+    const drivers = new PostgresDriverSupplyRepository(pool);
     const campaign = await promotions.createCampaign(createPromotionCampaignRecord({
       code: `P${randomUUID().replaceAll('-', '').slice(0, 20)}`,
       name: 'Audit paid reservation', kind: 'fixed_discount', valueCents: 5000,
@@ -27,6 +29,12 @@ test('PostgreSQL serializa limites e preserva reserva paga até aceite ou libera
       const candidates = await Promise.all(Array.from({length: 4}, async () => {
         const id = randomUUID();
         rideIds.push(id);
+        await drivers.upsert({
+          driverId: `audit-driver-${id}`, vehicleId: `audit-vehicle-${id}`,
+          categories: ['car'], fourByFour: false, seatCapacity: 4, online: true, busy: false,
+          latitude: -2.8, longitude: -40.4,
+          locationUpdatedAt: now.toISOString(), updatedAt: now.toISOString(),
+        });
         const ride: RideRecord = {
           id, passengerId: `audit-retain-${id}`, state: 'AWAITING_PAYMENT', paymentStatus: 'created',
           reservedDriverId: `audit-driver-${id}`, driverHoldExpiresAt: '2026-10-01T05:10:00.000Z',
@@ -87,6 +95,8 @@ test('PostgreSQL serializa limites e preserva reserva paga até aceite ou libera
     } finally {
       await pool.query('DELETE FROM promotion_redemptions WHERE campaign_id = $1', [campaign.id]);
       await pool.query('DELETE FROM rides WHERE id = ANY($1::uuid[])', [rideIds]);
+      await pool.query('DELETE FROM driver_supply WHERE driver_id = ANY($1::text[])',
+        [rideIds.map(id => `audit-driver-${id}`)]);
       await pool.query('DELETE FROM promotion_campaigns WHERE id = $1', [campaign.id]);
       await pool.end();
     }
