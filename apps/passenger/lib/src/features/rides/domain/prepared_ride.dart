@@ -103,6 +103,6 @@ class PreparedRide {
   static String formatCents(int cents) {
     final reais = cents ~/ 100;
     final centavos = (cents % 100).toString().padLeft(2, '0');
-    return 'R\$ ' + reais.toString() + ',' + centavos;
+    return 'R\$ $reais,$centavos';
   }
 }
