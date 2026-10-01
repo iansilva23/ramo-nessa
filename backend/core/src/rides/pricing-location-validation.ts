@@ -148,9 +148,12 @@ export function assertPricingLocationMatchesPoint(input: {
 
   if (input.ref.zoneId === 'external') {
     if (input.ref.localityId == null) {
-      throw new PricingLocationMismatchError(
-        `${input.field}.localityId é obrigatório para destino externo.`,
-      );
+      if (localZone != null) {
+        throw new PricingLocationMismatchError(
+          `${input.field} externo sem localidade não pode apontar para uma zona local.`,
+        );
+      }
+      return;
     }
 
     if (input.ref.localityId === 'airport-jjd') {
