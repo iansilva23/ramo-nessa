@@ -99,8 +99,7 @@ class _PassengerCouponsScreenState
           _saving = false;
           _codeController.clear();
           _message = value > 0
-              ? PreparedRide.formatCents(value) +
-                  ' de crédito promocional foi adicionado à sua carteira.'
+              ? '${PreparedRide.formatCents(value)} de crédito promocional foi adicionado à sua carteira.'
               : 'Crédito promocional adicionado à sua carteira.';
         });
         return;
