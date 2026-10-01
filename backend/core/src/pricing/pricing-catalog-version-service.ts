@@ -303,6 +303,87 @@ export async function updatePricingCatalogDraft(input: {
       enabledCategories: [...patch.enabledCategories],
       applyNightSurcharge: patch.applyNightSurcharge,
     };
+  } else if (patch.kind === 'distance_fare_policy') {
+    const anchorExists =
+      patch.anchorZoneId === 'jericoacoara'
+        ? patch.anchorLocalityId === 'jericoacoara'
+        : patch.anchorZoneId === 'prea'
+          ? snapshot.localities.prea[patch.anchorLocalityId] != null
+          : patch.anchorZoneId === 'jijoca'
+            ? snapshot.localities.jijoca[patch.anchorLocalityId] != null
+            : snapshot.externalLocalities.includes(
+                patch.anchorLocalityId,
+              );
+
+    if (!anchorExists) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'O ponto de referência da cobrança por distância não pertence ao catálogo.',
+      );
+    }
+
+    const sameRule = (
+      candidate: typeof snapshot.distanceFarePolicies[number],
+    ) =>
+      candidate.anchorZoneId === patch.anchorZoneId &&
+      candidate.anchorLocalityId === patch.anchorLocalityId &&
+      candidate.category === patch.category;
+
+    const exists = snapshot.distanceFarePolicies.some(sameRule);
+
+    if (patch.operation === 'remove') {
+      if (!exists) {
+        throw new PricingCatalogVersionError(
+          'PRICING_RULE_NOT_FOUND',
+          'Regra de cobrança por distância não encontrada.',
+        );
+      }
+      snapshot.distanceFarePolicies =
+        snapshot.distanceFarePolicies.filter(
+          (candidate) => !sameRule(candidate),
+        );
+    } else {
+      const next = {
+        id: `distance-${patch.anchorZoneId}-${patch.anchorLocalityId}-${patch.category}`,
+        anchorZoneId: patch.anchorZoneId,
+        anchorLocalityId: patch.anchorLocalityId,
+        category: patch.category,
+        minKm: patch.minKm!,
+        maxKm: patch.maxKm!,
+        minimumFareCents: patch.minimumFareCents!,
+        pricePerKmCents: patch.pricePerKmCents!,
+      };
+
+      snapshot.distanceFarePolicies = exists
+        ? snapshot.distanceFarePolicies.map((candidate) =>
+            sameRule(candidate) ? next : candidate,
+          )
+        : [...snapshot.distanceFarePolicies, next];
+
+      snapshot.distanceFarePolicies.sort((a, b) => {
+        const anchor = a.anchorLocalityId.localeCompare(
+          b.anchorLocalityId,
+        );
+        if (anchor !== 0) return anchor;
+        return a.category.localeCompare(b.category);
+      });
+    }
+
+    auditMetadata = {
+      kind: patch.kind,
+      operation: patch.operation,
+      anchorZoneId: patch.anchorZoneId,
+      anchorLocalityId: patch.anchorLocalityId,
+      category: patch.category,
+      ...(patch.operation === 'upsert'
+        ? {
+            minKm: patch.minKm,
+            maxKm: patch.maxKm,
+            minimumFareCents: patch.minimumFareCents,
+            pricePerKmCents: patch.pricePerKmCents,
+          }
+        : {}),
+    };
   } else if (patch.kind === 'category_policy') {
     snapshot.categoryPolicies[patch.category] = {
       enabled: patch.enabled,
@@ -531,6 +612,14 @@ export async function updatePricingCatalogDraft(input: {
                 candidate.localityId === patch.localityId
               ),
           );
+        snapshot.distanceFarePolicies =
+          snapshot.distanceFarePolicies.filter(
+            (candidate) =>
+              !(
+                candidate.anchorZoneId === 'external' &&
+                candidate.anchorLocalityId === patch.localityId
+              ),
+          );
       }
     } else {
       const table = snapshot.localities[patch.scope];
@@ -563,6 +652,14 @@ export async function updatePricingCatalogDraft(input: {
               !(
                 candidate.zoneId === patch.scope &&
                 candidate.localityId === patch.localityId
+              ),
+          );
+        snapshot.distanceFarePolicies =
+          snapshot.distanceFarePolicies.filter(
+            (candidate) =>
+              !(
+                candidate.anchorZoneId === patch.scope &&
+                candidate.anchorLocalityId === patch.localityId
               ),
           );
         if (patch.scope === 'prea') {
