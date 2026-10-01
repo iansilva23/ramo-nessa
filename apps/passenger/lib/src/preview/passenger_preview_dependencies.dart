@@ -11,6 +11,7 @@ import '../features/payments/data/passenger_payment_service.dart';
 import '../features/payments/domain/card_ride_payment_result.dart';
 import '../features/payments/domain/cash_ride_authorization_result.dart';
 import '../features/payments/domain/passenger_payment_policy.dart';
+import '../features/payments/domain/passenger_promotion.dart';
 import '../features/payments/domain/pix_ride_payment_result.dart';
 import '../features/payments/domain/wallet_ride_payment_result.dart';
 import '../features/payments/domain/wallet_topup_result.dart';
@@ -245,6 +246,7 @@ final class _PreviewRidePreparationService
 final class _PreviewPaymentService implements PassengerPaymentService {
   int _walletCents = 12500;
   final List<WalletTopupStatus> _topups = [];
+  PassengerPromotionPreference? _promotionPreference;
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async =>
@@ -254,6 +256,99 @@ final class _PreviewPaymentService implements PassengerPaymentService {
         paymentRequiredBeforeDispatch: true,
         passengerWalletEnabled: true,
       );
+
+  @override
+  Future<PassengerPromotionPreference?> promotionPreference() async =>
+      _promotionPreference;
+
+  @override
+  Future<PassengerPromotionSaveResult> savePromotionCode(
+    String code,
+  ) async {
+    final normalized = code.trim().toUpperCase();
+    final campaign = PassengerPromotionCampaign(
+      id: 'preview-promotion',
+      code: normalized.isEmpty ? 'PREVIEW10' : normalized,
+      name: 'Cupom Preview',
+      kind: 'fixed_discount',
+      valueCents: 1000,
+      categories: const [],
+    );
+    final preference = PassengerPromotionPreference(
+      campaign: campaign,
+      updatedAt: DateTime.now(),
+    );
+    _promotionPreference = preference;
+    return PassengerPromotionSaveResult(
+      mode: 'ride_coupon',
+      preference: preference,
+    );
+  }
+
+  @override
+  Future<void> clearPromotionPreference() async {
+    _promotionPreference = null;
+  }
+
+  @override
+  Future<PreparedRide> applyPromotionToRide({
+    required String rideId,
+    String? code,
+  }) async {
+    if (code != null && code.trim().isNotEmpty) {
+      await savePromotionCode(code);
+    }
+    final preference = _promotionPreference;
+    if (preference == null) {
+      throw const PassengerPaymentException(
+        'Nenhum cupom salvo para aplicar.',
+      );
+    }
+    const normal = 4500;
+    const discount = 1000;
+    return PreparedRide(
+      id: rideId,
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: normal,
+      pickupCompensationCents: 0,
+      totalAmountCents: normal,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 5)),
+      promotion: PreparedRidePromotion(
+        campaignId: 'preview-promotion',
+        code: 'PREVIEW10',
+        name: 'Cupom Preview',
+        kind: 'fixed_discount',
+        normalTotalCents: normal,
+        discountCents: discount,
+        passengerPayableCents: normal - discount,
+      ),
+    );
+  }
+
+  @override
+  Future<PreparedRide> removePromotionFromRide(String rideId) async {
+    return PreparedRide(
+      id: rideId,
+      state: 'AWAITING_PAYMENT',
+      baseAmountCents: 4500,
+      pickupCompensationCents: 0,
+      totalAmountCents: 4500,
+      holdExpiresAt: DateTime.now().add(const Duration(minutes: 5)),
+    );
+  }
+
+  @override
+  Future<FullyPromotionalRidePaymentResult>
+      confirmFullyPromotionalRide(String rideId) async {
+    return FullyPromotionalRidePaymentResult(
+      dispatchStatus: 'SEARCHING_DRIVER',
+      paymentConfirmed: true,
+      rideJson: {
+        'id': rideId,
+        'state': 'SEARCHING_DRIVER',
+      },
+    );
+  }
 
   @override
   Future<int> walletBalanceCents() async => _walletCents;
