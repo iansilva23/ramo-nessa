@@ -3,6 +3,7 @@ import { notifyDefaultPushSubject } from '../notifications/push-notification-ser
 import type { RideRepository } from './ride-repository.js';
 import { markRidePaid } from './ride-state.js';
 import type { RideRecord } from './ride.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
 
 const CONFIRMED_PAYMENT_RIDE_STATES: ReadonlySet<RideRecord['state']> =
   new Set([
@@ -56,12 +57,15 @@ export async function confirmRidePayment(
     );
   }
 
-  const baseFareAmountCents = ride.quote.totalAmountCents;
+  const payableCents = passengerPayableCents(ride);
   const allowsPaymentAdjustment =
     input.payment.method === 'pix' || input.payment.method === 'card';
-  const validPaymentAmount = allowsPaymentAdjustment
-    ? input.payment.amountCents >= baseFareAmountCents
-    : input.payment.amountCents === baseFareAmountCents;
+  const validPaymentAmount =
+    input.payment.method === 'promotion'
+      ? payableCents === 0 && input.payment.amountCents === 0
+      : allowsPaymentAdjustment
+        ? input.payment.amountCents >= payableCents
+        : input.payment.amountCents === payableCents;
   if (!validPaymentAmount) {
     throw new RidePaymentConfirmationError(
       'PAYMENT_AMOUNT_MISMATCH',
