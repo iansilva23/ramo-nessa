@@ -84,9 +84,11 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(
-        find.byKey(const Key('ride-payment-promotion-confirm')),
-      );
+      final confirmButton =
+          find.byKey(const Key('ride-payment-promotion-confirm'));
+      await tester.ensureVisible(confirmButton);
+      await tester.pumpAndSettle();
+      await tester.tap(confirmButton);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
