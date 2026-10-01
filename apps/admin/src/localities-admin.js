@@ -720,10 +720,11 @@ export function createLocalitiesAdmin(input) {
       });
     }
 
+    const savedMode = mode;
     await refresh({ announce: false });
     closeWizard();
     setMessage(
-      mode === 'edit'
+      savedMode === 'edit'
         ? 'Localidade atualizada no rascunho. Nada foi publicado ainda.'
         : 'Localidade adicionada ao rascunho. Nada foi publicado ainda.',
       'success',
@@ -767,7 +768,7 @@ export function createLocalitiesAdmin(input) {
     button.id = 'localities-undo-delete';
     button.type = 'button';
     button.addEventListener('click', () => {
-      void undoDelete();
+      void undoDelete().catch(handleError);
     });
     holder.insertBefore(button, byId('localities-message')?.nextSibling ?? null);
   }
@@ -1003,13 +1004,30 @@ export function createLocalitiesAdmin(input) {
     for (const category of PRICE_CATEGORIES) {
       byId(`locality-category-${category}`)?.addEventListener(
         'change',
-        () => syncPriceCard(category),
+        () => {
+          if (
+            category === 'car' &&
+            byId('locality-category-car')?.checked !== true
+          ) {
+            const comfort = byId('locality-category-comfort');
+            if (comfort != null) comfort.checked = false;
+          }
+          syncPriceCard(category);
+        },
       );
       byId(`locality-price-${category}-kind`)?.addEventListener(
         'change',
         () => syncPriceCard(category),
       );
     }
+
+    byId('locality-category-comfort')?.addEventListener('change', () => {
+      if (byId('locality-category-comfort')?.checked === true) {
+        const car = byId('locality-category-car');
+        if (car != null) car.checked = true;
+        syncPriceCard('car');
+      }
+    });
   }
 
   bind();
