@@ -6,6 +6,7 @@ import type {
   AgencyTourRecord,
   AppAuthBrandingRecord,
   AppAuthHero,
+  AppBrandingIcon,
   AppReleasePolicyRecord,
   SocialLinksRecord,
 } from '../admin-communications-repository.js';
@@ -108,9 +109,11 @@ export class InMemoryAdminCommunicationsRepository
   private readonly tourCovers = new Map<string, AgencyTourCover>();
   private authBranding: AppAuthBrandingRecord = {
     heroImageVersion: 0,
+    appIconVersion: 0,
     updatedAt: '2026-09-28T00:00:00.000Z',
   };
   private authHero: AppAuthHero | null = null;
+  private appIcon: AppBrandingIcon | null = null;
   private socialLinks: SocialLinksRecord = {
     updatedAt: '2026-09-24T00:00:00.000Z',
   };
@@ -291,8 +294,33 @@ export class InMemoryAdminCommunicationsRepository
       version,
     };
     this.authBranding = {
+      ...this.authBranding,
       heroImageVersion: version,
       heroImageMimeType: input.mimeType,
+      updatedAt: input.updatedAt,
+    };
+    return structuredClone(this.authBranding);
+  }
+
+  async readAppBrandingIcon(): Promise<AppBrandingIcon | null> {
+    return this.appIcon == null ? null : structuredClone(this.appIcon);
+  }
+
+  async saveAppBrandingIcon(input: {
+    mimeType: AppBrandingIcon['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AppAuthBrandingRecord> {
+    const version = this.authBranding.appIconVersion + 1;
+    this.appIcon = {
+      mimeType: input.mimeType,
+      bytes: Uint8Array.from(input.bytes),
+      version,
+    };
+    this.authBranding = {
+      ...this.authBranding,
+      appIconVersion: version,
+      appIconMimeType: input.mimeType,
       updatedAt: input.updatedAt,
     };
     return structuredClone(this.authBranding);
