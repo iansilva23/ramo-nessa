@@ -306,16 +306,22 @@ export async function savePassengerPromotionPreference(input: {
     );
   }
   assertCampaignActive(campaign, now);
-  const preference: PassengerPromotionPreferenceRecord = {
-    passengerId: input.passengerId,
-    campaignId: campaign.id,
-    deviceHash: promotionDeviceHash(input.clientInstanceId),
-    updatedAt: now.toISOString(),
-  };
-  await input.promotions.savePreference(preference);
+  const deviceHash = promotionDeviceHash(input.clientInstanceId);
+  const updatedAt = now.toISOString();
+
+  if (campaign.kind !== 'wallet_credit') {
+    const preference: PassengerPromotionPreferenceRecord = {
+      passengerId: input.passengerId,
+      campaignId: campaign.id,
+      deviceHash,
+      updatedAt,
+    };
+    await input.promotions.savePreference(preference);
+  }
+
   return {
     campaign: publicPromotionCampaignView(campaign),
-    updatedAt: preference.updatedAt,
+    updatedAt,
   };
 }
 
@@ -709,7 +715,6 @@ export async function redeemWalletPromotionCode(input: {
       'redeemed',
       instant,
     );
-    await input.promotions.clearPreference(input.passengerId);
   } catch (error) {
     if (reserved.status === 'reserved') {
       await input.promotions.setRedemptionStatus(

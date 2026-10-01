@@ -6,7 +6,10 @@ import { automaticallyRefundRide } from '../src/rides/automatic-ride-refund-serv
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import {
   createFullyPromotionalPayment,
+  createPromotionCampaignRecord,
   PromotionError,
+  redeemWalletPromotionCode,
+  savePassengerPromotionPreference,
 } from '../src/promotions/promotion-service.js';
 import {
   PromotionRepositoryError,
@@ -277,3 +280,77 @@ test('cancelamento de corrida grátis libera subsídio e não chama gateway', as
     'released',
   );
 });
+
+test('crédito promocional preserva cupom de corrida salvo no perfil', async () => {
+  const promotions = new InMemoryPromotionRepository();
+  const finance = new InMemoryFinanceRepository();
+  const passengerId = 'passenger-wallet-preserves-ride-coupon';
+  const clientInstanceId =
+    'device-instance-wallet-preserve-0123456789abcdef';
+
+  const rideCampaign = await promotions.createCampaign(
+    createPromotionCampaignRecord({
+      code: 'RIDE10',
+      name: 'Cupom de corrida',
+      kind: 'fixed_discount',
+      valueCents: 1000,
+      categories: ['car'],
+      maxRedemptions: 10,
+      perPassengerLimit: 10,
+      perDeviceLimit: 10,
+      enabled: true,
+      now: new Date(now),
+    }),
+  );
+  await promotions.createCampaign(
+    createPromotionCampaignRecord({
+      code: 'WALLET7',
+      name: 'Crédito de carteira',
+      kind: 'wallet_credit',
+      valueCents: 700,
+      maxRedemptions: 10,
+      perPassengerLimit: 10,
+      perDeviceLimit: 10,
+      enabled: true,
+      now: new Date(now),
+    }),
+  );
+
+  await savePassengerPromotionPreference({
+    promotions,
+    passengerId,
+    clientInstanceId,
+    code: rideCampaign.code,
+    now: new Date(now),
+  });
+
+  const walletLookup = await savePassengerPromotionPreference({
+    promotions,
+    passengerId,
+    clientInstanceId,
+    code: 'WALLET7',
+    now: new Date(now),
+  });
+  assert.equal(walletLookup.campaign.kind, 'wallet_credit');
+
+  await redeemWalletPromotionCode({
+    promotions,
+    finance,
+    passengerId,
+    clientInstanceId,
+    code: 'WALLET7',
+    now: new Date(now),
+  });
+
+  assert.equal(
+    (await promotions.getPreference(passengerId))?.campaignId,
+    rideCampaign.id,
+  );
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      `passenger:${passengerId}:wallet`,
+    ),
+    700,
+  );
+});
+

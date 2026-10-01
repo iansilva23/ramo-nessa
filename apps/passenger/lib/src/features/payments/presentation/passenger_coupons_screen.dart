@@ -94,8 +94,16 @@ class _PassengerCouponsScreenState
 
       if (result.creditedWallet) {
         final value = result.walletCreditCents ?? 0;
+        PassengerPromotionPreference? preference = _preference;
+        try {
+          preference = await service.promotionPreference();
+        } catch (_) {
+          // O crédito já foi aplicado. Mantém o cupom de corrida exibido
+          // localmente se a atualização da preferência falhar.
+        }
+        if (!mounted) return;
         setState(() {
-          _preference = null;
+          _preference = preference;
           _saving = false;
           _codeController.clear();
           _message = value > 0
