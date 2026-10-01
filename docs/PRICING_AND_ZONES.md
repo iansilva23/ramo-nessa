@@ -30,6 +30,7 @@ O Core já implementa:
 
 - catálogo comercial v1;
 - preços fixos por localidade/corredor;
+- fallback opcional por distância roteada para pontos sem preço específico, configurável por localidade-base e categoria;
 - regras após 22h da base comercial revisada, incluindo Entrega sem adicional noturno;
 - Comfort/Black quando permitido;
 - compensação de coleta distante;
@@ -50,7 +51,7 @@ A cobertura inicial reconhecida pelo app inclui:
 - Aeroporto JJD;
 - destinos longos explicitamente aprovados na tabela comercial, quando pesquisados por nome.
 
-Um ponto externo aleatório não vira rota atendida apenas por estar no Ceará.
+Um ponto externo aleatório não vira rota atendida apenas por estar no Ceará. Ele só pode receber cotação quando uma regra publicada de fallback por distância, ancorada em uma localidade-base e categoria compatível, cobre a distância real da rota.
 
 ## Modelo comercial
 
@@ -68,6 +69,21 @@ O Core resolve a tarifa por:
 8. regra comercial identificável pelo `ruleId`.
 
 Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são retornadas como faixa e não podem ser despachadas como se fossem um preço exato.
+
+### Fallback por distância
+
+O fallback por distância não substitui preços existentes. A ordem comercial permanece específica primeiro: rota fixa e preço de localidade têm prioridade. Somente quando nenhum preço específico resolve a viagem o Core pode usar uma regra por distância.
+
+Cada regra é vinculada a uma localidade-base e categoria e contém:
+
+- corrida mínima em centavos;
+- preço por quilômetro;
+- mínimo de quilômetros cobrados;
+- máximo de quilômetros aceitos.
+
+O cálculo usa a distância roteada autoritativa do Core, nunca a quilometragem enviada pelo cliente. A fórmula é `max(corrida mínima, max(km real, km mínimo) × preço/km)`. Se a rota ultrapassar o máximo configurado e nenhuma regra específica existir, a viagem permanece sem preço em vez de receber um valor inventado.
+
+Exemplo de precedência: se Preá ↔ Sobral possuir um valor específico, esse valor continua valendo. Um ponto sem preço cadastrado no caminho pode usar o fallback da base Preá e, por ter menos quilômetros reais de rota, resultar em valor menor.
 
 ## Elegibilidade
 
