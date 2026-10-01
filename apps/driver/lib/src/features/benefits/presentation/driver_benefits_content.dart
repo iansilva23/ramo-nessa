@@ -195,7 +195,7 @@ class _PodiumPlace extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = rank == 1;
     final foreground = first ? RamoColors.brandBlack : Colors.white;
-    return Semantics(label: '${rank}º lugar: ${entry?.displayName ?? 'aguardando participante'}', child: Container(
+    return Semantics(label: '$rankº lugar: ${entry?.displayName ?? 'aguardando participante'}', child: Container(
       key: ValueKey('benefits-podium-$rank'), width: double.infinity,
       padding: EdgeInsets.fromLTRB(8, first ? 24 : 14, 8, 14),
       decoration: BoxDecoration(
@@ -206,7 +206,7 @@ class _PodiumPlace extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(first ? Icons.emoji_events_rounded : Icons.workspace_premium_rounded, color: foreground, size: first ? 36 : 28),
         const SizedBox(height: 6),
-        Text('${rank}º', style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 23)),
+        Text('$rankº', style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 23)),
         const SizedBox(height: 6),
         Text(entry == null ? 'Aguardando' : entry!.isMe ? 'Você' : entry!.displayName,
           textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,

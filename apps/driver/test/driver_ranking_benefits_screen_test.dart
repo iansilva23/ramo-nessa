@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -67,7 +66,9 @@ void main() {
     expect(find.text('2.840 pts'), findsWidgets);
     expect(find.text('Faltam 170 pontos para #3'), findsOneWidget);
     expect(find.textContaining('dias restantes'), findsOneWidget);
-    for (final rank in [1, 2, 3]) expect(find.byKey(ValueKey('benefits-podium-$rank')), findsOneWidget);
+    for (final rank in [1, 2, 3]) {
+      expect(find.byKey(ValueKey('benefits-podium-$rank')), findsOneWidget);
+    }
     expect(find.text('Ana S.'), findsWidgets);
     expect(find.textContaining('Ana Souza'), findsNothing);
     expect(find.text('EM BREVE'), findsNothing);
