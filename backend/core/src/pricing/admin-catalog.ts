@@ -121,6 +121,16 @@ export function adminPricingCatalogView(
           a.localityId.localeCompare(b.localityId),
         ),
     },
+    distanceFarePolicies: snapshot.distanceFarePolicies
+      .map((policy) => ({ ...policy }))
+      .sort((a, b) => {
+        const anchor = a.anchorLocalityId.localeCompare(
+          b.anchorLocalityId,
+        );
+        return anchor !== 0
+          ? anchor
+          : a.category.localeCompare(b.category);
+      }),
     fixedRoutes: snapshot.fixedRoutes.map((route) => ({
       ...route,
     })),
