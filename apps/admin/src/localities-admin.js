@@ -22,15 +22,28 @@ const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-car-min',
   'locality-price-car-max',
 ]);
-const DISTANCE_CONTROL_IDS = Object.freeze(
-  DISTANCE_CATEGORIES.flatMap((category) => [
-    `locality-distance-${category}-enabled`,
-    `locality-distance-${category}-minimum-fare`,
-    `locality-distance-${category}-per-km`,
-    `locality-distance-${category}-min-km`,
-    `locality-distance-${category}-max-km`,
-  ]),
-);
+const DISTANCE_CONTROL_IDS = Object.freeze([
+  'locality-distance-moto-enabled',
+  'locality-distance-moto-minimum-fare',
+  'locality-distance-moto-per-km',
+  'locality-distance-moto-min-km',
+  'locality-distance-moto-max-km',
+  'locality-distance-delivery-enabled',
+  'locality-distance-delivery-minimum-fare',
+  'locality-distance-delivery-per-km',
+  'locality-distance-delivery-min-km',
+  'locality-distance-delivery-max-km',
+  'locality-distance-car-enabled',
+  'locality-distance-car-minimum-fare',
+  'locality-distance-car-per-km',
+  'locality-distance-car-min-km',
+  'locality-distance-car-max-km',
+  'locality-distance-comfort_black-enabled',
+  'locality-distance-comfort_black-minimum-fare',
+  'locality-distance-comfort_black-per-km',
+  'locality-distance-comfort_black-min-km',
+  'locality-distance-comfort_black-max-km',
+]);
 const CATEGORY_LABELS = Object.freeze({
   moto: 'Moto',
   delivery: 'Entrega',
@@ -50,9 +63,6 @@ function categoryCheckbox(category) {
   );
 }
 
-function distancePolicyKey(scope, localityId, category) {
-  return `${scope}:${localityId}:${category}`;
-}
 
 function scopeLabel(scope) {
   if (scope === 'prea') return 'Preá';
@@ -664,6 +674,9 @@ export function createLocalitiesAdmin(input) {
     }
     if (step === 4) {
       for (const category of PRICE_CATEGORIES) syncPriceCard(category);
+      for (const category of DISTANCE_CATEGORIES) {
+        syncDistanceCard(category);
+      }
     }
     if (step === 6) renderReview();
   }
@@ -1138,7 +1151,17 @@ export function createLocalitiesAdmin(input) {
                 .join(' · ')
             : 'Nenhum serviço habilitado';
       } else {
-        details.textContent = 'Preço definido por rota';
+        const categories = [
+          ...new Set(
+            (entry.distancePolicies ?? []).map(
+              (rule) => CATEGORY_LABELS[rule.category] ?? rule.category,
+            ),
+          ),
+        ];
+        details.textContent =
+          categories.length > 0
+            ? `Preço fixo quando existir · por distância: ${categories.join(' · ')}`
+            : 'Preço definido por rota fixa';
       }
 
       const actions = element('div', 'locality-directory-item__actions');
@@ -1396,6 +1419,10 @@ export function createLocalitiesAdmin(input) {
             if (comfort != null) comfort.checked = false;
           }
           syncPriceCard(category);
+          syncDistanceCard(category);
+          if (category === 'car') {
+            syncDistanceCard('comfort_black');
+          }
         },
       );
       byId(`locality-price-${category}-kind`)?.addEventListener(
@@ -1409,11 +1436,23 @@ export function createLocalitiesAdmin(input) {
         const car = byId('locality-category-car');
         if (car != null) car.checked = true;
         syncPriceCard('car');
+        syncDistanceCard('car');
       }
+      syncDistanceCard('comfort_black');
     });
+
+    for (const category of DISTANCE_CATEGORIES) {
+      byId(`locality-distance-${category}-enabled`)?.addEventListener(
+        'change',
+        () => syncDistanceCard(category),
+      );
+    }
   }
 
-  for (const id of LOCALITY_PRICE_CONTROL_IDS) {
+  for (const id of [
+    ...LOCALITY_PRICE_CONTROL_IDS,
+    ...DISTANCE_CONTROL_IDS,
+  ]) {
     if (byId(id) == null) {
       throw new Error(`Controle de localidade ausente: ${id}`);
     }
