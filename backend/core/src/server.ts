@@ -8107,6 +8107,36 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof PromotionRepositoryError) {
+      const status =
+        error.code === 'PROMOTION_NOT_FOUND'
+          ? 404
+          : error.code === 'PROMOTION_REFERENCE_CONFLICT'
+            ? 409
+            : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
+    if (error instanceof PromotionError) {
+      const status =
+        error.code === 'PROMOTION_NOT_FOUND'
+          ? 404
+          : error.code === 'INVALID_PROMOTION_CODE' ||
+              error.code === 'INVALID_PROMOTION_CAMPAIGN' ||
+              error.code === 'PROMOTION_REQUIRES_DEVICE'
+            ? 400
+            : 409;
+      json(response, status, {
+        error: error.code,
+        message: error.message,
+      });
+      return;
+    }
+
     if (error instanceof DriverSupportError) {
       const status =
         error.code === 'SUPPORT_TICKET_NOT_FOUND' ? 404 : 422;
