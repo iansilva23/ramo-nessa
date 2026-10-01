@@ -76,6 +76,13 @@ export interface FundRidePromotionInput {
   fundedAt?: Date;
 }
 
+export interface ReverseRidePromotionInput {
+  rideId: string;
+  applicationId: string;
+  amountCents: number;
+  reversedAt?: Date;
+}
+
 export interface GrantWalletPromotionInput {
   passengerId: string;
   applicationId: string;
@@ -389,6 +396,9 @@ export interface FinanceRepository {
 
   fundRidePromotion(
     input: FundRidePromotionInput,
+  ): Promise<PromotionLedgerResult>;
+  reverseRidePromotion(
+    input: ReverseRidePromotionInput,
   ): Promise<PromotionLedgerResult>;
   grantWalletPromotion(
     input: GrantWalletPromotionInput,
