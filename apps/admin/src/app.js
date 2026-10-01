@@ -5145,9 +5145,9 @@ function renderPricingCatalog(payload = null) {
         const edit = document.createElement('button');
         edit.type = 'button';
         edit.className = 'button button--table';
-        edit.textContent = 'Editar área';
+        edit.textContent = 'Gerenciar';
         edit.addEventListener('click', () => {
-          openPricingGeofenceEditor(geofence);
+          void activateView('localities');
         });
         actions.append(edit);
       } else {
@@ -5242,12 +5242,9 @@ function renderPricingCatalog(payload = null) {
       const editRules = document.createElement('button');
       editRules.type = 'button';
       editRules.className = 'button button--table';
-      editRules.textContent = 'Editar regras';
+      editRules.textContent = 'Gerenciar';
       editRules.addEventListener('click', () => {
-        openPricingLocalityPolicyEditor(
-          entry.hub,
-          entry.item,
-        );
+        void activateView('localities');
       });
       actions.append(editRules);
     } else {
@@ -10519,6 +10516,17 @@ document.querySelectorAll('.nav-item').forEach((link) => {
     setMobileNavOpen(false);
     void activateView(link.dataset.view);
   });
+});
+
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const link = target.closest('a[data-view]:not(.nav-item)');
+  if (link == null || !state.token) return;
+  const view = link.dataset.view;
+  if (adminRoutes[view] == null || !canAccessView(view)) return;
+  event.preventDefault();
+  void activateView(view);
 });
 
 document.addEventListener('keydown', (event) => {
