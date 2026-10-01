@@ -406,6 +406,18 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    appBrandingIcon(token) {
+      return requestBinary('/v1/admin/app-auth-branding/icon', { token });
+    },
+
+    uploadAppBrandingIcon(token, { bytes, contentType }) {
+      return uploadBinary('/v1/admin/app-auth-branding/icon', {
+        token,
+        bytes,
+        contentType,
+      });
+    },
+
     sendNotification(token, payload) {
       return request('/v1/admin/notifications', {
         method: 'POST',
