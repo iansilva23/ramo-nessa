@@ -313,7 +313,7 @@ final class _PreviewPaymentService implements PassengerPaymentService {
       pickupCompensationCents: 0,
       totalAmountCents: normal,
       holdExpiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      promotion: PreparedRidePromotion(
+      promotion: const PreparedRidePromotion(
         campaignId: 'preview-promotion',
         code: 'PREVIEW10',
         name: 'Cupom Preview',
