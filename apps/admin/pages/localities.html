@@ -23,6 +23,45 @@
 
   <div id="localities-message" class="global-message" aria-live="polite" hidden></div>
 
+  <article class="panel-card localities-publish-card">
+    <div class="localities-publish-copy">
+      <span class="eyebrow eyebrow--dark">ALTERAÇÕES SEGURAS</span>
+      <h2>Rascunho e publicação</h2>
+      <p>
+        Tudo que você editar aqui fica guardado em um rascunho. O app só passa a
+        usar as mudanças depois que você clicar em “Publicar agora”.
+      </p>
+    </div>
+    <div class="localities-publish-status">
+      <div>
+        <span>Rascunho atual</span>
+        <strong id="localities-current-draft">Nenhum</strong>
+      </div>
+      <div>
+        <span>Versão em vigor</span>
+        <strong id="localities-effective-version">Catálogo padrão</strong>
+      </div>
+    </div>
+    <div class="localities-publish-actions">
+      <button
+        id="localities-discard-draft-button"
+        class="button button--ghost-dark"
+        type="button"
+        hidden
+      >
+        Excluir rascunho
+      </button>
+      <button
+        id="localities-publish-draft-button"
+        class="button button--dark"
+        type="button"
+        hidden
+      >
+        Publicar agora
+      </button>
+    </div>
+  </article>
+
   <div class="localities-summary-grid">
     <article class="metric-card metric-card--signal">
       <span class="metric-label">Localidades</span>
