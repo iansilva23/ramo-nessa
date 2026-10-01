@@ -12,7 +12,9 @@ export class DriverBenefitError extends Error {
     public readonly code:
       | 'DRIVER_BENEFIT_NOT_FOUND'
       | 'INVALID_DRIVER_BENEFIT'
-      | 'INVALID_DRIVER_BENEFIT_BASE',
+      | 'INVALID_DRIVER_BENEFIT_BASE'
+      | 'DRIVER_BENEFIT_CONFLICT'
+      | 'DRIVER_BENEFIT_RULES_LOCKED',
     message: string,
   ) {
     super(message);
@@ -42,6 +44,27 @@ export function effectiveDriverBenefitStatus(
   if (instant >= ends) return 'ended';
   if (instant < starts) return 'scheduled';
   return 'active';
+}
+
+export function driverBenefitRulesLocked(
+  campaign: DriverBenefitCampaignRecord,
+  now = new Date(),
+): boolean {
+  return campaign.rulesLockedAt != null || campaign.status === 'ended' ||
+    (campaign.status !== 'draft' && now.getTime() >= Date.parse(campaign.startsAt));
+}
+
+// Runs independently of the global visibility toggle: turning the module OFF
+// must not make a finished result depend on a later profile/base change.
+export async function finalizeEndedDriverBenefitCampaigns(
+  repository: DriverBenefitRepository,
+  now = new Date(),
+): Promise<void> {
+  for (const campaign of await repository.listCampaigns()) {
+    if (effectiveDriverBenefitStatus(campaign, now) === 'ended') {
+      await repository.rankingStats(campaign, now);
+    }
+  }
 }
 
 function missionProgress(
@@ -130,7 +153,7 @@ function rankedCampaign(
       if (a.ratingAverage !== b.ratingAverage) {
         return b.ratingAverage - a.ratingAverage;
       }
-      return a.driverId.localeCompare(b.driverId);
+      return a.driverId < b.driverId ? -1 : a.driverId > b.driverId ? 1 : 0;
     })
     .map((item, index) => ({ ...item, rank: index + 1 }));
 
@@ -188,6 +211,7 @@ export async function driverBenefitsAdminView(input: {
       excludedDriverIds: campaign.excludedDriverIds,
       createdAt: campaign.createdAt,
       updatedAt: campaign.updatedAt,
+      rulesLocked: driverBenefitRulesLocked(campaign, now),
     })),
   };
 }
@@ -204,7 +228,7 @@ export async function driverBenefitLeaderboard(input: {
       'Campanha de Ranking & Benefícios não encontrada.',
     );
   }
-  const stats = await input.repository.rankingStats(campaign);
+  const stats = await input.repository.rankingStats(campaign, input.now);
   const ranked = rankedCampaign(campaign, stats);
   return {
     campaign: {
@@ -292,6 +316,12 @@ export async function driverBenefitsForApp(input: {
     name: string;
     category: DriverBenefitCampaignRecord['category'];
     endsAt: string;
+    topCount: number;
+    minParticipants: number;
+    participantCount: number;
+    prizesUnlocked: boolean;
+    prizes: DriverBenefitPrize[];
+    me: { rank: number; points: number };
     winners: {
       rank: number;
       displayName: string;
@@ -302,12 +332,12 @@ export async function driverBenefitsForApp(input: {
     }[];
   }[] = [];
 
-  for (const campaign of campaigns) {
+  for (const campaign of campaigns.sort((a, b) => b.endsAt.localeCompare(a.endsAt))) {
     const effective = effectiveDriverBenefitStatus(campaign, now);
     if (effective !== 'active' && effective !== 'ended') continue;
     if (effective === 'ended' && history.length >= 6) continue;
 
-    const stats = await input.repository.rankingStats(campaign);
+    const stats = await input.repository.rankingStats(campaign, now);
     const view = driverCampaignView(
       campaign,
       stats,
@@ -323,10 +353,24 @@ export async function driverBenefitsForApp(input: {
         id: view.id,
         name: view.name,
         category: view.category,
-        endsAt: view.endsAt,
-        winners: view.leaderboard
-          .filter((entry) => entry.rank <= 3)
-          .slice(0, 3),
+        endsAt: campaign.closedAt ?? view.endsAt,
+        topCount: view.topCount,
+        minParticipants: view.minParticipants,
+        participantCount: view.participantCount,
+        prizesUnlocked: view.prizesUnlocked,
+        prizes: view.prizes,
+        me: { rank: view.me.rank, points: view.me.points },
+        winners: view.prizesUnlocked
+          ? rankedCampaign(campaign, stats).entries
+            .slice(0, view.topCount).map((entry) => ({
+              rank: entry.rank,
+              displayName: entry.displayName,
+              points: entry.points,
+              completedRides: entry.completedRides,
+              ratingAverage: entry.ratingAverage,
+              isMe: entry.driverId === input.driverId,
+            }))
+          : [],
       });
     }
   }

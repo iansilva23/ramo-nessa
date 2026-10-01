@@ -56,6 +56,10 @@
 
       <form id="benefit-campaign-form" class="stack-form">
         <input id="benefit-campaign-id" type="hidden">
+        <p id="benefit-rules-lock-note" class="notice-box" hidden>
+          A campanha já iniciou. Pontuação, período e participação estão protegidos.
+          Você pode ajustar o nome e as descrições dos prêmios. Para novas regras, crie outra campanha.
+        </p>
 
         <div class="form-grid">
           <label class="field">
@@ -122,8 +126,8 @@
           <select id="benefit-regions" class="benefits-multiselect" multiple size="7"></select>
         </fieldset>
 
-        <div id="benefit-selected-drivers-field" class="benefits-two-columns" hidden>
-          <label class="field">
+        <div id="benefit-selected-drivers-field" class="benefits-two-columns">
+          <label id="benefit-selected-driver-ids-field" class="field" hidden>
             <span>IDs dos motoristas participantes</span>
             <textarea id="benefit-participant-driver-ids" rows="5"
               placeholder="Um ID por linha"></textarea>

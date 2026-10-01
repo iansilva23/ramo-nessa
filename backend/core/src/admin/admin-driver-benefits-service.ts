@@ -17,6 +17,8 @@ import {
 import {
   DriverBenefitError,
   normalizeBenefitPrizes,
+  driverBenefitRulesLocked,
+  effectiveDriverBenefitStatus,
 } from '../benefits/driver-benefit-service.js';
 import type {
   AdminActor,
@@ -142,13 +144,14 @@ function parseMissions(value: unknown): DriverBenefitMission[] {
   });
 }
 
-function parsePrizes(value: unknown): DriverBenefitPrize[] {
+function parsePrizes(value: unknown, topCount: number): DriverBenefitPrize[] {
   if (!Array.isArray(value)) invalid('Prêmios devem ser uma lista.');
   if (value.length > 50) invalid('Limite de 50 prêmios por campanha.');
   const ranks = new Set<number>();
   const prizes = value.map((item) => {
     const entry = object(item);
     const rank = integer(entry.rank, 'Posição do prêmio', 1, 50);
+    if (rank > topCount) invalid('A posição do prêmio deve estar dentro do Top premiado.');
     if (ranks.has(rank)) invalid('Cada posição pode ter somente um prêmio.');
     ranks.add(rank);
     return {
@@ -264,7 +267,7 @@ function parseCampaignFields(value: Record<string, unknown>) {
       100000,
     ),
     missions: parseMissions(value.missions ?? []),
-    prizes: parsePrizes(value.prizes ?? []),
+    prizes: parsePrizes(value.prizes ?? [], integer(value.topCount, 'Quantidade premiada', 1, 50)),
   };
 }
 
@@ -290,7 +293,13 @@ export function parseDriverBenefitCampaignPatch(
   now = new Date(),
 ): DriverBenefitCampaignRecord {
   const value = object(body);
+  requireCampaignRevision(current, value);
+  if (effectiveDriverBenefitStatus(current, now) === 'ended') {
+    throw new DriverBenefitError('DRIVER_BENEFIT_RULES_LOCKED',
+      'Campanha encerrada é histórica. Crie uma nova campanha para outras regras.');
+  }
   const allowed = new Set([
+    'expectedUpdatedAt',
     'name',
     'category',
     'regionMode',
@@ -335,11 +344,32 @@ export function parseDriverBenefitCampaignPatch(
     prizes: current.prizes,
     ...value,
   };
+  const fields = parseCampaignFields(merged);
+  if (driverBenefitRulesLocked(current, now)) {
+    for (const key of Object.keys(fields) as (keyof typeof fields)[]) {
+      if (key !== 'name' && key !== 'prizes' &&
+          JSON.stringify(fields[key]) !== JSON.stringify(current[key])) {
+        throw new DriverBenefitError('DRIVER_BENEFIT_RULES_LOCKED',
+          'As regras de pontuação e participação ficam protegidas após o início. Crie outra campanha para alterá-las.');
+      }
+    }
+  }
   return {
     ...current,
-    ...parseCampaignFields(merged),
-    updatedAt: now.toISOString(),
+    ...fields,
+    updatedAt: nextCampaignRevision(current, now),
   };
+}
+
+function requireCampaignRevision(current: DriverBenefitCampaignRecord, body: Record<string, unknown>): void {
+  if (body.expectedUpdatedAt !== current.updatedAt) {
+    throw new DriverBenefitError('DRIVER_BENEFIT_CONFLICT',
+      'A campanha foi alterada ou a revisão não foi informada. Atualize antes de salvar.');
+  }
+}
+
+function nextCampaignRevision(current: DriverBenefitCampaignRecord, now: Date): string {
+  return new Date(Math.max(now.getTime(), Date.parse(current.updatedAt) + 1)).toISOString();
 }
 
 export function parseDriverBenefitStatus(
@@ -347,7 +377,7 @@ export function parseDriverBenefitStatus(
 ): DriverBenefitCampaignStatus {
   const value = object(body);
   if (
-    Object.keys(value).some((key) => key !== 'status') ||
+    Object.keys(value).some((key) => key !== 'status' && key !== 'expectedUpdatedAt') ||
     (
       value.status !== 'draft' &&
       value.status !== 'scheduled' &&
@@ -476,6 +506,7 @@ export async function updateDriverBenefitCampaign(input: {
       input.body,
       input.now ?? new Date(),
     ),
+    current.updatedAt,
   );
   await input.admin.appendAudit({
     id: randomUUID(),
@@ -508,13 +539,25 @@ export async function setDriverBenefitCampaignStatus(input: {
       'Campanha de Ranking & Benefícios não encontrada.',
     );
   }
-  const instant = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  requireCampaignRevision(current, object(input.body));
+  const instant = nextCampaignRevision(current, now);
   const status = parseDriverBenefitStatus(input.body);
+  const locked = driverBenefitRulesLocked(current, now);
+  if ((effectiveDriverBenefitStatus(current, now) === 'ended' && status !== 'ended') ||
+      (status === 'draft' && locked)) {
+    throw new DriverBenefitError('DRIVER_BENEFIT_RULES_LOCKED',
+      'Uma campanha iniciada não volta a rascunho e uma campanha encerrada não pode ser reaberta.');
+  }
   const updated = await input.repository.updateCampaign({
     ...current,
     status,
+    ...(locked || (status === 'active' && now.getTime() >= Date.parse(current.startsAt))
+      ? { rulesLockedAt: current.rulesLockedAt ?? now.toISOString() } : {}),
+    ...(status === 'ended' ? { closedAt: current.closedAt ?? new Date(Math.min(now.getTime(), Date.parse(current.endsAt))).toISOString() } : {}),
     updatedAt: instant,
-  });
+  }, current.updatedAt);
+  if (status === 'ended') await input.repository.rankingStats(updated, now);
   await input.admin.appendAudit({
     id: randomUUID(),
     actor: input.actor,

@@ -73,6 +73,8 @@ export interface DriverBenefitCampaignRecord {
   lowCancellationBonusPoints: number;
   missions: DriverBenefitMission[];
   prizes: DriverBenefitPrize[];
+  rulesLockedAt?: string;
+  closedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +113,7 @@ export interface DriverBenefitRepository {
   ): Promise<DriverBenefitCampaignRecord>;
   updateCampaign(
     campaign: DriverBenefitCampaignRecord,
+    expectedUpdatedAt: string,
   ): Promise<DriverBenefitCampaignRecord>;
 
   findDriverBase(driverId: string): Promise<DriverBenefitBaseRecord | null>;
@@ -121,5 +124,6 @@ export interface DriverBenefitRepository {
 
   rankingStats(
     campaign: DriverBenefitCampaignRecord,
+    now?: Date,
   ): Promise<DriverBenefitStatsRecord[]>;
 }

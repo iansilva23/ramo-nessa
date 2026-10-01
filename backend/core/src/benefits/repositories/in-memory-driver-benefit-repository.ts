@@ -5,6 +5,7 @@ import type {
   DriverBenefitSettingsRecord,
   DriverBenefitStatsRecord,
 } from '../driver-benefit-repository.js';
+import { DriverBenefitError, effectiveDriverBenefitStatus } from '../driver-benefit-service.js';
 
 export class InMemoryDriverBenefitRepository
   implements DriverBenefitRepository
@@ -19,6 +20,7 @@ export class InMemoryDriverBenefitRepository
     new Map<string, DriverBenefitBaseRecord>();
   private readonly stats =
     new Map<string, DriverBenefitStatsRecord[]>();
+  private readonly finalizedStats = new Map<string, DriverBenefitStatsRecord[]>();
 
   async getSettings(): Promise<DriverBenefitSettingsRecord> {
     return structuredClone(this.settings);
@@ -57,9 +59,11 @@ export class InMemoryDriverBenefitRepository
 
   async updateCampaign(
     campaign: DriverBenefitCampaignRecord,
+    expectedUpdatedAt: string,
   ): Promise<DriverBenefitCampaignRecord> {
-    if (!this.campaigns.has(campaign.id)) {
-      throw new Error('Campanha não encontrada.');
+    if (this.campaigns.get(campaign.id)?.updatedAt !== expectedUpdatedAt) {
+      throw new DriverBenefitError('DRIVER_BENEFIT_CONFLICT',
+        'A campanha foi alterada por outro operador. Atualize antes de salvar.');
     }
     this.campaigns.set(campaign.id, structuredClone(campaign));
     return structuredClone(campaign);
@@ -85,7 +89,15 @@ export class InMemoryDriverBenefitRepository
 
   async rankingStats(
     campaign: DriverBenefitCampaignRecord,
+    now = new Date(),
   ): Promise<DriverBenefitStatsRecord[]> {
+    const finalized = this.finalizedStats.get(campaign.id);
+    if (finalized != null) return structuredClone(finalized);
+    if (effectiveDriverBenefitStatus(campaign, now) === 'ended') {
+      const stats = structuredClone(this.stats.get(campaign.id) ?? []);
+      this.finalizedStats.set(campaign.id, stats);
+      return structuredClone(stats);
+    }
     return structuredClone(this.stats.get(campaign.id) ?? []);
   }
 

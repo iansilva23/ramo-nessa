@@ -5,6 +5,7 @@ import { createAdminApi } from '../src/api.js';
 import {
   benefitRegionOptionsFromCatalog,
   driverBenefitCampaignPayload,
+  driverBenefitCampaignPatch,
 } from '../src/driver-benefits-admin.js';
 
 test('campanha de benefícios preserva categoria, região, missões e prêmio manual', () => {
@@ -78,7 +79,7 @@ test('API de Ranking & Benefícios usa sessão somente no header', async () => {
   await api.driverBenefits('session');
   await api.setDriverBenefitsEnabled('session', true);
   await api.createDriverBenefitCampaign('session', { name: 'Teste' });
-  await api.setDriverBenefitCampaignStatus('session', 'campaign', 'paused');
+  await api.setDriverBenefitCampaignStatus('session', 'campaign', 'paused', '2026-10-01T10:00:00.000Z');
   await api.driverBenefitLeaderboard('session', 'campaign');
   await api.setDriverBenefitBase('session', 'driver-1', { zoneId: 'prea' });
   await api.clearDriverBenefitBase('session', 'driver-1');
@@ -86,6 +87,7 @@ test('API de Ranking & Benefícios usa sessão somente no header', async () => {
   assert.equal(calls[0].url, '/v1/admin/driver-benefits');
   assert.equal(calls[1].options.method, 'PUT');
   assert.equal(calls[3].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[3].options.body), { status: 'paused', expectedUpdatedAt: '2026-10-01T10:00:00.000Z' });
   assert.match(calls[4].url, /leaderboard$/);
   assert.equal(calls[5].options.method, 'PUT');
   assert.equal(calls[6].options.method, 'DELETE');
@@ -93,4 +95,28 @@ test('API de Ranking & Benefícios usa sessão somente no header', async () => {
     assert.equal(call.options.headers.authorization, 'Bearer session');
     assert.equal(call.url.includes('session'), false);
   }
+});
+
+function formValues() {
+  return { name: 'Campanha', category: 'moto', startsAt: '2026-10-01T00:00', endsAt: '2026-11-01T00:00',
+    regionMode: 'ride', participantMode: 'eligible', regions: [], participantDriverIds: '', excludedDriverIds: '',
+    topCount: '1', minParticipants: '2', ridePoints: '20', fiveStarPoints: '5', fourStarPoints: '2',
+    cancelMaxPercent: '5', cancelBonus: '100', missions: 'corridas|50|200|Complete 50 corridas', prizes: '1|Capacete' };
+}
+
+test('edição ativa envia somente nome, prêmio informativo e revisão', () => {
+  const patch = driverBenefitCampaignPatch({ rulesLocked: true, updatedAt: 'revision' }, formValues());
+  assert.deepEqual(patch, { name: 'Campanha', prizes: [{ rank: 1, label: 'Capacete' }], expectedUpdatedAt: 'revision' });
+});
+
+test('edição em rascunho preserva ID de missão e revisão', () => {
+  const patch = driverBenefitCampaignPatch({ rulesLocked: false, updatedAt: 'revision',
+    startsAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-11-01T00:00:00.000Z',
+    missions: [{ id: 'original-mission', kind: 'completed_rides', title: 'Complete 50 corridas' }] }, formValues());
+  assert.equal(patch.missions[0].id, 'original-mission');
+  assert.equal(patch.expectedUpdatedAt, 'revision');
+});
+
+test('prêmio fora do Top não gera configuração contraditória', () => {
+  assert.throws(() => driverBenefitCampaignPayload({ ...formValues(), prizes: '2|Capacete' }), /dentro do Top/);
 });

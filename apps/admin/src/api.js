@@ -481,13 +481,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
-    setDriverBenefitCampaignStatus(token, campaignId, status) {
+    setDriverBenefitCampaignStatus(token, campaignId, status, expectedUpdatedAt) {
       return request(
         `/v1/admin/driver-benefits/campaigns/${encodeURIComponent(campaignId)}/status`,
         {
           token,
           method: 'PATCH',
-          body: { status },
+          body: { status, expectedUpdatedAt },
         },
       );
     },

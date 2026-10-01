@@ -279,6 +279,7 @@ import {
   driverBenefitLeaderboard,
   driverBenefitsAdminView,
   driverBenefitsForApp,
+  finalizeEndedDriverBenefitCampaigns,
 } from './benefits/driver-benefit-service.js';
 import { PromotionRepositoryError } from './promotions/promotion-repository.js';
 import { PricingLocationMismatchError } from './rides/pricing-location-validation.js';
@@ -1116,6 +1117,20 @@ let payoutReconciliationTimer: ReturnType<typeof setInterval> | null = null;
 let lastScheduledPayoutCycleDate: string | null = null;
 let noDriverDecisionSweepRunning = false;
 let noDriverDecisionSweepTimer: ReturnType<typeof setInterval> | null = null;
+let driverBenefitFinalizationTimer: ReturnType<typeof setInterval> | null = null;
+let driverBenefitFinalizationRunning = false;
+
+async function runDriverBenefitFinalization(): Promise<void> {
+  if (shuttingDown || driverBenefitFinalizationRunning) return;
+  driverBenefitFinalizationRunning = true;
+  try {
+    await finalizeEndedDriverBenefitCampaigns(driverBenefitRepository);
+  } catch (error) {
+    logWarn('driver_benefits.finalization_failed', errorFields(error));
+  } finally {
+    driverBenefitFinalizationRunning = false;
+  }
+}
 
 function payoutReconciliationIntervalMs(): number {
   const raw = process.env.DRIVER_PAYOUT_RECONCILE_INTERVAL_SECONDS?.trim();
@@ -8523,7 +8538,8 @@ const server = createServer(async (request, response) => {
     if (error instanceof DriverBenefitError) {
       json(
         response,
-        error.code === 'DRIVER_BENEFIT_NOT_FOUND' ? 404 : 422,
+        error.code === 'DRIVER_BENEFIT_NOT_FOUND' ? 404 :
+          error.code === 'DRIVER_BENEFIT_CONFLICT' || error.code === 'DRIVER_BENEFIT_RULES_LOCKED' ? 409 : 422,
         {
           error: error.code,
           message: error.message,
@@ -9265,6 +9281,10 @@ function shutdown(signal: string): Promise<void> {
       clearInterval(noDriverDecisionSweepTimer);
       noDriverDecisionSweepTimer = null;
     }
+    if (driverBenefitFinalizationTimer != null) {
+      clearInterval(driverBenefitFinalizationTimer);
+      driverBenefitFinalizationTimer = null;
+    }
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -9329,4 +9349,9 @@ server.listen(port, '0.0.0.0', () => {
   );
   noDriverDecisionSweepTimer.unref();
   void runNoDriverDecisionSweep();
+  driverBenefitFinalizationTimer = setInterval(
+    () => void runDriverBenefitFinalization(), 60_000,
+  );
+  driverBenefitFinalizationTimer.unref();
+  void runDriverBenefitFinalization();
 });

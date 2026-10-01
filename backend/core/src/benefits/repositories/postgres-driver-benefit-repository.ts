@@ -1,4 +1,5 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
+import { DriverBenefitError, effectiveDriverBenefitStatus } from '../driver-benefit-service.js';
 
 import type {
   DriverBenefitBaseRecord,
@@ -41,6 +42,8 @@ interface CampaignRow {
   low_cancellation_bonus_points: number;
   missions: DriverBenefitMission[];
   prizes: DriverBenefitPrize[];
+  rules_locked_at: Date | null;
+  closed_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -84,7 +87,7 @@ const CAMPAIGN_COLUMNS = `
   participant_driver_ids, excluded_driver_ids, status, starts_at, ends_at,
   top_count, min_participants, ride_points, five_star_points,
   four_star_points, low_cancellation_max_bps,
-  low_cancellation_bonus_points, missions, prizes, created_at, updated_at
+  low_cancellation_bonus_points, missions, prizes, rules_locked_at, closed_at, created_at, updated_at
 `;
 
 function mapSettings(row: SettingsRow): DriverBenefitSettingsRecord {
@@ -116,6 +119,8 @@ function mapCampaign(row: CampaignRow): DriverBenefitCampaignRecord {
     lowCancellationBonusPoints: row.low_cancellation_bonus_points,
     missions: row.missions ?? [],
     prizes: row.prizes ?? [],
+    ...(row.rules_locked_at == null ? {} : { rulesLockedAt: row.rules_locked_at.toISOString() }),
+    ...(row.closed_at == null ? {} : { closedAt: row.closed_at.toISOString() }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -234,6 +239,7 @@ export class PostgresDriverBenefitRepository
   async findCampaign(
     id: string,
   ): Promise<DriverBenefitCampaignRecord | null> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
     const result = await this.pool.query<CampaignRow>(
       `SELECT ${CAMPAIGN_COLUMNS}
        FROM driver_benefit_campaigns
@@ -292,6 +298,7 @@ export class PostgresDriverBenefitRepository
 
   async updateCampaign(
     campaign: DriverBenefitCampaignRecord,
+    expectedUpdatedAt: string,
   ): Promise<DriverBenefitCampaignRecord> {
     const result = await this.pool.query<CampaignRow>(
       `UPDATE driver_benefit_campaigns
@@ -314,8 +321,10 @@ export class PostgresDriverBenefitRepository
            low_cancellation_bonus_points = $18,
            missions = $19::jsonb,
            prizes = $20::jsonb,
-           updated_at = $21
-       WHERE id = $1
+           updated_at = $21,
+           rules_locked_at = $23,
+           closed_at = $24
+       WHERE id = $1 AND updated_at = $22::timestamptz
        RETURNING ${CAMPAIGN_COLUMNS}`,
       [
         campaign.id,
@@ -339,10 +348,14 @@ export class PostgresDriverBenefitRepository
         JSON.stringify(campaign.missions),
         JSON.stringify(campaign.prizes),
         campaign.updatedAt,
+        expectedUpdatedAt,
+        campaign.rulesLockedAt ?? null,
+        campaign.closedAt ?? null,
       ],
     );
     const row = result.rows[0];
-    if (row == null) throw new Error('Campanha não encontrada.');
+    if (row == null) throw new DriverBenefitError('DRIVER_BENEFIT_CONFLICT',
+      'A campanha foi alterada por outro operador. Atualize antes de salvar.');
     return mapCampaign(row);
   }
 
@@ -366,7 +379,8 @@ export class PostgresDriverBenefitRepository
     const result = await this.pool.query<BaseRow>(
       `INSERT INTO driver_benefit_driver_bases (
          driver_id, zone_id, locality_id, updated_at
-       ) VALUES ($1,$2,$3,$4)
+       ) SELECT $1,$2,$3,$4
+         WHERE EXISTS (SELECT 1 FROM driver_profiles WHERE driver_id=$1)
        ON CONFLICT (driver_id)
        DO UPDATE SET
          zone_id = EXCLUDED.zone_id,
@@ -381,7 +395,8 @@ export class PostgresDriverBenefitRepository
       ],
     );
     const row = result.rows[0];
-    if (row == null) throw new Error('Base do motorista não foi persistida.');
+    if (row == null) throw new DriverBenefitError('INVALID_DRIVER_BENEFIT_BASE',
+      'Motorista não encontrado para cadastrar a base territorial.');
     return mapBase(row);
   }
 
@@ -395,8 +410,51 @@ export class PostgresDriverBenefitRepository
 
   async rankingStats(
     campaign: DriverBenefitCampaignRecord,
+    now = new Date(),
   ): Promise<DriverBenefitStatsRecord[]> {
-    const eligible = await this.pool.query<EligibleDriverRow>(
+    if (effectiveDriverBenefitStatus(campaign, now) !== 'ended') {
+      return this.calculateStats(campaign, this.pool, now);
+    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query<CampaignRow>(
+        `SELECT ${CAMPAIGN_COLUMNS} FROM driver_benefit_campaigns WHERE id=$1 FOR UPDATE`,
+        [campaign.id],
+      );
+      const row = locked.rows[0];
+      if (row == null || mapCampaign(row).updatedAt !== campaign.updatedAt) {
+        throw new DriverBenefitError('DRIVER_BENEFIT_CONFLICT',
+          'A campanha mudou durante a consulta. Atualize para obter o resultado atual.');
+      }
+      const result = await client.query<{ stats: DriverBenefitStatsRecord[] }>(
+        'SELECT stats FROM driver_benefit_results WHERE campaign_id=$1', [campaign.id],
+      );
+      let stats = result.rows[0]?.stats;
+      if (stats == null) {
+        stats = await this.calculateStats(campaign, client, now);
+        await client.query(
+          'INSERT INTO driver_benefit_results (campaign_id,stats,finalized_at) VALUES ($1,$2::jsonb,$3)',
+          [campaign.id, JSON.stringify(stats), now.toISOString()],
+        );
+      }
+      await client.query('COMMIT');
+      return stats;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async calculateStats(
+    campaign: DriverBenefitCampaignRecord,
+    database: Pool | PoolClient,
+    now: Date,
+  ): Promise<DriverBenefitStatsRecord[]> {
+    const cutoff = new Date(Math.min(now.getTime(), Date.parse(campaign.closedAt ?? campaign.endsAt))).toISOString();
+    const eligible = await database.query<EligibleDriverRow>(
       `SELECT
          p.driver_id,
          COALESCE(NULLIF(p.preferred_name, ''), p.full_name) AS display_name,
@@ -429,7 +487,7 @@ export class PostgresDriverBenefitRepository
     if (driverIds.length === 0) return [];
 
     const [rides, ratings] = await Promise.all([
-      this.pool.query<RideAggregateRow>(
+      database.query<RideAggregateRow>(
         `SELECT
            driver_id,
            state,
@@ -438,18 +496,18 @@ export class PostgresDriverBenefitRepository
            destination_zone_id,
            destination_locality_id,
            COUNT(*)::int AS count
-         FROM rides
+         FROM driver_benefit_ride_events
          WHERE driver_id = ANY($1::text[])
            AND category = $2
-           AND updated_at >= $3
-           AND updated_at < $4
+           AND occurred_at >= $3::timestamptz
+           AND occurred_at < $4::timestamptz
            AND state IN ('COMPLETED', 'CANCELLED_BY_DRIVER')
          GROUP BY
            driver_id, state, origin_zone_id, origin_locality_id,
            destination_zone_id, destination_locality_id`,
-        [driverIds, campaign.category, campaign.startsAt, campaign.endsAt],
+        [driverIds, campaign.category, campaign.startsAt, cutoff],
       ),
-      this.pool.query<RatingAggregateRow>(
+      database.query<RatingAggregateRow>(
         `SELECT
            r.driver_id,
            dr.stars,
@@ -459,16 +517,17 @@ export class PostgresDriverBenefitRepository
            r.destination_locality_id,
            COUNT(*)::int AS count
          FROM driver_ratings dr
-         JOIN rides r ON r.id = dr.ride_id
+         JOIN driver_benefit_ride_events r ON r.ride_id = dr.ride_id AND r.driver_id = dr.driver_id
          WHERE r.driver_id = ANY($1::text[])
            AND r.category = $2
            AND r.state = 'COMPLETED'
-           AND r.updated_at >= $3
-           AND r.updated_at < $4
+           AND r.occurred_at >= $3::timestamptz
+           AND r.occurred_at < $4::timestamptz
+           AND dr.created_at < $4::timestamptz
          GROUP BY
            r.driver_id, dr.stars, r.origin_zone_id, r.origin_locality_id,
            r.destination_zone_id, r.destination_locality_id`,
-        [driverIds, campaign.category, campaign.startsAt, campaign.endsAt],
+        [driverIds, campaign.category, campaign.startsAt, cutoff],
       ),
     ]);
 
@@ -513,6 +572,11 @@ export class PostgresDriverBenefitRepository
       if (row.stars === 4) current.fourStarRatings += row.count;
     }
 
-    return [...stats.values()];
+    // A territorial campaign in ride mode needs evidence of activity in that
+    // territory. Drivers who only operate elsewhere cannot unlock its prizes.
+    return [...stats.values()].filter((item) =>
+      campaign.regionMode !== 'ride' || campaign.regions.length === 0 ||
+      item.completedRides + item.cancelledByDriver > 0,
+    );
   }
 }

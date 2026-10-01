@@ -198,6 +198,11 @@ export function driverBenefitCampaignPayload(values) {
     );
   }
 
+  const topCount = integer(values.topCount, 'Top premiado', 1, 50);
+  const prizes = parsePrizeLines(values.prizes);
+  if (prizes.some((prize) => prize.rank > topCount)) {
+    throw new Error('A posição do prêmio deve estar dentro do Top premiado.');
+  }
   return {
     name: String(values.name ?? '').trim(),
     category: values.category,
@@ -208,7 +213,7 @@ export function driverBenefitCampaignPayload(values) {
     excludedDriverIds: lines(values.excludedDriverIds),
     startsAt,
     endsAt,
-    topCount: integer(values.topCount, 'Top premiado', 1, 50),
+    topCount,
     minParticipants: integer(
       values.minParticipants,
       'Mínimo de participantes',
@@ -241,8 +246,24 @@ export function driverBenefitCampaignPayload(values) {
       100000,
     ),
     missions: parseMissionLines(values.missions),
-    prizes: parsePrizeLines(values.prizes),
+    prizes,
   };
+}
+
+export function driverBenefitCampaignPatch(campaign, values) {
+  const payload = driverBenefitCampaignPayload(values);
+  if (campaign.rulesLocked) {
+    return { name: payload.name, prizes: payload.prizes, expectedUpdatedAt: campaign.updatedAt };
+  }
+  for (const key of ['startsAt', 'endsAt']) {
+    if (values[key] === localDateTimeValue(campaign[key])) payload[key] = campaign[key];
+  }
+  payload.missions = payload.missions.map((mission, index) => {
+    const previous = campaign.missions?.[index];
+    return previous?.kind === mission.kind && previous.title === mission.title
+      ? { ...mission, id: previous.id } : mission;
+  });
+  return { ...payload, expectedUpdatedAt: campaign.updatedAt };
 }
 
 export function createDriverBenefitsAdmin({
@@ -256,6 +277,7 @@ export function createDriverBenefitsAdmin({
   let busy = false;
   let data = { settings: { enabled: false }, campaigns: [] };
   let regionOptions = [];
+  let editingCampaign = null;
   const listeners = [];
   const el = (id) => root.querySelector(`#${id}`);
 
@@ -323,10 +345,11 @@ export function createDriverBenefitsAdmin({
 
   function syncParticipantMode() {
     const selected = el('benefit-participant-mode').value === 'selected';
-    el('benefit-selected-drivers-field').hidden = !selected;
+    el('benefit-selected-driver-ids-field').hidden = !selected;
   }
 
   function resetForm() {
+    editingCampaign = null;
     el('benefit-campaign-form').reset();
     el('benefit-campaign-id').value = '';
     el('benefit-top-count').value = '3';
@@ -339,6 +362,7 @@ export function createDriverBenefitsAdmin({
     el('benefit-form-title').textContent = 'Nova campanha';
     el('benefit-save').textContent = 'Criar campanha em rascunho';
     syncParticipantMode();
+    setBusy(busy);
   }
 
   function campaignValues() {
@@ -371,6 +395,7 @@ export function createDriverBenefitsAdmin({
   }
 
   function editCampaign(campaign) {
+    editingCampaign = campaign;
     el('benefit-campaign-id').value = campaign.id;
     el('benefit-name').value = campaign.name;
     el('benefit-category').value = campaign.category;
@@ -379,6 +404,15 @@ export function createDriverBenefitsAdmin({
     el('benefit-region-mode').value = campaign.regionMode;
     el('benefit-participant-mode').value = campaign.participantMode;
     const selected = new Set((campaign.regions ?? []).map(regionKey));
+    for (const region of campaign.regions ?? []) {
+      const key = regionKey(region);
+      if (regionOptions.some((item) => item.key === key)) continue;
+      regionOptions.push({ key, label: key, region });
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = key;
+      el('benefit-regions').append(option);
+    }
     for (const option of el('benefit-regions').options) {
       option.selected = selected.has(option.value);
     }
@@ -408,6 +442,7 @@ export function createDriverBenefitsAdmin({
     el('benefit-form-title').textContent = 'Editar campanha';
     el('benefit-save').textContent = 'Salvar alterações';
     syncParticipantMode();
+    setBusy(busy);
     el('benefit-campaign-form').scrollIntoView({
       behavior: 'smooth',
       block: 'start',
@@ -416,6 +451,8 @@ export function createDriverBenefitsAdmin({
 
   function setBusy(value) {
     busy = value;
+    const locked = editingCampaign?.rulesLocked === true;
+    el('benefit-rules-lock-note').hidden = !locked;
     for (const control of root.querySelectorAll('button,input,select,textarea')) {
       if (control.id === 'benefits-refresh') {
         control.disabled = value;
@@ -426,8 +463,9 @@ export function createDriverBenefitsAdmin({
         control.closest('#benefit-base-form') ||
         control.id === 'benefits-global-toggle'
       ) {
-        control.disabled =
-          value || !hasScope('drivers:benefits:write');
+        const lockedField = locked && control.closest('#benefit-campaign-form') &&
+          !['benefit-name', 'benefit-prizes', 'benefit-save', 'benefit-campaign-id'].includes(control.id);
+        control.disabled = value || !hasScope('drivers:benefits:write') || lockedField;
       }
     }
   }
@@ -448,11 +486,13 @@ export function createDriverBenefitsAdmin({
     button.textContent = label;
     button.disabled = busy || !hasScope('drivers:benefits:write');
     listen(button, 'click', () => {
+      if (status === 'ended' && !globalThis.confirm('Encerrar a campanha e preservar sua classificação final? Ela não poderá ser reaberta.')) return;
       void perform(async () => {
         await api.setDriverBenefitCampaignStatus(
           getToken(),
           campaign.id,
           status,
+          campaign.updatedAt,
         );
         await reload();
         show('Status da campanha atualizado.', 'success');
@@ -546,11 +586,13 @@ export function createDriverBenefitsAdmin({
         edit.className = 'button button--ghost-dark';
         edit.textContent = 'Editar';
         listen(edit, 'click', () => editCampaign(campaign));
-        actions.append(edit);
+        if (campaign.effectiveStatus !== 'ended') actions.append(edit);
 
         if (campaign.status === 'draft') {
           actions.append(statusButton('Agendar', 'scheduled', campaign));
-          actions.append(statusButton('Ativar agora', 'active', campaign));
+          if (Date.parse(campaign.startsAt) <= Date.now() && Date.now() < Date.parse(campaign.endsAt)) {
+            actions.append(statusButton('Ativar', 'active', campaign));
+          }
         } else if (
           campaign.effectiveStatus === 'active' &&
           campaign.status !== 'paused'
@@ -561,7 +603,6 @@ export function createDriverBenefitsAdmin({
           actions.append(statusButton('Retomar', 'active', campaign));
           actions.append(statusButton('Encerrar', 'ended', campaign));
         } else if (campaign.effectiveStatus === 'scheduled') {
-          actions.append(statusButton('Ativar agora', 'active', campaign));
           actions.append(statusButton('Voltar a rascunho', 'draft', campaign));
         }
       }
@@ -691,7 +732,11 @@ export function createDriverBenefitsAdmin({
       const payload = driverBenefitCampaignPayload(campaignValues());
       const id = el('benefit-campaign-id').value.trim();
       if (id) {
-        await api.updateDriverBenefitCampaign(getToken(), id, payload);
+        if (editingCampaign == null || editingCampaign.id !== id) {
+          throw new Error('Atualize e abra a campanha novamente antes de salvar.');
+        }
+        const patch = driverBenefitCampaignPatch(editingCampaign, campaignValues());
+        await api.updateDriverBenefitCampaign(getToken(), id, patch);
         show('Campanha atualizada.', 'success');
       } else {
         await api.createDriverBenefitCampaign(getToken(), payload);
