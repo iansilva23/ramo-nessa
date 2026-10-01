@@ -165,6 +165,8 @@ class _CouponPaymentService implements PassengerPaymentService {
         allowedMethods: {'pix', 'card', 'wallet'},
         paymentRequiredBeforeDispatch: true,
         passengerWalletEnabled: true,
+        pixPriceAdjustmentBps: 0,
+        cardPriceAdjustmentBps: 0,
       );
 
   @override
