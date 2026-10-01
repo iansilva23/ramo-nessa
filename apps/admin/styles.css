@@ -2354,14 +2354,14 @@ td strong {
 .fleet-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 16px;
+  margin-bottom: 24px;
 }
 
 .fleet-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.75fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 0.7fr);
+  gap: 24px;
   align-items: stretch;
 }
 
