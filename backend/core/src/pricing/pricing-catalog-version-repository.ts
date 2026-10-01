@@ -43,5 +43,10 @@ export interface PricingCatalogVersionRepository {
     publishedAt: string;
   }): Promise<PricingCatalogVersionRecord | null>;
 
+  deleteDraft(input: {
+    id: string;
+    expectedUpdatedAt: string;
+  }): Promise<PricingCatalogVersionRecord | null>;
+
   findEffective(at: string): Promise<PricingCatalogVersionRecord | null>;
 }
