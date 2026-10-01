@@ -39,6 +39,17 @@ export interface PricingLocalityPolicy {
   applyNightSurcharge: boolean;
 }
 
+export interface DistanceFarePolicy {
+  id: string;
+  anchorZoneId: ZoneId;
+  anchorLocalityId: string;
+  category: Exclude<ServiceCategory, 'buggy'>;
+  minKm: number;
+  maxKm: number;
+  minimumFareCents: number;
+  pricePerKmCents: number;
+}
+
 function localityPoliciesFor(
   table: Record<string, LocalityPricing>,
   options: {
@@ -93,6 +104,7 @@ export interface PricingCatalogSnapshot {
     prea: Record<string, PricingLocalityPolicy>;
     jijoca: Record<string, PricingLocalityPolicy>;
   };
+  distanceFarePolicies: DistanceFarePolicy[];
   pickupPolicy: {
     freeKm: number;
     fuelPriceCentsPerLiter: number;
@@ -226,6 +238,7 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
       includeComfortBlack: false,
     }),
   },
+  distanceFarePolicies: [],
   pickupPolicy: {
     freeKm: FREE_PICKUP_KM,
     fuelPriceCentsPerLiter: FUEL_PRICE_CENTS_PER_LITER,
@@ -272,6 +285,7 @@ export function normalizePricingCatalogSnapshot(
     externalLocalities?: string[];
     localityGeofences?: PricingCatalogSnapshot['localityGeofences'];
     localityPolicies?: PricingCatalogSnapshot['localityPolicies'];
+    distanceFarePolicies?: PricingCatalogSnapshot['distanceFarePolicies'];
     categoryPolicies?: PricingCatalogSnapshot['categoryPolicies'];
   };
 
@@ -323,5 +337,9 @@ export function normalizePricingCatalogSnapshot(
             }),
           }
         : structuredClone(value.localityPolicies),
+    distanceFarePolicies:
+      Array.isArray(value.distanceFarePolicies)
+        ? structuredClone(value.distanceFarePolicies)
+        : [],
   };
 }
