@@ -85,11 +85,19 @@ export interface AgencyTourCover {
 export interface AppAuthBrandingRecord {
   heroImageVersion: number;
   heroImageMimeType?: string;
+  appIconVersion: number;
+  appIconMimeType?: string;
   updatedAt: string;
 }
 
 export interface AppAuthHero {
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  bytes: Uint8Array;
+  version: number;
+}
+
+export interface AppBrandingIcon {
+  mimeType: 'image/png' | 'image/webp';
   bytes: Uint8Array;
   version: number;
 }
@@ -129,6 +137,12 @@ export interface AdminCommunicationsRepository {
   readAppAuthHero(): Promise<AppAuthHero | null>;
   saveAppAuthHero(input: {
     mimeType: AppAuthHero['mimeType'];
+    bytes: Uint8Array;
+    updatedAt: string;
+  }): Promise<AppAuthBrandingRecord>;
+  readAppBrandingIcon(): Promise<AppBrandingIcon | null>;
+  saveAppBrandingIcon(input: {
+    mimeType: AppBrandingIcon['mimeType'];
     bytes: Uint8Array;
     updatedAt: string;
   }): Promise<AppAuthBrandingRecord>;
