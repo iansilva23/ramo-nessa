@@ -7,6 +7,8 @@ import '../../../core/network/json_response.dart';
 import '../domain/card_ride_payment_result.dart';
 import '../domain/cash_ride_authorization_result.dart';
 import '../domain/passenger_payment_policy.dart';
+import '../domain/passenger_promotion.dart';
+import '../../rides/domain/prepared_ride.dart';
 import '../domain/pix_ride_payment_result.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import '../domain/wallet_topup_result.dart';
@@ -17,15 +19,18 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
     required Uri baseUrl,
     String? accessToken,
     String? passengerId,
+    String? clientInstanceId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
         _accessToken = accessToken ?? '',
         _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
+        _clientInstanceId = clientInstanceId ?? '',
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
   final String _passengerId;
+  final String _clientInstanceId;
   final http.Client _client;
 
   Map<String, String> get _identityHeaders => {
@@ -34,6 +39,8 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
           'authorization': 'Bearer ${_accessToken.trim()}'
         else if (_passengerId.trim().isNotEmpty)
           'x-dev-passenger-id': _passengerId.trim(),
+        if (_clientInstanceId.trim().isNotEmpty)
+          'x-client-instance-id': _clientInstanceId.trim(),
       };
 
   @override
@@ -60,6 +67,155 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
       apiErrorMessage(
         decoded,
         'Não conseguimos consultar as formas de pagamento agora.',
+      ),
+    );
+  }
+
+  @override
+  Future<PassengerPromotionPreference?> promotionPreference() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/promotions/preference'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      final raw = decoded['preference'];
+      if (raw == null) return null;
+      if (raw is Map<String, dynamic>) {
+        try {
+          return PassengerPromotionPreference.fromJson(raw);
+        } catch (_) {}
+      }
+      throw const PassengerPaymentException(
+        'O servidor retornou um cupom salvo inválido.',
+      );
+    }
+    throw PassengerPaymentException(
+      apiErrorMessage(decoded, 'Não conseguimos consultar seu cupom agora.'),
+    );
+  }
+
+  @override
+  Future<PassengerPromotionSaveResult> savePromotionCode(
+    String code,
+  ) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/promotions/preference'),
+          headers: _identityHeaders,
+          body: jsonEncode({'code': code.trim()}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerPromotionSaveResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou um cupom inválido.',
+        );
+      }
+    }
+    throw PassengerPaymentException(
+      apiErrorMessage(decoded, 'Não conseguimos ativar esse cupom.'),
+    );
+  }
+
+  @override
+  Future<void> clearPromotionPreference() async {
+    final response = await _client
+        .delete(
+          _baseUrl.resolve('/v1/promotions/preference'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode == 204) return;
+    final decoded = decodeJsonObject(response.body);
+    throw PassengerPaymentException(
+      apiErrorMessage(decoded, 'Não conseguimos remover o cupom salvo.'),
+    );
+  }
+
+  @override
+  Future<PreparedRide> applyPromotionToRide({
+    required String rideId,
+    String? code,
+  }) async {
+    final response = await _client
+        .put(
+          _baseUrl.resolve('/v1/rides/$rideId/promotion'),
+          headers: _identityHeaders,
+          body: jsonEncode({
+            if (code != null && code.trim().isNotEmpty)
+              'code': code.trim(),
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PreparedRide.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma corrida promocional inválida.',
+        );
+      }
+    }
+    throw PassengerPaymentException(
+      apiErrorMessage(decoded, 'Esse cupom não pôde ser aplicado à corrida.'),
+    );
+  }
+
+  @override
+  Future<PreparedRide> removePromotionFromRide(String rideId) async {
+    final response = await _client
+        .delete(
+          _baseUrl.resolve('/v1/rides/$rideId/promotion'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PreparedRide.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma corrida inválida.',
+        );
+      }
+    }
+    throw PassengerPaymentException(
+      apiErrorMessage(decoded, 'Não conseguimos remover o cupom da corrida.'),
+    );
+  }
+
+  @override
+  Future<FullyPromotionalRidePaymentResult>
+      confirmFullyPromotionalRide(String rideId) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/promotion/confirm'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+    if (response.statusCode == 201 && decoded != null) {
+      try {
+        return FullyPromotionalRidePaymentResult.fromJson(decoded);
+      } catch (_) {
+        throw const PassengerPaymentException(
+          'O servidor retornou uma confirmação promocional inválida.',
+        );
+      }
+    }
+    throw PassengerPaymentException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos confirmar a corrida promocional agora.',
       ),
     );
   }
