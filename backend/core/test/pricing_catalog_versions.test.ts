@@ -8,6 +8,7 @@ import { quoteFare } from '../src/pricing/quote-engine.js';
 import { InMemoryPricingCatalogVersionRepository } from '../src/pricing/repositories/in-memory-pricing-catalog-version-repository.js';
 import {
   createPricingCatalogDraft,
+  deletePricingCatalogDraft,
   pricingCatalogVersionView,
   PricingCatalogVersionError,
   publishPricingCatalogVersion,
@@ -59,6 +60,73 @@ test('cria rascunho imutável do catálogo atual e registra auditoria', async ()
   assert.equal(audit[0]?.action, 'pricing.catalog_version.created');
   assert.equal(audit[0]?.actor.kind, 'user');
   assert.equal(audit[0]?.targetId, draft.id);
+});
+
+test('exclui somente rascunho e registra auditoria sem tocar em versões publicadas', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {
+    kind: 'user' as const,
+    id: 'admin-pricing-delete',
+    name: 'Admin Pricing Delete',
+  };
+
+  const draft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-30T20:00:00.000Z'),
+  });
+
+  const deleted = await deletePricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    versionId: draft.id,
+    expectedUpdatedAt: draft.updatedAt,
+    now: new Date('2026-09-30T20:01:00.000Z'),
+  });
+
+  assert.equal(deleted.id, draft.id);
+  assert.equal(await versions.findById(draft.id), null);
+
+  const audit = await admin.listAudit(10);
+  assert.equal(audit[0]?.action, 'pricing.catalog_version.deleted');
+  assert.equal(audit[0]?.targetId, draft.id);
+
+  const nextDraft = await createPricingCatalogDraft({
+    versions,
+    admin,
+    actor,
+    now: new Date('2026-09-30T20:02:00.000Z'),
+  });
+  const published = await publishPricingCatalogVersion({
+    versions,
+    admin,
+    actor,
+    versionId: nextDraft.id,
+    expectedUpdatedAt: nextDraft.updatedAt,
+    now: new Date('2026-09-30T20:03:00.000Z'),
+  });
+
+  await assert.rejects(
+    () =>
+      deletePricingCatalogDraft({
+        versions,
+        admin,
+        actor,
+        versionId: published.id,
+        expectedUpdatedAt: published.updatedAt,
+      }),
+    (error: unknown) =>
+      error instanceof PricingCatalogVersionError &&
+      error.code === 'PRICING_VERSION_NOT_DRAFT',
+  );
+
+  assert.equal(
+    (await versions.findById(published.id))?.status,
+    'published',
+  );
 });
 
 test('publica rascunho com vigência futura e só o torna efetivo na data definida', async () => {
