@@ -1058,7 +1058,16 @@ try {
   const benefitsOff = await jsonRequest('/v1/driver/me/benefits', { headers: driverAuthHeaders });
   assert.equal(benefitsOff.response.status, 200);
   assert.deepEqual(benefitsOff.payload, { enabled: false, campaigns: [], history: [] });
-  assert.equal((await jsonRequest('/v1/driver/me/benefits')).response.status, 401);
+  // This stack uses NODE_ENV=development with ALLOW_DEV_IDENTITY=false.
+  // Without a Bearer, the existing resolver rejects its disabled dev fallback.
+  const benefitsWithoutIdentity = await jsonRequest('/v1/driver/me/benefits');
+  assert.equal(benefitsWithoutIdentity.response.status, 503);
+  assert.equal(benefitsWithoutIdentity.payload?.error, 'AUTH_NOT_CONFIGURED');
+  const benefitsInvalidBearer = await jsonRequest('/v1/driver/me/benefits', {
+    headers: { authorization: 'Bearer invalid-ranking-session-token' },
+  });
+  assert.equal(benefitsInvalidBearer.response.status, 401);
+  assert.equal(benefitsInvalidBearer.payload?.error, 'AUTH_INVALID');
   assert.equal((await jsonRequest('/v1/driver/me/benefits', { headers: passengerAuthHeaders })).response.status, 401);
   for (const [method, path, body] of [
     ['GET', '/v1/admin/driver-benefits', undefined],
