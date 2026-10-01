@@ -1,3 +1,4 @@
+import { publicPromotionCampaignView } from '../src/promotions/promotion-service.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -166,4 +167,23 @@ test('Um código aplica a tarifa da categoria com comissão zero e ganho integra
     assert.equal(result.quote.platformCommissionCents, 0);
     assert.equal(result.promotion!.passengerPayableCents, expected);
   }
+});
+
+test('perfil de apps antigos não anuncia a menor tarifa como preço universal', () => {
+  const campaign = parseAdminPromotion({
+    ...defaults,
+    kind: 'fixed_driver_fare',
+    categories: ['car', 'moto'],
+    fixedDriverFaresByCategory: { car: 5000, moto: 1000 },
+  });
+  const view = publicPromotionCampaignView(campaign);
+  assert.equal(view.fixedDriverFareCents, undefined);
+  assert.deepEqual(view.fixedDriverFaresByCategory, { car: 5000, moto: 1000 });
+  const legacy = parseAdminPromotion({
+    ...defaults,
+    kind: 'fixed_driver_fare',
+    categories: ['car'],
+    fixedDriverFareCents: 5000,
+  });
+  assert.equal(publicPromotionCampaignView(legacy).fixedDriverFareCents, 5000);
 });

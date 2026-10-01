@@ -280,7 +280,7 @@ export function publicPromotionCampaignView(
     ...(campaign.maxDiscountCents == null
       ? {}
       : { maxDiscountCents: campaign.maxDiscountCents }),
-    ...(campaign.fixedDriverFareCents == null
+    ...(campaign.fixedDriverFareCents == null || campaign.fixedDriverFaresByCategory != null
       ? {}
       : { fixedDriverFareCents: campaign.fixedDriverFareCents }),
     ...(campaign.fixedDriverFaresByCategory == null ? {} : { fixedDriverFaresByCategory: campaign.fixedDriverFaresByCategory }),
