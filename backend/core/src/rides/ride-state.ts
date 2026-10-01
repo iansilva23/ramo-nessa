@@ -98,7 +98,9 @@ export function transitionRide(
 
 export function markRidePaid(
   current: RideState,
-  payment: Pick<PaymentSnapshot, 'status' | 'amountCents' | 'method'>,
+  payment: Pick<PaymentSnapshot, 'status' | 'amountCents'> & {
+    method?: PaymentSnapshot['method'];
+  },
 ): RideState {
   if (current !== 'AWAITING_PAYMENT') {
     throw new RideStateError(
@@ -112,7 +114,9 @@ export function markRidePaid(
 
 export function beginDriverSearch(
   current: RideState,
-  payment: Pick<PaymentSnapshot, 'status' | 'amountCents' | 'method'>,
+  payment: Pick<PaymentSnapshot, 'status' | 'amountCents'> & {
+    method?: PaymentSnapshot['method'];
+  },
 ): RideState {
   if (current !== 'PAID') {
     throw new RideStateError(
