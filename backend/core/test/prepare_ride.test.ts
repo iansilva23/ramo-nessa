@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 import { createPaymentForRide } from '../src/payments/create-payment.js';
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { InMemoryRidePreparationRepository } from '../src/rides/in-memory-ride-preparation-repository.js';
 import {
@@ -262,4 +263,47 @@ test('pagamento não inicia depois que a reserva preparada expirou', async () =>
       }),
     /reserva do motorista expirou/i,
   );
+});
+
+
+test('fallback por distância ignora km enviado pelo cliente e usa rota do Core', async () => {
+  const ctx = await setup();
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.distanceFarePolicies.push({
+    id: 'distance-prea-prea-car',
+    anchorZoneId: 'prea',
+    anchorLocalityId: 'prea',
+    category: 'car',
+    minKm: 0,
+    maxKm: 100,
+    minimumFareCents: 1500,
+    pricePerKmCents: 300,
+  });
+
+  const ride = await prepareRideForPayment({
+    repository: ctx.preparation,
+    drivers: ctx.drivers,
+    routing: new FakeRouting(12),
+    passengerId: 'passenger-distance-fallback',
+    quoteRequest: {
+      origin: { zoneId: 'prea', localityId: 'prea' },
+      destination: { zoneId: 'external' },
+      category: 'car',
+      period: 'day',
+      // O cliente tenta reduzir o valor declarando só 1 km.
+      tripDistanceKm: 1,
+    },
+    pricing: {
+      snapshot: catalog,
+      reference: { catalogVersion: catalog.catalogVersion },
+      version: null,
+    },
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -3.05, longitude: -40.60 },
+    now,
+  });
+
+  assert.equal(ride.tripDistanceKm, 12);
+  assert.equal(ride.quote.ruleId, 'distance-prea-prea-car');
+  assert.equal(ride.quote.baseAmountCents, 3600);
 });
