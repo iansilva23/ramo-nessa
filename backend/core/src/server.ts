@@ -7431,6 +7431,137 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/promotions/preference'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      json(response, 200, {
+        preference: await passengerPromotionPreference({
+          promotions: promotionRepository,
+          passengerId,
+        }),
+      });
+      return;
+    }
+
+    if (
+      request.method === 'PUT' &&
+      requestUrl.pathname === '/v1/promotions/preference'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const code =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        typeof (body as { code?: unknown }).code === 'string'
+          ? String((body as { code: string }).code)
+          : '';
+      const clientInstanceId = promotionClientInstanceId(request);
+      const saved = await savePassengerPromotionPreference({
+        promotions: promotionRepository,
+        passengerId,
+        clientInstanceId,
+        code,
+      });
+
+      if (saved.campaign.kind === 'wallet_credit') {
+        const redeemed = await redeemWalletPromotionCode({
+          promotions: promotionRepository,
+          finance: financeRepository,
+          passengerId,
+          clientInstanceId,
+          code,
+        });
+        json(response, 200, {
+          mode: 'wallet_credit',
+          ...redeemed,
+        });
+        return;
+      }
+
+      json(response, 200, {
+        mode: 'ride_coupon',
+        preference: saved,
+      });
+      return;
+    }
+
+    if (
+      request.method === 'DELETE' &&
+      requestUrl.pathname === '/v1/promotions/preference'
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      await promotionRepository.clearPreference(passengerId);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+
+    const ridePromotionMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/promotion$/,
+    );
+    if (request.method === 'PUT' && ridePromotionMatch != null) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const body = await readJson(request);
+      const code =
+        body != null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        typeof (body as { code?: unknown }).code === 'string'
+          ? String((body as { code: string }).code)
+          : undefined;
+      const ride = await applyPromotionToRide({
+        promotions: promotionRepository,
+        rides: rideRepository,
+        passengerId,
+        clientInstanceId: promotionClientInstanceId(request),
+        rideId: ridePromotionMatch[1]!,
+        ...(code == null ? {} : { code }),
+      });
+      json(response, 200, {
+        ride: passengerRideView(ride),
+        promotion: passengerRideView(ride).promotion ?? null,
+      });
+      return;
+    }
+
+    if (request.method === 'DELETE' && ridePromotionMatch != null) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const ride = await removePromotionFromRide({
+        promotions: promotionRepository,
+        rides: rideRepository,
+        passengerId,
+        rideId: ridePromotionMatch[1]!,
+      });
+      json(response, 200, {
+        ride: passengerRideView(ride),
+        promotion: null,
+      });
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/v1/wallet') {
       const passengerId = await resolvePassengerId({
         request,
