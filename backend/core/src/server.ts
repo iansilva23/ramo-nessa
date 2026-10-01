@@ -580,6 +580,19 @@ function headerValue(
   return normalized || undefined;
 }
 
+function promotionClientInstanceId(request: IncomingMessage): string {
+  const value =
+    headerValue(request, 'x-client-instance-id') ??
+    headerValue(request, 'x-rn-client-instance-id');
+  if (value == null) {
+    throw new PromotionError(
+      'PROMOTION_REQUIRES_DEVICE',
+      'Não foi possível validar este aparelho para usar o cupom.',
+    );
+  }
+  return value;
+}
+
 function requestClientIp(request: IncomingMessage): string | undefined {
   if (process.env.TRUST_PROXY === 'true') {
     const forwarded = headerValue(request, 'x-forwarded-for')
