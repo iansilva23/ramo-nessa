@@ -117,7 +117,7 @@ void main() {
       expect(confirmButton, findsOneWidget);
       await tester.tap(confirmButton);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(service.confirmCalls, 1);
       expect(
