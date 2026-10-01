@@ -514,6 +514,21 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    deletePricingVersion(token, { versionId, expectedUpdatedAt }) {
+      return request(
+        `/v1/admin/pricing/versions/${versionId}`,
+        {
+          method: 'DELETE',
+          token,
+          body: {
+            ...(expectedUpdatedAt
+              ? { expectedUpdatedAt }
+              : {}),
+          },
+        },
+      );
+    },
+
     publishPricingVersion(
       token,
       { versionId, effectiveFrom, expectedUpdatedAt },
