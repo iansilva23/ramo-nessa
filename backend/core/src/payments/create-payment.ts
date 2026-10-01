@@ -8,6 +8,7 @@ import {
 import { isPaymentMethodEnabled, type EnabledPaymentMethod } from './payment-policy.js';
 import type { FinanceRepository } from './finance-repository.js';
 import { PaymentDomainError, type PaymentRecord } from './payment.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
 
 export interface CreatePaymentInput {
   ride: RideRecord;
@@ -51,7 +52,7 @@ export async function createPaymentForRide(
     );
   }
 
-  const baseFareAmountCents = input.ride.quote.totalAmountCents;
+  const baseFareAmountCents = passengerPayableCents(input.ride);
   const amountCents = input.amountCents ?? baseFareAmountCents;
   if (
     !Number.isInteger(amountCents) ||
