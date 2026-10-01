@@ -161,7 +161,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-commission',
     'pricing-localities',
     'pricing-fixed-routes',
-    'pricing-localities-body',
     'pricing-routes-body',
     'pricing-category-count',
     'pricing-category-policies-body',
@@ -171,8 +170,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-policy-four-by-four',
     'pricing-zone-count',
     'pricing-zone-policies-body',
-    'pricing-external-count',
-    'pricing-external-localities-body',
     'pricing-zone-policy-fields',
     'pricing-zone-policy-id',
     'pricing-zone-policy-enabled',
@@ -198,9 +195,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-locality-map-overlay',
     'pricing-locality-map-zoom-in',
     'pricing-locality-map-zoom-out',
-    'pricing-geofence-count',
-    'pricing-geofences-body',
-    'pricing-geofences-empty',
     'pricing-locality-structure-fields',
     'pricing-locality-structure-operation',
     'pricing-locality-structure-scope',
@@ -254,9 +248,11 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(html, /Catálogo ativo protegido/i);
   assert.match(html, /Localidades agora têm uma área própria/i);
   assert.match(html, /Gerenciar localidades/i);
+  assert.equal(html.includes('id="pricing-localities-body"'), false);
+  assert.equal(html.includes('id="pricing-geofences-body"'), false);
+  assert.equal(html.includes('id="pricing-external-localities-body"'), false);
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
-  assert.match(html, /ÁREAS NO MAPA/i);
   assert.match(html, /Adicional noturno do Preá/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
@@ -294,7 +290,6 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(app, /pricing-delivery-bands/);
   assert.match(app, /pricing-delivery-above-max/);
   assert.match(app, /pricing-zone-policies-body/);
-  assert.match(app, /pricing-external-localities-body/);
   assert.match(
     app,
     /bindRouteEvent\('pricing-create-draft-button', 'click'/,
