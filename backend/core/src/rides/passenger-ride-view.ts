@@ -30,11 +30,26 @@ export function publicRideQuoteView(
 export function passengerRideView(ride: RideRecord) {
   const {
     reservedDriverId: _reservedDriverId,
+    promotion: _promotion,
     ...publicRide
   } = ride;
 
   return {
     ...publicRide,
     quote: publicRideQuoteView(ride.quote),
+    ...(ride.promotion == null
+      ? {}
+      : {
+          promotion: {
+            campaignId: ride.promotion.campaignId,
+            code: ride.promotion.code,
+            name: ride.promotion.name,
+            kind: ride.promotion.kind,
+            normalTotalCents: ride.promotion.normalTotalCents,
+            discountCents: ride.promotion.discountCents,
+            passengerPayableCents:
+              ride.promotion.passengerPayableCents,
+          },
+        }),
   };
 }
