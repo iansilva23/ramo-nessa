@@ -260,6 +260,7 @@ import {
   redeemRidePromotion,
   redeemWalletPromotionCode,
   releaseFundedRidePromotion,
+  releaseRidePromotionReservation,
   removePromotionFromRide,
   savePassengerPromotionPreference,
   PromotionError,
@@ -776,6 +777,24 @@ async function releaseExpiredPreparedDriverHold(input: {
 }
 
 
+async function fundAndRedeemRidePromotion(
+  ride: Awaited<ReturnType<typeof rideRepository.findById>> extends infer T
+    ? Exclude<T, null>
+    : never,
+  now: Date,
+): Promise<void> {
+  await fundRidePromotion({
+    finance: financeRepository,
+    ride,
+    now,
+  });
+  await redeemRidePromotion({
+    promotions: promotionRepository,
+    ride,
+    now,
+  });
+}
+
 async function processConfirmedMercadoPagoRide(
   payment: PaymentRecord,
 ): Promise<void> {
@@ -788,6 +807,13 @@ async function processConfirmedMercadoPagoRide(
       rideBeforeConfirmation,
       confirmationTime,
     );
+
+  if (!expiredHold && rideBeforeConfirmation != null) {
+    await fundAndRedeemRidePromotion(
+      rideBeforeConfirmation,
+      confirmationTime,
+    );
+  }
 
   let ride = await confirmRidePayment(rideRepository, {
     rideId: payment.rideId,
@@ -821,6 +847,14 @@ async function processConfirmedMercadoPagoRide(
       passengerId: ride.passengerId,
       now: confirmationTime,
     });
+
+    if (rideBeforeConfirmation != null) {
+      await releaseRidePromotionReservation({
+        promotions: promotionRepository,
+        ride: rideBeforeConfirmation,
+        now: confirmationTime,
+      });
+    }
 
     if (refund.ride.state === 'REFUND_PENDING') {
       sendPushBestEffort({
@@ -7562,6 +7596,103 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const freePromotionPaymentMatch = requestUrl.pathname.match(
+      /^\/v1\/rides\/([0-9a-fA-F-]+)\/promotion\/confirm$/,
+    );
+    if (
+      request.method === 'POST' &&
+      freePromotionPaymentMatch != null
+    ) {
+      const passengerId = await resolvePassengerId({
+        request,
+        sessions: authSessionRepository,
+        identities: authOtpRepository,
+      });
+      const ride = await rideRepository.findById(
+        freePromotionPaymentMatch[1]!,
+      );
+      if (ride == null || ride.passengerId !== passengerId) {
+        json(response, 404, { error: 'RIDE_NOT_FOUND' });
+        return;
+      }
+
+      const now = new Date();
+      const payment = await createFullyPromotionalPayment({
+        finance: financeRepository,
+        ride,
+        now,
+      });
+      await fundAndRedeemRidePromotion(ride, now);
+
+      let currentRide = await confirmRidePayment(rideRepository, {
+        rideId: ride.id,
+        payment,
+        confirmedAt: now,
+      });
+
+      let dispatchStatus:
+        | 'SEARCHING_DRIVER'
+        | 'NO_DRIVER_FOUND'
+        | 'NOT_PREPARED'
+        | 'PENDING_RETRY' = 'PENDING_RETRY';
+
+      if (
+        currentRide.state === 'DRIVER_ASSIGNED' ||
+        currentRide.state === 'DRIVER_ARRIVING' ||
+        currentRide.state === 'DRIVER_ARRIVED' ||
+        currentRide.state === 'IN_PROGRESS' ||
+        currentRide.state === 'COMPLETED' ||
+        currentRide.state === 'SEARCHING_DRIVER'
+      ) {
+        dispatchStatus = 'SEARCHING_DRIVER';
+      } else if (currentRide.state === 'NO_DRIVER_FOUND') {
+        dispatchStatus = 'NO_DRIVER_FOUND';
+      } else {
+        const dispatch = await dispatchRideAfterPayment({
+          ride: currentRide,
+          rides: rideRepository,
+          drivers: driverSupplyRepository,
+          matching: rideMatchingRepository,
+          finance: financeRepository,
+          paymentPolicySettings: paymentPolicySettingsRepository,
+          operationalSettings: operationalSettingsRepository,
+          canOfferDriver: (candidateDriverId) =>
+            canDriverReceiveNewWorkUnderPolicy(candidateDriverId),
+        });
+        dispatchStatus =
+          dispatch.kind === 'OFFER_CREATED' ||
+          dispatch.kind === 'OFFER_ACTIVE'
+            ? 'SEARCHING_DRIVER'
+            : dispatch.kind;
+
+        if (
+          dispatch.kind === 'OFFER_CREATED' ||
+          dispatch.kind === 'OFFER_ACTIVE'
+        ) {
+          const offerRide =
+            await rideRepository.findById(dispatch.offer.rideId);
+          if (offerRide != null) {
+            realtimeHub.publishDriver(dispatch.offer.driverId, {
+              type: 'driver.offer.updated',
+              offer: driverOfferView(dispatch.offer, offerRide),
+              serverTime: new Date().toISOString(),
+            });
+          }
+        }
+        currentRide =
+          (await rideRepository.findById(ride.id)) ?? currentRide;
+      }
+
+      json(response, 201, {
+        payment,
+        ride: passengerRideView(currentRide),
+        dispatchStatus,
+        paymentConfirmed: true,
+        fullyPromotional: true,
+      });
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/v1/wallet') {
       const passengerId = await resolvePassengerId({
         request,
@@ -7825,6 +7956,7 @@ const server = createServer(async (request, response) => {
           duplicateRefund = refund.duplicateRefund;
           dispatchStatus = 'NO_DRIVER_FOUND';
         } else {
+          await fundAndRedeemRidePromotion(ride, new Date());
           currentRide = await confirmRidePayment(rideRepository, {
             rideId: ride.id,
             payment: result.payment,
