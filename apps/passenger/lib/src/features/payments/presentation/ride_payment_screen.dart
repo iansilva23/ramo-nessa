@@ -413,6 +413,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _walletBalanceCents! >= _ride.payableAmountCents;
 
   bool get _cashAvailable =>
+      _ride.promotion == null &&
       _paymentPolicy?.cashAvailable == true;
 
   int get _pixTotalAmountCents =>
@@ -805,18 +806,35 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Tarifa-base da corrida',
+                          _ride.promotion == null
+                              ? 'Tarifa-base da corrida'
+                              : 'Preço com cupom',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 color: RamoColors.muted,
                               ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _ride.formattedTotal,
+                          _ride.promotion == null
+                              ? _ride.formattedTotal
+                              : _ride.formattedPayable,
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                               ),
                         ),
+                        if (_ride.promotion != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Preço normal: ' +
+                                PreparedRide.formatCents(
+                                  _ride.promotion!.normalTotalCents,
+                                ),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: RamoColors.muted,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
