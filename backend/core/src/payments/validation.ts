@@ -1,6 +1,6 @@
 import {
   isPaymentMethodEnabled,
-  type RidePaymentMethod,
+  type EnabledPaymentMethod,
 } from './payment-policy.js';
 
 export class InvalidPaymentRequestError extends Error {
@@ -11,7 +11,7 @@ export class InvalidPaymentRequestError extends Error {
 }
 
 export interface CreatePaymentRequest {
-  method: RidePaymentMethod;
+  method: EnabledPaymentMethod | 'cash';
   payerEmail?: string;
   cardToken?: string;
   paymentMethodId?: string;
