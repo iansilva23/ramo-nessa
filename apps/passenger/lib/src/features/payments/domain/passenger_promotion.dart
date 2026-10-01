@@ -55,11 +55,11 @@ class PassengerPromotionCampaign {
       case 'wallet_credit':
         return valueCents == null
             ? 'Crédito promocional'
-            : '+ ' + formatCents(valueCents!) + ' na carteira';
+            : '+ ${formatCents(valueCents!)} na carteira';
       case 'fixed_discount':
         return valueCents == null
             ? 'Desconto'
-            : formatCents(valueCents!) + ' de desconto';
+            : '${formatCents(valueCents!)} de desconto';
       case 'percent_discount':
         final percent = ((percentBps ?? 0) / 100)
             .toStringAsFixed(
@@ -67,14 +67,14 @@ class PassengerPromotionCampaign {
             );
         final limit = maxDiscountCents == null
             ? ''
-            : ' · até ' + formatCents(maxDiscountCents!);
-        return percent + '% de desconto' + limit;
+            : ' · até ${formatCents(maxDiscountCents!)}';
+        return '$percent% de desconto$limit';
       case 'free_ride':
         return 'Corrida grátis';
       case 'fixed_driver_fare':
         return fixedDriverFareCents == null
             ? 'Tarifa promocional'
-            : 'Corrida por ' + formatCents(fixedDriverFareCents!);
+            : 'Corrida por ${formatCents(fixedDriverFareCents!)}';
       default:
         return 'Benefício promocional';
     }
