@@ -5,6 +5,17 @@ import {
 
 const LOCAL_SCOPES = new Set(['prea', 'jijoca']);
 const PRICE_CATEGORIES = ['moto', 'delivery', 'car'];
+const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
+  'locality-price-moto-kind',
+  'locality-price-moto-min',
+  'locality-price-moto-max',
+  'locality-price-delivery-kind',
+  'locality-price-delivery-min',
+  'locality-price-delivery-max',
+  'locality-price-car-kind',
+  'locality-price-car-min',
+  'locality-price-car-max',
+]);
 const CATEGORY_LABELS = Object.freeze({
   moto: 'Moto',
   delivery: 'Entrega',
@@ -1031,6 +1042,12 @@ export function createLocalitiesAdmin(input) {
         syncPriceCard('car');
       }
     });
+  }
+
+  for (const id of LOCALITY_PRICE_CONTROL_IDS) {
+    if (byId(id) == null) {
+      throw new Error(`Controle de localidade ausente: ${id}`);
+    }
   }
 
   bind();
