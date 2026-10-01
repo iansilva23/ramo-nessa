@@ -11,6 +11,12 @@ const DISTANCE_CATEGORIES = [
   'car',
   'comfort_black',
 ];
+const LOCALITY_CATEGORY_CONTROL_IDS = Object.freeze([
+  'locality-category-moto',
+  'locality-category-delivery',
+  'locality-category-car',
+  'locality-category-comfort',
+]);
 const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-moto-kind',
   'locality-price-moto-min',
@@ -1450,6 +1456,7 @@ export function createLocalitiesAdmin(input) {
   }
 
   for (const id of [
+    ...LOCALITY_CATEGORY_CONTROL_IDS,
     ...LOCALITY_PRICE_CONTROL_IDS,
     ...DISTANCE_CONTROL_IDS,
   ]) {
