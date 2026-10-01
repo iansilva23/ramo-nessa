@@ -1,6 +1,7 @@
 import type { PaymentRecord } from './payment.js';
 import type { RideRecord } from '../rides/ride.js';
 import type { FinanceRepository } from './finance-repository.js';
+import { passengerPayableCents } from '../promotions/promotion-service.js';
 
 export class SettlementError extends Error {
   constructor(
@@ -57,25 +58,33 @@ export async function settleCompletedRide(
   }
 
   const fareAmountCents = input.ride.quote.totalAmountCents;
+  const payableCents = passengerPayableCents(input.ride);
   const allowsPaymentAdjustment =
     input.payment.method === 'pix' || input.payment.method === 'card';
-  const validPaymentAmount = allowsPaymentAdjustment
-    ? input.payment.amountCents >= fareAmountCents
-    : input.payment.amountCents === fareAmountCents;
+  const validPaymentAmount =
+    input.payment.method === 'promotion'
+      ? payableCents === 0 && input.payment.amountCents === 0
+      : allowsPaymentAdjustment
+        ? input.payment.amountCents >= payableCents
+        : input.payment.amountCents === payableCents;
   if (!validPaymentAmount) {
     throw new SettlementError(
       'PAYMENT_AMOUNT_MISMATCH',
-      'Valor pago não confere com o preço aplicável à forma de pagamento.',
+      'Valor pago não confere com o preço promocional aplicável.',
     );
   }
-  const paymentAdjustmentCents =
-    input.payment.amountCents - fareAmountCents;
+  const paymentAdjustmentCents = allowsPaymentAdjustment
+    ? input.payment.amountCents - payableCents
+    : 0;
+  const settlementTotalCents =
+    fareAmountCents + paymentAdjustmentCents;
 
   return repository.settleRide({
     rideId: input.ride.id,
     paymentId: input.payment.id,
     driverId,
-    totalAmountCents: input.payment.amountCents,
+    totalAmountCents: settlementTotalCents,
+    paymentAmountCents: input.payment.amountCents,
     fareAmountCents,
     paymentAdjustmentCents,
     platformCommissionCents: input.ride.quote.platformCommissionCents,
