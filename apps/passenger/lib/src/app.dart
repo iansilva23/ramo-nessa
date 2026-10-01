@@ -89,6 +89,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
       final services = PassengerSessionServices(
         coreUri: coreUri,
         accessToken: normalizedToken,
+        clientInstanceId: clientInstanceId,
         preview: preview,
         paymentService: paymentService,
       );
