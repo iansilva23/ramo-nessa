@@ -79,9 +79,9 @@ CREATE TABLE IF NOT EXISTS promotion_redemptions (
   updated_at timestamptz NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS promotion_redemptions_ride_idx
+CREATE UNIQUE INDEX IF NOT EXISTS promotion_redemptions_active_ride_idx
   ON promotion_redemptions (ride_id)
-  WHERE ride_id IS NOT NULL;
+  WHERE ride_id IS NOT NULL AND status <> 'released';
 
 CREATE INDEX IF NOT EXISTS promotion_redemptions_campaign_status_idx
   ON promotion_redemptions (campaign_id, status, expires_at);
