@@ -567,9 +567,16 @@ export class PostgresAdminCommunicationsRepository
     if (row == null) throw new Error('Imagem de login não foi persistida.');
     return {
       heroImageVersion: row.hero_image_version,
-      ...(row.hero_image_mime_type == null ? {} : { heroImageMimeType: row.hero_image_mime_type }),
+      ...(row.hero_image_mime_type == null
+        ? {}
+        : { heroImageMimeType: row.hero_image_mime_type }),
+      appIconVersion: row.app_icon_version,
+      ...(row.app_icon_mime_type == null
+        ? {}
+        : { appIconMimeType: row.app_icon_mime_type }),
       updatedAt: row.updated_at.toISOString(),
     };
+  }
 
   async readAppBrandingIcon(): Promise<AppBrandingIcon | null> {
     const result = await this.pool.query<AppAuthBrandingRow>(
@@ -615,6 +622,5 @@ export class PostgresAdminCommunicationsRepository
         : { appIconMimeType: row.app_icon_mime_type }),
       updatedAt: row.updated_at.toISOString(),
     };
-  }
   }
 }
