@@ -454,6 +454,10 @@ export function createDriverBenefitsAdmin({
     const locked = editingCampaign?.rulesLocked === true;
     el('benefit-rules-lock-note').hidden = !locked;
     for (const control of root.querySelectorAll('button,input,select,textarea')) {
+      if (control.dataset.benefitScope) {
+        control.disabled = value || !hasScope(control.dataset.benefitScope);
+        continue;
+      }
       if (control.id === 'benefits-refresh') {
         control.disabled = value;
         continue;
@@ -484,6 +488,7 @@ export function createDriverBenefitsAdmin({
     button.type = 'button';
     button.className = 'button button--ghost-dark';
     button.textContent = label;
+    button.dataset.benefitScope = 'drivers:benefits:write';
     button.disabled = busy || !hasScope('drivers:benefits:write');
     listen(button, 'click', () => {
       if (status === 'ended' && !globalThis.confirm('Encerrar a campanha e preservar sua classificação final? Ela não poderá ser reaberta.')) return;
@@ -574,7 +579,8 @@ export function createDriverBenefitsAdmin({
       leaderboard.type = 'button';
       leaderboard.className = 'button button--dark';
       leaderboard.textContent = 'Ver ranking';
-      leaderboard.disabled = !hasScope('drivers:benefits:read');
+      leaderboard.dataset.benefitScope = 'drivers:benefits:read';
+      leaderboard.disabled = busy || !hasScope('drivers:benefits:read');
       listen(leaderboard, 'click', () => {
         void loadLeaderboard(campaign).catch(handle);
       });
@@ -585,6 +591,8 @@ export function createDriverBenefitsAdmin({
         edit.type = 'button';
         edit.className = 'button button--ghost-dark';
         edit.textContent = 'Editar';
+        edit.dataset.benefitScope = 'drivers:benefits:write';
+        edit.disabled = busy;
         listen(edit, 'click', () => editCampaign(campaign));
         if (campaign.effectiveStatus !== 'ended') actions.append(edit);
 

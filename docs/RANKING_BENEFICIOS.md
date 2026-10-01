@@ -93,5 +93,7 @@ nova. Layout usa largura limitada, adaptação do pódio a telas pequenas e font
 ampliadas, além de labels acessíveis para controles e progresso.
 
 O Preflight conserva PNGs dos testes visuais em `driver-benefits-visuals` para
-verificação de layout. Esses testes usam dados de fixture; o Test Stack Audit
+verificação de layout e logs expandidos do Driver. Esses testes usam dados de fixture; o Test Stack Audit
 verifica separadamente gateway, autenticação real, scopes, banco e auditoria.
+O teste do controlador do ADM também confirma que ações de status voltam a
+ficar disponíveis após salvar/recarregar, respeitando permissões de leitura/escrita.

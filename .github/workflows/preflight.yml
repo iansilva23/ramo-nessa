@@ -380,13 +380,17 @@ jobs:
 
       - name: Test Driver
         working-directory: apps/driver
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee "$RUNNER_TEMP/driver-tests.log"
 
       - name: Preserve Driver ranking visual checks
         if: always()
         uses: actions/upload-artifact@v7.0.1
         with:
           name: driver-benefits-visuals-${{ github.run_id }}
-          path: ${{ runner.temp }}/driver-benefits-visuals
+          path: |
+            ${{ runner.temp }}/driver-benefits-visuals
+            ${{ runner.temp }}/driver-tests.log
           if-no-files-found: ignore
           retention-days: 3

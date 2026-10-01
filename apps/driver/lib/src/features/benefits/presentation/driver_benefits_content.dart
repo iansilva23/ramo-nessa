@@ -271,7 +271,8 @@ class _Mission extends StatelessWidget {
     const SizedBox(height: 8),
     ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(
       value: mission.progress, color: RamoColors.brandYellow, backgroundColor: Colors.white12, minHeight: 6,
-      semanticsLabel: mission.title, semanticsValue: '${mission.current} de ${mission.target}',
+      semanticsLabel: '${mission.title}: ${mission.current} de ${mission.target}',
+      semanticsValue: '${(mission.progress * 100).round()}',
     )),
   ]);
 }
@@ -341,10 +342,13 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Container(width: double.infinity, padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: dark ? RamoColors.darkSurface : Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24), border: Border.all(color: dark ? RamoColors.darkBorder : RamoColors.border)),
-      child: child);
+    return SizedBox(width: double.infinity, child: Material(
+      color: dark ? RamoColors.darkSurface : Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: dark ? RamoColors.darkBorder : RamoColors.border)),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(padding: const EdgeInsets.all(18), child: child),
+    ));
   }
 }
 

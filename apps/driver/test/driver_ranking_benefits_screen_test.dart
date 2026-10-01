@@ -17,10 +17,12 @@ void main() {
   setUpAll(() async {
     final root = Platform.environment['FLUTTER_ROOT'];
     if (root == null) return;
-    final font = File('$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
-    if (!await font.exists()) return;
-    final bytes = await font.readAsBytes();
-    await (FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+    for (final entry in {'Roboto': 'Roboto-Regular.ttf', 'MaterialIcons': 'MaterialIcons-Regular.otf'}.entries) {
+      final font = File('$root/bin/cache/artifacts/material_fonts/${entry.value}');
+      if (!await font.exists()) continue;
+      final bytes = await font.readAsBytes();
+      await (FontLoader(entry.key)..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+    }
   });
   testWidgets('ranking e beneficios aparece apenas como em breve', (tester) async {
     await tester.pumpWidget(
@@ -195,6 +197,7 @@ const _captureKey = ValueKey('benefits-visual-boundary');
 Widget _app(DriverBenefitsApi api, {double scale = 1}) => RepaintBoundary(
   key: _captureKey,
   child: MaterialApp(
+    debugShowCheckedModeBanner: false,
     builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: child!),
     home: DriverRankingBenefitsScreen(api: api, clock: () => _now),
   ),
