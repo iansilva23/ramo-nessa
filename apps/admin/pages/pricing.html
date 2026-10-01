@@ -1,9 +1,9 @@
 <section id="view-pricing" class="view-panel" hidden>
             <div class="page-heading page-heading--split">
               <div>
-                <span class="eyebrow eyebrow--dark">CATÁLOGO COMERCIAL</span>
-                <h1>Preços e zonas</h1>
-                <p>Catálogo autoritativo versionado usado pelo Core para preços, categorias, zonas e localidades.</p>
+                <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO OPERACIONAL</span>
+                <h1>Operação e Tarifas</h1>
+                <p>Tarifas, rotas, categorias, disponibilidade e regras operacionais em um catálogo versionado e protegido.</p>
               </div>
               <div class="dashboard-refresh">
                 <small id="pricing-mode">Aguardando catálogo</small>
@@ -15,6 +15,21 @@
                   Atualizar catálogo
                 </button>
               </div>
+            </div>
+
+            <nav class="pricing-section-nav" aria-label="Atalhos de Operação e Tarifas">
+              <a href="#pricing-section-editor">Tarifas e regras</a>
+              <a href="#pricing-section-availability">Disponibilidade</a>
+              <a href="#pricing-section-routes">Rotas</a>
+              <a href="/admin/nova-localidade" data-view="localities">Nova localidade</a>
+            </nav>
+
+            <div class="pricing-locality-callout">
+              <div>
+                <strong>Localidades agora têm uma área própria.</strong>
+                <span>Use “Nova localidade” para cadastrar, editar, excluir, posicionar alfinete e ajustar o raio por etapas.</span>
+              </div>
+              <a class="button button--primary" href="/admin/nova-localidade" data-view="localities">Gerenciar localidades</a>
             </div>
 
             <div class="pricing-summary-grid" aria-label="Resumo do catálogo de preços">
@@ -81,7 +96,7 @@
                 </div>
               </article>
 
-              <article class="panel-card pricing-editor-card">
+              <article id="pricing-section-editor" class="panel-card pricing-editor-card">
                 <div class="panel-card__header">
                   <div>
                     <span class="eyebrow eyebrow--dark">RASCUNHO</span>
@@ -105,12 +120,8 @@
                       <span>Tipo de alteração</span>
                       <select id="pricing-edit-kind">
                         <option value="fixed_route">Rota fixa</option>
-                        <option value="locality_price">Preço por localidade</option>
-                        <option value="locality_policy">Regras da localidade</option>
                         <option value="category_policy">Categoria e elegibilidade</option>
                         <option value="zone_policy">Disponibilidade de zona</option>
-                        <option value="locality_map">Localidade no mapa — alfinete + raio</option>
-                        <option value="locality_structure">Estrutura de localidade</option>
                         <option value="commission_policy">Comissão da plataforma</option>
                         <option value="period_policy">Horário diurno / noturno</option>
                         <option value="pickup_policy">Deslocamento até o passageiro</option>
@@ -477,6 +488,12 @@
               </article>
             </div>
 
+            <div id="pricing-section-availability" class="pricing-section-heading">
+              <span>DISPONIBILIDADE</span>
+              <h2>Categorias e zonas operacionais</h2>
+              <p>Defina onde cada serviço pode operar sem misturar disponibilidade com cadastro de localidade.</p>
+            </div>
+
             <article class="panel-card panel-card--table pricing-table-card">
               <div class="pricing-table-heading">
                 <div>
@@ -604,6 +621,12 @@
                 Nenhuma localidade carregada.
               </div>
             </article>
+
+            <div id="pricing-section-routes" class="pricing-section-heading">
+              <span>ROTAS</span>
+              <h2>Corredores e tarifas fixas</h2>
+              <p>Consulte as ligações fixas e os valores de dia e noite.</p>
+            </div>
 
             <article class="panel-card panel-card--table pricing-table-card">
               <div class="pricing-table-heading">
