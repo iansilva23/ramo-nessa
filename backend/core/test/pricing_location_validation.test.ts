@@ -130,3 +130,36 @@ test('validação de GPS usa localidades e zonas do catálogo vigente', () => {
     /desativada/i,
   );
 });
+
+
+test('geofence versionada protege localidade externa sem placeProof', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.externalLocalities.push('sobral-piloto');
+  catalog.localityGeofences.push({
+    zoneId: 'external',
+    localityId: 'sobral-piloto',
+    centerLatitude: -3.6894,
+    centerLongitude: -40.3482,
+    radiusKm: 12,
+  });
+
+  assert.doesNotThrow(() =>
+    assertPricingLocationMatchesPoint({
+      ref: { zoneId: 'external', localityId: 'sobral-piloto' },
+      point: { latitude: -3.69, longitude: -40.35 },
+      field: 'destination',
+      catalog,
+    }),
+  );
+
+  assert.throws(
+    () =>
+      assertPricingLocationMatchesPoint({
+        ref: { zoneId: 'external', localityId: 'sobral-piloto' },
+        point: { latitude: -3.45, longitude: -40.10 },
+        field: 'destination',
+        catalog,
+      }),
+    /área cadastrada/i,
+  );
+});
