@@ -5,11 +5,19 @@ import test from 'node:test';
 const pagesDir = new URL('../pages/', import.meta.url);
 
 async function adminSource() {
-  const [index, app] = await Promise.all([
+  const [index, app, localities] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
+    readFile(
+      new URL('../src/localities-admin.js', import.meta.url),
+      'utf8',
+    ),
   ]);
-  return { index, app };
+  return {
+    index,
+    app,
+    controls: app + '\n' + localities,
+  };
 }
 
 async function pageSources() {
@@ -56,7 +64,7 @@ test('ADM não possui IDs duplicados em shell ou páginas', async () => {
 });
 
 test('todo controle identificado nas páginas possui ligação no controlador', async () => {
-  const { app } = await adminSource();
+  const { controls } = await adminSource();
   const pages = await pageSources();
 
   for (const page of pages) {
@@ -68,8 +76,8 @@ test('todo controle identificado nas páginas possui ligação no controlador', 
 
     for (const id of interactiveIds) {
       assert.equal(
-        app.includes("'" + id + "'") ||
-          app.includes('"' + id + '"'),
+        controls.includes("'" + id + "'") ||
+          controls.includes('"' + id + '"'),
         true,
         page.name + ': controle #' + id + ' não está ligado ao app.js',
       );
