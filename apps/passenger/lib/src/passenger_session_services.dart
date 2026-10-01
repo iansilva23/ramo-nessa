@@ -16,6 +16,7 @@ class PassengerSessionServices {
   PassengerSessionServices({
     required Uri? coreUri,
     required String? accessToken,
+    String? clientInstanceId,
     PassengerPreviewDependencies? preview,
     PassengerPaymentService? paymentService,
   }) {
@@ -32,7 +33,11 @@ class PassengerSessionServices {
       savedPlaces = null;
     } else if (authenticated) {
       payments = paymentService ??
-          HttpPassengerPaymentService(baseUrl: coreUri, accessToken: token);
+          HttpPassengerPaymentService(
+            baseUrl: coreUri,
+            accessToken: token,
+            clientInstanceId: clientInstanceId,
+          );
       activity =
           HttpPassengerActivityService(baseUrl: coreUri, accessToken: token);
       support =
