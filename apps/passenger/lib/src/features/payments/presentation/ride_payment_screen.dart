@@ -415,28 +415,36 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _paymentPolicy?.cashAvailable == true;
 
   int get _pixTotalAmountCents =>
-      _paymentPolicy?.pixTotalAmountCents(
-        _ride.payableAmountCents,
-      ) ??
-      _ride.payableAmountCents;
+      _ride.promotion != null
+          ? _ride.payableAmountCents
+          : _paymentPolicy?.pixTotalAmountCents(
+                _ride.payableAmountCents,
+              ) ??
+              _ride.payableAmountCents;
 
   int get _pixAdjustmentCents =>
-      _paymentPolicy?.pixAdjustmentCents(
-        _ride.payableAmountCents,
-      ) ??
-      0;
+      _ride.promotion != null
+          ? 0
+          : _paymentPolicy?.pixAdjustmentCents(
+                _ride.payableAmountCents,
+              ) ??
+              0;
 
   int get _cardTotalAmountCents =>
-      _paymentPolicy?.cardTotalAmountCents(
-        _ride.payableAmountCents,
-      ) ??
-      _ride.payableAmountCents;
+      _ride.promotion != null
+          ? _ride.payableAmountCents
+          : _paymentPolicy?.cardTotalAmountCents(
+                _ride.payableAmountCents,
+              ) ??
+              _ride.payableAmountCents;
 
   int get _cardAdjustmentCents =>
-      _paymentPolicy?.cardAdjustmentCents(
-        _ride.payableAmountCents,
-      ) ??
-      0;
+      _ride.promotion != null
+          ? 0
+          : _paymentPolicy?.cardAdjustmentCents(
+                _ride.payableAmountCents,
+              ) ??
+              0;
 
   Future<void> _startPix() async {
     final service = widget.paymentService;

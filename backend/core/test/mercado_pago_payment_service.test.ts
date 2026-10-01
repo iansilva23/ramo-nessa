@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { AuthIdentityRecord } from '../src/auth/auth-otp-repository.js';
 import {
   applyMercadoPagoOrderStatus,
+  createMercadoPagoCardIntent,
   createMercadoPagoPixIntent,
   shouldRefundMercadoPagoPaymentBeforeDispatch,
 } from '../src/payments/mercado-pago-payment-service.js';
@@ -44,6 +45,25 @@ function preparedRide(): RideRecord {
     },
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
+  };
+}
+
+function promotedRide(): RideRecord {
+  const ride = preparedRide();
+  return {
+    ...ride,
+    promotion: {
+      campaignId: 'campaign-exact-remainder',
+      applicationId: 'redemption-exact-remainder',
+      code: 'RESTO30',
+      name: 'Resto exato',
+      kind: 'fixed_discount',
+      normalTotalCents: 12000,
+      discountCents: 3000,
+      passengerPayableCents: 9000,
+      driverEarningsCents: 10800,
+      originalQuote: structuredClone(ride.quote),
+    },
   };
 }
 
@@ -184,6 +204,52 @@ test('Pix Mercado Pago passa de created para pending e depois paid', async () =>
     12000,
   );
   assert.equal(requests[0], 'POST https://api.mercadopago.com/v1/orders');
+});
+
+test('cupom cobra exatamente o restante no Pix mesmo com ajuste configurado', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = promotedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    pixPriceAdjustmentBps: 1000,
+    idempotencyKey: 'pix-coupon-exact-remainder',
+    now,
+  });
+
+  assert.equal(intent.payment.amountCents, 9000);
+  assert.equal(intent.pricing.totalAmountCents, 9000);
+  assert.equal(intent.pricing.adjustmentCents, 0);
+});
+
+test('cupom cobra exatamente o restante no cartão mesmo com ajuste configurado', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = promotedRide();
+
+  const intent = await createMercadoPagoCardIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    cardToken: 'card-token-coupon-test',
+    paymentMethodId: 'visa',
+    paymentMethodType: 'credit_card',
+    installments: 1,
+    cardPriceAdjustmentBps: 1000,
+    idempotencyKey: 'card-coupon-exact-remainder',
+    now,
+  });
+
+  assert.equal(intent.payment.amountCents, 9000);
+  assert.equal(intent.pricing.totalAmountCents, 9000);
+  assert.equal(intent.pricing.adjustmentCents, 0);
 });
 
 test('sem motorista estorna Order Mercado Pago e reverte escrow uma vez', async () => {

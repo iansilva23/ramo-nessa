@@ -75,7 +75,9 @@ export async function createMercadoPagoPixIntent(input: {
 
   const pricing = pixPriceForBaseFare(
     passengerPayableCents(input.ride),
-    input.pixPriceAdjustmentBps ?? 0,
+    input.ride.promotion == null
+      ? input.pixPriceAdjustmentBps ?? 0
+      : 0,
   );
 
   let payment = await createPaymentForRide(input.finance, {
@@ -154,7 +156,9 @@ export async function createMercadoPagoCardIntent(input: {
 
   const pricing = cardPriceForBaseFare(
     passengerPayableCents(input.ride),
-    input.cardPriceAdjustmentBps,
+    input.ride.promotion == null
+      ? input.cardPriceAdjustmentBps
+      : 0,
   );
 
   let payment = await createPaymentForRide(input.finance, {
