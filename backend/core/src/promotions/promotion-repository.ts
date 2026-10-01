@@ -89,6 +89,7 @@ export interface ReservePromotionRedemptionInput {
   perPassengerLimit: number;
   perDeviceLimit: number;
   now: string;
+  replaceRedemptionId?: string;
 }
 
 export interface PromotionRepository {
@@ -112,6 +113,9 @@ export interface PromotionRepository {
   ): Promise<PassengerPromotionPreferenceRecord>;
   clearPreference(passengerId: string): Promise<void>;
 
+  findRedemptionById(
+    id: string,
+  ): Promise<PromotionRedemptionRecord | null>;
   findRedemptionByRideId(
     rideId: string,
   ): Promise<PromotionRedemptionRecord | null>;

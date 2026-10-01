@@ -309,12 +309,29 @@ export class PostgresPromotionRepository implements PromotionRepository {
     );
   }
 
+  async findRedemptionById(
+    id: string,
+  ): Promise<PromotionRedemptionRecord | null> {
+    const result = await this.pool.query<RedemptionRow>(
+      `SELECT ${REDEMPTION_COLUMNS}
+       FROM promotion_redemptions WHERE id = $1 LIMIT 1`,
+      [id],
+    );
+    return result.rows[0] == null ? null : mapRedemption(result.rows[0]);
+  }
+
   async findRedemptionByRideId(
     rideId: string,
   ): Promise<PromotionRedemptionRecord | null> {
     const result = await this.pool.query<RedemptionRow>(
       `SELECT ${REDEMPTION_COLUMNS}
-       FROM promotion_redemptions WHERE ride_id = $1 LIMIT 1`,
+       FROM promotion_redemptions
+       WHERE ride_id = $1
+       ORDER BY
+         CASE WHEN status <> 'released' THEN 0 ELSE 1 END,
+         updated_at DESC,
+         created_at DESC
+       LIMIT 1`,
       [rideId],
     );
     return result.rows[0] == null ? null : mapRedemption(result.rows[0]);
@@ -337,11 +354,51 @@ export class PostgresPromotionRepository implements PromotionRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const campaign = await client.query<{ id: string }>(
-        'SELECT id FROM promotion_campaigns WHERE id = $1 FOR UPDATE',
-        [input.redemption.campaignId],
+
+      let replacement: PromotionRedemptionRecord | null = null;
+      if (input.replaceRedemptionId != null) {
+        const replacementResult = await client.query<RedemptionRow>(
+          `SELECT ${REDEMPTION_COLUMNS}
+           FROM promotion_redemptions
+           WHERE id = $1
+           FOR UPDATE`,
+          [input.replaceRedemptionId],
+        );
+        const replacementRow = replacementResult.rows[0];
+        replacement =
+          replacementRow == null ? null : mapRedemption(replacementRow);
+        if (
+          replacement == null ||
+          replacement.status !== 'reserved' ||
+          replacement.rideId !== input.redemption.rideId ||
+          replacement.passengerId !== input.redemption.passengerId
+        ) {
+          throw new PromotionRepositoryError(
+            'PROMOTION_REFERENCE_CONFLICT',
+            'A reserva anterior da corrida não pode ser substituída.',
+          );
+        }
+      }
+
+      const campaignIds = [
+        ...new Set([
+          input.redemption.campaignId,
+          ...(replacement == null ? [] : [replacement.campaignId]),
+        ]),
+      ].sort();
+      const campaigns = await client.query<{ id: string }>(
+        `SELECT id
+         FROM promotion_campaigns
+         WHERE id = ANY($1::uuid[])
+         ORDER BY id
+         FOR UPDATE`,
+        [campaignIds],
       );
-      if (campaign.rows[0] == null) {
+      if (
+        !campaigns.rows.some(
+          (item) => item.id === input.redemption.campaignId,
+        )
+      ) {
         throw new PromotionRepositoryError(
           'PROMOTION_NOT_FOUND',
           'Campanha não encontrada.',
@@ -368,6 +425,15 @@ export class PostgresPromotionRepository implements PromotionRepository {
         }
         await client.query('COMMIT');
         return item;
+      }
+
+      if (replacement != null) {
+        await client.query(
+          `UPDATE promotion_redemptions
+           SET status = 'released', updated_at = $2
+           WHERE id = $1`,
+          [replacement.id, input.now],
+        );
       }
 
       if (

@@ -1,6 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import type { RideQuoteSnapshot, RideRecord } from '../rides/ride.js';
+import {
+  isDriverPaymentHoldExpired,
+  isRidePreparedForPayment,
+  type RideQuoteSnapshot,
+  type RideRecord,
+} from '../rides/ride.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import type { PaymentRecord } from '../payments/payment.js';
@@ -492,15 +497,18 @@ export async function applyPromotionToRide(input: {
   }
 
   const previousRedemption =
-    await input.promotions.findRedemptionByRideId(ride.id);
+    ride.promotion == null
+      ? null
+      : await input.promotions.findRedemptionById(
+          ride.promotion.applicationId,
+        );
   if (
     previousRedemption != null &&
-    previousRedemption.status === 'reserved'
+    previousRedemption.status !== 'reserved'
   ) {
-    await input.promotions.setRedemptionStatus(
-      previousRedemption.id,
-      'released',
-      now.toISOString(),
+    throw new PromotionError(
+      'PROMOTION_RIDE_STATE_INVALID',
+      'A reserva do cupom atual não pode mais ser substituída.',
     );
   }
   ride = restoreOriginalQuote(ride);
@@ -535,6 +543,9 @@ export async function applyPromotionToRide(input: {
       perPassengerLimit: campaign.perPassengerLimit,
       perDeviceLimit: campaign.perDeviceLimit,
       now: instant,
+      ...(previousRedemption == null
+        ? {}
+        : { replaceRedemptionId: previousRedemption.id }),
     });
   } catch (error) {
     if (error instanceof PromotionRepositoryError) throw error;
@@ -576,11 +587,19 @@ export async function applyPromotionToRide(input: {
       updatedAt: instant,
     });
   } catch (error) {
+    const rollbackInstant = new Date().toISOString();
     await input.promotions.setRedemptionStatus(
       reserved.id,
       'released',
-      new Date().toISOString(),
+      rollbackInstant,
     );
+    if (previousRedemption?.status === 'reserved') {
+      await input.promotions.setRedemptionStatus(
+        previousRedemption.id,
+        'reserved',
+        rollbackInstant,
+      );
+    }
     throw error;
   }
 }
@@ -609,7 +628,11 @@ export async function removePromotionFromRide(input: {
     );
   }
   const redemption =
-    await input.promotions.findRedemptionByRideId(ride.id);
+    ride.promotion == null
+      ? null
+      : await input.promotions.findRedemptionById(
+          ride.promotion.applicationId,
+        );
   if (redemption?.status === 'reserved') {
     await input.promotions.setRedemptionStatus(
       redemption.id,
@@ -732,8 +755,8 @@ export async function redeemRidePromotion(input: {
 }): Promise<void> {
   const promotion = input.ride.promotion;
   if (promotion == null) return;
-  const redemption = await input.promotions.findRedemptionByRideId(
-    input.ride.id,
+  const redemption = await input.promotions.findRedemptionById(
+    promotion.applicationId,
   );
   if (redemption == null || redemption.status === 'redeemed') return;
   if (redemption.status !== 'reserved') {
@@ -756,8 +779,8 @@ export async function releaseRidePromotionReservation(input: {
 }): Promise<void> {
   const promotion = input.ride.promotion;
   if (promotion == null) return;
-  const redemption = await input.promotions.findRedemptionByRideId(
-    input.ride.id,
+  const redemption = await input.promotions.findRedemptionById(
+    promotion.applicationId,
   );
   if (redemption == null || redemption.status === 'released') return;
   if (redemption.status === 'redeemed') {
@@ -778,8 +801,8 @@ export async function releaseFundedRidePromotion(input: {
 }): Promise<void> {
   const promotion = input.ride.promotion;
   if (promotion == null) return;
-  const redemption = await input.promotions.findRedemptionByRideId(
-    input.ride.id,
+  const redemption = await input.promotions.findRedemptionById(
+    promotion.applicationId,
   );
   if (redemption == null || redemption.status === 'released') return;
 
@@ -821,7 +844,25 @@ export async function createFullyPromotionalPayment(input: {
     await input.finance.findPaymentByIdempotencyKey(key);
   if (existing != null) return existing;
 
-  const instant = (input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
+  if (
+    input.ride.state !== 'AWAITING_PAYMENT' ||
+    input.ride.paymentStatus !== 'created' ||
+    !isRidePreparedForPayment(input.ride)
+  ) {
+    throw new PromotionError(
+      'PROMOTION_RIDE_STATE_INVALID',
+      'A corrida não está pronta para confirmar o benefício promocional.',
+    );
+  }
+  if (isDriverPaymentHoldExpired(input.ride, now)) {
+    throw new PromotionError(
+      'PROMOTION_RIDE_STATE_INVALID',
+      'A reserva do motorista expirou. Prepare a corrida novamente.',
+    );
+  }
+
+  const instant = now.toISOString();
   return input.finance.createPayment({
     id: randomUUID(),
     rideId: input.ride.id,

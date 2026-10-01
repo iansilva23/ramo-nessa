@@ -103,6 +103,13 @@ export class InMemoryPromotionRepository
     this.preferences.delete(passengerId);
   }
 
+  async findRedemptionById(
+    id: string,
+  ): Promise<PromotionRedemptionRecord | null> {
+    const item = this.redemptions.get(id);
+    return item == null ? null : structuredClone(item);
+  }
+
   async findRedemptionByRideId(
     rideId: string,
   ): Promise<PromotionRedemptionRecord | null> {
@@ -139,8 +146,27 @@ export class InMemoryPromotionRepository
       return existing;
     }
 
+    const replacement =
+      input.replaceRedemptionId == null
+        ? null
+        : this.redemptions.get(input.replaceRedemptionId) ?? null;
+    if (input.replaceRedemptionId != null) {
+      if (
+        replacement == null ||
+        replacement.status !== 'reserved' ||
+        replacement.rideId !== input.redemption.rideId ||
+        replacement.passengerId !== input.redemption.passengerId
+      ) {
+        throw new PromotionRepositoryError(
+          'PROMOTION_REFERENCE_CONFLICT',
+          'A reserva anterior da corrida não pode ser substituída.',
+        );
+      }
+    }
+
     const active = [...this.redemptions.values()].filter(
       (item) =>
+        item.id !== replacement?.id &&
         item.campaignId === input.redemption.campaignId &&
         activeForLimit(item, input.now),
     );
@@ -168,6 +194,17 @@ export class InMemoryPromotionRepository
       throw new PromotionRepositoryError(
         'PROMOTION_DEVICE_LIMIT_REACHED',
         'Este aparelho já atingiu o limite deste cupom.',
+      );
+    }
+
+    if (replacement != null) {
+      this.redemptions.set(
+        replacement.id,
+        structuredClone({
+          ...replacement,
+          status: 'released',
+          updatedAt: input.now,
+        }),
       );
     }
 
