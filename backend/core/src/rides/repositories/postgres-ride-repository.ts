@@ -52,6 +52,7 @@ interface RideRow {
   total_amount_cents: number;
   platform_commission_cents: number;
   driver_net_cents: number;
+  promotion_snapshot: RideRecord['promotion'] | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -125,6 +126,9 @@ function mapRow(row: RideRow): RideRecord {
       platformCommissionCents: row.platform_commission_cents,
       driverNetCents: row.driver_net_cents,
     },
+    ...(row.promotion_snapshot == null
+      ? {}
+      : { promotion: structuredClone(row.promotion_snapshot) }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -143,7 +147,7 @@ const RETURNING = `
   pricing_catalog_version_id, pricing_catalog_version_number,
   base_amount_cents, pickup_compensation_cents,
   total_amount_cents, platform_commission_cents, driver_net_cents,
-  created_at, updated_at
+  promotion_snapshot, created_at, updated_at
 `;
 
 export class PostgresRideRepository implements RideRepository {
@@ -165,10 +169,10 @@ export class PostgresRideRepository implements RideRepository {
         pricing_catalog_version_id, pricing_catalog_version_number,
         base_amount_cents, pickup_compensation_cents,
         total_amount_cents, platform_commission_cents, driver_net_cents,
-        created_at, updated_at
+        promotion_snapshot, created_at, updated_at
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
       )
       RETURNING ${RETURNING}
       `,
@@ -204,6 +208,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.quote.totalAmountCents,
         ride.quote.platformCommissionCents,
         ride.quote.driverNetCents,
+        ride.promotion ?? null,
         ride.createdAt,
         ride.updatedAt,
       ],
@@ -648,11 +653,14 @@ export class PostgresRideRepository implements RideRepository {
         dropoff_latitude = $10,
         dropoff_longitude = $11,
         driver_pickup_distance_km = $12,
-        pickup_compensation_cents = $13,
-        total_amount_cents = $14,
-        platform_commission_cents = $15,
-        driver_net_cents = $16,
-        updated_at = $17
+        pricing_rule_id = $13,
+        base_amount_cents = $14,
+        pickup_compensation_cents = $15,
+        total_amount_cents = $16,
+        platform_commission_cents = $17,
+        driver_net_cents = $18,
+        promotion_snapshot = $19,
+        updated_at = $20
       WHERE id = $1
       RETURNING ${RETURNING}
       `,
@@ -669,10 +677,13 @@ export class PostgresRideRepository implements RideRepository {
         ride.dropoffLatitude ?? null,
         ride.dropoffLongitude ?? null,
         ride.driverPickupDistanceKm ?? null,
+        ride.quote.ruleId,
+        ride.quote.baseAmountCents,
         ride.quote.pickupCompensationCents,
         ride.quote.totalAmountCents,
         ride.quote.platformCommissionCents,
         ride.quote.driverNetCents,
+        ride.promotion ?? null,
         ride.updatedAt,
       ],
     );
