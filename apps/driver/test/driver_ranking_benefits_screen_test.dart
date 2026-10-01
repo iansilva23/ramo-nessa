@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ramo_driver/src/features/profile/presentation/driver_ranking_benefits_screen.dart';
+import 'package:ramo_nessa_driver/src/features/profile/presentation/driver_ranking_benefits_screen.dart';
 
 void main() {
   testWidgets('ranking e beneficios aparece apenas como em breve', (tester) async {

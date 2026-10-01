@@ -5,7 +5,7 @@ import test from 'node:test';
 const pagesDir = new URL('../pages/', import.meta.url);
 
 async function adminSource() {
-  const [index, app, localities, coupons] = await Promise.all([
+  const [index, app, localities, coupons, benefits] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     // Loaded below alongside the other isolated page controllers.
@@ -14,11 +14,12 @@ async function adminSource() {
       'utf8',
     ),
     readFile(new URL('../src/promotions-admin.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/driver-benefits-admin.js', import.meta.url), 'utf8'),
   ]);
   return {
     index,
     app,
-    controls: app + '\n' + localities + '\n' + coupons,
+    controls: app + '\n' + localities + '\n' + coupons + '\n' + benefits,
   };
 }
 
@@ -153,7 +154,7 @@ test('rotas do menu correspondem às páginas registradas', async () => {
 });
 
 test('ADM evita execução HTML inline e innerHTML', async () => {
-  const { index, app } = await adminSource();
+  const { index, controls } = await adminSource();
   const pages = await pageSources();
   const html = [index, ...pages.map((page) => page.source)].join('\n');
 
@@ -180,6 +181,6 @@ test('ADM evita execução HTML inline e innerHTML', async () => {
     );
   }
 
-  assert.equal(app.includes('.innerHTML'), false);
-  assert.equal(app.includes('insertAdjacentHTML'), false);
+  assert.equal(controls.includes('.innerHTML'), false);
+  assert.equal(controls.includes('insertAdjacentHTML'), false);
 });
