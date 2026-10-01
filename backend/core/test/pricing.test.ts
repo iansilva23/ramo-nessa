@@ -362,3 +362,127 @@ test('regra local controla adicional noturno do Preá', () => {
     assert.equal(quote.baseAmountCents, 3500);
   }
 });
+
+
+test('preço específico continua tendo prioridade sobre fallback por distância', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.distanceFarePolicies.push({
+    id: 'distance-prea-prea-car',
+    anchorZoneId: 'prea',
+    anchorLocalityId: 'prea',
+    category: 'car',
+    minKm: 0,
+    maxKm: 300,
+    minimumFareCents: 1500,
+    pricePerKmCents: 300,
+  });
+
+  const quote = quoteFare(
+    {
+      origin: zone('prea', 'prea'),
+      destination: zone('external', 'sobral'),
+      category: 'car',
+      period: 'day',
+      tripDistanceKm: 100,
+    },
+    catalog,
+  );
+
+  assert.equal(quote.kind, 'exact');
+  if (quote.kind === 'exact') {
+    assert.equal(quote.baseAmountCents, 52000);
+    assert.notEqual(quote.ruleId, 'distance-prea-prea-car');
+  }
+});
+
+test('ponto sem preço cadastrado usa distância real a partir da base', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.distanceFarePolicies.push({
+    id: 'distance-prea-prea-car',
+    anchorZoneId: 'prea',
+    anchorLocalityId: 'prea',
+    category: 'car',
+    minKm: 5,
+    maxKm: 100,
+    minimumFareCents: 2000,
+    pricePerKmCents: 300,
+  });
+
+  const halfway = quoteFare(
+    {
+      origin: zone('prea', 'prea'),
+      destination: zone('external'),
+      category: 'car',
+      period: 'day',
+      tripDistanceKm: 10,
+    },
+    catalog,
+  );
+  assert.equal(halfway.kind, 'exact');
+  if (halfway.kind === 'exact') {
+    assert.equal(halfway.ruleId, 'distance-prea-prea-car');
+    assert.equal(halfway.baseAmountCents, 3000);
+  }
+
+  const short = quoteFare(
+    {
+      origin: zone('prea', 'prea'),
+      destination: zone('external'),
+      category: 'car',
+      period: 'day',
+      tripDistanceKm: 2,
+    },
+    catalog,
+  );
+  assert.equal(short.kind, 'exact');
+  if (short.kind === 'exact') {
+    assert.equal(short.baseAmountCents, 2000);
+  }
+
+  assert.throws(
+    () =>
+      quoteFare(
+        {
+          origin: zone('prea', 'prea'),
+          destination: zone('external'),
+          category: 'car',
+          period: 'day',
+          tripDistanceKm: 101,
+        },
+        catalog,
+      ),
+    (error: unknown) =>
+      error instanceof PricingError &&
+      error.code === 'UNKNOWN_ROUTE',
+  );
+});
+
+test('fallback por distância exige quilometragem quando nenhuma tarifa específica existe', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  catalog.distanceFarePolicies.push({
+    id: 'distance-prea-prea-moto',
+    anchorZoneId: 'prea',
+    anchorLocalityId: 'prea',
+    category: 'moto',
+    minKm: 0,
+    maxKm: 80,
+    minimumFareCents: 1000,
+    pricePerKmCents: 200,
+  });
+
+  assert.throws(
+    () =>
+      quoteFare(
+        {
+          origin: zone('prea', 'prea'),
+          destination: zone('external'),
+          category: 'moto',
+          period: 'day',
+        },
+        catalog,
+      ),
+    (error: unknown) =>
+      error instanceof PricingError &&
+      error.code === 'MISSING_DISTANCE',
+  );
+});
