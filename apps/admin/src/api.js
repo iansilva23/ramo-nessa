@@ -449,6 +449,76 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     setPromotionEnabled(token, id, enabled) {
       return request(`/v1/admin/promotions/${encodeURIComponent(id)}/enabled`, { token, method: 'PATCH', body: { enabled } });
     },
+
+    driverBenefits(token) {
+      return request('/v1/admin/driver-benefits', { token });
+    },
+
+    setDriverBenefitsEnabled(token, enabled) {
+      return request('/v1/admin/driver-benefits/settings', {
+        token,
+        method: 'PUT',
+        body: { enabled },
+      });
+    },
+
+    createDriverBenefitCampaign(token, campaign) {
+      return request('/v1/admin/driver-benefits/campaigns', {
+        token,
+        method: 'POST',
+        body: campaign,
+      });
+    },
+
+    updateDriverBenefitCampaign(token, campaignId, campaign) {
+      return request(
+        `/v1/admin/driver-benefits/campaigns/${encodeURIComponent(campaignId)}`,
+        {
+          token,
+          method: 'PATCH',
+          body: campaign,
+        },
+      );
+    },
+
+    setDriverBenefitCampaignStatus(token, campaignId, status) {
+      return request(
+        `/v1/admin/driver-benefits/campaigns/${encodeURIComponent(campaignId)}/status`,
+        {
+          token,
+          method: 'PATCH',
+          body: { status },
+        },
+      );
+    },
+
+    driverBenefitLeaderboard(token, campaignId) {
+      return request(
+        `/v1/admin/driver-benefits/campaigns/${encodeURIComponent(campaignId)}/leaderboard`,
+        { token },
+      );
+    },
+
+    setDriverBenefitBase(token, driverId, base) {
+      return request(
+        `/v1/admin/driver-benefits/driver-bases/${encodeURIComponent(driverId)}`,
+        {
+          token,
+          method: 'PUT',
+          body: base,
+        },
+      );
+    },
+
+    clearDriverBenefitBase(token, driverId) {
+      return request(
+        `/v1/admin/driver-benefits/driver-bases/${encodeURIComponent(driverId)}`,
+        {
+          token,
+          method: 'DELETE',
+        },
+      );
+    },
     updateAgencyPromotion(token, promotion) {
       return request('/v1/admin/agency-promotion', {
         method: 'PATCH',

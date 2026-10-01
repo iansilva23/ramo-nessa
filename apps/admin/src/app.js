@@ -1,5 +1,6 @@
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
+import { createDriverBenefitsAdmin } from './driver-benefits-admin.js';
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
 import { createLocalitiesAdmin } from './localities-admin.js';
@@ -195,6 +196,7 @@ const routeLoading = byId('route-loading');
 let fleetMap = null;
 let localitiesAdmin = null;
 let promotionsAdmin = null;
+let driverBenefitsAdmin = null;
 let payoutReconciliationBusy = false;
 let currentView = null;
 let routeLoadSequence = 0;
@@ -224,6 +226,11 @@ const adminRoutes = Object.freeze({
     path: '/admin/motoristas',
     title: 'Motoristas',
     page: 'drivers',
+  },
+  benefits: {
+    path: '/admin/ranking-beneficios',
+    title: 'Ranking & Benefícios',
+    page: 'benefits',
   },
   passengers: {
     path: '/admin/passageiros',
@@ -324,6 +331,8 @@ const scopeLabels = new Map([
   ['drivers:profile:write', 'Editar e aprovar perfil e veículo'],
   ['drivers:documents:read', 'Consultar documentos de motoristas'],
   ['drivers:documents:write', 'Revisar documentos de motoristas'],
+  ['drivers:benefits:read', 'Consultar Ranking & Benefícios'],
+  ['drivers:benefits:write', 'Administrar Ranking & Benefícios'],
   ['passengers:auth:read', 'Consultar acesso de passageiros'],
   ['passengers:auth:write', 'Bloquear e desbloquear passageiros'],
   ['rides:read', 'Consultar operação de corridas'],
@@ -373,6 +382,7 @@ const viewAccessScopes = Object.freeze({
     'finance:read',
     'finance:write',
   ],
+  benefits: ['drivers:benefits:read', 'drivers:benefits:write'],
   passengers: ['passengers:auth:read', 'passengers:auth:write'],
   localities: ['pricing:read', 'pricing:write'],
   pricing: ['pricing:read', 'pricing:write'],
@@ -491,6 +501,7 @@ function clearPassengerPhoto() {
 function clearSession(message = '') {
   stopSessionTimer();
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
   closeDriverDocumentInspection();
   state.token = null;
@@ -844,6 +855,7 @@ async function activateView(
   const targetPath = routePath(view);
 
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
   closeDriverDocumentInspection();
   if (currentView === 'staff' && view !== 'staff') {
@@ -10424,6 +10436,21 @@ function initializeRouteView(view) {
     return;
   }
 
+  if (view === 'benefits') {
+    driverBenefitsAdmin = createDriverBenefitsAdmin({
+      root: routeOutlet,
+      api,
+      getToken: () => state.token,
+      hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
+
   if (view === 'overview') {
     renderDashboard(state.dashboard);
     void loadDashboard({ announce: false });
@@ -10640,6 +10667,7 @@ window.addEventListener('popstate', () => {
 
 window.addEventListener('pagehide', () => {
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
   destroyFleetMap();
   destroyLocalitiesAdmin();

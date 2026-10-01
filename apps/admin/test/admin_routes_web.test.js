@@ -7,6 +7,7 @@ const routes = [
   ['fleet', 'frota'],
   ['rides', 'viagens'],
   ['drivers', 'motoristas'],
+  ['benefits', 'ranking-beneficios'],
   ['passengers', 'passageiros'],
   ['localities', 'nova-localidade'],
   ['pricing', 'operacao-tarifas'],
