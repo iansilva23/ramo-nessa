@@ -432,3 +432,29 @@ idempotente. Pagamento em carteira é estornado imediatamente pelo ledger e a
 corrida termina em `REFUNDED`. Pix/cartão terminam em `REFUND_PENDING` com
 `pending_external_gateway`; o Admin não finge que o estorno externo aconteceu
 antes da confirmação do gateway real.
+
+## Cupons e campanhas promocionais
+
+A página `/admin/cupons` integra o painel ao motor de promoções. A consulta exige
+`finance:read`; criação e ativação/desativação exigem `finance:write`. As alterações
+registram o ator autenticado na auditoria, sem identificação crua de aparelhos.
+
+- `GET /v1/admin/promotions`: campanhas com valores, categorias, validade e limites.
+- `POST /v1/admin/promotions`: cria campanha com código único e regras validadas.
+- `PATCH /v1/admin/promotions/:id/enabled`: aceita somente `{ "enabled": boolean }`.
+
+Tipos: crédito na carteira, desconto fixo, percentual com teto opcional, corrida
+ grátis e tarifa promocional fixa. O formulário cria campanhas desativadas para
+revisão antes da ativação. As condições financeiras existentes não são editadas:
+para mudar valores, desative a campanha e crie outro código. Desativar bloqueia
+novas aplicações; corridas já contratadas preservam o snapshot financeiro.
+
+`fixedDriverFaresByCategory` permite um mesmo código com tarifas diferentes para
+Moto, Carro, Entrega, Comfort/4x4 e Buggy. Cada categoria permitida deve ter um
+valor inteiro positivo em centavos. Campanhas antigas com `fixedDriverFareCents`
+continuam compatíveis. Passageiro e motorista usam a tarifa da categoria; a
+comissão permanece zero e não há financiamento da diferença pela empresa.
+A migration 069 adiciona a coluna e uma constraint, preservando as anteriores.
+
+O smoke do stack testa página publicada, sessão obrigatória, bloqueio por escopo,
+os cinco tipos, persistência de tarifas, duplicidade de código e ativação/desativação.

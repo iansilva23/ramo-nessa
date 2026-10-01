@@ -251,7 +251,7 @@ try {
     }
   }
 
-  for (const page of ['overview', 'fleet', 'agency']) {
+  for (const page of ['overview', 'fleet', 'agency', 'coupons']) {
     const response = await fetch(
       `${baseUrl}/admin/pages/${page}.html`,
       {
@@ -352,6 +352,38 @@ try {
   const documentStorageHeaders = {
     authorization: `Bearer ${documentApiKey}`,
   };
+
+
+  // Actual gateway + MFA session + PostgreSQL exercise of the coupon Admin.
+  for (const [method, path, body] of [
+    ['GET','/v1/admin/promotions',undefined],
+    ['POST','/v1/admin/promotions',{code:'NOACCESS',name:'Denied campaign',kind:'free_ride',maxRedemptions:1}],
+  ]) {
+    const denied = await jsonRequest(path, {method,headers:{...documentStorageHeaders,'content-type':'application/json'},
+      ...(body === undefined ? {} : {body:JSON.stringify(body)})});
+    if (denied.response.status !== 403) throw new Error('Cupons aceitaram credencial sem permissão financeira.');
+  }
+  const unauthenticatedCoupons = await jsonRequest('/v1/admin/promotions');
+  if (unauthenticatedCoupons.response.status !== 401) throw new Error('Consulta de cupons não exige sessão.');
+  for (const [kind, values] of Object.entries({wallet_credit:{valueCents:700},fixed_discount:{valueCents:700},
+    percent_discount:{percentBps:2000,maxDiscountCents:1000},free_ride:{},
+    fixed_driver_fare:{categories:['car','moto'],fixedDriverFaresByCategory:{car:5000,moto:1000}}})) {
+    const body={code:`CI_${kind.toUpperCase()}`,name:`CI ${kind}`,kind,maxRedemptions:10,...values};
+    const created=await jsonRequest('/v1/admin/promotions',{method:'POST',headers:{...authHeaders,'content-type':'application/json'},body:JSON.stringify(body)});
+    const campaign=created.payload?.campaign;
+    if(created.response.status!==201 || campaign?.enabled!==false || campaign.kind!==kind) throw new Error(`Criação de cupom ${kind} falhou.`);
+    if(kind==='fixed_driver_fare' && (campaign.fixedDriverFaresByCategory?.car!==5000 || campaign.fixedDriverFaresByCategory?.moto!==1000)) throw new Error('Tarifas por categoria não persistiram.');
+    const duplicate=await jsonRequest('/v1/admin/promotions',{method:'POST',headers:{...authHeaders,'content-type':'application/json'},body:JSON.stringify(body)});
+    if(duplicate.response.status!==409) throw new Error('Código de cupom duplicado foi aceito.');
+    for(const enabled of [true,false]) {
+      const changed=await jsonRequest(`/v1/admin/promotions/${campaign.id}/enabled`,{method:'PATCH',headers:{...authHeaders,'content-type':'application/json'},body:JSON.stringify({enabled})});
+      if(changed.response.status!==200 || changed.payload?.campaign?.enabled!==enabled) throw new Error('Ativação/desativação de cupom falhou.');
+    }
+    const forbidden=await jsonRequest(`/v1/admin/promotions/${campaign.id}/enabled`,{method:'PATCH',headers:{...documentStorageHeaders,'content-type':'application/json'},body:JSON.stringify({enabled:true})});
+    if(forbidden.response.status!==403) throw new Error('Cupom foi ativado sem permissão financeira.');
+  }
+  const couponList=await jsonRequest('/v1/admin/promotions',{headers:authHeaders});
+  if(couponList.response.status!==200 || couponList.payload?.campaigns?.length!==5) throw new Error('Listagem de cupons não retornou as cinco campanhas.');
 
 
   const me = await jsonRequest('/v1/admin/auth/me', {

@@ -1,3 +1,4 @@
+import { createPromotionsAdmin } from './promotions-admin.js';
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
 import { createLocalitiesAdmin } from './localities-admin.js';
@@ -192,10 +193,16 @@ const routeOutlet = byId('route-outlet');
 const routeLoading = byId('route-loading');
 let fleetMap = null;
 let localitiesAdmin = null;
+let promotionsAdmin = null;
 let currentView = null;
 let routeLoadSequence = 0;
 
 const adminRoutes = Object.freeze({
+  coupons: {
+    path: '/admin/cupons',
+    title: 'Cupons',
+    page: 'coupons',
+  },
   overview: {
     path: '/admin/visao-geral',
     title: 'Visão geral',
@@ -367,6 +374,7 @@ const viewAccessScopes = Object.freeze({
   passengers: ['passengers:auth:read', 'passengers:auth:write'],
   localities: ['pricing:read', 'pricing:write'],
   pricing: ['pricing:read', 'pricing:write'],
+  coupons: ['finance:read', 'finance:write'],
   finance: ['finance:read', 'finance:write'],
   notifications: ['communications:read', 'communications:write'],
   design: ['communications:read', 'communications:write'],
@@ -480,6 +488,7 @@ function clearPassengerPhoto() {
 
 function clearSession(message = '') {
   stopSessionTimer();
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   stopFleetPolling();
   closeDriverDocumentInspection();
   state.token = null;
@@ -832,6 +841,7 @@ async function activateView(
     : 'overview';
   const targetPath = routePath(view);
 
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   stopFleetPolling();
   closeDriverDocumentInspection();
   if (currentView === 'staff' && view !== 'staff') {
@@ -10360,6 +10370,14 @@ async function loadOverviewSecondaryMetrics() {
 }
 
 function initializeRouteView(view) {
+  if (view === 'coupons') {
+    promotionsAdmin = createPromotionsAdmin({root: routeOutlet, api,
+      getToken: () => state.token, hasScope,
+      onError(error) { if (error instanceof AdminApiError && error.status === 401) handleAuthenticatedError(error); },
+    });
+    return;
+  }
+
   if (view === 'overview') {
     renderDashboard(state.dashboard);
     void loadDashboard({ announce: false });
@@ -10575,6 +10593,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   stopFleetPolling();
   destroyFleetMap();
   destroyLocalitiesAdmin();

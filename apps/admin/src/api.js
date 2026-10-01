@@ -440,6 +440,11 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    listPromotions(token) { return request('/v1/admin/promotions', { token }); },
+    createPromotion(token, campaign) { return request('/v1/admin/promotions', { token, method: 'POST', body: campaign }); },
+    setPromotionEnabled(token, id, enabled) {
+      return request(`/v1/admin/promotions/${encodeURIComponent(id)}/enabled`, { token, method: 'PATCH', body: { enabled } });
+    },
     updateAgencyPromotion(token, promotion) {
       return request('/v1/admin/agency-promotion', {
         method: 'PATCH',

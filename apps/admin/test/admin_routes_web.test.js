@@ -10,6 +10,7 @@ const routes = [
   ['passengers', 'passageiros'],
   ['localities', 'nova-localidade'],
   ['pricing', 'operacao-tarifas'],
+  ['coupons', 'cupons'],
   ['finance', 'financeiro'],
   ['notifications', 'notificacoes'],
   ['design', 'design-apps'],

@@ -5265,3 +5265,10 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+/* Coupon campaign form follows the existing panel layout. */
+#view-coupons .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#view-coupons fieldset { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; margin: 16px 0; }
+#view-coupons fieldset > label { display: inline-flex; align-items: center; gap: 6px; margin: 8px 16px 8px 0; }
+#coupon-list { display: grid; gap: 16px; }
+@media (max-width: 640px) { #view-coupons .form-grid { grid-template-columns: 1fr; } }

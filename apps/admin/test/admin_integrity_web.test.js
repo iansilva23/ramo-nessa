@@ -5,18 +5,20 @@ import test from 'node:test';
 const pagesDir = new URL('../pages/', import.meta.url);
 
 async function adminSource() {
-  const [index, app, localities] = await Promise.all([
+  const [index, app, localities, coupons] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
+    // Loaded below alongside the other isolated page controllers.
     readFile(
       new URL('../src/localities-admin.js', import.meta.url),
       'utf8',
     ),
+    readFile(new URL('../src/promotions-admin.js', import.meta.url), 'utf8'),
   ]);
   return {
     index,
     app,
-    controls: app + '\n' + localities,
+    controls: app + '\n' + localities + '\n' + coupons,
   };
 }
 
