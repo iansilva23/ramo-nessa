@@ -43,8 +43,8 @@ void main() {
       );
       expect(find.text('INFLU50'), findsOneWidget);
       expect(find.text(r'R$ 150,00'), findsWidgets);
-      expect(find.textContaining('Preço normal: R$ 200,00'), findsOneWidget);
-      expect(find.text('Pix · R$ 150,00'), findsOneWidget);
+      expect(find.textContaining(r'Preço normal: R$ 200,00'), findsOneWidget);
+      expect(find.text(r'Pix · R$ 150,00'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
