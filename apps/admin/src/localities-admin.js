@@ -5,6 +5,12 @@ import {
 
 const LOCAL_SCOPES = new Set(['prea', 'jijoca']);
 const PRICE_CATEGORIES = ['moto', 'delivery', 'car'];
+const DISTANCE_CATEGORIES = [
+  'moto',
+  'delivery',
+  'car',
+  'comfort_black',
+];
 const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-moto-kind',
   'locality-price-moto-min',
@@ -16,6 +22,15 @@ const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-car-min',
   'locality-price-car-max',
 ]);
+const DISTANCE_CONTROL_IDS = Object.freeze(
+  DISTANCE_CATEGORIES.flatMap((category) => [
+    `locality-distance-${category}-enabled`,
+    `locality-distance-${category}-minimum-fare`,
+    `locality-distance-${category}-per-km`,
+    `locality-distance-${category}-min-km`,
+    `locality-distance-${category}-max-km`,
+  ]),
+);
 const CATEGORY_LABELS = Object.freeze({
   moto: 'Moto',
   delivery: 'Entrega',
@@ -25,6 +40,18 @@ const CATEGORY_LABELS = Object.freeze({
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function categoryCheckbox(category) {
+  return byId(
+    category === 'comfort_black'
+      ? 'locality-category-comfort'
+      : `locality-category-${category}`,
+  );
+}
+
+function distancePolicyKey(scope, localityId, category) {
+  return `${scope}:${localityId}:${category}`;
 }
 
 function scopeLabel(scope) {
@@ -164,6 +191,11 @@ export function createLocalitiesAdmin(input) {
     const geofences = Array.isArray(catalog.localityGeofences)
       ? catalog.localityGeofences
       : [];
+    const distancePolicies = Array.isArray(
+      catalog.distanceFarePolicies,
+    )
+      ? catalog.distanceFarePolicies
+      : [];
     const result = [];
     for (const scope of ['prea', 'jijoca']) {
       const values = Array.isArray(catalog.localities?.[scope])
@@ -176,6 +208,11 @@ export function createLocalitiesAdmin(input) {
           label: titleFromId(item.localityId),
           prices: item.prices ?? {},
           policy: item.policy ?? {},
+          distancePolicies: distancePolicies.filter(
+            (rule) =>
+              rule.anchorZoneId === scope &&
+              rule.anchorLocalityId === item.localityId,
+          ),
           geofence:
             geofences.find(
               (area) =>
@@ -191,7 +228,24 @@ export function createLocalitiesAdmin(input) {
         localityId,
         label: titleFromId(localityId),
         prices: {},
-        policy: {},
+        distancePolicies: distancePolicies.filter(
+          (rule) =>
+            rule.anchorZoneId === 'external' &&
+            rule.anchorLocalityId === localityId,
+        ),
+        policy: {
+          enabledCategories: [
+            ...new Set(
+              distancePolicies
+                .filter(
+                  (rule) =>
+                    rule.anchorZoneId === 'external' &&
+                    rule.anchorLocalityId === localityId,
+                )
+                .map((rule) => rule.category),
+            ),
+          ],
+        },
         geofence:
           geofences.find(
             (area) =>
@@ -218,20 +272,16 @@ export function createLocalitiesAdmin(input) {
   }
 
   function activeCategoriesFromForm() {
-    if (!LOCAL_SCOPES.has(byId('locality-scope')?.value)) return [];
+    const scope = byId('locality-scope')?.value ?? 'prea';
     const categories = [];
-    if (byId('locality-category-moto')?.checked) {
-      categories.push('moto');
-    }
-    if (byId('locality-category-delivery')?.checked) {
-      categories.push('delivery');
-    }
-    if (byId('locality-category-car')?.checked) {
-      categories.push('car');
+    for (const category of PRICE_CATEGORIES) {
+      if (categoryCheckbox(category)?.checked) {
+        categories.push(category);
+      }
     }
     if (
-      byId('locality-scope')?.value === 'prea' &&
-      byId('locality-category-comfort')?.checked
+      scope !== 'jijoca' &&
+      categoryCheckbox('comfort_black')?.checked
     ) {
       categories.push('comfort_black');
     }
@@ -251,12 +301,22 @@ export function createLocalitiesAdmin(input) {
     }
   }
 
+  function syncDistanceCard(category) {
+    const selected = categoryCheckbox(category)?.checked === true;
+    const card = byId(`locality-distance-${category}-card`);
+    const enabled =
+      byId(`locality-distance-${category}-enabled`)?.checked === true;
+    const fields = byId(`locality-distance-${category}-fields`);
+    if (card != null) card.hidden = !selected;
+    if (fields != null) fields.hidden = !selected || !enabled;
+  }
+
   function syncScopeUi() {
     const scope = byId('locality-scope')?.value ?? 'prea';
     const local = LOCAL_SCOPES.has(scope);
     const comfort = byId('locality-category-comfort-card');
     const night = byId('locality-night-card');
-    if (comfort != null) comfort.hidden = scope !== 'prea';
+    if (comfort != null) comfort.hidden = scope === 'jijoca';
     if (night != null) night.hidden = scope !== 'prea';
     const serviceNote = byId('locality-external-services-note');
     const priceNote = byId('locality-external-price-note');
@@ -265,18 +325,21 @@ export function createLocalitiesAdmin(input) {
     if (serviceNote != null) serviceNote.hidden = local;
     if (priceNote != null) priceNote.hidden = local;
     if (priceGrid != null) priceGrid.hidden = !local;
-    if (categoryGrid != null) categoryGrid.hidden = !local;
-    if (!local) {
-      for (const category of PRICE_CATEGORIES) {
-        const checkbox = byId(`locality-category-${category}`);
-        if (checkbox != null) checkbox.checked = false;
-      }
-      const comfortCheckbox = byId('locality-category-comfort');
+    if (categoryGrid != null) categoryGrid.hidden = false;
+
+    if (scope === 'jijoca') {
+      const comfortCheckbox = categoryCheckbox('comfort_black');
       if (comfortCheckbox != null) comfortCheckbox.checked = false;
+    }
+    if (scope !== 'prea') {
       const nightCheckbox = byId('locality-night-surcharge');
       if (nightCheckbox != null) nightCheckbox.checked = false;
     }
+
     for (const category of PRICE_CATEGORIES) syncPriceCard(category);
+    for (const category of DISTANCE_CATEGORIES) {
+      syncDistanceCard(category);
+    }
   }
 
   function syncIdPreview() {
