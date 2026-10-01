@@ -250,12 +250,13 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   }
 
   assert.match(html, /data-view=["']pricing["']/);
+  assert.match(html, /Operação e Tarifas/i);
   assert.match(html, /Catálogo ativo protegido/i);
-  assert.match(html, /alfinete \+ raio/i);
+  assert.match(html, /Localidades agora têm uma área própria/i);
+  assert.match(html, /Gerenciar localidades/i);
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
   assert.match(html, /ÁREAS NO MAPA/i);
-  assert.match(html, /Regras da localidade/i);
   assert.match(html, /Adicional noturno do Preá/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
