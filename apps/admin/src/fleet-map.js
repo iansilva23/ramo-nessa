@@ -27,6 +27,19 @@ function project(latitude, longitude, zoom) {
   };
 }
 
+function unproject(x, y, zoom) {
+  const size = worldSize(zoom);
+  const longitude = (x / size) * 360 - 180;
+  const n = Math.PI - (2 * Math.PI * y) / size;
+  const latitude =
+    (180 / Math.PI) *
+    Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return {
+    latitude: clamp(latitude, -85.05112878, 85.05112878),
+    longitude,
+  };
+}
+
 function validFleetItems(items) {
   return (Array.isArray(items) ? items : []).filter((item) => {
     const latitude = Number(item?.location?.latitude);
@@ -109,7 +122,9 @@ export function createFleetMap(input) {
   const zoomOut = input.zoomOut;
   let zoom = 12;
   let fleet = [];
-  let center = DEFAULT_CENTER;
+  let center = { ...DEFAULT_CENTER };
+  let pointer = null;
+  let userPanned = false;
 
   function render() {
     const width = Math.max(1, root.clientWidth);
@@ -208,7 +223,10 @@ export function createFleetMap(input) {
 
   function update(items, options = {}) {
     fleet = validFleetItems(items);
-    if (options.recenter !== false) {
+    const shouldRecenter =
+      options.recenter === true ||
+      (options.recenter !== false && !userPanned);
+    if (shouldRecenter) {
       center = centerFor(fleet);
     }
     render();
@@ -219,8 +237,61 @@ export function createFleetMap(input) {
     render();
   }
 
+  function onPointerDown(event) {
+    if (
+      event.button !== 0 ||
+      (event.target instanceof Element &&
+        event.target.closest(
+          '.fleet-map__controls, .fleet-map__attribution, .fleet-marker',
+        ) != null)
+    ) {
+      return;
+    }
+    root.setPointerCapture(event.pointerId);
+    pointer = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      centerPoint: project(center.latitude, center.longitude, zoom),
+      moved: false,
+    };
+    root.classList.add('is-panning');
+  }
+
+  function onPointerMove(event) {
+    if (pointer?.pointerId !== event.pointerId) return;
+    const dx = event.clientX - pointer.startX;
+    const dy = event.clientY - pointer.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 4) {
+      pointer.moved = true;
+      userPanned = true;
+    }
+    if (!pointer.moved) return;
+    center = unproject(
+      pointer.centerPoint.x - dx,
+      pointer.centerPoint.y - dy,
+      zoom,
+    );
+    render();
+  }
+
+  function finishPointer(event) {
+    if (pointer?.pointerId !== event.pointerId) return;
+    pointer = null;
+    root.classList.remove('is-panning');
+    try {
+      root.releasePointerCapture(event.pointerId);
+    } catch {
+      // O navegador pode já ter liberado o ponteiro.
+    }
+  }
+
   zoomIn.addEventListener('click', () => changeZoom(1));
   zoomOut.addEventListener('click', () => changeZoom(-1));
+  root.addEventListener('pointerdown', onPointerDown);
+  root.addEventListener('pointermove', onPointerMove);
+  root.addEventListener('pointerup', finishPointer);
+  root.addEventListener('pointercancel', finishPointer);
 
   const resize = () => render();
   window.addEventListener('resize', resize);
@@ -230,6 +301,11 @@ export function createFleetMap(input) {
     render,
     destroy() {
       window.removeEventListener('resize', resize);
+      root.removeEventListener('pointerdown', onPointerDown);
+      root.removeEventListener('pointermove', onPointerMove);
+      root.removeEventListener('pointerup', finishPointer);
+      root.removeEventListener('pointercancel', finishPointer);
+      root.classList.remove('is-panning');
       tiles.replaceChildren();
       markers.replaceChildren();
     },
