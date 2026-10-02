@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stagingFirebaseConfiguration } from './firebase.mjs';
 
 function parseEnv(raw) {
   const values = new Map();
@@ -83,5 +84,6 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const envFileArg = process.argv.slice(2).find((value) => value.startsWith('--env-file='));
 const envFile = resolve(here, envFileArg?.slice('--env-file='.length) || '.env');
 const result = validateStagingEnvironment(parseEnv(await readFile(envFile, 'utf8')));
+const firebase = await stagingFirebaseConfiguration(envFile);
 console.log('Configuração de homologação válida para ' + result.domain + '. Mercado Pago sandbox: ' +
-  (result.mercadoPagoSandboxConfigured ? 'configurado' : 'desativado') + '.');
+  (result.mercadoPagoSandboxConfigured ? 'configurado' : 'desativado') + '. Push: ' + firebase.provider + '.');

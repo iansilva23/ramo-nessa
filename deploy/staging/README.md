@@ -72,3 +72,36 @@ node deploy/staging/restore-drill.mjs --backup-dir=/var/backups/ramo-nessa-stagi
 
 Nunca use `docker compose down -v` para resolver falhas.
 Nunca versione `.env`, tokens, TOTP, chaves privadas ou Service Accounts.
+
+## Firebase / FCM opcional na homologação
+
+Apps e API FCM precisam pertencer ao mesmo projeto. A chave privada da conta de
+serviço permanece fora do repositório e é montada somente no Core, como arquivo
+somente leitura. Não enviar o JSON pelo chat ou incluí-lo nos builds móveis.
+
+Depois de transferir a credencial para um caminho privado absoluto no VPS,
+configure no `.env` existente, preservando os demais valores:
+
+```dotenv
+PUSH_PROVIDER=fcm
+FIREBASE_PROJECT_ID=ramo-nessa
+FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/home/ubuntu/.config/ramo-nessa/staging/firebase-service-account.json
+```
+
+Arquivo regular (sem symlink), permissão `0600`, proprietário UID `1000` (o mesmo
+usuário `node` do Core). O validador confere projeto, conta e chave RSA antes de
+iniciar. Erros não imprimem a chave privada. Credencial ausente/incorreta impede
+a ativação; não há fallback silencioso para Push desligado.
+
+Use `node deploy/staging/start.mjs` para iniciar/atualizar. Ele seleciona
+automaticamente `compose.firebase.yml` quando FCM está habilitado. O script de
+proprietário também preserva essa seleção. Não recrie Core com apenas o Compose
+base: ele mantém Push desligado. Consultas `ps` e backups continuam usando o
+mesmo projeto/volumes. Para voltar a desativar, defina `PUSH_PROVIDER=disabled`
+e execute `start.mjs`; a montagem privada é retirada do Core.
+
+O ambiente antigo, sem os novos campos, continua com Push desativado e não exige
+credencial. FCM não ativa SMS, mapas reais, pagamentos ou repasses. Configuração
+do servidor não certifica entrega: ainda são necessários configuração Firebase
+nos binários, registro de token após login e teste em Android físico; iPhone
+também depende de APNs e assinatura Apple.
