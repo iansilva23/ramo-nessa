@@ -30,7 +30,7 @@ void main() {
     expect(location.calls, 1);
     expect(api.lastSyncedPosition?.latitude, location.position.latitude);
     expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap))
-        .supply.online, isFalse);
+        .supply!.online, isFalse);
 
     location.position = const DriverPosition(
       latitude: -2.7979,
@@ -40,8 +40,8 @@ void main() {
     await tester.pumpAndSettle();
     final map = tester.widget<DriverLiveMap>(find.byType(DriverLiveMap));
     expect(location.calls, 2);
-    expect(map.supply.latitude, location.position.latitude);
-    expect(map.supply.longitude, location.position.longitude);
+    expect(map.supply!.latitude, location.position.latitude);
+    expect(map.supply!.longitude, location.position.longitude);
 
     location.error = const DriverLocationException('Ative o GPS para localizar.');
     await tester.tap(find.byTooltip('Centralizar mapa'));
