@@ -32,6 +32,8 @@ export function buildStagingEnvironment() {
     'FIREBASE_SERVICE_ACCOUNT_HOST_FILE=',
     '',
     'ROUTING_TIMEOUT_MS=5000',
+    'GOOGLE_MAPS_PROVIDER=mock',
+    'GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE=',
     'PLACE_PROOF_SECRET=' + secretHex(32),
     'PLACE_PROOF_TTL_SECONDS=1800',
     'DOCUMENT_INSPECTION_ENCRYPTION_KEY=' + secretBase64(32),

@@ -2,6 +2,7 @@ import { createPrivateKey } from 'node:crypto';
 import { lstat, readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -56,12 +57,17 @@ export async function stagingComposeArguments(envFile) {
   const firebase = await stagingFirebaseConfiguration(envFile);
   const args = ['compose', '--env-file', envFile, '-f', resolve(here, 'compose.yml')];
   if (firebase.provider === 'fcm') args.push('-f', resolve(here, 'compose.firebase.yml'));
+  const maps = await stagingGoogleMapsConfiguration(envFile);
+  if (maps.provider === 'google') args.push('-f', resolve(here, 'compose.google-maps.yml'));
   return args;
 }
 
 // Docker interpolation must use the file we validated, not inherited shell values.
-export function stagingComposeEnvironment() {
+export function stagingComposeEnvironment(maps = { provider: 'mock' }) {
   const env = { ...process.env };
   for (const key of ['PUSH_PROVIDER', 'FIREBASE_PROJECT_ID', 'FIREBASE_SERVICE_ACCOUNT_HOST_FILE']) delete env[key];
+  for (const key of ['GOOGLE_MAPS_PROVIDER', 'GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE',
+    'GOOGLE_MAPS_SERVER_API_KEY', 'GOOGLE_ROUTES_BASE_URL', 'GOOGLE_PLACES_BASE_URL']) delete env[key];
+  if (maps.provider === 'google') env.GOOGLE_MAPS_SERVER_API_KEY = maps.apiKey;
   return env;
 }

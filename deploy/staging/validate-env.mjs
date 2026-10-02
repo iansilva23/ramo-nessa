@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stagingFirebaseConfiguration } from './firebase.mjs';
+import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
 
 function parseEnv(raw) {
   const values = new Map();
@@ -85,5 +86,7 @@ const envFileArg = process.argv.slice(2).find((value) => value.startsWith('--env
 const envFile = resolve(here, envFileArg?.slice('--env-file='.length) || '.env');
 const result = validateStagingEnvironment(parseEnv(await readFile(envFile, 'utf8')));
 const firebase = await stagingFirebaseConfiguration(envFile);
+const maps = await stagingGoogleMapsConfiguration(envFile);
 console.log('Configuração de homologação válida para ' + result.domain + '. Mercado Pago sandbox: ' +
-  (result.mercadoPagoSandboxConfigured ? 'configurado' : 'desativado') + '. Push: ' + firebase.provider + '.');
+  (result.mercadoPagoSandboxConfigured ? 'configurado' : 'desativado') + '. Push: ' + firebase.provider +
+  '. Google Maps: ' + maps.provider + '.');

@@ -126,6 +126,7 @@ jobs:
           node --check deploy/staging/validate-env.mjs
           node --check deploy/staging/start.mjs
           node --check deploy/staging/firebase.mjs
+          node --check deploy/staging/google-maps.mjs
           node --check deploy/staging/create-admin.mjs
           node --check deploy/staging/set-owner.mjs
           node --check deploy/staging/backup.mjs

@@ -52,6 +52,29 @@ Valide:
 - `https://<APP_DOMAIN>/ready`
 - `https://<APP_DOMAIN>/admin/`
 
+## Google Maps real na homologação
+
+O padrão continua sendo o mock interno. Para usar Places API (New) e Routes API,
+crie uma chave exclusiva do servidor, restrita ao IP de saída da VPS e a essas
+duas APIs. Guarde o valor fora do repositório em um arquivo regular privado
+(0600), nunca em mensagens ou comandos com o valor literal.
+
+Configure no `.env` somente:
+
+```dotenv
+GOOGLE_MAPS_PROVIDER=google
+GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE=/home/ubuntu/.config/ramo-nessa/staging/google-maps-api-key
+```
+
+Execute `node deploy/staging/start.mjs` com permissão para ler o arquivo.
+O helper valida a chave, injeta o valor somente no ambiente do Core e seleciona
+`compose.google-maps.yml` junto com o overlay Firebase quando habilitado.
+Não imprima `docker compose config` nem `docker inspect`: o ambiente do Core
+contém a chave. Readiness confirma a saúde do Core, mas chamadas reais de
+Places e Routes ainda devem ser verificadas após o deploy. APIs reais podem
+gerar cobrança conforme o uso. Para retornar ao simulador, defina
+`GOOGLE_MAPS_PROVIDER=mock` e execute `start.mjs` novamente.
+
 ## Conta proprietária
 
 ```bash
