@@ -140,7 +140,10 @@ test('Docker composes FCM only into Core and retains staging safeguards',
         assert.equal(secretMounts.length, name === 'core' ? 1 : 0);
         if (name === 'core') {
           assert.equal(secretMounts[0].read_only, true);
-          assert.equal(secretMounts[0].bind.create_host_path, false);
+          // Compose omits false-valued bind options from normalized JSON.
+          assert.equal(secretMounts[0].bind?.create_host_path ?? false, false);
+          assert.match(await readFile(resolve(root, 'deploy/staging/compose.firebase.yml'), 'utf8'),
+            /create_host_path:\s*false/);
           assert.ok(service.volumes.some((v: any) => v.target === '/var/lib/ramo-nessa'));
         }
       }
