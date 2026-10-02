@@ -12,8 +12,47 @@ import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_route_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
+import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
+  testWidgets('centralizar busca GPS novo sem ativar motorista offline',
+      (tester) async {
+    final api = _FakeDriverApi();
+    final location = _MutableLocationService();
+    await tester.pumpWidget(RamoNessaDriverApp(
+      api: api,
+      locationService: location,
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Centralizar mapa'));
+    await tester.pumpAndSettle();
+    expect(location.calls, 1);
+    expect(api.lastSyncedPosition?.latitude, location.position.latitude);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap))
+        .supply.online, isFalse);
+
+    location.position = const DriverPosition(
+      latitude: -2.7979,
+      longitude: -40.5151,
+    );
+    await tester.tap(find.byTooltip('Centralizar mapa'));
+    await tester.pumpAndSettle();
+    final map = tester.widget<DriverLiveMap>(find.byType(DriverLiveMap));
+    expect(location.calls, 2);
+    expect(map.supply.latitude, location.position.latitude);
+    expect(map.supply.longitude, location.position.longitude);
+
+    location.error = const DriverLocationException('Ative o GPS para localizar.');
+    await tester.tap(find.byTooltip('Centralizar mapa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ative o GPS para localizar.'), findsOneWidget);
+    expect(api.lastSyncedPosition?.latitude, location.position.latitude);
+    expect(location.calls, 3);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets('Perfil abre benefícios usando a capacidade do mesmo cliente', (tester) async {
     final api = _FakeDriverApi();
     await tester.pumpWidget(RamoNessaDriverApp(api: api, locationService: const _FakeLocationService()));
@@ -498,6 +537,26 @@ class _CountingRouteService implements DriverRouteService {
       duration: const Duration(minutes: 4),
     );
   }
+}
+
+class _MutableLocationService implements DriverLocationService {
+  DriverPosition position = const DriverPosition(
+    latitude: -2.7961,
+    longitude: -40.5161,
+  );
+  DriverLocationException? error;
+  int calls = 0;
+
+  @override
+  Future<DriverPosition> currentPosition() async {
+    calls++;
+    final failure = error;
+    if (failure != null) throw failure;
+    return position;
+  }
+
+  @override
+  Stream<DriverPosition> positionStream() => const Stream.empty();
 }
 
 class _FakeLocationService implements DriverLocationService {

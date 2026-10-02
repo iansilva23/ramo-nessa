@@ -1,5 +1,6 @@
 import 'package:latlong2/latlong.dart';
 
+import '../core/location/device_driver_location_service.dart';
 import '../core/location/driver_location_service.dart';
 import '../core/navigation/driver_navigation_service.dart';
 import '../features/home/data/driver_api.dart';
@@ -12,39 +13,13 @@ final class DriverPreviewDependencies {
   DriverPreviewDependencies();
 
   final DriverApi api = _PreviewDriverApi();
+  // A corrida é demonstrativa; o GPS e seu fluxo de permissões são reais.
   final DriverLocationService location =
-      const _PreviewDriverLocationService();
+      DeviceDriverLocationService();
   final DriverNavigationService navigation =
       const _PreviewDriverNavigationService();
   final DriverRouteService route =
       const _PreviewDriverRouteService();
-}
-
-final class _PreviewDriverLocationService
-    implements DriverLocationService {
-  const _PreviewDriverLocationService();
-
-  static const _position = DriverPosition(
-    latitude: -2.7956,
-    longitude: -40.5142,
-  );
-  static const _path = [
-    _position,
-    DriverPosition(latitude: -2.7959, longitude: -40.5136),
-    DriverPosition(latitude: -2.7965, longitude: -40.5132),
-    DriverPosition(latitude: -2.7971, longitude: -40.5135),
-    DriverPosition(latitude: -2.7975, longitude: -40.5142),
-    DriverPosition(latitude: -2.7970, longitude: -40.5149),
-  ];
-
-  @override
-  Future<DriverPosition> currentPosition() async => _position;
-
-  @override
-  Stream<DriverPosition> positionStream() => Stream<DriverPosition>.periodic(
-        const Duration(seconds: 4),
-        (index) => _path[(index + 1) % _path.length],
-      );
 }
 
 final class _PreviewDriverNavigationService

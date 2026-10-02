@@ -119,6 +119,7 @@ O Ramo Nessa ainda não deve ser publicado como produto final.
 
 ## Suporte e separação Preview/real
 
+- Os Previews Passenger e Driver usam o GPS real do aparelho, incluindo permissões e erros; não retornam coordenadas fixas como localização atual. No Driver, a posição inicial demonstrativa só é exibida após ser substituída pelo GPS, e centralizar solicita uma leitura nova. Corridas, pagamentos e demais operações Preview continuam demonstrativas. Rotas pelas ruas e busca externa dependem do Core/Google configurado; validar precisão, permissão aproximada/precisa, GPS desligado e deslocamento em aparelhos físicos.
 - Motoristas e passageiros abrem e acompanham chamados autenticados nos respectivos apps;
 - o ADM usa uma única fila paginada, identifica o tipo de solicitante, responde e registra a ação na auditoria;
 - as referências de motorista e passageiro permanecem protegidas por foreign keys próprias no PostgreSQL;

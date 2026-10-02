@@ -1,10 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:ramo_nessa_passenger/src/core/location/geolocator_location_service.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ramo_live_map.dart';
 import 'package:ramo_nessa_passenger/src/features/map/data/place_autocomplete_service.dart';
 import 'package:ramo_nessa_passenger/src/preview/passenger_preview_dependencies.dart';
 
 void main() {
+  test('Preview usa GPS do aparelho sem posição fixa de demonstração', () {
+    expect(PassengerPreviewDependencies().location,
+        isA<GeolocatorLocationService>());
+  });
+
   test('Preview sugere destinos conhecidos enquanto o passageiro digita', () async {
     final dependencies = PassengerPreviewDependencies();
     final autocomplete = dependencies.places as PlaceAutocompleteService;

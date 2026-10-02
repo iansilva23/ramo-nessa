@@ -385,8 +385,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     try {
-      final supply = await api.getSupply();
+      var supply = await api.getSupply();
+      if (DriverCoreConfig.previewMode) {
+        // Não mostre a coordenada inicial da fixture como localização real.
+        final position = await _location.currentPosition();
+        if (!mounted) return;
+        supply = await api.updateSupply(position: position);
+      }
       await _applyLoadedSupply(supply);
+    } on DriverLocationException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _message = error.message;
+      });
     } on DriverApiException catch (error) {
       if (error.code == 'DRIVER_REGISTRY_NOT_APPROVED') {
         DriverProfileSnapshot? profile;
@@ -753,12 +765,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     try {
       final position = await _location.currentPosition();
+      if (!mounted) return;
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
       setState(() {
         _supply = updated;
         _changingStatus = false;
       });
+      _centerDriverOnMap();
+      if (_activeRide != null) {
+        await _refreshActiveRoute(force: true);
+      }
       await _refreshOffer();
     } on DriverLocationException catch (error) {
       if (!mounted) return;
@@ -1818,7 +1835,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   _MapCircleButton(
                     tooltip: 'Centralizar mapa',
                     icon: Icons.my_location_rounded,
-                    onPressed: _centerDriverOnMap,
+                    onPressed: _updateLocation,
                   ),
                 ],
               ),

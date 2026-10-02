@@ -1,5 +1,6 @@
 import 'package:latlong2/latlong.dart';
 
+import '../core/location/geolocator_location_service.dart';
 import '../core/location/location_service.dart';
 import '../features/home/domain/service_type.dart';
 import '../features/map/data/place_autocomplete_service.dart';
@@ -30,7 +31,8 @@ import '../features/rides/domain/prepared_ride.dart';
 final class PassengerPreviewDependencies {
   PassengerPreviewDependencies();
 
-  final LocationService location = const _PreviewLocationService();
+  // Preview simula a operação, mas a posição deve vir do aparelho.
+  final LocationService location = GeolocatorLocationService();
   final RouteService route = const _PreviewRouteService();
   final PlaceSearchService places = const _PreviewPlaceSearchService();
   final RidePreparationService ridePreparation =
@@ -69,14 +71,6 @@ final class _PreviewPassengerSupportService
   @override
   Future<List<PassengerSupportTicket>> listTickets() async =>
       List.unmodifiable(_tickets);
-}
-
-final class _PreviewLocationService implements LocationService {
-  const _PreviewLocationService();
-
-  @override
-  Future<LatLng> getCurrentLocation() async =>
-      const LatLng(-2.7956, -40.5142);
 }
 
 final class _PreviewRouteService implements RouteService {

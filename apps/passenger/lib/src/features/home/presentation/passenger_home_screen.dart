@@ -186,7 +186,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _locateUser(showErrors: false);
+      _locateUser();
       _loadCommunicationContent();
       _loadPricingPolicy();
     });
