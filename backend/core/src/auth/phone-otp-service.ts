@@ -232,7 +232,7 @@ async function resolveIdentity(input: {
   );
   if (existing != null) {
     // Não revelar por resposta HTTP se uma identidade existe ou está suspensa.
-    // A conta só recebe SMS quando está ativa.
+    // A conta só recebe o código quando está ativa.
     return existing.status === 'active' ? existing : null;
   }
 
@@ -241,7 +241,7 @@ async function resolveIdentity(input: {
     !input.allowPassengerCreate
   ) {
     // Motorista é pré-provisionado. Retornamos um desafio opaco abaixo, mas
-    // não persistimos nem enviamos SMS, evitando enumeração de cadastros.
+    // não persistimos nem enviamos códigos, evitando enumeração de cadastros.
     return null;
   }
 
@@ -277,7 +277,7 @@ export async function requestPhoneOtp(input: {
   if (input.delivery == null) {
     throw new PhoneOtpError(
       'OTP_DELIVERY_NOT_CONFIGURED',
-      'Entrega de código por SMS ainda não está configurada.',
+      'Entrega de código de verificação ainda não está configurada.',
     );
   }
 
@@ -320,6 +320,7 @@ export async function requestPhoneOtp(input: {
     id: challengeId,
     identityId: identity.id,
     codeDigest: otpDigest(challengeId, code),
+    ...(input.delivery.externalProvider == null ? {} : { externalProvider: input.delivery.externalProvider }),
     expiresAt: new Date(now.getTime() + OTP_TTL_MS).toISOString(),
     attemptCount: 0,
     ...(emailNormalized == null
@@ -344,12 +345,16 @@ export async function requestPhoneOtp(input: {
   }
 
   try {
-    await input.delivery.sendCode({
+    const sent = await input.delivery.sendCode({
       phoneE164,
       code,
       challengeId,
       expiresInSeconds: Math.ceil(OTP_TTL_MS / 1000),
     });
+    if (input.delivery.externalProvider != null) {
+      if (sent == null || !sent.reference) throw new Error('Referência OTP ausente.');
+      await input.repository.setExternalReference(challengeId, sent.reference);
+    }
   } catch {
     await input.repository.cancelChallenge(
       challenge.id,
@@ -375,6 +380,7 @@ export async function requestPhoneOtp(input: {
 export async function verifyPhoneOtp(input: {
   repository: AuthOtpRepository;
   sessions: AuthSessionRepository;
+  delivery?: OtpDeliveryProvider | null;
   challengeId: string;
   code: string;
   now?: Date;
@@ -399,12 +405,41 @@ export async function verifyPhoneOtp(input: {
   }
 
   const now = input.now ?? new Date();
-  const attempt = await input.repository.attemptChallenge({
-    challengeId,
-    codeDigest: otpDigest(challengeId, code),
-    attemptedAt: now.toISOString(),
-    maxAttempts: OTP_MAX_ATTEMPTS,
-  });
+  // Keep remote calls outside DB transactions. A short persisted lease reserves
+  // one bounded attempt, and only its owner can consume the challenge once.
+  const challenge = await input.repository.findChallengeById(challengeId);
+  let attempt;
+  if (challenge?.externalProvider != null) {
+    const provider = input.delivery;
+    if (provider?.externalProvider !== challenge.externalProvider || provider.verifyCode == null) {
+      throw new PhoneOtpError('OTP_DELIVERY_NOT_CONFIGURED', 'Verificação de código indisponível.');
+    }
+    const nonce = randomUUID();
+    const reserved = await input.repository.beginExternalVerification({
+      challengeId, nonce, attemptedAt: now.toISOString(),
+      leaseUntil: new Date(now.getTime() + 15000).toISOString(), maxAttempts: OTP_MAX_ATTEMPTS,
+    });
+    if (reserved?.externalReference != null) {
+      const started = Date.now();
+      let verified = false;
+      let unavailable = false;
+      try {
+        verified = await provider.verifyCode({ reference: reserved.externalReference, code });
+      } catch { unavailable = true; }
+      attempt = await input.repository.finishExternalVerification({
+        challengeId, nonce, verified,
+        completedAt: new Date(now.getTime() + Math.max(0, Date.now() - started)).toISOString(),
+      });
+      if (unavailable) throw new PhoneOtpError('OTP_DELIVERY_FAILED', 'Não foi possível verificar o código agora.');
+    }
+  } else {
+    attempt = await input.repository.attemptChallenge({
+      challengeId,
+      codeDigest: otpDigest(challengeId, code),
+      attemptedAt: now.toISOString(),
+      maxAttempts: OTP_MAX_ATTEMPTS,
+    });
+  }
   if (attempt == null || !attempt.matched) {
     throw new PhoneOtpError(
       'OTP_INVALID_OR_EXPIRED',

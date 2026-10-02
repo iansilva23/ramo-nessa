@@ -466,6 +466,47 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return found == null ? null : structuredClone(found);
   }
 
+  async findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null> {
+    const challenge = this.challenges.get(challengeId);
+    return challenge == null ? null : structuredClone(challenge);
+  }
+
+  async setExternalReference(challengeId: string, reference: string): Promise<void> {
+    const challenge = this.challenges.get(challengeId);
+    if (challenge == null || challenge.consumedAt != null || challenge.externalProvider == null ||
+        challenge.externalReference != null) throw new Error('Desafio externo indisponível.');
+    this.challenges.set(challengeId, { ...challenge, externalReference: reference });
+  }
+
+  async beginExternalVerification(input: {
+    challengeId: string; nonce: string; attemptedAt: string;
+    leaseUntil: string; maxAttempts: number;
+  }): Promise<OtpChallengeRecord | null> {
+    const c = this.challenges.get(input.challengeId);
+    if (c == null || c.externalReference == null || c.consumedAt != null ||
+        Date.parse(c.expiresAt) <= Date.parse(input.attemptedAt) ||
+        c.attemptCount >= input.maxAttempts ||
+        (c.verificationLeaseUntil != null && Date.parse(c.verificationLeaseUntil) > Date.parse(input.attemptedAt))) return null;
+    const updated = { ...c, attemptCount: c.attemptCount + 1,
+      verificationNonce: input.nonce, verificationLeaseUntil: input.leaseUntil };
+    this.challenges.set(c.id, updated);
+    return structuredClone(updated);
+  }
+
+  async finishExternalVerification(input: {
+    challengeId: string; nonce: string; verified: boolean; completedAt: string;
+  }): Promise<OtpAttemptResult | null> {
+    const c = this.challenges.get(input.challengeId);
+    if (c == null || c.verificationNonce !== input.nonce || c.consumedAt != null) return null;
+    const matched = input.verified && Date.parse(c.expiresAt) > Date.parse(input.completedAt) &&
+      Date.parse(c.verificationLeaseUntil!) > Date.parse(input.completedAt);
+    const updated = { ...c, ...(matched ? { consumedAt: input.completedAt } : {}) };
+    delete updated.verificationNonce;
+    delete updated.verificationLeaseUntil;
+    this.challenges.set(c.id, updated);
+    return { challenge: structuredClone(updated), matched };
+  }
+
   async cancelChallenge(
     challengeId: string,
     canceledAt: string,
@@ -494,6 +535,7 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
       return null;
     }
 
+    if (challenge.externalProvider != null) return null;
     const matched = challenge.codeDigest === input.codeDigest;
     const updated: OtpChallengeRecord = {
       ...challenge,

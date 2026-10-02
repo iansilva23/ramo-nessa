@@ -6621,8 +6621,10 @@ function renderIntegrations(payload) {
     otpDetail.textContent = 'Provider de produção';
   } else {
     otpStatus.textContent = otp.productionReady === true
-      ? 'Produção pronta'
-      : otp.provider === 'dev'
+      ? otp.provider === 'entrar-whatsapp' ? 'WhatsApp configurado' : 'Produção pronta'
+      : otp.provider === 'entrar-whatsapp'
+        ? 'WhatsApp incompleto'
+        : otp.provider === 'dev'
         ? 'Modo desenvolvimento'
         : otp.provider === 'webhook'
           ? 'Webhook incompleto'

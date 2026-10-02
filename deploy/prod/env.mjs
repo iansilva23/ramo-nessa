@@ -39,6 +39,8 @@ export function buildProductionEnvironment() {
     '',
     'OTP_HASH_SECRET=' + secretHex(32),
     'OTP_RATE_LIMIT_SECRET=' + secretHex(32),
+    'OTP_PROVIDER=webhook',
+    'ENTRAR_API_SECRET=',
     'OTP_WEBHOOK_URL=CHANGE_ME',
     'OTP_WEBHOOK_TOKEN=CHANGE_ME',
     '',

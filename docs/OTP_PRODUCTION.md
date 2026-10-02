@@ -88,3 +88,30 @@ Antes do lançamento:
 ## Estado
 
 O Core e o contrato de integração estão preparados. A prontidão comercial deste passo depende de um provider/adaptador real, credenciais, homologação de entrega e testes em aparelhos físicos.
+
+## WhatsApp com entrar.api.br
+
+`OTP_PROVIDER=entrar-whatsapp` seleciona emissão e validação externas. Configure
+`ENTRAR_API_SECRET` exclusivamente no Core. Contrato público:
+https://entrar.api.br/otp-whatsapp (consultado em 02/10/2026).
+
+O Core envia somente `{telefone}` para `https://cpf.entrar.api.br/api/otp/send`,
+guarda o `otpId` no PostgreSQL e devolve ao app apenas o challengeId local.
+O código é gerado pelo provedor; `{otpId,codigo}` é enviado a `/api/otp/verify`.
+Somente `ok === true` e `verified === true` autorizam uma sessão.
+
+Mantemos validade local de 5 minutos (o provedor anuncia 10), 5 tentativas,
+cooldown de 60 segundos e limites por telefone/dispositivo/IP. A verificação
+reserva uma tentativa atomicamente por 15 segundos, sem segurar transação durante
+HTTP. Somente o dono dessa reserva pode consumir o desafio e emitir uma sessão.
+Falhas, respostas atrasadas, reenvios e validação local por digest não autorizam
+login externo. Não há retry automático nem fallback pago: envio pode já ter sido
+cobrado e verificação pode já ter consumido o código no provedor.
+
+Homologação usa `OTP_PROVIDER=entrar-whatsapp` e
+`ENTRAR_API_SECRET_HOST_FILE=/home/ubuntu/.config/ramo-nessa/staging/entrar-api-secret`.
+O helper exige arquivo regular privado (0600), rejeita symlinks e injeta o segredo
+somente no Core. Nunca enviar a chave em chat, versionar ou incluí-la em APKs.
+O painel Admin informa configuração, não comprova entrega. Depois da ativação,
+homologar solicitação e verificação em um aparelho com WhatsApp. APKs Preview usam
+autenticação demonstrativa: esse teste exige build conectado ao Core real.

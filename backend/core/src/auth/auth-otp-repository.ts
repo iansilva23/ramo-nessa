@@ -55,6 +55,10 @@ export interface OtpChallengeRecord {
   id: string;
   identityId: string;
   codeDigest: string;
+  externalProvider?: 'entrar-whatsapp';
+  externalReference?: string;
+  verificationNonce?: string;
+  verificationLeaseUntil?: string;
   expiresAt: string;
   attemptCount: number;
   requestedEmailNormalized?: string;
@@ -164,6 +168,15 @@ export interface AuthOtpRepository {
   findLatestChallengeByIdentityId(
     identityId: string,
   ): Promise<OtpChallengeRecord | null>;
+  findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null>;
+  setExternalReference(challengeId: string, reference: string): Promise<void>;
+  beginExternalVerification(input: {
+    challengeId: string; nonce: string; attemptedAt: string;
+    leaseUntil: string; maxAttempts: number;
+  }): Promise<OtpChallengeRecord | null>;
+  finishExternalVerification(input: {
+    challengeId: string; nonce: string; verified: boolean; completedAt: string;
+  }): Promise<OtpAttemptResult | null>;
   cancelChallenge(challengeId: string, canceledAt: string): Promise<void>;
   attemptChallenge(input: {
     challengeId: string;

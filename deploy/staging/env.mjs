@@ -21,6 +21,8 @@ export function buildStagingEnvironment() {
     'DB_POOL_MAX=20',
     'SHUTDOWN_TIMEOUT_MS=10000',
     '',
+    'OTP_PROVIDER=dev',
+    'ENTRAR_API_SECRET_HOST_FILE=',
     'OTP_HASH_SECRET=' + secretHex(32),
     'OTP_RATE_LIMIT_SECRET=' + secretHex(32),
     'ADMIN_MFA_ENCRYPTION_KEY=' + secretBase64(32),

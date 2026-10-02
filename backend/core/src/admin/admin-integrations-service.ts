@@ -52,13 +52,13 @@ export interface AdminIntegrationSetupView {
     webhookSecretEnvironmentVariable: 'MERCADO_PAGO_WEBHOOK_SECRET';
   };
   otp: {
-    provider: 'webhook' | 'dev' | 'missing' | 'invalid';
+    provider: 'entrar-whatsapp' | 'webhook' | 'dev' | 'missing' | 'invalid';
     endpointConfigured: boolean;
     tokenConfigured: boolean;
     productionReady: boolean;
     providerEnvironmentVariable: 'OTP_PROVIDER';
-    endpointEnvironmentVariable: 'OTP_WEBHOOK_URL';
-    tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN';
+    endpointEnvironmentVariable: 'OTP_WEBHOOK_URL' | null;
+    tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN' | 'ENTRAR_API_SECRET';
   };
   push: {
     provider: 'fcm' | 'webhook' | 'disabled' | 'invalid';
@@ -106,11 +106,14 @@ export function adminIntegrationSetupView(
   const rawOtpProvider = env.OTP_PROVIDER?.trim().toLowerCase();
   const production = env.NODE_ENV === 'production';
   const otpProvider:
+    | 'entrar-whatsapp'
     | 'webhook'
     | 'dev'
     | 'missing'
     | 'invalid' =
-    rawOtpProvider === 'webhook'
+    rawOtpProvider === 'entrar-whatsapp'
+      ? 'entrar-whatsapp'
+      : rawOtpProvider === 'webhook'
       ? 'webhook'
       : rawOtpProvider === 'dev'
         ? 'dev'
@@ -119,10 +122,10 @@ export function adminIntegrationSetupView(
             ? 'missing'
             : 'dev'
           : 'invalid';
-  const otpEndpoint = env.OTP_WEBHOOK_URL?.trim() ?? '';
-  const otpToken = env.OTP_WEBHOOK_TOKEN?.trim() ?? '';
+  const otpEndpoint = otpProvider === 'entrar-whatsapp' ? 'https://cpf.entrar.api.br/api/otp/send' : env.OTP_WEBHOOK_URL?.trim() ?? '';
+  const otpToken = (otpProvider === 'entrar-whatsapp' ? env.ENTRAR_API_SECRET : env.OTP_WEBHOOK_TOKEN)?.trim() ?? '';
   const otpEndpointConfigured = validHttpsUrl(otpEndpoint);
-  const otpTokenConfigured = otpToken.length >= 20;
+  const otpTokenConfigured = otpProvider === 'entrar-whatsapp' ? otpToken.length > 0 && !/[\s\x00-\x1f]/.test(otpToken) : otpToken.length >= 20;
 
   const rawPushProvider = env.PUSH_PROVIDER?.trim().toLowerCase() ?? '';
   const pushProvider: 'fcm' | 'webhook' | 'disabled' | 'invalid' =
@@ -220,12 +223,12 @@ export function adminIntegrationSetupView(
       endpointConfigured: otpEndpointConfigured,
       tokenConfigured: otpTokenConfigured,
       productionReady:
-        otpProvider === 'webhook' &&
+        (otpProvider === 'webhook' || otpProvider === 'entrar-whatsapp') &&
         otpEndpointConfigured &&
         otpTokenConfigured,
       providerEnvironmentVariable: 'OTP_PROVIDER',
-      endpointEnvironmentVariable: 'OTP_WEBHOOK_URL',
-      tokenEnvironmentVariable: 'OTP_WEBHOOK_TOKEN',
+      endpointEnvironmentVariable: otpProvider === 'entrar-whatsapp' ? null : 'OTP_WEBHOOK_URL',
+      tokenEnvironmentVariable: otpProvider === 'entrar-whatsapp' ? 'ENTRAR_API_SECRET' : 'OTP_WEBHOOK_TOKEN',
     },
     push: {
       provider: pushProvider,

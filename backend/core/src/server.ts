@@ -2279,6 +2279,7 @@ const server = createServer(async (request, response) => {
           : '';
 
       const verified = await verifyPhoneOtp({
+        delivery: otpDeliveryProvider,
         repository: authOtpRepository,
         sessions: authSessionRepository,
         challengeId,

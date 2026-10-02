@@ -193,3 +193,8 @@ Ficam para os próximos passos:
 - homologação externa Mercado Pago;
 - homologação de repasse Pix;
 - testes físicos, carga/segurança, piloto e lojas.
+
+OTP também aceita `OTP_PROVIDER=entrar-whatsapp`, com `ENTRAR_API_SECRET` privado
+no ambiente do Core; nesse modo `OTP_WEBHOOK_URL` e `OTP_WEBHOOK_TOKEN` não são
+necessários. O padrão continua webhook. Ver `docs/OTP_PRODUCTION.md` para limites,
+contrato externo e homologação em aparelho físico antes de liberar a operação.

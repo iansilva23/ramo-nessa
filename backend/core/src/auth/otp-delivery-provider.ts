@@ -1,12 +1,16 @@
+import { EntrarWhatsAppOtpProvider } from './entrar-whatsapp-otp-provider.js';
+
 export interface OtpDeliveryProvider {
   readonly exposesCodeForDevelopment?: boolean;
+  readonly externalProvider?: 'entrar-whatsapp';
+  verifyCode?(input: { reference: string; code: string }): Promise<boolean>;
 
   sendCode(input: {
     phoneE164: string;
     code: string;
     challengeId: string;
     expiresInSeconds: number;
-  }): Promise<void>;
+  }): Promise<void | { reference: string }>;
 }
 
 export class OtpDeliveryError extends Error {
@@ -128,7 +132,7 @@ export function resolveOtpDeliveryProviderFromEnv(
   ) {
     if (env.NODE_ENV === 'production') {
       throw new Error(
-        'OTP_PROVIDER=webhook é obrigatório em produção.',
+        'OTP_PROVIDER=webhook ou entrar-whatsapp é obrigatório em produção.',
       );
     }
 
@@ -139,6 +143,14 @@ export function resolveOtpDeliveryProviderFromEnv(
       return new DevOtpDeliveryProvider();
     }
     return null;
+  }
+
+  if (configured === 'entrar-whatsapp') {
+    const secret = env.ENTRAR_API_SECRET?.trim() ?? '';
+    if (!secret || /[\s\x00-\x1f]/.test(secret)) {
+      throw new Error('ENTRAR_API_SECRET precisa ser configurado apenas no servidor.');
+    }
+    return new EntrarWhatsAppOtpProvider(secret);
   }
 
   if (configured === 'webhook') {
@@ -163,5 +175,5 @@ export function resolveOtpDeliveryProviderFromEnv(
     return new WebhookOtpDeliveryProvider(endpoint, token);
   }
 
-  throw new Error('OTP_PROVIDER deve ser dev ou webhook.');
+  throw new Error('OTP_PROVIDER deve ser dev, webhook ou entrar-whatsapp.');
 }

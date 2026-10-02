@@ -3,6 +3,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
+import { stagingOtpConfiguration } from './otp.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
@@ -59,15 +60,19 @@ export async function stagingComposeArguments(envFile) {
   if (firebase.provider === 'fcm') args.push('-f', resolve(here, 'compose.firebase.yml'));
   const maps = await stagingGoogleMapsConfiguration(envFile);
   if (maps.provider === 'google') args.push('-f', resolve(here, 'compose.google-maps.yml'));
+  const otp = await stagingOtpConfiguration(envFile);
+  if (otp.provider === 'entrar-whatsapp') args.push('-f', resolve(here, 'compose.otp.yml'));
   return args;
 }
 
 // Docker interpolation must use the file we validated, not inherited shell values.
-export function stagingComposeEnvironment(maps = { provider: 'mock' }) {
+export function stagingComposeEnvironment(maps = { provider: 'mock' }, otp = { provider: 'dev' }) {
   const env = { ...process.env };
   for (const key of ['PUSH_PROVIDER', 'FIREBASE_PROJECT_ID', 'FIREBASE_SERVICE_ACCOUNT_HOST_FILE']) delete env[key];
   for (const key of ['GOOGLE_MAPS_PROVIDER', 'GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE',
     'GOOGLE_MAPS_SERVER_API_KEY', 'GOOGLE_ROUTES_BASE_URL', 'GOOGLE_PLACES_BASE_URL']) delete env[key];
+  for (const key of ['OTP_PROVIDER', 'ENTRAR_API_SECRET', 'ENTRAR_API_SECRET_HOST_FILE']) delete env[key];
+  if (otp.provider === 'entrar-whatsapp') env.ENTRAR_API_SECRET = otp.secret;
   if (maps.provider === 'google') env.GOOGLE_MAPS_SERVER_API_KEY = maps.apiKey;
   return env;
 }

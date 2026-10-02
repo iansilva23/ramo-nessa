@@ -128,3 +128,20 @@ credencial. FCM não ativa SMS, mapas reais, pagamentos ou repasses. Configuraç
 do servidor não certifica entrega: ainda são necessários configuração Firebase
 nos binários, registro de token após login e teste em Android físico; iPhone
 também depende de APNs e assinatura Apple.
+
+### OTP pelo WhatsApp (entrar.api.br)
+
+Opt-in: criar no painel do fornecedor um app Ramo Nessa e obter seu API Secret.
+Salvar esse segredo em arquivo privado no VPS (sem colocá-lo no repositório):
+`/home/ubuntu/.config/ramo-nessa/staging/entrar-api-secret`, modo 0600.
+Configurar no `.env` apenas `OTP_PROVIDER=entrar-whatsapp` e
+`ENTRAR_API_SECRET_HOST_FILE` com esse caminho. `start.mjs` valida o arquivo e
+seleciona `compose.otp.yml`, mantendo Firebase e Google Maps já configurados.
+
+Antes de alterar o ambiente, fazer backup verificado. A migration 072 adiciona
+referência externa e reserva de verificação; não altera desafios antigos.
+A inicialização aplica migrations pelo fluxo existente. Verificar `/ready` e o
+status OTP no Admin, depois solicitar e verificar um código em aparelho físico.
+Não imprimir `docker compose config` nem `docker inspect` com a chave ativada.
+Código aceito para envio não comprova entrega. Configuração padrão existente
+continua sem OTP real até esse opt-in. Ver `docs/OTP_PRODUCTION.md`.

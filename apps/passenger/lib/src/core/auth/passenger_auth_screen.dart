@@ -137,7 +137,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
         _loading = false;
         _mode = _PassengerAuthMode.registerOtp;
         _message = challenge.devCode == null
-            ? 'Código enviado por SMS.'
+            ? 'Código enviado pelo WhatsApp.'
             : 'Código de desenvolvimento: ${challenge.devCode}';
       });
     } catch (error) {
@@ -207,7 +207,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
         _loading = false;
         _mode = _PassengerAuthMode.recoveryOtp;
         _message = challenge.devCode == null
-            ? 'Se o número estiver vinculado à sua conta, enviaremos um código por SMS.'
+            ? 'Se o número estiver vinculado à sua conta, enviaremos um código pelo WhatsApp.'
             : 'Código de desenvolvimento: ${challenge.devCode}';
       });
     } catch (error) {
@@ -340,7 +340,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
             context,
             title: 'Confirme seu celular',
             subtitle:
-                'Digite o código enviado por SMS para concluir sua conta.',
+                'Digite o código enviado pelo WhatsApp para concluir sua conta.',
             onSubmit: _finishRegistration,
           )
         else if (_mode == _PassengerAuthMode.recoveryPhone)
@@ -349,7 +349,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           _otpForm(
             context,
             title: 'Confirme sua conta',
-            subtitle: 'Digite o código recebido por SMS.',
+            subtitle: 'Digite o código recebido pelo WhatsApp.',
             onSubmit: _verifyRecoveryOtp,
           )
         else

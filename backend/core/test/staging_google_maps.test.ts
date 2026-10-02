@@ -55,7 +55,7 @@ test('Maps opt-in rejects unsafe files and overrides without exposing the key', 
     await writeFile(envFile, 'GOOGLE_MAPS_PROVIDER=unknown');
     await assert.rejects(stagingGoogleMapsConfiguration(envFile));
     for (const script of ['start.mjs', 'set-owner.mjs']) {
-      assert.match(await readFile(resolve(root, 'deploy/staging', script), 'utf8'), /stagingComposeEnvironment\(maps\)/);
+      assert.match(await readFile(resolve(root, 'deploy/staging', script), 'utf8'), /stagingComposeEnvironment\(maps, otp\)/);
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

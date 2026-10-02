@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureStagingEnvironment } from './env.mjs';
 import { stagingGoogleMapsConfiguration } from './google-maps.mjs';
+import { stagingOtpConfiguration } from './otp.mjs';
 import { stagingComposeArguments, stagingComposeEnvironment } from './firebase.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -11,9 +12,10 @@ const repoRoot = resolve(here, '../..');
 const envFile = resolve(here, '.env');
 await ensureStagingEnvironment(envFile);
 const maps = await stagingGoogleMapsConfiguration(envFile);
+const otp = await stagingOtpConfiguration(envFile);
 
 function run(command, args, stdio = 'inherit') {
-  const result = spawnSync(command, args, { cwd: repoRoot, stdio, env: stagingComposeEnvironment(maps) });
+  const result = spawnSync(command, args, { cwd: repoRoot, stdio, env: stagingComposeEnvironment(maps, otp) });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
@@ -39,3 +41,4 @@ if (!ready) throw new Error('Stack subiu, mas /ready não respondeu por HTTPS. V
 console.log('Admin: https://' + domain + '/admin/');
 console.log('Readiness: ' + readyUrl);
 console.log('Google Maps: ' + maps.provider + '.');
+console.log('OTP: ' + otp.provider + '.');

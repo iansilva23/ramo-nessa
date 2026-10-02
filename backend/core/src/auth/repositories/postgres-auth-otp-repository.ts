@@ -51,6 +51,10 @@ interface ChallengeRow {
   id: string;
   identity_id: string;
   code_digest: string;
+  external_provider: 'entrar-whatsapp' | null;
+  external_reference: string | null;
+  verification_nonce: string | null;
+  verification_lease_until: Date | null;
   expires_at: Date;
   attempt_count: number;
   requested_email_normalized: string | null;
@@ -101,6 +105,10 @@ function mapChallenge(row: ChallengeRow): OtpChallengeRecord {
     id: row.id,
     identityId: row.identity_id,
     codeDigest: row.code_digest,
+    ...(row.external_provider == null ? {} : { externalProvider: row.external_provider }),
+    ...(row.external_reference == null ? {} : { externalReference: row.external_reference }),
+    ...(row.verification_nonce == null ? {} : { verificationNonce: row.verification_nonce }),
+    ...(row.verification_lease_until == null ? {} : { verificationLeaseUntil: row.verification_lease_until.toISOString() }),
     expiresAt: row.expires_at.toISOString(),
     attemptCount: row.attempt_count,
     ...(row.requested_email_normalized != null
@@ -700,8 +708,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         `
         INSERT INTO auth_otp_challenges (
           id, identity_id, code_digest, expires_at,
-          attempt_count, requested_email_normalized, consumed_at, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          attempt_count, requested_email_normalized, consumed_at, created_at, external_provider
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
         `,
         [
@@ -713,6 +721,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
           input.challenge.requestedEmailNormalized ?? null,
           input.challenge.consumedAt ?? null,
           input.challenge.createdAt,
+          input.challenge.externalProvider ?? null,
         ],
       );
       const row = inserted.rows[0];
@@ -737,8 +746,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       `
       INSERT INTO auth_otp_challenges (
         id, identity_id, code_digest, expires_at,
-        attempt_count, requested_email_normalized, consumed_at, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        attempt_count, requested_email_normalized, consumed_at, created_at, external_provider
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
       `,
       [
@@ -750,6 +759,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         challenge.requestedEmailNormalized ?? null,
         challenge.consumedAt ?? null,
         challenge.createdAt,
+        challenge.externalProvider ?? null,
       ],
     );
     const row = result.rows[0];
@@ -771,6 +781,47 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       [identityId],
     );
     return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
+  }
+
+  async findChallengeById(challengeId: string): Promise<OtpChallengeRecord | null> {
+    const result = await this.pool.query<ChallengeRow>(
+      'SELECT * FROM auth_otp_challenges WHERE id = $1', [challengeId]);
+    return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
+  }
+
+  async setExternalReference(challengeId: string, reference: string): Promise<void> {
+    const result = await this.pool.query(`UPDATE auth_otp_challenges SET external_reference = $2
+      WHERE id = $1 AND external_provider = 'entrar-whatsapp'
+      AND consumed_at IS NULL AND external_reference IS NULL`, [challengeId, reference]);
+    if (result.rowCount !== 1) throw new Error('Desafio externo indisponível.');
+  }
+
+  async beginExternalVerification(input: {
+    challengeId: string; nonce: string; attemptedAt: string;
+    leaseUntil: string; maxAttempts: number;
+  }): Promise<OtpChallengeRecord | null> {
+    const result = await this.pool.query<ChallengeRow>(`UPDATE auth_otp_challenges
+      SET attempt_count = attempt_count + 1, verification_nonce = $2,
+          verification_lease_until = $4::timestamptz
+      WHERE id = $1 AND external_provider = 'entrar-whatsapp' AND external_reference IS NOT NULL
+        AND consumed_at IS NULL AND expires_at > $3::timestamptz AND attempt_count < $5
+        AND (verification_lease_until IS NULL OR verification_lease_until <= $3::timestamptz)
+      RETURNING *`, [input.challengeId, input.nonce, input.attemptedAt, input.leaseUntil, input.maxAttempts]);
+    return result.rows[0] == null ? null : mapChallenge(result.rows[0]);
+  }
+
+  async finishExternalVerification(input: {
+    challengeId: string; nonce: string; verified: boolean; completedAt: string;
+  }): Promise<OtpAttemptResult | null> {
+    const result = await this.pool.query<ChallengeRow & { matched: boolean }>(`UPDATE auth_otp_challenges
+      SET consumed_at = CASE WHEN $3 AND expires_at > $4::timestamptz
+        AND verification_lease_until > $4::timestamptz THEN $4::timestamptz ELSE consumed_at END,
+        verification_nonce = NULL, verification_lease_until = NULL
+      WHERE id = $1 AND verification_nonce = $2 AND consumed_at IS NULL
+      RETURNING *, COALESCE(consumed_at = $4::timestamptz, false) AS matched`,
+      [input.challengeId, input.nonce, input.verified, input.completedAt]);
+    const row = result.rows[0];
+    return row == null ? null : { challenge: mapChallenge(row), matched: row.matched };
   }
 
   async cancelChallenge(
@@ -805,6 +856,7 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
       WHERE id = $1
         AND consumed_at IS NULL
         AND expires_at > $3::timestamptz
+        AND external_provider IS NULL
         AND attempt_count < $4
       RETURNING *, (code_digest = $2) AS matched
       `,

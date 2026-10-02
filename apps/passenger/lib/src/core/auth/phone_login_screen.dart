@@ -59,7 +59,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         _challenge = requested;
         _loading = false;
         _message = requested.devCode == null
-            ? 'Código enviado por SMS.'
+            ? 'Código enviado pelo WhatsApp.'
             : 'Código de desenvolvimento: ${requested.devCode}';
       });
     } catch (error) {
@@ -270,7 +270,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   ] else ...[
                     const SizedBox(height: 18),
                     Text(
-                      'Ao continuar, você concorda em receber um código de verificação por SMS.',
+                      'Ao continuar, você concorda em receber um código de verificação pelo WhatsApp neste número.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: RamoColors.muted,
