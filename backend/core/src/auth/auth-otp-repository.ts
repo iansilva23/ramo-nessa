@@ -23,6 +23,7 @@ export interface AuthIdentityRecord {
   photoUrl?: string;
   photoUpdatedAt?: string;
   status: AuthIdentityStatus;
+  driverRegistrationOnly?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +89,7 @@ export type OtpChallengeCreationResult =
 
 export interface AuthOtpRepository {
   createIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord>;
+  findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord>;
   findOrCreatePassengerIdentity(
     identity: AuthIdentityRecord,
   ): Promise<AuthIdentityRecord>;

@@ -1919,6 +1919,7 @@ function renderDriverDocuments(payload) {
 
   syncDocumentReviewForm(payload);
   setDocumentReviewControlsVisible(payload);
+  syncDriverAuthActionAvailability();
 }
 
 function renderDriverDocumentCompliance(payload) {
@@ -2390,7 +2391,7 @@ function syncDriverAuthActionAvailability() {
   const driver = state.currentDriver;
   if (button == null || driver == null) return;
 
-  if (driver.status === 'active') {
+  if (driver.status === 'active' && !driver.registrationOnly) {
     button.disabled = false;
     button.title = 'Suspender o acesso e revogar as sessões do motorista.';
     return;
@@ -2398,10 +2399,11 @@ function syncDriverAuthActionAvailability() {
 
   const registryApproved =
     state.currentDriverRegistry?.registryApproved === true;
-  button.disabled = !registryApproved;
+  const documentsApproved = !driver.registrationOnly || state.currentDriverDocuments?.documentsApproved === true;
+  button.disabled = !registryApproved || !documentsApproved;
   button.title = registryApproved
     ? 'Liberar o login OTP para este motorista.'
-    : 'Aprove o perfil e o veículo antes de liberar o login OTP.';
+    : 'Aprove o perfil, o veículo, a CNH e o CRLV antes de liberar o motorista.';
 }
 
 function renderDriver(driver) {
@@ -2409,7 +2411,7 @@ function renderDriver(driver) {
   target.replaceChildren();
   target.className = 'driver-result';
 
-  const presentation = statusPresentation(driver.status);
+  const presentation = driver.registrationOnly ? { label: 'Aguardando aprovação', tone: 'warning', detail: 'Cadastro iniciado. O acesso permite enviar dados e documentos; as corridas dependem de aprovação.' } : statusPresentation(driver.status);
   const header = document.createElement('div');
   header.className = 'driver-result__header';
 
@@ -2447,17 +2449,17 @@ function renderDriver(driver) {
     button.type = 'button';
     button.id = 'driver-auth-status-action';
     button.className =
-      driver.status === 'active'
+      driver.status === 'active' && !driver.registrationOnly
         ? 'button button--danger'
         : 'button button--primary';
     button.textContent =
-      driver.status === 'active'
+      driver.status === 'active' && !driver.registrationOnly
         ? 'Suspender acesso'
-        : 'Liberar acesso OTP';
+        : driver.registrationOnly ? 'Liberar motorista' : 'Liberar acesso OTP';
     button.addEventListener('click', () => {
       void changeDriverStatus(
         driver.driverId,
-        driver.status === 'active' ? 'suspended' : 'active',
+        driver.status === 'active' && !driver.registrationOnly ? 'suspended' : 'active',
         button,
       );
     });
@@ -5797,6 +5799,7 @@ function renderDriverDirectory() {
     const pill = document.createElement('span');
     pill.className = `pill pill--${presentation.tone}`;
     pill.textContent = presentation.label;
+    if (driver.registrationOnly) { pill.textContent = 'Aguardando aprovação'; pill.className = 'status-pill status-pill--pending'; }
     status.append(pill);
 
     const updated = document.createElement('td');
@@ -10696,3 +10699,4 @@ routeLoading.hidden = true;
 routeOutlet.replaceChildren();
 setMessage(loginMessage);
 setMessage(globalMessage);
+

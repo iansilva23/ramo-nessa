@@ -64,12 +64,14 @@ export async function resolveDriverId(input: {
   request: IncomingMessage;
   sessions: AuthSessionRepository;
   identities: AuthOtpRepository;
+  allowRegistration?: boolean;
 }): Promise<string> {
   if (input.request.headers.authorization != null) {
     const session = await authenticateBearer({
       repository: input.sessions,
       headers: input.request.headers,
       requiredType: 'driver',
+      allowDriverRegistration: input.allowRegistration === true,
       identities: input.identities,
     });
     return session.subjectId;

@@ -225,6 +225,7 @@ async function resolveIdentity(input: {
   phoneE164: string;
   now: Date;
   allowPassengerCreate: boolean;
+  allowDriverRegistration: boolean;
 }): Promise<AuthIdentityRecord | null> {
   const existing = await input.repository.findIdentityByPhone(
     input.subjectType,
@@ -234,6 +235,16 @@ async function resolveIdentity(input: {
     // Não revelar por resposta HTTP se uma identidade existe ou está suspensa.
     // A conta só recebe o código quando está ativa.
     return existing.status === 'active' ? existing : null;
+  }
+
+  if (input.subjectType === 'driver' && input.allowDriverRegistration) {
+    const id = randomUUID();
+    const record = await input.repository.findOrCreateDriverRegistrationIdentity({
+      id, subjectId: id, subjectType: 'driver', phoneE164: input.phoneE164,
+      status: 'active', driverRegistrationOnly: true,
+      createdAt: input.now.toISOString(), updatedAt: input.now.toISOString(),
+    });
+    return record.status === 'active' ? record : null;
   }
 
   if (
@@ -271,6 +282,7 @@ export async function requestPhoneOtp(input: {
   phone: string;
   email?: string;
   allowPassengerCreate?: boolean;
+  allowDriverRegistration?: boolean;
   context?: OtpRequestContext;
   now?: Date;
 }): Promise<RequestedPhoneOtp> {
@@ -302,6 +314,7 @@ export async function requestPhoneOtp(input: {
     subjectType: input.subjectType,
     phoneE164,
     now,
+    allowDriverRegistration: input.allowDriverRegistration === true,
     allowPassengerCreate:
       input.allowPassengerCreate ?? input.subjectType === 'passenger',
   });

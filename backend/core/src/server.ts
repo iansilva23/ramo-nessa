@@ -1,3 +1,4 @@
+import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
 import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from './rides/prepayment-driver-confirmation.js';
@@ -2256,10 +2257,11 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'POST' &&
-      requestUrl.pathname === '/v1/auth/otp/request'
+      (requestUrl.pathname === '/v1/auth/otp/request' || requestUrl.pathname === '/v1/auth/driver-registration/request')
     ) {
       const body = await readJson(request);
-      const subjectType =
+      const registrationRequest = requestUrl.pathname === '/v1/auth/driver-registration/request';
+      const subjectType = registrationRequest ? 'driver' :
         body != null && typeof body === 'object' && 'subjectType' in body
           ? String((body as { subjectType?: unknown }).subjectType ?? '')
           : '';
@@ -2283,6 +2285,7 @@ const server = createServer(async (request, response) => {
       const requested = await requestPhoneOtp({
         repository: authOtpRepository,
         delivery: otpDeliveryProvider,
+        allowDriverRegistration: registrationRequest,
         subjectType,
         phone,
         email,
@@ -2897,6 +2900,7 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
         sessions: authSessionRepository,
         registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverAuthStatusMatch[1]!,
@@ -5383,6 +5387,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         items: page.identities.map((identity) => ({
           driverId: identity.subjectId,
+          registrationOnly: identity.driverRegistrationOnly === true,
           phoneE164: identity.phoneE164,
           status: identity.status,
           createdAt: identity.createdAt,
@@ -5745,7 +5750,7 @@ const server = createServer(async (request, response) => {
       );
       if (identity != null) {
         authStatus = identity.status;
-        if (!result.registryApproved && identity.status === 'active') {
+        if (!result.registryApproved && identity.status === 'active' && (identity.driverRegistrationOnly !== true || body.profileStatus === 'suspended' || body.vehicleStatus === 'suspended')) {
           const suspended = await setDriverAuthStatusFromAdmin({
             identities: authOtpRepository,
             sessions: authSessionRepository,
@@ -5958,6 +5963,7 @@ const server = createServer(async (request, response) => {
       });
       json(response, 200, {
         driverId: identity.subjectId,
+        registrationOnly: identity.driverRegistrationOnly === true,
         phoneE164: identity.phoneE164,
         status: identity.status,
         createdAt: identity.createdAt,
@@ -5983,6 +5989,7 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
         sessions: authSessionRepository,
         registry: driverRegistryRepository,
+        documents: driverDocumentRepository,
         admin: adminRepository,
         actor,
         driverId: adminDriverAuthMatch[1]!,
@@ -6434,6 +6441,18 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if ((request.method === 'GET' || request.method === 'POST') && requestUrl.pathname === '/v1/driver/me/registration') {
+      const driverId = await resolveDriverId({ request, sessions: authSessionRepository,
+        identities: authOtpRepository, allowRegistration: true });
+      const dependencies = { identities: authOtpRepository, registry: driverRegistryRepository,
+        documents: driverDocumentRepository, driverId };
+      const result = request.method === 'POST'
+        ? await submitDriverRegistration({ ...dependencies, data: await readJson(request) })
+        : await driverRegistrationStatus(dependencies);
+      json(response, request.method === 'POST' ? 201 : 200, result);
+      return;
+    }
+
     const driverDocumentUploadMatch = requestUrl.pathname.match(
       /^\/v1\/driver\/me\/documents\/(driver_license|vehicle_registration)$/,
     );
@@ -6454,6 +6473,7 @@ const server = createServer(async (request, response) => {
         request,
         sessions: authSessionRepository,
         identities: authOtpRepository,
+        allowRegistration: true,
       });
       const rawContentType = headerValue(request, 'content-type')
         ?.split(';')[0]
@@ -6499,6 +6519,7 @@ const server = createServer(async (request, response) => {
         request,
         sessions: authSessionRepository,
         identities: authOtpRepository,
+        allowRegistration: true,
       });
       const result = await getDriverDocumentsForAdmin({
         registry: driverRegistryRepository,
@@ -9158,7 +9179,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof AuthenticationError) {
-      json(response, 401, {
+      json(response, error.code === 'DRIVER_REGISTRATION_PENDING' ? 403 : 401, {
         error: error.code,
         message: error.message,
       });
@@ -9552,3 +9573,4 @@ server.listen(port, '0.0.0.0', () => {
   driverBenefitFinalizationTimer.unref();
   void runDriverBenefitFinalization();
 });
+

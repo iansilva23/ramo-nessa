@@ -47,3 +47,7 @@ abstract interface class PhoneAuthService {
   Future<AuthSessionInfo?> currentSession(String accessToken);
   Future<void> logout(String accessToken);
 }
+
+abstract interface class DriverRegistrationAuthService {
+  Future<RequestedOtp> requestRegistrationOtp({required String phone});
+}

@@ -19,7 +19,7 @@ class AuthHttpException implements Exception {
   String toString() => message;
 }
 
-class HttpPhoneAuthService implements PhoneAuthService {
+class HttpPhoneAuthService implements PhoneAuthService, DriverRegistrationAuthService {
   HttpPhoneAuthService({
     required Uri baseUrl,
     required String subjectType,
@@ -47,10 +47,18 @@ class HttpPhoneAuthService implements PhoneAuthService {
   @override
   Future<RequestedOtp> requestOtp({
     required String phone,
-  }) async {
+  }) => _requestCode(phone, '/v1/auth/otp/request');
+
+  @override
+  Future<RequestedOtp> requestRegistrationOtp({required String phone}) {
+    if (_subjectType != 'driver') throw StateError('Cadastro exclusivo para motoristas.');
+    return _requestCode(phone, '/v1/auth/driver-registration/request');
+  }
+
+  Future<RequestedOtp> _requestCode(String phone, String path) async {
     final response = await _client
         .post(
-          _baseUrl.resolve('/v1/auth/otp/request'),
+          _baseUrl.resolve(path),
           headers: _otpHeaders,
           body: jsonEncode({
             'subjectType': _subjectType,

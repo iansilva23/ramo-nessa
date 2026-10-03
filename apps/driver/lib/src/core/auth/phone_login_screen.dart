@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -14,6 +15,7 @@ class PhoneLoginScreen extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.onAuthenticated,
+    this.requestRegistrationOtp,
   });
 
   final PhoneAuthService service;
@@ -21,6 +23,7 @@ class PhoneLoginScreen extends StatefulWidget {
   final String title;
   final String subtitle;
   final ValueChanged<String> onAuthenticated;
+  final Future<RequestedOtp> Function(String phone)? requestRegistrationOtp;
 
   @override
   State<PhoneLoginScreen> createState() => _PhoneLoginScreenState();
@@ -34,16 +37,20 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
   bool _loading = false;
   String? _message;
   String? _error;
+  bool _registering = false;
+  Timer? _cooldownTimer;
+  int _retrySeconds = 0;
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
   }
 
   Future<void> _requestCode() async {
-    if (_loading) return;
+    if (_loading || _retrySeconds > 0) return;
 
     setState(() {
       _loading = true;
@@ -52,16 +59,24 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     });
 
     try {
-      final requested = await widget.service.requestOtp(
-        phone: _phoneController.text,
-      );
+      final requested = _registering && widget.requestRegistrationOtp != null
+          ? await widget.requestRegistrationOtp!(_phoneController.text)
+          : await widget.service.requestOtp(phone: _phoneController.text);
       if (!mounted) return;
       setState(() {
         _challenge = requested;
+        _retrySeconds = requested.retryAfterSeconds;
         _loading = false;
         _message = requested.devCode == null
-            ? 'Código enviado pelo WhatsApp.'
+            ? (_registering
+                ? 'Se este número estiver disponível para cadastro, o código chegará pelo WhatsApp.'
+                : 'Se este número tiver acesso, o código chegará pelo WhatsApp. Se ainda não tem cadastro, escolha Cadastrar como motorista.')
             : 'Código de desenvolvimento: ${requested.devCode}';
+      });
+      _cooldownTimer?.cancel();
+      _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _retrySeconds <= 1) { timer.cancel(); if (mounted) setState(() => _retrySeconds = 0); return; }
+        setState(() => _retrySeconds--);
       });
     } catch (error) {
       if (!mounted) return;
@@ -102,6 +117,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
         rethrow;
       }
 
+      _cooldownTimer?.cancel();
       if (!mounted) return;
       widget.onAuthenticated(session.accessToken);
     } catch (error) {
@@ -130,7 +146,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   ),
                   const SizedBox(height: 54),
                   Text(
-                    waitingForCode ? 'Confirme seu número' : widget.title,
+                    waitingForCode ? 'Confirme seu número' : _registering ? 'Seja motorista Ramo Nessa' : widget.title,
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           letterSpacing: -1.3,
@@ -140,8 +156,8 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                   const SizedBox(height: 12),
                   Text(
                     waitingForCode
-                        ? 'Digite o código de 6 dígitos que enviamos para seu celular.'
-                        : widget.subtitle,
+                        ? 'Digite o código de 6 dígitos recebido pelo WhatsApp.'
+                        : _registering ? 'Valide seu WhatsApp, cadastre seu veículo e envie os documentos. Você acompanha a análise por aqui.' : widget.subtitle,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: RamoColors.muted,
                           height: 1.4,
@@ -229,7 +245,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                     key: const Key('auth-primary-button'),
                     onPressed: waitingForCode ? _verifyCode : _requestCode,
                     loading: _loading,
-                    label: waitingForCode ? 'Confirmar e entrar' : 'Continuar',
+                    label: waitingForCode ? 'Confirmar e continuar' : _registering ? 'Validar WhatsApp' : 'Continuar',
                   ),
                   if (waitingForCode) ...[
                     const SizedBox(height: 8),
@@ -239,6 +255,8 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                           : () {
                               setState(() {
                                 _challenge = null;
+                                _cooldownTimer?.cancel();
+                                _retrySeconds = 0;
                                 _codeController.clear();
                                 _message = null;
                                 _error = null;
@@ -247,10 +265,20 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                       child: const Text('Alterar número'),
                     ),
                     TextButton(
-                      onPressed: _loading ? null : _requestCode,
-                      child: const Text('Reenviar código'),
+                      onPressed: _loading || _retrySeconds > 0 ? null : _requestCode,
+                      child: Text(_retrySeconds > 0 ? 'Reenviar em ${_retrySeconds}s' : 'Reenviar código'),
                     ),
                   ] else ...[
+                    if (widget.requestRegistrationOtp != null) ...[
+                      const SizedBox(height: 12),
+                      TextButton(
+                        key: const Key('driver-registration-button'),
+                        onPressed: _loading ? null : () => setState(() {
+                          _registering = !_registering; _error = null; _message = null;
+                        }),
+                        child: Text(_registering ? 'Já tenho cadastro. Entrar' : 'Cadastrar como motorista'),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Text(
                       'Ao continuar, você concorda em receber um código de verificação pelo WhatsApp neste número.',

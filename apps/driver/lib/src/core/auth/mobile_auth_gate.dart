@@ -149,6 +149,9 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
 
     return PhoneLoginScreen(
       service: widget.service,
+      requestRegistrationOtp: widget.service is DriverRegistrationAuthService
+          ? (phone) => (widget.service as DriverRegistrationAuthService).requestRegistrationOtp(phone: phone)
+          : null,
       tokenStore: widget.tokenStore,
       title: widget.loginTitle,
       subtitle: widget.loginSubtitle,

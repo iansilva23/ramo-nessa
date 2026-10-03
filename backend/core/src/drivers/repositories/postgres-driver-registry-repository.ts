@@ -86,6 +86,30 @@ export class PostgresDriverRegistryRepository
   implements DriverRegistryRepository {
   constructor(private readonly pool: Pool) {}
 
+  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord }): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const p = input.profile;
+      const inserted = await client.query(`INSERT INTO driver_profiles
+        (driver_id, full_name, preferred_name, status, created_at, updated_at)
+        VALUES ($1,$2,$3,'pending',$4,$4) ON CONFLICT (driver_id) DO NOTHING RETURNING driver_id`,
+        [p.driverId, p.fullName, p.preferredName ?? null, p.createdAt]);
+      if (inserted.rowCount === 1) {
+        const v = input.vehicle;
+        await client.query(`INSERT INTO driver_vehicles
+          (id,driver_id,plate_normalized,make,model,model_year,color,categories,four_by_four,seat_capacity,status,created_at,updated_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$11)`,
+          [v.id,v.driverId,v.plateNormalized,v.make,v.model,v.modelYear,v.color,v.categories,v.fourByFour,v.seatCapacity,v.createdAt]);
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if ((error as { code?: string }).code === '23505') throw new Error('REGISTRATION_PLATE_CONFLICT');
+      throw error;
+    } finally { client.release(); }
+  }
+
   async findProfile(
     driverId: string,
   ): Promise<DriverProfileRecord | null> {

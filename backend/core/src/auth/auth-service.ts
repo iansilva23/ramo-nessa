@@ -17,7 +17,8 @@ export class AuthenticationError extends Error {
       | 'AUTH_INVALID'
       | 'AUTH_EXPIRED'
       | 'AUTH_ROLE_MISMATCH'
-      | 'AUTH_IDENTITY_DISABLED',
+      | 'AUTH_IDENTITY_DISABLED'
+      | 'DRIVER_REGISTRATION_PENDING',
     message: string,
   ) {
     super(message);
@@ -114,6 +115,7 @@ export async function authenticateBearer(input: {
   repository: AuthSessionRepository;
   headers: IncomingHttpHeaders;
   requiredType?: AuthSubjectType;
+  allowDriverRegistration?: boolean;
   identities?: AuthOtpRepository;
   now?: Date;
 }): Promise<AuthSessionRecord> {
@@ -159,8 +161,11 @@ export async function authenticateBearer(input: {
       session.subjectId,
     );
 
+    if (input.requiredType === 'driver' && identity?.driverRegistrationOnly === true && input.allowDriverRegistration !== true) {
+      throw new AuthenticationError('DRIVER_REGISTRATION_PENDING', 'Seu cadastro de motorista ainda aguarda aprovação.');
+    }
     if (
-      identity?.status === 'suspended' ||
+      identity?.status === 'suspended'  ||
       (identity == null && process.env.NODE_ENV === 'production')
     ) {
       throw new AuthenticationError(

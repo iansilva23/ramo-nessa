@@ -1,3 +1,6 @@
+import 'features/registration/driver_registration_gate.dart';
+import 'features/registration/driver_registration_service.dart';
+import 'features/home/data/http_driver_api.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -115,8 +118,14 @@ class RamoNessaDriverApp extends StatelessWidget {
         devBypass: DriverCoreConfig.devDriverIdentityEnabled,
         loginTitle: 'Ramo Nessa Motorista',
         loginSubtitle:
-            'Entre com o celular aprovado no seu cadastro de motorista.',
-        authenticatedBuilder: (token, logout) => home(token, logout),
+            'Entre com seu WhatsApp ou cadastre-se para dirigir com a Ramo Nessa.',
+        authenticatedBuilder: (token, logout) => token == null ? home(token, logout) : DriverRegistrationGate(
+          key: ValueKey(token),
+          service: HttpDriverRegistrationService(baseUrl: coreUri, accessToken: token),
+          api: HttpDriverApi(baseUrl: coreUri, accessToken: token),
+          logout: logout,
+          homeBuilder: () => home(token, logout),
+        ),
         onSessionReady: (token) =>
             DriverFirebasePushRegistrationService.instance.start(
               baseUrl: coreUri,

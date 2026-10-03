@@ -50,6 +50,15 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     return structuredClone(identity);
   }
 
+  async findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord> {
+    if (identity.subjectType !== 'driver') throw new Error('Tipo de conta inválido.');
+    const existing = [...this.identities.values()].find(item => item.subjectType === 'driver' && item.phoneE164 === identity.phoneE164);
+    if (existing) return structuredClone(existing);
+    const record = { ...identity, driverRegistrationOnly: true, status: 'active' as const };
+    this.identities.set(record.id, structuredClone(record));
+    return structuredClone(record);
+  }
+
   async findOrCreatePassengerIdentity(
     identity: AuthIdentityRecord,
   ): Promise<AuthIdentityRecord> {
@@ -287,6 +296,7 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
     const updated = {
       ...identity,
       status: input.status,
+      ...(input.subjectType === 'driver' && input.status === 'active' ? { driverRegistrationOnly: false } : {}),
       updatedAt: input.updatedAt,
     };
     this.identities.set(updated.id, updated);

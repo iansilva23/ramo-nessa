@@ -28,6 +28,15 @@ export class InMemoryDriverRegistryRepository
     }
   >();
 
+  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord }): Promise<void> {
+    if (this.profiles.has(input.profile.driverId)) return;
+    if ([...this.vehicles.values()].some(vehicle => vehicle.plateNormalized === input.vehicle.plateNormalized)) {
+      throw new Error('REGISTRATION_PLATE_CONFLICT');
+    }
+    this.profiles.set(input.profile.driverId, structuredClone({ ...input.profile, status: 'pending' }));
+    this.vehicles.set(input.vehicle.id, structuredClone({ ...input.vehicle, status: 'pending' }));
+  }
+
   async findProfile(
     driverId: string,
   ): Promise<DriverProfileRecord | null> {

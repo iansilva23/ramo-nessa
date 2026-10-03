@@ -1,3 +1,4 @@
+import type { DriverDocumentRepository } from '../drivers/driver-document-repository.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -71,6 +72,18 @@ async function requireApprovedDriverRegistry(input: {
   }
 }
 
+export async function requireRegistrationDocuments(input: {
+  identity: AuthIdentityRecord; documents?: DriverDocumentRepository; now: string;
+}): Promise<void> {
+  if (input.identity.driverRegistrationOnly !== true) return;
+  const records = await input.documents?.listCurrent(input.identity.subjectId) ?? [];
+  const today = input.now.slice(0, 10);
+  if (!['driver_license', 'vehicle_registration'].every(type => records.some(record =>
+    record.documentType === type && record.status === 'approved' && (record.expiresOn == null || record.expiresOn >= today)))) {
+    throw new AdminDriverAuthError('DRIVER_REGISTRY_NOT_APPROVED', 'Aprove a CNH e o CRLV antes de liberar o motorista.');
+  }
+}
+
 async function audit(input: {
   repository: AdminRepository;
   actor: AdminActor;
@@ -112,6 +125,7 @@ export async function provisionDriverAuthFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
   registry: DriverRegistryRepository;
+  documents?: DriverDocumentRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -185,7 +199,9 @@ export async function provisionDriverAuthFromAdmin(input: {
     }
   }
 
-  if (identity.status !== status) {
+  if (status === 'active') await requireRegistrationDocuments({ identity, now, ...(input.documents == null ? {} : { documents: input.documents }) });
+
+  if (identity.status !== status || (status === 'active' && identity.driverRegistrationOnly === true)) {
     const updated = await input.identities.setIdentityStatus({
       subjectType: 'driver',
       subjectId: driverId,
@@ -228,6 +244,7 @@ export async function setDriverAuthStatusFromAdmin(input: {
   identities: AuthOtpRepository;
   sessions: AuthSessionRepository;
   registry: DriverRegistryRepository;
+  documents?: DriverDocumentRepository;
   admin: AdminRepository;
   actor: AdminActor;
   driverId: string;
@@ -254,6 +271,8 @@ export async function setDriverAuthStatusFromAdmin(input: {
       'Identidade de autenticação do motorista não encontrada.',
     );
   }
+
+  if (status === 'active') await requireRegistrationDocuments({ identity: previous, now, ...(input.documents == null ? {} : { documents: input.documents }) });
 
   const identity = await input.identities.setIdentityStatus({
     subjectType: 'driver',

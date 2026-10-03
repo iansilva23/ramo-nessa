@@ -27,6 +27,7 @@ interface IdentityRow {
   photo_url: string | null;
   photo_updated_at: Date | null;
   status: AuthIdentityStatus;
+  driver_registration_only: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -80,6 +81,7 @@ function mapIdentity(row: IdentityRow): AuthIdentityRecord {
       ? { photoUpdatedAt: row.photo_updated_at.toISOString() }
       : {}),
     status: row.status,
+    ...(row.driver_registration_only ? { driverRegistrationOnly: true } : {}),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -153,6 +155,18 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     const row = result.rows[0];
     if (row == null) throw new Error('Identidade não foi persistida.');
     return mapIdentity(row);
+  }
+
+  async findOrCreateDriverRegistrationIdentity(identity: AuthIdentityRecord): Promise<AuthIdentityRecord> {
+    if (identity.subjectType !== 'driver') throw new Error('Tipo de conta inválido.');
+    const result = await this.pool.query<IdentityRow>(`
+      INSERT INTO auth_identities (id, subject_id, subject_type, phone_e164, status,
+        driver_registration_only, created_at, updated_at)
+      VALUES ($1,$2,'driver',$3,'active',true,$4,$4)
+      ON CONFLICT (subject_type, phone_e164)
+      DO UPDATE SET phone_e164 = auth_identities.phone_e164 RETURNING *
+    `, [identity.id, identity.subjectId, identity.phoneE164, identity.createdAt]);
+    return mapIdentity(result.rows[0]!);
   }
 
   async findOrCreatePassengerIdentity(
@@ -471,7 +485,8 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
     const result = await this.pool.query<IdentityRow>(
       `
       UPDATE auth_identities
-      SET status = $3, updated_at = $4
+      SET status = $3, updated_at = $4,
+        driver_registration_only = CASE WHEN $1 = 'driver' AND $3 = 'active' THEN false ELSE driver_registration_only END
       WHERE subject_type = $1 AND subject_id = $2
       RETURNING *
       `,

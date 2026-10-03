@@ -1,3 +1,5 @@
+import { requireRegistrationDocuments } from '../src/admin/admin-driver-auth-service.js';
+import { PostgresDriverDocumentRepository } from '../src/drivers/repositories/postgres-driver-document-repository.js';
 import { PostgresAuthOtpRepository } from '../src/auth/repositories/postgres-auth-otp-repository.js';
 import { PostgresAuthSessionRepository } from '../src/auth/repositories/postgres-auth-session-repository.js';
 import type { AuthIdentityStatus } from '../src/auth/auth-otp-repository.js';
@@ -54,6 +56,8 @@ try {
       );
       process.exitCode = 1;
     } else {
+      const previous = await repository.findIdentityBySubject('driver', driverId);
+      if (previous != null) await requireRegistrationDocuments({ identity: previous, documents: new PostgresDriverDocumentRepository(pool), now: new Date().toISOString() });
       const identity = await repository.setIdentityStatus({
         subjectType: 'driver',
         subjectId: driverId,
