@@ -504,6 +504,7 @@ export class InMemoryRideMatchingRepository
 
     const driver = await this.drivers.findByDriverId(input.driverId);
     if (driver == null || !driver.online || driver.busy ||
+      (driver.reservedRideId != null && driver.reservedRideId !== ride.id && Date.parse(driver.reservedUntil ?? '') > Date.parse(input.acceptedAt)) ||
       ((prepayment || activatePaidReservation) && (driver.reservedRideId !== ride.id ||
         Date.parse(driver.reservedUntil ?? '') <= Date.parse(input.acceptedAt)))) {
       throw new RideOfferError(

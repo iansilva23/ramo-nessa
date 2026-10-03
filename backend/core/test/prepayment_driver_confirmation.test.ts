@@ -106,3 +106,19 @@ test('cupom pré-ativado acompanha a reserva aceita; ativação depois da solici
   // Funding after the original hold is still valid within the accepted hold.
   await fundRidePromotion({ promotions: ctx.promotions, finance: ctx.finance, ride: accepted.ride, now: new Date(now.getTime() + 100_000) });
 });
+
+test('oferta antiga de outra corrida não pode tomar motorista reservado', async () => {
+  const ctx = await setup();
+  const ride = await ctx.prepare();
+  const released = await ctx.matching.releasePrepaymentHold({ rideId: ride.id, at: now.toISOString() });
+  const { reservedDriverId: _held, driverHoldExpiresAt: _until, ...withoutHold } = released;
+  const legacy = await ctx.rides.create({ ...withoutHold, id: 'legacy-other-ride', driverConsentRequired: false,
+    state: 'PAID', paymentStatus: 'paid' });
+  const oldOffer = await ctx.matching.createOffer({ rideId: legacy.id, driverId: 'driver-confirm',
+    approximatePickupDistanceKm: 1, createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 35_000).toISOString() });
+  const next = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ ride: next, matching: ctx.matching, now });
+  await ctx.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() });
+  await assert.rejects(ctx.matching.acceptOffer({ offerId: oldOffer.offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() }), { code: 'DRIVER_NOT_AVAILABLE' });
+  assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, next.id);
+});

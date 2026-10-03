@@ -40,9 +40,11 @@ void main() {
     expect(find.text('Navegar até o embarque'), findsNothing);
     expect(navigation.lastLatitude, isNull);
     expect(tester.takeException(), isNull);
+    final callsBeforeRelease = api.currentRideCalls;
     api._currentRide = null;
     await tester.pump(const Duration(seconds: 11));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(api.currentRideCalls, greaterThan(callsBeforeRelease));
     expect(find.text('Aguardando pagamento do passageiro'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });

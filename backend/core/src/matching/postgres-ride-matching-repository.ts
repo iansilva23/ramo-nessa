@@ -817,6 +817,7 @@ export class PostgresRideMatchingRepository
       );
       const driver = driverResult.rows[0];
       if (driver == null || !driver.online || driver.busy ||
+        (driver.reserved_ride_id != null && driver.reserved_ride_id !== ride.id && (driver.reserved_until?.getTime() ?? 0) > Date.parse(input.acceptedAt)) ||
         ((prepayment || activatePaidReservation) && (driver.reserved_ride_id !== ride.id ||
           (driver.reserved_until?.getTime() ?? 0) <= Date.parse(input.acceptedAt)))) {
         throw new RideOfferError(
