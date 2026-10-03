@@ -560,6 +560,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         result = await service.createPixRidePayment(rideId:_ride.id,idempotencyKey:_pixIdempotencyKey);
       } on PassengerPaymentException catch (error) {
         if (error.code != 'PASSENGER_EMAIL_REQUIRED' || service is! PixEmailPaymentService) { rethrow; }
+        if (!mounted) return;
         final email = await showDialog<String>(context:context,builder: (_) => const _CheckoutEmailDialog());
         if (!mounted) return;
         if (email == null) { setState(() => _creatingPix = false); return; }
