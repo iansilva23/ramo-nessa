@@ -287,7 +287,7 @@ class _LocationField extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 16,
-                color: destination ? Colors.white : RamoColors.brandBlack,
+                color: destination ? Colors.white : Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: RamoSpacing.sm),

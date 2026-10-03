@@ -68,7 +68,7 @@ class _MapPreviewPainter extends CustomPainter {
     final background = dark ? RamoColors.darkCanvas : RamoColors.mapLand;
     final road = dark ? const Color(0xFF202429) : Colors.white;
     final minorRoad = dark ? const Color(0xFF181C20) : const Color(0xFFE5E5DF);
-    final route = dark ? RamoColors.signal : Theme.of(context).colorScheme.onSurface;
+    final route = dark ? RamoColors.signal : RamoColors.ink;
 
     canvas.drawRect(Offset.zero & size, Paint()..color = background);
 
@@ -139,7 +139,7 @@ class _MapPreviewPainter extends CustomPainter {
     canvas.drawCircle(
       pickup,
       12,
-      Paint()..color = Theme.of(context).colorScheme.onSurface,
+      Paint()..color = RamoColors.ink,
     );
     canvas.drawCircle(
       pickup,

@@ -9081,9 +9081,9 @@ const server = createServer(async (request, response) => {
 
     if (error instanceof DriverRegistryError) {
       const status =
-        error.code === 'VEHICLE_PLATE_CONFLICT'
+        error.code === 'VEHICLE_PLATE_CONFLICT' || error.code === 'DRIVER_CPF_CONFLICT' || error.code === 'DRIVER_CPF_IMMUTABLE'
           ? 409
-          : 404;
+          : error.code === 'DRIVER_CPF_INVALID' ? 400 : 404;
       json(response, status, {
         error: error.code,
         message: error.message,
