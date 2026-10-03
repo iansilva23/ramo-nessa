@@ -119,7 +119,12 @@ import UIKit
     pendingCardResult = result
 
     let controller = RamoCardTokenizationViewController(
-      amountCents: amountNumber.intValue
+      amountCents: amountNumber.intValue,
+      savedCard: arguments["savedCardId"] as? String,
+      savedMethod: arguments["paymentMethodId"] as? String,
+      savedType: arguments["paymentMethodType"] as? String,
+      savedLastFour: arguments["lastFourDigits"] as? String,
+      requestStorageToken: arguments["requestStorageToken"] as? Bool ?? false
     ) { [weak self] outcome in
       guard let self else { return }
 
@@ -136,6 +141,7 @@ import UIKit
             "paymentMethodId": payload.paymentMethodId,
             "paymentMethodType": payload.paymentMethodType,
           ]
+          if let storageToken = payload.storageToken { response["storageToken"] = storageToken }
           if let lastFourDigits = payload.lastFourDigits {
             response["lastFourDigits"] = lastFourDigits
           }
@@ -189,6 +195,7 @@ private struct RamoCardTokenizationPayload {
   let paymentMethodId: String
   let paymentMethodType: String
   let lastFourDigits: String?
+  let storageToken: String?
 }
 
 private struct RamoCardFlowError: Error {
@@ -204,6 +211,8 @@ private enum RamoCardFlowOutcome {
 
 private final class RamoCardTokenizationViewController: UIViewController {
   private let amountCents: Int
+  private let savedCard: String?
+  private let requestStorageToken: Bool
   private let completion: (RamoCardFlowOutcome) -> Void
   private let coreMethods = CoreMethods()
 
@@ -341,9 +350,17 @@ private final class RamoCardTokenizationViewController: UIViewController {
 
   init(
     amountCents: Int,
+    savedCard: String? = nil, savedMethod: String? = nil, savedType: String? = nil, savedLastFour: String? = nil,
+    requestStorageToken: Bool = false,
     completion: @escaping (RamoCardFlowOutcome) -> Void
   ) {
     self.amountCents = amountCents
+    self.savedCard = savedCard
+    self.requestStorageToken = requestStorageToken
+    self.paymentMethodId = savedMethod
+    self.paymentMethodType = savedType
+    self.lastFourDigits = savedLastFour
+    self.singlePaymentAvailable = savedCard != nil
     self.completion = completion
     super.init(nibName: nil, bundle: nil)
   }
@@ -356,7 +373,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = brandBlack
-    title = "Cartão protegido"
+    title = savedCard == nil ? "Adicionar cartão" : "Confirmar seu cartão"
 
     navigationItem.leftBarButtonItem = UIBarButtonItem(
       title: "Cancelar",
@@ -409,6 +426,19 @@ private final class RamoCardTokenizationViewController: UIViewController {
     explanation.numberOfLines = 0
     explanation.textAlignment = .center
 
+    let preview = UILabel()
+    preview.text = "RAMO NESSA                       CARTÃO\n\n◉\n\n••••  ••••  ••••  \(lastFourDigits ?? "••••")"
+    preview.textColor = brandYellow
+    preview.font = .monospacedSystemFont(ofSize: 19, weight: .semibold)
+    preview.numberOfLines = 0
+    preview.textAlignment = .center
+    preview.backgroundColor = UIColor(white: 0.13, alpha: 1)
+    preview.layer.cornerRadius = 24; preview.clipsToBounds = true
+    preview.heightAnchor.constraint(equalToConstant: 186).isActive = true
+    if !UIAccessibility.isReduceMotionEnabled {
+      preview.alpha = 0; preview.transform = CGAffineTransform(translationX: 0, y: 16)
+      UIView.animate(withDuration: 0.36) { preview.alpha = 1; preview.transform = .identity }
+    }
     let holderLabel = makeLabel("Titular do cartão")
     let cpfLabel = makeLabel("CPF do titular")
     let cardLabel = makeLabel("Número do cartão")
@@ -438,6 +468,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
     securityNote.textAlignment = .center
 
     [
+      preview,
       mark,
       headline,
       explanation,
@@ -454,6 +485,9 @@ private final class RamoCardTokenizationViewController: UIViewController {
       securityNote,
     ].forEach { stack.addArrangedSubview($0) }
 
+    if savedCard != nil {
+      [holderLabel, holderField, cpfLabel, cpfField, cardLabel, cardNumberField, expirationStack].forEach { $0.isHidden = true }
+    }
     view.addSubview(scroll)
     scroll.addSubview(stack)
 
@@ -592,13 +626,13 @@ private final class RamoCardTokenizationViewController: UIViewController {
     let holder = holderField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let cpf = (cpfField.text ?? "").filter(\.isNumber)
 
-    guard holder.count >= 2 else {
+    guard savedCard != nil || holder.count >= 2 else {
       statusLabel.text = "Informe o nome do titular do cartão."
       holderField.becomeFirstResponder()
       return
     }
 
-    guard isValidCPF(cpf) else {
+    guard savedCard != nil || isValidCPF(cpf) else {
       statusLabel.text = "Informe um CPF válido do titular."
       cpfField.becomeFirstResponder()
       return
@@ -606,8 +640,8 @@ private final class RamoCardTokenizationViewController: UIViewController {
 
     guard
       singlePaymentAvailable,
-      cardNumberField.isValid,
-      expirationField.isValid,
+      (savedCard != nil || cardNumberField.isValid),
+      (savedCard != nil || expirationField.isValid),
       securityField.isValid,
       let methodId = paymentMethodId,
       let methodType = paymentMethodType,
@@ -628,7 +662,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
       guard let self else { return }
 
       do {
-        let token = try await self.coreMethods.createToken(
+        let token = self.savedCard != nil ? try await self.coreMethods.createToken(cardID: self.savedCard!, securityCode: self.securityField) : try await self.coreMethods.createToken(
           cardNumber: self.cardNumberField,
           expirationDate: self.expirationField,
           securityCode: self.securityField,
@@ -644,6 +678,9 @@ private final class RamoCardTokenizationViewController: UIViewController {
           )
         }
 
+        let storageToken = self.savedCard == nil && self.requestStorageToken ? try? await self.coreMethods.createToken(
+          cardNumber: self.cardNumberField, expirationDate: self.expirationField, securityCode: self.securityField,
+          documentType: cpfType, documentNumber: cpf, cardHolderName: holder) : nil
         self.tokenizing = false
         self.progress.stopAnimating()
         self.completion(
@@ -652,7 +689,8 @@ private final class RamoCardTokenizationViewController: UIViewController {
               token: token.token,
               paymentMethodId: methodId,
               paymentMethodType: methodType,
-              lastFourDigits: token.lastFourDigits ?? self.lastFourDigits
+              lastFourDigits: token.lastFourDigits ?? self.lastFourDigits,
+              storageToken: storageToken?.token
             )
           )
         )
@@ -678,10 +716,10 @@ private final class RamoCardTokenizationViewController: UIViewController {
       !tokenizing &&
       !loadingMethod &&
       singlePaymentAvailable &&
-      holder.count >= 2 &&
-      isValidCPF(cpf) &&
-      cardNumberField.isValid &&
-      expirationField.isValid &&
+      (savedCard != nil || holder.count >= 2) &&
+      (savedCard != nil || isValidCPF(cpf)) &&
+      (savedCard != nil || cardNumberField.isValid) &&
+      (savedCard != nil || expirationField.isValid) &&
       securityField.isValid &&
       paymentMethodId != nil &&
       (paymentMethodType == "credit_card" || paymentMethodType == "debit_card")

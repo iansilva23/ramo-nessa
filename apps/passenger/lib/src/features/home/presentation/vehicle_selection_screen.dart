@@ -158,6 +158,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     ),
                   ),
                   const SizedBox(height: RamoSpacing.xl),
+                  if (_submitting) const Column(children: [Center(child:RamoSearchPulse()), Text('Procurando motorista próximo…'), SizedBox(height:16)]),
                   ServiceSelector(
                     selected: _selected,
                     services: widget.availableServices,

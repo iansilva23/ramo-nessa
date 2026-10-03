@@ -66,7 +66,11 @@ class MainActivity : FlutterActivity() {
         startActivityForResult(
             Intent(this, CardTokenizationActivity::class.java).apply {
                 putExtra(EXTRA_AMOUNT_CENTS, amountCents)
+                putExtra("requestStorageToken", (arguments as? Map<*, *>)?.get("requestStorageToken") == true)
                 putExtra(EXTRA_MERCADO_PAGO_PUBLIC_KEY, publicKey)
+                for (key in listOf("savedCardId", "paymentMethodId", "paymentMethodType", "lastFourDigits")) {
+                    putExtra(key, (arguments as? Map<*, *>)?.get(key) as? String)
+                }
             },
             CARD_REQUEST_CODE,
         )
@@ -109,6 +113,7 @@ class MainActivity : FlutterActivity() {
                 result.success(
                     mapOf(
                         "token" to token,
+                        "storageToken" to data?.getStringExtra("storageToken"),
                         "paymentMethodId" to paymentMethodId,
                         "paymentMethodType" to paymentMethodType,
                         "lastFourDigits" to

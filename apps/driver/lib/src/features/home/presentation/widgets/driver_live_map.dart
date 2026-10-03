@@ -74,6 +74,7 @@ class DriverMapController {
     List<domain.LatLng> coordinates, {
     double padding = 90,
     double maxZoom = 16.5,
+    bool animate = true,
   }) async {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
@@ -93,18 +94,12 @@ class DriverMapController {
       maxLongitude = math.max(maxLongitude, point.longitude);
     }
 
-    await controller.animateCamera(
-      gm.CameraUpdate.newLatLngBounds(
-        gm.LatLngBounds(
-          southwest: gm.LatLng(minLatitude, minLongitude),
-          northeast: gm.LatLng(maxLatitude, maxLongitude),
-        ),
-        padding,
-      ),
-    );
+    final update = gm.CameraUpdate.newLatLngBounds(
+      gm.LatLngBounds(southwest: gm.LatLng(minLatitude,minLongitude), northeast: gm.LatLng(maxLatitude,maxLongitude)), padding);
+    if (animate) { await controller.animateCamera(update); } else { await controller.moveCamera(update); }
     final currentZoom = await controller.getZoomLevel();
     if (currentZoom > maxZoom) {
-      await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom));
+      if (animate) { await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom)); } else { await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom)); }
     }
   }
 

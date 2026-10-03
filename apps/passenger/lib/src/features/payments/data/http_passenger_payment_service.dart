@@ -1,3 +1,5 @@
+import 'saved_card_service.dart';
+import 'card_tokenization_service.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -15,7 +17,7 @@ import '../domain/wallet_topup_result.dart';
 import 'passenger_payment_service.dart';
 import '../../rides/data/driver_confirmation_service.dart';
 
-class HttpPassengerPaymentService implements PassengerPaymentService, DriverConfirmationService {
+class HttpPassengerPaymentService implements PassengerPaymentService, DriverConfirmationService, SavedCardService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
     String? accessToken,
@@ -43,6 +45,40 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
         if (_clientInstanceId.trim().isNotEmpty)
           'x-client-instance-id': _clientInstanceId.trim(),
       };
+
+  @override
+  Future<List<SavedPassengerCard>> savedCards() async {
+    final response = await _client.get(_baseUrl.resolve('/v1/passenger/cards'), headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    if (response.statusCode != 200 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos carregar seus cartões.'));
+    return (json['cards'] as List).map((card) => SavedPassengerCard.fromJson(card as Map<String,dynamic>)).toList();
+  }
+  @override
+  Future<SavedPassengerCard> saveCard({required String token, required String payerEmail}) async {
+    final response = await _client.post(_baseUrl.resolve('/v1/passenger/cards'), headers: _identityHeaders,
+      body: jsonEncode({'token':token, 'payerEmail':payerEmail})).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    if (response.statusCode != 201 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos salvar o cartão.'));
+    return SavedPassengerCard.fromJson(json['card'] as Map<String,dynamic>);
+  }
+  @override
+  Future<void> removeCard(String id) async {
+    final response = await _client.delete(_baseUrl.resolve('/v1/passenger/cards/${Uri.encodeComponent(id)}'), headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body),'Não conseguimos remover o cartão.'));
+  }
+  @override
+  Future<CardRidePaymentResult> payWithCard({required String rideId, required String idempotencyKey,
+      required CardTokenizationResult card, required String payerEmail, String? savedCardId}) async {
+    final response = await _client.post(_baseUrl.resolve('/v1/rides/$rideId/payments'),
+      headers: {..._identityHeaders,'idempotency-key':idempotencyKey}, body: jsonEncode({
+        'method':'card','cardToken':card.token,'paymentMethodId':card.paymentMethodId,
+        'paymentMethodType':card.paymentMethodType,'installments':1,'payerEmail':payerEmail,
+        if (savedCardId != null) 'savedCardId':savedCardId,
+      })).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    if (response.statusCode != 201 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos confirmar o pagamento.'));
+    return CardRidePaymentResult.fromJson(json);
+  }
 
   @override
   Future<void> requestDriverConfirmation(String rideId) async {

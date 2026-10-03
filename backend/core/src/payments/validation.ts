@@ -13,6 +13,7 @@ export class InvalidPaymentRequestError extends Error {
 export interface CreatePaymentRequest {
   method: EnabledPaymentMethod | 'cash';
   payerEmail?: string;
+  savedCardId?: string;
   cardToken?: string;
   paymentMethodId?: string;
   paymentMethodType?: 'credit_card' | 'debit_card';
@@ -26,6 +27,9 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
 
   const record = input as Record<string, unknown>;
   const method = record.method;
+  if (record.savedCardId != null && (method !== 'card' || typeof record.savedCardId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(record.savedCardId))) {
+    throw new InvalidPaymentRequestError('Cartão salvo inválido.');
+  }
 
   if (
     typeof method !== 'string' ||
@@ -121,6 +125,7 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
   return {
     method,
     ...(payerEmail == null ? {} : { payerEmail }),
+    ...(record.savedCardId == null ? {} : { savedCardId: record.savedCardId as string }),
     ...(cardToken == null ? {} : { cardToken }),
     ...(paymentMethodId == null ? {} : { paymentMethodId }),
     ...(paymentMethodType == null ? {} : { paymentMethodType }),

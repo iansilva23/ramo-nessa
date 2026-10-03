@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -128,6 +129,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
+  String? _lastAlertedOfferId;
   AcceptedDriverRide? _activeRide;
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
@@ -532,6 +534,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
+  void _announceOffer(DriverOffer? offer) {
+    if (offer == null || !offer.expiresAt.isAfter(DateTime.now()) || _lastAlertedOfferId == offer.id) return;
+    _lastAlertedOfferId = offer.id;
+    unawaited(HapticFeedback.mediumImpact());
+    unawaited(SystemSound.play(SystemSoundType.alert));
+  }
+
   void _startRealtime() {
     final service = _realtimeService;
     if (service == null || _realtimeSubscription != null) return;
@@ -553,6 +562,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         });
 
         if (update.offerUpdated) {
+          _announceOffer(update.offer);
           unawaited(_refreshOfferRoutes(update.offer));
         }
         if (update.rideUpdated) {
@@ -685,7 +695,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (_activeRide?.state == 'AWAITING_PAYMENT') {
         final current = await api.currentRide();
         if (!mounted) return;
-        setState(() { _activeRide = current; if (current == null) _activeRoute = null; });
+        setState(() { _activeRide = current; if (current == null) { _activeRoute = null; _message = 'A reserva foi encerrada. Você está disponível para novas corridas.'; } });
         if (current != null && current.state != 'AWAITING_PAYMENT') {
           _stopPolling();
           await _startInAppNavigation();
@@ -694,6 +704,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       }
       final offer = await api.currentOffer();
       if (!mounted) return;
+      _announceOffer(offer);
       setState(() => _offer = offer);
       unawaited(_refreshOfferRoutes(offer));
     } on DriverApiException catch (error) {
@@ -824,6 +835,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       final ride = await api.acceptOffer(offer.id);
       final supply = await api.getSupply();
       if (!mounted) return;
+      unawaited(HapticFeedback.selectionClick());
       _stopPolling();
       _stopNearbyPolling();
       setState(() {
@@ -1723,6 +1735,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _offerTripRoute = tripRoute;
         _offerRoutesReadyForOfferId = offer.id;
       });
+      if (isNewOffer && pickupLat != null && pickupLng != null) {
+        await _mapController.fitCoordinates([
+          LatLng(supply.latitude, supply.longitude), LatLng(pickupLat, pickupLng),
+        ], padding: 110, animate: !MediaQuery.disableAnimationsOf(context));
+      }
     } catch (_) {
       // A oferta mantém as distâncias autoritativas do Core. Se o
       // provedor falhar, a próxima tentativa só acontece após a janela
@@ -1903,7 +1920,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           child: SafeArea(
             top: false,
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
+              duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 360),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) => FadeTransition(
@@ -2449,7 +2466,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   curve: Curves.easeOutCubic,
                   opacity: selected ? 1 : 0,
                   child: AnimatedSlide(
-                    duration: const Duration(milliseconds: 260),
+                    duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 360),
                     curve: Curves.easeOutCubic,
                     offset: Offset(horizontalOffset, 0),
                     child: pages[index],
@@ -3783,41 +3800,7 @@ class _OfferCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: expired
-                      ? Theme.of(context).colorScheme.errorContainer
-                      : RamoColors.brandBlack,
-                  borderRadius: BorderRadius.circular(RamoRadius.pill),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.timer_outlined,
-                      size: 15,
-                      color: expired
-                          ? Theme.of(context).colorScheme.onErrorContainer
-                          : RamoColors.brandYellow,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${seconds}s',
-                      style: TextStyle(
-                        color: expired
-                            ? Theme.of(context).colorScheme.onErrorContainer
-                            : Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              RamoOfferCountdown(seconds: seconds),
             ],
           ),
           const SizedBox(height: 18),
@@ -4477,7 +4460,8 @@ class _ActiveRideCard extends StatelessWidget {
 
   String get _title => switch (ride.state) {
         'AWAITING_PAYMENT' => 'Aguardando pagamento do passageiro',
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
+        'DRIVER_ASSIGNED' => 'Pagamento confirmado — vá buscar o passageiro',
+        'DRIVER_ARRIVING' => 'A caminho do embarque',
         'DRIVER_ARRIVED' => 'Você chegou',
         'IN_PROGRESS' => 'Corrida em andamento',
         'COMPLETED' => 'Corrida finalizada',

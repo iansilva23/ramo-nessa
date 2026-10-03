@@ -1,3 +1,4 @@
+import { InMemorySavedCardRepository, PostgresSavedCardRepository, type SavedCardRepository } from '../payments/saved-card-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
 import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
@@ -86,6 +87,7 @@ export interface RepositoryBundle {
   adminCommunicationsRepository: AdminCommunicationsRepository;
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
+  savedCardRepository: SavedCardRepository;
   privacyRepository: PrivacyRepository;
   promotionRepository: PromotionRepository;
   driverBenefitRepository: DriverBenefitRepository;
@@ -134,6 +136,7 @@ export function createRepositories(): RepositoryBundle {
         new PostgresOperationalSettingsRepository(pool),
       passengerSavedPlaceRepository:
         new PostgresPassengerSavedPlaceRepository(pool),
+      savedCardRepository: new PostgresSavedCardRepository(pool),
       privacyRepository: new PostgresPrivacyRepository(pool),
       promotionRepository: new PostgresPromotionRepository(pool),
       driverBenefitRepository: new PostgresDriverBenefitRepository(pool),
@@ -194,6 +197,7 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryOperationalSettingsRepository(),
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
+    savedCardRepository: new InMemorySavedCardRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
     promotionRepository,
     driverBenefitRepository: new InMemoryDriverBenefitRepository(),

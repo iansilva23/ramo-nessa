@@ -129,6 +129,7 @@ export async function createMercadoPagoCardIntent(input: {
   ride: RideRecord;
   identity: AuthIdentityRecord | null;
   payerEmail?: string;
+  customerId?: string;
   cardToken: string;
   paymentMethodId: string;
   paymentMethodType: 'credit_card' | 'debit_card';
@@ -186,6 +187,7 @@ export async function createMercadoPagoCardIntent(input: {
     paymentId: payment.id,
     amountCents: payment.amountCents,
     payerEmail: email,
+    ...(input.customerId ? { customerId: input.customerId } : {}),
     cardToken: input.cardToken,
     paymentMethodId: input.paymentMethodId,
     paymentMethodType: input.paymentMethodType,

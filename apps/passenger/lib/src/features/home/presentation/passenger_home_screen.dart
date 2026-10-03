@@ -1004,6 +1004,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           MaterialPageRoute(
             builder: (_) => RidePaymentScreen(
               ride: prepared,
+              pickupLatitude: origin.position.latitude,
+              pickupLongitude: origin.position.longitude,
               paymentService: _paymentService,
               rideTrackingService: _rideTrackingService,
               rideRealtimeService: _rideRealtimeService,

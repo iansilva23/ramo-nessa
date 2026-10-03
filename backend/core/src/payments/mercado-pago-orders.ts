@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 type MpFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -237,6 +237,24 @@ export class MercadoPagoOrdersClient {
     }
   }
 
+  get cardStorageScope(): string { return createHash('sha256').update(this.accessToken).digest('hex'); }
+
+  async createCustomer(email: string): Promise<string> {
+    const payload = await this.request('/v1/customers', { method: 'POST', body: JSON.stringify({ email }) });
+    if (typeof payload.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(payload.id)) throw new MercadoPagoOrdersError('Cliente inválido.');
+    return payload.id;
+  }
+  async saveCustomerCard(customerId: string, token: string) {
+    const payload = await this.request(`/v1/customers/${encodeURIComponent(customerId)}/cards`, {method: 'POST', body: JSON.stringify({token})});
+    const method = asObject(payload.payment_method);
+    if (typeof payload.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(payload.id) || typeof payload.last_four_digits !== 'string' || !/^\d{4}$/.test(payload.last_four_digits) ||
+        typeof method.id !== 'string' || !/^[A-Za-z0-9_-]{2,40}$/.test(method.id) || (method.payment_type_id !== 'credit_card' && method.payment_type_id !== 'debit_card')) throw new MercadoPagoOrdersError('Cartão salvo inválido.');
+    return { id: payload.id, lastFourDigits: payload.last_four_digits, paymentMethodId: method.id, paymentMethodType: method.payment_type_id as 'credit_card' | 'debit_card' };
+  }
+  async removeCustomerCard(customerId: string, cardId: string) {
+    await this.request(`/v1/customers/${encodeURIComponent(customerId)}/cards/${encodeURIComponent(cardId)}`, {method: 'DELETE'});
+  }
+
   private async request(path: string, init: RequestInit) {
     const response = await this.fetcher(
       `https://api.mercadopago.com${path}`,
@@ -341,6 +359,7 @@ export class MercadoPagoOrdersClient {
     paymentId: string;
     amountCents: number;
     payerEmail: string;
+    customerId?: string;
     cardToken: string;
     paymentMethodId: string;
     paymentMethodType: 'credit_card' | 'debit_card';
@@ -365,7 +384,7 @@ export class MercadoPagoOrdersClient {
             },
           },
         },
-        payer: { email: input.payerEmail },
+        payer: { email: input.payerEmail, ...(input.customerId ? { customer_id: input.customerId } : {}) },
         transactions: {
           payments: [{
             amount: total,

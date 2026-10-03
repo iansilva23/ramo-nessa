@@ -525,6 +525,7 @@ const {
   adminCommunicationsRepository,
   operationalSettingsRepository,
   passengerSavedPlaceRepository,
+  savedCardRepository,
   privacyRepository,
   promotionRepository,
   driverBenefitRepository,
@@ -7407,6 +7408,52 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const savedCardMatch = requestUrl.pathname.match(/^\/v1\/passenger\/cards(?:\/([A-Za-z0-9_-]{1,100}))?$/);
+    if (savedCardMatch != null && ['GET', 'POST', 'DELETE'].includes(request.method ?? '')) {
+      const passengerId = await resolvePassengerId({request, sessions: authSessionRepository, identities: authOtpRepository});
+      const gateway = mercadoPagoOrdersClient;
+      const policy = await paymentPolicySettingsRepository.get();
+      if (gateway == null || !policy.cardEnabled) { json(response, 503, {error: 'CARD_UNAVAILABLE', message: 'Cartões indisponíveis neste ambiente.'}); return; }
+      const scope = gateway.cardStorageScope;
+      if (request.method === 'GET' && savedCardMatch[1] == null) {
+        json(response, 200, {cards: await savedCardRepository.list(passengerId, scope)}); return;
+      }
+      if (request.method === 'POST' && savedCardMatch[1] == null) {
+        const body = await readJson(request) as Record<string, unknown>;
+        if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['token','payerEmail'].includes(key)) ||
+            typeof body.token !== 'string' || body.token.length < 20 || body.token.length > 1024 ||
+            typeof body.payerEmail !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.payerEmail) || body.payerEmail.length > 254) {
+          json(response, 400, {error: 'INVALID_CARD', message: 'Informe um cartão protegido e um e-mail válido.'}); return;
+        }
+        if ((await savedCardRepository.list(passengerId,scope)).length >= 5) {
+          json(response, 409, {error: 'CARD_LIMIT', message: 'Remova um cartão antes de adicionar outro.'}); return;
+        }
+        try {
+          // Never search/reuse an existing customer by user-supplied email.
+          const customerId = await savedCardRepository.customer(passengerId,scope) ??
+            await savedCardRepository.bindCustomer(passengerId,scope,await gateway.createCustomer(body.payerEmail.trim().toLowerCase()));
+          const card = await gateway.saveCustomerCard(customerId,body.token);
+          await savedCardRepository.save(passengerId,scope,card);
+          json(response, 201, {card});
+        } catch {
+          json(response, 502, {error: 'CARD_SAVE_FAILED', message: 'Não conseguimos salvar o cartão agora. Você pode pagar sem salvá-lo.'});
+        }
+        return;
+      }
+      if (request.method === 'DELETE' && savedCardMatch[1] != null) {
+        const cardId = savedCardMatch[1];
+        const owned = (await savedCardRepository.list(passengerId,scope)).some(card => card.id === cardId);
+        const customerId = await savedCardRepository.customer(passengerId,scope);
+        if (!owned || customerId == null) { json(response, 404, {error: 'CARD_NOT_FOUND'}); return; }
+        try { await gateway.removeCustomerCard(customerId,cardId); } catch (error) {
+          if (!(error instanceof MercadoPagoOrdersError && error.statusCode === 404)) { json(response,502,{error:'CARD_REMOVE_FAILED',message:'Não conseguimos remover o cartão. Tente novamente.'}); return; }
+        }
+        await savedCardRepository.remove(passengerId,scope,cardId);
+        json(response,200,{removed:true}); return;
+      }
+      json(response,405,{error:'METHOD_NOT_ALLOWED'}); return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/v1/driver-search/policy') {
       const settings = await operationalSettingsRepository.get();
       json(response, 200, { categories: settings.driverSearchPolicy ?? defaultDriverSearchPolicy(settings.driverSearchMaxDistanceKm ?? 5) }); return;
@@ -8498,6 +8545,17 @@ const server = createServer(async (request, response) => {
       }
 
       if (body.method === 'card') {
+        let savedCustomerId: string | undefined;
+        if (body.savedCardId != null && mercadoPagoOrdersClient != null) {
+          const scope = mercadoPagoOrdersClient.cardStorageScope;
+          const card = (await savedCardRepository.list(passengerId,scope)).find(card => card.id === body.savedCardId);
+          const customerId = await savedCardRepository.customer(passengerId,scope);
+          if (!card || !customerId || card.paymentMethodId !== body.paymentMethodId || card.paymentMethodType !== body.paymentMethodType) {
+            json(response,404,{error:'CARD_NOT_FOUND',message:'Este cartão não está disponível na sua conta.'}); return;
+          }
+          savedCustomerId = customerId;
+        }
+
         const identity =
           await authOtpRepository.findIdentityBySubject(
             'passenger',
@@ -8512,6 +8570,7 @@ const server = createServer(async (request, response) => {
           ...(body.payerEmail == null
             ? {}
             : { payerEmail: body.payerEmail }),
+          ...(savedCustomerId ? {customerId: savedCustomerId} : {}),
           cardToken: body.cardToken ?? '',
           paymentMethodId: body.paymentMethodId ?? '',
           paymentMethodType:

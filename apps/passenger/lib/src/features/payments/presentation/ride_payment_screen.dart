@@ -1,3 +1,7 @@
+import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
+import 'card_checkout_screen.dart';
+import '../data/saved_card_service.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -28,9 +32,12 @@ class RidePaymentScreen extends StatefulWidget {
     this.rideRealtimeService,
     this.routeService,
     this.networkTilesEnabled = true,
+    this.pickupLatitude,
+    this.pickupLongitude,
   });
 
   final PreparedRide ride;
+  final double? pickupLatitude, pickupLongitude;
   final PassengerPaymentService? paymentService;
   final CardTokenizationService? cardTokenizationService;
   final PassengerRideTrackingService? rideTrackingService;
@@ -154,7 +161,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     final driver = _confirmation?.driver;
     final ready = _confirmation?.status == 'READY_TO_PAY' && driver != null;
     final unavailable = ['EXPIRED', 'NO_DRIVER_FOUND'].contains(_confirmation?.status);
-    return Container(
+    return AnimatedSize(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320), alignment: Alignment.topCenter, child: RamoReveal(key: ValueKey(ready ? driver!.plate : unavailable ? 'unavailable' : 'search'), child: Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(color: RamoColors.surfaceRaised,
         borderRadius: BorderRadius.circular(RamoRadius.lg)),
@@ -165,6 +172,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 16),
         if (driver != null && ready) ...[
+          const Align(alignment: Alignment.centerLeft, child: RamoSuccessMark(size: 40)),
+          const SizedBox(height: 12),
           Row(children: [
             CircleAvatar(radius: 32,
               backgroundImage: driver.photoUrl == null ? null : NetworkImage(driver.photoUrl!),
@@ -193,12 +202,17 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           key: const Key('find-driver-before-payment'),
           onPressed: _remaining == Duration.zero ? null : _findDriver,
           child: const Text('Encontrar motorista'))
-        else if (!unavailable) const Center(child: CircularProgressIndicator()),
+        else if (!unavailable) SizedBox(height:190, child: ClipRRect(borderRadius:BorderRadius.circular(20),child:Stack(alignment:Alignment.center,children:[
+          if (widget.networkTilesEnabled && !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) && widget.pickupLatitude != null && widget.pickupLongitude != null)
+            IgnorePointer(child:gm.GoogleMap(initialCameraPosition:gm.CameraPosition(target:gm.LatLng(widget.pickupLatitude!,widget.pickupLongitude!),zoom:15),
+              myLocationButtonEnabled:false,zoomControlsEnabled:false,mapToolbarEnabled:false,compassEnabled:false)),
+          const RamoSearchPulse(label:'Aguardando o aceite do motorista…'),
+        ]))),
         if (unavailable) const Text('Volte e tente novamente. Nenhum pagamento foi solicitado.'),
         if (_driverMessage != null) Text(_driverMessage!),
         TextButton(onPressed: _leaveReservation, child: const Text('Voltar e cancelar reserva')),
       ]),
-    );
+    )));
   }
 
   Future<void> _confirmFullyPromotionalRide() async {
@@ -433,6 +447,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           builder: (_) => _PixPaymentScreen(
             rideId: _ride.id,
             holdExpiresAt: _ride.holdExpiresAt,
+            amountLabel: PreparedRide.formatCents(_pixTotalAmountCents),
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -481,10 +496,19 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             mercadoPagoPublicKey:
                 _paymentPolicy?.mercadoPagoPublicKey,
           );
-      final tokenized = await tokenizer.tokenize();
+      final selection = await Navigator.of(context).push<CardCheckoutSelection>(MaterialPageRoute(builder: (_) => CardCheckoutScreen(
+        tokenizer: tokenizer, amountLabel: PreparedRide.formatCents(_cardTotalAmountCents), holdExpiresAt: _ride.holdExpiresAt,
+        cards: service is SavedCardService ? service as SavedCardService : null)));
+      if (selection == null || !mounted) { if(mounted) setState(() => _creatingCard = false); return; }
+      _updateRemaining();
+      if (_remaining == Duration.zero || !_canPay) throw const PassengerPaymentException('A reserva expirou ou o motorista ficou indisponível. Solicite novamente.');
+      final tokenized = selection.card;
       if (!mounted) return;
 
-      final result = await service.createCardRidePayment(
+      final result = service is SavedCardService
+        ? await (service as SavedCardService).payWithCard(rideId: _ride.id, idempotencyKey: _cardIdempotencyKey,
+            card: tokenized, payerEmail: selection.email, savedCardId: selection.savedCardId)
+        : await service.createCardRidePayment(
         rideId: _ride.id,
         idempotencyKey: _cardIdempotencyKey,
         cardToken: tokenized.token,
@@ -1122,6 +1146,7 @@ class _PixPaymentScreen extends StatefulWidget {
   const _PixPaymentScreen({
     required this.rideId,
     required this.holdExpiresAt,
+    required this.amountLabel,
     required this.result,
     required this.trackingService,
     required this.realtimeService,
@@ -1131,6 +1156,7 @@ class _PixPaymentScreen extends StatefulWidget {
 
   final String rideId;
   final DateTime holdExpiresAt;
+  final String amountLabel;
   final PixRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
   final PassengerRideRealtimeService? realtimeService;
@@ -1145,6 +1171,9 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   Timer? _pollTimer;
   Timer? _holdTimer;
   Duration _reservationRemaining = Duration.zero;
+  bool _verified = false;
+  bool _copied = false;
+  Timer? _copyTimer;
   bool _checking = false;
   bool _navigating = false;
   String _statusMessage = 'Aguardando confirmação do Pix…';
@@ -1170,6 +1199,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _holdTimer?.cancel();
+    _copyTimer?.cancel();
     super.dispose();
   }
 
@@ -1209,9 +1239,10 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
     if (code.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: code));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Código Pix copiado.')),
-    );
+    setState(() => _copied = true);
+    _copyTimer?.cancel();
+    _copyTimer = Timer(const Duration(seconds: 3), () { if(mounted) setState(() => _copied = false); });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código Pix copiado.')));
   }
 
   Future<void> _checkStatus() async {
@@ -1276,6 +1307,12 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
           ? 'NO_DRIVER_FOUND'
           : 'SEARCHING_DRIVER';
 
+      if (dispatchStatus != 'NO_DRIVER_FOUND') {
+        setState(() { _verified = true; _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.'; });
+        if (!MediaQuery.disableAnimationsOf(context)) await Future<void>.delayed(const Duration(milliseconds: 420));
+        if (!mounted) return;
+      }
+
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideTrackingScreen(
@@ -1324,7 +1361,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
           padding: const EdgeInsets.all(RamoSpacing.xl),
           children: [
             Text(
-              'Escaneie o QR Code',
+              'Pagar ${widget.amountLabel}',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
@@ -1332,7 +1369,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             Text(
-              'A corrida só será enviada ao motorista depois da confirmação.',
+              'Seu motorista está reservado e será liberado após a confirmação do pagamento.',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -1355,13 +1392,13 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(RamoSpacing.md),
                   color: Colors.white,
-                  child: Image.memory(
+                  child: RamoReveal(child: Image.memory(
                     qrBytes,
                     width: 260,
                     height: 260,
                     fit: BoxFit.contain,
                     gaplessPlayback: true,
-                  ),
+                  )),
                 ),
               )
             else if (!reservationExpired)
@@ -1380,8 +1417,9 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
             if (!reservationExpired && hasCopyCode)
               FilledButton.icon(
                 onPressed: _copyPix,
-                icon: const Icon(Icons.copy_rounded),
-                label: const Text('Copiar código Pix'),
+                icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded),
+                label: AnimatedSwitcher(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 200),
+                  child: Text(_copied ? 'Código copiado ✓' : 'Copiar código Pix', key: ValueKey(_copied))),
               ),
             const SizedBox(height: RamoSpacing.md),
             Container(
@@ -1392,10 +1430,9 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
               ),
               child: Row(
                 children: [
-                  const SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+                  if (_verified) const RamoSuccessMark(size: 28)
+                  else if (reservationExpired || _statusMessage.startsWith('Pagamento não aprovado')) const Icon(Icons.info_outline_rounded)
+                  else const SizedBox.square(dimension:22,child:CircularProgressIndicator(strokeWidth:2)),
                   const SizedBox(width: RamoSpacing.sm),
                   Expanded(child: Text(_statusMessage)),
                 ],
@@ -1441,6 +1478,7 @@ class _CardPaymentStatusScreen extends StatefulWidget {
 class _CardPaymentStatusScreenState
     extends State<_CardPaymentStatusScreen> {
   Timer? _pollTimer;
+  bool _verified = false;
   bool _checking = false;
   bool _navigating = false;
   bool _openingChallenge = false;
@@ -1450,7 +1488,7 @@ class _CardPaymentStatusScreenState
   @override
   void initState() {
     super.initState();
-    _statusMessage = widget.result.paymentConfirmed
+    _statusMessage = (_verified || widget.result.paymentConfirmed)
         ? 'Pagamento confirmado.'
         : widget.result.challengeUrl != null
             ? 'Confirme a compra com seu banco para continuar.'
@@ -1568,6 +1606,12 @@ class _CardPaymentStatusScreenState
           ? 'NO_DRIVER_FOUND'
           : 'SEARCHING_DRIVER';
 
+      if (dispatchStatus != 'NO_DRIVER_FOUND') {
+        setState(() { _verified = true; _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.'; });
+        if (!MediaQuery.disableAnimationsOf(context)) await Future<void>.delayed(const Duration(milliseconds: 420));
+        if (!mounted) return;
+      }
+
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideTrackingScreen(
@@ -1616,16 +1660,16 @@ class _CardPaymentStatusScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
-                child: Icon(
+                duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320),
+                child: !failed && (_verified || widget.result.paymentConfirmed) ? const RamoSuccessMark(size:82) : Icon(
                   failed
                       ? Icons.error_rounded
-                      : widget.result.paymentConfirmed
+                      : (_verified || widget.result.paymentConfirmed)
                           ? Icons.check_circle_rounded
                           : challenge
                               ? Icons.verified_user_rounded
                               : Icons.credit_card_rounded,
-                  key: ValueKey('$failed-${widget.result.paymentConfirmed}'),
+                  key: ValueKey('$failed-${(_verified || widget.result.paymentConfirmed)}'),
                   size: 82,
                   color: failed
                       ? Theme.of(context).colorScheme.error
@@ -1636,7 +1680,7 @@ class _CardPaymentStatusScreenState
               Text(
                 failed
                     ? 'Cartão não aprovado'
-                    : widget.result.paymentConfirmed
+                    : (_verified || widget.result.paymentConfirmed)
                         ? 'Pagamento confirmado'
                         : challenge
                             ? 'Confirmação do banco'
@@ -1652,7 +1696,7 @@ class _CardPaymentStatusScreenState
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
-              if (!failed && !widget.result.paymentConfirmed) ...[
+              if (!failed && !(_verified || widget.result.paymentConfirmed)) ...[
                 const SizedBox(height: RamoSpacing.lg),
                 const Center(
                   child: SizedBox.square(

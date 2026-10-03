@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'saved_card_service.dart';
 
 import 'package:flutter/services.dart';
 
@@ -8,12 +9,14 @@ class CardTokenizationResult {
     required this.paymentMethodId,
     required this.paymentMethodType,
     this.lastFourDigits,
+    this.storageToken,
   });
 
   final String token;
   final String paymentMethodId;
   final String paymentMethodType;
   final String? lastFourDigits;
+  final String? storageToken;
 }
 
 abstract interface class CardTokenizationService {
@@ -29,7 +32,7 @@ class CardTokenizationException implements Exception {
   String toString() => message;
 }
 
-class NativeCardTokenizationService implements CardTokenizationService {
+class NativeCardTokenizationService implements CardTokenizationService, SavedCardTokenizationService, StorageCardTokenizationService {
   const NativeCardTokenizationService({
     required this.amountCents,
     this.mercadoPagoPublicKey,
@@ -48,7 +51,15 @@ class NativeCardTokenizationService implements CardTokenizationService {
   );
 
   @override
-  Future<CardTokenizationResult> tokenize() async {
+  Future<CardTokenizationResult> tokenize() => _tokenize();
+
+  @override
+  Future<CardTokenizationResult> tokenizeSavedCard(SavedPassengerCard card) => _tokenize(card: card);
+
+  @override
+  Future<CardTokenizationResult> tokenizeForStorage() => _tokenize(save: true);
+
+  Future<CardTokenizationResult> _tokenize({SavedPassengerCard? card, bool save = false}) async {
     if (amountCents <= 0) {
       throw const CardTokenizationException(
         'Valor da corrida inválido para pagamento por cartão.',
@@ -77,6 +88,11 @@ class NativeCardTokenizationService implements CardTokenizationService {
         {
           'amountCents': amountCents,
           'publicKey': publicKey,
+          'requestStorageToken': save,
+          if (card != null) ...{
+            'savedCardId': card.id, 'paymentMethodId': card.paymentMethodId,
+            'paymentMethodType': card.paymentMethodType, 'lastFourDigits': card.lastFourDigits,
+          },
         },
       );
       if (result == null) {
@@ -104,6 +120,7 @@ class NativeCardTokenizationService implements CardTokenizationService {
 
       return CardTokenizationResult(
         token: token,
+        storageToken: result['storageToken'] as String?,
         paymentMethodId: paymentMethodId,
         paymentMethodType: paymentMethodType,
         lastFourDigits:

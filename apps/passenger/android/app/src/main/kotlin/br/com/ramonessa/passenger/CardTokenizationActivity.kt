@@ -63,10 +63,13 @@ class CardTokenizationActivity : ComponentActivity() {
     private var tokenizing = false
     private var paymentLookupGeneration = 0
     private var amountCents = 0
+    private var savedCardId: String? = null
+    private lateinit var cardPreview: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        savedCardId = intent.getStringExtra("savedCardId")
         amountCents = intent.getIntExtra(MainActivity.EXTRA_AMOUNT_CENTS, 0)
         if (amountCents <= 0) {
             setResult(
@@ -153,6 +156,20 @@ class CardTokenizationActivity : ComponentActivity() {
             ),
         )
 
+        cardPreview = TextView(this).apply {
+            text = "RAMO NESSA                     CARTÃO\n\n◉\n\n••••  ••••  ••••  ${intent.getStringExtra("lastFourDigits") ?: "••••"}"
+            setTextColor(BRAND_YELLOW)
+            textSize = 19f
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(22), dp(18), dp(22), dp(18))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.rgb(42,42,42), Color.rgb(16,16,16))).apply { cornerRadius = dp(24).toFloat() }
+        }
+        container.addView(cardPreview, fullWidth(dp(186)))
+        if (android.os.Build.VERSION.SDK_INT < 26 || android.animation.ValueAnimator.areAnimatorsEnabled()) {
+            cardPreview.alpha = 0f; cardPreview.translationY = dp(16).toFloat()
+            cardPreview.animate().alpha(1f).translationY(0f).setDuration(360).start()
+        }
         val mark = TextView(this).apply {
             text = "●  RAMO NESSA"
             setTextColor(BRAND_YELLOW)
@@ -165,7 +182,7 @@ class CardTokenizationActivity : ComponentActivity() {
 
         container.addView(
             TextView(this).apply {
-                text = "Cartão protegido"
+                text = if (savedCardId == null) "Adicionar cartão" else "Confirmar seu cartão"
                 setTextColor(Color.WHITE)
                 textSize = 28f
                 setTypeface(typeface, Typeface.BOLD)
@@ -196,7 +213,12 @@ class CardTokenizationActivity : ComponentActivity() {
             background = inputBackground()
             setPadding(dp(16), 0, dp(16), 0)
             filters = arrayOf(InputFilter.LengthFilter(80))
-            setOnFocusChangeListener { _, _ -> updateSubmitState() }
+            setOnFocusChangeListener { _, focused ->
+                updateSubmitState()
+                if (android.os.Build.VERSION.SDK_INT < 26 || android.animation.ValueAnimator.areAnimatorsEnabled()) {
+                    cardPreview.animate().scaleX(if (focused) 1.015f else 1f).scaleY(if (focused) 1.015f else 1f).setDuration(180).start()
+                }
+            }
         }
         container.addView(label("Titular do cartão"))
         container.addView(holderNameField, fullWidth(dp(58)))
@@ -239,8 +261,8 @@ class CardTokenizationActivity : ComponentActivity() {
             background = inputBackground()
             setPadding(dp(12), dp(4), dp(12), dp(4))
         }
-        container.addView(label("Número do cartão"))
-        container.addView(cardNumberField, fullWidth(dp(58)))
+        if (savedCardId == null) container.addView(label("Número do cartão"))
+        if (savedCardId == null) container.addView(cardNumberField, fullWidth(dp(58)))
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -279,7 +301,7 @@ class CardTokenizationActivity : ComponentActivity() {
             ),
         )
 
-        row.addView(
+        if (savedCardId == null) row.addView(
             expirationWrap,
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(6)
@@ -381,6 +403,12 @@ class CardTokenizationActivity : ComponentActivity() {
             }
         }
 
+        if (savedCardId != null) {
+            paymentMethodId = intent.getStringExtra("paymentMethodId")
+            paymentMethodType = intent.getStringExtra("paymentMethodType")
+            lastFourDigits = intent.getStringExtra("lastFourDigits")
+            cardValid = true; expirationValid = true; singlePaymentAvailable = true
+        }
         securityField.onEvent = { event ->
             if (event is SecurityCodeTextFieldEvent.OnInputFilled) {
                 securityFilled = event.isFilled
@@ -527,24 +555,26 @@ class CardTokenizationActivity : ComponentActivity() {
 
         scope.launch {
             try {
-                val result = MercadoPagoSDK.getInstance().coreMethods
-                    .generateCardToken(
-                        cardNumberState = cardNumberField.state,
-                        expirationDateState = expirationField.state,
-                        securityCodeState = securityField.state,
-                        buyerIdentification = BuyerIdentification(
-                            name = holder,
-                            number = cpf,
-                            type = "CPF",
-                        ),
-                    )
+                val methods = MercadoPagoSDK.getInstance().coreMethods
+                val identification = BuyerIdentification(name = holder, number = cpf, type = "CPF")
+                val result = if (savedCardId != null) methods.generateCardToken(
+                    cardId = savedCardId!!, securityCodeState = securityField.state, buyerIdentification = identification,
+                ) else methods.generateCardToken(
+                    cardNumberState = cardNumberField.state, expirationDateState = expirationField.state,
+                    securityCodeState = securityField.state, buyerIdentification = identification,
+                )
 
                 when (result) {
                     is Result.Success -> {
+                        val storage = if (savedCardId == null && intent.getBooleanExtra("requestStorageToken", false)) try {
+                            methods.generateCardToken(cardNumberState = cardNumberField.state, expirationDateState = expirationField.state,
+                                securityCodeState = securityField.state, buyerIdentification = identification)
+                        } catch (_: Exception) { null } else null
                         setResult(
                             Activity.RESULT_OK,
                             Intent().apply {
                                 putExtra("token", result.data.token)
+                                if (storage is Result.Success) putExtra("storageToken", storage.data.token)
                                 putExtra("paymentMethodId", methodId)
                                 putExtra("paymentMethodType", methodType)
                                 putExtra(
