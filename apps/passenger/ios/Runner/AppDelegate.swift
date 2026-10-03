@@ -209,7 +209,7 @@ private enum RamoCardFlowOutcome {
   case cancelled
 }
 
-private final class RamoCardTokenizationViewController: UIViewController {
+private final class RamoCardTokenizationViewController: UIViewController, UITextFieldDelegate {
   private let amountCents: Int
   private let savedCard: String?
   private let requestStorageToken: Bool
@@ -219,6 +219,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
   private let brandBlack = UIColor(red: 13 / 255, green: 13 / 255, blue: 13 / 255, alpha: 1)
   private let brandYellow = UIColor(red: 250 / 255, green: 213 / 255, blue: 14 / 255, alpha: 1)
 
+  private let previewLabel = UILabel()
   private var paymentMethodId: String?
   private var paymentMethodType: String?
   private var lastFourDigits: String?
@@ -426,7 +427,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
     explanation.numberOfLines = 0
     explanation.textAlignment = .center
 
-    let preview = UILabel()
+    let preview = previewLabel
     preview.text = "RAMO NESSA                       CARTÃO\n\n◉\n\n••••  ••••  ••••  \(lastFourDigits ?? "••••")"
     preview.textColor = brandYellow
     preview.font = .monospacedSystemFont(ofSize: 19, weight: .semibold)
@@ -517,6 +518,7 @@ private final class RamoCardTokenizationViewController: UIViewController {
     keyboard: UIKeyboardType
   ) -> UITextField {
     let field = UITextField()
+    field.delegate = self
     field.translatesAutoresizingMaskIntoConstraints = false
     field.placeholder = placeholder
     field.keyboardType = keyboard
@@ -708,10 +710,19 @@ private final class RamoCardTokenizationViewController: UIViewController {
     }
   }
 
+  func textFieldDidBeginEditing(_ textField: UITextField) {
+    guard !UIAccessibility.isReduceMotionEnabled else { return }
+    UIView.animate(withDuration: 0.18) { self.previewLabel.transform = CGAffineTransform(scaleX: 1.015, y: 1.015) }
+  }
+  func textFieldDidEndEditing(_ textField: UITextField) {
+    UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.18) { self.previewLabel.transform = .identity }
+  }
+
   private func updateSubmitState() {
     let holder = holderField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let cpf = (cpfField.text ?? "").filter(\.isNumber)
 
+    previewLabel.text = "RAMO NESSA                 \((paymentMethodId ?? "CARTÃO").uppercased())\n\n◉\n\n••••  ••••  ••••  \(lastFourDigits ?? "••••")\n\(holder.uppercased().prefix(24))"
     let enabled =
       !tokenizing &&
       !loadingMethod &&

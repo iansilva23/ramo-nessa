@@ -161,7 +161,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     final driver = _confirmation?.driver;
     final ready = _confirmation?.status == 'READY_TO_PAY' && driver != null;
     final unavailable = ['EXPIRED', 'NO_DRIVER_FOUND'].contains(_confirmation?.status);
-    return AnimatedSize(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320), alignment: Alignment.topCenter, child: RamoReveal(key: ValueKey(ready ? driver!.plate : unavailable ? 'unavailable' : 'search'), child: Container(
+    return AnimatedSize(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320), alignment: Alignment.topCenter, child: RamoReveal(key: ValueKey(ready ? driver.plate : unavailable ? 'unavailable' : 'search'), child: Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(color: RamoColors.surfaceRaised,
         borderRadius: BorderRadius.circular(RamoRadius.lg)),

@@ -210,6 +210,11 @@ class CardTokenizationActivity : ComponentActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or
                 InputType.TYPE_TEXT_FLAG_CAP_WORDS
             isSingleLine = true
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { if (this@CardTokenizationActivity::submitButton.isInitialized) updateSubmitState() }
+                override fun afterTextChanged(s: Editable?) = Unit
+            })
             background = inputBackground()
             setPadding(dp(16), 0, dp(16), 0)
             filters = arrayOf(InputFilter.LengthFilter(80))
@@ -604,6 +609,9 @@ class CardTokenizationActivity : ComponentActivity() {
     }
 
     private fun updateSubmitState() {
+        if (this::cardPreview.isInitialized && this::holderNameField.isInitialized) {
+            cardPreview.text = "RAMO NESSA              ${(paymentMethodId ?: "CARTÃO").uppercase()}\n\n◉\n\n••••  ••••  ••••  ${lastFourDigits ?: "••••"}\n${holderNameField.text.toString().uppercase().take(24)}"
+        }
         if (!::submitButton.isInitialized) return
         submitButton.isEnabled =
             !tokenizing &&
