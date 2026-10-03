@@ -5799,7 +5799,7 @@ function renderDriverDirectory() {
     const pill = document.createElement('span');
     pill.className = `pill pill--${presentation.tone}`;
     pill.textContent = presentation.label;
-    if (driver.registrationOnly) { pill.textContent = 'Aguardando aprovação'; pill.className = 'status-pill status-pill--pending'; }
+    if (driver.registrationOnly) { pill.textContent = 'Aguardando aprovação'; pill.className = 'pill pill--warning'; }
     status.append(pill);
 
     const updated = document.createElement('td');
