@@ -170,15 +170,8 @@ class CardTokenizationActivity : ComponentActivity() {
             cardPreview.alpha = 0f; cardPreview.translationY = dp(16).toFloat()
             cardPreview.animate().alpha(1f).translationY(0f).setDuration(360).start()
         }
-        val mark = TextView(this).apply {
-            text = "●  RAMO NESSA"
-            setTextColor(BRAND_YELLOW)
-            textSize = 21f
-            setTypeface(typeface, Typeface.BOLD_ITALIC)
-            gravity = Gravity.CENTER
-            letterSpacing = 0.02f
-        }
-        container.addView(mark, fullWidth(dp(44)))
+
+
 
         container.addView(
             TextView(this).apply {
@@ -193,13 +186,13 @@ class CardTokenizationActivity : ComponentActivity() {
 
         container.addView(
             TextView(this).apply {
-                text = "Seus dados são digitados nos campos seguros do Mercado Pago. " +
-                    "O Ramo Nessa recebe apenas um token temporário."
+                text = "Adicione seu cartão com segurança. " +
+                    "A cobrança só acontece depois de confirmar o pagamento."
                 setTextColor(Color.rgb(185, 187, 191))
                 textSize = 14f
                 gravity = Gravity.CENTER
             },
-            fullWidth(dp(72)),
+            fullWidth(dp(56)),
         )
 
         holderNameField = EditText(this).apply {
@@ -362,7 +355,7 @@ class CardTokenizationActivity : ComponentActivity() {
 
         container.addView(
             TextView(this).apply {
-                text = "Proteção PCI · Mercado Pago"
+                text = "Pagamento protegido · Mercado Pago"
                 setTextColor(Color.rgb(128, 131, 136))
                 textSize = 12f
                 gravity = Gravity.CENTER

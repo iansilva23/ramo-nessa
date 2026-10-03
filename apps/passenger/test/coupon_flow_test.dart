@@ -34,6 +34,8 @@ void main() {
     expect(find.text('Motorista de teste'), findsOneWidget);
     expect(find.text('Buggy local · ABC1D23'), findsOneWidget);
     expect(find.textContaining('3 minutos'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.ensureVisible(find.byKey(const Key('confirm-driver-and-pay')));
     await tester.tap(find.byKey(const Key('confirm-driver-and-pay')));
     await tester.pump();
     expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);

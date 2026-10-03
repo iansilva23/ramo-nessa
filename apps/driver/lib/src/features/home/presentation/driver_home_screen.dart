@@ -548,6 +548,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _realtimeSubscription = service.watch().listen(
       (update) {
         if (!mounted) return;
+        final previousRideState = _activeRide?.state;
         setState(() {
           if (update.offerUpdated) {
             _offer = update.offer;
@@ -566,6 +567,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           unawaited(_refreshOfferRoutes(update.offer));
         }
         if (update.rideUpdated) {
+          if (previousRideState == 'AWAITING_PAYMENT' && ['DRIVER_ASSIGNED','DRIVER_ARRIVING'].contains(update.ride?.state)) {
+            setState(() => _message = 'Pagamento confirmado. Vá buscar o passageiro.');
+            unawaited(HapticFeedback.selectionClick());
+          }
           unawaited(_refreshActiveRoute(force: true));
         }
 
@@ -697,6 +702,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         if (!mounted) return;
         setState(() { _activeRide = current; if (current == null) { _activeRoute = null; _message = 'A reserva foi encerrada. Você está disponível para novas corridas.'; } });
         if (current != null && current.state != 'AWAITING_PAYMENT') {
+          if (['DRIVER_ASSIGNED','DRIVER_ARRIVING'].contains(current.state)) {
+            setState(() => _message = 'Pagamento confirmado. Vá buscar o passageiro.');
+            unawaited(HapticFeedback.selectionClick());
+          }
           _stopPolling();
           await _startInAppNavigation();
           return;
@@ -1735,7 +1744,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _offerTripRoute = tripRoute;
         _offerRoutesReadyForOfferId = offer.id;
       });
-      if (isNewOffer && pickupLat != null && pickupLng != null) {
+      if (isNewOffer) {
         await _mapController.fitCoordinates([
           LatLng(supply.latitude, supply.longitude), LatLng(pickupLat, pickupLng),
         ], padding: 110, animate: !MediaQuery.disableAnimationsOf(context));

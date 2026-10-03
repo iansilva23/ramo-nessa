@@ -406,22 +406,10 @@ private final class RamoCardTokenizationViewController: UIViewController, UIText
     stack.axis = .vertical
     stack.spacing = 12
 
-    let mark = UILabel()
-    mark.text = "●  RAMO NESSA"
-    mark.textColor = brandYellow
-    mark.font = .systemFont(ofSize: 21, weight: .black)
-    mark.textAlignment = .center
-
-    let headline = UILabel()
-    headline.text = "Pagamento seguro"
-    headline.textColor = .white
-    headline.font = .systemFont(ofSize: 28, weight: .black)
-    headline.textAlignment = .center
-
     let explanation = UILabel()
     explanation.text =
-      "Os dados do cartão ficam nos campos seguros do Mercado Pago. " +
-      "O Ramo Nessa recebe apenas um token temporário."
+      "Adicione seu cartão com segurança. " +
+      "A cobrança só acontece depois de confirmar o pagamento."
     explanation.textColor = UIColor(white: 0.74, alpha: 1)
     explanation.font = .systemFont(ofSize: 14)
     explanation.numberOfLines = 0
@@ -463,15 +451,13 @@ private final class RamoCardTokenizationViewController: UIViewController, UIText
     details.addArrangedSubview(securityStack)
 
     let securityNote = UILabel()
-    securityNote.text = "À vista (1x) · Proteção PCI · Mercado Pago"
+    securityNote.text = "À vista · Pagamento protegido pelo Mercado Pago"
     securityNote.textColor = UIColor(white: 0.5, alpha: 1)
     securityNote.font = .systemFont(ofSize: 12)
     securityNote.textAlignment = .center
 
     [
       preview,
-      mark,
-      headline,
       explanation,
       holderLabel,
       holderField,

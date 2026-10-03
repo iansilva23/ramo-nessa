@@ -349,6 +349,19 @@ jobs:
           cat pubspec.lock
           echo "=== PASSENGER_PUBSPEC_LOCK_END ==="
 
+      - name: Format ride experience source for review
+        run: |
+          dart format packages/design_system/lib/src/motion/ramo_ride_motion.dart packages/design_system/test/ride_motion_test.dart apps/passenger/lib/src/features/payments/data/card_tokenization_service.dart apps/passenger/lib/src/features/payments/data/saved_card_service.dart apps/passenger/lib/src/features/payments/data/http_passenger_payment_service.dart apps/passenger/lib/src/features/payments/presentation/card_checkout_screen.dart apps/passenger/lib/src/features/payments/presentation/ride_payment_screen.dart apps/passenger/test/card_checkout_test.dart apps/driver/lib/src/features/home/presentation/driver_home_screen.dart apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart
+          mkdir -p "$RUNNER_TEMP/ride-experience-source"
+          cp --parents packages/design_system/lib/src/motion/ramo_ride_motion.dart packages/design_system/test/ride_motion_test.dart apps/passenger/lib/src/features/payments/data/card_tokenization_service.dart apps/passenger/lib/src/features/payments/data/saved_card_service.dart apps/passenger/lib/src/features/payments/data/http_passenger_payment_service.dart apps/passenger/lib/src/features/payments/presentation/card_checkout_screen.dart apps/passenger/lib/src/features/payments/presentation/ride_payment_screen.dart apps/passenger/test/card_checkout_test.dart apps/driver/lib/src/features/home/presentation/driver_home_screen.dart apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart "$RUNNER_TEMP/ride-experience-source/"
+
+      - name: Preserve formatted ride experience source
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ride-experience-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/ride-experience-source
+          retention-days: 3
+
       - name: Analyze Passenger
         working-directory: apps/passenger
         run: flutter analyze

@@ -172,13 +172,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 16),
         if (driver != null && ready) ...[
-          const Align(alignment: Alignment.centerLeft, child: RamoSuccessMark(size: 40)),
-          const SizedBox(height: 12),
+
           Row(children: [
-            CircleAvatar(radius: 32,
+            Stack(clipBehavior: Clip.none, children: [CircleAvatar(radius: 32,
               backgroundImage: driver.photoUrl == null ? null : NetworkImage(driver.photoUrl!),
               onBackgroundImageError: driver.photoUrl == null ? null : (_, __) {},
               child: driver.photoUrl == null ? const Icon(Icons.person_rounded, size: 32) : null),
+              const Positioned(bottom: -2, right: -2, child: RamoSuccessMark(size: 24)),
+            ]),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(driver.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -448,6 +449,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             rideId: _ride.id,
             holdExpiresAt: _ride.holdExpiresAt,
             amountLabel: PreparedRide.formatCents(_pixTotalAmountCents),
+            driverReserved: _ride.driverConsentRequired,
             result: result,
             trackingService: widget.rideTrackingService,
             realtimeService: widget.rideRealtimeService,
@@ -1147,6 +1149,7 @@ class _PixPaymentScreen extends StatefulWidget {
     required this.rideId,
     required this.holdExpiresAt,
     required this.amountLabel,
+    required this.driverReserved,
     required this.result,
     required this.trackingService,
     required this.realtimeService,
@@ -1157,6 +1160,7 @@ class _PixPaymentScreen extends StatefulWidget {
   final String rideId;
   final DateTime holdExpiresAt;
   final String amountLabel;
+  final bool driverReserved;
   final PixRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
   final PassengerRideRealtimeService? realtimeService;
@@ -1369,7 +1373,8 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
             ),
             const SizedBox(height: RamoSpacing.sm),
             Text(
-              'Seu motorista está reservado e será liberado após a confirmação do pagamento.',
+              widget.driverReserved ? 'Seu motorista está reservado e será liberado após a confirmação do pagamento.'
+                : 'A corrida só será enviada ao motorista depois da confirmação.',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
