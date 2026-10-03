@@ -4389,7 +4389,9 @@ class _ActiveRideCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
+              if (ride.state == 'AWAITING_PAYMENT')
+                const RamoSuccessMark(size: 22)
+              else Container(
                 width: 10,
                 height: 10,
                 decoration: const BoxDecoration(
