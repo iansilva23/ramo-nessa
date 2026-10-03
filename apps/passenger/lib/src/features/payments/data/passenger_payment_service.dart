@@ -65,10 +65,17 @@ abstract interface class PassengerPaymentService {
 }
 
 class PassengerPaymentException implements Exception {
-  const PassengerPaymentException(this.message);
+  const PassengerPaymentException(this.message, {this.code});
 
   final String message;
+  final String? code;
 
   @override
   String toString() => message;
+}
+
+/// Checkout-only email; never an onboarding requirement.
+abstract interface class PixEmailPaymentService {
+  String? get checkoutEmail;
+  Future<PixRidePaymentResult> createPixWithEmail({required String rideId, required String idempotencyKey, required String payerEmail});
 }

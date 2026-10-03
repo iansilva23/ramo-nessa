@@ -21,7 +21,8 @@ class HttpPassengerPaymentService
     implements
         PassengerPaymentService,
         DriverConfirmationService,
-        SavedCardService {
+        SavedCardService,
+        PixEmailPaymentService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
     String? accessToken,
@@ -39,6 +40,9 @@ class HttpPassengerPaymentService
   final String _passengerId;
   final String _clientInstanceId;
   final http.Client _client;
+  String? _checkoutEmail;
+  @override
+  String? get checkoutEmail => _checkoutEmail;
 
   Map<String, String> get _identityHeaders => {
     'content-type': 'application/json',
@@ -115,6 +119,7 @@ class HttpPassengerPaymentService
     required String payerEmail,
     String? savedCardId,
   }) async {
+    _checkoutEmail = payerEmail.trim();
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
@@ -487,15 +492,21 @@ class HttpPassengerPaymentService
   }
 
   @override
-  Future<PixRidePaymentResult> createPixRidePayment({
-    required String rideId,
-    required String idempotencyKey,
-  }) async {
+  Future<PixRidePaymentResult> createPixRidePayment({required String rideId, required String idempotencyKey}) =>
+    _createPix(rideId:rideId,idempotencyKey:idempotencyKey,payerEmail:_checkoutEmail);
+
+  @override
+  Future<PixRidePaymentResult> createPixWithEmail({required String rideId, required String idempotencyKey, required String payerEmail}) {
+    _checkoutEmail = payerEmail.trim();
+    return _createPix(rideId:rideId,idempotencyKey:idempotencyKey,payerEmail:_checkoutEmail);
+  }
+
+  Future<PixRidePaymentResult> _createPix({required String rideId,required String idempotencyKey,String? payerEmail}) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
           headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
-          body: jsonEncode({'method': 'pix'}),
+          body: jsonEncode({'method': 'pix', if(payerEmail != null) 'payerEmail':payerEmail}),
         )
         .timeout(RamoCoreConfig.requestTimeout);
 
@@ -510,8 +521,10 @@ class HttpPassengerPaymentService
       }
     }
 
+    final errorCode = decoded?['error'];
     throw PassengerPaymentException(
       apiErrorMessage(decoded, 'Não conseguimos gerar o Pix agora.'),
+      code: errorCode is String ? errorCode : null,
     );
   }
 

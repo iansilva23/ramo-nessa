@@ -555,10 +555,20 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     });
 
     try {
-      final result = await service.createPixRidePayment(
-        rideId: _ride.id,
-        idempotencyKey: _pixIdempotencyKey,
-      );
+      PixRidePaymentResult result;
+      try {
+        result = await service.createPixRidePayment(rideId:_ride.id,idempotencyKey:_pixIdempotencyKey);
+      } on PassengerPaymentException catch (error) {
+        if (error.code != 'PASSENGER_EMAIL_REQUIRED' || service is! PixEmailPaymentService) { rethrow; }
+        final email = await showDialog<String>(context:context,builder: (_) => const _CheckoutEmailDialog());
+        if (!mounted) return;
+        if (email == null) { setState(() => _creatingPix = false); return; }
+        _updateRemaining();
+        if (_remaining == Duration.zero || !_canPay) {
+          throw const PassengerPaymentException('A reserva expirou ou o motorista ficou indisponível. Solicite novamente.');
+        }
+        result = await (service as PixEmailPaymentService).createPixWithEmail(rideId:_ride.id,idempotencyKey:_pixIdempotencyKey,payerEmail:email);
+      }
 
       if (!mounted) return;
       setState(() => _creatingPix = false);
@@ -620,6 +630,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           builder: (_) => CardCheckoutScreen(
             tokenizer: tokenizer,
             amountLabel: PreparedRide.formatCents(_cardTotalAmountCents),
+            initialEmail: service is PixEmailPaymentService ? (service as PixEmailPaymentService).checkoutEmail ?? '' : '',
             holdExpiresAt: _ride.holdExpiresAt,
             cards: service is SavedCardService
                 ? service as SavedCardService
@@ -2169,4 +2180,28 @@ class _PaymentOption extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CheckoutEmailDialog extends StatefulWidget {
+  const _CheckoutEmailDialog();
+  @override
+  State<_CheckoutEmailDialog> createState() => _CheckoutEmailDialogState();
+}
+class _CheckoutEmailDialogState extends State<_CheckoutEmailDialog> {
+  final _email = TextEditingController();
+  final _form = GlobalKey<FormState>();
+  @override
+  void dispose() { _email.dispose(); super.dispose(); }
+  void _continue() { if (_form.currentState!.validate()) { Navigator.of(context).pop(_email.text.trim()); } }
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title:const Text('Só falta seu e-mail'),
+    content:Form(key:_form,child:TextFormField(key:const Key('payment-email-field'),controller:_email,
+      autofocus:true,keyboardType:TextInputType.emailAddress,autofillHints:const [AutofillHints.email],
+      decoration:const InputDecoration(labelText:'E-mail para o pagamento'),maxLength:254,
+      validator:(value) => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value?.trim() ?? '') ? null : 'Informe um e-mail válido',
+      onFieldSubmitted:(_) => _continue())),
+    actions:[TextButton(onPressed:() => Navigator.of(context).pop(),child:const Text('Cancelar')),
+      FilledButton(onPressed:_continue,child:const Text('Continuar'))],
+  );
 }

@@ -18,9 +18,11 @@ class CardCheckoutScreen extends StatefulWidget {
     required this.amountLabel,
     required this.holdExpiresAt,
     this.cards,
+    this.initialEmail = '',
   });
   final CardTokenizationService tokenizer;
   final SavedCardService? cards;
+  final String initialEmail;
   final String amountLabel;
   final DateTime holdExpiresAt;
   @override
@@ -40,6 +42,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    _email.text = widget.initialEmail;
     unawaited(_load());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});

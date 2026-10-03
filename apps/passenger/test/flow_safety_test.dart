@@ -332,6 +332,26 @@ void main() {
   });
 
 
+  testWidgets('Pix requests only checkout email before creating the payment', (tester) async {
+    final service = _EmailPixService();
+    final ride = PreparedRide(id:'ride-pix-email',state:'AWAITING_PAYMENT',baseAmountCents:4000,pickupCompensationCents:0,totalAmountCents:4000,
+      holdExpiresAt:DateTime.now().add(const Duration(minutes:2)));
+    await tester.pumpWidget(MaterialApp(home:RidePaymentScreen(ride:ride,paymentService:service,networkTilesEnabled:false)));
+    await tester.pump(); await tester.pump(const Duration(milliseconds:100));
+    expect(find.byKey(const Key('payment-email-field')),findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('payment-option-pix')));
+    await tester.tap(find.byKey(const Key('payment-option-pix')));
+    await tester.pump(); await tester.pump(const Duration(milliseconds:350));
+    expect(find.text('Só falta seu e-mail'),findsOneWidget); expect(service.pixCalls,0);
+    await tester.tap(find.text('Continuar')); await tester.pump();
+    expect(find.text('Informe um e-mail válido'),findsOneWidget); expect(service.pixCalls,0);
+    await tester.enterText(find.byKey(const Key('payment-email-field')),'ian@example.com');
+    await tester.tap(find.text('Continuar')); await tester.pump(); await tester.pump(const Duration(milliseconds:500));
+    expect(service.email,'ian@example.com'); expect(service.pixCalls,1);
+    expect(find.text('Pagar com Pix'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('Pix abre checkout real com copia e cola', (tester) async {
     final ride = PreparedRide(
       id: 'ride-pix-ui',
@@ -903,5 +923,22 @@ class _FakePixPassengerPaymentService
     required String idempotencyKey,
   }) async {
     throw StateError('Carteira não faz parte deste teste Pix.');
+  }
+}
+
+class _EmailPixService extends _FakePixPassengerPaymentService implements PixEmailPaymentService {
+  int pixCalls = 0;
+  String? email;
+  @override
+  String? get checkoutEmail => email;
+  @override
+  Future<PixRidePaymentResult> createPixRidePayment({required String rideId,required String idempotencyKey}) async {
+    if (email == null) { throw const PassengerPaymentException('Informe seu e-mail',code:'PASSENGER_EMAIL_REQUIRED'); }
+    return super.createPixRidePayment(rideId:rideId,idempotencyKey:idempotencyKey);
+  }
+  @override
+  Future<PixRidePaymentResult> createPixWithEmail({required String rideId,required String idempotencyKey,required String payerEmail}) {
+    pixCalls++; email = payerEmail;
+    return super.createPixRidePayment(rideId:rideId,idempotencyKey:idempotencyKey);
   }
 }

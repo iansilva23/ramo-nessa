@@ -12,6 +12,8 @@ Shared components live in `packages/design_system/lib/src/motion/ramo_ride_motio
 - A confirmed-payment animation only runs after the tracking API reports a paid/assigned state; refund/unavailable states bypass success.
 - Driver sound/haptics depend on platform/device settings. Android uses a short notification-stream tone and explicitly skips silent/vibrate mode, zero volume and Do Not Disturb. There is no repeating sound or silent-mode override.
 
+Pix requests an email at checkout only when Core reports that the passenger identity has no payment email. The email is sent to the existing Core payment endpoint, held only in the authenticated service instance and can prefill the card review; it is not stored in device preferences. Cancelling the dialog does not create a payment.
+
 ## Card registration and saved cards
 
 The Flutter review screen separates adding/selecting a card from confirming the charge. Secure native Mercado Pago fields remain on Android/iOS; sensitive fields never move into Flutter, logs, local preferences or Core.
