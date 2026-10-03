@@ -504,11 +504,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void _announceOffer(DriverOffer? offer) {
     if (offer == null ||
         !offer.expiresAt.isAfter(DateTime.now()) ||
-        _lastAlertedOfferId == offer.id)
+        _lastAlertedOfferId == offer.id) {
       return;
+    }
     _lastAlertedOfferId = offer.id;
     unawaited(HapticFeedback.mediumImpact());
-    unawaited(SystemSound.play(SystemSoundType.alert));
+    unawaited(_playOfferAlert());
+  }
+
+  Future<void> _playOfferAlert() async {
+    try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await const MethodChannel('br.com.ramonessa.driver/ride-alerts')
+            .invokeMethod<void>('playOfferAlert');
+      } else {
+        await SystemSound.play(SystemSoundType.alert);
+      }
+    } catch (_) {
+      // A device without sound support still shows the offer and its deadline.
+    }
   }
 
   void _startRealtime() {

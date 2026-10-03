@@ -10,7 +10,7 @@ Shared components live in `packages/design_system/lib/src/motion/ramo_ride_motio
 - Reduced motion disables looping and entry transitions. Countdown semantics avoid duplicate screen-reader announcements.
 - The passenger's pickup coordinates drive the optional search map. The driver map fits the actual driver/embark coordinates once per offer, without inventing positions or arrival estimates.
 - A confirmed-payment animation only runs after the tracking API reports a paid/assigned state; refund/unavailable states bypass success.
-- Driver system sound/haptics depend on platform/device settings. No custom repeating sound or silent-mode override is used.
+- Driver sound/haptics depend on platform/device settings. Android uses a short notification-stream tone and explicitly skips silent/vibrate mode, zero volume and Do Not Disturb. There is no repeating sound or silent-mode override.
 
 ## Card registration and saved cards
 
