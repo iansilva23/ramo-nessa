@@ -143,7 +143,7 @@ class _HelpItem extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             body,
-            style: const TextStyle(height: 1.45, color: RamoColors.muted),
+            style: TextStyle(height: 1.45, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ),
       ],

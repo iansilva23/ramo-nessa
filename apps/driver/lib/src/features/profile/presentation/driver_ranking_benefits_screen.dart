@@ -299,12 +299,12 @@ class _ComingSoonView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: RamoSpacing.lg),
-          const Center(
+          Center(
             child: Text(
               'Continue fazendo um ótimo trabalho. Novidades estão chegando.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
                 height: 1.4,
               ),
@@ -377,8 +377,8 @@ class _ComingSoonBenefit extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: RamoColors.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                     height: 1.4,
                   ),

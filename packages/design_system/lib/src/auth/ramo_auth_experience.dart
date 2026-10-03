@@ -45,7 +45,7 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
     final cardTop = media.size.height * (compact ? .18 : .34);
     final animation = reduceMotion ? const AlwaysStoppedAnimation(1.0) : _controller;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: AnimatedBuilder(
         animation: animation,
         builder: (context, _) {
@@ -77,8 +77,8 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
                   child: Opacity(
                     opacity: cardT,
                     child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.vertical(
                           top: Radius.circular(34),
                         ),

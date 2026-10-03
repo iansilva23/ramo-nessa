@@ -2026,8 +2026,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               Text(
                 '${_activityDateLabel(_activityCustomRange!.start)} a '
                 '${_activityDateLabel(_activityCustomRange!.end)}',
-                style: const TextStyle(
-                  color: RamoColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -2587,7 +2587,7 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
                   Text(
                     description,
                     style: Theme.of(context).textTheme.bodyLarge
-                        ?.copyWith(color: RamoColors.muted, height: 1.45),
+                        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.45),
                   ),
                   const SizedBox(height: 28),
                   _ApprovalStatusRow(
@@ -2619,11 +2619,11 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     'O acesso às corridas só é liberado após a aprovação cadastral.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: RamoColors.muted,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2729,7 +2729,7 @@ class _DriverStartupErrorScreen extends StatelessWidget {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: RamoColors.muted),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 22),
                   FilledButton(
@@ -2900,7 +2900,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 11),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2911,7 +2911,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     'Procurando corridas próximas',
-                    style: TextStyle(color: RamoColors.muted, fontSize: 12),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                   ),
                 ],
               ),
@@ -2955,14 +2955,14 @@ class _MapAvailabilityPanel extends StatelessWidget {
             Container(
               width: 34,
               height: 34,
-              decoration: const BoxDecoration(
-                color: RamoColors.surfaceRaised,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.power_settings_new_rounded, size: 19),
             ),
             const SizedBox(width: 11),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2973,7 +2973,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     'Fique online quando estiver pronto para dirigir.',
-                    style: TextStyle(color: RamoColors.muted, fontSize: 12),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                   ),
                 ],
               ),
@@ -3031,8 +3031,8 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Text(
           eyebrow,
-          style: const TextStyle(
-            color: RamoColors.muted,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w900,
             fontSize: 11,
             letterSpacing: 1.1,
@@ -3048,7 +3048,7 @@ class _SectionHeader extends StatelessWidget {
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: RamoColors.muted),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -3233,7 +3233,7 @@ class _ProfileOption extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(
           icon,
           color: destructive
@@ -3283,7 +3283,7 @@ class _ActivitySummaryGrid extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(RamoSpacing.md),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
                 child: Column(
@@ -3291,8 +3291,8 @@ class _ActivitySummaryGrid extends StatelessWidget {
                   children: [
                     Text(
                       item.$1,
-                      style: const TextStyle(
-                        color: RamoColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -3323,7 +3323,7 @@ class _ActivityRideCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: RamoColors.surfaceRaised,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(RamoRadius.md),
       child: Padding(
         padding: const EdgeInsets.all(RamoSpacing.md),
@@ -3355,8 +3355,8 @@ class _ActivityRideCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${ride.categoryLabel} · ${ride.stateLabel}',
-                    style: const TextStyle(
-                      color: RamoColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -3702,10 +3702,10 @@ class _OfferCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'VOCÊ RECEBE',
                       style: TextStyle(
-                        color: RamoColors.muted,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w900,
                         fontSize: 10,
                         letterSpacing: .8,
@@ -3811,7 +3811,7 @@ class _DriverRouteTimeline extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Column(
@@ -3867,8 +3867,8 @@ class _DriverRouteStop extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: RamoColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w900,
                   fontSize: 9,
                   letterSpacing: .7,
@@ -3964,7 +3964,7 @@ class _DriverMetric extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -3976,8 +3976,8 @@ class _DriverMetric extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: RamoColors.muted,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w800,
               fontSize: 9,
             ),
@@ -4006,7 +4006,7 @@ class _DriverMetaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.pill),
       ),
       child: Row(
@@ -4416,13 +4416,13 @@ class _ActiveRideCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.pill),
                 ),
                 child: Text(
                   _stageLabel,
-                  style: const TextStyle(
-                    color: RamoColors.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w900,
                     fontSize: 9,
                     letterSpacing: .6,
@@ -4492,10 +4492,10 @@ class _ActiveRideCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
+                  Text(
                     'SEU GANHO',
                     style: TextStyle(
-                      color: RamoColors.muted,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w900,
                       fontSize: 9,
                       letterSpacing: .7,
@@ -4669,3 +4669,4 @@ class _UnavailableDriverRouteService implements DriverRouteService {
     );
   }
 }
+

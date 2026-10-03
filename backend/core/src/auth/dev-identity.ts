@@ -50,6 +50,7 @@ export async function resolvePassengerId(input: {
   if (input.request.headers.authorization != null) {
     const session = await authenticateBearer({
       repository: input.sessions,
+      renewSession: true,
       headers: input.request.headers,
       requiredType: 'passenger',
       identities: input.identities,
@@ -69,6 +70,7 @@ export async function resolveDriverId(input: {
   if (input.request.headers.authorization != null) {
     const session = await authenticateBearer({
       repository: input.sessions,
+      renewSession: true,
       headers: input.request.headers,
       requiredType: 'driver',
       allowDriverRegistration: input.allowRegistration === true,

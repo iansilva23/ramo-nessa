@@ -625,7 +625,7 @@ class _DriverRatingPanel extends StatelessWidget {
             submitted
                 ? 'Obrigado por avaliar seu motorista.'
                 : 'Sua avaliação ajuda a manter a qualidade do Ramo Nessa.',
-            style: const TextStyle(color: RamoColors.muted),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: RamoSpacing.sm),
           Row(
@@ -699,7 +699,7 @@ class _AssignedDriverCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.md),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Row(
@@ -747,8 +747,8 @@ class _AssignedDriverCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         '(${driver.ratingCount})',
-                        style: const TextStyle(
-                          color: RamoColors.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),

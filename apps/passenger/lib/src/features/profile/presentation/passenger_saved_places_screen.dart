@@ -198,7 +198,7 @@ class _PassengerSavedPlacesScreenState
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: RamoColors.muted),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: RamoSpacing.md),
               FilledButton(
@@ -209,13 +209,13 @@ class _PassengerSavedPlacesScreenState
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.lg),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
-                child: const Text(
+                child: Text(
                   'Salve pousadas, praias, restaurantes ou qualquer endereço que você usa com frequência.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: RamoColors.muted),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               )
             else
@@ -256,7 +256,7 @@ class _SavedSlotTile extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(icon, color: RamoColors.brandBlack),
       ),
       title: Text(title),
@@ -299,8 +299,8 @@ class _CustomSavedPlaceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      leading: const CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+      leading: CircleAvatar(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(
           Icons.star_rounded,
           color: RamoColors.brandBlack,
@@ -575,7 +575,7 @@ class _SavedPlaceEditorScreenState
             Container(
               padding: const EdgeInsets.all(RamoSpacing.md),
               decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
               child: Row(
@@ -595,8 +595,8 @@ class _SavedPlaceEditorScreenState
                         const SizedBox(height: 2),
                         Text(
                           selected.address,
-                          style: const TextStyle(
-                            color: RamoColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],

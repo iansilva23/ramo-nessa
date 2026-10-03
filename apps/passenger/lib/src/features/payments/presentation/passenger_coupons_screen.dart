@@ -193,7 +193,7 @@ class _PassengerCouponsScreenState
             Text(
               'Ative um código aqui antes de pedir a corrida. Se ela for compatível, o preço com desconto aparecerá antes de confirmar o motorista e pagar.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.4,
                   ),
             ),
@@ -276,7 +276,7 @@ class _PassengerCouponsScreenState
             Text(
               'Cupons de crédito entram direto na Carteira Ramo Nessa. Ative os cupons de desconto e de corrida promocional aqui antes de pedir uma corrida compatível.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.4,
                   ),
             ),
@@ -384,3 +384,4 @@ class _MessageBox extends StatelessWidget {
     );
   }
 }
+

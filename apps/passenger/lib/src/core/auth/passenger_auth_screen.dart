@@ -360,7 +360,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
             _message!,
             key: const Key('auth-message'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: RamoColors.muted,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
         ],
@@ -402,7 +402,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
         Text(
           'Entre na sua conta ou crie uma para pedir corridas e acompanhar tudo com segurança.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
         ),
@@ -663,7 +663,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
         Text(
           subtitle,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.4,
               ),
         ),

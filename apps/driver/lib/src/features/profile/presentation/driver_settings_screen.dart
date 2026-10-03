@@ -89,14 +89,7 @@ class DriverSettingsScreen extends StatelessWidget {
               '(build ${DriverCoreConfig.appBuild})',
             ),
           ),
-          const ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.palette_outlined),
-            title: Text('Aparência'),
-            subtitle: Text(
-              'O Ramo Nessa acompanha o tema claro/escuro do sistema.',
-            ),
-          ),
+          const RamoAppearanceTile(),
         ],
       ),
     );

@@ -88,7 +88,7 @@ class _PassengerActivityScreenState
             Text(
               'Suas corridas e viagens recentes.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: RamoSpacing.lg),
@@ -165,7 +165,7 @@ class _ActivitySummary extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(RamoSpacing.md),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
                 child: Column(
@@ -173,8 +173,8 @@ class _ActivitySummary extends StatelessWidget {
                   children: [
                     Text(
                       item.$1,
-                      style: const TextStyle(
-                        color: RamoColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -205,7 +205,7 @@ class _RideActivityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: RamoColors.surfaceRaised,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(RamoRadius.md),
       child: Padding(
         padding: const EdgeInsets.all(RamoSpacing.md),
@@ -237,8 +237,8 @@ class _RideActivityCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${ride.categoryLabel} · ${ride.stateLabel}',
-                    style: const TextStyle(
-                      color: RamoColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -274,7 +274,7 @@ class _ActivityMessage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 38),
       child: Column(
         children: [
-          Icon(icon, size: 44, color: RamoColors.muted),
+          Icon(icon, size: 44, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
             title,
@@ -287,7 +287,7 @@ class _ActivityMessage extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: RamoColors.muted),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),

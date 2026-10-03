@@ -145,7 +145,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                         ? 'Digite o código de 6 dígitos que enviamos para seu celular.'
                         : widget.subtitle,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: RamoColors.muted,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.4,
                         ),
                   ),
@@ -203,7 +203,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                       _message!,
                       key: const Key('auth-message'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],
@@ -273,7 +273,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                       'Ao continuar, você concorda em receber um código de verificação pelo WhatsApp neste número.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],

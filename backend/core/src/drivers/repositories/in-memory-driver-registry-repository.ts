@@ -8,6 +8,7 @@ import type {
 
 export class InMemoryDriverRegistryRepository
   implements DriverRegistryRepository {
+  private readonly cpfs = new Map<string, string>();
   private readonly profiles = new Map<string, DriverProfileRecord>();
   private readonly vehicles = new Map<string, DriverVehicleRecord>();
   private readonly ratings = new Map<
@@ -28,11 +29,24 @@ export class InMemoryDriverRegistryRepository
     }
   >();
 
-  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord }): Promise<void> {
-    if (this.profiles.has(input.profile.driverId)) return;
+  async hasCpf(driverId: string): Promise<boolean> { return this.cpfs.has(driverId); }
+  async bindCpf(driverId: string, cpf: string): Promise<void> {
+    if (!this.profiles.has(driverId)) throw new Error('REGISTRATION_PROFILE_MISSING');
+    this.checkCpf(driverId, cpf);
+    this.cpfs.set(driverId, cpf);
+  }
+  private checkCpf(driverId: string, cpf: string): void {
+    const existing = this.cpfs.get(driverId);
+    if (existing != null && existing !== cpf) throw new Error('REGISTRATION_CPF_IMMUTABLE');
+    if ([...this.cpfs].some(([id, value]) => id !== driverId && value === cpf)) throw new Error('REGISTRATION_CPF_CONFLICT');
+  }
+  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord; cpf: string }): Promise<void> {
+    this.checkCpf(input.profile.driverId, input.cpf);
+    if (this.profiles.has(input.profile.driverId)) { this.cpfs.set(input.profile.driverId, input.cpf); return; }
     if ([...this.vehicles.values()].some(vehicle => vehicle.plateNormalized === input.vehicle.plateNormalized)) {
       throw new Error('REGISTRATION_PLATE_CONFLICT');
     }
+    this.cpfs.set(input.profile.driverId, input.cpf);
     this.profiles.set(input.profile.driverId, structuredClone({ ...input.profile, status: 'pending' }));
     this.vehicles.set(input.vehicle.id, structuredClone({ ...input.vehicle, status: 'pending' }));
   }

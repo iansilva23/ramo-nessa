@@ -168,7 +168,7 @@ class _PassengerRideChatScreenState
                               decoration: BoxDecoration(
                                 color: mine
                                     ? RamoColors.brandBlack
-                                    : RamoColors.surfaceRaised,
+                                    : Theme.of(context).colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(18),
                               ),
                               child: Text(

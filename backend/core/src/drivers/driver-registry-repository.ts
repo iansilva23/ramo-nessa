@@ -41,7 +41,9 @@ export interface DriverRatingResult {
 }
 
 export interface DriverRegistryRepository {
-  createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord }): Promise<void>;
+  hasCpf(driverId: string): Promise<boolean>;
+  bindCpf(driverId: string, cpf: string): Promise<void>;
+  createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord; cpf: string }): Promise<void>;
   findProfile(driverId: string): Promise<DriverProfileRecord | null>;
   upsertProfile(
     record: DriverProfileRecord,

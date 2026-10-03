@@ -116,6 +116,7 @@ export async function authenticateBearer(input: {
   headers: IncomingHttpHeaders;
   requiredType?: AuthSubjectType;
   allowDriverRegistration?: boolean;
+  renewSession?: boolean;
   identities?: AuthOtpRepository;
   now?: Date;
 }): Promise<AuthSessionRecord> {
@@ -175,5 +176,12 @@ export async function authenticateBearer(input: {
     }
   }
 
+  // Renew after validating role/account, never revive an expired or revoked session.
+  const activeTtlMs = 180 * 24 * 60 * 60 * 1000;
+  if (input.renewSession === true && Date.parse(session.expiresAt) - now.getTime() < activeTtlMs - 24 * 60 * 60 * 1000) {
+    const renewed = await input.repository.renewActive(session.id, now.toISOString(), new Date(now.getTime() + activeTtlMs).toISOString());
+    if (renewed == null) throw new AuthenticationError('AUTH_INVALID', 'Sessão inválida ou revogada.');
+    return renewed;
+  }
   return session;
 }

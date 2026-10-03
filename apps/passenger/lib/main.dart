@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -42,6 +43,11 @@ class _PassengerBootstrapState extends State<_PassengerBootstrap> {
       const Duration(milliseconds: 3000),
     );
 
+    const appearanceStorage = FlutterSecureStorage();
+    await RamoAppearance.instance.initialize(
+      read: () => appearanceStorage.read(key: 'ramo_appearance_v1'),
+      save: (value) => appearanceStorage.write(key: 'ramo_appearance_v1', value: value),
+    );
     final tokenStore = SecureAuthTokenStore();
     String? accessToken;
     String? clientInstanceId;
@@ -73,15 +79,17 @@ class _PassengerBootstrapState extends State<_PassengerBootstrap> {
   Widget build(BuildContext context) {
     final data = _data;
     if (data == null) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: RamoTheme.light,
-        darkTheme: RamoTheme.dark,
-        themeMode: ThemeMode.system,
-        home: const RamoStartupSplash(label: 'VAMOS NESSA'),
+      return ValueListenableBuilder<ThemeMode>(
+        valueListenable: RamoAppearance.instance,
+        builder: (context, themeMode, _) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: RamoTheme.light,
+          darkTheme: RamoTheme.dark,
+          themeMode: themeMode,
+          home: const RamoStartupSplash(label: 'VAMOS NESSA'),
+        ),
       );
     }
-
     return RamoNessaPassengerApp(
       accessToken: data.accessToken,
       clientInstanceId: data.clientInstanceId,

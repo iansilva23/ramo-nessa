@@ -288,7 +288,7 @@ class DriverBenefitsHistoryContent extends StatelessWidget {
       const _SectionTitle('Hall da Fama', Icons.history_rounded),
       const SizedBox(height: 8),
       if (history.isEmpty) Text('As campanhas encerradas em que você participou aparecerão aqui.',
-        style: TextStyle(color: dark ? Colors.white70 : RamoColors.muted)),
+        style: TextStyle(color: dark ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant)),
       for (final item in history) ExpansionTile(
         key: ValueKey('benefits-history-${item.id}'), tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 12),
@@ -345,7 +345,7 @@ class _Panel extends StatelessWidget {
     return SizedBox(width: double.infinity, child: Material(
       color: dark ? RamoColors.darkSurface : Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: dark ? RamoColors.darkBorder : RamoColors.border)),
+        side: BorderSide(color: dark ? RamoColors.darkBorder : Theme.of(context).dividerColor)),
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: const EdgeInsets.all(18), child: child),
     ));

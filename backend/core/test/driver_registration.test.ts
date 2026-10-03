@@ -16,7 +16,7 @@ import { createPostgresPool } from '../src/db/postgres.js';
 import type { AuthOtpRepository } from '../src/auth/auth-otp-repository.js';
 import type { DriverRegistryRepository } from '../src/drivers/driver-registry-repository.js';
 
-const data = { fullName: 'Motorista de Teste', vehicle: { plate: 'ABC1D23', make: 'Honda', model: 'CG', modelYear: 2024,
+const data = { cpf: '12345678909', fullName: 'Motorista de Teste', vehicle: { plate: 'ABC1D23', make: 'Honda', model: 'CG', modelYear: 2024,
   color: 'Preta', categories: ['moto'], fourByFour: false, seatCapacity: 2 } };
 const actor = { kind: 'api_key' as const, id: 'test-owner', name: 'Test owner' };
 function delivery() {
@@ -83,7 +83,7 @@ test('placa duplicada não deixa cadastro parcialmente persistido', async () => 
   const first = await enroll(); const second = await enroll(first.identities, '88999992222');
   const registry = new InMemoryDriverRegistryRepository(); const documents = new InMemoryDriverDocumentRepository();
   await submitDriverRegistration({ identities: first.identities, registry, documents, driverId: first.verified.subjectId, data });
-  await assert.rejects(submitDriverRegistration({ identities: first.identities, registry, documents, driverId: second.verified.subjectId, data }), { code: 'VEHICLE_PLATE_CONFLICT' });
+  await assert.rejects(submitDriverRegistration({ identities: first.identities, registry, documents, driverId: second.verified.subjectId, data: { ...data, cpf: '93541134780' } }), { code: 'VEHICLE_PLATE_CONFLICT' });
   assert.equal(await registry.findProfile(second.verified.subjectId), null);
 });
 
@@ -101,7 +101,7 @@ test('PostgreSQL: provisionamento concorrente converge e cadastro é atômico/id
     assert.equal((await registry.findVehicleByDriverId(driverId))?.status, 'pending');
     const other = await identities.findOrCreateDriverRegistrationIdentity({ id: randomUUID(), subjectId: randomUUID(), subjectType: 'driver', phoneE164: phone.replace('+5588', '+5585'), status: 'active', createdAt: now, updatedAt: now });
     try {
-      await assert.rejects(submitDriverRegistration({ ...deps, driverId: other.subjectId, data: { ...data, vehicle: { ...data.vehicle, plate } } }), { code: 'VEHICLE_PLATE_CONFLICT' });
+      await assert.rejects(submitDriverRegistration({ ...deps, driverId: other.subjectId, data: { ...data, cpf: '93541134780', vehicle: { ...data.vehicle, plate } } }), { code: 'VEHICLE_PLATE_CONFLICT' });
       assert.equal(await registry.findProfile(other.subjectId), null);
     } finally { await pool.query('DELETE FROM auth_identities WHERE id=$1', [other.id]); }
   } finally {

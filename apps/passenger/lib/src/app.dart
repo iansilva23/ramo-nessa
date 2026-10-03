@@ -174,7 +174,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         devBypass: RamoCoreConfig.devPassengerIdentityEnabled,
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
-            'Informe seu celular. Vamos enviar um código por SMS para confirmar sua conta.',
+            'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => shell(token, logout),
         onSessionReady: (token) =>
             FirebasePushRegistrationService.instance.start(
@@ -186,13 +186,16 @@ class RamoNessaPassengerApp extends StatelessWidget {
       );
     }
 
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: RamoAppearance.instance,
+      builder: (context, themeMode, _) => MaterialApp(
       title: 'Ramo Nessa',
       debugShowCheckedModeBanner: false,
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       home: homeWidget,
+      ),
     );
   }
 }
@@ -234,3 +237,4 @@ class _CoreConfigurationError extends StatelessWidget {
     );
   }
 }
+

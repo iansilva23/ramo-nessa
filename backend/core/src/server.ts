@@ -2447,6 +2447,7 @@ const server = createServer(async (request, response) => {
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
+        renewSession: true,
         identities: authOtpRepository,
         headers: request.headers,
       });

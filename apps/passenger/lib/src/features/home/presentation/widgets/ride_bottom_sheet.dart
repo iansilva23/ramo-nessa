@@ -91,7 +91,7 @@ class RideBottomSheet extends StatelessWidget {
                           ? 'Primeiro escolha o local. O veículo e o pagamento vêm nas próximas etapas.'
                           : 'Escolha sua origem e o destino no mapa.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                     const SizedBox(height: RamoSpacing.md),
@@ -131,7 +131,7 @@ class RideBottomSheet extends StatelessWidget {
                                   .bodySmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
-                                    color: RamoColors.muted,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                           ),
@@ -214,7 +214,7 @@ class _TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
       ),
       child: Column(
@@ -298,7 +298,7 @@ class _LocationField extends StatelessWidget {
                   Text(
                     label,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: RamoColors.muted,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontWeight: FontWeight.w700,
                         ),
                   ),

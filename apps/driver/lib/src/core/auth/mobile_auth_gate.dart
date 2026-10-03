@@ -39,27 +39,44 @@ class MobileAuthGate extends StatefulWidget {
   State<MobileAuthGate> createState() => _MobileAuthGateState();
 }
 
-class _MobileAuthGateState extends State<MobileAuthGate> {
+class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObserver {
+  bool _refreshing = false;
   String? _accessToken;
   bool _checking = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _accessToken = widget.initialAccessToken?.trim();
     Future<void>.microtask(_bootstrap);
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_checking && !_refreshing) unawaited(_bootstrap());
+  }
+
   Future<void> _bootstrap() async {
+    if (_refreshing) return;
+    _refreshing = true;
     final token = _accessToken;
     if (token == null || token.length < 20) {
       if (!mounted) return;
+      _refreshing = false;
       setState(() => _checking = false);
       return;
     }
 
     try {
       final session = await widget.service.currentSession(token);
+      if (!mounted || _accessToken != token) { _refreshing = false; return; }
       if (
         session == null ||
         session.subjectType != widget.subjectType ||
@@ -83,6 +100,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> {
       }
     }
 
+    _refreshing = false;
     if (!mounted) return;
     setState(() => _checking = false);
   }

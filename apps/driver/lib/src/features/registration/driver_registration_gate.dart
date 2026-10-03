@@ -21,6 +21,7 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
   String? _error;
   int _step = 0;
   final _form = GlobalKey<FormState>();
+  final _cpf = TextEditingController();
   final _name = TextEditingController();
   final _plate = TextEditingController();
   final _make = TextEditingController();
@@ -35,7 +36,7 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
   void initState() { super.initState(); _load(); }
   @override
   void dispose() {
-    for (final controller in [_name, _plate, _make, _model, _year, _color, _seats]) { controller.dispose(); }
+    for (final controller in [_cpf, _name, _plate, _make, _model, _year, _color, _seats]) { controller.dispose(); }
     super.dispose();
   }
   Future<void> _load() async {
@@ -52,6 +53,7 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
     setState(() { _loading = true; _error = null; });
     try {
       final status = await widget.service.submit({
+        'cpf': _cpf.text.trim(),
         'fullName': _name.text.trim(),
         'vehicle': {'plate': _plate.text.trim(), 'make': _make.text.trim(), 'model': _model.text.trim(),
           'modelYear': int.parse(_year.text), 'color': _color.text.trim(), 'categories': [_category],
@@ -83,7 +85,7 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_status?['status'] == 'approved' && !_loading && _error == null) return widget.homeBuilder();
+    if (_status?['status'] == 'approved' && _status?['needsCpf'] != true && !_loading && _error == null) return widget.homeBuilder();
     final incomplete = _status?['status'] == 'incomplete';
     return Scaffold(
       appBar: AppBar(title: const Text('Cadastro de motorista'), actions: [TextButton(onPressed: _loading ? null : _logout, child: const Text('Sair'))]),
@@ -97,12 +99,39 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
             const SizedBox(height: 12),
             if (_status == null) FilledButton(onPressed: _loading ? null : _load, child: const Text('Tentar novamente')),
           ],
-          if (incomplete) ..._formContent(context)
+          if (_status?['needsCpf'] == true) ..._cpfContent(context)
+          else if (incomplete) ..._formContent(context)
           else if (_status != null) ..._statusContent(context),
         ]),
       ))),
     );
   }
+
+  Widget _cpfField() => _field('CPF do motorista', _cpf, number: true, max: 14, check: (value) {
+    final cpf = value.replaceAll(RegExp(r'[.\-\s]'), '');
+    if (!RegExp(r'^\d{11}$').hasMatch(cpf) || cpf.split('').toSet().length == 1) return 'Informe um CPF válido.';
+    for (final size in [9, 10]) {
+      var sum = 0;
+      for (var i = 0; i < size; i++) { sum += int.parse(cpf[i]) * (size + 1 - i); }
+      if ((sum * 10 % 11) % 10 != int.parse(cpf[size])) return 'Informe um CPF válido.';
+    }
+    return null;
+  });
+  List<Widget> _cpfContent(BuildContext context) => [
+    Text('Confirme seu CPF', style: Theme.of(context).textTheme.headlineMedium),
+    const SizedBox(height: 12),
+    const Text('Vincule seu CPF ao cadastro de motorista. Cada CPF pode ter uma única conta de motorista.'),
+    const SizedBox(height: 24),
+    Form(key: _form, child: _cpfField()),
+    FilledButton(onPressed: _loading ? null : () async {
+      if (!(_form.currentState?.validate() ?? false)) return;
+      setState(() { _loading = true; _error = null; });
+      try {
+        final status = await widget.service.submit({'cpf': _cpf.text.trim()});
+        if (mounted) setState(() { _status = status; _loading = false; });
+      } catch (error) { if (mounted) setState(() { _loading = false; _error = error.toString(); }); }
+    }, child: const Text('Confirmar CPF')),
+  ];
 
   List<Widget> _formContent(BuildContext context) => [
     Text(_step == 0 ? 'Vamos conhecer você' : 'Seu veículo', style: Theme.of(context).textTheme.headlineMedium),
@@ -111,7 +140,7 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
     const SizedBox(height: 16),
     LinearProgressIndicator(value: _step == 0 ? 1 / 3 : 2 / 3), const SizedBox(height: 24),
     Form(key: _form, child: Column(children: [
-      if (_step == 0) _field('Nome completo', _name, min: 3)
+      if (_step == 0) ...[_field('Nome completo', _name, min: 3), _cpfField()]
       else ...[
         DropdownButtonFormField<String>(initialValue: _category, decoration: const InputDecoration(labelText: 'Categoria desejada'),
           items: const [DropdownMenuItem(value: 'moto', child: Text('Mototáxi')), DropdownMenuItem(value: 'car', child: Text('Carro popular')),

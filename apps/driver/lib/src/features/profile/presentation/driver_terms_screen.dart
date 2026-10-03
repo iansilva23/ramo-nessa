@@ -75,7 +75,7 @@ class _LegalNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.lg),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
       ),
       child: const Row(

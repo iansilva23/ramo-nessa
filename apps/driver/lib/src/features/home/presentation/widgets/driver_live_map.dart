@@ -498,6 +498,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
 
     final driverPoint = _driverPoint;
     return gm.GoogleMap(
+      style: Theme.of(context).brightness == Brightness.dark ? ramoDarkMapStyle : null,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
         zoom: DriverMapConfig.fallbackZoom,
@@ -520,3 +521,4 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     );
   }
 }
+

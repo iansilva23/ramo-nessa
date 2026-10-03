@@ -193,7 +193,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
       'approved' => RamoColors.success,
       'pending' => RamoColors.brandYellow,
       'rejected' || 'expired' => Theme.of(context).colorScheme.error,
-      _ => RamoColors.muted,
+      _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
   }
 
@@ -232,7 +232,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: RamoColors.muted),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: RamoSpacing.md),
               FilledButton(
@@ -245,7 +245,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                 decoration: BoxDecoration(
                   color: snapshot.documentsApproved
                       ? RamoColors.brandBlack
-                      : RamoColors.surfaceRaised,
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.lg),
                 ),
                 child: Row(
@@ -284,7 +284,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                             style: TextStyle(
                               color: snapshot.documentsApproved
                                   ? Colors.white70
-                                  : RamoColors.muted,
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -305,7 +305,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                         ? Icons.upload_file_rounded
                         : _statusIcon(item.effectiveStatus),
                     statusColor: item == null
-                        ? RamoColors.muted
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
                         : _statusColor(context, item.effectiveStatus),
                     uploading: _uploadingType == type,
                     onUpload: _uploadingType == null
@@ -318,7 +318,7 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.md),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
                 child: const Row(
@@ -368,7 +368,7 @@ class _DocumentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.md),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Row(
@@ -417,8 +417,8 @@ class _DocumentCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Enviado em ${_dateLabel(current.submittedAt)}',
-                    style: const TextStyle(
-                      color: RamoColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),

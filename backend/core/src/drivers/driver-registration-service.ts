@@ -1,3 +1,4 @@
+import { normalizeDriverCpf } from './driver-cpf.js';
 import { randomUUID } from 'node:crypto';
 import type { AuthOtpRepository } from '../auth/auth-otp-repository.js';
 import { AuthenticationError } from '../auth/auth-service.js';
@@ -25,6 +26,7 @@ export async function driverRegistrationStatus(input: RegistrationDependencies) 
   const documentsSubmitted = required.every(type => documents.some(d => d.documentType === type));
   const operational = identity.driverRegistrationOnly !== true && profile?.status === 'approved' && vehicle?.status === 'approved';
   return {
+    needsCpf: profile != null && !(await input.registry.hasCpf(input.driverId)),
     driverId: identity.subjectId, phoneE164: identity.phoneE164, profile, vehicle,
     status: operational ? 'approved' : profile?.status === 'suspended' || vehicle?.status === 'suspended'
       ? 'suspended' : profile == null || vehicle == null ? 'incomplete' : 'pending',
@@ -36,7 +38,16 @@ export async function driverRegistrationStatus(input: RegistrationDependencies) 
 
 export async function submitDriverRegistration(input: RegistrationDependencies & { data: unknown }) {
   const identity = await input.identities.findIdentityBySubject('driver', input.driverId);
-  if (identity?.status !== 'active' || identity.driverRegistrationOnly !== true) {
+  if (identity?.status !== 'active') throw new AuthenticationError('AUTH_IDENTITY_DISABLED', 'Conta indisponível.');
+  const cpf = normalizeDriverCpf((input.data as { cpf?: unknown } | null)?.cpf);
+  const existing = await input.registry.findProfile(input.driverId);
+  // Existing drivers supply CPF once without changing approved registry data.
+  if (existing != null && (input.data as { vehicle?: unknown })?.vehicle == null) {
+    try { await input.registry.bindCpf(input.driverId, cpf); }
+    catch (error) { throwCpfError(error); }
+    return driverRegistrationStatus(input);
+  }
+  if (identity.driverRegistrationOnly !== true) {
     throw new AuthenticationError('AUTH_ROLE_MISMATCH', 'Este cadastro não pode ser alterado pelo aplicativo.');
   }
   const data = parseUpsertDriverRegistryRequest(input.data);
@@ -44,6 +55,7 @@ export async function submitDriverRegistration(input: RegistrationDependencies &
   try {
     // Atomic initial submission, idempotent retries. Never overwrites admin decisions.
     await input.registry.createRegistration({
+      cpf,
       profile: { driverId: input.driverId, fullName: data.fullName,
         ...(data.preferredName == null ? {} : { preferredName: data.preferredName }),
         status: 'pending', createdAt: instant, updatedAt: instant },
@@ -56,7 +68,17 @@ export async function submitDriverRegistration(input: RegistrationDependencies &
     if ((error as Error).message === 'REGISTRATION_PLATE_CONFLICT') {
       throw new DriverRegistryError('VEHICLE_PLATE_CONFLICT', 'Esta placa já possui cadastro. Procure o suporte.');
     }
-    throw error;
+    throwCpfError(error);
   }
   return driverRegistrationStatus(input);
+}
+
+function throwCpfError(error: unknown): never {
+  if ((error as Error).message === 'REGISTRATION_CPF_CONFLICT') {
+    throw new DriverRegistryError('DRIVER_CPF_CONFLICT', 'Este CPF já possui cadastro de motorista. Entre na conta existente ou procure o suporte.');
+  }
+  if ((error as Error).message === 'REGISTRATION_CPF_IMMUTABLE') {
+    throw new DriverRegistryError('DRIVER_CPF_IMMUTABLE', 'O CPF deste cadastro não pode ser alterado. Procure o suporte.');
+  }
+  throw error;
 }

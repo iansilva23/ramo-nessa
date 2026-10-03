@@ -207,7 +207,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         child: Container(
           padding: const EdgeInsets.all(RamoSpacing.lg),
           decoration: BoxDecoration(
-            color: RamoColors.surfaceRaised,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(RamoRadius.lg),
           ),
           child: Column(
@@ -942,7 +942,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.lg),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.lg),
                 ),
                 child: Row(
@@ -958,7 +958,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                                 ? 'Tarifa-base da corrida'
                                 : 'Preço com cupom',
                             style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: RamoColors.muted),
+                                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -974,7 +974,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                               'Preço normal: ${PreparedRide.formatCents(_ride.promotion!.normalTotalCents)}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
-                                    color: RamoColors.muted,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     decoration: TextDecoration.lineThrough,
                                   ),
                             ),
@@ -1037,7 +1037,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   Container(
                     padding: const EdgeInsets.all(RamoSpacing.lg),
                     decoration: BoxDecoration(
-                      color: RamoColors.surfaceRaised,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(RamoRadius.lg),
                     ),
                     child: Column(
@@ -1059,7 +1059,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                           'Não é necessário gerar Pix nem cobrar cartão. Confirme para liberar seu motorista.',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: RamoColors.muted),
+                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: RamoSpacing.lg),
                         FilledButton(
@@ -1134,7 +1134,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     'O total exibido em cada opção é o valor cobrado.',
                     style: Theme.of(
                       context,
-                    ).textTheme.bodySmall?.copyWith(color: RamoColors.muted),
+                    ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: RamoSpacing.sm),
                   _PaymentOption(
@@ -2107,7 +2107,7 @@ class _PaymentOption extends StatelessWidget {
       duration: RamoMotion.standard,
       opacity: enabled ? 1 : .48,
       child: Material(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
         child: InkWell(
           borderRadius: BorderRadius.circular(RamoRadius.lg),
@@ -2153,7 +2153,7 @@ class _PaymentOption extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: RamoColors.muted,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 1.24,
                         ),
                       ),
@@ -2206,3 +2206,4 @@ class _CheckoutEmailDialogState extends State<_CheckoutEmailDialog> {
       FilledButton(onPressed:_continue,child:const Text('Continuar'))],
   );
 }
+

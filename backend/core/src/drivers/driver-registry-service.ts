@@ -44,7 +44,10 @@ export class DriverRegistryError extends Error {
       | 'DRIVER_NOT_FOUND'
       | 'DRIVER_REGISTRY_NOT_FOUND'
       | 'DRIVER_VEHICLE_NOT_FOUND'
-      | 'VEHICLE_PLATE_CONFLICT',
+      | 'VEHICLE_PLATE_CONFLICT'
+      | 'DRIVER_CPF_INVALID'
+      | 'DRIVER_CPF_CONFLICT'
+      | 'DRIVER_CPF_IMMUTABLE',
     message: string,
   ) {
     super(message);

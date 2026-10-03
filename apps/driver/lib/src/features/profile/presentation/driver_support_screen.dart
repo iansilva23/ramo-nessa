@@ -156,7 +156,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
             Container(
               padding: const EdgeInsets.all(RamoSpacing.lg),
               decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.lg),
               ),
               child: Column(
@@ -272,7 +272,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.xl),
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.md),
                 ),
                 child: const Text(
@@ -289,7 +289,7 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(RamoSpacing.md),
                     decoration: BoxDecoration(
-                      color: RamoColors.surfaceRaised,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius:
                           BorderRadius.circular(RamoRadius.md),
                     ),
@@ -337,8 +337,8 @@ class _DriverSupportScreenState extends State<DriverSupportScreen> {
                         Text(
                           '${ticket.categoryLabel} · '
                               '${_dateLabel(ticket.createdAt)}',
-                          style: const TextStyle(
-                            color: RamoColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),

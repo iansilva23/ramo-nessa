@@ -480,6 +480,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     }
 
     return gm.GoogleMap(
+      style: Theme.of(context).brightness == Brightness.dark ? ramoDarkMapStyle : null,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(
           RamoMapConfig.fallbackCenter.latitude,

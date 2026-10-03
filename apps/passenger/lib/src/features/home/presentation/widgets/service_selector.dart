@@ -68,7 +68,7 @@ class _ServiceRow extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: selected
-                ? RamoColors.surfaceRaised
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(RamoRadius.md),
           ),
@@ -81,7 +81,7 @@ class _ServiceRow extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: selected
                       ? RamoColors.brandYellow
-                      : RamoColors.surfaceRaised,
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
@@ -116,7 +116,7 @@ class _ServiceRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],

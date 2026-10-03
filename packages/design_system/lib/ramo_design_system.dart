@@ -7,3 +7,5 @@ export 'src/map/ramo_map_marker_assets.dart';
 export 'src/map/ramo_route_motion.dart';
 export 'src/theme/ramo_theme.dart';
 export 'src/motion/ramo_ride_motion.dart';
+
+export 'src/theme/ramo_appearance.dart';

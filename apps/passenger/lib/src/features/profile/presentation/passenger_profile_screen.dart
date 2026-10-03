@@ -349,7 +349,7 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
             Text(
               'Sua conta e preferências do Ramo Nessa.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: RamoSpacing.lg),
@@ -712,7 +712,7 @@ class _ProfileOption extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(
           icon,
           color: destructive
@@ -952,7 +952,7 @@ class _PassengerPaymentMethodsScreenState
                 child: Text(
                   _error!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: RamoColors.muted),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               )
             else if (policy != null) ...[
@@ -1028,7 +1028,7 @@ class _PaymentMethodTile extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 5),
       leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(icon, color: RamoColors.brandBlack),
       ),
       title: Text(
@@ -1043,7 +1043,7 @@ class _PaymentMethodTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: enabled
                     ? RamoColors.brandYellow
-                    : RamoColors.surfaceRaised,
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.pill),
               ),
               child: Text(

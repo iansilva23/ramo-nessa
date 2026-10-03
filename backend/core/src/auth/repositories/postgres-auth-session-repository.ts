@@ -84,6 +84,13 @@ export class PostgresAuthSessionRepository
     return result.rows[0] == null ? null : mapSession(result.rows[0]);
   }
 
+  async renewActive(id: string, now: string, expiresAt: string): Promise<AuthSessionRecord | null> {
+    const result = await this.pool.query<AuthSessionRow>(`UPDATE auth_sessions
+      SET expires_at=GREATEST(expires_at,$3::timestamptz)
+      WHERE id=$1 AND revoked_at IS NULL AND expires_at > $2::timestamptz RETURNING *`, [id, now, expiresAt]);
+    return result.rows[0] == null ? null : mapSession(result.rows[0]);
+  }
+
   async revoke(id: string, revokedAt: string): Promise<void> {
     await this.pool.query(
       `

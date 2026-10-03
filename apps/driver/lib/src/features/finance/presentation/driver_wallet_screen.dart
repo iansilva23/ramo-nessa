@@ -144,11 +144,11 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                 ),
               ),
               const SizedBox(height: RamoSpacing.sm),
-              const Text(
+              Text(
                 'Os repasses e antecipações só serão enviados para '
                 'a chave Pix cadastrada neste perfil.',
                 style: TextStyle(
-                  color: RamoColors.muted,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
@@ -265,8 +265,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
               const SizedBox(height: RamoSpacing.sm),
               Text(
                 'Saldo disponível: ${formatCents(availableCents)}',
-                style: const TextStyle(
-                  color: RamoColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
@@ -347,11 +347,11 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: RamoSpacing.md),
-            const Text(
+            Text(
               'A solicitação ficará aguardando análise do Ramo Nessa. '
               'O Pix só será enviado após aprovação.',
               style: TextStyle(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -503,10 +503,10 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             Container(
               padding: const EdgeInsets.all(RamoSpacing.md),
               decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   CircleAvatar(
                     backgroundColor: RamoColors.brandYellow,
@@ -526,7 +526,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                         Text(
                           'Segunda, quarta e sexta às 07:00 · sem taxa',
                           style: TextStyle(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -537,11 +537,11 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
               ),
             ),
             const SizedBox(height: RamoSpacing.sm),
-            const Text(
+            Text(
               'O saldo disponível entra automaticamente no próximo ciclo. '
               'Se precisar antes, você pode solicitar uma antecipação.',
               style: TextStyle(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -549,7 +549,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             Container(
               padding: const EdgeInsets.all(RamoSpacing.md),
               decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(RamoRadius.md),
               ),
               child: Row(
@@ -574,8 +574,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                               ? '${_payoutDestination!.typeLabel} · '
                                   '${_payoutDestination!.pixKeyMasked}'
                               : 'Nenhuma chave cadastrada',
-                          style: const TextStyle(
-                            color: RamoColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -628,8 +628,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                   ? 'Antecipação disponível a partir de R\$ 80,00.'
                   : 'Mínimo R\$ 80,00 · taxa fixa R\$ 10,00 · sujeito à aprovação.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: RamoColors.muted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -740,7 +740,7 @@ class _WalletInfoTile extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
-        backgroundColor: RamoColors.surfaceRaised,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: Icon(icon, color: RamoColors.brandBlack),
       ),
       title: Text(

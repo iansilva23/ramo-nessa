@@ -36,6 +36,14 @@ export class InMemoryAuthSessionRepository
     return found == null ? null : structuredClone(found);
   }
 
+  async renewActive(id: string, now: string, expiresAt: string): Promise<AuthSessionRecord | null> {
+    const session = this.sessions.get(id);
+    if (session == null || session.revokedAt != null || Date.parse(session.expiresAt) <= Date.parse(now)) return null;
+    const renewed = { ...session, expiresAt: Date.parse(expiresAt) > Date.parse(session.expiresAt) ? expiresAt : session.expiresAt };
+    this.sessions.set(id, renewed);
+    return structuredClone(renewed);
+  }
+
   async revoke(id: string, revokedAt: string): Promise<void> {
     const existing = this.sessions.get(id);
     if (existing == null) return;

@@ -113,7 +113,7 @@ class _AgencyToursScreenState extends State<AgencyToursScreen> {
             Text(
               'Experiências selecionadas pela Ramo Nessa Agência.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: RamoSpacing.lg),
@@ -255,8 +255,8 @@ class _TourCard extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 item,
-                                style: const TextStyle(
-                                  color: RamoColors.muted,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   fontSize: 14,
                                 ),
                               ),
@@ -268,8 +268,8 @@ class _TourCard extends StatelessWidget {
                   else
                     Text(
                       tour.shortDescription,
-                      style: const TextStyle(
-                        color: RamoColors.muted,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                         height: 1.45,
                       ),
                     ),
@@ -282,8 +282,8 @@ class _TourCard extends StatelessWidget {
                   const SizedBox(height: RamoSpacing.sm),
                   Text(
                     tour.priceLabel,
-                    style: const TextStyle(
-                      color: RamoColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -307,8 +307,8 @@ class _TourCard extends StatelessWidget {
                           padding: const EdgeInsets.only(bottom: 3),
                           child: Text(
                             tour.priceSuffix!,
-                            style: const TextStyle(
-                              color: RamoColors.muted,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -413,7 +413,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.md),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Row(
@@ -427,8 +427,8 @@ class AgencyTourDetailScreen extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: RamoColors.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
@@ -516,8 +516,8 @@ class AgencyTourDetailScreen extends StatelessWidget {
                 const SizedBox(height: RamoSpacing.sm),
                 Text(
                   tour.description,
-                  style: const TextStyle(
-                    color: RamoColors.muted,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     height: 1.55,
                   ),
                 ),
@@ -568,7 +568,7 @@ class AgencyTourDetailScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(RamoSpacing.lg),
                   decoration: BoxDecoration(
-                    color: RamoColors.surfaceRaised,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(RamoRadius.lg),
                   ),
                   child: Column(
@@ -576,8 +576,8 @@ class AgencyTourDetailScreen extends StatelessWidget {
                     children: [
                       Text(
                         tour.priceLabel,
-                        style: const TextStyle(
-                          color: RamoColors.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),
@@ -594,8 +594,8 @@ class AgencyTourDetailScreen extends StatelessWidget {
                       if (tour.priceSuffix != null)
                         Text(
                           tour.priceSuffix!,
-                          style: const TextStyle(
-                            color: RamoColors.muted,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                     ],
@@ -736,7 +736,7 @@ class _ToursMessage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.xl),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
       ),
       child: Column(
@@ -753,7 +753,7 @@ class _ToursMessage extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: RamoColors.muted),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: RamoSpacing.md),

@@ -238,11 +238,11 @@ class _DriverSecurityScreenState extends State<DriverSecurityScreen> {
                   : const Text('Encerrar sessões em outros aparelhos'),
             ),
             const SizedBox(height: RamoSpacing.sm),
-            const Text(
+            Text(
               'Use esta opção se você perdeu um aparelho, vendeu um celular '
               'ou percebeu um acesso que não reconhece.',
               style: TextStyle(
-                color: RamoColors.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),

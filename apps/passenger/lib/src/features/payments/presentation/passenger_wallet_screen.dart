@@ -305,19 +305,19 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_topups.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 28),
                 child: Text(
                   'Você ainda não fez nenhuma recarga.',
-                  style: TextStyle(color: RamoColors.muted),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               )
             else
               ..._topups.map(
                 (topup) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    backgroundColor: RamoColors.surfaceRaised,
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Icon(
                       Icons.pix_rounded,
                       color: RamoColors.brandBlack,
@@ -574,7 +574,7 @@ class _TopupStatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: status == 'paid'
             ? RamoColors.brandYellow
-            : RamoColors.surfaceRaised,
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.pill),
       ),
       child: Text(

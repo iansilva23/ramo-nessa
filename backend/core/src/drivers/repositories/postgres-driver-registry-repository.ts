@@ -86,7 +86,24 @@ export class PostgresDriverRegistryRepository
   implements DriverRegistryRepository {
   constructor(private readonly pool: Pool) {}
 
-  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord }): Promise<void> {
+  async hasCpf(driverId: string): Promise<boolean> {
+    const result = await this.pool.query('SELECT 1 FROM driver_cpf_bindings WHERE driver_id=$1', [driverId]);
+    return result.rowCount === 1;
+  }
+
+  async bindCpf(driverId: string, cpf: string): Promise<void> {
+    try {
+      const result = await this.pool.query(`INSERT INTO driver_cpf_bindings (driver_id, cpf_normalized)
+        VALUES ($1,$2) ON CONFLICT (driver_id) DO UPDATE SET cpf_normalized=driver_cpf_bindings.cpf_normalized
+        WHERE driver_cpf_bindings.cpf_normalized=EXCLUDED.cpf_normalized RETURNING driver_id`, [driverId, cpf]);
+      if (result.rowCount !== 1) throw new Error('REGISTRATION_CPF_IMMUTABLE');
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') throw new Error('REGISTRATION_CPF_CONFLICT');
+      throw error;
+    }
+  }
+
+  async createRegistration(input: { profile: DriverProfileRecord; vehicle: DriverVehicleRecord; cpf: string }): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -102,10 +119,15 @@ export class PostgresDriverRegistryRepository
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$11)`,
           [v.id,v.driverId,v.plateNormalized,v.make,v.model,v.modelYear,v.color,v.categories,v.fourByFour,v.seatCapacity,v.createdAt]);
       }
+      const binding = await client.query(`INSERT INTO driver_cpf_bindings (driver_id, cpf_normalized)
+        VALUES ($1,$2) ON CONFLICT (driver_id) DO UPDATE SET cpf_normalized=driver_cpf_bindings.cpf_normalized
+        WHERE driver_cpf_bindings.cpf_normalized=EXCLUDED.cpf_normalized RETURNING driver_id`, [p.driverId, input.cpf]);
+      if (binding.rowCount !== 1) throw new Error('REGISTRATION_CPF_IMMUTABLE');
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
-      if ((error as { code?: string }).code === '23505') throw new Error('REGISTRATION_PLATE_CONFLICT');
+      if ((error as { code?: string }).code === '23505') throw new Error(
+        (error as { constraint?: string }).constraint === 'driver_cpf_unique' ? 'REGISTRATION_CPF_CONFLICT' : 'REGISTRATION_PLATE_CONFLICT');
       throw error;
     } finally { client.release(); }
   }

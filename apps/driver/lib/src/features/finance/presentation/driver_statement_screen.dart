@@ -113,7 +113,7 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: RamoColors.muted),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: RamoSpacing.md),
               FilledButton(
@@ -193,7 +193,7 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(RamoSpacing.md),
                       decoration: BoxDecoration(
-                        color: RamoColors.surfaceRaised,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius:
                             BorderRadius.circular(RamoRadius.md),
                       ),
@@ -220,8 +220,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                                 const SizedBox(height: 3),
                                 Text(
                                   _dateLabel(item.createdAt),
-                                  style: const TextStyle(
-                                    color: RamoColors.muted,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -230,8 +230,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                                   Text(
                                     'Taxa Ramo Nessa: '
                                     '${formatCents(item.platformFeeCents)}',
-                                    style: const TextStyle(
-                                      color: RamoColors.muted,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -241,8 +241,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                                   Text(
                                     'Taxa pendente adicionada: '
                                     '${formatCents(item.debtDeltaCents)}',
-                                    style: const TextStyle(
-                                      color: RamoColors.muted,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -252,8 +252,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                                   Text(
                                     'Taxa pendente compensada: '
                                     '${formatCents(item.debtDeltaCents.abs())}',
-                                    style: const TextStyle(
-                                      color: RamoColors.muted,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -262,8 +262,8 @@ class _DriverStatementScreenState extends State<DriverStatementScreen> {
                                 Text(
                                   'Saldo após: '
                                   '${formatCents(item.balanceAfterCents)}',
-                                  style: const TextStyle(
-                                    color: RamoColors.muted,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -306,10 +306,10 @@ class _EmptyStatement extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.xl),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(Icons.receipt_long_outlined, size: 36),
           SizedBox(height: RamoSpacing.sm),
@@ -321,7 +321,7 @@ class _EmptyStatement extends StatelessWidget {
           Text(
             'Corridas concluídas, taxas e saques aparecerão aqui.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: RamoColors.muted),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),

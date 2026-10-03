@@ -115,10 +115,10 @@ abstract final class RamoTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(54),
-          backgroundColor: RamoColors.brandBlack,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: RamoColors.border,
-          disabledForegroundColor: RamoColors.muted,
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          disabledBackgroundColor: scheme.onSurface.withValues(alpha: 0.12),
+          disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(RamoRadius.md),
           ),
@@ -171,8 +171,8 @@ abstract final class RamoTheme {
           fontWeight: FontWeight.w800,
           letterSpacing: -0.15,
         ),
-        subtitleTextStyle: const TextStyle(
-          color: RamoColors.muted,
+        subtitleTextStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
           fontSize: 13,
           height: 1.3,
         ),

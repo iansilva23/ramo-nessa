@@ -114,14 +114,14 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                   Text(
                     'Mostramos somente as categorias permitidas para esta rota.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: RamoColors.muted,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
                   const SizedBox(height: RamoSpacing.lg),
                   Container(
                     padding: const EdgeInsets.all(RamoSpacing.md),
                     decoration: BoxDecoration(
-                      color: RamoColors.surfaceRaised,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(RamoRadius.lg),
                     ),
                     child: Column(
@@ -147,7 +147,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                                     .textTheme
                                     .bodySmall
                                     ?.copyWith(
-                                      color: RamoColors.muted,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       fontWeight: FontWeight.w700,
                                     ),
                               ),
@@ -177,7 +177,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                   Text(
                     'O preço aparece na próxima etapa, junto com as formas de pagamento.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: RamoColors.muted,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
                   if (_error != null) ...[
@@ -297,7 +297,7 @@ class _PassengerCounter extends StatelessWidget {
         vertical: RamoSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Row(
@@ -337,3 +337,4 @@ class _PassengerCounter extends StatelessWidget {
     );
   }
 }
+

@@ -136,13 +136,16 @@ class RamoNessaDriverApp extends StatelessWidget {
       );
     }
 
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: RamoAppearance.instance,
+      builder: (context, themeMode, _) => MaterialApp(
       title: 'Ramo Nessa Motorista',
       debugShowCheckedModeBanner: false,
       theme: RamoTheme.light,
       darkTheme: RamoTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       home: homeWidget,
+      ),
     );
   }
 }

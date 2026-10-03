@@ -347,7 +347,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
   Widget _buildSavedPlacesPanel() {
     return Material(
-      color: RamoColors.surfaceRaised,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(RamoRadius.md),
       child: Column(
         children: [
@@ -415,8 +415,8 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                                   Text(
                                     _savedError!,
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: RamoColors.muted,
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                   TextButton(
@@ -430,7 +430,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                             : _savedPlaces.isEmpty
                                 ? Column(
                                     children: [
-                                      const Padding(
+                                      Padding(
                                         padding: EdgeInsets.all(
                                           RamoSpacing.md,
                                         ),
@@ -438,7 +438,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                                           'Você ainda não possui endereços salvos.',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            color: RamoColors.muted,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                                           ),
                                         ),
                                       ),
@@ -562,7 +562,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
               const SizedBox(height: RamoSpacing.md),
               Container(
                 decoration: BoxDecoration(
-                  color: RamoColors.surfaceRaised,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(RamoRadius.lg),
                 ),
                 child: TextField(
@@ -597,7 +597,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                       ? 'Sugestões enquanto você digita'
                       : 'Pousada, hotel, restaurante, rua ou ponto turístico',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: RamoColors.muted,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                 ),
               ),
@@ -654,7 +654,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                           ),
                         ),
                       ],
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(
                           top: RamoSpacing.sm,
                           bottom: RamoSpacing.xs,
@@ -666,7 +666,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: RamoColors.muted,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -713,7 +713,7 @@ class _SuggestionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: RamoColors.surfaceRaised,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(RamoRadius.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(RamoRadius.md),
@@ -759,7 +759,7 @@ class _SuggestionTile extends StatelessWidget {
                             .textTheme
                             .bodySmall
                             ?.copyWith(
-                              color: RamoColors.muted,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                       ),
                     ],
@@ -795,7 +795,7 @@ class _PlaceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: RamoColors.surfaceRaised,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(RamoRadius.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(RamoRadius.md),
@@ -831,7 +831,7 @@ class _PlaceTile extends StatelessWidget {
                           .textTheme
                           .bodySmall
                           ?.copyWith(
-                            color: RamoColors.muted,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                     ),
                   ],
@@ -870,7 +870,7 @@ class _SearchHint extends StatelessWidget {
               width: 66,
               height: 66,
               decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: const Icon(
@@ -889,7 +889,7 @@ class _SearchHint extends StatelessWidget {
               'Comece a digitar para ver sugestões. A busca manual fica disponível a partir de 3 caracteres.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
           ],

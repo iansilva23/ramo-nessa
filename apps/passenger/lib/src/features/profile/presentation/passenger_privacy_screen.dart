@@ -205,7 +205,7 @@ class _PassengerPrivacyScreenState extends State<PassengerPrivacyScreen> {
             Text(
               'Consulte os documentos vigentes e exerça seus direitos de privacidade pelo próprio aplicativo.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
             if (_loading) ...[
@@ -452,7 +452,7 @@ class _PrivacyRequestCard extends StatelessWidget {
             Text(
               'Enviada em $createdLabel',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: RamoColors.muted,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
             ),
             if (request.note?.trim().isNotEmpty == true) ...[
@@ -489,7 +489,7 @@ class _PrivacyNotice extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(RamoSpacing.md),
       decoration: BoxDecoration(
-        color: RamoColors.surfaceRaised,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(RamoRadius.md),
       ),
       child: Row(

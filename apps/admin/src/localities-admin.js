@@ -1,3 +1,4 @@
+import { parseLocalityCoordinates } from './locality-coordinates.js';
 import {
   createPricingCoverageMap,
   createPricingGeofenceMap,
@@ -377,6 +378,8 @@ export function createLocalitiesAdmin(input) {
       return;
     }
     label.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    if (byId('locality-latitude')) byId('locality-latitude').value = String(lat);
+    if (byId('locality-longitude')) byId('locality-longitude').value = String(lon);
   }
 
   function ensureWizardMap() {
@@ -1404,6 +1407,16 @@ export function createLocalitiesAdmin(input) {
       updateMapFromScope();
     });
     byId('locality-name')?.addEventListener('input', syncIdPreview);
+    byId('locality-apply-coordinates')?.addEventListener('click', () => {
+      try {
+        const coordinates = parseLocalityCoordinates(byId('locality-latitude')?.value, byId('locality-longitude')?.value);
+        const map = ensureWizardMap();
+        if (map == null) throw new Error('Não foi possível abrir o mapa.');
+        map.setSelection({ ...map.getSelection(), ...coordinates });
+        setMapCoordinate(map.getSelection());
+        setMessage('Alfinete atualizado pelas coordenadas.', 'success');
+      } catch (error) { handleError(error); }
+    });
     byId('locality-radius')?.addEventListener('input', () => {
       const radius = Number(byId('locality-radius')?.value);
       if (Number.isFinite(radius) && radius >= 0.05) {

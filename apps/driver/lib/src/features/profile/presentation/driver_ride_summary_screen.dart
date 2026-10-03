@@ -278,8 +278,8 @@ class _DriverRideSummaryScreenState
               Text(
                 '${_dateLabel(_customRange!.start)} a '
                 '${_dateLabel(_customRange!.end)}',
-                style: const TextStyle(
-                  color: RamoColors.muted,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
@@ -296,7 +296,7 @@ class _DriverRideSummaryScreenState
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: RamoColors.muted),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: RamoSpacing.md),
               FilledButton(
@@ -350,7 +350,7 @@ class _DriverRideSummaryScreenState
                 Container(
                   padding: const EdgeInsets.all(RamoSpacing.md),
                   decoration: BoxDecoration(
-                    color: RamoColors.surfaceRaised,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(RamoRadius.md),
                   ),
                   child: Row(
@@ -384,8 +384,8 @@ class _DriverRideSummaryScreenState
                   ),
                   Text(
                     '${activity.cancelled} cancelada(s)',
-                    style: const TextStyle(
-                      color: RamoColors.muted,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -396,7 +396,7 @@ class _DriverRideSummaryScreenState
                 Container(
                   padding: const EdgeInsets.all(RamoSpacing.xl),
                   decoration: BoxDecoration(
-                    color: RamoColors.surfaceRaised,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(RamoRadius.md),
                   ),
                   child: const Text(
@@ -409,7 +409,7 @@ class _DriverRideSummaryScreenState
                   (ride) => Padding(
                     padding: const EdgeInsets.only(bottom: RamoSpacing.sm),
                     child: Material(
-                      color: RamoColors.surfaceRaised,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(RamoRadius.md),
                       child: InkWell(
                         onTap: () => _showRideDetails(ride),
@@ -449,8 +449,8 @@ class _DriverRideSummaryScreenState
                                       '${ride.categoryLabel} · '
                                       '${ride.stateLabel} · '
                                       '${_dateLabel(ride.updatedAt)}',
-                                      style: const TextStyle(
-                                        color: RamoColors.muted,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -470,10 +470,10 @@ class _DriverRideSummaryScreenState
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Icon(
+                                  Icon(
                                     Icons.chevron_right_rounded,
                                     size: 18,
-                                    color: RamoColors.muted,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                                 ],
                               ),
@@ -511,7 +511,7 @@ class _MetricCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(RamoSpacing.md),
         decoration: BoxDecoration(
-          color: RamoColors.surfaceRaised,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(RamoRadius.md),
         ),
         child: Column(
@@ -519,8 +519,8 @@ class _MetricCard extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                color: RamoColors.muted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
               ),
@@ -564,8 +564,8 @@ class _DetailRow extends StatelessWidget {
             width: 115,
             child: Text(
               label,
-              style: const TextStyle(
-                color: RamoColors.muted,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
