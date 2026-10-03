@@ -5328,3 +5328,8 @@ td strong {
   .benefits-podium { grid-template-columns: 1fr; }
   .benefits-podium__item--1 { transform: none; }
 }
+
+#driver-search-policy-panel [data-search-tiers] { grid-column: 1 / -1; display: grid; gap: 12px; }
+.driver-search-tier { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.driver-search-tier label { display: grid; gap: 6px; }
+@media (max-width: 640px) { .driver-search-tier { grid-template-columns: 1fr 1fr; } .driver-search-tier button { grid-column: 1 / -1; } }

@@ -1,3 +1,4 @@
+import type { DriverSearchPolicy } from '../matching/driver-search-policy.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -36,6 +37,7 @@ export async function updateAdminOperationalSettings(input: {
   driverOfferTtlSeconds?: number;
   driverPaymentHoldSeconds?: number;
   driverSearchMaxDistanceKm?: number;
+  driverSearchPolicy?: DriverSearchPolicy;
   noDriverDecisionTimeoutSeconds?: number;
   driverLocationMaxAgeSeconds?: number;
   nearbyDriverMaxDistanceKm?: number;
@@ -157,6 +159,7 @@ export async function updateAdminOperationalSettings(input: {
         : normalizedPublicKey;
 
   if (
+    input.driverSearchPolicy === undefined &&
     nextSearchDistance === (current.driverSearchMaxDistanceKm ?? 5) &&
     nextTtl === current.driverOfferTtlSeconds &&
     nextPaymentHold === current.driverPaymentHoldSeconds &&
@@ -176,6 +179,7 @@ export async function updateAdminOperationalSettings(input: {
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
     driverSearchMaxDistanceKm: nextSearchDistance,
+    ...(input.driverSearchPolicy == null ? {} : { driverSearchPolicy: input.driverSearchPolicy }),
     driverPaymentHoldSeconds: nextPaymentHold,
     noDriverDecisionTimeoutSeconds: nextNoDriverDecisionTimeout,
     driverLocationMaxAgeSeconds: nextLocationMaxAge,
@@ -194,6 +198,8 @@ export async function updateAdminOperationalSettings(input: {
     targetType: 'operational_settings',
     targetId: 'mobility',
     metadata: {
+      previousDriverSearchPolicy: current.driverSearchPolicy ?? null,
+      driverSearchPolicy: updated.driverSearchPolicy ?? null,
       previousDriverSearchMaxDistanceKm: current.driverSearchMaxDistanceKm ?? 5,
       driverSearchMaxDistanceKm: updated.driverSearchMaxDistanceKm,
       previousDriverOfferTtlSeconds: current.driverOfferTtlSeconds,

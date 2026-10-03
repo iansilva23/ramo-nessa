@@ -10,8 +10,9 @@ import '../../map/domain/route_info.dart';
 import '../../pricing/data/pricing_location_resolver.dart';
 import '../domain/prepared_ride.dart';
 import 'ride_preparation_service.dart';
+import 'expandable_ride_preparation_service.dart';
 
-class HttpRidePreparationService implements RidePreparationService {
+class HttpRidePreparationService implements RidePreparationService, ExpandableRidePreparationService {
   HttpRidePreparationService({
     required Uri baseUrl,
     String? accessToken,
@@ -36,7 +37,34 @@ class HttpRidePreparationService implements RidePreparationService {
       };
 
   @override
+  Future<DriverSearchOptions> searchOptions(ServiceType service) async {
+    final response = await _client.get(_baseUrl.resolve('/v1/driver-search/policy'),
+      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    final categories = json?['categories'];
+    if (response.statusCode != 200 || categories is! Map<String, dynamic> ||
+        categories[service.backendKey] is! Map<String, dynamic>) {
+      throw const RidePreparationException('Não conseguimos consultar a ampliação de busca.');
+    }
+    return DriverSearchOptions.fromJson(categories[service.backendKey] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<PreparedRide> prepareWithRadius(RideSearchRequest request, double radiusKm) => _prepare(
+    service: request.service, origin: request.origin, destination: request.destination,
+    originZoneId: request.originZoneId, destinationZoneId: request.destinationZoneId,
+    route: request.route, passengers: request.passengers, searchRadiusKm: radiusKm);
+
+  @override
   Future<PreparedRide> prepare({
+    required ServiceType service, required RamoPlace origin, required RamoPlace destination,
+    required String originZoneId, required String destinationZoneId, required RouteInfo route,
+    int passengers = 1, DateTime? now,
+  }) => _prepare(service: service, origin: origin, destination: destination,
+    originZoneId: originZoneId, destinationZoneId: destinationZoneId, route: route,
+    passengers: passengers, now: now);
+
+  Future<PreparedRide> _prepare({
     required ServiceType service,
     required RamoPlace origin,
     required RamoPlace destination,
@@ -45,6 +73,7 @@ class HttpRidePreparationService implements RidePreparationService {
     required RouteInfo route,
     int passengers = 1,
     DateTime? now,
+    double? searchRadiusKm,
   }) async {
     final originRef = PricingLocationResolver.resolve(
       place: origin,
@@ -63,6 +92,7 @@ class HttpRidePreparationService implements RidePreparationService {
           _baseUrl.resolve('/v1/rides/prepare'),
           headers: _identityHeaders,
           body: jsonEncode({
+            if (searchRadiusKm != null) 'searchRadiusKm': searchRadiusKm,
             'quoteRequest': {
               'origin': originRef.toJson(),
               'destination': destinationRef.toJson(),
@@ -104,6 +134,7 @@ class HttpRidePreparationService implements RidePreparationService {
         decoded,
         'Não conseguimos preparar essa corrida agora.',
       ),
+      code: decoded?['error'] as String?,
     );
   }
 }

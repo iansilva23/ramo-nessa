@@ -1,3 +1,4 @@
+import type { DriverSearchPolicy } from '../matching/driver-search-policy.js';
 import type { Pool } from 'pg';
 
 import type {
@@ -9,6 +10,7 @@ interface OperationalSettingsRow {
   driver_offer_ttl_seconds: number;
   driver_payment_hold_seconds: number;
   driver_search_max_distance_km: number | string;
+  driver_search_policy: DriverSearchPolicy | null;
   no_driver_decision_timeout_seconds: number;
   driver_location_max_age_seconds: number;
   nearby_driver_max_distance_km: string | number;
@@ -20,6 +22,7 @@ interface OperationalSettingsRow {
 
 function mapRow(row: OperationalSettingsRow): OperationalSettingsRecord {
   return {
+    ...(row.driver_search_policy == null ? {} : { driverSearchPolicy: row.driver_search_policy }),
     driverOfferTtlSeconds: row.driver_offer_ttl_seconds,
     driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km),
     driverPaymentHoldSeconds:
@@ -47,7 +50,7 @@ export class PostgresOperationalSettingsRepository
 
   async get(): Promise<OperationalSettingsRecord> {
     const result = await this.pool.query<OperationalSettingsRow>(
-      `SELECT driver_offer_ttl_seconds, driver_payment_hold_seconds, driver_search_max_distance_km,
+      `SELECT driver_offer_ttl_seconds, driver_payment_hold_seconds, driver_search_max_distance_km, driver_search_policy,
               no_driver_decision_timeout_seconds,
               driver_location_max_age_seconds,
               nearby_driver_max_distance_km,
@@ -68,6 +71,7 @@ export class PostgresOperationalSettingsRepository
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
   driverSearchMaxDistanceKm?: number;
+  driverSearchPolicy?: DriverSearchPolicy;
     noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
@@ -88,9 +92,10 @@ export class PostgresOperationalSettingsRepository
            driver_document_auto_enforcement = $7,
            mercado_pago_public_key = $8,
            updated_at = $9,
-           driver_search_max_distance_km = $10
+           driver_search_max_distance_km = $10,
+           driver_search_policy = $11
        WHERE id = 1
-       RETURNING driver_search_max_distance_km, driver_offer_ttl_seconds,
+       RETURNING driver_search_policy, driver_search_max_distance_km, driver_offer_ttl_seconds,
                  driver_payment_hold_seconds,
                  no_driver_decision_timeout_seconds,
                  driver_location_max_age_seconds,
@@ -116,6 +121,7 @@ export class PostgresOperationalSettingsRepository
           : input.mercadoPagoPublicKey,
         input.updatedAt,
         input.driverSearchMaxDistanceKm ?? current.driverSearchMaxDistanceKm ?? 5,
+        input.driverSearchPolicy ?? current.driverSearchPolicy ?? null,
       ],
     );
     const row = result.rows[0];

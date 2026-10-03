@@ -67,7 +67,7 @@ export class PostgresRidePreparationRepository
         `
         INSERT INTO rides (
           id, passenger_id, state, payment_status, payment_method, driver_id,
-          reserved_driver_id, driver_hold_expires_at,
+          reserved_driver_id, driver_hold_expires_at, driver_search_max_distance_km,
           pickup_latitude, pickup_longitude,
           dropoff_latitude, dropoff_longitude,
           origin_zone_id, origin_locality_id,
@@ -78,7 +78,7 @@ export class PostgresRidePreparationRepository
           pricing_catalog_version_id, pricing_catalog_version_number,
           base_amount_cents, pickup_compensation_cents,
           total_amount_cents, platform_commission_cents, driver_net_cents,
-          created_at, updated_at, driver_consent_required
+          created_at, updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
           $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
@@ -93,6 +93,7 @@ export class PostgresRidePreparationRepository
           ride.driverId ?? null,
           driverId,
           holdExpiresAt,
+          ride.driverSearchMaxDistanceKm ?? null,
           ride.pickupLatitude ?? null,
           ride.pickupLongitude ?? null,
           ride.dropoffLatitude ?? null,
@@ -118,7 +119,6 @@ export class PostgresRidePreparationRepository
           ride.quote.driverNetCents,
           ride.createdAt,
           ride.updatedAt,
-          ride.driverConsentRequired ?? false,
         ],
       );
 

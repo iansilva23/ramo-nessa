@@ -1,3 +1,4 @@
+import type { DriverSearchPolicy } from '../matching/driver-search-policy.js';
 import type {
   OperationalSettingsRecord,
   OperationalSettingsRepository,
@@ -26,6 +27,7 @@ export class InMemoryOperationalSettingsRepository
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
   driverSearchMaxDistanceKm?: number;
+  driverSearchPolicy?: DriverSearchPolicy;
     noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
@@ -37,6 +39,7 @@ export class InMemoryOperationalSettingsRepository
     this.record = {
       driverOfferTtlSeconds:
         input.driverOfferTtlSeconds ?? this.record.driverOfferTtlSeconds,
+      ...(input.driverSearchPolicy ?? this.record.driverSearchPolicy ? { driverSearchPolicy: structuredClone((input.driverSearchPolicy ?? this.record.driverSearchPolicy)!) } : {}),
       driverSearchMaxDistanceKm: input.driverSearchMaxDistanceKm ?? this.record.driverSearchMaxDistanceKm ?? 5,
       driverPaymentHoldSeconds:
         input.driverPaymentHoldSeconds ??

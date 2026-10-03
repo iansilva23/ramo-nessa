@@ -82,6 +82,8 @@ export async function dispatchNextDriver(input: {
       operationalSettings?.driverLocationMaxAgeSeconds ??
       120,
   });
+  candidates = candidates.filter(candidate => ride.driverSearchMaxDistanceKm == null ||
+    candidate.approximatePickupDistanceKm <= ride.driverSearchMaxDistanceKm);
   if (!input.allowPreviouslyAttemptedDrivers) {
     candidates = candidates.filter(
       (candidate) => !attemptedDriverIds.has(candidate.supply.driverId),

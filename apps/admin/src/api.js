@@ -365,6 +365,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       });
     },
 
+    updateDriverSearchPolicy(token, driverSearchPolicy) {
+      return request('/v1/admin/operational-settings', { method: 'PATCH', token, body: { driverSearchPolicy } });
+    },
+
     paymentPolicy(token) {
       return request('/v1/admin/payment-policy', { token });
     },

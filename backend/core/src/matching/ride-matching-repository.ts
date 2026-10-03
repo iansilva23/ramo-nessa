@@ -13,7 +13,6 @@ export interface AcceptRideOfferInput {
   offerId: string;
   driverId: string;
   acceptedAt: string;
-  paymentHoldSeconds?: number;
 }
 
 export interface RejectRideOfferInput {
@@ -50,7 +49,6 @@ export interface CancelRideByAdminResult {
 }
 
 export interface RideMatchingRepository {
-  releasePrepaymentHold(input: { rideId: string; at: string }): Promise<RideRecord>;
   createOffer(
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult>;

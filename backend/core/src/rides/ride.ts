@@ -28,9 +28,9 @@ export interface RideRecord {
   paymentStatus: PaymentStatus;
   paymentMethod?: RidePaymentMethod;
   driverId?: string;
-  driverConsentRequired?: boolean;
   reservedDriverId?: string;
   driverHoldExpiresAt?: string;
+  driverSearchMaxDistanceKm?: number;
   pickupLatitude?: number;
   pickupLongitude?: number;
   dropoffLatitude?: number;
@@ -54,7 +54,6 @@ export interface RideRecord {
 
 export function isRidePreparedForPayment(ride: RideRecord): boolean {
   return (
-    (!ride.driverConsentRequired || ride.driverId === ride.reservedDriverId) &&
     ride.reservedDriverId != null &&
     ride.driverHoldExpiresAt != null &&
     ride.pickupLatitude != null &&

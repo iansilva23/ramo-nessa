@@ -22,6 +22,8 @@ import '../../map/domain/route_info.dart';
 import '../../pricing/data/pricing_policy_service.dart';
 import '../../rides/data/http_ride_preparation_service.dart';
 import '../../rides/data/ride_preparation_service.dart';
+import '../../rides/data/expandable_ride_preparation_service.dart';
+import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/http_passenger_ride_tracking_service.dart';
 import '../../rides/data/io_passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_realtime_service.dart';
@@ -960,7 +962,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     setState(() => _preparingRide = true);
     try {
-      final prepared = await preparation.prepare(
+      PreparedRide prepared;
+      try {
+      prepared = await preparation.prepare(
         service: selection.service,
         origin: origin,
         destination: destination,
@@ -970,6 +974,27 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         passengers: selection.passengerCount,
       );
 
+      } on RidePreparationException catch (error) {
+        if (error.code != 'NO_ELIGIBLE_DRIVER' || preparation is! ExpandableRidePreparationService) rethrow;
+        final expandable = preparation as ExpandableRidePreparationService;
+        final options = await expandable.searchOptions(selection.service);
+        if (!mounted) return 'A busca foi interrompida.';
+        if (!options.allowExpansion) rethrow;
+        final expand = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+          title: const Text('Buscar um motorista mais distante?'),
+          content: SingleChildScrollView(child: Text(
+            'Não encontramos motorista disponível até ${options.nearbyKm} km. '
+            'Você pode ampliar a busca para até ${options.expandedKm} km.\n\n'
+            '${options.feeDescription}\n\n'
+            'Você verá quem aceitou, a previsão de chegada e o preço antes de confirmar.')),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Manter perto')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Ampliar busca'))],
+        ));
+        if (expand != true) return 'Busca próxima mantida. Nenhum pagamento foi solicitado.';
+        prepared = await expandable.prepareWithRadius(RideSearchRequest(service: selection.service,
+          origin: origin, destination: destination, originZoneId: coverage.originZone!.id,
+          destinationZoneId: coverage.destinationZone!.id, route: route, passengers: selection.passengerCount), options.expandedKm);
+      }
       if (!mounted) {
         return 'Não conseguimos abrir o pagamento agora.';
       }

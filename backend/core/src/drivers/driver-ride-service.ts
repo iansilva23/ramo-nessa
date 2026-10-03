@@ -12,7 +12,6 @@ export function driverRideView(ride: RideRecord) {
   return {
     id: ride.id,
     state: ride.state,
-    driverHoldExpiresAt: ride.driverHoldExpiresAt,
     category: ride.category,
     passengers: ride.passengers,
     origin: ride.origin,
@@ -67,12 +66,7 @@ export async function currentDriverRide(input: {
     );
   }
 
-  if (!supply.busy) {
-    if (supply.reservedRideId == null || Date.parse(supply.reservedUntil ?? '') <= Date.now()) return null;
-    const pending = await input.rides.findById(supply.reservedRideId);
-    return pending?.state === 'AWAITING_PAYMENT' && pending.driverId === input.driverId
-      ? driverRideView(pending) : null;
-  }
+  if (!supply.busy) return null;
 
   const ride = await input.rides.findActiveByDriverId(input.driverId);
   return ride == null ? null : driverRideView(ride);

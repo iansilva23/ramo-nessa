@@ -1,3 +1,5 @@
+import { createDriverSearchAdmin } from './driver-search-admin.js';
+let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
 import { createDriverBenefitsAdmin } from './driver-benefits-admin.js';
@@ -6916,6 +6918,14 @@ function renderOperationalSettings(
     return;
   }
 
+  const searchRoot = byId('driver-search-policy-panel');
+  if (searchRoot) {
+    if (driverSearchAdmin?.root !== searchRoot) driverSearchAdmin = createDriverSearchAdmin({
+      root: searchRoot, api, getToken: () => state.token, canWrite: () => hasScope('rides:write'),
+      onSaved: (settings) => { state.operationalSettings = settings; },
+    });
+    driverSearchAdmin.load(payload);
+  }
   const ttl = Number(payload.driverOfferTtlSeconds);
   const paymentHold = Number(payload.driverPaymentHoldSeconds);
   const searchDistance = Number(payload.driverSearchMaxDistanceKm ?? 5);

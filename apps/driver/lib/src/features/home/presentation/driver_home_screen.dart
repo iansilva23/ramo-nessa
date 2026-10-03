@@ -556,10 +556,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           unawaited(_refreshActiveRoute(force: true));
         }
 
-        if (update.ride?.state == 'AWAITING_PAYMENT') {
-          setState(() { _navigationMode = false; _ridePanelExpanded = true; });
-          _startPolling();
-        } else if (update.ride != null) {
+        if (update.ride != null) {
           _stopPolling();
         } else if (
           update.rideUpdated &&
@@ -679,16 +676,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     try {
-      if (_activeRide?.state == 'AWAITING_PAYMENT') {
-        final current = await api.currentRide();
-        if (!mounted) return;
-        setState(() { _activeRide = current; if (current == null) _activeRoute = null; });
-        if (current != null && current.state != 'AWAITING_PAYMENT') {
-          _stopPolling();
-          await _startInAppNavigation();
-          return;
-        }
-      }
       final offer = await api.currentOffer();
       if (!mounted) return;
       setState(() => _offer = offer);
@@ -835,12 +822,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _selectedTab = 0;
         _message = null;
       });
-      if (ride.state == 'AWAITING_PAYMENT') {
-        setState(() { _navigationMode = false; _ridePanelExpanded = true; });
-        _startPolling();
-      } else {
-        await _startInAppNavigation();
-      }
+      await _startInAppNavigation();
     } on DriverApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -859,7 +841,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _startInAppNavigation() async {
     final ride = _activeRide;
     final supply = _supply;
-    if (ride == null || supply == null || ride.state == 'AWAITING_PAYMENT') return;
+    if (ride == null || supply == null) return;
 
     final useDropoff = ride.state == 'IN_PROGRESS';
     final latitude =
@@ -1729,7 +1711,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final service = _routeService;
     final supply = _supply;
     final ride = _activeRide;
-    if (supply == null || ride == null || ride.state == 'AWAITING_PAYMENT') {
+    if (supply == null || ride == null) {
       if (mounted && _activeRoute != null) {
         setState(() => _activeRoute = null);
       }
@@ -4471,7 +4453,6 @@ class _ActiveRideCard extends StatelessWidget {
   final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
-        'AWAITING_PAYMENT' => 'Aguardando pagamento do passageiro',
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
         'DRIVER_ARRIVED' => 'Você chegou',
         'IN_PROGRESS' => 'Corrida em andamento',
@@ -4480,7 +4461,6 @@ class _ActiveRideCard extends StatelessWidget {
       };
 
   String get _stageLabel => switch (ride.state) {
-        'AWAITING_PAYMENT' => 'RESERVADO',
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'BUSCAR PASSAGEIRO',
         'DRIVER_ARRIVED' => 'NO EMBARQUE',
         'IN_PROGRESS' => 'EM VIAGEM',

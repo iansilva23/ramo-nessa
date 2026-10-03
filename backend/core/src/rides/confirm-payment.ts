@@ -117,9 +117,7 @@ export async function confirmRidePayment(
       message: {
         type: 'passenger.payment.confirmed',
         title: 'Pagamento confirmado',
-        body: confirmed.driverConsentRequired
-          ? 'Pagamento aprovado. Vamos liberar seu motorista.'
-          : 'Pagamento aprovado. Estamos procurando seu motorista.',
+        body: 'Pagamento aprovado. Estamos procurando seu motorista.',
         data: { rideId: confirmed.id },
       },
     });

@@ -307,3 +307,33 @@ test('fallback por distância ignora km enviado pelo cliente e usa rota do Core'
   assert.equal(ride.quote.ruleId, 'distance-prea-prea-car');
   assert.equal(ride.quote.baseAmountCents, 3600);
 });
+
+test('raio usa trajeto real: não reserva motorista fora do limite escolhido', async () => {
+  const ctx = await setup();
+  await assert.rejects(prepareRideForPayment({
+    repository: ctx.preparation, drivers: ctx.drivers, routing: new FakeRouting(9),
+    passengerId: 'radius-passenger', now, maxPickupDistanceKm: 5,
+    quoteRequest: { origin: { zoneId: 'prea' }, destination: { zoneId: 'jijoca' }, category: 'car', period: 'day' },
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
+  }), { code: 'NO_ELIGIBLE_DRIVER' });
+  assert.equal((await ctx.drivers.findByDriverId('driver-prepare-near'))?.reservedRideId, undefined);
+});
+
+test('busca ampliada substitui o adicional existente e conserva comissão da corrida', async () => {
+  const ctx = await setup();
+  const ride = await prepareRideForPayment({
+    repository: ctx.preparation, drivers: ctx.drivers, routing: new FakeRouting(9),
+    passengerId: 'expanded-passenger', now, maxPickupDistanceKm: 15,
+    pickupFeeForDistance: km => km <= 15 ? 700 : undefined,
+    quoteRequest: { origin: { zoneId: 'prea' }, destination: { zoneId: 'jijoca' }, category: 'car', period: 'day' },
+    pickup: { latitude: -2.82017, longitude: -40.41467 },
+    dropoff: { latitude: -2.89860, longitude: -40.45060 },
+  });
+  assert.equal(ride.driverSearchMaxDistanceKm, 15);
+  assert.equal(ride.state, 'AWAITING_PAYMENT');
+  assert.equal(ride.quote.pickupCompensationCents, 700);
+  assert.equal(ride.quote.totalAmountCents, 12700);
+  assert.equal(ride.quote.platformCommissionCents, 1200);
+  assert.equal(ride.quote.driverNetCents, 11500);
+});

@@ -164,6 +164,24 @@
               </form>
             </article>
 
+            <article class="panel-card" id="driver-search-policy-panel">
+              <div class="panel-card__header"><div><span class="eyebrow eyebrow--dark">BUSCA E DESLOCAMENTO</span>
+                <h2>Motoristas próximos e busca ampliada</h2>
+                <p>Configure uma categoria por vez. A ampliação depende da escolha do passageiro.</p></div></div>
+              <div class="operational-settings-form">
+                <label class="field"><span>Categoria</span><select data-search-category></select></label>
+                <label class="field"><span>Busca próxima, até (km)</span><input data-search-near type="number" min="0.5" max="100" step="0.5" disabled></label>
+                <label class="field"><span>Busca ampliada, até (km)</span><input data-search-far type="number" min="0.5" max="100" step="0.5" disabled></label>
+                <label class="field"><span><input data-search-expand type="checkbox" disabled> Permitir ao passageiro ampliar a busca</span></label>
+                <label class="field"><span><input data-search-custom type="checkbox" disabled> Usar meus valores de deslocamento</span></label>
+                <p>Quando ativados, seus valores substituem a compensação de coleta existente. Não há duas cobranças. Cada faixa indica o adicional total, e não um valor por km. A primeira faixa começa em 0 km; as seguintes começam após o limite anterior.</p>
+                <div data-search-tiers></div>
+                <button type="button" data-search-add disabled>Adicionar faixa de distância</button>
+                <button type="button" data-search-save disabled>Salvar esta categoria</button>
+                <p data-search-message role="status" aria-live="polite"></p>
+              </div>
+            </article>
+
             <article class="panel-card document-alerts-card">
               <div class="panel-card__header">
                 <div>

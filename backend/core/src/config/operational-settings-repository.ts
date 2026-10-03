@@ -1,7 +1,9 @@
+import type { DriverSearchPolicy } from '../matching/driver-search-policy.js';
 export interface OperationalSettingsRecord {
   driverOfferTtlSeconds: number;
   driverPaymentHoldSeconds: number;
   driverSearchMaxDistanceKm?: number;
+  driverSearchPolicy?: DriverSearchPolicy;
   noDriverDecisionTimeoutSeconds: number;
   driverLocationMaxAgeSeconds: number;
   nearbyDriverMaxDistanceKm: number;
@@ -17,6 +19,7 @@ export interface OperationalSettingsRepository {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
   driverSearchMaxDistanceKm?: number;
+  driverSearchPolicy?: DriverSearchPolicy;
     noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;

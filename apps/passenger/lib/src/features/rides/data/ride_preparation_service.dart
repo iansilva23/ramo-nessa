@@ -17,7 +17,9 @@ abstract interface class RidePreparationService {
 }
 
 class RidePreparationException implements Exception {
-  const RidePreparationException(this.message);
+  const RidePreparationException(this.message, {this.code});
+
+  final String? code;
 
   final String message;
 

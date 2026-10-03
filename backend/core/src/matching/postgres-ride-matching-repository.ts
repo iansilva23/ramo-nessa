@@ -37,9 +37,9 @@ interface RideRow {
   payment_status: RideRecord['paymentStatus'];
   payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
-  driver_consent_required: boolean;
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
+  driver_search_max_distance_km: string | null;
   pickup_latitude: string | null;
   pickup_longitude: string | null;
   dropoff_latitude: string | null;
@@ -65,7 +65,7 @@ interface RideRow {
 
 const RIDE_COLUMNS = `
   id, passenger_id, state, payment_status, payment_method, driver_id,
-  driver_consent_required, reserved_driver_id, driver_hold_expires_at,
+  reserved_driver_id, driver_hold_expires_at, driver_search_max_distance_km,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
   origin_zone_id, origin_locality_id,
@@ -100,9 +100,9 @@ function mapRide(row: RideRow): RideRecord {
   return {
     id: row.id,
     passengerId: row.passenger_id,
+    ...(row.driver_search_max_distance_km == null ? {} : { driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km) }),
     state: row.state,
     paymentStatus: row.payment_status,
-    ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
     ...(row.payment_method != null
       ? { paymentMethod: row.payment_method }
       : {}),
@@ -174,27 +174,6 @@ export class PostgresRideMatchingRepository
     implements RideMatchingRepository {
   constructor(private readonly pool: Pool) {}
 
-  async releasePrepaymentHold(input: { rideId: string; at: string }) {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const ride = await lockRide(client, input.rideId);
-      if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driver_consent_required) {
-        throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
-      }
-      await client.query(`UPDATE driver_supply SET reserved_ride_id = NULL, reserved_until = NULL,
-        updated_at = $2 WHERE reserved_ride_id = $1`, [ride.id, input.at]);
-      await client.query(`UPDATE ride_offers SET status = 'CANCELLED', updated_at = $2
-        WHERE ride_id = $1 AND status IN ('OFFERED', 'ACCEPTED')`, [ride.id, input.at]);
-      const updated = await client.query<RideRow>(`UPDATE rides SET driver_id = NULL,
-        driver_hold_expires_at = $2, updated_at = $2 WHERE id = $1 RETURNING ${RIDE_COLUMNS}`,
-        [ride.id, input.at]);
-      await client.query('COMMIT');
-      return mapRide(updated.rows[0]!);
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
-  }
-
   async findOfferById(id: string): Promise<RideOfferRecord | null> {
     const result = await this.pool.query<RideOfferRow>(
       `SELECT ${OFFER_COLUMNS}
@@ -242,10 +221,7 @@ export class PostgresRideMatchingRepository
       const ride = await lockRide(client, input.rideId);
       if (
         ride == null ||
-        (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER' &&
-          !(ride.state === 'AWAITING_PAYMENT' && ride.driver_consent_required &&
-            ride.reserved_driver_id === input.driverId && ride.driver_id == null &&
-            (ride.driver_hold_expires_at?.getTime() ?? 0) > Date.parse(input.createdAt)))
+        (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER')
       ) {
         throw new RideOfferError(
           'RIDE_NOT_READY',
@@ -751,11 +727,7 @@ export class PostgresRideMatchingRepository
           'Oferta pertence a outro motorista.',
         );
       }
-      const ride = await lockRide(client, offer.ride_id);
-      const prepayment = ride?.state === 'AWAITING_PAYMENT' && ride.driver_consent_required;
-      const activatePaidReservation = offer.status === 'ACCEPTED' &&
-        ride?.driver_consent_required && ride.state === 'PAID' && ride.driver_id === input.driverId;
-      if (offer.status === 'ACCEPTED' && !activatePaidReservation) {
+      if (offer.status === 'ACCEPTED') {
         const acceptedRide = await lockRide(client, offer.ride_id);
         if (acceptedRide?.driver_id === input.driverId) {
           await client.query('COMMIT');
@@ -765,13 +737,13 @@ export class PostgresRideMatchingRepository
           };
         }
       }
-      if (offer.status !== 'OFFERED' && !activatePaidReservation) {
+      if (offer.status !== 'OFFERED') {
         throw new RideOfferError(
           'OFFER_NOT_ACTIVE',
           'Oferta não está mais ativa.',
         );
       }
-      if (!activatePaidReservation && offer.expires_at.getTime() <= Date.parse(input.acceptedAt)) {
+      if (offer.expires_at.getTime() <= Date.parse(input.acceptedAt)) {
         await client.query(
           `
           UPDATE ride_offers
@@ -784,12 +756,11 @@ export class PostgresRideMatchingRepository
         throw new RideOfferError('OFFER_EXPIRED', 'Oferta expirou.');
       }
 
+      const ride = await lockRide(client, offer.ride_id);
       if (
         ride == null ||
-        (!prepayment && !activatePaidReservation && ride.state !== 'SEARCHING_DRIVER') ||
-        (!activatePaidReservation && ride.driver_id != null) ||
-        ((prepayment || activatePaidReservation) && (ride.reserved_driver_id !== input.driverId ||
-          (ride.driver_hold_expires_at?.getTime() ?? 0) <= Date.parse(input.acceptedAt)))
+        ride.state !== 'SEARCHING_DRIVER' ||
+        ride.driver_id != null
       ) {
         throw new RideOfferError(
           'RIDE_NOT_READY',
@@ -812,9 +783,7 @@ export class PostgresRideMatchingRepository
         [input.driverId],
       );
       const driver = driverResult.rows[0];
-      if (driver == null || !driver.online || driver.busy ||
-        ((prepayment || activatePaidReservation) && (driver.reserved_ride_id !== ride.id ||
-          (driver.reserved_until?.getTime() ?? 0) <= Date.parse(input.acceptedAt)))) {
+      if (driver == null || !driver.online || driver.busy) {
         throw new RideOfferError(
           'DRIVER_NOT_AVAILABLE',
           'Motorista não está mais disponível.',
@@ -830,20 +799,6 @@ export class PostgresRideMatchingRepository
         `,
         [offer.id, input.acceptedAt],
       );
-
-      if (prepayment) {
-        const holdExpiresAt = new Date(Date.parse(input.acceptedAt) + (input.paymentHoldSeconds ?? 120) * 1000).toISOString();
-        const waiting = await client.query<RideRow>(
-          `UPDATE rides SET driver_id = $2, driver_hold_expires_at = $3, updated_at = $4
-           WHERE id = $1 RETURNING ${RIDE_COLUMNS}`,
-          [ride.id, input.driverId, holdExpiresAt, input.acceptedAt]);
-        await client.query(
-          `UPDATE driver_supply SET reserved_until = $3, updated_at = $4
-           WHERE driver_id = $1 AND reserved_ride_id = $2`,
-          [input.driverId, ride.id, holdExpiresAt, input.acceptedAt]);
-        await client.query('COMMIT');
-        return { ride: mapRide(waiting.rows[0]!), offer: mapOffer(updatedOffer.rows[0]!) };
-      }
 
       const updatedRide = await client.query<RideRow>(
         `

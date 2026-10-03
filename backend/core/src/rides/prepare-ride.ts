@@ -53,8 +53,8 @@ export async function prepareRideForPayment(input: {
   now?: Date;
   holdSeconds?: number;
   maxCandidates?: number;
-  requireDriverConsent?: boolean;
   maxPickupDistanceKm?: number;
+  pickupFeeForDistance?: (distanceKm: number) => number | undefined;
   canUseDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<RideRecord> {
   const passengerId = input.passengerId.trim();
@@ -168,7 +168,7 @@ export async function prepareRideForPayment(input: {
   const provisionalRide: RideRecord = {
     id: rideId,
     passengerId,
-    ...(input.requireDriverConsent ? { driverConsentRequired: true } : {}),
+    ...(input.maxPickupDistanceKm == null ? {} : { driverSearchMaxDistanceKm: input.maxPickupDistanceKm }),
     state: transitionRide('CREATED', 'AWAITING_PAYMENT'),
     paymentStatus: 'created',
     pickupLatitude: input.pickup.latitude,
@@ -254,6 +254,13 @@ export async function prepareRideForPayment(input: {
       );
     }
 
+    const customFee = input.pickupFeeForDistance?.(routedPickupKm);
+    if (customFee != null) {
+      const delta = customFee - finalFare.pickupCompensationCents;
+      finalFare.pickupCompensationCents = customFee;
+      finalFare.totalAmountCents += delta;
+      finalFare.driverNetCents += delta;
+    }
     const holdExpiresAt = new Date(
       now.getTime() + holdSeconds * 1000,
     ).toISOString();
