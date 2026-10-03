@@ -311,13 +311,13 @@ class _EmptyStatement extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.receipt_long_outlined, size: 36),
-          SizedBox(height: RamoSpacing.sm),
-          Text(
+          const Icon(Icons.receipt_long_outlined, size: 36),
+          const SizedBox(height: RamoSpacing.sm),
+          const Text(
             'Nenhuma movimentação ainda',
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Corridas concluídas, taxas e saques aparecerão aqui.',
             textAlign: TextAlign.center,

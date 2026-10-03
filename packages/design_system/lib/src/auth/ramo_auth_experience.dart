@@ -79,10 +79,10 @@ class _RamoAuthScaffoldState extends State<RamoAuthScaffold>
                     child: Container(
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.vertical(
+                        borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(34),
                         ),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Color(0x1F000000),
                             blurRadius: 28,

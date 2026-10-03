@@ -301,7 +301,7 @@ class _CustomSavedPlaceTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(
+        child: const Icon(
           Icons.star_rounded,
           color: RamoColors.brandBlack,
         ),

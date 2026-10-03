@@ -30,3 +30,10 @@ test('PostgreSQL renewal preserves logout and expiry boundaries', {skip:!process
  try {await scenario(new PostgresAuthSessionRepository(pool));}
  finally {await pool.query("DELETE FROM auth_sessions WHERE subject_id IN ('persistent-driver','persistent-passenger','expired')");await pool.end();}
 });
+
+test('role rejection never extends another app session',async()=>{
+ const repository=new InMemoryAuthSessionRepository();
+ const issued=await issueAuthSession({repository,subjectId:'passenger-role-check',subjectType:'passenger',now});
+ await assert.rejects(authenticateBearer({repository,headers:{authorization:'Bearer '+issued.token},requiredType:'driver',now,renewSession:true}),{code:'AUTH_ROLE_MISMATCH'});
+ assert.equal((await repository.findByTokenHash(issued.session.tokenHash))?.expiresAt,issued.session.expiresAt);
+});

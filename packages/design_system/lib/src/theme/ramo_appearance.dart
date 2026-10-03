@@ -43,8 +43,10 @@ class RamoAppearanceTile extends StatelessWidget {
         ));
         if (selected == null) return;
         final saved = await RamoAppearance.instance.select(selected);
-        if (!saved && context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível salvar a aparência. Tente novamente.')));
+        if (!saved && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Não foi possível salvar a aparência. Tente novamente.')));
+        }
       },
     ),
   );

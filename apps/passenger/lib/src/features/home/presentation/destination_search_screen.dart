@@ -431,7 +431,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                                 ? Column(
                                     children: [
                                       Padding(
-                                        padding: EdgeInsets.all(
+                                        padding: const EdgeInsets.all(
                                           RamoSpacing.md,
                                         ),
                                         child: Text(
@@ -655,14 +655,14 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                         ),
                       ],
                       Padding(
-                        padding: EdgeInsets.only(
+                        padding: const EdgeInsets.only(
                           top: RamoSpacing.sm,
                           bottom: RamoSpacing.xs,
                         ),
                         child: Center(
                           child: Text(
                             'Google Maps',
-                            key: Key('google-maps-attribution'),
+                            key: const Key('google-maps-attribution'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,

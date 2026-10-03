@@ -508,21 +508,21 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     backgroundColor: RamoColors.brandYellow,
                     foregroundColor: RamoColors.brandBlack,
                     child: Icon(Icons.calendar_month_rounded),
                   ),
-                  SizedBox(width: RamoSpacing.md),
+                  const SizedBox(width: RamoSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Repasse padrão',
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
-                        SizedBox(height: 3),
+                        const SizedBox(height: 3),
                         Text(
                           'Segunda, quarta e sexta às 07:00 · sem taxa',
                           style: TextStyle(

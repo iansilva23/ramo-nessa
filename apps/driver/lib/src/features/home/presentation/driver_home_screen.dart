@@ -2904,11 +2904,11 @@ class _MapAvailabilityPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Você está online',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     'Procurando corridas próximas',
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
@@ -2966,11 +2966,11 @@ class _MapAvailabilityPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Você está offline',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     'Fique online quando estiver pronto para dirigir.',
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),

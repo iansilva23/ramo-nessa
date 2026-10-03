@@ -306,7 +306,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
               )
             else if (_topups.isEmpty)
               Padding(
-                padding: EdgeInsets.symmetric(vertical: 28),
+                padding: const EdgeInsets.symmetric(vertical: 28),
                 child: Text(
                   'Você ainda não fez nenhuma recarga.',
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -318,7 +318,7 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
                     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: Icon(
+                    child: const Icon(
                       Icons.pix_rounded,
                       color: RamoColors.brandBlack,
                     ),
