@@ -3238,7 +3238,7 @@ class _ProfileOption extends StatelessWidget {
           icon,
           color: destructive
               ? Theme.of(context).colorScheme.error
-              : RamoColors.brandBlack,
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
       title: Text(
@@ -3859,7 +3859,7 @@ class _DriverRouteStop extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: RamoColors.brandBlack),
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurface),
         const SizedBox(width: 11),
         Expanded(
           child: Column(
@@ -3970,7 +3970,7 @@ class _DriverMetric extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 17, color: RamoColors.brandBlack),
+          Icon(icon, size: 17, color: Theme.of(context).colorScheme.onSurface),
           const SizedBox(height: 8),
           Text(
             label,
@@ -4035,7 +4035,7 @@ class _DriverNoticeStrip extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 17, color: RamoColors.brandBlack),
+        Icon(icon, size: 17, color: Theme.of(context).colorScheme.onSurface),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

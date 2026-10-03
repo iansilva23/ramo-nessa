@@ -87,7 +87,7 @@ class _ServiceRow extends StatelessWidget {
                 child: Icon(
                   service.icon,
                   size: 23,
-                  color: RamoColors.brandBlack,
+                  color: selected ? RamoColors.brandBlack : scheme.onSurface,
                 ),
               ),
               const SizedBox(width: RamoSpacing.md),
@@ -126,10 +126,10 @@ class _ServiceRow extends StatelessWidget {
               AnimatedSwitcher(
                 duration: RamoMotion.fast,
                 child: selected
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle_rounded,
-                        key: ValueKey('selected'),
-                        color: RamoColors.brandBlack,
+                        key: const ValueKey('selected'),
+                        color: scheme.onSurface,
                         size: 22,
                       )
                     : Icon(

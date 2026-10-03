@@ -36,6 +36,7 @@ class _FakeAuthService implements PhoneAuthService {
   final bool throwCurrentSession;
   String? requestedPhone;
   int logoutCalls = 0;
+  int sessionChecks = 0;
 
   @override
   Future<RequestedOtp> requestOtp({
@@ -67,6 +68,7 @@ class _FakeAuthService implements PhoneAuthService {
 
   @override
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
+    sessionChecks += 1;
     if (throwCurrentSession) {
       throw StateError('core offline');
     }
@@ -85,6 +87,25 @@ class _FakeAuthService implements PhoneAuthService {
 }
 
 void main() {
+  testWidgets('restores cold session and renews on resume without another login', (tester) async {
+    final store=_MemoryTokenStore()..token='abcdefghijklmnopqrstuvwxyz123456';
+    final service=_FakeAuthService(subjectType:'driver');
+    await tester.pumpWidget(MaterialApp(home:MobileAuthGate(
+      subjectType:'driver',service:service,tokenStore:store,initialAccessToken:store.token,
+      devBypass:false,loginTitle:'Entrar',loginSubtitle:'WhatsApp',
+      authenticatedBuilder:(token,logout)=>const Text('SESSION RESTORED'))));
+    await tester.pumpAndSettle();
+    expect(find.text('SESSION RESTORED'),findsOneWidget);
+    expect(service.sessionChecks,1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(service.sessionChecks,2);
+    expect(store.cleared,false);
+    expect(find.text('SESSION RESTORED'),findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('OTP salva a sessão antes de liberar o app', (tester) async {
     final store = _MemoryTokenStore();
     final service = _FakeAuthService(subjectType: 'driver');

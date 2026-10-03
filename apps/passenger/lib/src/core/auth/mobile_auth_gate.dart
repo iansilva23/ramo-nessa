@@ -85,6 +85,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
         try {
           await widget.tokenStore.clearAccessToken();
         } catch (_) {}
+        if (!mounted || _accessToken != token) { _refreshing = false; return; }
         _accessToken = null;
       }
     } catch (_) {
