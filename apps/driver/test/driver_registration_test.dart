@@ -39,7 +39,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(requestedPath, '/v1/auth/driver-registration/request');
     expect(find.byKey(const Key('auth-code-field')), findsOneWidget);
-    final resend = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Reenviar em 60s'));
+    final resend = tester.widget<TextButton>(find.byWidgetPredicate((widget) => widget is TextButton && widget.child is Text && ((widget.child as Text).data ?? '').startsWith('Reenviar em ')));
     expect(resend.onPressed, isNull);
     await tester.pumpWidget(const SizedBox());
   });

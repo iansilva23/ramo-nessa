@@ -142,14 +142,15 @@ class _DriverRegistrationGateState extends State<DriverRegistrationGate> {
     final suspended = _status!['status'] == 'suspended';
     final submitted = _status!['documentsSubmitted'] == true;
     final documents = (_status!['documents'] as List? ?? []).whereType<Map>();
+    final needsCorrection = documents.any((document) => document['status'] == 'rejected' || document['status'] == 'expired');
     return [
       Icon(suspended ? Icons.info_outline : submitted ? Icons.hourglass_top_rounded : Icons.description_outlined, size: 52),
       const SizedBox(height: 20),
-      Text(suspended ? 'Cadastro indisponível' : submitted ? 'Seu cadastro está em análise' : 'Falta enviar os documentos',
+      Text(suspended ? 'Cadastro indisponível' : needsCorrection ? 'Corrija seus documentos' : submitted ? 'Seu cadastro está em análise' : 'Falta enviar os documentos',
         textAlign: TextAlign.center, key: const Key('registration-status'), style: Theme.of(context).textTheme.headlineMedium),
       const SizedBox(height: 12),
       Text(suspended ? 'Procure a equipe Ramo Nessa para entender a situação do seu cadastro.'
-        : submitted ? 'Você já enviou os dados e documentos. As corridas serão liberadas após a aprovação da equipe.'
+        : needsCorrection ? 'Confira o motivo abaixo e envie novamente os documentos que precisam de correção.' : submitted ? 'Você já enviou os dados e documentos. As corridas serão liberadas após a aprovação da equipe.'
         : 'Envie sua CNH e o CRLV para a equipe analisar seu cadastro.', textAlign: TextAlign.center),
       const SizedBox(height: 24),
       ...documents.map((document) => ListTile(contentPadding: EdgeInsets.zero,

@@ -29,7 +29,7 @@ export async function driverRegistrationStatus(input: RegistrationDependencies) 
     status: operational ? 'approved' : profile?.status === 'suspended' || vehicle?.status === 'suspended'
       ? 'suspended' : profile == null || vehicle == null ? 'incomplete' : 'pending',
     documentsSubmitted, documentsApproved,
-    documents: documents.map(d => ({ documentType: d.documentType, status: d.status,
+    documents: documents.map(d => ({ documentType: d.documentType, status: d.expiresOn != null && d.expiresOn < today ? 'expired' : d.status,
       reviewReason: d.rejectionReason ?? null, expiresOn: d.expiresOn ?? null })),
   };
 }
