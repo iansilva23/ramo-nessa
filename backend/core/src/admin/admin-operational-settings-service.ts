@@ -11,6 +11,7 @@ export class AdminOperationalSettingsError extends Error {
     public readonly code:
       | 'INVALID_DRIVER_OFFER_TTL'
       | 'INVALID_DRIVER_PAYMENT_HOLD'
+      | 'INVALID_DRIVER_SEARCH_DISTANCE'
       | 'INVALID_NO_DRIVER_DECISION_TIMEOUT'
       | 'INVALID_DRIVER_LOCATION_MAX_AGE'
       | 'INVALID_NEARBY_DRIVER_MAX_DISTANCE'
@@ -34,6 +35,7 @@ export async function updateAdminOperationalSettings(input: {
   actor: AdminActor;
   driverOfferTtlSeconds?: number;
   driverPaymentHoldSeconds?: number;
+  driverSearchMaxDistanceKm?: number;
   noDriverDecisionTimeoutSeconds?: number;
   driverLocationMaxAgeSeconds?: number;
   nearbyDriverMaxDistanceKm?: number;
@@ -122,7 +124,12 @@ export async function updateAdminOperationalSettings(input: {
     );
   }
 
+  if (input.driverSearchMaxDistanceKm != null &&
+      (!Number.isFinite(input.driverSearchMaxDistanceKm) || input.driverSearchMaxDistanceKm < 0.5 || input.driverSearchMaxDistanceKm > 100)) {
+    throw new AdminOperationalSettingsError('INVALID_DRIVER_SEARCH_DISTANCE', 'A busca deve ficar entre 0,5 e 100 km.');
+  }
   const current = await input.repository.get();
+  const nextSearchDistance = input.driverSearchMaxDistanceKm ?? current.driverSearchMaxDistanceKm ?? 5;
   const nextTtl =
     input.driverOfferTtlSeconds ?? current.driverOfferTtlSeconds;
   const nextPaymentHold =
@@ -150,6 +157,7 @@ export async function updateAdminOperationalSettings(input: {
         : normalizedPublicKey;
 
   if (
+    nextSearchDistance === (current.driverSearchMaxDistanceKm ?? 5) &&
     nextTtl === current.driverOfferTtlSeconds &&
     nextPaymentHold === current.driverPaymentHoldSeconds &&
     nextNoDriverDecisionTimeout ===
@@ -167,6 +175,7 @@ export async function updateAdminOperationalSettings(input: {
   const updatedAt = (input.now ?? new Date()).toISOString();
   const updated = await input.repository.update({
     driverOfferTtlSeconds: nextTtl,
+    driverSearchMaxDistanceKm: nextSearchDistance,
     driverPaymentHoldSeconds: nextPaymentHold,
     noDriverDecisionTimeoutSeconds: nextNoDriverDecisionTimeout,
     driverLocationMaxAgeSeconds: nextLocationMaxAge,
@@ -185,6 +194,8 @@ export async function updateAdminOperationalSettings(input: {
     targetType: 'operational_settings',
     targetId: 'mobility',
     metadata: {
+      previousDriverSearchMaxDistanceKm: current.driverSearchMaxDistanceKm ?? 5,
+      driverSearchMaxDistanceKm: updated.driverSearchMaxDistanceKm,
       previousDriverOfferTtlSeconds: current.driverOfferTtlSeconds,
       driverOfferTtlSeconds: updated.driverOfferTtlSeconds,
       previousDriverPaymentHoldSeconds:

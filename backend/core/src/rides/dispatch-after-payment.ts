@@ -1,3 +1,4 @@
+import { RideOfferError } from '../matching/ride-offer.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
@@ -12,7 +13,8 @@ import type { RideRecord } from './ride.js';
 
 export type PostPaymentDispatchResult =
   | DispatchNextResult
-  | { kind: 'NOT_PREPARED' };
+  | { kind: 'NOT_PREPARED' }
+  | { kind: 'DRIVER_CONFIRMED'; driverId: string };
 
 export async function dispatchRideAfterPayment(input: {
   ride: RideRecord;
@@ -33,6 +35,26 @@ export async function dispatchRideAfterPayment(input: {
     return { kind: 'NOT_PREPARED' };
   }
 
+  if (input.ride.driverConsentRequired) {
+    const now = input.now ?? new Date();
+    const offer = (await input.matching.listOffersForRide(input.ride.id)).find(
+      (entry) => entry.status === 'ACCEPTED' && entry.driverId === input.ride.driverId);
+    if (offer == null || input.ride.reservedDriverId !== offer.driverId ||
+        Date.parse(input.ride.driverHoldExpiresAt ?? '') <= now.getTime()) {
+      // Never silently replace the driver the passenger confirmed.
+      return { kind: 'NOT_PREPARED' };
+    }
+    try {
+      await input.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId,
+        acceptedAt: now.toISOString() });
+    } catch (error) {
+      if (error instanceof RideOfferError && ['DRIVER_NOT_AVAILABLE', 'RIDE_NOT_READY'].includes(error.code)) {
+        return { kind: 'NOT_PREPARED' };
+      }
+      throw error;
+    }
+    return { kind: 'DRIVER_CONFIRMED', driverId: offer.driverId };
+  }
   return dispatchNextDriver({
     rides: input.rides,
     drivers: input.drivers,

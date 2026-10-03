@@ -1,3 +1,5 @@
+import type { RideRecord } from './rides/ride.js';
+import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from './rides/prepayment-driver-confirmation.js';
 import { randomUUID } from 'node:crypto';
 import {
   createServer,
@@ -397,7 +399,7 @@ import {
   RidePaymentConfirmationError,
 } from './rides/confirm-payment.js';
 import { authorizeCashRide } from './rides/authorize-cash.js';
-import { dispatchRideAfterPayment } from './rides/dispatch-after-payment.js';
+import { dispatchRideAfterPayment as dispatchRideAfterPaymentBase } from './rides/dispatch-after-payment.js';
 import {
   refundWalletRide,
   refundWalletRideAfterNoDriver,
@@ -808,6 +810,31 @@ async function fundRidePromotionForPayment(
   });
 }
 
+async function assertPrepaymentDriverAvailable(ride: RideRecord) {
+  if (!ride.driverConsentRequired) return;
+  const now = new Date();
+  const driver = ride.driverId == null ? null : await driverSupplyRepository.findByDriverId(ride.driverId);
+  if (ride.driverId == null || ride.driverId !== ride.reservedDriverId || driver == null ||
+      !driver.online || driver.busy || driver.reservedRideId !== ride.id ||
+      Date.parse(ride.driverHoldExpiresAt ?? '') <= now.getTime() ||
+      Date.parse(driver.reservedUntil ?? '') <= now.getTime()) {
+    throw new PaymentDomainError('RIDE_NOT_PREPARED', 'Aguarde o aceite de um motorista disponível antes de pagar.');
+  }
+}
+
+async function dispatchRideAfterPayment(input: Parameters<typeof dispatchRideAfterPaymentBase>[0]) {
+  const result = await dispatchRideAfterPaymentBase(input);
+  if (result.kind === 'DRIVER_CONFIRMED') {
+    const assigned = await rideRepository.findById(input.ride.id);
+    if (assigned != null) {
+      await redeemRidePromotion({ promotions: promotionRepository, ride: assigned });
+      realtimeHub.publishDriver(result.driverId, { type: 'driver.ride.updated',
+        ride: driverRideView(assigned), serverTime: new Date().toISOString() });
+    }
+  }
+  return result;
+}
+
 async function processConfirmedMercadoPagoRide(
   payment: PaymentRecord,
 ): Promise<void> {
@@ -964,6 +991,7 @@ async function processConfirmedMercadoPagoRide(
     return;
   }
 
+  if (dispatch.kind === 'DRIVER_CONFIRMED') return;
   if (dispatch.kind === 'NOT_PREPARED') {
     await refundMercadoPagoRide({
       rides: rideRepository,
@@ -4251,6 +4279,7 @@ const server = createServer(async (request, response) => {
       const payload = body as {
         driverOfferTtlSeconds?: unknown;
         driverPaymentHoldSeconds?: unknown;
+        driverSearchMaxDistanceKm?: unknown;
         noDriverDecisionTimeoutSeconds?: unknown;
         driverLocationMaxAgeSeconds?: unknown;
         nearbyDriverMaxDistanceKm?: unknown;
@@ -4262,6 +4291,7 @@ const server = createServer(async (request, response) => {
         payload.driverOfferTtlSeconds == null
           ? undefined
           : Number(payload.driverOfferTtlSeconds);
+      const driverSearchMaxDistanceKm = payload.driverSearchMaxDistanceKm == null ? undefined : Number(payload.driverSearchMaxDistanceKm);
       const driverPaymentHoldSeconds =
         payload.driverPaymentHoldSeconds == null
           ? undefined
@@ -4376,6 +4406,7 @@ const server = createServer(async (request, response) => {
       }
       if (
         driverOfferTtlSeconds == null &&
+        driverSearchMaxDistanceKm == null &&
         driverPaymentHoldSeconds == null &&
         noDriverDecisionTimeoutSeconds == null &&
         driverLocationMaxAgeSeconds == null &&
@@ -4396,6 +4427,7 @@ const server = createServer(async (request, response) => {
         ...(driverOfferTtlSeconds == null
           ? {}
           : { driverOfferTtlSeconds }),
+        ...(driverSearchMaxDistanceKm == null ? {} : { driverSearchMaxDistanceKm }),
         ...(driverPaymentHoldSeconds == null
           ? {}
           : { driverPaymentHoldSeconds }),
@@ -6972,6 +7004,15 @@ const server = createServer(async (request, response) => {
           ? body as { reason?: unknown; note?: unknown }
           : {};
       const rideId = driverRideCancelMatch[1]!;
+      const pendingRide = await rideRepository.findById(rideId);
+      if (pendingRide?.state === 'AWAITING_PAYMENT' && pendingRide.driverConsentRequired && pendingRide.driverId === driverId) {
+        const released = await rideMatchingRepository.releasePrepaymentHold({ rideId, at: new Date().toISOString() });
+        await releaseRidePromotionReservation({ promotions: promotionRepository, ride: pendingRide });
+        realtimeHub.publishDriver(driverId, { type: 'driver.ride.updated', ride: null, serverTime: new Date().toISOString() });
+        json(response, 200, { ride: driverRideView(released), refundStatus: 'not_charged',
+          adminReviewRequired: false, adminReviewCreated: false,
+          compensationReviewRequired: false, duplicateCancellation: false }); return;
+      }
       const cancelled = await cancelDriverRide({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -7192,6 +7233,7 @@ const server = createServer(async (request, response) => {
       if (action === 'accept') {
         const documentPolicy = await driverDocumentPolicy(driverId);
         const result = await acceptOfferFromDriverApp({
+          paymentHoldSeconds: (await operationalSettingsRepository.get()).driverPaymentHoldSeconds,
           rides: rideRepository,
           registry: driverRegistryRepository,
           documents: driverDocumentRepository,
@@ -7213,7 +7255,7 @@ const server = createServer(async (request, response) => {
         });
 
         const acceptedRide = await rideRepository.findById(result.ride.id);
-        if (acceptedRide != null) {
+        if (acceptedRide != null && acceptedRide.state !== 'AWAITING_PAYMENT') {
           await redeemRidePromotion({
             promotions: promotionRepository,
             ride: acceptedRide,
@@ -7353,6 +7395,47 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const confirmationMatch = requestUrl.pathname.match(/^\/v1\/rides\/([0-9a-fA-F-]+)\/driver-confirmation$/);
+    if (request.method === 'DELETE' && confirmationMatch != null) {
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const ride = await rideRepository.findById(confirmationMatch[1]!);
+      if (ride == null || ride.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
+      const released = await rideMatchingRepository.releasePrepaymentHold({ rideId: ride.id, at: new Date().toISOString() });
+      await releaseRidePromotionReservation({ promotions: promotionRepository, ride });
+      if (ride.reservedDriverId != null) realtimeHub.publishDriver(ride.reservedDriverId,
+        { type: 'driver.ride.updated', ride: null, serverTime: new Date().toISOString() });
+      json(response, 200, { ride: passengerRideView(released) }); return;
+    }
+    if (request.method === 'POST' && confirmationMatch != null) {
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const ride = await rideRepository.findById(confirmationMatch[1]!);
+      const now = new Date();
+      if (ride == null || ride.passengerId !== passengerId) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
+      if (ride.state !== 'AWAITING_PAYMENT' || !ride.driverConsentRequired ||
+          Date.parse(ride.driverHoldExpiresAt ?? '') <= now.getTime()) {
+        json(response, 409, { error: 'DRIVER_HOLD_EXPIRED', message: 'A reserva expirou. Escolha a corrida novamente.' }); return;
+      }
+      const existing = (await rideMatchingRepository.listOffersForRide(ride.id)).at(-1);
+      if (existing != null) { json(response, 200, { status: existing.status }); return; }
+      const offer = await createPrepaymentDriverOffer({ ride, matching: rideMatchingRepository, now });
+      realtimeHub.publishDriver(offer.driverId, { type: 'driver.offer.updated',
+        offer: driverOfferView(offer, ride), serverTime: now.toISOString() });
+      sendPushBestEffort({ subjectType: 'driver', subjectId: offer.driverId,
+        type: 'driver.offer.new', title: 'Nova solicitação',
+        body: 'Aceite para reservar. O passageiro pagará antes do embarque.', data: { rideId: ride.id, offerId: offer.id } });
+      json(response, 201, { status: 'WAITING_ACCEPTANCE' }); return;
+    }
+    if (request.method === 'GET' && confirmationMatch != null) {
+      const passengerId = await resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository });
+      const confirmation = await prepaymentDriverConfirmation({
+        rides: rideRepository, matching: rideMatchingRepository, drivers: driverSupplyRepository,
+        registry: driverRegistryRepository, routing: routingRouteProvider,
+        passengerId, rideId: confirmationMatch[1]!,
+      });
+      if (confirmation == null) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
+      json(response, 200, confirmation); return;
+    }
+
     if (
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/rides/prepare'
@@ -7444,6 +7527,8 @@ const server = createServer(async (request, response) => {
         originLocalityProofVerified,
         destinationLocalityProofVerified,
         holdSeconds: operationalSettings.driverPaymentHoldSeconds,
+        requireDriverConsent: true,
+        maxPickupDistanceKm: operationalSettings.driverSearchMaxDistanceKm ?? 5,
         canUseDriver: (candidateDriverId) =>
           canDriverReceiveNewWorkUnderPolicy(
             candidateDriverId,
@@ -7453,6 +7538,7 @@ const server = createServer(async (request, response) => {
       });
 
       json(response, 201, {
+        driverConsentRequired: true,
         ride: passengerRideView(ride),
         priceFinal: true,
         holdExpiresAt: ride.driverHoldExpiresAt,
@@ -7831,6 +7917,12 @@ const server = createServer(async (request, response) => {
       /^\/v1\/rides\/([0-9a-fA-F-]+)\/promotion$/,
     );
     if (request.method === 'PUT' && ridePromotionMatch != null) {
+      const started = await rideMatchingRepository.listOffersForRide(ridePromotionMatch[1]!);
+      if (started.some((offer) => offer.status === 'OFFERED' || offer.status === 'ACCEPTED')) {
+        json(response, 409, { error: 'DRIVER_CONFIRMATION_STARTED',
+          message: 'O motorista precisa aceitar o preço final. Para alterar o cupom, volte e prepare uma nova corrida.' }); return;
+      }
+
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
@@ -7860,6 +7952,12 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'DELETE' && ridePromotionMatch != null) {
+      const started = await rideMatchingRepository.listOffersForRide(ridePromotionMatch[1]!);
+      if (started.some((offer) => offer.status === 'OFFERED' || offer.status === 'ACCEPTED')) {
+        json(response, 409, { error: 'DRIVER_CONFIRMATION_STARTED',
+          message: 'O motorista precisa aceitar o preço final. Para alterar o cupom, volte e prepare uma nova corrida.' }); return;
+      }
+
       const passengerId = await resolvePassengerId({
         request,
         sessions: authSessionRepository,
@@ -7899,6 +7997,7 @@ const server = createServer(async (request, response) => {
       }
 
       const now = new Date();
+      await assertPrepaymentDriverAvailable(ride);
       const payment = await createFullyPromotionalPayment({
         finance: financeRepository,
         ride,
@@ -7916,7 +8015,8 @@ const server = createServer(async (request, response) => {
         | 'SEARCHING_DRIVER'
         | 'NO_DRIVER_FOUND'
         | 'NOT_PREPARED'
-        | 'PENDING_RETRY' = 'PENDING_RETRY';
+        | 'PENDING_RETRY'
+        | 'DRIVER_CONFIRMED' = 'PENDING_RETRY';
 
       if (
         currentRide.state === 'DRIVER_ASSIGNED' ||
@@ -8108,6 +8208,7 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      await assertPrepaymentDriverAvailable(ride);
       const body = parseCreatePaymentRequest(await readJson(request));
       const idempotencyKey = readIdempotencyKey(request.headers);
       const paymentSettings =
@@ -8142,7 +8243,8 @@ const server = createServer(async (request, response) => {
           | 'SEARCHING_DRIVER'
           | 'NO_DRIVER_FOUND'
           | 'NOT_PREPARED'
-          | 'PENDING_RETRY' = 'PENDING_RETRY';
+          | 'PENDING_RETRY'
+        | 'DRIVER_CONFIRMED' = 'PENDING_RETRY';
 
         if (currentRide.state === 'NO_DRIVER_FOUND') {
           dispatchStatus = 'NO_DRIVER_FOUND';
@@ -8223,7 +8325,8 @@ const server = createServer(async (request, response) => {
           | 'SEARCHING_DRIVER'
           | 'NO_DRIVER_FOUND'
           | 'NOT_PREPARED'
-          | 'PENDING_RETRY' = 'PENDING_RETRY';
+          | 'PENDING_RETRY'
+        | 'DRIVER_CONFIRMED' = 'PENDING_RETRY';
 
         if (result.payment.status === 'refunded') {
           const refund = await refundWalletRideAfterNoDriver({

@@ -46,6 +46,7 @@ export function rejectDriverOffer(input: {
 }
 
 export function acceptDriverOffer(input: {
+  paymentHoldSeconds?: number;
   repository: RideMatchingRepository;
   offerId: string;
   driverId: string;
@@ -55,6 +56,7 @@ export function acceptDriverOffer(input: {
     offerId: input.offerId,
     driverId: input.driverId,
     acceptedAt: (input.now ?? new Date()).toISOString(),
+    ...(input.paymentHoldSeconds == null ? {} : { paymentHoldSeconds: input.paymentHoldSeconds }),
   });
 }
 

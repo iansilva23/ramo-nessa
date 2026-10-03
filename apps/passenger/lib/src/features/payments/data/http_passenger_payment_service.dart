@@ -13,8 +13,9 @@ import '../domain/pix_ride_payment_result.dart';
 import '../domain/wallet_ride_payment_result.dart';
 import '../domain/wallet_topup_result.dart';
 import 'passenger_payment_service.dart';
+import '../../rides/data/driver_confirmation_service.dart';
 
-class HttpPassengerPaymentService implements PassengerPaymentService {
+class HttpPassengerPaymentService implements PassengerPaymentService, DriverConfirmationService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
     String? accessToken,
@@ -42,6 +43,39 @@ class HttpPassengerPaymentService implements PassengerPaymentService {
         if (_clientInstanceId.trim().isNotEmpty)
           'x-client-instance-id': _clientInstanceId.trim(),
       };
+
+  @override
+  Future<void> requestDriverConfirmation(String rideId) async {
+    final response = await _client.post(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body), 'Não conseguimos consultar um motorista.'));
+    }
+  }
+
+  @override
+  Future<DriverConfirmation> driverConfirmation(String rideId) async {
+    final response = await _client.get(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final json = decodeJsonObject(response.body);
+    if (response.statusCode != 200 || json == null) {
+      throw PassengerPaymentException(apiErrorMessage(json, 'Não conseguimos atualizar a reserva.'));
+    }
+    final driver = json['driver'];
+    if (driver is Map<String, dynamic> && driver['photoPath'] is String) {
+      driver['photoUrl'] = _baseUrl.resolve(driver['photoPath'] as String).toString();
+    }
+    return DriverConfirmation.fromJson(json);
+  }
+
+  @override
+  Future<void> releaseDriverReservation(String rideId) async {
+    final response = await _client.delete(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body), 'Não conseguimos cancelar a reserva.'));
+    }
+  }
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {

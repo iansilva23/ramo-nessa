@@ -46,6 +46,7 @@ class PreparedRide {
     required this.totalAmountCents,
     required this.holdExpiresAt,
     this.promotion,
+    this.driverConsentRequired = false,
   });
 
   factory PreparedRide.fromJson(Map<String, dynamic> json) {
@@ -80,6 +81,7 @@ class PreparedRide {
       totalAmountCents: (quote['totalAmountCents'] as num).toInt(),
       holdExpiresAt: DateTime.parse(hold),
       promotion: promotion,
+      driverConsentRequired: ride['driverConsentRequired'] == true,
     );
   }
 
@@ -90,6 +92,7 @@ class PreparedRide {
   final int totalAmountCents;
   final DateTime holdExpiresAt;
   final PreparedRidePromotion? promotion;
+  final bool driverConsentRequired;
 
   int get payableAmountCents =>
       promotion?.passengerPayableCents ?? totalAmountCents;

@@ -8,6 +8,7 @@ import type {
 interface OperationalSettingsRow {
   driver_offer_ttl_seconds: number;
   driver_payment_hold_seconds: number;
+  driver_search_max_distance_km: number | string;
   no_driver_decision_timeout_seconds: number;
   driver_location_max_age_seconds: number;
   nearby_driver_max_distance_km: string | number;
@@ -20,6 +21,7 @@ interface OperationalSettingsRow {
 function mapRow(row: OperationalSettingsRow): OperationalSettingsRecord {
   return {
     driverOfferTtlSeconds: row.driver_offer_ttl_seconds,
+    driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km),
     driverPaymentHoldSeconds:
       row.driver_payment_hold_seconds,
     noDriverDecisionTimeoutSeconds:
@@ -45,7 +47,7 @@ export class PostgresOperationalSettingsRepository
 
   async get(): Promise<OperationalSettingsRecord> {
     const result = await this.pool.query<OperationalSettingsRow>(
-      `SELECT driver_offer_ttl_seconds, driver_payment_hold_seconds,
+      `SELECT driver_offer_ttl_seconds, driver_payment_hold_seconds, driver_search_max_distance_km,
               no_driver_decision_timeout_seconds,
               driver_location_max_age_seconds,
               nearby_driver_max_distance_km,
@@ -65,6 +67,7 @@ export class PostgresOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
+  driverSearchMaxDistanceKm?: number;
     noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
@@ -84,9 +87,10 @@ export class PostgresOperationalSettingsRepository
            show_nearby_drivers = $6,
            driver_document_auto_enforcement = $7,
            mercado_pago_public_key = $8,
-           updated_at = $9
+           updated_at = $9,
+           driver_search_max_distance_km = $10
        WHERE id = 1
-       RETURNING driver_offer_ttl_seconds,
+       RETURNING driver_search_max_distance_km, driver_offer_ttl_seconds,
                  driver_payment_hold_seconds,
                  no_driver_decision_timeout_seconds,
                  driver_location_max_age_seconds,
@@ -111,6 +115,7 @@ export class PostgresOperationalSettingsRepository
           ? current.mercadoPagoPublicKey ?? null
           : input.mercadoPagoPublicKey,
         input.updatedAt,
+        input.driverSearchMaxDistanceKm ?? current.driverSearchMaxDistanceKm ?? 5,
       ],
     );
     const row = result.rows[0];

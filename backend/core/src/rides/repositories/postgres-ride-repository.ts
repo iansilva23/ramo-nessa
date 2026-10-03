@@ -27,6 +27,7 @@ interface RideRow {
   payment_status: RideRecord['paymentStatus'];
   payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
+  driver_consent_required: boolean;
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
   pickup_latitude: string | null;
@@ -63,6 +64,7 @@ function mapRow(row: RideRow): RideRecord {
     passengerId: row.passenger_id,
     state: row.state,
     paymentStatus: row.payment_status,
+    ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
     ...(row.payment_method != null
       ? { paymentMethod: row.payment_method }
       : {}),
@@ -136,7 +138,7 @@ function mapRow(row: RideRow): RideRecord {
 
 const RETURNING = `
   id, passenger_id, state, payment_status, payment_method, driver_id,
-  reserved_driver_id, driver_hold_expires_at,
+  driver_consent_required, reserved_driver_id, driver_hold_expires_at,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
   origin_zone_id, origin_locality_id,
@@ -173,10 +175,10 @@ export class PostgresRideRepository implements RideRepository {
         pricing_catalog_version_id, pricing_catalog_version_number,
         base_amount_cents, pickup_compensation_cents,
         total_amount_cents, platform_commission_cents, driver_net_cents,
-        promotion_snapshot, created_at, updated_at
+        promotion_snapshot, created_at, updated_at, driver_consent_required
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35
       )
       RETURNING ${RETURNING}
       `,
@@ -215,6 +217,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.promotion ?? null,
         ride.createdAt,
         ride.updatedAt,
+        ride.driverConsentRequired ?? false,
       ],
     );
 

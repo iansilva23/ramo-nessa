@@ -9,6 +9,7 @@ export class InMemoryOperationalSettingsRepository
   private record: OperationalSettingsRecord = {
     driverOfferTtlSeconds: 35,
     driverPaymentHoldSeconds: 90,
+    driverSearchMaxDistanceKm: 5,
     noDriverDecisionTimeoutSeconds: 900,
     driverLocationMaxAgeSeconds: 120,
     nearbyDriverMaxDistanceKm: 15,
@@ -24,6 +25,7 @@ export class InMemoryOperationalSettingsRepository
   async update(input: {
     driverOfferTtlSeconds?: number;
     driverPaymentHoldSeconds?: number;
+  driverSearchMaxDistanceKm?: number;
     noDriverDecisionTimeoutSeconds?: number;
     driverLocationMaxAgeSeconds?: number;
     nearbyDriverMaxDistanceKm?: number;
@@ -35,6 +37,7 @@ export class InMemoryOperationalSettingsRepository
     this.record = {
       driverOfferTtlSeconds:
         input.driverOfferTtlSeconds ?? this.record.driverOfferTtlSeconds,
+      driverSearchMaxDistanceKm: input.driverSearchMaxDistanceKm ?? this.record.driverSearchMaxDistanceKm ?? 5,
       driverPaymentHoldSeconds:
         input.driverPaymentHoldSeconds ??
         this.record.driverPaymentHoldSeconds,
