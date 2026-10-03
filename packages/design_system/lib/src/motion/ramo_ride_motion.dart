@@ -4,13 +4,14 @@ import '../foundation/ramo_colors.dart';
 
 /// Motion shared by passenger and driver; no animation can advance ride state.
 class RamoReveal extends StatelessWidget {
-  const RamoReveal({super.key, required this.child});
+  const RamoReveal({super.key, required this.child, this.delay = Duration.zero});
   final Widget child;
+  final Duration delay;
   @override
   Widget build(BuildContext context) => TweenAnimationBuilder<double>(
     tween: Tween(begin: 0, end: 1),
-    duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 420),
-    curve: Curves.easeOutCubic,
+    duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 420) + delay,
+    curve: Interval(delay.inMilliseconds / (420 + delay.inMilliseconds), 1, curve: Curves.easeOutCubic),
     builder: (_, value, child) => Opacity(opacity: value,
       child: Transform.translate(offset: Offset(0, 16 * (1 - value)), child: child)),
     child: child,
@@ -78,13 +79,13 @@ class RamoOfferCountdown extends StatelessWidget {
   final int totalSeconds;
   @override
   Widget build(BuildContext context) => Semantics(label: '$seconds segundos para responder',
-    child: SizedBox.square(dimension: 46, child: Stack(alignment: Alignment.center, children: [
+    child: ExcludeSemantics(child: SizedBox.square(dimension: 46, child: Stack(alignment: Alignment.center, children: [
       TweenAnimationBuilder<double>(tween: Tween(end: (seconds / math.max(1, totalSeconds)).clamp(0, 1)),
         duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 900),
         builder: (_, value, __) => SizedBox.square(dimension: 44, child: CircularProgressIndicator(
           value: value, strokeWidth: 3, backgroundColor: RamoColors.brandYellow.withValues(alpha: .12),
           color: seconds <= 8 ? Theme.of(context).colorScheme.error : RamoColors.brandYellow))),
       Text('${seconds}s', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-    ])),
+    ]))),
   );
 }

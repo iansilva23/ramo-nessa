@@ -173,7 +173,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
         const SizedBox(height: 16),
         if (driver != null && ready) ...[
 
-          Row(children: [
+          RamoReveal(delay: const Duration(milliseconds: 60), child: Row(children: [
             Stack(clipBehavior: Clip.none, children: [CircleAvatar(radius: 32,
               backgroundImage: driver.photoUrl == null ? null : NetworkImage(driver.photoUrl!),
               onBackgroundImageError: driver.photoUrl == null ? null : (_, __) {},
@@ -187,18 +187,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               if (driver.ratingCount > 0 && driver.ratingAverage != null)
                 Text('★ ${driver.ratingAverage!.toStringAsFixed(1)} · ${driver.ratingCount} avaliações'),
             ])),
-          ]),
+          ])),
           const SizedBox(height: 12),
-          Text(driver.arrivalSeconds == null ? 'Previsão de chegada indisponível no momento'
-            : 'Chega em aproximadamente ${(driver.arrivalSeconds! / 60).ceil().clamp(1, 999)} minutos'),
+          RamoReveal(delay: const Duration(milliseconds: 100), child: Text(driver.arrivalSeconds == null ? 'Previsão de chegada indisponível no momento'
+            : 'Chega em aproximadamente ${(driver.arrivalSeconds! / 60).ceil().clamp(1, 999)} minutos')),
           const SizedBox(height: 8),
-          Text('Valor da corrida: ${_ride.formattedPayable}'),
+          RamoReveal(delay: const Duration(milliseconds: 140), child: Text('Valor da corrida: ${_ride.formattedPayable}')),
           const SizedBox(height: 16),
-          if (!_paymentOptionsOpen) FilledButton(
+          if (!_paymentOptionsOpen) RamoReveal(delay: const Duration(milliseconds: 180), child: FilledButton(
             key: const Key('confirm-driver-and-pay'),
             onPressed: _remaining == Duration.zero || _driverMessage != null ? null
               : () => setState(() => _paymentOptionsOpen = true),
-            child: const Text('Confirmar e pagar')),
+            child: const Text('Confirmar e pagar'))),
         ] else if (!_findingDriver) FilledButton(
           key: const Key('find-driver-before-payment'),
           onPressed: _remaining == Duration.zero ? null : _findDriver,
