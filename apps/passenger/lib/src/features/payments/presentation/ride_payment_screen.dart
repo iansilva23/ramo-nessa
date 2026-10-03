@@ -752,7 +752,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       onPopInvokedWithResult: (didPop, result) { if (!didPop) _leaveReservation(); },
       child: Scaffold(
       appBar: AppBar(
-        title: Text(_canPay ? 'Pagamento' : 'Confirmar corrida'),
+        title: Text(_ride.driverConsentRequired ? (_canPay ? 'Pagamento' : 'Confirmar corrida') : 'Preço e pagamento'),
         leading: _ride.driverConsentRequired ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _leaveReservation) : null,
       ),
       body: SafeArea(

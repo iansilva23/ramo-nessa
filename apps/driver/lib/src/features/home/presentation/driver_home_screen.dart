@@ -355,14 +355,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (!supply.busy) _startNearbyPolling();
     }
 
-    if (supply.busy) {
+    if (supply.busy || supply.online) {
       final ride = await _api?.currentRide();
       if (!mounted) return;
       setState(() => _activeRide = ride);
-      await _refreshActiveRoute(force: true);
-    } else if (supply.online) {
-      _startPolling();
-      await _refreshOffer();
+      if (ride != null) {
+        await _refreshActiveRoute(force: true);
+        if (ride.state == 'AWAITING_PAYMENT') _startPolling();
+      } else if (supply.online) {
+        _startPolling();
+        await _refreshOffer();
+      }
     }
   }
 
@@ -594,7 +597,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     _ticker = Timer.periodic(
       const Duration(seconds: 1),
       (_) {
-        if (mounted && _offer != null) setState(() {});
+        if (mounted && (_offer != null || _activeRide?.state == 'AWAITING_PAYMENT')) { setState(() {}); }
       },
     );
   }
@@ -1044,7 +1047,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    started
+                    ride.state == 'AWAITING_PAYMENT'
+                        ? 'A reserva será liberada. Se um pagamento for confirmado depois, o sistema solicitará o estorno.'
+                        : started
                         ? 'O passageiro receberá reembolso integral. Como a corrida já começou, o caso também irá para análise de possível compensação a você.'
                         : 'O passageiro receberá reembolso integral automaticamente.',
                   ),

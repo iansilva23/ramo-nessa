@@ -15,6 +15,38 @@ import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dar
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
+  testWidgets('reabrir app restaura reserva aguardando pagamento sem liberar ações de viagem', (tester) async {
+    final api = _FakeDriverApi(initialOnline: true);
+    api._offerAvailable = false;
+    api._currentRide = AcceptedDriverRide(id: 'held-ride', state: 'AWAITING_PAYMENT', category: 'car', passengers: 1,
+      origin: const DriverLocationRef(zoneId: 'prea'), destination: const DriverLocationRef(zoneId: 'jijoca'),
+      driverEarningsCents: 11000, pickupCompensationCents: 200,
+      pickupLatitude: -2.82017, pickupLongitude: -40.41467,
+      driverHoldExpiresAt: DateTime.now().add(const Duration(seconds: 90)));
+    final navigation = _FakeNavigationService();
+    await tester.pumpWidget(RamoNessaDriverApp(api: api,
+      locationService: const _FakeLocationService(), navigationService: navigation));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    final expand = find.byTooltip('Expandir corrida');
+    if (expand.evaluate().isNotEmpty) {
+      await tester.tap(expand);
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
+    expect(find.textContaining('segundos restantes'), findsOneWidget);
+    expect(find.text('Cheguei'), findsNothing);
+    expect(find.text('Iniciar corrida'), findsNothing);
+    expect(find.text('Navegar até o embarque'), findsNothing);
+    expect(navigation.lastLatitude, isNull);
+    expect(tester.takeException(), isNull);
+    api._currentRide = null;
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump();
+    expect(find.text('Aguardando pagamento do passageiro'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('centralizar busca GPS novo sem ativar motorista offline',
       (tester) async {
     final api = _FakeDriverApi();
