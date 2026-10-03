@@ -57,12 +57,16 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   bool _leaving = false;
   DriverConfirmation? _confirmation;
   String? _driverMessage;
-  bool get _canPay => !_ride.driverConsentRequired ||
-    (_confirmation?.status == 'READY_TO_PAY' && _paymentOptionsOpen);
+  bool get _canPay =>
+      !_ride.driverConsentRequired ||
+      (_confirmation?.status == 'READY_TO_PAY' && _paymentOptionsOpen);
   DriverConfirmationService? get _confirmationService {
     final service = widget.paymentService;
-    return service is DriverConfirmationService ? service as DriverConfirmationService : null;
+    return service is DriverConfirmationService
+        ? service as DriverConfirmationService
+        : null;
   }
+
   Timer? _timer;
   late PreparedRide _ride;
   bool _confirmingPromotion = false;
@@ -91,14 +95,10 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     _ride = widget.ride;
     _couponError = widget.ride.promotionMessage;
     final nonce = DateTime.now().microsecondsSinceEpoch;
-    _walletIdempotencyKey =
-        'wallet-${_ride.id}-$nonce';
-    _cashIdempotencyKey =
-        'cash-${_ride.id}-$nonce';
-    _pixIdempotencyKey =
-        'pix-${_ride.id}-$nonce';
-    _cardIdempotencyKey =
-        'card-${_ride.id}-$nonce';
+    _walletIdempotencyKey = 'wallet-${_ride.id}-$nonce';
+    _cashIdempotencyKey = 'cash-${_ride.id}-$nonce';
+    _pixIdempotencyKey = 'pix-${_ride.id}-$nonce';
+    _cardIdempotencyKey = 'card-${_ride.id}-$nonce';
     _updateRemaining();
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -111,17 +111,27 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   Future<void> _findDriver() async {
     final service = _confirmationService;
     if (service == null || _findingDriver) return;
-    setState(() { _findingDriver = true; _driverMessage = null; });
+    setState(() {
+      _findingDriver = true;
+      _driverMessage = null;
+    });
     try {
       await service.requestDriverConfirmation(_ride.id);
       await _refreshDriverConfirmation();
       if (!mounted) return;
       _confirmationTimer?.cancel();
-      _confirmationTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshDriverConfirmation());
+      _confirmationTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => _refreshDriverConfirmation(),
+      );
     } catch (error) {
       if (!mounted) return;
-      setState(() { _findingDriver = false; _driverMessage = error is PassengerPaymentException
-        ? error.message : 'Não conseguimos encontrar um motorista agora.'; });
+      setState(() {
+        _findingDriver = false;
+        _driverMessage = error is PassengerPaymentException
+            ? error.message
+            : 'Não conseguimos encontrar um motorista agora.';
+      });
     }
   }
 
@@ -132,15 +142,27 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     try {
       final confirmation = await service.driverConfirmation(_ride.id);
       if (!mounted) return;
-      setState(() { _confirmation = confirmation; _ride = confirmation.ride; _driverMessage = null; });
+      setState(() {
+        _confirmation = confirmation;
+        _ride = confirmation.ride;
+        _driverMessage = null;
+      });
       _updateRemaining();
-      if (confirmation.status == 'EXPIRED' || confirmation.status == 'NO_DRIVER_FOUND') {
+      if (confirmation.status == 'EXPIRED' ||
+          confirmation.status == 'NO_DRIVER_FOUND') {
         _confirmationTimer?.cancel();
       }
     } catch (_) {
-      if (mounted) { setState(() { _driverMessage = 'Não conseguimos confirmar a disponibilidade. Tente novamente.';
-        _paymentOptionsOpen = false; }); }
-    } finally { _confirmationRequestInFlight = false; }
+      if (mounted) {
+        setState(() {
+          _driverMessage =
+              'Não conseguimos confirmar a disponibilidade. Tente novamente.';
+          _paymentOptionsOpen = false;
+        });
+      }
+    } finally {
+      _confirmationRequestInFlight = false;
+    }
   }
 
   Future<void> _leaveReservation() async {
@@ -152,79 +174,201 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _confirmationTimer?.cancel();
       Navigator.of(context).pop();
     } catch (error) {
-      if (mounted) { setState(() => _driverMessage = error is PassengerPaymentException
-        ? error.message : 'Não conseguimos cancelar agora. Tente novamente.'); }
+      if (mounted) {
+        setState(
+          () => _driverMessage = error is PassengerPaymentException
+              ? error.message
+              : 'Não conseguimos cancelar agora. Tente novamente.',
+        );
+      }
     }
   }
 
   Widget _driverConfirmationCard() {
     final driver = _confirmation?.driver;
     final ready = _confirmation?.status == 'READY_TO_PAY' && driver != null;
-    final unavailable = ['EXPIRED', 'NO_DRIVER_FOUND'].contains(_confirmation?.status);
-    return AnimatedSize(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320), alignment: Alignment.topCenter, child: RamoReveal(key: ValueKey(ready ? driver.plate : unavailable ? 'unavailable' : 'search'), child: Container(
-      padding: const EdgeInsets.all(RamoSpacing.lg),
-      decoration: BoxDecoration(color: RamoColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(RamoRadius.lg)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(ready ? 'Seu motorista está pronto para te buscar!' : unavailable
-          ? 'Nenhum motorista confirmado' : _findingDriver ? 'Aguardando o aceite do motorista…'
-          : 'Encontre seu motorista antes de pagar',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-        const SizedBox(height: 16),
-        if (driver != null && ready) ...[
-
-          RamoReveal(delay: const Duration(milliseconds: 60), child: Row(children: [
-            Stack(clipBehavior: Clip.none, children: [CircleAvatar(radius: 32,
-              backgroundImage: driver.photoUrl == null ? null : NetworkImage(driver.photoUrl!),
-              onBackgroundImageError: driver.photoUrl == null ? null : (_, __) {},
-              child: driver.photoUrl == null ? const Icon(Icons.person_rounded, size: 32) : null),
-              const Positioned(bottom: -2, right: -2, child: RamoSuccessMark(size: 24)),
-            ]),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(driver.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              Text('${driver.vehicle} · ${driver.plate}'),
-              if (driver.ratingCount > 0 && driver.ratingAverage != null)
-                Text('★ ${driver.ratingAverage!.toStringAsFixed(1)} · ${driver.ratingCount} avaliações'),
-            ])),
-          ])),
-          const SizedBox(height: 12),
-          RamoReveal(delay: const Duration(milliseconds: 100), child: Text(driver.arrivalSeconds == null ? 'Previsão de chegada indisponível no momento'
-            : 'Chega em aproximadamente ${(driver.arrivalSeconds! / 60).ceil().clamp(1, 999)} minutos')),
-          const SizedBox(height: 8),
-          RamoReveal(delay: const Duration(milliseconds: 140), child: Text('Valor da corrida: ${_ride.formattedPayable}')),
-          const SizedBox(height: 16),
-          if (!_paymentOptionsOpen) RamoReveal(delay: const Duration(milliseconds: 180), child: FilledButton(
-            key: const Key('confirm-driver-and-pay'),
-            onPressed: _remaining == Duration.zero || _driverMessage != null ? null
-              : () => setState(() => _paymentOptionsOpen = true),
-            child: const Text('Confirmar e pagar'))),
-        ] else if (!_findingDriver) FilledButton(
-          key: const Key('find-driver-before-payment'),
-          onPressed: _remaining == Duration.zero ? null : _findDriver,
-          child: const Text('Encontrar motorista'))
-        else if (!unavailable) SizedBox(height:190, child: ClipRRect(borderRadius:BorderRadius.circular(20),child:Stack(alignment:Alignment.center,children:[
-          if (widget.networkTilesEnabled && !kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) && widget.pickupLatitude != null && widget.pickupLongitude != null)
-            IgnorePointer(child:gm.GoogleMap(initialCameraPosition:gm.CameraPosition(target:gm.LatLng(widget.pickupLatitude!,widget.pickupLongitude!),zoom:15),
-              myLocationButtonEnabled:false,zoomControlsEnabled:false,mapToolbarEnabled:false,compassEnabled:false)),
-          const RamoSearchPulse(label:'Aguardando o aceite do motorista…'),
-        ]))),
-        if (unavailable) const Text('Volte e tente novamente. Nenhum pagamento foi solicitado.'),
-        if (_driverMessage != null) Text(_driverMessage!),
-        TextButton(onPressed: _leaveReservation, child: const Text('Voltar e cancelar reserva')),
-      ]),
-    )));
+    final unavailable = [
+      'EXPIRED',
+      'NO_DRIVER_FOUND',
+    ].contains(_confirmation?.status);
+    return AnimatedSize(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 320),
+      alignment: Alignment.topCenter,
+      child: RamoReveal(
+        key: ValueKey(
+          ready
+              ? driver.plate
+              : unavailable
+              ? 'unavailable'
+              : 'search',
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(RamoSpacing.lg),
+          decoration: BoxDecoration(
+            color: RamoColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(RamoRadius.lg),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                ready
+                    ? 'Seu motorista está pronto para te buscar!'
+                    : unavailable
+                    ? 'Nenhum motorista confirmado'
+                    : _findingDriver
+                    ? 'Aguardando o aceite do motorista…'
+                    : 'Encontre seu motorista antes de pagar',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 16),
+              if (driver != null && ready) ...[
+                RamoReveal(
+                  delay: const Duration(milliseconds: 60),
+                  child: Row(
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          CircleAvatar(
+                            radius: 32,
+                            backgroundImage: driver.photoUrl == null
+                                ? null
+                                : NetworkImage(driver.photoUrl!),
+                            onBackgroundImageError: driver.photoUrl == null
+                                ? null
+                                : (_, __) {},
+                            child: driver.photoUrl == null
+                                ? const Icon(Icons.person_rounded, size: 32)
+                                : null,
+                          ),
+                          const Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: RamoSuccessMark(size: 24),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              driver.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text('${driver.vehicle} · ${driver.plate}'),
+                            if (driver.ratingCount > 0 &&
+                                driver.ratingAverage != null)
+                              Text(
+                                '★ ${driver.ratingAverage!.toStringAsFixed(1)} · ${driver.ratingCount} avaliações',
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                RamoReveal(
+                  delay: const Duration(milliseconds: 100),
+                  child: Text(
+                    driver.arrivalSeconds == null
+                        ? 'Previsão de chegada indisponível no momento'
+                        : 'Chega em aproximadamente ${(driver.arrivalSeconds! / 60).ceil().clamp(1, 999)} minutos',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                RamoReveal(
+                  delay: const Duration(milliseconds: 140),
+                  child: Text('Valor da corrida: ${_ride.formattedPayable}'),
+                ),
+                const SizedBox(height: 16),
+                if (!_paymentOptionsOpen)
+                  RamoReveal(
+                    delay: const Duration(milliseconds: 180),
+                    child: FilledButton(
+                      key: const Key('confirm-driver-and-pay'),
+                      onPressed:
+                          _remaining == Duration.zero || _driverMessage != null
+                          ? null
+                          : () => setState(() => _paymentOptionsOpen = true),
+                      child: const Text('Confirmar e pagar'),
+                    ),
+                  ),
+              ] else if (!_findingDriver)
+                FilledButton(
+                  key: const Key('find-driver-before-payment'),
+                  onPressed: _remaining == Duration.zero ? null : _findDriver,
+                  child: const Text('Encontrar motorista'),
+                )
+              else if (!unavailable)
+                SizedBox(
+                  height: 190,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (widget.networkTilesEnabled &&
+                            !kIsWeb &&
+                            (defaultTargetPlatform == TargetPlatform.android ||
+                                defaultTargetPlatform == TargetPlatform.iOS) &&
+                            widget.pickupLatitude != null &&
+                            widget.pickupLongitude != null)
+                          IgnorePointer(
+                            child: gm.GoogleMap(
+                              initialCameraPosition: gm.CameraPosition(
+                                target: gm.LatLng(
+                                  widget.pickupLatitude!,
+                                  widget.pickupLongitude!,
+                                ),
+                                zoom: 15,
+                              ),
+                              myLocationButtonEnabled: false,
+                              zoomControlsEnabled: false,
+                              mapToolbarEnabled: false,
+                              compassEnabled: false,
+                            ),
+                          ),
+                        const RamoSearchPulse(
+                          label: 'Aguardando o aceite do motorista…',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (unavailable)
+                const Text(
+                  'Volte e tente novamente. Nenhum pagamento foi solicitado.',
+                ),
+              if (_driverMessage != null) Text(_driverMessage!),
+              TextButton(
+                onPressed: _leaveReservation,
+                child: const Text('Voltar e cancelar reserva'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmFullyPromotionalRide() async {
     final service = widget.paymentService;
-    if (
-      service == null ||
-      _confirmingPromotion ||
-      _ride.promotion == null ||
-      _ride.payableAmountCents != 0 ||
-      _remaining == Duration.zero
-    ) {
+    if (service == null ||
+        _confirmingPromotion ||
+        _ride.promotion == null ||
+        _ride.payableAmountCents != 0 ||
+        _remaining == Duration.zero) {
       return;
     }
 
@@ -234,17 +378,14 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     });
 
     try {
-      final result =
-          await service.confirmFullyPromotionalRide(_ride.id);
+      final result = await service.confirmFullyPromotionalRide(_ride.id);
       if (!mounted) return;
 
       final tracking = widget.rideTrackingService;
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => tracking == null
-              ? _PromotionConfirmedScreen(
-                  dispatchStatus: result.dispatchStatus,
-                )
+              ? _PromotionConfirmedScreen(dispatchStatus: result.dispatchStatus)
               : RideTrackingScreen(
                   rideId: _ride.id,
                   remainingWalletCents: null,
@@ -267,8 +408,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       if (!mounted) return;
       setState(() {
         _confirmingPromotion = false;
-        _couponError =
-            'Não conseguimos confirmar a corrida promocional agora.';
+        _couponError = 'Não conseguimos confirmar a corrida promocional agora.';
       });
     }
   }
@@ -367,14 +507,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     return '$minutes:$rest';
   }
 
-  bool get _pixAvailable =>
-      _paymentPolicy?.pixAvailable == true;
+  bool get _pixAvailable => _paymentPolicy?.pixAvailable == true;
 
-  bool get _cardAvailable =>
-      _paymentPolicy?.cardAvailable == true;
+  bool get _cardAvailable => _paymentPolicy?.cardAvailable == true;
 
-  bool get _walletAvailable =>
-      _paymentPolicy?.walletAvailable == true;
+  bool get _walletAvailable => _paymentPolicy?.walletAvailable == true;
 
   bool get _walletHasEnough =>
       _walletAvailable &&
@@ -382,50 +519,33 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       _walletBalanceCents! >= _ride.payableAmountCents;
 
   bool get _cashAvailable =>
-      _ride.promotion == null &&
-      _paymentPolicy?.cashAvailable == true;
+      _ride.promotion == null && _paymentPolicy?.cashAvailable == true;
 
-  int get _pixTotalAmountCents =>
-      _ride.promotion != null
-          ? _ride.payableAmountCents
-          : _paymentPolicy?.pixTotalAmountCents(
-                _ride.payableAmountCents,
-              ) ??
-              _ride.payableAmountCents;
+  int get _pixTotalAmountCents => _ride.promotion != null
+      ? _ride.payableAmountCents
+      : _paymentPolicy?.pixTotalAmountCents(_ride.payableAmountCents) ??
+            _ride.payableAmountCents;
 
-  int get _pixAdjustmentCents =>
-      _ride.promotion != null
-          ? 0
-          : _paymentPolicy?.pixAdjustmentCents(
-                _ride.payableAmountCents,
-              ) ??
-              0;
+  int get _pixAdjustmentCents => _ride.promotion != null
+      ? 0
+      : _paymentPolicy?.pixAdjustmentCents(_ride.payableAmountCents) ?? 0;
 
-  int get _cardTotalAmountCents =>
-      _ride.promotion != null
-          ? _ride.payableAmountCents
-          : _paymentPolicy?.cardTotalAmountCents(
-                _ride.payableAmountCents,
-              ) ??
-              _ride.payableAmountCents;
+  int get _cardTotalAmountCents => _ride.promotion != null
+      ? _ride.payableAmountCents
+      : _paymentPolicy?.cardTotalAmountCents(_ride.payableAmountCents) ??
+            _ride.payableAmountCents;
 
-  int get _cardAdjustmentCents =>
-      _ride.promotion != null
-          ? 0
-          : _paymentPolicy?.cardAdjustmentCents(
-                _ride.payableAmountCents,
-              ) ??
-              0;
+  int get _cardAdjustmentCents => _ride.promotion != null
+      ? 0
+      : _paymentPolicy?.cardAdjustmentCents(_ride.payableAmountCents) ?? 0;
 
   Future<void> _startPix() async {
     final service = widget.paymentService;
-    if (
-      service == null ||
-      _creatingPix ||
-      _remaining == Duration.zero ||
-      _paymentPolicyLoading ||
-      !_pixAvailable
-    ) {
+    if (service == null ||
+        _creatingPix ||
+        _remaining == Duration.zero ||
+        _paymentPolicyLoading ||
+        !_pixAvailable) {
       return;
     }
 
@@ -475,13 +595,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   Future<void> _startCard() async {
     final service = widget.paymentService;
-    if (
-      service == null ||
-      _creatingCard ||
-      _remaining == Duration.zero ||
-      _paymentPolicyLoading ||
-      !_cardAvailable
-    ) {
+    if (service == null ||
+        _creatingCard ||
+        _remaining == Duration.zero ||
+        _paymentPolicyLoading ||
+        !_cardAvailable) {
       return;
     }
 
@@ -495,28 +613,48 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           widget.cardTokenizationService ??
           NativeCardTokenizationService(
             amountCents: _cardTotalAmountCents,
-            mercadoPagoPublicKey:
-                _paymentPolicy?.mercadoPagoPublicKey,
+            mercadoPagoPublicKey: _paymentPolicy?.mercadoPagoPublicKey,
           );
-      final selection = await Navigator.of(context).push<CardCheckoutSelection>(MaterialPageRoute(builder: (_) => CardCheckoutScreen(
-        tokenizer: tokenizer, amountLabel: PreparedRide.formatCents(_cardTotalAmountCents), holdExpiresAt: _ride.holdExpiresAt,
-        cards: service is SavedCardService ? service as SavedCardService : null)));
-      if (selection == null || !mounted) { if(mounted) setState(() => _creatingCard = false); return; }
+      final selection = await Navigator.of(context).push<CardCheckoutSelection>(
+        MaterialPageRoute(
+          builder: (_) => CardCheckoutScreen(
+            tokenizer: tokenizer,
+            amountLabel: PreparedRide.formatCents(_cardTotalAmountCents),
+            holdExpiresAt: _ride.holdExpiresAt,
+            cards: service is SavedCardService
+                ? service as SavedCardService
+                : null,
+          ),
+        ),
+      );
+      if (selection == null || !mounted) {
+        if (mounted) setState(() => _creatingCard = false);
+        return;
+      }
       _updateRemaining();
-      if (_remaining == Duration.zero || !_canPay) throw const PassengerPaymentException('A reserva expirou ou o motorista ficou indisponível. Solicite novamente.');
+      if (_remaining == Duration.zero || !_canPay) {
+        throw const PassengerPaymentException(
+          'A reserva expirou ou o motorista ficou indisponível. Solicite novamente.',
+        );
+      }
       final tokenized = selection.card;
       if (!mounted) return;
 
       final result = service is SavedCardService
-        ? await (service as SavedCardService).payWithCard(rideId: _ride.id, idempotencyKey: _cardIdempotencyKey,
-            card: tokenized, payerEmail: selection.email, savedCardId: selection.savedCardId)
-        : await service.createCardRidePayment(
-        rideId: _ride.id,
-        idempotencyKey: _cardIdempotencyKey,
-        cardToken: tokenized.token,
-        paymentMethodId: tokenized.paymentMethodId,
-        paymentMethodType: tokenized.paymentMethodType,
-      );
+          ? await (service as SavedCardService).payWithCard(
+              rideId: _ride.id,
+              idempotencyKey: _cardIdempotencyKey,
+              card: tokenized,
+              payerEmail: selection.email,
+              savedCardId: selection.savedCardId,
+            )
+          : await service.createCardRidePayment(
+              rideId: _ride.id,
+              idempotencyKey: _cardIdempotencyKey,
+              cardToken: tokenized.token,
+              paymentMethodId: tokenized.paymentMethodId,
+              paymentMethodType: tokenized.paymentMethodType,
+            );
 
       if (!mounted) return;
       setState(() => _creatingCard = false);
@@ -561,8 +699,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       if (!mounted) return;
       setState(() {
         _creatingCard = false;
-        _cardMessage =
-            'Não conseguimos concluir o pagamento por cartão agora.';
+        _cardMessage = 'Não conseguimos concluir o pagamento por cartão agora.';
       });
     }
   }
@@ -642,12 +779,10 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
   Future<void> _payWallet() async {
     final service = widget.paymentService;
-    if (
-      service == null ||
-      !_walletAvailable ||
-      !_walletHasEnough ||
-      _payingWallet
-    ) {
+    if (service == null ||
+        !_walletAvailable ||
+        !_walletHasEnough ||
+        _payingWallet) {
       return;
     }
 
@@ -669,9 +804,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           _walletBalanceCents = result.walletBalanceCents;
           _walletMessage = result.dispatchStatus == 'NO_DRIVER_FOUND'
               ? 'Não encontramos motorista disponível. '
-                  'O valor voltou integralmente para sua Carteira Ramo Nessa.'
+                    'O valor voltou integralmente para sua Carteira Ramo Nessa.'
               : 'A corrida não pôde ser liberada e o valor voltou '
-                  'integralmente para sua Carteira Ramo Nessa.';
+                    'integralmente para sua Carteira Ramo Nessa.';
         });
         return;
       }
@@ -727,46 +862,42 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     final cashSubtitle = _ride.promotion != null
         ? 'Cupons são pagos por Pix, cartão ou carteira'
         : _paymentPolicyLoading
-            ? 'Verificando disponibilidade…'
-            : _cashAvailable
-                ? 'Pague diretamente ao motorista no fim da corrida'
-                : 'Em breve · será liberado pelo Ramo Nessa';
+        ? 'Verificando disponibilidade…'
+        : _cashAvailable
+        ? 'Pague diretamente ao motorista no fim da corrida'
+        : 'Em breve · será liberado pelo Ramo Nessa';
 
     final pixPrice = PreparedRide.formatCents(_pixTotalAmountCents);
-    final pixAdjustment =
-        PreparedRide.formatCents(_pixAdjustmentCents);
+    final pixAdjustment = PreparedRide.formatCents(_pixAdjustmentCents);
     final pixSubtitle = _paymentPolicyLoading
         ? 'Calculando preço final no Pix…'
         : _paymentPolicy == null
-            ? 'Preço indisponível até atualizar as formas de pagamento'
-            : !_pixAvailable
-                ? 'Indisponível no momento'
-                : _pixAdjustmentCents > 0
-                    ? 'À vista · diferença de $pixAdjustment já incluída no preço final'
-                    : 'À vista · sem diferença no Pix';
+        ? 'Preço indisponível até atualizar as formas de pagamento'
+        : !_pixAvailable
+        ? 'Indisponível no momento'
+        : _pixAdjustmentCents > 0
+        ? 'À vista · diferença de $pixAdjustment já incluída no preço final'
+        : 'À vista · sem diferença no Pix';
     final cardPrice = PreparedRide.formatCents(_cardTotalAmountCents);
-    final cardAdjustment =
-        PreparedRide.formatCents(_cardAdjustmentCents);
+    final cardAdjustment = PreparedRide.formatCents(_cardAdjustmentCents);
     final cardSubtitle = _paymentPolicyLoading
         ? 'Calculando preço final no cartão…'
         : _paymentPolicy == null
-            ? 'Preço indisponível até atualizar as formas de pagamento'
-            : !_cardAvailable
-                ? 'Indisponível no momento'
-                : _cardAdjustmentCents > 0
-                    ? 'À vista · diferença de $cardAdjustment já incluída no preço final'
-                    : 'À vista · mesmo preço do Pix';
+        ? 'Preço indisponível até atualizar as formas de pagamento'
+        : !_cardAvailable
+        ? 'Indisponível no momento'
+        : _cardAdjustmentCents > 0
+        ? 'À vista · diferença de $cardAdjustment já incluída no preço final'
+        : 'À vista · mesmo preço do Pix';
 
-    final walletSubtitle = !_walletAvailable &&
-            _paymentPolicy != null
+    final walletSubtitle = !_walletAvailable && _paymentPolicy != null
         ? 'Indisponível no momento'
         : switch ((
             widget.paymentService,
             _walletLoading,
             _walletBalanceCents,
           )) {
-            (null, _, _) =>
-              'Será habilitada com a autenticação do passageiro',
+            (null, _, _) => 'Será habilitada com a autenticação do passageiro',
             (_, true, _) => 'Consultando saldo…',
             (_, false, final int balance) =>
               'Saldo: ${PreparedRide.formatCents(balance)}',
@@ -775,321 +906,326 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
     return PopScope(
       canPop: !_ride.driverConsentRequired || _leaving,
-      onPopInvokedWithResult: (didPop, result) { if (!didPop) _leaveReservation(); },
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _leaveReservation();
+      },
       child: Scaffold(
-      appBar: AppBar(
-        title: Text(_ride.driverConsentRequired ? (_canPay ? 'Pagamento' : 'Confirmar corrida') : 'Preço e pagamento'),
-        leading: _ride.driverConsentRequired ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _leaveReservation) : null,
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(RamoSpacing.lg),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(RamoSpacing.lg),
-              decoration: BoxDecoration(
-                color: RamoColors.surfaceRaised,
-                borderRadius: BorderRadius.circular(RamoRadius.lg),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.route_rounded, size: 24),
-                  const SizedBox(width: RamoSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _ride.promotion == null
-                              ? 'Tarifa-base da corrida'
-                              : 'Preço com cupom',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: RamoColors.muted,
-                              ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _ride.promotion == null
-                              ? _ride.formattedTotal
-                              : _ride.formattedPayable,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        if (_ride.promotion != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Preço normal: ${PreparedRide.formatCents(_ride.promotion!.normalTotalCents)}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: RamoColors.muted,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.lock_rounded, size: 18),
-                ],
-              ),
-            ),
-            if (_ride.pickupCompensationCents > 0) ...[
-              const SizedBox(height: RamoSpacing.sm),
-              _PriceRow(
-                label: 'Coleta distante · 100% motorista',
-                cents: _ride.pickupCompensationCents,
-              ),
-            ],
-            const SizedBox(height: RamoSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(RamoSpacing.md),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(RamoRadius.md),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.lock_clock_rounded),
-                  const SizedBox(width: RamoSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      expired
-                          ? 'A reserva expirou. Volte e atualize a corrida.'
-                          : 'Preço e motorista reservados por $_countdown.',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: RamoSpacing.xl),
-            if (_ride.promotion != null) Text('Cupom ativado no Perfil: ${_ride.promotion!.code}'),
-            if (_ride.promotionMessage != null) Text(_ride.promotionMessage!),
-            if (_couponError != null) ...[
-              const SizedBox(height: RamoSpacing.sm),
-              Text(
-                _couponError!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-              ),
-            ],
-            const SizedBox(height: RamoSpacing.xl),
-            if (_ride.driverConsentRequired) ...[
-              _driverConfirmationCard(),
-              const SizedBox(height: RamoSpacing.lg),
-            ],
-            if (_canPay) ...[
-            if (_ride.payableAmountCents == 0) ...[
+        appBar: AppBar(
+          title: Text(
+            _ride.driverConsentRequired
+                ? (_canPay ? 'Pagamento' : 'Confirmar corrida')
+                : 'Preço e pagamento',
+          ),
+          leading: _ride.driverConsentRequired
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _leaveReservation,
+                )
+              : null,
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(RamoSpacing.lg),
+            children: [
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.lg),
                 decoration: BoxDecoration(
                   color: RamoColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(RamoRadius.lg),
                 ),
-                child: Column(
+                child: Row(
                   children: [
-                    const Icon(
-                      Icons.redeem_rounded,
-                      size: 42,
-                      color: RamoColors.signal,
-                    ),
-                    const SizedBox(height: RamoSpacing.sm),
-                    Text(
-                      'Sua corrida ficou grátis',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
+                    const Icon(Icons.route_rounded, size: 24),
+                    const SizedBox(width: RamoSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _ride.promotion == null
+                                ? 'Tarifa-base da corrida'
+                                : 'Preço com cupom',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: RamoColors.muted),
                           ),
-                    ),
-                    const SizedBox(height: RamoSpacing.xs),
-                    Text(
-                      'Não é necessário gerar Pix nem cobrar cartão. Confirme para liberar seu motorista.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: RamoColors.muted,
+                          const SizedBox(height: 2),
+                          Text(
+                            _ride.promotion == null
+                                ? _ride.formattedTotal
+                                : _ride.formattedPayable,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w900),
                           ),
+                          if (_ride.promotion != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Preço normal: ${PreparedRide.formatCents(_ride.promotion!.normalTotalCents)}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: RamoColors.muted,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: RamoSpacing.lg),
-                    FilledButton(
-                      key: const Key('ride-payment-promotion-confirm'),
-                      onPressed:
-                          expired || _confirmingPromotion
-                              ? null
-                              : _confirmFullyPromotionalRide,
-                      child: _confirmingPromotion
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text('Confirmar corrida grátis'),
+                    const Icon(Icons.lock_rounded, size: 18),
+                  ],
+                ),
+              ),
+              if (_ride.pickupCompensationCents > 0) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                _PriceRow(
+                  label: 'Coleta distante · 100% motorista',
+                  cents: _ride.pickupCompensationCents,
+                ),
+              ],
+              const SizedBox(height: RamoSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(RamoSpacing.md),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(RamoRadius.md),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_clock_rounded),
+                    const SizedBox(width: RamoSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        expired
+                            ? 'A reserva expirou. Volte e atualize a corrida.'
+                            : 'Preço e motorista reservados por $_countdown.',
+                      ),
                     ),
                   ],
                 ),
               ),
-            ] else ...[
-              Text(
-                'Formas de pagamento',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              const SizedBox(height: RamoSpacing.xl),
+              if (_ride.promotion != null)
+                Text('Cupom ativado no Perfil: ${_ride.promotion!.code}'),
+              if (_ride.promotionMessage != null) Text(_ride.promotionMessage!),
+              if (_couponError != null) ...[
+                const SizedBox(height: RamoSpacing.sm),
+                Text(
+                  _couponError!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ],
+              const SizedBox(height: RamoSpacing.xl),
+              if (_ride.driverConsentRequired) ...[
+                _driverConfirmationCard(),
+                const SizedBox(height: RamoSpacing.lg),
+              ],
+              if (_canPay) ...[
+                if (_ride.payableAmountCents == 0) ...[
+                  Container(
+                    padding: const EdgeInsets.all(RamoSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: RamoColors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(RamoRadius.lg),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.redeem_rounded,
+                          size: 42,
+                          color: RamoColors.signal,
+                        ),
+                        const SizedBox(height: RamoSpacing.sm),
+                        Text(
+                          'Sua corrida ficou grátis',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: RamoSpacing.xs),
+                        Text(
+                          'Não é necessário gerar Pix nem cobrar cartão. Confirme para liberar seu motorista.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: RamoColors.muted),
+                        ),
+                        const SizedBox(height: RamoSpacing.lg),
+                        FilledButton(
+                          key: const Key('ride-payment-promotion-confirm'),
+                          onPressed: expired || _confirmingPromotion
+                              ? null
+                              : _confirmFullyPromotionalRide,
+                          child: _confirmingPromotion
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Confirmar corrida grátis'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    'Formas de pagamento',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
-              ),
-            const SizedBox(height: RamoSpacing.xs),
-            _PaymentOption(
-              key: const Key('payment-option-pix'),
-              icon: Icons.pix_rounded,
-              title: _paymentPolicy == null
-                  ? 'Pix'
-                  : 'Pix · $pixPrice',
-              subtitle: pixSubtitle,
-              enabled:
-                  !expired &&
-                  widget.paymentService != null &&
-                  !_creatingPix &&
-                  !_paymentPolicyLoading &&
-                  _pixAvailable,
-              trailing: _creatingPix
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-              onTap: _startPix,
-            ),
-            const SizedBox(height: RamoSpacing.sm),
-            _PaymentOption(
-              key: const Key('payment-option-card'),
-              icon: Icons.credit_card_rounded,
-              title: _paymentPolicy == null
-                  ? 'Cartão'
-                  : 'Cartão · $cardPrice',
-              subtitle: cardSubtitle,
-              enabled:
-                  !expired &&
-                  widget.paymentService != null &&
-                  !_creatingCard &&
-                  !_paymentPolicyLoading &&
-                  _cardAvailable,
-              trailing: _creatingCard
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-              onTap: _startCard,
-            ),
-            const SizedBox(height: RamoSpacing.xs),
-            Text(
-              'Os preços podem variar conforme a forma de pagamento. '
-              'O total exibido em cada opção é o valor cobrado.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: RamoColors.muted,
                   ),
-            ),
-            const SizedBox(height: RamoSpacing.sm),
-            _PaymentOption(
-              key: const Key('payment-option-wallet'),
-              icon: Icons.account_balance_wallet_rounded,
-              title: 'Carteira Ramo Nessa',
-              subtitle: walletSubtitle,
-              enabled:
-                  !expired &&
-                  _walletAvailable &&
-                  !_walletLoading &&
-                  _walletHasEnough &&
-                  !_payingWallet,
-              trailing: _payingWallet
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-              onTap: _payWallet,
-            ),
-            const SizedBox(height: RamoSpacing.sm),
-            _PaymentOption(
-              key: const Key('payment-option-cash'),
-              icon: Icons.payments_rounded,
-              title: 'Dinheiro',
-              subtitle: cashSubtitle,
-              enabled:
-                  !expired &&
-                  !_paymentPolicyLoading &&
-                  _cashAvailable &&
-                  !_authorizingCash,
-              trailing: _authorizingCash
-                  ? const SizedBox.square(
-                      dimension: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : !_cashAvailable
-                      ? const Chip(
-                          label: Text('Em breve'),
-                          visualDensity: VisualDensity.compact,
-                        )
-                      : null,
-              onTap: _authorizeCash,
-            ),
-            if (_pixMessage != null) ...[
-              const SizedBox(height: RamoSpacing.xs),
-              Text(
-                _pixMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                  const SizedBox(height: RamoSpacing.xs),
+                  _PaymentOption(
+                    key: const Key('payment-option-pix'),
+                    icon: Icons.pix_rounded,
+                    title: _paymentPolicy == null ? 'Pix' : 'Pix · $pixPrice',
+                    subtitle: pixSubtitle,
+                    enabled:
+                        !expired &&
+                        widget.paymentService != null &&
+                        !_creatingPix &&
+                        !_paymentPolicyLoading &&
+                        _pixAvailable,
+                    trailing: _creatingPix
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _startPix,
+                  ),
+                  const SizedBox(height: RamoSpacing.sm),
+                  _PaymentOption(
+                    key: const Key('payment-option-card'),
+                    icon: Icons.credit_card_rounded,
+                    title: _paymentPolicy == null
+                        ? 'Cartão'
+                        : 'Cartão · $cardPrice',
+                    subtitle: cardSubtitle,
+                    enabled:
+                        !expired &&
+                        widget.paymentService != null &&
+                        !_creatingCard &&
+                        !_paymentPolicyLoading &&
+                        _cardAvailable,
+                    trailing: _creatingCard
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _startCard,
+                  ),
+                  const SizedBox(height: RamoSpacing.xs),
+                  Text(
+                    'Os preços podem variar conforme a forma de pagamento. '
+                    'O total exibido em cada opção é o valor cobrado.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: RamoColors.muted),
+                  ),
+                  const SizedBox(height: RamoSpacing.sm),
+                  _PaymentOption(
+                    key: const Key('payment-option-wallet'),
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Carteira Ramo Nessa',
+                    subtitle: walletSubtitle,
+                    enabled:
+                        !expired &&
+                        _walletAvailable &&
+                        !_walletLoading &&
+                        _walletHasEnough &&
+                        !_payingWallet,
+                    trailing: _payingWallet
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _payWallet,
+                  ),
+                  const SizedBox(height: RamoSpacing.sm),
+                  _PaymentOption(
+                    key: const Key('payment-option-cash'),
+                    icon: Icons.payments_rounded,
+                    title: 'Dinheiro',
+                    subtitle: cashSubtitle,
+                    enabled:
+                        !expired &&
+                        !_paymentPolicyLoading &&
+                        _cashAvailable &&
+                        !_authorizingCash,
+                    trailing: _authorizingCash
+                        ? const SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : !_cashAvailable
+                        ? const Chip(
+                            label: Text('Em breve'),
+                            visualDensity: VisualDensity.compact,
+                          )
+                        : null,
+                    onTap: _authorizeCash,
+                  ),
+                  if (_pixMessage != null) ...[
+                    const SizedBox(height: RamoSpacing.xs),
+                    Text(
+                      _pixMessage!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
-              ),
-            ],
-            if (_cardMessage != null) ...[
-              const SizedBox(height: RamoSpacing.xs),
-              Text(
-                _cardMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                  ],
+                  if (_cardMessage != null) ...[
+                    const SizedBox(height: RamoSpacing.xs),
+                    Text(
+                      _cardMessage!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
-              ),
-            ],
-            if (_cashMessage != null) ...[
-              const SizedBox(height: RamoSpacing.xs),
-              Text(
-                _cashMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                  ],
+                  if (_cashMessage != null) ...[
+                    const SizedBox(height: RamoSpacing.xs),
+                    Text(
+                      _cashMessage!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
-              ),
-            ],
-            if (_walletBalanceCents != null &&
-                !_walletHasEnough &&
-                !_walletLoading) ...[
-              const SizedBox(height: RamoSpacing.xs),
-              Text(
-                'Saldo insuficiente para esta corrida.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            if (_walletMessage != null) ...[
-              const SizedBox(height: RamoSpacing.sm),
-              Text(
-                _walletMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+                  ],
+                  if (_walletBalanceCents != null &&
+                      !_walletHasEnough &&
+                      !_walletLoading) ...[
+                    const SizedBox(height: RamoSpacing.xs),
+                    Text(
+                      'Saldo insuficiente para esta corrida.',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-              ),
+                  ],
+                  if (_walletMessage != null) ...[
+                    const SizedBox(height: RamoSpacing.sm),
+                    Text(
+                      _walletMessage!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ],
+              const SizedBox(height: RamoSpacing.lg),
             ],
-            ],
-            ],
-            const SizedBox(height: RamoSpacing.lg),
-          ],
+          ),
         ),
       ),
-    ));
+    );
   }
 }
 
 class _PromotionConfirmedScreen extends StatelessWidget {
-  const _PromotionConfirmedScreen({
-    required this.dispatchStatus,
-  });
+  const _PromotionConfirmedScreen({required this.dispatchStatus});
 
   final String dispatchStatus;
 
@@ -1121,8 +1257,8 @@ class _PromotionConfirmedScreen extends StatelessWidget {
                 'Corrida promocional confirmada',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: RamoSpacing.sm),
               Text(
@@ -1207,8 +1343,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
     super.dispose();
   }
 
-  bool get _reservationExpired =>
-      _reservationRemaining == Duration.zero;
+  bool get _reservationExpired => _reservationRemaining == Duration.zero;
 
   String get _reservationCountdown {
     final seconds = _reservationRemaining.inSeconds;
@@ -1221,8 +1356,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
     final remaining = widget.holdExpiresAt.difference(DateTime.now());
     if (!mounted) return;
     setState(() {
-      _reservationRemaining =
-          remaining.isNegative ? Duration.zero : remaining;
+      _reservationRemaining = remaining.isNegative ? Duration.zero : remaining;
     });
   }
 
@@ -1245,18 +1379,17 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
     if (!mounted) return;
     setState(() => _copied = true);
     _copyTimer?.cancel();
-    _copyTimer = Timer(const Duration(seconds: 3), () { if(mounted) setState(() => _copied = false); });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Código Pix copiado.')));
+    _copyTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _copied = false);
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Código Pix copiado.')));
   }
 
   Future<void> _checkStatus() async {
     final tracking = widget.trackingService;
-    if (
-      tracking == null ||
-      _checking ||
-      _navigating ||
-      !mounted
-    ) {
+    if (tracking == null || _checking || _navigating || !mounted) {
       return;
     }
 
@@ -1292,8 +1425,8 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
           setState(() {
             _statusMessage = _reservationExpired
                 ? 'A reserva expirou. Não faça mais este Pix. '
-                    'Se você já pagou, vamos confirmar ou estornar '
-                    'automaticamente.'
+                      'Se você já pagou, vamos confirmar ou estornar '
+                      'automaticamente.'
                 : 'Aguardando confirmação do Pix…';
           });
         }
@@ -1303,17 +1436,23 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       _pollTimer?.cancel();
       _navigating = true;
 
-      final dispatchStatus = const {
-        'NO_DRIVER_FOUND',
-        'REFUND_PENDING',
-        'REFUNDED',
-      }.contains(snapshot.state)
+      final dispatchStatus =
+          const {
+            'NO_DRIVER_FOUND',
+            'REFUND_PENDING',
+            'REFUNDED',
+          }.contains(snapshot.state)
           ? 'NO_DRIVER_FOUND'
           : 'SEARCHING_DRIVER';
 
       if (dispatchStatus != 'NO_DRIVER_FOUND') {
-        setState(() { _verified = true; _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.'; });
-        if (!MediaQuery.disableAnimationsOf(context)) await Future<void>.delayed(const Duration(milliseconds: 420));
+        setState(() {
+          _verified = true;
+          _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.';
+        });
+        if (!MediaQuery.disableAnimationsOf(context)) {
+          await Future<void>.delayed(const Duration(milliseconds: 420));
+        }
         if (!mounted) return;
       }
 
@@ -1336,7 +1475,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       setState(() {
         _statusMessage = _reservationExpired
             ? 'A reserva expirou. Não faça mais este Pix. '
-                'Se você já pagou, o status será atualizado automaticamente.'
+                  'Se você já pagou, o status será atualizado automaticamente.'
             : 'Pix gerado. Estamos aguardando a confirmação do pagamento.';
       });
     } catch (_) {
@@ -1344,7 +1483,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       setState(() {
         _statusMessage = _reservationExpired
             ? 'A reserva expirou. Não faça mais este Pix. '
-                'Se você já pagou, o status será atualizado automaticamente.'
+                  'Se você já pagou, o status será atualizado automaticamente.'
             : 'Pix gerado. A confirmação será atualizada automaticamente.';
       });
     } finally {
@@ -1366,15 +1505,16 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
           children: [
             Text(
               'Pagar ${widget.amountLabel}',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: RamoSpacing.sm),
             Text(
-              widget.driverReserved ? 'Seu motorista está reservado e será liberado após a confirmação do pagamento.'
-                : 'A corrida só será enviada ao motorista depois da confirmação.',
+              widget.driverReserved
+                  ? 'Seu motorista está reservado e será liberado após a confirmação do pagamento.'
+                  : 'A corrida só será enviada ao motorista depois da confirmação.',
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
@@ -1397,19 +1537,19 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(RamoSpacing.md),
                   color: Colors.white,
-                  child: RamoReveal(child: Image.memory(
-                    qrBytes,
-                    width: 260,
-                    height: 260,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                  )),
+                  child: RamoReveal(
+                    child: Image.memory(
+                      qrBytes,
+                      width: 260,
+                      height: 260,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    ),
+                  ),
                 ),
               )
             else if (!reservationExpired)
-              const Center(
-                child: Icon(Icons.pix_rounded, size: 96),
-              )
+              const Center(child: Icon(Icons.pix_rounded, size: 96))
             else
               Center(
                 child: Icon(
@@ -1423,8 +1563,15 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
               FilledButton.icon(
                 onPressed: _copyPix,
                 icon: Icon(_copied ? Icons.check_rounded : Icons.copy_rounded),
-                label: AnimatedSwitcher(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 200),
-                  child: Text(_copied ? 'Código copiado ✓' : 'Copiar código Pix', key: ValueKey(_copied))),
+                label: AnimatedSwitcher(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 200),
+                  child: Text(
+                    _copied ? 'Código copiado ✓' : 'Copiar código Pix',
+                    key: ValueKey(_copied),
+                  ),
+                ),
               ),
             const SizedBox(height: RamoSpacing.md),
             Container(
@@ -1435,9 +1582,16 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
               ),
               child: Row(
                 children: [
-                  if (_verified) const RamoSuccessMark(size: 28)
-                  else if (reservationExpired || _statusMessage.startsWith('Pagamento não aprovado')) const Icon(Icons.info_outline_rounded)
-                  else const SizedBox.square(dimension:22,child:CircularProgressIndicator(strokeWidth:2)),
+                  if (_verified)
+                    const RamoSuccessMark(size: 28)
+                  else if (reservationExpired ||
+                      _statusMessage.startsWith('Pagamento não aprovado'))
+                    const Icon(Icons.info_outline_rounded)
+                  else
+                    const SizedBox.square(
+                      dimension: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   const SizedBox(width: RamoSpacing.sm),
                   Expanded(child: Text(_statusMessage)),
                 ],
@@ -1480,8 +1634,7 @@ class _CardPaymentStatusScreen extends StatefulWidget {
       _CardPaymentStatusScreenState();
 }
 
-class _CardPaymentStatusScreenState
-    extends State<_CardPaymentStatusScreen> {
+class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
   Timer? _pollTimer;
   bool _verified = false;
   bool _checking = false;
@@ -1496,8 +1649,8 @@ class _CardPaymentStatusScreenState
     _statusMessage = (_verified || widget.result.paymentConfirmed)
         ? 'Pagamento confirmado.'
         : widget.result.challengeUrl != null
-            ? 'Confirme a compra com seu banco para continuar.'
-            : 'Estamos confirmando seu pagamento…';
+        ? 'Confirme a compra com seu banco para continuar.'
+        : 'Estamos confirmando seu pagamento…';
 
     if (widget.trackingService != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkStatus());
@@ -1536,10 +1689,7 @@ class _CardPaymentStatusScreenState
     });
 
     try {
-      var launched = await launchUrl(
-        uri,
-        mode: LaunchMode.inAppBrowserView,
-      );
+      var launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
       if (!launched) {
         launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
@@ -1603,17 +1753,23 @@ class _CardPaymentStatusScreenState
 
       _pollTimer?.cancel();
       _navigating = true;
-      final dispatchStatus = const {
-        'NO_DRIVER_FOUND',
-        'REFUND_PENDING',
-        'REFUNDED',
-      }.contains(snapshot.state)
+      final dispatchStatus =
+          const {
+            'NO_DRIVER_FOUND',
+            'REFUND_PENDING',
+            'REFUNDED',
+          }.contains(snapshot.state)
           ? 'NO_DRIVER_FOUND'
           : 'SEARCHING_DRIVER';
 
       if (dispatchStatus != 'NO_DRIVER_FOUND') {
-        setState(() { _verified = true; _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.'; });
-        if (!MediaQuery.disableAnimationsOf(context)) await Future<void>.delayed(const Duration(milliseconds: 420));
+        setState(() {
+          _verified = true;
+          _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.';
+        });
+        if (!MediaQuery.disableAnimationsOf(context)) {
+          await Future<void>.delayed(const Duration(milliseconds: 420));
+        }
         if (!mounted) return;
       }
 
@@ -1665,35 +1821,41 @@ class _CardPaymentStatusScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AnimatedSwitcher(
-                duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 320),
-                child: !failed && (_verified || widget.result.paymentConfirmed) ? const RamoSuccessMark(size:82) : Icon(
-                  failed
-                      ? Icons.error_rounded
-                      : (_verified || widget.result.paymentConfirmed)
-                          ? Icons.check_circle_rounded
-                          : challenge
-                              ? Icons.verified_user_rounded
-                              : Icons.credit_card_rounded,
-                  key: ValueKey('$failed-${(_verified || widget.result.paymentConfirmed)}'),
-                  size: 82,
-                  color: failed
-                      ? Theme.of(context).colorScheme.error
-                      : RamoColors.brandYellow,
-                ),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 320),
+                child: !failed && (_verified || widget.result.paymentConfirmed)
+                    ? const RamoSuccessMark(size: 82)
+                    : Icon(
+                        failed
+                            ? Icons.error_rounded
+                            : (_verified || widget.result.paymentConfirmed)
+                            ? Icons.check_circle_rounded
+                            : challenge
+                            ? Icons.verified_user_rounded
+                            : Icons.credit_card_rounded,
+                        key: ValueKey(
+                          '$failed-${(_verified || widget.result.paymentConfirmed)}',
+                        ),
+                        size: 82,
+                        color: failed
+                            ? Theme.of(context).colorScheme.error
+                            : RamoColors.brandYellow,
+                      ),
               ),
               const SizedBox(height: RamoSpacing.lg),
               Text(
                 failed
                     ? 'Cartão não aprovado'
                     : (_verified || widget.result.paymentConfirmed)
-                        ? 'Pagamento confirmado'
-                        : challenge
-                            ? 'Confirmação do banco'
-                            : 'Confirmando pagamento',
+                    ? 'Pagamento confirmado'
+                    : challenge
+                    ? 'Confirmação do banco'
+                    : 'Confirmando pagamento',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: RamoSpacing.sm),
               Text(
@@ -1701,7 +1863,8 @@ class _CardPaymentStatusScreenState
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
-              if (!failed && !(_verified || widget.result.paymentConfirmed)) ...[
+              if (!failed &&
+                  !(_verified || widget.result.paymentConfirmed)) ...[
                 const SizedBox(height: RamoSpacing.lg),
                 const Center(
                   child: SizedBox.square(
@@ -1727,9 +1890,7 @@ class _CardPaymentStatusScreenState
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
               if (widget.trackingService != null) ...[
@@ -1756,10 +1917,7 @@ class _CardPaymentStatusScreenState
 }
 
 class _CashAuthorizedScreen extends StatelessWidget {
-  const _CashAuthorizedScreen({
-    required this.amountCents,
-    this.dispatchStatus,
-  });
+  const _CashAuthorizedScreen({required this.amountCents, this.dispatchStatus});
 
   final int amountCents;
   final String? dispatchStatus;
@@ -1767,8 +1925,7 @@ class _CashAuthorizedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dispatchMessage = switch (dispatchStatus) {
-      'SEARCHING_DRIVER' =>
-        'Sua corrida já foi enviada ao motorista.',
+      'SEARCHING_DRIVER' => 'Sua corrida já foi enviada ao motorista.',
       'PENDING_RETRY' =>
         'Estamos tentando encontrar outro motorista para você.',
       _ => 'Sua corrida foi liberada e estamos procurando um motorista.',
@@ -1790,8 +1947,8 @@ class _CashAuthorizedScreen extends StatelessWidget {
               Text(
                 'Pagamento em dinheiro',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  fontWeight: FontWeight.w900,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: RamoSpacing.sm),
@@ -1831,14 +1988,15 @@ class _PaymentConfirmedScreen extends StatelessWidget {
   final String? dispatchStatus;
 
   String get _dispatchMessage => switch (dispatchStatus) {
-        'SEARCHING_DRIVER' =>
-          'Pagamento confirmado. A corrida já foi enviada ao motorista.',
-        'NO_DRIVER_FOUND' =>
-          'Pagamento confirmado. Não encontramos motorista nesta rodada.',
-        'PENDING_RETRY' =>
-          'Pagamento confirmado. Estamos tentando encontrar outro motorista para você.',
-        _ => 'Pagamento confirmado. Estamos procurando um motorista para sua corrida.',
-      };
+    'SEARCHING_DRIVER' =>
+      'Pagamento confirmado. A corrida já foi enviada ao motorista.',
+    'NO_DRIVER_FOUND' =>
+      'Pagamento confirmado. Não encontramos motorista nesta rodada.',
+    'PENDING_RETRY' =>
+      'Pagamento confirmado. Estamos tentando encontrar outro motorista para você.',
+    _ =>
+      'Pagamento confirmado. Estamos procurando um motorista para sua corrida.',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1858,8 +2016,8 @@ class _PaymentConfirmedScreen extends StatelessWidget {
               Text(
                 'Pagamento confirmado',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  fontWeight: FontWeight.w900,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: RamoSpacing.sm),
@@ -1889,10 +2047,7 @@ class _PaymentConfirmedScreen extends StatelessWidget {
 }
 
 class _PriceRow extends StatelessWidget {
-  const _PriceRow({
-    required this.label,
-    required this.cents,
-  });
+  const _PriceRow({required this.label, required this.cents});
 
   final String label;
   final int cents;
@@ -1974,7 +2129,8 @@ class _PaymentOption extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w900,
                               letterSpacing: -0.35,
                             ),
@@ -1985,9 +2141,9 @@ class _PaymentOption extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: RamoColors.muted,
-                              height: 1.24,
-                            ),
+                          color: RamoColors.muted,
+                          height: 1.24,
+                        ),
                       ),
                     ],
                   ),
@@ -1995,7 +2151,8 @@ class _PaymentOption extends StatelessWidget {
                 const SizedBox(width: RamoSpacing.sm),
                 AnimatedSwitcher(
                   duration: RamoMotion.standard,
-                  child: trailing ??
+                  child:
+                      trailing ??
                       Icon(
                         Icons.chevron_right_rounded,
                         key: ValueKey(enabled),

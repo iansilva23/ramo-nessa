@@ -32,7 +32,11 @@ class CardTokenizationException implements Exception {
   String toString() => message;
 }
 
-class NativeCardTokenizationService implements CardTokenizationService, SavedCardTokenizationService, StorageCardTokenizationService {
+class NativeCardTokenizationService
+    implements
+        CardTokenizationService,
+        SavedCardTokenizationService,
+        StorageCardTokenizationService {
   const NativeCardTokenizationService({
     required this.amountCents,
     this.mercadoPagoPublicKey,
@@ -41,9 +45,7 @@ class NativeCardTokenizationService implements CardTokenizationService, SavedCar
   final int amountCents;
   final String? mercadoPagoPublicKey;
 
-  static const _channel = MethodChannel(
-    'br.com.ramonessa.passenger/payments',
-  );
+  static const _channel = MethodChannel('br.com.ramonessa.passenger/payments');
 
   static const _mercadoPagoPublicKey = String.fromEnvironment(
     'RAMO_MERCADO_PAGO_PUBLIC_KEY',
@@ -54,12 +56,16 @@ class NativeCardTokenizationService implements CardTokenizationService, SavedCar
   Future<CardTokenizationResult> tokenize() => _tokenize();
 
   @override
-  Future<CardTokenizationResult> tokenizeSavedCard(SavedPassengerCard card) => _tokenize(card: card);
+  Future<CardTokenizationResult> tokenizeSavedCard(SavedPassengerCard card) =>
+      _tokenize(card: card);
 
   @override
   Future<CardTokenizationResult> tokenizeForStorage() => _tokenize(save: true);
 
-  Future<CardTokenizationResult> _tokenize({SavedPassengerCard? card, bool save = false}) async {
+  Future<CardTokenizationResult> _tokenize({
+    SavedPassengerCard? card,
+    bool save = false,
+  }) async {
     if (amountCents <= 0) {
       throw const CardTokenizationException(
         'Valor da corrida inválido para pagamento por cartão.',
@@ -90,8 +96,10 @@ class NativeCardTokenizationService implements CardTokenizationService, SavedCar
           'publicKey': publicKey,
           'requestStorageToken': save,
           if (card != null) ...{
-            'savedCardId': card.id, 'paymentMethodId': card.paymentMethodId,
-            'paymentMethodType': card.paymentMethodType, 'lastFourDigits': card.lastFourDigits,
+            'savedCardId': card.id,
+            'paymentMethodId': card.paymentMethodId,
+            'paymentMethodType': card.paymentMethodType,
+            'lastFourDigits': card.lastFourDigits,
           },
         },
       );
@@ -123,16 +131,13 @@ class NativeCardTokenizationService implements CardTokenizationService, SavedCar
         storageToken: result['storageToken'] as String?,
         paymentMethodId: paymentMethodId,
         paymentMethodType: paymentMethodType,
-        lastFourDigits:
-            lastFourDigits is String && lastFourDigits.isNotEmpty
-                ? lastFourDigits
-                : null,
+        lastFourDigits: lastFourDigits is String && lastFourDigits.isNotEmpty
+            ? lastFourDigits
+            : null,
       );
     } on PlatformException catch (error) {
       if (error.code == 'CARD_CANCELLED') {
-        throw const CardTokenizationException(
-          'Cadastro do cartão cancelado.',
-        );
+        throw const CardTokenizationException('Cadastro do cartão cancelado.');
       }
       if (error.code == 'MERCADO_PAGO_NOT_CONFIGURED') {
         throw const CardTokenizationException(

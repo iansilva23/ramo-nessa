@@ -83,10 +83,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   late final String _accessToken = widget.accessToken?.trim() ?? '';
   late final bool _authenticated =
       DriverCoreConfig.enabled &&
-      (_accessToken.length >= 20 ||
-          DriverCoreConfig.devDriverIdentityEnabled);
+      (_accessToken.length >= 20 || DriverCoreConfig.devDriverIdentityEnabled);
 
-  late final DriverApi? _api = widget.api ??
+  late final DriverApi? _api =
+      widget.api ??
       (_authenticated
           ? HttpDriverApi(
               baseUrl: DriverCoreConfig.baseUri!,
@@ -103,29 +103,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
   late final DriverRealtimeService? _realtimeService =
       widget.realtimeService ??
-          (_authenticated
-              ? IoDriverRealtimeService(
-                  baseUrl: DriverCoreConfig.baseUri!,
-                  accessToken: _accessToken,
-                  driverId: DriverCoreConfig.devDriverId,
-                )
-              : null);
+      (_authenticated
+          ? IoDriverRealtimeService(
+              baseUrl: DriverCoreConfig.baseUri!,
+              accessToken: _accessToken,
+              driverId: DriverCoreConfig.devDriverId,
+            )
+          : null);
 
   late final AppReleasePolicyService? _releasePolicyService =
       widget.releasePolicyService ??
-          (DriverCoreConfig.enabled
-              ? HttpAppReleasePolicyService(
-                  baseUrl: DriverCoreConfig.baseUri!,
-                )
-              : null);
+      (DriverCoreConfig.enabled
+          ? HttpAppReleasePolicyService(baseUrl: DriverCoreConfig.baseUri!)
+          : null);
 
   late final SocialLinksService? _socialLinksService =
       widget.socialLinksService ??
-          (DriverCoreConfig.enabled
-              ? HttpSocialLinksService(
-                  baseUrl: DriverCoreConfig.baseUri!,
-                )
-              : null);
+      (DriverCoreConfig.enabled
+          ? HttpSocialLinksService(baseUrl: DriverCoreConfig.baseUri!)
+          : null);
 
   DriverSupplySnapshot? _supply;
   DriverOffer? _offer;
@@ -134,8 +130,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   DriverFinanceSummary? _finance;
   DriverProfileSnapshot? _profile;
   DriverActivitySnapshot? _activity;
-  _DriverActivityPeriod _activityPeriod =
-      _DriverActivityPeriod.sevenDays;
+  _DriverActivityPeriod _activityPeriod = _DriverActivityPeriod.sevenDays;
   DateTimeRange? _activityCustomRange;
   int _activityRequestId = 0;
   AppSocialLinks? _socialLinks;
@@ -158,12 +153,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   int _selectedTab = 0;
   late final DriverRouteService _routeService =
       widget.routeService ??
-          (DriverCoreConfig.enabled
-              ? CoreDriverRouteService(
-                  baseUrl: DriverCoreConfig.baseUri!,
-                  accessToken: _accessToken,
-                )
-              : const _UnavailableDriverRouteService());
+      (DriverCoreConfig.enabled
+          ? CoreDriverRouteService(
+              baseUrl: DriverCoreConfig.baseUri!,
+              accessToken: _accessToken,
+            )
+          : const _UnavailableDriverRouteService());
   bool _loading = true;
   bool _changingStatus = false;
   bool _offerAction = false;
@@ -203,26 +198,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
-  Future<void> _openReleaseStore(
-    AppReleasePolicy policy,
-  ) async {
+  Future<void> _openReleaseStore(AppReleasePolicy policy) async {
     final rawUrl = policy.storeUrl?.trim();
     if (rawUrl == null || rawUrl.isEmpty) return;
 
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) return;
 
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Não foi possível abrir a loja agora.',
-          ),
-        ),
+        const SnackBar(content: Text('Não foi possível abrir a loja agora.')),
       );
     }
   }
@@ -230,11 +216,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _checkReleasePolicy() async {
     final service = _releasePolicyService;
     final platform = _platformName;
-    if (
-      service == null ||
-      platform == null ||
-      _releaseDialogShown
-    ) {
+    if (service == null || platform == null || _releaseDialogShown) {
       return;
     }
 
@@ -246,8 +228,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       );
       if (!mounted || !policy.updateAvailable) return;
       _releaseDialogShown = true;
-      final hasStoreUrl =
-          policy.storeUrl?.trim().isNotEmpty == true;
+      final hasStoreUrl = policy.storeUrl?.trim().isNotEmpty == true;
 
       await showDialog<void>(
         context: context,
@@ -269,15 +250,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 const SizedBox(height: 10),
                 Text(
                   'Versão disponível: ${policy.latestVersion}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 if (hasStoreUrl) ...[
                   const SizedBox(height: 10),
-                  const Text(
-                    'Toque em “Atualizar agora” para abrir a loja.',
-                  ),
+                  const Text('Toque em “Atualizar agora” para abrir a loja.'),
                 ] else if (policy.updateRequired) ...[
                   const SizedBox(height: 10),
                   const Text(
@@ -290,31 +267,26 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             actions: [
               if (!policy.updateRequired)
                 TextButton(
-                  onPressed: () =>
-                      Navigator.of(dialogContext).pop(),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
                   child: const Text('Agora não'),
                 ),
               TextButton(
                 onPressed: hasStoreUrl
                     ? () async {
                         await _openReleaseStore(policy);
-                        if (
-                          !policy.updateRequired &&
-                          dialogContext.mounted
-                        ) {
+                        if (!policy.updateRequired && dialogContext.mounted) {
                           Navigator.of(dialogContext).pop();
                         }
                       }
                     : policy.updateRequired
-                        ? null
-                        : () =>
-                            Navigator.of(dialogContext).pop(),
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(),
                 child: Text(
                   hasStoreUrl
                       ? 'Atualizar agora'
                       : policy.updateRequired
-                          ? 'Atualização indisponível'
-                          : 'Entendi',
+                      ? 'Atualização indisponível'
+                      : 'Entendi',
                 ),
               ),
             ],
@@ -336,9 +308,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     super.dispose();
   }
 
-  Future<void> _applyLoadedSupply(
-    DriverSupplySnapshot supply,
-  ) async {
+  Future<void> _applyLoadedSupply(DriverSupplySnapshot supply) async {
     if (!mounted) return;
     setState(() {
       _supply = supply;
@@ -493,12 +463,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _syncTrackedPosition(DriverPosition position) async {
     final api = _api;
     final supply = _supply;
-    if (
-      api == null ||
-      supply == null ||
-      !supply.online ||
-      _locationSyncInFlight
-    ) {
+    if (api == null ||
+        supply == null ||
+        !supply.online ||
+        _locationSyncInFlight) {
       return;
     }
 
@@ -526,8 +494,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _message =
-            'Localização automática: não conseguimos sincronizar agora.';
+        _message = 'Localização automática: não conseguimos sincronizar agora.';
       });
     } finally {
       _locationSyncInFlight = false;
@@ -535,7 +502,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   void _announceOffer(DriverOffer? offer) {
-    if (offer == null || !offer.expiresAt.isAfter(DateTime.now()) || _lastAlertedOfferId == offer.id) return;
+    if (offer == null ||
+        !offer.expiresAt.isAfter(DateTime.now()) ||
+        _lastAlertedOfferId == offer.id)
+      return;
     _lastAlertedOfferId = offer.id;
     unawaited(HapticFeedback.mediumImpact());
     unawaited(SystemSound.play(SystemSoundType.alert));
@@ -567,23 +537,30 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           unawaited(_refreshOfferRoutes(update.offer));
         }
         if (update.rideUpdated) {
-          if (previousRideState == 'AWAITING_PAYMENT' && ['DRIVER_ASSIGNED','DRIVER_ARRIVING'].contains(update.ride?.state)) {
-            setState(() => _message = 'Pagamento confirmado. Vá buscar o passageiro.');
+          if (previousRideState == 'AWAITING_PAYMENT' &&
+              [
+                'DRIVER_ASSIGNED',
+                'DRIVER_ARRIVING',
+              ].contains(update.ride?.state)) {
+            setState(
+              () => _message = 'Pagamento confirmado. Vá buscar o passageiro.',
+            );
             unawaited(HapticFeedback.selectionClick());
           }
           unawaited(_refreshActiveRoute(force: true));
         }
 
         if (update.ride?.state == 'AWAITING_PAYMENT') {
-          setState(() { _navigationMode = false; _ridePanelExpanded = true; });
+          setState(() {
+            _navigationMode = false;
+            _ridePanelExpanded = true;
+          });
           _startPolling();
         } else if (update.ride != null) {
           _stopPolling();
-        } else if (
-          update.rideUpdated &&
-          _supply?.online == true &&
-          _supply?.busy == false
-        ) {
+        } else if (update.rideUpdated &&
+            _supply?.online == true &&
+            _supply?.busy == false) {
           _startPolling();
         }
       },
@@ -609,12 +586,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       DriverCoreConfig.offerPollingInterval,
       (_) => _refreshOffer(),
     );
-    _ticker = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted && (_offer != null || _activeRide?.state == 'AWAITING_PAYMENT')) { setState(() {}); }
-      },
-    );
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted &&
+          (_offer != null || _activeRide?.state == 'AWAITING_PAYMENT')) {
+        setState(() {});
+      }
+    });
   }
 
   void _stopPolling() {
@@ -641,13 +618,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _refreshNearbyDrivers() async {
     final api = _api;
     final supply = _supply;
-    if (
-      api == null ||
-      supply == null ||
-      !supply.online ||
-      supply.busy ||
-      _nearbyRequestInFlight
-    ) {
+    if (api == null ||
+        supply == null ||
+        !supply.online ||
+        supply.busy ||
+        _nearbyRequestInFlight) {
       return;
     }
 
@@ -659,8 +634,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       nextSeconds = snapshot.refreshAfterSeconds.clamp(15, 60);
       if (!mounted) return;
       setState(() {
-        _nearbyDrivers =
-            snapshot.enabled ? snapshot.drivers : const [];
+        _nearbyDrivers = snapshot.enabled ? snapshot.drivers : const [];
       });
     } catch (_) {
       // Outros motoristas são informação auxiliar. Falha não interrompe
@@ -668,12 +642,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } finally {
       _nearbyRequestInFlight = false;
       final current = _supply;
-      if (
-        mounted &&
-        current != null &&
-        current.online &&
-        !current.busy
-      ) {
+      if (mounted && current != null && current.online && !current.busy) {
         _nearbyTimer?.cancel();
         _nearbyTimer = Timer(
           Duration(seconds: nextSeconds),
@@ -686,13 +655,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _refreshOffer() async {
     final api = _api;
     final supply = _supply;
-    if (
-      api == null ||
-      supply == null ||
-      !supply.online ||
-      supply.busy ||
-      _offerAction
-    ) {
+    if (api == null ||
+        supply == null ||
+        !supply.online ||
+        supply.busy ||
+        _offerAction) {
       return;
     }
 
@@ -700,10 +667,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (_activeRide?.state == 'AWAITING_PAYMENT') {
         final current = await api.currentRide();
         if (!mounted) return;
-        setState(() { _activeRide = current; if (current == null) { _activeRoute = null; _message = 'A reserva foi encerrada. Você está disponível para novas corridas.'; } });
+        setState(() {
+          _activeRide = current;
+          if (current == null) {
+            _activeRoute = null;
+            _message = 'A reserva foi encerrada. Você está disponível para novas corridas.';
+          }
+        });
         if (current != null && current.state != 'AWAITING_PAYMENT') {
-          if (['DRIVER_ASSIGNED','DRIVER_ARRIVING'].contains(current.state)) {
-            setState(() => _message = 'Pagamento confirmado. Vá buscar o passageiro.');
+          if (['DRIVER_ASSIGNED', 'DRIVER_ARRIVING'].contains(current.state)) {
+            setState(
+              () => _message = 'Pagamento confirmado. Vá buscar o passageiro.',
+            );
             unawaited(HapticFeedback.selectionClick());
           }
           _stopPolling();
@@ -860,7 +835,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
       if (ride.state == 'AWAITING_PAYMENT') {
-        setState(() { _navigationMode = false; _ridePanelExpanded = true; });
+        setState(() {
+          _navigationMode = false;
+          _ridePanelExpanded = true;
+        });
         _startPolling();
       } else {
         await _startInAppNavigation();
@@ -883,13 +861,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _startInAppNavigation() async {
     final ride = _activeRide;
     final supply = _supply;
-    if (ride == null || supply == null || ride.state == 'AWAITING_PAYMENT') return;
+    if (ride == null || supply == null || ride.state == 'AWAITING_PAYMENT') {
+      return;
+    }
 
     final useDropoff = ride.state == 'IN_PROGRESS';
-    final latitude =
-        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
-    final longitude =
-        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+    final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
 
     if (latitude == null || longitude == null) {
       if (!mounted) return;
@@ -930,10 +908,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (ride == null) return;
 
     final useDropoff = ride.state == 'IN_PROGRESS';
-    final latitude =
-        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
-    final longitude =
-        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+    final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
 
     if (latitude == null || longitude == null) {
       if (!mounted) return;
@@ -1026,12 +1002,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _cancelRide() async {
     final api = _api;
     final ride = _activeRide;
-    if (
-      api == null ||
-      ride == null ||
-      _rideAction ||
-      api is! DriverRideCancellationApi
-    ) {
+    if (api == null ||
+        ride == null ||
+        _rideAction ||
+        api is! DriverRideCancellationApi) {
       if (api != null && api is! DriverRideCancellationApi && mounted) {
         setState(() {
           _message = 'O cancelamento da corrida ainda não está disponível.';
@@ -1128,10 +1102,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       );
                     return;
                   }
-                  Navigator.of(dialogContext).pop((
-                    reason: reason,
-                    note: note.isEmpty ? null : note,
-                  ));
+                  Navigator.of(dialogContext)
+                      .pop((reason: reason, note: note.isEmpty ? null : note));
                 },
                 child: const Text('Confirmar cancelamento'),
               ),
@@ -1163,16 +1135,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
 
-      final cancellationMessage =
-          driverRideCancellationOutcomeMessage(result);
+      final cancellationMessage = driverRideCancellationOutcomeMessage(result);
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(cancellationMessage),
-          ),
-        );
+        ..showSnackBar(SnackBar(content: Text(cancellationMessage)));
 
       unawaited(_refreshFinance(showError: false));
       unawaited(_refreshActivity());
@@ -1227,12 +1194,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Future<void> _requestPayout() async {
     final api = _api;
     final finance = _finance;
-    if (
-      api == null ||
-      finance == null ||
-      finance.availableBalanceCents <= 0 ||
-      _payoutAction
-    ) {
+    if (api == null ||
+        finance == null ||
+        finance.availableBalanceCents <= 0 ||
+        _payoutAction) {
       return;
     }
 
@@ -1407,10 +1372,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   Future<void> _refreshProfileAndSocial() async {
-    await Future.wait([
-      _refreshProfile(),
-      _loadSocialLinks(),
-    ]);
+    await Future.wait([_refreshProfile(), _loadSocialLinks()]);
   }
 
   Future<void> _openInstagram() async {
@@ -1419,10 +1381,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final uri = Uri.tryParse(rawUrl);
     if (uri == null) return;
 
-    final opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!mounted || opened) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -1481,8 +1440,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _message =
-            'Não foi possível abrir sua galeria. Verifique a permissão de fotos.';
+        _message = 'Não foi possível abrir sua galeria. Verifique a permissão de fotos.';
       });
       return;
     }
@@ -1502,8 +1460,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       if (bytes.length > 1500000) {
         if (!mounted) return;
         setState(() {
-          _message =
-              'A foto ficou maior que 1,5 MB. Escolha outra imagem.';
+          _message = 'A foto ficou maior que 1,5 MB. Escolha outra imagem.';
         });
         return;
       }
@@ -1513,10 +1470,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _message = null;
       });
 
-      await api.updateProfilePhoto(
-        mimeType: mimeType,
-        bytes: bytes,
-      );
+      await api.updateProfilePhoto(mimeType: mimeType, bytes: bytes);
       final profile = await api.profile();
       if (!mounted) return;
       setState(() {
@@ -1528,9 +1482,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Foto do perfil atualizada.'),
-          ),
+          const SnackBar(content: Text('Foto do perfil atualizada.')),
         );
     } on DriverApiException catch (error) {
       if (!mounted) return;
@@ -1560,39 +1512,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     switch (_activityPeriod) {
       case _DriverActivityPeriod.sevenDays:
         return (
-          from: _activityStartOfDay(
-            now.subtract(const Duration(days: 6)),
-          ),
+          from: _activityStartOfDay(now.subtract(const Duration(days: 6))),
           to: end,
         );
       case _DriverActivityPeriod.fifteenDays:
         return (
-          from: _activityStartOfDay(
-            now.subtract(const Duration(days: 14)),
-          ),
+          from: _activityStartOfDay(now.subtract(const Duration(days: 14))),
           to: end,
         );
       case _DriverActivityPeriod.thirtyDays:
         return (
-          from: _activityStartOfDay(
-            now.subtract(const Duration(days: 29)),
-          ),
+          from: _activityStartOfDay(now.subtract(const Duration(days: 29))),
           to: end,
         );
       case _DriverActivityPeriod.threeMonths:
         return (
-          from: _activityStartOfDay(
-            now.subtract(const Duration(days: 89)),
-          ),
+          from: _activityStartOfDay(now.subtract(const Duration(days: 89))),
           to: end,
         );
       case _DriverActivityPeriod.custom:
         final range = _activityCustomRange;
         if (range == null) {
           return (
-            from: _activityStartOfDay(
-              now.subtract(const Duration(days: 6)),
-            ),
+            from: _activityStartOfDay(now.subtract(const Duration(days: 6))),
             to: end,
           );
         }
@@ -1603,14 +1545,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
   }
 
-  String _activityPeriodLabel(_DriverActivityPeriod period) =>
-      switch (period) {
-        _DriverActivityPeriod.sevenDays => '7 dias',
-        _DriverActivityPeriod.fifteenDays => '15 dias',
-        _DriverActivityPeriod.thirtyDays => '30 dias',
-        _DriverActivityPeriod.threeMonths => '3 meses',
-        _DriverActivityPeriod.custom => 'Personalizado',
-      };
+  String _activityPeriodLabel(_DriverActivityPeriod period) => switch (period) {
+    _DriverActivityPeriod.sevenDays => '7 dias',
+    _DriverActivityPeriod.fifteenDays => '15 dias',
+    _DriverActivityPeriod.thirtyDays => '30 dias',
+    _DriverActivityPeriod.threeMonths => '3 meses',
+    _DriverActivityPeriod.custom => 'Personalizado',
+  };
 
   String _activityDateLabel(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
@@ -1618,16 +1559,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     return '$day/$month/${value.year}';
   }
 
-  Future<void> _selectActivityPeriod(
-    _DriverActivityPeriod period,
-  ) async {
+  Future<void> _selectActivityPeriod(_DriverActivityPeriod period) async {
     if (period == _DriverActivityPeriod.custom) {
       final now = DateTime.now();
-      final initial = _activityCustomRange ??
-          DateTimeRange(
-            start: now.subtract(const Duration(days: 6)),
-            end: now,
-          );
+      final initial =
+          _activityCustomRange ??
+          DateTimeRange(start: now.subtract(const Duration(days: 6)), end: now);
       final selected = await showDateRangePicker(
         context: context,
         firstDate: DateTime(now.year - 2),
@@ -1661,10 +1598,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (mounted) setState(() => _activityLoading = true);
 
     try {
-      final activity = await api.activity(
-        from: range.from,
-        to: range.to,
-      );
+      final activity = await api.activity(from: range.from, to: range.to);
       if (!mounted || requestId != _activityRequestId) return;
       setState(() {
         _activity = activity;
@@ -1708,11 +1642,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     if (_offerRoutesReadyForOfferId == offer.id) return;
 
     final now = DateTime.now();
-    if (
-      _lastOfferRouteAttemptAt != null &&
-      now.difference(_lastOfferRouteAttemptAt!) <
-          const Duration(seconds: 15)
-    ) {
+    if (_lastOfferRouteAttemptAt != null &&
+        now.difference(_lastOfferRouteAttemptAt!) <
+            const Duration(seconds: 15)) {
       return;
     }
 
@@ -1745,9 +1677,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         _offerRoutesReadyForOfferId = offer.id;
       });
       if (isNewOffer) {
-        await _mapController.fitCoordinates([
-          LatLng(supply.latitude, supply.longitude), LatLng(pickupLat, pickupLng),
-        ], padding: 110, animate: !MediaQuery.disableAnimationsOf(context));
+        await _mapController.fitCoordinates(
+          [
+            LatLng(supply.latitude, supply.longitude),
+            LatLng(pickupLat, pickupLng),
+          ],
+          padding: 110,
+          animate: !MediaQuery.disableAnimationsOf(context),
+        );
       }
     } catch (_) {
       // A oferta mantém as distâncias autoritativas do Core. Se o
@@ -1768,28 +1705,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     }
 
     final now = DateTime.now();
-    final currentPosition = LatLng(
-      supply.latitude,
-      supply.longitude,
-    );
+    final currentPosition = LatLng(supply.latitude, supply.longitude);
     final shouldFitRoute = force || _activeRoute == null;
-    if (
-      !DriverRouteRefreshPolicy.shouldRefresh(
-        now: now,
-        currentPosition: currentPosition,
-        currentRoute: _activeRoute,
-        lastAttemptAt: _lastRouteRefreshAt,
-        force: force,
-      )
-    ) {
+    if (!DriverRouteRefreshPolicy.shouldRefresh(
+      now: now,
+      currentPosition: currentPosition,
+      currentRoute: _activeRoute,
+      lastAttemptAt: _lastRouteRefreshAt,
+      force: force,
+    )) {
       return;
     }
 
     final useDropoff = ride.state == 'IN_PROGRESS';
-    final latitude =
-        useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
-    final longitude =
-        useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
+    final latitude = useDropoff ? ride.dropoffLatitude : ride.pickupLatitude;
+    final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
     if (latitude == null || longitude == null) return;
 
     _lastRouteRefreshAt = now;
@@ -1822,10 +1752,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DriverRideChatScreen(
-          api: api,
-          rideId: ride.id,
-        ),
+        builder: (_) => DriverRideChatScreen(api: api, rideId: ride.id),
       ),
     );
   }
@@ -1853,8 +1780,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           activeRide: _activeRide,
           route: _activeRoute,
           navigationMode: _navigationMode,
-          nearbyDrivers:
-              _activeRide == null ? _nearbyDrivers : const [],
+          nearbyDrivers: _activeRide == null ? _nearbyDrivers : const [],
           networkTilesEnabled:
               widget.api == null || DriverCoreConfig.previewMode,
           onMapReady: () {
@@ -1899,10 +1825,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             child: SafeArea(
               child: _NavigationInstructionBanner(
                 route: _activeRoute,
-                currentPosition: LatLng(
-                  supply.latitude,
-                  supply.longitude,
-                ),
+                currentPosition: LatLng(supply.latitude, supply.longitude),
                 targetLabel: _activeRide!.state == 'IN_PROGRESS'
                     ? _activeRide!.destination.displayName
                     : _activeRide!.origin.displayName,
@@ -1913,14 +1836,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           ),
         if (_message != null)
           Positioned(
-            top: _navigationMode && _activeRide != null
-                ? 198
-                : 86,
+            top: _navigationMode && _activeRide != null ? 198 : 86,
             left: 16,
             right: 16,
-            child: SafeArea(
-              child: _CompactMapMessage(message: _message!),
-            ),
+            child: SafeArea(child: _CompactMapMessage(message: _message!)),
           ),
         Positioned(
           left: 14,
@@ -1929,7 +1848,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
           child: SafeArea(
             top: false,
             child: AnimatedSwitcher(
-              duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 360),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 360),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) => FadeTransition(
@@ -1953,51 +1874,49 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       tripRoute: _offerTripRoute,
                     )
                   : _activeRide != null
-                      ? (_navigationMode && !_ridePanelExpanded
-                          ? _ActiveRideCompactBar(
-                              key: ValueKey(
-                                'ride-mini-${_activeRide!.id}-${_activeRide!.state}',
-                              ),
-                              ride: _activeRide!,
-                              route: _activeRoute,
-                              onChat: _openRideChat,
-                              onExpand: () => setState(
-                                () => _ridePanelExpanded = true,
-                              ),
-                            )
-                          : _ActiveRideCard(
-                              key: ValueKey(
-                                'ride-${_activeRide!.id}-${_activeRide!.state}',
-                              ),
-                              ride: _activeRide!,
-                              busy: _rideAction,
-                              navigationActive: _navigationMode,
-                              onNavigate: _startInAppNavigation,
-                              onStopNavigation: _stopInAppNavigation,
-                              onExternalNavigation: _openExternalNavigation,
-                              onArrived: _markArrived,
-                              onStart: _startRide,
-                              onComplete: _completeRide,
-                              onCancel: _cancelRide,
-                              onChat: _openRideChat,
-                              onMinimize: _navigationMode
-                                  ? () => setState(
-                                        () => _ridePanelExpanded = false,
-                                      )
-                                  : null,
-                              route: _activeRoute,
-                              currentPosition: LatLng(
-                                supply.latitude,
-                                supply.longitude,
-                              ),
-                            ))
-                      : _MapAvailabilityPanel(
-                          key: ValueKey('availability-${supply.online}'),
-                          online: supply.online,
-                          changing: _changingStatus,
-                          onToggle: _setOnline,
-                          onUpdateLocation: _updateLocation,
-                        ),
+                  ? (_navigationMode && !_ridePanelExpanded
+                        ? _ActiveRideCompactBar(
+                            key: ValueKey(
+                              'ride-mini-${_activeRide!.id}-${_activeRide!.state}',
+                            ),
+                            ride: _activeRide!,
+                            route: _activeRoute,
+                            onChat: _openRideChat,
+                            onExpand: () =>
+                                setState(() => _ridePanelExpanded = true),
+                          )
+                        : _ActiveRideCard(
+                            key: ValueKey(
+                              'ride-${_activeRide!.id}-${_activeRide!.state}',
+                            ),
+                            ride: _activeRide!,
+                            busy: _rideAction,
+                            navigationActive: _navigationMode,
+                            onNavigate: _startInAppNavigation,
+                            onStopNavigation: _stopInAppNavigation,
+                            onExternalNavigation: _openExternalNavigation,
+                            onArrived: _markArrived,
+                            onStart: _startRide,
+                            onComplete: _completeRide,
+                            onCancel: _cancelRide,
+                            onChat: _openRideChat,
+                            onMinimize: _navigationMode
+                                ? () =>
+                                      setState(() => _ridePanelExpanded = false)
+                                : null,
+                            route: _activeRoute,
+                            currentPosition: LatLng(
+                              supply.latitude,
+                              supply.longitude,
+                            ),
+                          ))
+                  : _MapAvailabilityPanel(
+                      key: ValueKey('availability-${supply.online}'),
+                      online: supply.online,
+                      changing: _changingStatus,
+                      onToggle: _setOnline,
+                      onUpdateLocation: _updateLocation,
+                    ),
             ),
           ),
         ),
@@ -2035,9 +1954,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   : () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => DriverStatementScreen(
-                            api: _api,
-                          ),
+                          builder: (_) => DriverStatementScreen(api: _api),
                         ),
                       );
                     },
@@ -2082,8 +1999,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                           ),
                           selected: _activityPeriod == period,
                           label: Text(_activityPeriodLabel(period)),
-                          onSelected: (_) =>
-                              _selectActivityPeriod(period),
+                          onSelected: (_) => _selectActivityPeriod(period),
                         ),
                       ),
                     )
@@ -2113,10 +2029,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             if (_activeRide != null) ...[
               const Text(
                 'Corrida atual',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
               ),
               const SizedBox(height: RamoSpacing.sm),
               _ActiveRideCard(
@@ -2132,19 +2045,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 onCancel: _cancelRide,
                 onChat: _openRideChat,
                 route: _activeRoute,
-                currentPosition: LatLng(
-                  supply.latitude,
-                  supply.longitude,
-                ),
+                currentPosition: LatLng(supply.latitude, supply.longitude),
               ),
               const SizedBox(height: RamoSpacing.xl),
             ],
             const Text(
               'Corridas no período',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 17,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
             ),
             const SizedBox(height: RamoSpacing.sm),
             if (activity == null || activity.rides.isEmpty)
@@ -2171,24 +2078,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   Widget _buildProfile(DriverSupplySnapshot supply) {
     final profile = _profile;
     final fallbackCategories = supply.categories
-        .map((category) => switch (category) {
-              'moto' => 'Moto',
-              'car' => 'Carro',
-              'comfort_black' => 'Comfort / Black',
-              'buggy' => 'Buggy',
-              'delivery' => 'Entrega',
-              _ => category,
-            })
+        .map(
+          (category) => switch (category) {
+            'moto' => 'Moto',
+            'car' => 'Carro',
+            'comfort_black' => 'Comfort / Black',
+            'buggy' => 'Buggy',
+            'delivery' => 'Entrega',
+            _ => category,
+          },
+        )
         .join(' · ');
     final profileCategories = profile?.vehicleCategories
-        .map((category) => switch (category) {
-              'moto' => 'Moto',
-              'car' => 'Carro',
-              'comfort_black' => 'Comfort / Black',
-              'buggy' => 'Buggy',
-              'delivery' => 'Entrega',
-              _ => category,
-            })
+        .map(
+          (category) => switch (category) {
+            'moto' => 'Moto',
+            'car' => 'Carro',
+            'comfort_black' => 'Comfort / Black',
+            'buggy' => 'Buggy',
+            'delivery' => 'Entrega',
+            _ => category,
+          },
+        )
         .join(' · ');
 
     return SafeArea(
@@ -2243,15 +2154,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               subtitle: _activity == null
                   ? 'Consultar sua atividade'
                   : '${_activity!.completed} concluídas · '
-                      '${_activity!.cancelled} canceladas',
+                        '${_activity!.cancelled} canceladas',
               onTap: _api == null
                   ? () {}
                   : () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => DriverRideSummaryScreen(
-                            api: _api,
-                          ),
+                          builder: (_) => DriverRideSummaryScreen(api: _api),
                         ),
                       );
                     },
@@ -2264,7 +2173,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => DriverRankingBenefitsScreen(
-                      api: widget.benefitsApi ?? (_api is DriverBenefitsApi ? _api as DriverBenefitsApi : null),
+                      api:
+                          widget.benefitsApi ??
+                          (_api is DriverBenefitsApi
+                              ? _api as DriverBenefitsApi
+                              : null),
                     ),
                   ),
                 );
@@ -2301,9 +2214,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   : () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => DriverStatementScreen(
-                            api: _api,
-                          ),
+                          builder: (_) => DriverStatementScreen(api: _api),
                         ),
                       );
                     },
@@ -2317,9 +2228,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   : () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => DriverDocumentsScreen(
-                            api: _api,
-                          ),
+                          builder: (_) => DriverDocumentsScreen(api: _api),
                         ),
                       );
                     },
@@ -2333,10 +2242,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   MaterialPageRoute<void>(
                     builder: (_) => _DriverVehicleDetailsScreen(
                       vehicleId: profile?.vehicleId ?? supply.vehicleId,
-                      categories:
-                          profileCategories?.isNotEmpty == true
-                              ? profileCategories!
-                              : fallbackCategories,
+                      categories: profileCategories?.isNotEmpty == true
+                          ? profileCategories!
+                          : fallbackCategories,
                       seatCapacity:
                           profile?.vehicleSeatCapacity ?? supply.seatCapacity,
                       fourByFour:
@@ -2389,9 +2297,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   : () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => DriverSupportScreen(
-                            api: _api,
-                          ),
+                          builder: (_) => DriverSupportScreen(api: _api),
                         ),
                       );
                     },
@@ -2400,8 +2306,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               _ProfileOption(
                 icon: Icons.alternate_email_rounded,
                 title: 'Siga o Ramo Nessa no Instagram',
-                subtitle:
-                    _socialLinks?.instagramHandle ?? 'Instagram oficial',
+                subtitle: _socialLinks?.instagramHandle ?? 'Instagram oficial',
                 onTap: _openInstagram,
               ),
             _ProfileOption(
@@ -2423,9 +2328,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => DriverPrivacyScreen(
-                      service: widget.privacyService,
-                    ),
+                    builder: (_) =>
+                        DriverPrivacyScreen(service: widget.privacyService),
                   ),
                 );
               },
@@ -2445,9 +2349,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  Widget _animatedMainTabs(
-    DriverSupplySnapshot supply,
-  ) {
+  Widget _animatedMainTabs(DriverSupplySnapshot supply) {
     final pages = <Widget>[
       _buildHomeMap(supply),
       _buildEarnings(),
@@ -2459,8 +2361,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       fit: StackFit.expand,
       children: List.generate(pages.length, (index) {
         final selected = index == _selectedTab;
-        final horizontalOffset =
-            selected ? 0.0 : (index < _selectedTab ? -0.025 : 0.025);
+        final horizontalOffset = selected
+            ? 0.0
+            : (index < _selectedTab ? -0.025 : 0.025);
 
         return Offstage(
           offstage: !selected,
@@ -2475,7 +2378,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   curve: Curves.easeOutCubic,
                   opacity: selected ? 1 : 0,
                   child: AnimatedSlide(
-                    duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 360),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 360),
                     curve: Curves.easeOutCubic,
                     offset: Offset(horizontalOffset, 0),
                     child: pages[index],
@@ -2557,9 +2462,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     final supply = _supply;
 
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_registryAccessBlocked) {
@@ -2573,8 +2476,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
     if (supply == null) {
       return _DriverStartupErrorScreen(
-        message:
-            _message ?? 'Não conseguimos iniciar o app do motorista.',
+        message: _message ?? 'Não conseguimos iniciar o app do motorista.',
         onRetry: _load,
         onLogout: widget.onLogout == null ? null : _logout,
       );
@@ -2586,7 +2488,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 }
-
 
 class _DriverApprovalStatusScreen extends StatelessWidget {
   const _DriverApprovalStatusScreen({
@@ -2602,11 +2503,11 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
   final Future<void> Function()? onLogout;
 
   String _statusLabel(String? status) => switch (status) {
-        'approved' => 'Aprovado',
-        'pending' => 'Em análise',
-        'suspended' => 'Suspenso',
-        _ => 'Não concluído',
-      };
+    'approved' => 'Aprovado',
+    'pending' => 'Em análise',
+    'suspended' => 'Suspenso',
+    _ => 'Não concluído',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -2614,15 +2515,15 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
     final vehicleStatus = profile?.vehicleStatus;
     final suspended =
         profileStatus == 'suspended' || vehicleStatus == 'suspended';
-    final pending =
-        profileStatus == 'pending' || vehicleStatus == 'pending';
+    final pending = profileStatus == 'pending' || vehicleStatus == 'pending';
 
     final title = suspended
         ? 'Acesso suspenso'
         : pending
-            ? 'Cadastro em análise'
-            : 'Cadastro ainda não aprovado';
-    final description = fallbackMessage ??
+        ? 'Cadastro em análise'
+        : 'Cadastro ainda não aprovado';
+    final description =
+        fallbackMessage ??
         (suspended
             ? 'Seu acesso operacional está suspenso. Entre em contato com o suporte do Ramo Nessa para verificar o cadastro.'
             : 'Seu perfil e seu veículo precisam ser aprovados antes de liberar mapa, corridas e ganhos.');
@@ -2665,17 +2566,14 @@ class _DriverApprovalStatusScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                    style: Theme.of(context).textTheme.headlineMedium
+                        ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     description,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: RamoColors.muted,
-                          height: 1.45,
-                        ),
+                    style: Theme.of(context).textTheme.bodyLarge
+                        ?.copyWith(color: RamoColors.muted, height: 1.45),
                   ),
                   const SizedBox(height: 28),
                   _ApprovalStatusRow(
@@ -2744,8 +2642,8 @@ class _ApprovalStatusRow extends StatelessWidget {
     final tone = approved
         ? RamoColors.success
         : blocked
-            ? RamoColors.danger
-            : RamoColors.brandBlack;
+        ? RamoColors.danger
+        : RamoColors.brandBlack;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -2761,8 +2659,8 @@ class _ApprovalStatusRow extends StatelessWidget {
             approved
                 ? Icons.check_circle_rounded
                 : blocked
-                    ? Icons.block_rounded
-                    : Icons.schedule_rounded,
+                ? Icons.block_rounded
+                : Icons.schedule_rounded,
             color: tone,
           ),
           const SizedBox(width: 12),
@@ -2774,10 +2672,7 @@ class _ApprovalStatusRow extends StatelessWidget {
           ),
           Text(
             status,
-            style: TextStyle(
-              color: tone,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(color: tone, fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -2814,10 +2709,7 @@ class _DriverStartupErrorScreen extends StatelessWidget {
                   const Text(
                     'Não conseguimos iniciar agora',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -2880,10 +2772,7 @@ class _MapCircleButton extends StatelessWidget {
 }
 
 class _EarningsPill extends StatelessWidget {
-  const _EarningsPill({
-    required this.amountCents,
-    required this.onTap,
-  });
+  const _EarningsPill({required this.amountCents, required this.onTap});
 
   final int amountCents;
   final VoidCallback onTap;
@@ -3003,18 +2892,12 @@ class _MapAvailabilityPanel extends StatelessWidget {
                 children: [
                   Text(
                     'Você está online',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 17,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Procurando corridas próximas',
-                    style: TextStyle(
-                      color: RamoColors.muted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: RamoColors.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -3062,10 +2945,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
                 color: RamoColors.surfaceRaised,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.power_settings_new_rounded,
-                size: 19,
-              ),
+              child: const Icon(Icons.power_settings_new_rounded, size: 19),
             ),
             const SizedBox(width: 11),
             const Expanded(
@@ -3074,18 +2954,12 @@ class _MapAvailabilityPanel extends StatelessWidget {
                 children: [
                   Text(
                     'Você está offline',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 17,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Fique online quando estiver pronto para dirigir.',
-                    style: TextStyle(
-                      color: RamoColors.muted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: RamoColors.muted, fontSize: 12),
                   ),
                 ],
               ),
@@ -3116,10 +2990,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
                   )
                 : const Text(
                     'Ficar online',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
                   ),
           ),
         ),
@@ -3156,17 +3027,14 @@ class _SectionHeader extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           title,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1,
-              ),
+          style: Theme.of(context).textTheme.headlineMedium
+              ?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -1),
         ),
         const SizedBox(height: 6),
         Text(
           subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: RamoColors.muted,
-              ),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: RamoColors.muted),
         ),
       ],
     );
@@ -3222,8 +3090,9 @@ class _DriverProfileHero extends StatelessWidget {
                 radius: 32,
                 backgroundColor: RamoColors.brandYellow,
                 foregroundColor: RamoColors.brandBlack,
-                backgroundImage:
-                    _photoUrl == null ? null : NetworkImage(_photoUrl!),
+                backgroundImage: _photoUrl == null
+                    ? null
+                    : NetworkImage(_photoUrl!),
                 child: _photoUrl == null
                     ? const Icon(Icons.person_rounded, size: 34)
                     : null,
@@ -3267,8 +3136,8 @@ class _DriverProfileHero extends StatelessWidget {
                   loading
                       ? 'Carregando perfil…'
                       : (displayName?.trim().isNotEmpty == true
-                          ? displayName!.trim()
-                          : 'Motorista Ramo Nessa'),
+                            ? displayName!.trim()
+                            : 'Motorista Ramo Nessa'),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -3392,7 +3261,8 @@ class _ActivitySummaryGrid extends StatelessWidget {
       children: items
           .map(
             (item) => SizedBox(
-              width: (MediaQuery.sizeOf(context).width -
+              width:
+                  (MediaQuery.sizeOf(context).width -
                       RamoSpacing.lg * 2 -
                       RamoSpacing.sm) /
                   2,
@@ -3452,8 +3322,8 @@ class _ActivityRideCard extends StatelessWidget {
                 ride.state == 'COMPLETED'
                     ? Icons.check_rounded
                     : ride.state.startsWith('CANCELLED_')
-                        ? Icons.close_rounded
-                        : Icons.route_rounded,
+                    ? Icons.close_rounded
+                    : Icons.route_rounded,
               ),
             ),
             const SizedBox(width: RamoSpacing.md),
@@ -3673,13 +3543,9 @@ class _DriverFinanceCard extends StatelessWidget {
           ),
           const SizedBox(height: RamoSpacing.md),
           Text(
-            loading && finance == null
-                ? 'Carregando…'
-                : formatCents(available),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                ),
+            loading && finance == null ? 'Carregando…' : formatCents(available),
+            style: Theme.of(context).textTheme.headlineMedium
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
           ),
           const Text(
             'Disponível para saque',
@@ -3697,10 +3563,9 @@ class _DriverFinanceCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
-              onPressed:
-                  finance == null || onOpenStatement == null
-                      ? null
-                      : () => _showWalletStatement(context),
+              onPressed: finance == null || onOpenStatement == null
+                  ? null
+                  : () => _showWalletStatement(context),
               icon: const Icon(Icons.receipt_long_rounded),
               label: const Text('Ver extrato'),
             ),
@@ -3723,8 +3588,9 @@ class _DriverFinanceCard extends StatelessWidget {
               const SizedBox(width: RamoSpacing.xs),
               Expanded(
                 child: FilledButton(
-                  onPressed:
-                      available > 0 && !requesting ? onRequestPayout : null,
+                  onPressed: available > 0 && !requesting
+                      ? onRequestPayout
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: RamoColors.brandYellow,
                     foregroundColor: RamoColors.brandBlack,
@@ -3768,10 +3634,12 @@ class _OfferCard extends StatelessWidget {
     final remaining = offer.expiresAt.difference(DateTime.now());
     final seconds = remaining.isNegative ? 0 : remaining.inSeconds;
     final expired = seconds <= 0;
-    final pickupDistance = pickupRoute?.distanceLabel ??
+    final pickupDistance =
+        pickupRoute?.distanceLabel ??
         '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km';
     final pickupDuration = pickupRoute?.durationLabel;
-    final tripDistance = tripRoute?.distanceLabel ??
+    final tripDistance =
+        tripRoute?.distanceLabel ??
         (offer.tripDistanceKm == null
             ? null
             : '${offer.tripDistanceKm!.toStringAsFixed(1)} km');
@@ -3833,9 +3701,9 @@ class _OfferCard extends StatelessWidget {
                     Text(
                       formatCents(offer.driverEarningsCents),
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.3,
-                          ),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.3,
+                      ),
                     ),
                   ],
                 ),
@@ -3919,10 +3787,7 @@ class _OfferCard extends StatelessWidget {
 }
 
 class _DriverRouteTimeline extends StatelessWidget {
-  const _DriverRouteTimeline({
-    required this.origin,
-    required this.destination,
-  });
+  const _DriverRouteTimeline({required this.origin, required this.destination});
 
   final String origin;
   final String destination;
@@ -4033,8 +3898,7 @@ class _DriverTripMetrics extends StatelessWidget {
         ? pickupDistance
         : '$pickupDuration · $pickupDistance';
     final tripText = switch ((tripDuration, tripDistance)) {
-      (final String duration, final String distance) =>
-        '$duration · $distance',
+      (final String duration, final String distance) => '$duration · $distance',
       (final String duration, null) => duration,
       (null, final String distance) => distance,
       _ => 'Calculando',
@@ -4109,10 +3973,7 @@ class _DriverMetric extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 11,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
           ),
         ],
       ),
@@ -4121,10 +3982,7 @@ class _DriverMetric extends StatelessWidget {
 }
 
 class _DriverMetaPill extends StatelessWidget {
-  const _DriverMetaPill({
-    required this.icon,
-    required this.label,
-  });
+  const _DriverMetaPill({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -4144,10 +4002,7 @@ class _DriverMetaPill extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 11,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
           ),
         ],
       ),
@@ -4156,10 +4011,7 @@ class _DriverMetaPill extends StatelessWidget {
 }
 
 class _DriverNoticeStrip extends StatelessWidget {
-  const _DriverNoticeStrip({
-    required this.icon,
-    required this.text,
-  });
+  const _DriverNoticeStrip({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -4217,8 +4069,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
     final maneuver = route?.nextManeuverFor(currentPosition);
     final instruction =
         maneuver?.instruction ?? 'Calculando a próxima instrução…';
-    final distanceLabel =
-        maneuver?.distanceLabel ?? 'Navegação ativa';
+    final distanceLabel = maneuver?.distanceLabel ?? 'Navegação ativa';
 
     return Material(
       color: RamoColors.brandBlack,
@@ -4282,7 +4133,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
                     route == null
                         ? 'Destino: $targetLabel'
                         : '${route!.durationLabel} · '
-                            '${route!.distanceLabel} · $targetLabel',
+                              '${route!.distanceLabel} · $targetLabel',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -4305,10 +4156,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
                   tooltip: 'Encerrar navegação',
                   onPressed: onStop,
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
                 ),
               ],
             ),
@@ -4338,12 +4186,11 @@ class _ActiveRideCompactBar extends StatelessWidget {
       : ride.origin.displayName;
 
   IconData get _icon => switch (ride.state) {
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' =>
-          Icons.person_pin_circle_rounded,
-        'DRIVER_ARRIVED' => Icons.hail_rounded,
-        'IN_PROGRESS' => Icons.flag_rounded,
-        _ => Icons.route_rounded,
-      };
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => Icons.person_pin_circle_rounded,
+    'DRIVER_ARRIVED' => Icons.hail_rounded,
+    'IN_PROGRESS' => Icons.flag_rounded,
+    _ => Icons.route_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -4368,11 +4215,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
                     color: RamoColors.brandYellow,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    _icon,
-                    size: 20,
-                    color: RamoColors.brandBlack,
-                  ),
+                  child: Icon(_icon, size: 20, color: RamoColors.brandBlack),
                 ),
                 const SizedBox(width: 10),
                 ConstrainedBox(
@@ -4468,51 +4311,50 @@ class _ActiveRideCard extends StatelessWidget {
   final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
-        'AWAITING_PAYMENT' => 'Aguardando pagamento do passageiro',
-        'DRIVER_ASSIGNED' => 'Pagamento confirmado — vá buscar o passageiro',
-        'DRIVER_ARRIVING' => 'A caminho do embarque',
-        'DRIVER_ARRIVED' => 'Você chegou',
-        'IN_PROGRESS' => 'Corrida em andamento',
-        'COMPLETED' => 'Corrida finalizada',
-        _ => 'Corrida ativa',
-      };
+    'AWAITING_PAYMENT' => 'Aguardando pagamento do passageiro',
+    'DRIVER_ASSIGNED' => 'Pagamento confirmado — vá buscar o passageiro',
+    'DRIVER_ARRIVING' => 'A caminho do embarque',
+    'DRIVER_ARRIVED' => 'Você chegou',
+    'IN_PROGRESS' => 'Corrida em andamento',
+    'COMPLETED' => 'Corrida finalizada',
+    _ => 'Corrida ativa',
+  };
 
   String get _stageLabel => switch (ride.state) {
-        'AWAITING_PAYMENT' => 'RESERVADO',
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'BUSCAR PASSAGEIRO',
-        'DRIVER_ARRIVED' => 'NO EMBARQUE',
-        'IN_PROGRESS' => 'EM VIAGEM',
-        'COMPLETED' => 'FINALIZADA',
-        _ => 'ATIVA',
-      };
+    'AWAITING_PAYMENT' => 'RESERVADO',
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'BUSCAR PASSAGEIRO',
+    'DRIVER_ARRIVED' => 'NO EMBARQUE',
+    'IN_PROGRESS' => 'EM VIAGEM',
+    'COMPLETED' => 'FINALIZADA',
+    _ => 'ATIVA',
+  };
 
   String? get _actionLabel => switch (ride.state) {
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Cheguei',
-        'DRIVER_ARRIVED' => 'Iniciar corrida',
-        'IN_PROGRESS' => 'Finalizar corrida',
-        'COMPLETED' => 'Concluir repasse',
-        _ => null,
-      };
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Cheguei',
+    'DRIVER_ARRIVED' => 'Iniciar corrida',
+    'IN_PROGRESS' => 'Finalizar corrida',
+    'COMPLETED' => 'Concluir repasse',
+    _ => null,
+  };
 
   VoidCallback? get _action => switch (ride.state) {
-        'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => onArrived,
-        'DRIVER_ARRIVED' => onStart,
-        'IN_PROGRESS' || 'COMPLETED' => onComplete,
-        _ => null,
-      };
+    'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => onArrived,
+    'DRIVER_ARRIVED' => onStart,
+    'IN_PROGRESS' || 'COMPLETED' => onComplete,
+    _ => null,
+  };
 
   String get _categoryLabel => switch (ride.category) {
-        'moto' => 'Moto',
-        'car' => 'Carro',
-        'comfort_black' => 'Comfort / Black',
-        'buggy' => 'Buggy',
-        'delivery' => 'Entrega',
-        _ => ride.category,
-      };
+    'moto' => 'Moto',
+    'car' => 'Carro',
+    'comfort_black' => 'Comfort / Black',
+    'buggy' => 'Buggy',
+    'delivery' => 'Entrega',
+    _ => ride.category,
+  };
 
   bool get _canNavigate =>
-      ((ride.state == 'DRIVER_ASSIGNED' ||
-              ride.state == 'DRIVER_ARRIVING') &&
+      ((ride.state == 'DRIVER_ASSIGNED' || ride.state == 'DRIVER_ARRIVING') &&
           ride.pickupLatitude != null &&
           ride.pickupLongitude != null) ||
       (ride.state == 'IN_PROGRESS' &&
@@ -4584,8 +4426,11 @@ class _ActiveRideCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (ride.state == 'AWAITING_PAYMENT') ...[
-            Text(ride.driverHoldExpiresAt == null ? 'Reserva com prazo limitado. Aguarde a confirmação do pagamento.'
-              : 'Reserva: ${ride.driverHoldExpiresAt!.difference(DateTime.now()).inSeconds.clamp(0, 999)} segundos restantes. Aguarde a confirmação do pagamento.'),
+            Text(
+              ride.driverHoldExpiresAt == null
+                  ? 'Reserva com prazo limitado. Aguarde a confirmação do pagamento.'
+                  : 'Reserva: ${ride.driverHoldExpiresAt!.difference(DateTime.now()).inSeconds.clamp(0, 999)} segundos restantes. Aguarde a confirmação do pagamento.',
+            ),
             const SizedBox(height: 12),
           ],
           _DriverRouteTimeline(
@@ -4659,36 +4504,32 @@ class _ActiveRideCard extends StatelessWidget {
                   'Receber em dinheiro: ${formatCents(ride.cashCollectionAmountCents!)}',
             ),
           ],
-          if (
-            route?.nextManeuverFor(currentPosition) != null &&
-            navigationActive
-          ) ...[
+          if (route?.nextManeuverFor(currentPosition) != null &&
+              navigationActive) ...[
             const SizedBox(height: 12),
             _DriverNoticeStrip(
               icon: Icons.navigation_rounded,
-              text:
-                  route!.nextManeuverFor(currentPosition)!.instruction,
+              text: route!.nextManeuverFor(currentPosition)!.instruction,
             ),
           ],
           const SizedBox(height: 12),
           if (ride.state != 'AWAITING_PAYMENT')
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: OutlinedButton.icon(
-              onPressed: onChat,
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
-              label: const Text('Mensagem com passageiro'),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: OutlinedButton.icon(
+                onPressed: onChat,
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                label: const Text('Mensagem com passageiro'),
+              ),
             ),
-          ),
           if (_canNavigate) ...[
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 48,
               child: OutlinedButton.icon(
-                onPressed:
-                    navigationActive ? onStopNavigation : onNavigate,
+                onPressed: navigationActive ? onStopNavigation : onNavigate,
                 icon: Icon(
                   navigationActive
                       ? Icons.close_rounded
@@ -4698,8 +4539,8 @@ class _ActiveRideCard extends StatelessWidget {
                   navigationActive
                       ? 'Parar navegação'
                       : ride.state == 'IN_PROGRESS'
-                          ? 'Navegar até o destino'
-                          : 'Navegar até o embarque',
+                      ? 'Navegar até o destino'
+                      : 'Navegar até o embarque',
                 ),
               ),
             ),
@@ -4787,9 +4628,8 @@ class _WaitingCard extends StatelessWidget {
           const SizedBox(height: RamoSpacing.md),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: RamoSpacing.xs),
@@ -4800,7 +4640,6 @@ class _WaitingCard extends StatelessWidget {
   }
 }
 
-
 class _UnavailableDriverRouteService implements DriverRouteService {
   const _UnavailableDriverRouteService();
 
@@ -4810,9 +4649,7 @@ class _UnavailableDriverRouteService implements DriverRouteService {
     required LatLng destination,
   }) {
     return Future<DriverRouteInfo>.error(
-      StateError(
-        'O serviço de rotas exige conexão com o Core do Ramo Nessa.',
-      ),
+      StateError('O serviço de rotas exige conexão com o Core do Ramo Nessa.'),
     );
   }
 }

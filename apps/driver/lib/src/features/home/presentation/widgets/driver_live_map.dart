@@ -95,11 +95,24 @@ class DriverMapController {
     }
 
     final update = gm.CameraUpdate.newLatLngBounds(
-      gm.LatLngBounds(southwest: gm.LatLng(minLatitude,minLongitude), northeast: gm.LatLng(maxLatitude,maxLongitude)), padding);
-    if (animate) { await controller.animateCamera(update); } else { await controller.moveCamera(update); }
+      gm.LatLngBounds(
+        southwest: gm.LatLng(minLatitude, minLongitude),
+        northeast: gm.LatLng(maxLatitude, maxLongitude),
+      ),
+      padding,
+    );
+    if (animate) {
+      await controller.animateCamera(update);
+    } else {
+      await controller.moveCamera(update);
+    }
     final currentZoom = await controller.getZoomLevel();
     if (currentZoom > maxZoom) {
-      if (animate) { await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom)); } else { await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom)); }
+      if (animate) {
+        await controller.animateCamera(gm.CameraUpdate.zoomTo(maxZoom));
+      } else {
+        await controller.moveCamera(gm.CameraUpdate.zoomTo(maxZoom));
+      }
     }
   }
 
@@ -144,10 +157,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   RamoRouteMotionPath? _driverMotionPath;
   late final AnimationController _driverMoveController;
   late final AnimationController _routeDrawController;
-  gm.BitmapDescriptor _passengerIcon =
-      gm.BitmapDescriptor.defaultMarker;
-  gm.BitmapDescriptor _destinationIcon =
-      gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _passengerIcon = gm.BitmapDescriptor.defaultMarker;
+  gm.BitmapDescriptor _destinationIcon = gm.BitmapDescriptor.defaultMarker;
   final Map<String, gm.BitmapDescriptor> _vehicleIcons = {};
 
   domain.LatLng get _driverPoint {
@@ -163,8 +174,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     super.initState();
     final supply = widget.supply;
     if (supply != null) {
-      _displayDriverPoint =
-          domain.LatLng(supply.latitude, supply.longitude);
+      _displayDriverPoint = domain.LatLng(supply.latitude, supply.longitude);
     }
     _driverMoveController = AnimationController(
       vsync: this,
@@ -201,9 +211,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   void _tickDriverMovement() {
     final path = _driverMotionPath;
     if (path == null || !mounted) return;
-    final t = Curves.easeInOutCubic.transform(
-      _driverMoveController.value,
-    );
+    final t = Curves.easeInOutCubic.transform(_driverMoveController.value);
     final sample = path.sample(t);
     setState(() {
       _displayDriverPoint = domain.LatLng(
@@ -218,11 +226,10 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     const earthRadius = 6371000.0;
     final lat1 = from.latitude * math.pi / 180;
     final lat2 = to.latitude * math.pi / 180;
-    final deltaLat =
-        (to.latitude - from.latitude) * math.pi / 180;
-    final deltaLon =
-        (to.longitude - from.longitude) * math.pi / 180;
-    final a = math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+    final deltaLat = (to.latitude - from.latitude) * math.pi / 180;
+    final deltaLon = (to.longitude - from.longitude) * math.pi / 180;
+    final a =
+        math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
         math.cos(lat1) *
             math.cos(lat2) *
             math.sin(deltaLon / 2) *
@@ -230,10 +237,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     return earthRadius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
   }
 
-  void _moveDriverSmoothly(
-    domain.LatLng from,
-    domain.LatLng to,
-  ) {
+  void _moveDriverSmoothly(domain.LatLng from, domain.LatLng to) {
     final current = _displayDriverPoint ?? from;
     final distance = _distanceMeters(current, to);
 
@@ -254,11 +258,10 @@ class _DriverLiveMapState extends State<DriverLiveMap>
           .toList(growable: false),
     );
     _driverMoveController.duration = Duration(
-      milliseconds:
-          ((_driverMotionPath!.totalMeters / 8) * 1000)
-              .round()
-              .clamp(900, 6000)
-              .toInt(),
+      milliseconds: ((_driverMotionPath!.totalMeters / 8) * 1000)
+          .round()
+          .clamp(900, 6000)
+          .toInt(),
     );
     _driverMoveController.forward(from: 0);
   }
@@ -309,7 +312,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     final lat2 = to.latitude * math.pi / 180;
     final dLon = (to.longitude - from.longitude) * math.pi / 180;
     final y = math.sin(dLon) * math.cos(lat2);
-    final x = math.cos(lat1) * math.sin(lat2) -
+    final x =
+        math.cos(lat1) * math.sin(lat2) -
         math.sin(lat1) * math.cos(lat2) * math.cos(dLon);
     final degrees = math.atan2(y, x) * 180 / math.pi;
     return (degrees + 360) % 360;
@@ -360,18 +364,17 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       _displayDriverPoint = null;
     } else if (previousSupply == null) {
       _driverMoveController.stop();
-      _displayDriverPoint =
-          domain.LatLng(nextSupply.latitude, nextSupply.longitude);
+      _displayDriverPoint = domain.LatLng(
+        nextSupply.latitude,
+        nextSupply.longitude,
+      );
     } else if (previousSupply.latitude != nextSupply.latitude ||
         previousSupply.longitude != nextSupply.longitude) {
       final from = domain.LatLng(
         previousSupply.latitude,
         previousSupply.longitude,
       );
-      final to = domain.LatLng(
-        nextSupply.latitude,
-        nextSupply.longitude,
-      );
+      final to = domain.LatLng(nextSupply.latitude, nextSupply.longitude);
       _moveDriverSmoothly(from, to);
     }
   }
@@ -418,17 +421,12 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     markers.add(
       gm.Marker(
         markerId: const gm.MarkerId('current-driver'),
-        position: gm.LatLng(
-          driverPoint.latitude,
-          driverPoint.longitude,
-        ),
+        position: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
         icon: _vehicleIcon(_currentVehicleCategory()),
         anchor: const Offset(.5, .5),
         flat: true,
         rotation: _displayDriverBearing,
-        infoWindow: const gm.InfoWindow(
-          title: 'Você',
-        ),
+        infoWindow: const gm.InfoWindow(title: 'Você'),
       ),
     );
 
@@ -437,15 +435,10 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       markers.add(
         gm.Marker(
           markerId: const gm.MarkerId('pickup'),
-          position: gm.LatLng(
-            ride!.pickupLatitude!,
-            ride.pickupLongitude!,
-          ),
+          position: gm.LatLng(ride!.pickupLatitude!, ride.pickupLongitude!),
           icon: _passengerIcon,
           anchor: const Offset(.5, .5),
-          infoWindow: const gm.InfoWindow(
-            title: 'Embarque',
-          ),
+          infoWindow: const gm.InfoWindow(title: 'Embarque'),
         ),
       );
     }
@@ -454,15 +447,10 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       markers.add(
         gm.Marker(
           markerId: const gm.MarkerId('dropoff'),
-          position: gm.LatLng(
-            ride!.dropoffLatitude!,
-            ride.dropoffLongitude!,
-          ),
+          position: gm.LatLng(ride!.dropoffLatitude!, ride.dropoffLongitude!),
           icon: _destinationIcon,
           anchor: const Offset(.5, .5),
-          infoWindow: const gm.InfoWindow(
-            title: 'Destino',
-          ),
+          infoWindow: const gm.InfoWindow(title: 'Destino'),
         ),
       );
     }
@@ -482,12 +470,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       gm.Polyline(
         polylineId: const gm.PolylineId('driver-route'),
         points: visiblePoints
-            .map(
-              (point) => gm.LatLng(
-                point.latitude,
-                point.longitude,
-              ),
-            )
+            .map((point) => gm.LatLng(point.latitude, point.longitude))
             .toList(growable: false),
         color: const Color(0xFF111111),
         width: 7,
@@ -516,10 +499,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     final driverPoint = _driverPoint;
     return gm.GoogleMap(
       initialCameraPosition: gm.CameraPosition(
-        target: gm.LatLng(
-          driverPoint.latitude,
-          driverPoint.longitude,
-        ),
+        target: gm.LatLng(driverPoint.latitude, driverPoint.longitude),
         zoom: DriverMapConfig.fallbackZoom,
       ),
       onMapCreated: _onMapCreated,

@@ -17,18 +17,22 @@ import '../domain/wallet_topup_result.dart';
 import 'passenger_payment_service.dart';
 import '../../rides/data/driver_confirmation_service.dart';
 
-class HttpPassengerPaymentService implements PassengerPaymentService, DriverConfirmationService, SavedCardService {
+class HttpPassengerPaymentService
+    implements
+        PassengerPaymentService,
+        DriverConfirmationService,
+        SavedCardService {
   HttpPassengerPaymentService({
     required Uri baseUrl,
     String? accessToken,
     String? passengerId,
     String? clientInstanceId,
     http.Client? client,
-  })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? '',
-        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
-        _clientInstanceId = clientInstanceId ?? '',
-        _client = client ?? http.Client();
+  }) : _baseUrl = baseUrl,
+       _accessToken = accessToken ?? '',
+       _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
+       _clientInstanceId = clientInstanceId ?? '',
+       _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
@@ -37,89 +41,167 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
   final http.Client _client;
 
   Map<String, String> get _identityHeaders => {
-        'content-type': 'application/json',
-        if (_accessToken.trim().isNotEmpty)
-          'authorization': 'Bearer ${_accessToken.trim()}'
-        else if (_passengerId.trim().isNotEmpty)
-          'x-dev-passenger-id': _passengerId.trim(),
-        if (_clientInstanceId.trim().isNotEmpty)
-          'x-client-instance-id': _clientInstanceId.trim(),
-      };
+    'content-type': 'application/json',
+    if (_accessToken.trim().isNotEmpty)
+      'authorization': 'Bearer ${_accessToken.trim()}'
+    else if (_passengerId.trim().isNotEmpty)
+      'x-dev-passenger-id': _passengerId.trim(),
+    if (_clientInstanceId.trim().isNotEmpty)
+      'x-client-instance-id': _clientInstanceId.trim(),
+  };
 
   @override
   Future<List<SavedPassengerCard>> savedCards() async {
-    final response = await _client.get(_baseUrl.resolve('/v1/passenger/cards'), headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final response = await _client
+        .get(_baseUrl.resolve('/v1/passenger/cards'), headers: _identityHeaders)
+        .timeout(RamoCoreConfig.requestTimeout);
     final json = decodeJsonObject(response.body);
-    if (response.statusCode != 200 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos carregar seus cartões.'));
-    return (json['cards'] as List).map((card) => SavedPassengerCard.fromJson(card as Map<String,dynamic>)).toList();
+    if (response.statusCode != 200 || json == null) {
+      throw PassengerPaymentException(
+        apiErrorMessage(json, 'Não conseguimos carregar seus cartões.'),
+      );
+    }
+    return (json['cards'] as List)
+        .map(
+          (card) => SavedPassengerCard.fromJson(card as Map<String, dynamic>),
+        )
+        .toList();
   }
+
   @override
-  Future<SavedPassengerCard> saveCard({required String token, required String payerEmail}) async {
-    final response = await _client.post(_baseUrl.resolve('/v1/passenger/cards'), headers: _identityHeaders,
-      body: jsonEncode({'token':token, 'payerEmail':payerEmail})).timeout(RamoCoreConfig.requestTimeout);
+  Future<SavedPassengerCard> saveCard({
+    required String token,
+    required String payerEmail,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/passenger/cards'),
+          headers: _identityHeaders,
+          body: jsonEncode({'token': token, 'payerEmail': payerEmail}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
     final json = decodeJsonObject(response.body);
-    if (response.statusCode != 201 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos salvar o cartão.'));
-    return SavedPassengerCard.fromJson(json['card'] as Map<String,dynamic>);
+    if (response.statusCode != 201 || json == null) {
+      throw PassengerPaymentException(
+        apiErrorMessage(json, 'Não conseguimos salvar o cartão.'),
+      );
+    }
+    return SavedPassengerCard.fromJson(json['card'] as Map<String, dynamic>);
   }
+
   @override
   Future<void> removeCard(String id) async {
-    final response = await _client.delete(_baseUrl.resolve('/v1/passenger/cards/${Uri.encodeComponent(id)}'), headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
-    if (response.statusCode != 200) throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body),'Não conseguimos remover o cartão.'));
+    final response = await _client
+        .delete(
+          _baseUrl.resolve('/v1/passenger/cards/${Uri.encodeComponent(id)}'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw PassengerPaymentException(
+        apiErrorMessage(
+          decodeJsonObject(response.body),
+          'Não conseguimos remover o cartão.',
+        ),
+      );
+    }
   }
+
   @override
-  Future<CardRidePaymentResult> payWithCard({required String rideId, required String idempotencyKey,
-      required CardTokenizationResult card, required String payerEmail, String? savedCardId}) async {
-    final response = await _client.post(_baseUrl.resolve('/v1/rides/$rideId/payments'),
-      headers: {..._identityHeaders,'idempotency-key':idempotencyKey}, body: jsonEncode({
-        'method':'card','cardToken':card.token,'paymentMethodId':card.paymentMethodId,
-        'paymentMethodType':card.paymentMethodType,'installments':1,'payerEmail':payerEmail,
-        if (savedCardId != null) 'savedCardId':savedCardId,
-      })).timeout(RamoCoreConfig.requestTimeout);
+  Future<CardRidePaymentResult> payWithCard({
+    required String rideId,
+    required String idempotencyKey,
+    required CardTokenizationResult card,
+    required String payerEmail,
+    String? savedCardId,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/payments'),
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
+          body: jsonEncode({
+            'method': 'card',
+            'cardToken': card.token,
+            'paymentMethodId': card.paymentMethodId,
+            'paymentMethodType': card.paymentMethodType,
+            'installments': 1,
+            'payerEmail': payerEmail,
+            if (savedCardId != null) 'savedCardId': savedCardId,
+          }),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
     final json = decodeJsonObject(response.body);
-    if (response.statusCode != 201 || json == null) throw PassengerPaymentException(apiErrorMessage(json,'Não conseguimos confirmar o pagamento.'));
+    if (response.statusCode != 201 || json == null) {
+      throw PassengerPaymentException(
+        apiErrorMessage(json, 'Não conseguimos confirmar o pagamento.'),
+      );
+    }
     return CardRidePaymentResult.fromJson(json);
   }
 
   @override
   Future<void> requestDriverConfirmation(String rideId) async {
-    final response = await _client.post(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
-      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body), 'Não conseguimos consultar um motorista.'));
+      throw PassengerPaymentException(
+        apiErrorMessage(
+          decodeJsonObject(response.body),
+          'Não conseguimos consultar um motorista.',
+        ),
+      );
     }
   }
 
   @override
   Future<DriverConfirmation> driverConfirmation(String rideId) async {
-    final response = await _client.get(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
-      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
     final json = decodeJsonObject(response.body);
     if (response.statusCode != 200 || json == null) {
-      throw PassengerPaymentException(apiErrorMessage(json, 'Não conseguimos atualizar a reserva.'));
+      throw PassengerPaymentException(
+        apiErrorMessage(json, 'Não conseguimos atualizar a reserva.'),
+      );
     }
     final driver = json['driver'];
     if (driver is Map<String, dynamic> && driver['photoPath'] is String) {
-      driver['photoUrl'] = _baseUrl.resolve(driver['photoPath'] as String).toString();
+      driver['photoUrl'] = _baseUrl
+          .resolve(driver['photoPath'] as String)
+          .toString();
     }
     return DriverConfirmation.fromJson(json);
   }
 
   @override
   Future<void> releaseDriverReservation(String rideId) async {
-    final response = await _client.delete(_baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
-      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final response = await _client
+        .delete(
+          _baseUrl.resolve('/v1/rides/$rideId/driver-confirmation'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
     if (response.statusCode != 200) {
-      throw PassengerPaymentException(apiErrorMessage(decodeJsonObject(response.body), 'Não conseguimos cancelar a reserva.'));
+      throw PassengerPaymentException(
+        apiErrorMessage(
+          decodeJsonObject(response.body),
+          'Não conseguimos cancelar a reserva.',
+        ),
+      );
     }
   }
 
   @override
   Future<PassengerPaymentPolicy> paymentPolicy() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/payments/policy'),
-          headers: _identityHeaders,
-        )
+        .get(_baseUrl.resolve('/v1/payments/policy'), headers: _identityHeaders)
         .timeout(RamoCoreConfig.requestTimeout);
 
     final decoded = decodeJsonObject(response.body);
@@ -169,9 +251,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
   }
 
   @override
-  Future<PassengerPromotionSaveResult> savePromotionCode(
-    String code,
-  ) async {
+  Future<PassengerPromotionSaveResult> savePromotionCode(String code) async {
     final response = await _client
         .put(
           _baseUrl.resolve('/v1/promotions/preference'),
@@ -220,8 +300,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
           _baseUrl.resolve('/v1/rides/$rideId/promotion'),
           headers: _identityHeaders,
           body: jsonEncode({
-            if (code != null && code.trim().isNotEmpty)
-              'code': code.trim(),
+            if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);
@@ -264,8 +343,9 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
   }
 
   @override
-  Future<FullyPromotionalRidePaymentResult>
-      confirmFullyPromotionalRide(String rideId) async {
+  Future<FullyPromotionalRidePaymentResult> confirmFullyPromotionalRide(
+    String rideId,
+  ) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/promotion/confirm'),
@@ -293,10 +373,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
   @override
   Future<int> walletBalanceCents() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/wallet'),
-          headers: _identityHeaders,
-        )
+        .get(_baseUrl.resolve('/v1/wallet'), headers: _identityHeaders)
         .timeout(RamoCoreConfig.requestTimeout);
 
     final decoded = decodeJsonObject(response.body);
@@ -310,10 +387,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos consultar a carteira agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos consultar a carteira agora.'),
     );
   }
 
@@ -326,10 +400,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/wallet/topups'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({
             'method': 'pix',
             'amountCents': amountCents,
@@ -350,10 +421,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos gerar a recarga Pix agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos gerar a recarga Pix agora.'),
     );
   }
 
@@ -380,10 +448,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos consultar a recarga agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos consultar a recarga agora.'),
     );
   }
 
@@ -429,10 +494,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({'method': 'pix'}),
         )
         .timeout(RamoCoreConfig.requestTimeout);
@@ -449,10 +511,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos gerar o Pix agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos gerar o Pix agora.'),
     );
   }
 
@@ -468,10 +527,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({
             'method': 'card',
             'cardToken': cardToken,
@@ -494,10 +550,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos processar o cartão agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos processar o cartão agora.'),
     );
   }
 
@@ -509,10 +562,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({'method': 'cash'}),
         )
         .timeout(RamoCoreConfig.requestTimeout);
@@ -544,10 +594,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/payments'),
-          headers: {
-            ..._identityHeaders,
-            'idempotency-key': idempotencyKey,
-          },
+          headers: {..._identityHeaders, 'idempotency-key': idempotencyKey},
           body: jsonEncode({'method': 'wallet'}),
         )
         .timeout(RamoCoreConfig.requestTimeout);
@@ -564,10 +611,7 @@ class HttpPassengerPaymentService implements PassengerPaymentService, DriverConf
     }
 
     throw PassengerPaymentException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos pagar com a carteira agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos pagar com a carteira agora.'),
     );
   }
 }
