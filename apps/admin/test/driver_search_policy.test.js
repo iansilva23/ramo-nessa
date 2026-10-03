@@ -13,4 +13,5 @@ test('editor converte reais em centavos e exige cobertura completa de distância
   assert.equal(readSearchCategory(input).pickupFees[1].amountCents, 990);
   assert.throws(() => readSearchCategory({ ...input, pickupFees: input.pickupFees.slice(0, 1) }));
   assert.throws(() => readSearchCategory({ ...input, expandedKm: 2 }));
+  assert.throws(() => readSearchCategory({ ...input, pickupFees: [{ upToKm: 15, amountReais: '' }] }));
 });

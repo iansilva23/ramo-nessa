@@ -1,3 +1,4 @@
+import type { RoutingDistanceProvider } from '../routing/distance-provider.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
@@ -28,6 +29,7 @@ export type DispatchNextResult =
     };
 
 export async function dispatchNextDriver(input: {
+  routing?: RoutingDistanceProvider;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
@@ -137,6 +139,23 @@ export async function dispatchNextDriver(input: {
     candidates = allowed;
   }
 
+  if (ride.driverSearchMaxDistanceKm != null) {
+    const routed = [];
+    for (const candidate of candidates) {
+      if (input.routing == null) continue;
+      try {
+        const distance = await input.routing.routeDistanceKm({
+          from: { latitude: candidate.supply.latitude!, longitude: candidate.supply.longitude! },
+          to: input.pickup,
+        });
+        if (Number.isFinite(distance) && distance >= 0 && distance <= ride.driverSearchMaxDistanceKm) {
+          routed.push(candidate);
+          break;
+        }
+      } catch { /* An unverified pickup distance must not expand the passenger's search. */ }
+    }
+    candidates = routed;
+  }
   const next = candidates[0];
   if (next == null) {
     await input.matching.markNoDriverFound({

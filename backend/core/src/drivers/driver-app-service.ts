@@ -1,3 +1,4 @@
+import type { RoutingDistanceProvider } from '../routing/distance-provider.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from './driver-supply-repository.js';
 import type {
@@ -278,6 +279,7 @@ export function driverOfferView(offer: {
 }
 
 export async function currentDriverOffer(input: {
+  routing?: RoutingDistanceProvider;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
   registry: DriverRegistryRepository;
@@ -325,6 +327,7 @@ export async function currentDriverOffer(input: {
       (ride.state === 'PAID' || ride.state === 'SEARCHING_DRIVER')
     ) {
       await dispatchNextDriver({
+        ...(input.routing == null ? {} : { routing: input.routing }),
         rides: input.rides,
         drivers: input.drivers,
         matching: input.matching,
@@ -421,6 +424,7 @@ export async function acceptOfferFromDriverApp(input: {
 }
 
 export async function rejectOfferFromDriverApp(input: {
+  routing?: RoutingDistanceProvider;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
@@ -459,6 +463,7 @@ export async function rejectOfferFromDriverApp(input: {
   }
 
   const dispatch = await dispatchNextDriver({
+        ...(input.routing == null ? {} : { routing: input.routing }),
     rides: input.rides,
     drivers: input.drivers,
     matching: input.matching,

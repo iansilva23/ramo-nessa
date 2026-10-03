@@ -9,8 +9,45 @@ import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/http_ride_preparation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/expandable_ride_preparation_service.dart';
 
 void main() {
+  test('busca normal não amplia; busca escolhida envia raio e conserva o erro do Core', () async {
+    final bodies = <Map<String, dynamic>>[];
+    final service = HttpRidePreparationService(
+      baseUrl: Uri.parse('https://core.ramonessa.test'),
+      client: MockClient((request) async {
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode({'categories': {'car': {
+            'nearbyKm': 3, 'expandedKm': 15, 'allowExpansion': true,
+            'useCustomPickupFees': true,
+            'pickupFees': [{'upToKm': 15, 'amountCents': 990}],
+          }}}), 200);
+        }
+        bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(jsonEncode({'error': 'NO_ELIGIBLE_DRIVER', 'message': 'Sem motorista'}), 409);
+      }),
+    );
+    const request = RideSearchRequest(
+      service: ServiceType.car,
+      origin: RamoPlace(name: 'Preá', address: 'Preá', position: LatLng(-2.82017, -40.41467)),
+      destination: RamoPlace(name: 'Jijoca', address: 'Jijoca', position: LatLng(-2.89860, -40.45060)),
+      originZoneId: 'prea', destinationZoneId: 'jijoca',
+      route: RouteInfo(points: [LatLng(-2.82017, -40.41467), LatLng(-2.89860, -40.45060)],
+        distanceMeters: 12000, duration: Duration(minutes: 20)),
+    );
+    final noDriver = throwsA(isA<RidePreparationException>().having((e) => e.code, 'code', 'NO_ELIGIBLE_DRIVER'));
+    await expectLater(service.prepare(service: request.service, origin: request.origin,
+      destination: request.destination, originZoneId: request.originZoneId,
+      destinationZoneId: request.destinationZoneId, route: request.route), noDriver);
+    expect(bodies.single.containsKey('searchRadiusKm'), false);
+    final policy = await service.searchOptions(ServiceType.car);
+    expect(policy.allowExpansion, true);
+    expect(policy.feeDescription, contains('9,90'));
+    await expectLater(service.prepareWithRadius(request, policy.expandedKm), noDriver);
+    expect(bodies.last['searchRadiusKm'], 15);
+  });
+
   test('preparação envia prova assinada de localidade local ao Core', () async {
     late http.Request captured;
     final client = MockClient((request) async {

@@ -986,7 +986,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             'Não encontramos motorista disponível até ${options.nearbyKm} km. '
             'Você pode ampliar a busca para até ${options.expandedKm} km.\n\n'
             '${options.feeDescription}\n\n'
-            'Você verá quem aceitou, a previsão de chegada e o preço antes de confirmar.')),
+            'O preço final será mostrado antes do pagamento. Um motorista mais distante pode demorar mais para chegar.')),
           actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Manter perto')),
             FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Ampliar busca'))],
         ));

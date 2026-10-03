@@ -6881,7 +6881,6 @@ function renderOperationalSettings(
   const numericIds = [
     'driver-offer-ttl-seconds',
     'driver-payment-hold-seconds',
-    'driver-search-max-distance-km',
     'no-driver-decision-timeout-seconds',
     'driver-location-max-age-seconds',
     'nearby-driver-max-distance-km',
@@ -6897,6 +6896,7 @@ function renderOperationalSettings(
     tone = 'neutral',
   ) => {
     state.operationalSettings = null;
+    driverSearchAdmin?.load(null);
     for (const id of numericIds) {
       const input = byId(id);
       input.value = '';
@@ -6928,7 +6928,6 @@ function renderOperationalSettings(
   }
   const ttl = Number(payload.driverOfferTtlSeconds);
   const paymentHold = Number(payload.driverPaymentHoldSeconds);
-  const searchDistance = Number(payload.driverSearchMaxDistanceKm ?? 5);
   const noDriverDecisionTimeout = Number(
     payload.noDriverDecisionTimeoutSeconds,
   );
@@ -6975,9 +6974,9 @@ function renderOperationalSettings(
       : null;
 
   state.operationalSettings = {
+    driverSearchPolicy: payload.driverSearchPolicy,
     driverOfferTtlSeconds: ttl,
     driverPaymentHoldSeconds: paymentHold,
-    driverSearchMaxDistanceKm: searchDistance,
     noDriverDecisionTimeoutSeconds: noDriverDecisionTimeout,
     driverLocationMaxAgeSeconds: locationMaxAge,
     nearbyDriverMaxDistanceKm: nearbyDistance,
@@ -6987,7 +6986,6 @@ function renderOperationalSettings(
   };
 
   byId('driver-offer-ttl-seconds').value = String(ttl);
-  byId('driver-search-max-distance-km').value = String(searchDistance);
   byId('driver-payment-hold-seconds').value =
     String(paymentHold);
   byId('no-driver-decision-timeout-seconds').value =
@@ -7014,7 +7012,6 @@ function renderOperationalSettings(
   const canWrite = hasScope('rides:write');
   byId('driver-offer-ttl-seconds').disabled = !canWrite;
   byId('driver-payment-hold-seconds').disabled = !canWrite;
-  byId('driver-search-max-distance-km').disabled = !canWrite;
   byId('no-driver-decision-timeout-seconds').disabled = !canWrite;
   byId('driver-location-max-age-seconds').disabled = !canWrite;
   byId('nearby-driver-max-distance-km').disabled = !canWrite;
@@ -7061,10 +7058,6 @@ async function handleOperationalSettingsSubmit(event) {
   }
 
   const ttl = Number(byId('driver-offer-ttl-seconds').value);
-  const searchMaxDistanceKm = Number(byId('driver-search-max-distance-km').value);
-  if (!Number.isFinite(searchMaxDistanceKm) || searchMaxDistanceKm < 0.5 || searchMaxDistanceKm > 100) {
-    setMessage(globalMessage, 'A busca deve ficar entre 0,5 e 100 km.', 'danger'); return;
-  }
   const paymentHoldSeconds = Number(
     byId('driver-payment-hold-seconds').value,
   );
@@ -7143,7 +7136,6 @@ async function handleOperationalSettingsSubmit(event) {
     const settings = await api.updateOperationalSettings(state.token, {
       driverOfferTtlSeconds: ttl,
       driverPaymentHoldSeconds: paymentHoldSeconds,
-      driverSearchMaxDistanceKm: searchMaxDistanceKm,
       noDriverDecisionTimeoutSeconds,
       driverLocationMaxAgeSeconds: locationMaxAgeSeconds,
       nearbyDriverMaxDistanceKm: nearbyMaxDistanceKm,

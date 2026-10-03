@@ -1,3 +1,4 @@
+import type { RoutingDistanceProvider } from '../routing/distance-provider.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
@@ -15,6 +16,7 @@ export type PostPaymentDispatchResult =
   | { kind: 'NOT_PREPARED' };
 
 export async function dispatchRideAfterPayment(input: {
+  routing?: RoutingDistanceProvider;
   ride: RideRecord;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
@@ -34,6 +36,7 @@ export async function dispatchRideAfterPayment(input: {
   }
 
   return dispatchNextDriver({
+    ...(input.routing == null ? {} : { routing: input.routing }),
     rides: input.rides,
     drivers: input.drivers,
     matching: input.matching,

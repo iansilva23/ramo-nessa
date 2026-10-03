@@ -930,6 +930,7 @@ async function processConfirmedMercadoPagoRide(
     | undefined;
   try {
     dispatch = await dispatchRideAfterPayment({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
       ride,
       rides: rideRepository,
       drivers: driverSupplyRepository,
@@ -7176,6 +7177,7 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
       });
       const offer = await currentDriverOffer({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
         rides: rideRepository,
         drivers: driverSupplyRepository,
         registry: driverRegistryRepository,
@@ -7263,6 +7265,7 @@ const server = createServer(async (request, response) => {
         await rideMatchingRepository.findOfferById(offerId);
 
       const result = await rejectOfferFromDriverApp({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
         rides: rideRepository,
         drivers: driverSupplyRepository,
         matching: rideMatchingRepository,
@@ -7956,6 +7959,7 @@ const server = createServer(async (request, response) => {
         dispatchStatus = 'NO_DRIVER_FOUND';
       } else {
         const dispatch = await dispatchRideAfterPayment({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
           ride: currentRide,
           rides: rideRepository,
           drivers: driverSupplyRepository,
@@ -8181,6 +8185,7 @@ const server = createServer(async (request, response) => {
           dispatchStatus = 'SEARCHING_DRIVER';
         } else {
           const dispatch = await dispatchRideAfterPayment({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
             ride: currentRide,
             rides: rideRepository,
             drivers: driverSupplyRepository,
@@ -8308,6 +8313,7 @@ const server = createServer(async (request, response) => {
               | undefined;
             try {
               dispatch = await dispatchRideAfterPayment({
+      ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
                 ride: currentRide,
                 rides: rideRepository,
                 drivers: driverSupplyRepository,
