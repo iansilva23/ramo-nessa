@@ -7,6 +7,7 @@ import type {
 } from '../passenger-saved-place-repository.js';
 
 interface PassengerSavedPlaceRow {
+  address_details: PassengerSavedPlaceRecord['addressDetails'] | null;
   id: string;
   passenger_id: string;
   kind: PassengerSavedPlaceKind;
@@ -37,6 +38,7 @@ function mapPlace(
     label: row.label,
     name: row.name,
     address: row.address,
+    ...(row.address_details == null ? {} : { addressDetails: row.address_details }),
     latitude: Number(row.latitude),
     longitude: Number(row.longitude),
     ...(row.provider_place_id == null
@@ -57,7 +59,7 @@ const COLUMNS = `
   id, passenger_id, kind, label, name, address,
   latitude, longitude, provider_place_id,
   approved_pricing_zone_id, approved_pricing_locality_id,
-  created_at, updated_at
+  created_at, updated_at, address_details
 `;
 
 export class PostgresPassengerSavedPlaceRepository
@@ -96,14 +98,15 @@ export class PostgresPassengerSavedPlaceRepository
           id, passenger_id, kind, label, name, address,
           latitude, longitude, provider_place_id,
           approved_pricing_zone_id, approved_pricing_locality_id,
-          created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          created_at, updated_at, address_details
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         ON CONFLICT (passenger_id, kind)
           WHERE kind IN ('home', 'work')
         DO UPDATE SET
           label = EXCLUDED.label,
           name = EXCLUDED.name,
           address = EXCLUDED.address,
+          address_details = EXCLUDED.address_details,
           latitude = EXCLUDED.latitude,
           longitude = EXCLUDED.longitude,
           provider_place_id = EXCLUDED.provider_place_id,
@@ -118,8 +121,17 @@ export class PostgresPassengerSavedPlaceRepository
           id, passenger_id, kind, label, name, address,
           latitude, longitude, provider_place_id,
           approved_pricing_zone_id, approved_pricing_locality_id,
-          created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          created_at, updated_at, address_details
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label,
+          name = EXCLUDED.name, address = EXCLUDED.address,
+          address_details = EXCLUDED.address_details,
+          latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
+          provider_place_id = EXCLUDED.provider_place_id,
+          approved_pricing_zone_id = EXCLUDED.approved_pricing_zone_id,
+          approved_pricing_locality_id = EXCLUDED.approved_pricing_locality_id,
+          updated_at = EXCLUDED.updated_at
+        WHERE passenger_saved_places.passenger_id = EXCLUDED.passenger_id
         RETURNING ${COLUMNS}
         `;
 
@@ -139,6 +151,7 @@ export class PostgresPassengerSavedPlaceRepository
         place.approvedPricingLocalityId ?? null,
         place.createdAt,
         place.updatedAt,
+        place.addressDetails ?? null,
       ],
     );
     const row = result.rows[0];
@@ -150,7 +163,8 @@ export class PostgresPassengerSavedPlaceRepository
 
   async deleteByPassenger(input: {
     passengerId: string;
-    id: string;
+    address_details: PassengerSavedPlaceRecord['addressDetails'] | null;
+  id: string;
   }): Promise<boolean> {
     const result = await this.pool.query(
       `

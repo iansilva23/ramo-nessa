@@ -10,3 +10,7 @@ abstract interface class PlaceSearchService {
 abstract interface class CoordinatePlaceResolver {
   Future<RamoPlace?> classifyCoordinate(LatLng coordinate);
 }
+
+abstract interface class CoordinateAddressResolver {
+  Future<RamoPlace?> reverseCoordinate(LatLng coordinate);
+}

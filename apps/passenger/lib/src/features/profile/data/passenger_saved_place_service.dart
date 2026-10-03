@@ -8,6 +8,7 @@ class PassengerSavedPlace {
     required this.name,
     required this.address,
     required this.position,
+    this.addressDetails = const {},
     this.providerPlaceId,
     this.approvedPricingZoneId,
     this.approvedPricingLocalityId,
@@ -17,6 +18,8 @@ class PassengerSavedPlace {
 
   factory PassengerSavedPlace.fromJson(Map<String, dynamic> json) {
     return PassengerSavedPlace(
+      addressDetails: json['addressDetails'] is Map
+          ? Map<String, dynamic>.from(json['addressDetails'] as Map) : const {},
       id: json['id'] as String,
       kind: json['kind'] as String,
       label: json['label'] as String,
@@ -47,6 +50,15 @@ class PassengerSavedPlace {
     );
   }
 
+  final Map<String, dynamic> addressDetails;
+  bool get mapPinned => addressDetails['mapPinned'] == true;
+  String get fullAddress => [
+    address,
+    if (addressDetails['noNumber'] == true) 'Sem número'
+    else if (addressDetails['houseNumber'] != null) 'Nº ${addressDetails['houseNumber']}',
+    if (addressDetails['complement'] != null) addressDetails['complement'].toString(),
+    if (addressDetails['reference'] != null) 'Referência: ${addressDetails['reference']}',
+  ].join(' — ');
   final String id;
   final String kind;
   final String label;
@@ -73,6 +85,8 @@ abstract interface class PassengerSavedPlaceService {
   Future<List<PassengerSavedPlace>> list();
 
   Future<PassengerSavedPlace> save({
+    String? id,
+    Map<String, dynamic>? addressDetails,
     required String kind,
     String? label,
     required String name,

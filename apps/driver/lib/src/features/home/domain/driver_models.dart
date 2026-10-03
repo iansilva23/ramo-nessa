@@ -83,6 +83,8 @@ class DriverOffer {
     required this.expiresAt,
     required this.approximatePickupDistanceKm,
     this.tripDistanceKm,
+    this.pickupInstructions,
+    this.dropoffInstructions,
     this.pickupLatitude,
     this.pickupLongitude,
     this.dropoffLatitude,
@@ -106,6 +108,8 @@ class DriverOffer {
       approximatePickupDistanceKm:
           (json['approximatePickupDistanceKm'] as num).toDouble(),
       tripDistanceKm: (json['tripDistanceKm'] as num?)?.toDouble(),
+      pickupInstructions: json['pickupInstructions'] as String?,
+      dropoffInstructions: json['dropoffInstructions'] as String?,
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
       pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble(),
       dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble(),
@@ -134,6 +138,8 @@ class DriverOffer {
   final DateTime expiresAt;
   final double approximatePickupDistanceKm;
   final double? tripDistanceKm;
+  final String? pickupInstructions;
+  final String? dropoffInstructions;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;
@@ -174,6 +180,8 @@ class AcceptedDriverRide {
     this.driverHoldExpiresAt,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
+    this.pickupInstructions,
+    this.dropoffInstructions,
     this.pickupLatitude,
     this.pickupLongitude,
     this.dropoffLatitude,
@@ -201,6 +209,8 @@ class AcceptedDriverRide {
           (json['cashCollectionAmountCents'] as num?)?.toInt(),
       cashCommissionCents:
           (json['cashCommissionCents'] as num?)?.toInt(),
+      pickupInstructions: json['pickupInstructions'] as String?,
+      dropoffInstructions: json['dropoffInstructions'] as String?,
       pickupLatitude: (json['pickupLatitude'] as num?)?.toDouble(),
       pickupLongitude: (json['pickupLongitude'] as num?)?.toDouble(),
       dropoffLatitude: (json['dropoffLatitude'] as num?)?.toDouble(),
@@ -220,6 +230,8 @@ class AcceptedDriverRide {
   final DateTime? driverHoldExpiresAt;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
+  final String? pickupInstructions;
+  final String? dropoffInstructions;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;

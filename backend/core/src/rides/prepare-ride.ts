@@ -46,6 +46,8 @@ export async function prepareRideForPayment(input: {
   passengerId: string;
   quoteRequest: QuoteRequest;
   pricing?: PricingCatalogContext;
+  pickupInstructions?: string | undefined;
+  dropoffInstructions?: string | undefined;
   pickup: GeoPoint;
   dropoff: GeoPoint;
   originLocalityProofVerified?: boolean;
@@ -173,6 +175,8 @@ export async function prepareRideForPayment(input: {
     ...(input.requireDriverConsent ? { driverConsentRequired: true } : {}),
     state: transitionRide('CREATED', 'AWAITING_PAYMENT'),
     paymentStatus: 'created',
+    pickupInstructions: input.pickupInstructions,
+    dropoffInstructions: input.dropoffInstructions,
     pickupLatitude: input.pickup.latitude,
     pickupLongitude: input.pickup.longitude,
     dropoffLatitude: input.dropoff.latitude,

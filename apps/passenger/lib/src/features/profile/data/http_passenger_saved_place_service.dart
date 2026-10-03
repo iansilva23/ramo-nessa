@@ -52,6 +52,8 @@ class HttpPassengerSavedPlaceService
 
   @override
   Future<PassengerSavedPlace> save({
+    String? id,
+    Map<String, dynamic>? addressDetails,
     required String kind,
     String? label,
     required String name,
@@ -66,6 +68,8 @@ class HttpPassengerSavedPlaceService
           _baseUrl.resolve('/v1/passenger/me/saved-places'),
           headers: _headers,
           body: jsonEncode({
+            if (id != null) 'id': id,
+            if (addressDetails != null) 'addressDetails': addressDetails,
             'kind': kind,
             if (label?.trim().isNotEmpty == true)
               'label': label!.trim(),

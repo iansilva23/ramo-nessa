@@ -3730,8 +3730,8 @@ class _OfferCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           _DriverRouteTimeline(
-            origin: offer.origin.displayName,
-            destination: offer.destination.displayName,
+            origin: offer.pickupInstructions ?? offer.origin.displayName,
+            destination: offer.dropoffInstructions ?? offer.destination.displayName,
           ),
           const SizedBox(height: 16),
           _DriverTripMetrics(
@@ -4450,8 +4450,8 @@ class _ActiveRideCard extends StatelessWidget {
             const SizedBox(height: 12),
           ],
           _DriverRouteTimeline(
-            origin: ride.origin.displayName,
-            destination: ride.destination.displayName,
+            origin: ride.pickupInstructions ?? ride.origin.displayName,
+            destination: ride.dropoffInstructions ?? ride.destination.displayName,
           ),
           const SizedBox(height: 14),
           Row(

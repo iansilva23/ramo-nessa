@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  SavedAddressDetails,
   PassengerSavedPlaceKind,
   PassengerSavedPlaceRecord,
   PassengerSavedPlaceRepository,
@@ -93,6 +94,10 @@ function coordinates(input: {
   latitude: unknown;
   longitude: unknown;
 }): { latitude: number; longitude: number } {
+  if (input.latitude == null || input.longitude == null ||
+      input.latitude === '' || input.longitude === '') {
+    throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Coordenadas do local salvo são inválidas.');
+  }
   const latitude =
     typeof input.latitude === 'number'
       ? input.latitude
@@ -119,6 +124,29 @@ function coordinates(input: {
   return { latitude, longitude };
 }
 
+function addressDetails(value: unknown): SavedAddressDetails | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Detalhes do endereço inválidos.');
+  }
+  const v = value as Record<string, unknown>;
+  if (typeof v.mapPinned !== 'boolean' || typeof v.noNumber !== 'boolean') {
+    throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Detalhes do endereço inválidos.');
+  }
+  const optional = (key: string, max: number) => v[key] == null || v[key] === ''
+    ? undefined : cleanText(v[key], 1, max, key);
+  const houseNumber = optional('houseNumber', 20);
+  if (v.mapPinned && !v.noNumber && !houseNumber || v.noNumber && houseNumber) {
+    throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Informe o número ou marque Sem número.');
+  }
+  const complement = optional('complement', 100);
+  const reference = optional('reference', 120);
+  return { mapPinned: v.mapPinned, noNumber: v.noNumber,
+    ...(houseNumber ? { houseNumber } : {}),
+    ...(complement ? { complement } : {}),
+    ...(reference ? { reference } : {}) };
+}
+
 function savedPlaceView(place: PassengerSavedPlaceRecord) {
   return {
     id: place.id,
@@ -126,6 +154,7 @@ function savedPlaceView(place: PassengerSavedPlaceRecord) {
     label: place.label,
     name: place.name,
     address: place.address,
+    ...(place.addressDetails == null ? {} : { addressDetails: place.addressDetails }),
     latitude: place.latitude,
     longitude: place.longitude,
     ...(place.providerPlaceId == null
@@ -161,6 +190,8 @@ export async function savePassengerSavedPlace(input: {
   address: unknown;
   latitude: unknown;
   longitude: unknown;
+  id?: unknown;
+  addressDetails?: unknown;
   providerPlaceId?: unknown;
   approvedPricingZoneId?: unknown;
   approvedPricingLocalityId?: unknown;
@@ -193,6 +224,7 @@ export async function savePassengerSavedPlace(input: {
     'Endereço',
   );
   const point = coordinates(input);
+  const details = addressDetails(input.addressDetails);
   const providerPlaceId = optionalProviderPlaceId(input.providerPlaceId);
   const pricingIdentity = optionalPricingIdentity({
     providerPlaceId,
@@ -204,7 +236,7 @@ export async function savePassengerSavedPlace(input: {
   );
 
   if (
-    typedKind === 'custom' &&
+    typedKind === 'custom' && input.id == null &&
     existing.filter((place) => place.kind === 'custom').length >= 20
   ) {
     throw new PassengerSavedPlaceError(
@@ -213,9 +245,12 @@ export async function savePassengerSavedPlace(input: {
     );
   }
 
-  const slot = existing.find(
+  const slot = input.id == null ? existing.find(
     (place) => place.kind === typedKind && typedKind !== 'custom',
-  );
+  ) : existing.find((place) => place.id === input.id && place.kind === typedKind);
+  if (input.id != null && slot == null) {
+    throw new PassengerSavedPlaceError('SAVED_PLACE_NOT_FOUND', 'Local salvo não encontrado.');
+  }
   const now = (input.now ?? new Date()).toISOString();
   const saved = await input.repository.save({
     id: slot?.id ?? randomUUID(),
@@ -226,6 +261,7 @@ export async function savePassengerSavedPlace(input: {
     address,
     latitude: point.latitude,
     longitude: point.longitude,
+    ...(details == null ? {} : { addressDetails: details }),
     ...pricingIdentity,
     createdAt: slot?.createdAt ?? now,
     updatedAt: now,

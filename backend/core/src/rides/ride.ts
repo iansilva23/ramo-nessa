@@ -32,6 +32,8 @@ export interface RideRecord {
   reservedDriverId?: string;
   driverHoldExpiresAt?: string;
   driverSearchMaxDistanceKm?: number;
+  pickupInstructions?: string | undefined;
+  dropoffInstructions?: string | undefined;
   pickupLatitude?: number;
   pickupLongitude?: number;
   dropoffLatitude?: number;

@@ -235,6 +235,8 @@ class _FakeSavedPlaceService implements PassengerSavedPlaceService {
 
   @override
   Future<PassengerSavedPlace> save({
+    String? id,
+    Map<String, dynamic>? addressDetails,
     required String kind,
     String? label,
     required String name,

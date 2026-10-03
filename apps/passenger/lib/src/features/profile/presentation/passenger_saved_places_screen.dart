@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
 import '../../map/data/place_search_service.dart';
 import '../../map/domain/ramo_place.dart';
 import '../data/passenger_saved_place_service.dart';
+import 'saved_place_pin_screen.dart';
 
 class PassengerSavedPlacesScreen extends StatefulWidget {
   const PassengerSavedPlacesScreen({
     super.key,
     required this.service,
     required this.searchService,
+    this.pinScreenBuilder,
   });
 
   final PassengerSavedPlaceService service;
   final PlaceSearchService searchService;
+  final Widget Function(BuildContext, LatLng?)? pinScreenBuilder;
 
   @override
   State<PassengerSavedPlacesScreen> createState() =>
@@ -76,6 +80,7 @@ class _PassengerSavedPlacesScreenState
         builder: (_) => _SavedPlaceEditorScreen(
           service: widget.service,
           searchService: widget.searchService,
+          pinScreenBuilder: widget.pinScreenBuilder,
           kind: kind,
           existing: existing,
         ),
@@ -337,12 +342,14 @@ class _SavedPlaceEditorScreen extends StatefulWidget {
   const _SavedPlaceEditorScreen({
     required this.service,
     required this.searchService,
+    this.pinScreenBuilder,
     required this.kind,
     this.existing,
   });
 
   final PassengerSavedPlaceService service;
   final PlaceSearchService searchService;
+  final Widget Function(BuildContext, LatLng?)? pinScreenBuilder;
   final String kind;
   final PassengerSavedPlace? existing;
 
@@ -354,6 +361,11 @@ class _SavedPlaceEditorScreen extends StatefulWidget {
 class _SavedPlaceEditorScreenState
     extends State<_SavedPlaceEditorScreen> {
   final _queryController = TextEditingController();
+  late final _numberController = TextEditingController(text: widget.existing?.addressDetails['houseNumber']?.toString() ?? '');
+  late final _complementController = TextEditingController(text: widget.existing?.addressDetails['complement']?.toString() ?? '');
+  late final _referenceController = TextEditingController(text: widget.existing?.addressDetails['reference']?.toString() ?? '');
+  late bool _noNumber = widget.existing?.addressDetails['noNumber'] == true;
+
   late final TextEditingController _labelController =
       TextEditingController(text: widget.existing?.label ?? '');
 
@@ -377,6 +389,7 @@ class _SavedPlaceEditorScreenState
     final existing = widget.existing;
     if (existing != null) {
       _selected = RamoPlace(
+        mapPinned: existing.mapPinned,
         name: existing.name,
         address: existing.address,
         position: existing.position,
@@ -391,9 +404,19 @@ class _SavedPlaceEditorScreenState
 
   @override
   void dispose() {
+    _numberController.dispose();
+    _complementController.dispose();
+    _referenceController.dispose();
     _queryController.dispose();
     _labelController.dispose();
     super.dispose();
+  }
+
+  Future<void> _choosePin() async {
+    final place = await Navigator.of(context).push<RamoPlace>(MaterialPageRoute<RamoPlace>(
+      builder: (context) => widget.pinScreenBuilder?.call(context, _selected?.position) ?? SavedPlacePinScreen(searchService: widget.searchService, initialPosition: _selected?.position)));
+    if (!mounted || place == null) return;
+    setState(() { _selected = place; _results = []; _error = null; _queryController.text = place.name; });
   }
 
   Future<void> _search() async {
@@ -442,6 +465,10 @@ class _SavedPlaceEditorScreenState
       return;
     }
 
+    if (selected.mapPinned && !_noNumber && _numberController.text.trim().isEmpty) {
+      setState(() => _error = 'Informe o número ou marque Sem número.');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -449,6 +476,13 @@ class _SavedPlaceEditorScreenState
 
     try {
       await widget.service.save(
+        id: widget.existing?.id,
+        addressDetails: {
+          'mapPinned': selected.mapPinned, 'noNumber': _noNumber,
+          if (!_noNumber && _numberController.text.trim().isNotEmpty) 'houseNumber': _numberController.text.trim(),
+          if (_complementController.text.trim().isNotEmpty) 'complement': _complementController.text.trim(),
+          if (_referenceController.text.trim().isNotEmpty) 'reference': _referenceController.text.trim(),
+        },
         kind: widget.kind,
         label: widget.kind == 'custom'
             ? _labelController.text.trim()
@@ -524,6 +558,9 @@ class _SavedPlaceEditorScreenState
             ),
             onSubmitted: (_) => _search(),
           ),
+          const SizedBox(height: RamoSpacing.sm),
+          OutlinedButton.icon(onPressed: _saving || _searching ? null : _choosePin,
+            icon: const Icon(Icons.map_outlined), label: const Text('Escolher no mapa')),
           if (_error != null) ...[
             const SizedBox(height: RamoSpacing.sm),
             Text(
@@ -605,6 +642,19 @@ class _SavedPlaceEditorScreenState
                 ],
               ),
             ),
+          ],
+          if (selected != null) ...[
+            const SizedBox(height: RamoSpacing.md),
+            if (selected.mapPinned && selected.address == 'Local escolhido no mapa')
+              const Text('Não encontramos a rua. O alfinete será salvo mesmo assim; informe uma referência para facilitar a chegada.'),
+            TextField(controller: _numberController, enabled: !_saving && !_noNumber, maxLength: 20,
+              decoration: const InputDecoration(labelText: 'Número da casa')),
+            CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('Sem número'),
+              value: _noNumber, onChanged: _saving ? null : (value) => setState(() => _noNumber = value ?? false)),
+            TextField(controller: _complementController, enabled: !_saving, maxLength: 100,
+              decoration: const InputDecoration(labelText: 'Complemento (opcional)', hintText: 'Ex.: apartamento, bloco ou portão')),
+            TextField(controller: _referenceController, enabled: !_saving, maxLength: 120,
+              decoration: const InputDecoration(labelText: 'Ponto de referência (opcional)')),
           ],
           const SizedBox(height: RamoSpacing.xl),
           FilledButton(

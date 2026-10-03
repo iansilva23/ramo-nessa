@@ -145,3 +145,15 @@ status OTP no Admin, depois solicitar e verificar um código em aparelho físico
 Não imprimir `docker compose config` nem `docker inspect` com a chave ativada.
 Código aceito para envio não comprova entrega. Configuração padrão existente
 continua sem OTP real até esse opt-in. Ver `docs/OTP_PRODUCTION.md`.
+
+### Endereços pelo alfinete
+
+O passageiro pode escolher o ponto exato no mapa, informar número ou Sem número,
+complemento e referência. Os detalhes ficam salvos na conta e acompanham a corrida.
+Para identificar automaticamente a rua, habilite **Geocoding API** no mesmo projeto
+Google Cloud e inclua-a nas APIs permitidas da chave privada do servidor, mantendo
+sua restrição ao IP da VPS. A chave continua somente no backend. Sem resultado ou
+com indisponibilidade da API, o endereço pode ser salvo com as coordenadas do pin.
+A área de atendimento e a identidade de preço são verificadas pelo catálogo do Core
+a cada seleção; a geocodificação nunca altera o ponto escolhido nem autoriza preços.
+A migração 079 e os aplicativos atualizados devem ser instalados na atualização conjunta.

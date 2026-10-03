@@ -1,0 +1,139 @@
+name: Saved Address Map Pin Homologation
+
+on:
+  push:
+    branches: [fix/saved-place-map-pin-20261003]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: map-pin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    uses: ./.github/workflows/preflight.yml
+
+  android:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: driver
+            label: Motorista
+            maps_secret: RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY
+            firebase_key: RAMO_FIREBASE_ANDROID_DRIVER_API_KEY
+            firebase_app: RAMO_FIREBASE_ANDROID_DRIVER_APP_ID
+            firebase_app_fallback: RAMO_FIREBASE_DRIVER_APP_ID
+          - app: passenger
+            label: Passageiro
+            maps_secret: RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY
+            firebase_key: RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY
+            firebase_app: RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID
+            firebase_app_fallback: RAMO_FIREBASE_PASSENGER_APP_ID
+    env:
+      RAMO_CORE_BASE_URL: https://vps-a70eab23.vps.ovh.ca
+      RAMO_PREVIEW_SIGNING: "true"
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets[matrix.maps_secret] || secrets.RAMO_GOOGLE_MAPS_ANDROID_API_KEY }}
+      RAMO_FIREBASE_API_KEY: ${{ secrets[matrix.firebase_key] || secrets.RAMO_FIREBASE_API_KEY }}
+      RAMO_FIREBASE_APP_ID: ${{ secrets[matrix.firebase_app] || secrets[matrix.firebase_app_fallback] || secrets.RAMO_FIREBASE_APP_ID }}
+      RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+      RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+      RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+      RAMO_APP_BUILD: "1508"
+    steps:
+      - name: Checkout saved address source
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Validate configuration and backend readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          for name in RAMO_GOOGLE_MAPS_ANDROID_API_KEY RAMO_FIREBASE_API_KEY RAMO_FIREBASE_APP_ID RAMO_FIREBASE_MESSAGING_SENDER_ID RAMO_FIREBASE_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing configuration: $name"
+              exit 1
+            fi
+          done
+          test "$RAMO_FIREBASE_PROJECT_ID" = "ramo-nessa"
+          node --input-type=module <<'NODE'
+          const r = await fetch(process.env.RAMO_CORE_BASE_URL + '/ready', {signal: AbortSignal.timeout(15000)});
+          if (!r.ok) throw new Error('Homologation Core is not ready.');
+          console.log('HTTPS Core ready. Real authentication selected.');
+          NODE
+
+      - name: Resolve dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze and test apps
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build APK with real authentication
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --release
+          --build-number=$RAMO_APP_BUILD
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
+          --dart-define=RAMO_APP_VERSION=0.1.0-homologacao
+          --dart-define=RAMO_APP_BUILD=$RAMO_APP_BUILD
+
+      - name: Verify signature and preserve build metadata
+        working-directory: apps/${{ matrix.app }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "Ramo-Nessa-${{ matrix.label }}-Enderecos-Homologacao.apk"
+          sha256sum "Ramo-Nessa-${{ matrix.label }}-Enderecos-Homologacao.apk" > APK-SHA256.txt
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync('BUILD-INFO.json', JSON.stringify({
+            sourceCommit: process.env.GITHUB_SHA,
+            coreUrl: process.env.RAMO_CORE_BASE_URL,
+            previewMode: false,
+            app: '${{ matrix.app }}',
+            build: Number(process.env.RAMO_APP_BUILD),
+            signing: 'test-only; existing preview package and certificate'
+          }, null, 2));
+          NODE
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-${{ matrix.app }}-enderecos-homologacao
+          path: |
+            apps/${{ matrix.app }}/Ramo-Nessa-${{ matrix.label }}-Enderecos-Homologacao.apk
+            apps/${{ matrix.app }}/APK-SHA256.txt
+            apps/${{ matrix.app }}/BUILD-INFO.json
+          retention-days: 7
+

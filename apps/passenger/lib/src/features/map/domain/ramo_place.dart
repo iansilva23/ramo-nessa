@@ -9,6 +9,7 @@ class RamoPlace {
     this.approvedExternalId,
     this.approvedPricingZoneId,
     this.approvedPricingLocalityId,
+    this.mapPinned = false,
     this.placeProof,
   });
 
@@ -19,6 +20,7 @@ class RamoPlace {
   final String? approvedExternalId;
   final String? approvedPricingZoneId;
   final String? approvedPricingLocalityId;
+  final bool mapPinned;
   final String? placeProof;
 
   String get displayName => name.trim().isEmpty ? address : name;

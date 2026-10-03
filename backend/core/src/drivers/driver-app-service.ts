@@ -256,6 +256,8 @@ export function driverOfferView(offer: {
     expiresAt: offer.expiresAt,
     approximatePickupDistanceKm: offer.approximatePickupDistanceKm,
     tripDistanceKm: ride.tripDistanceKm ?? null,
+    pickupInstructions: ride.pickupInstructions ?? null,
+    dropoffInstructions: ride.dropoffInstructions ?? null,
     pickupLatitude: ride.pickupLatitude ?? null,
     pickupLongitude: ride.pickupLongitude ?? null,
     dropoffLatitude: ride.dropoffLatitude ?? null,

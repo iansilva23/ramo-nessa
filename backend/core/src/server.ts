@@ -1,3 +1,4 @@
+import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
@@ -1822,6 +1823,24 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/maps/places/reverse-coordinate') {
+      await authenticateBearer({ repository: authSessionRepository,
+        identities: authOtpRepository, headers: request.headers, requiredType: 'passenger' });
+      const body = await readJson(request) as Record<string, unknown> | null;
+      const latitude = body?.latitude;
+      const longitude = body?.longitude;
+      if (typeof latitude !== 'number' || !Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
+          typeof longitude !== 'number' || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+        json(response, 422, { error: 'INVALID_COORDINATE', message: 'Coordenadas inválidas.' });
+        return;
+      }
+      const address = await reverseCoordinate({ latitude, longitude,
+        apiKey: !process.env.GOOGLE_PLACES_BASE_URL || process.env.GOOGLE_PLACES_BASE_URL === 'https://places.googleapis.com/v1/'
+          ? process.env.GOOGLE_MAPS_SERVER_API_KEY : undefined });
+      json(response, 200, { latitude, longitude, address });
+      return;
+    }
+
     if (
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/maps/places/classify-coordinate'
@@ -2687,6 +2706,8 @@ const server = createServer(async (request, response) => {
         await savePassengerSavedPlace({
           repository: passengerSavedPlaceRepository,
           passengerId: session.subjectId,
+          id: value.id,
+          addressDetails: value.addressDetails,
           kind: value.kind,
           label: value.label,
           name: value.name,
@@ -7614,6 +7635,8 @@ const server = createServer(async (request, response) => {
         passengerId,
         quoteRequest: body.quoteRequest,
         pricing,
+        pickupInstructions: body.pickupInstructions,
+        dropoffInstructions: body.dropoffInstructions,
         pickup: body.pickup,
         dropoff: body.dropoff,
         originLocalityProofVerified,

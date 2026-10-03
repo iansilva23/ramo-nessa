@@ -22,6 +22,8 @@ export interface PrepareRideRequest {
     latitude: number;
     longitude: number;
   };
+  pickupInstructions?: string | undefined;
+  dropoffInstructions?: string | undefined;
   pickupPlaceProof?: string;
   dropoffPlaceProof?: string;
 }
@@ -97,7 +99,16 @@ export function parsePrepareRideRequest(input: unknown): PrepareRideRequest {
     'dropoffPlaceProof',
   );
 
+  const notes = (value: unknown): string | undefined => {
+    if (value == null) return undefined;
+    if (typeof value !== 'string' || value.trim().length > 600) {
+      throw new InvalidRideRequestError('Detalhes do endereço inválidos.');
+    }
+    return value.trim() || undefined;
+  };
   return {
+    pickupInstructions: notes(record.pickupInstructions),
+    dropoffInstructions: notes(record.dropoffInstructions),
     quoteRequest: parseQuoteRequest(record.quoteRequest),
     pickup: parsePoint(record.pickup, 'pickup'),
     dropoff: parsePoint(record.dropoff, 'dropoff'),

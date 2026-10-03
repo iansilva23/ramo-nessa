@@ -135,6 +135,27 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   Future<void> _selectSavedPlace(
     PassengerSavedPlace place,
   ) async {
+    if (place.mapPinned) {
+      setState(() { _loading = true; _error = null; });
+      try {
+        final resolver = _searchService;
+        if (resolver is! CoordinatePlaceResolver) throw StateError('Classificação indisponível');
+        final approved = await resolver.classifyCoordinate(place.position);
+        if (!mounted) return;
+        if (approved == null) {
+          setState(() { _loading = false; _error = 'Este endereço está fora da área atendida.'; });
+          return;
+        }
+        Navigator.of(context).pop(RamoPlace(name: place.name, address: place.fullAddress,
+          position: place.position, mapPinned: true, providerPlaceId: approved.providerPlaceId,
+          approvedPricingZoneId: approved.approvedPricingZoneId,
+          approvedPricingLocalityId: approved.approvedPricingLocalityId, placeProof: approved.placeProof));
+      } catch (_) {
+        if (!mounted) return;
+        setState(() { _loading = false; _error = 'Não conseguimos validar este endereço salvo agora. Tente novamente.'; });
+      }
+      return;
+    }
     final autocomplete = _autocompleteService;
     final providerPlaceId = place.providerPlaceId?.trim();
     final approvedZoneId = place.approvedPricingZoneId?.trim();
@@ -166,7 +187,11 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
           sessionToken: autocomplete.beginSession(),
         );
         if (!mounted) return;
-        Navigator.of(context).pop(refreshed);
+        Navigator.of(context).pop(RamoPlace(name: place.name, address: place.fullAddress,
+          position: refreshed.position, providerPlaceId: refreshed.providerPlaceId,
+          approvedExternalId: refreshed.approvedExternalId,
+          approvedPricingZoneId: refreshed.approvedPricingZoneId,
+          approvedPricingLocalityId: refreshed.approvedPricingLocalityId, placeProof: refreshed.placeProof));
         return;
       } catch (_) {
         if (!mounted) return;
@@ -182,7 +207,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
     Navigator.of(context).pop(
       RamoPlace(
         name: place.name,
-        address: place.address,
+        address: place.fullAddress,
         position: place.position,
         providerPlaceId: place.providerPlaceId,
         approvedPricingZoneId: place.approvedPricingZoneId,

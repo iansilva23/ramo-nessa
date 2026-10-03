@@ -14,7 +14,8 @@ class CorePlaceSearchService
     implements
         PlaceSearchService,
         PlaceAutocompleteService,
-        CoordinatePlaceResolver {
+        CoordinatePlaceResolver,
+        CoordinateAddressResolver {
   CorePlaceSearchService({
     required Uri baseUrl,
     String? accessToken,
@@ -255,6 +256,21 @@ class CorePlaceSearchService
     }
 
     return place;
+  }
+
+  @override
+  Future<RamoPlace?> reverseCoordinate(LatLng coordinate) async {
+    final response = await _client.post(
+      _baseUrl.resolve('/v1/maps/places/reverse-coordinate'), headers: _headers,
+      body: jsonEncode({'latitude': coordinate.latitude, 'longitude': coordinate.longitude}),
+    ).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['address'] is! Map) return null;
+    final address = decoded['address'] as Map;
+    if (address['name'] is! String || address['address'] is! String) return null;
+    return RamoPlace(name: address['name'] as String, address: address['address'] as String,
+      position: coordinate, mapPinned: true);
   }
 
   @override

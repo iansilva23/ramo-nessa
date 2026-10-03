@@ -41,6 +41,8 @@ interface RideRow {
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
   driver_search_max_distance_km: string | null;
+  pickup_instructions: string | null;
+  dropoff_instructions: string | null;
   pickup_latitude: string | null;
   pickup_longitude: string | null;
   dropoff_latitude: string | null;
@@ -68,6 +70,7 @@ interface RideRow {
 const RIDE_COLUMNS = `
   id, passenger_id, state, payment_status, payment_method, driver_id,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, driver_search_max_distance_km,
+  pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
   origin_zone_id, origin_locality_id,
@@ -117,6 +120,8 @@ function mapRide(row: RideRow): RideRecord {
     ...(row.driver_hold_expires_at != null
       ? { driverHoldExpiresAt: row.driver_hold_expires_at.toISOString() }
       : {}),
+    ...(row.pickup_instructions == null ? {} : { pickupInstructions: row.pickup_instructions }),
+    ...(row.dropoff_instructions == null ? {} : { dropoffInstructions: row.dropoff_instructions }),
     ...(row.pickup_latitude != null
       ? { pickupLatitude: Number(row.pickup_latitude) }
       : {}),
