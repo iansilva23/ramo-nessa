@@ -191,7 +191,7 @@ class _PassengerCouponsScreenState
             ),
             const SizedBox(height: 6),
             Text(
-              'Salve um código aqui. Quando ele puder ser usado na sua próxima corrida, o desconto aparecerá automaticamente no pagamento.',
+              'Ative um código aqui antes de pedir a corrida. Se ela for compatível, o preço com desconto aparecerá antes de confirmar o motorista e pagar.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: RamoColors.muted,
                     height: 1.4,
@@ -256,7 +256,7 @@ class _PassengerCouponsScreenState
                       dimension: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Adicionar cupom'),
+                  : const Text('Ativar cupom'),
             ),
             if (_message != null) ...[
               const SizedBox(height: RamoSpacing.md),

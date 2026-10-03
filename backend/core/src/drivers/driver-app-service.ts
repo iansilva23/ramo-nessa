@@ -170,7 +170,7 @@ export async function updateDriverSupplyFromApp(input: {
           }
         : {}),
       updatedAt: instant,
-    });
+    }, { preserveRideState: true });
   }
 
   const willBeOnline = input.online ?? current?.online ?? false;
@@ -192,7 +192,7 @@ export async function updateDriverSupplyFromApp(input: {
           ...current,
           online: false,
           updatedAt: instant,
-        });
+        }, { preserveRideState: true });
       }
       throw error;
     }
@@ -223,7 +223,7 @@ export async function updateDriverSupplyFromApp(input: {
       longitude: input.longitude,
       locationUpdatedAt: instant,
       updatedAt: instant,
-    });
+    }, { preserveRideState: true });
   }
 
   return input.drivers.upsert({
@@ -241,7 +241,7 @@ export async function updateDriverSupplyFromApp(input: {
         }
       : {}),
     updatedAt: instant,
-  });
+  }, { preserveRideState: true });
 }
 
 export function driverOfferView(offer: {

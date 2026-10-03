@@ -23,6 +23,7 @@ test('PostgreSQL: aceite reserva motorista e cupom, protege tarifa e só ativa a
     await drivers.upsert({ driverId, vehicleId: `consent-vehicle-${suffix}`, categories: ['car'], fourByFour: false,
       seatCapacity: 4, online: true, busy: false, latitude: -2.8205, longitude: -40.4145,
       locationUpdatedAt: now.toISOString(), updatedAt: now.toISOString() });
+    const staleGps = (await drivers.findByDriverId(driverId))!;
     const prepare = (passengerId: string) => prepareRideForPayment({ repository: new PostgresRidePreparationRepository(pool),
       drivers, routing: { routeDistanceKm: async () => 1 }, passengerId, now, requireDriverConsent: true, maxPickupDistanceKm: 5,
       canUseDriver: async id => id === driverId,
@@ -45,11 +46,16 @@ test('PostgreSQL: aceite reserva motorista e cupom, protege tarifa e só ativa a
     assert.equal(accepted.ride.driverSearchMaxDistanceKm, 5);
     assert.equal(accepted.ride.promotion?.discountCents, 500);
     assert.equal((await promotions.findRedemptionById(promoted.promotion!.applicationId))?.expiresAt, accepted.ride.driverHoldExpiresAt);
+    await drivers.upsert({ ...staleGps, latitude: -2.8204 }, { preserveRideState: true });
+    assert.equal((await drivers.findByDriverId(driverId))?.reservedRideId, ride.id);
+    assert.equal((await drivers.findByDriverId(driverId))?.reservedUntil, accepted.ride.driverHoldExpiresAt);
     assert.equal((await drivers.findByDriverId(driverId))?.busy, false);
     await assert.rejects(prepare(`another-passenger-${suffix}`), { code: 'NO_ELIGIBLE_DRIVER' });
     const paid = await rides.save({ ...accepted.ride, state: 'PAID', paymentStatus: 'paid', paymentMethod: 'pix' });
     assert.equal((await dispatchRideAfterPayment({ ride: paid, rides, drivers, matching, now: new Date(now.getTime() + 100_000) })).kind, 'DRIVER_CONFIRMED');
+    await drivers.upsert({ ...staleGps, latitude: -2.8203, online: false }, { preserveRideState: true });
     assert.equal((await drivers.findByDriverId(driverId))?.busy, true);
+    assert.equal((await drivers.findByDriverId(driverId))?.online, true);
   } finally {
     await pool.query('DELETE FROM passenger_promotion_preferences WHERE passenger_id = $1', [`consent-passenger-${suffix}`]);
     if (campaignId != null) await pool.query('DELETE FROM promotion_redemptions WHERE campaign_id = $1', [campaignId]);

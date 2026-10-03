@@ -55,7 +55,7 @@ export class PostgresDriverSupplyRepository
     implements DriverSupplyRepository {
   constructor(private readonly pool: Pool) {}
 
-  async upsert(supply: DriverSupplyRecord): Promise<DriverSupplyRecord> {
+  async upsert(supply: DriverSupplyRecord, options?: { preserveRideState?: boolean }): Promise<DriverSupplyRecord> {
     validateDriverSupply(supply);
 
     const result = await this.pool.query<DriverSupplyRow>(
@@ -71,10 +71,10 @@ export class PostgresDriverSupplyRepository
         categories = EXCLUDED.categories,
         four_by_four = EXCLUDED.four_by_four,
         seat_capacity = EXCLUDED.seat_capacity,
-        online = EXCLUDED.online,
-        busy = EXCLUDED.busy,
-        reserved_ride_id = EXCLUDED.reserved_ride_id,
-        reserved_until = EXCLUDED.reserved_until,
+        online = CASE WHEN $14::boolean AND driver_supply.busy THEN driver_supply.online ELSE EXCLUDED.online END,
+        busy = CASE WHEN $14::boolean THEN driver_supply.busy ELSE EXCLUDED.busy END,
+        reserved_ride_id = CASE WHEN $14::boolean THEN driver_supply.reserved_ride_id ELSE EXCLUDED.reserved_ride_id END,
+        reserved_until = CASE WHEN $14::boolean THEN driver_supply.reserved_until ELSE EXCLUDED.reserved_until END,
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
         location_updated_at = EXCLUDED.location_updated_at,
@@ -95,6 +95,7 @@ export class PostgresDriverSupplyRepository
         supply.longitude,
         supply.locationUpdatedAt,
         supply.updatedAt,
+        options?.preserveRideState ?? false,
       ],
     );
 

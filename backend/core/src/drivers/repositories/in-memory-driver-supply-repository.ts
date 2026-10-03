@@ -8,8 +8,16 @@ export class InMemoryDriverSupplyRepository
     implements DriverSupplyRepository {
   private readonly supplies = new Map<string, DriverSupplyRecord>();
 
-  async upsert(supply: DriverSupplyRecord): Promise<DriverSupplyRecord> {
-    const validated = validateDriverSupply(structuredClone(supply));
+  async upsert(supply: DriverSupplyRecord, options?: { preserveRideState?: boolean }): Promise<DriverSupplyRecord> {
+    const current = this.supplies.get(supply.driverId);
+    let next = supply;
+    if (options?.preserveRideState && current != null) {
+      const { reservedRideId: _id, reservedUntil: _until, ...operational } = supply;
+      next = { ...operational, busy: current.busy, online: current.busy ? current.online : supply.online,
+        ...(current.reservedRideId == null ? {} : { reservedRideId: current.reservedRideId }),
+        ...(current.reservedUntil == null ? {} : { reservedUntil: current.reservedUntil }) };
+    }
+    const validated = validateDriverSupply(structuredClone(next));
     this.supplies.set(validated.driverId, structuredClone(validated));
     return structuredClone(validated);
   }
