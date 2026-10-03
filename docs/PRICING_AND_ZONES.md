@@ -1,52 +1,119 @@
-# Zonas e preço — MVP Passageiro
+# Zonas e preço — Passageiro + Core
+
+## Fonte comercial vigente na branch
+
+A base revisada aplicada em 29/09/2026 está documentada em:
+
+- `docs/COMMERCIAL_RULES_V1.md`
+- `docs/PAYMENTS_AND_COMMISSION_V1.md`
+
+Esses documentos são a referência comercial da v1 implementada no Core. Entradas que ainda aparecem como faixa sem valor único permanecem não despacháveis até definição específica.
+
+## Estado implementado
+
+O Passageiro já possui:
+
+- origem por GPS e origem manual;
+- destino manual;
+- busca local limitada a Jeri/Jijoca/Preá e entorno;
+- busca externa liberada somente para destinos longos presentes na base comercial atualmente implementada;
+- Aeroporto JJD;
+- rota, distância e ETA em ambiente de desenvolvimento;
+- Carro, Moto, Entrega, Comfort/Black e Buggy;
+- filtro de categorias por elegibilidade comercial da rota;
+- contador de 1 a 4 passageiros no Buggy;
+- cotação HTTP pelo Ramo Nessa Core;
+- bloqueio de despacho quando a cotação não é exata;
+- nenhum preço comercial autoritativo calculado localmente no Flutter.
+
+O Core já implementa:
+
+- catálogo comercial v1;
+- preços fixos por localidade/corredor;
+- fallback opcional por distância roteada para pontos sem preço específico, configurável por localidade-base e categoria;
+- regras após 22h da base comercial revisada, incluindo Entrega sem adicional noturno;
+- Comfort/Black quando permitido;
+- compensação de coleta distante;
+- comissão de 10%;
+- política de pagamentos digitais;
+- endpoint de cotação;
+- testes e CI.
 
 ## Área operacional
 
-O app valida origem e destino antes de chamar a rota.
+As geofences locais do cliente continuam sendo raios operacionais do MVP, não limites administrativos.
 
-Zonas configuradas no cliente para o MVP:
+A cobertura inicial reconhecida pelo app inclui:
 
-- Jericoacoara
-- Jijoca
-- Preá
+- Jericoacoara;
+- Jijoca;
+- Preá;
+- Aeroporto JJD;
+- destinos longos explicitamente aprovados na tabela comercial, quando pesquisados por nome.
 
-As geofences atuais são raios operacionais que se sobrepõem para cobrir a região local. Elas não representam limites administrativos. A evolução prevista é mover essas zonas para o backend/Admin e usar polígonos configuráveis sem precisar publicar uma nova versão do app.
+Um ponto externo aleatório não vira rota atendida apenas por estar no Ceará. Ele só pode receber cotação quando uma regra publicada de fallback por distância, ancorada em uma localidade-base e categoria compatível, cobre a distância real da rota.
 
-A busca do Nominatim também fica limitada ao recorte de Jeri/Jijoca/Preá e entorno, evitando que o passageiro receba resultados do restante do Brasil no fluxo normal.
+## Modelo comercial
 
-## Origem
+A v1 não usa uma fórmula simples de `base + km + minuto` como autoridade.
 
-A origem pode ser:
+O Core resolve a tarifa por:
 
-1. a localização GPS atual; ou
-2. um lugar escolhido manualmente pela mesma busca usada para o destino.
+1. origem/destino/localidade;
+2. categoria permitida;
+3. janela de horário;
+4. regra 4x4 quando aplicável;
+5. quantidade de passageiros no Buggy;
+6. compensação por coleta distante;
+7. comissão da plataforma;
+8. regra comercial identificável pelo `ruleId`.
 
-Trocar a origem invalida a rota anterior e força novo cálculo.
+Faixas ainda não fechadas, como localidades com preço "R$ X a R$ Y", são retornadas como faixa e não podem ser despachadas como se fossem um preço exato.
 
-## Estimativa de preço
+### Fallback por distância
 
-O valor agora é calculado a partir da rota retornada pelo OSRM:
+O fallback por distância não substitui preços existentes. A ordem comercial permanece específica primeiro: rota fixa e preço de localidade têm prioridade. Somente quando nenhum preço específico resolve a viagem o Core pode usar uma regra por distância.
 
-```text
-estimativa = tarifa_base
-           + distancia_km * valor_por_km
-           + duracao_min * valor_por_minuto
-```
+Cada regra é vinculada a uma localidade-base e categoria e contém:
 
-Depois é aplicada a tarifa mínima da categoria e o resultado é arredondado para dezenas de centavos.
+- corrida mínima em centavos;
+- preço por quilômetro;
+- mínimo de quilômetros cobrados;
+- máximo de quilômetros aceitos.
 
-As três categorias possuem cartões de tarifa independentes:
+O cálculo usa a distância roteada autoritativa do Core, nunca a quilometragem enviada pelo cliente. A fórmula é `max(corrida mínima, max(km real, km mínimo) × preço/km)`. Se a rota ultrapassar o máximo configurado e nenhuma regra específica existir, a viagem permanece sem preço em vez de receber um valor inventado.
 
-- Carro
-- Moto
-- Entrega
+Exemplo de precedência: se Preá ↔ Sobral possuir um valor específico, esse valor continua valendo. Um ponto sem preço cadastrado no caminho pode usar o fallback da base Preá e, por ter menos quilômetros reais de rota, resultar em valor menor.
 
-### Importante
+## Elegibilidade
 
-Os coeficientes atuais são configuração técnica de desenvolvimento do MVP. Eles ainda não são uma tabela comercial aprovada.
+Preço não equivale a autorização operacional.
 
-Antes de produção, os valores devem ser controlados pelo backend/Admin, versionados e associados à área/horário/regras comerciais. O aplicativo deve receber a cotação pronta ou assinada pelo servidor para impedir manipulação no cliente.
+O app oculta categorias comercialmente incompatíveis e o Core também valida categoria, lotação, disponibilidade, localização recente e 4x4 no matching. A auditoria de 23/09 adicionou validação entre zona local declarada e coordenadas antes de congelar a tarifa. Para lugares selecionados via Google Places, o Core agora classifica localidades reconhecidas contra o catálogo vigente, devolve `approvedPricingZoneId` + `approvedPricingLocalityId` e emite uma `placeProof` assinada vinculada ao Place ID e às coordenadas. Na preparação da corrida, essa prova é verificada pelo Core antes de aceitar a localidade específica. GPS puro e pontos sem localidade aprovada continuam usando a validação por zona/raio como fallback.
 
-## Regra de segurança futura
+## Estado de implementação e pendências de produção
 
-A estimativa local serve para UX durante o desenvolvimento. O preço definitivo de uma corrida nunca deve ser autoritativo no Flutter. Quando o Core estiver conectado, o servidor recalculará a cotação com a mesma versão de tabela e devolverá o valor válido para a solicitação.
+Já estão implementados no Core/ADM:
+
+- persistência e versionamento do catálogo comercial em PostgreSQL;
+- rascunhos, edição administrativa, publicação e vigência de versões;
+- autenticação/sessão e autorização por escopos;
+- matching e máquina de estados autoritativos;
+- ledger/carteira e fluxo de repasses;
+- integração estrutural de Pix/cartão, estorno e reconciliação;
+- Google Maps/Places/Routes integrados ao fluxo de mobilidade.
+
+Ainda dependem de fechamento operacional ou infraestrutura externa:
+
+- cobertura geoespacial completa para GPS puro e para localidades que não consigam ser classificadas por um lugar aprovado do Google; destinos externos aprovados e localidades locais reconhecidas via Places já usam prova assinada pelo Core;
+- credenciais e homologação comercial dos provedores de pagamento;
+- provider OTP/SMS real de produção;
+- Firebase/Push/APNs com credenciais finais;
+- storage privado persistente para documentos;
+- infraestrutura hospedada, backup, monitoramento e alertas;
+- chaves/restrições/billing de produção do Google Maps;
+- testes físicos, piloto controlado e preparação das lojas.
+
+Faixas sem valor único e qualquer nova alteração comercial futura não devem ser tratadas como tarifa exata apenas porque existe infraestrutura de edição no ADM.
+
+O preço, a comissão e a elegibilidade final continuam sob autoridade do Core.

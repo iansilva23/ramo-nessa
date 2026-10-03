@@ -1,0 +1,782 @@
+<section id="view-finance" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">FINANCEIRO</span>
+                <h1>Pagamentos e comissões</h1>
+                <p>
+                  Ledger, políticas financeiras e conciliação de saques em um só lugar.
+                </p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="finance-updated-at">Ainda não atualizado</small>
+                <button
+                  id="refresh-finance-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar financeiro
+                </button>
+              </div>
+            </div>
+
+            <div class="finance-readonly-note">
+              <strong>Conciliação segura</strong>
+              <span>
+                Pagamentos e lançamentos do ledger não são alterados manualmente.
+                Em saques, o ADM pode registrar um repasse já realizado fora do sistema
+                ou cancelar a solicitação e devolver o valor reservado ao motorista.
+              </span>
+            </div>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">MÉTODOS DE PAGAMENTO</span>
+                  <h2>Disponibilidade no Passageiro</h2>
+                  <p class="muted-copy">
+                    Ative ou desative Pix, cartão e carteira sem alterar o aplicativo.
+                  </p>
+                </div>
+                <span id="finance-methods-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-methods-form" class="finance-cash-grid">
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-pix-enabled" type="checkbox" disabled>
+                  <span>
+                    <strong>Pix</strong>
+                    <small>Pagamento via Mercado Pago Pix.</small>
+                  </span>
+                </label>
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-card-enabled" type="checkbox" disabled>
+                  <span>
+                    <strong>Cartão</strong>
+                    <small>Crédito/débito à vista pelo gateway.</small>
+                  </span>
+                </label>
+                <label class="finance-payment-method-toggle">
+                  <input id="finance-wallet-enabled" type="checkbox" disabled>
+                  <span>
+                    <strong>Carteira</strong>
+                    <small>Saldo interno do Passageiro.</small>
+                  </span>
+                </label>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-methods-save"
+                    class="button button--dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar métodos
+                  </button>
+                  <span>
+                    A mudança passa a valer na política pública imediatamente.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA CASH</span>
+                  <h2>Limite padrão de dívida</h2>
+                  <p class="muted-copy">
+                    Limite geral de comissão em aberto para motoristas que aceitam dinheiro.
+                  </p>
+                </div>
+                <span id="finance-cash-limit-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-cash-limit-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Limite padrão (R$)</span>
+                  <input
+                    id="finance-cash-limit-input"
+                    type="number"
+                    disabled
+                    min="0"
+                    max="1000000"
+                    step="0.01"
+                    inputmode="decimal"
+                    required
+                  >
+                  <small>
+                    Overrides individuais de motorista continuam disponíveis na página Motoristas.
+                  </small>
+                </label>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-cash-limit-save"
+                    class="button button--dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar limite padrão
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-cash-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Dinheiro</h2>
+                </div>
+                <span id="finance-cash-status" class="pill pill--neutral">
+                  Desativado
+                </span>
+              </div>
+              <div class="finance-cash-grid">
+                <div>
+                  <span class="metric-label">Limite futuro de dívida</span>
+                  <strong id="finance-cash-debt-limit">—</strong>
+                  <small>Comissão máxima em aberto do motorista</small>
+                </div>
+                <div>
+                  <span class="metric-label">Prontidão de ativação</span>
+                  <strong id="finance-cash-readiness">Bloqueada</strong>
+                  <small id="finance-cash-updated-at">Aguardando política</small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-enable-cash-button"
+                    class="button"
+                    type="button"
+                    hidden
+                  >
+                    Ativar dinheiro
+                  </button>
+                  <button
+                    id="finance-disable-cash-button"
+                    class="button button--danger"
+                    type="button"
+                    hidden
+                  >
+                    Desativar dinheiro agora
+                  </button>
+                  <span id="finance-cash-note">
+                    A estrutura cash está pronta, mas continua desligada até
+                    você ativar manualmente.
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel-card finance-card-price-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Preço no Pix</h2>
+                  <p class="muted-copy">
+                    O passageiro vê o preço final antes de confirmar.
+                    O percentual abaixo cobre o processamento do Pix.
+                  </p>
+                </div>
+                <span id="finance-pix-price-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-pix-price-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Ajuste do preço no Pix</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="finance-pix-price-percent"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.01"
+                      disabled
+                      required
+                    >
+                    <strong>%</strong>
+                  </div>
+                  <small>
+                    O Core aplica gross-up para preservar a tarifa-base da corrida.
+                  </small>
+                </label>
+                <div>
+                  <span class="metric-label">Exemplo</span>
+                  <strong id="finance-pix-price-example">R$ 150,00 → —</strong>
+                  <small>
+                    O acréscimo fica separado da comissão vigente da tarifa-base.
+                  </small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-pix-price-save"
+                    class="button button--dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar preço no Pix
+                  </button>
+                  <span id="finance-pix-price-note">
+                    Alterar aqui não exige mudança de código.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel-card finance-card-price-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">POLÍTICA DE PAGAMENTO</span>
+                  <h2>Preço no cartão</h2>
+                  <p class="muted-copy">
+                    O passageiro vê o preço final antes de confirmar.
+                    O percentual abaixo cobre o processamento do cartão.
+                  </p>
+                </div>
+                <span id="finance-card-price-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+              <form id="finance-card-price-form" class="finance-cash-grid">
+                <label class="field">
+                  <span>Ajuste do preço no cartão</span>
+                  <div class="operational-settings-number">
+                    <input
+                      id="finance-card-price-percent"
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.01"
+                      disabled
+                      required
+                    >
+                    <strong>%</strong>
+                  </div>
+                  <small>
+                    O Core aplica gross-up para preservar a tarifa-base da corrida.
+                  </small>
+                </label>
+                <div>
+                  <span class="metric-label">Exemplo</span>
+                  <strong id="finance-card-price-example">R$ 150,00 → —</strong>
+                  <small>
+                    O acréscimo fica separado da comissão vigente da tarifa-base.
+                  </small>
+                </div>
+                <div class="finance-cash-action">
+                  <button
+                    id="finance-card-price-save"
+                    class="button button--dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar preço no cartão
+                  </button>
+                  <span id="finance-card-price-note">
+                    Alterar aqui não exige mudança de código.
+                  </span>
+                </div>
+              </form>
+            </article>
+
+            <div class="finance-summary-grid">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Pagamentos confirmados</span>
+                <strong id="finance-paid-total">R$ 0,00</strong>
+                <small id="finance-paid-count">0 pagamentos</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Comissão reconhecida</span>
+                <strong id="finance-platform-revenue">R$ 0,00</strong>
+                <small>Saldo real de platform:revenue</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">A pagar motoristas</span>
+                <strong id="finance-driver-payable">R$ 0,00</strong>
+                <small>Saldo disponível dos motoristas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Saques reservados</span>
+                <strong id="finance-payout-pending">R$ 0,00</strong>
+                <small id="finance-payout-count">0 solicitações abertas</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Escrow de corridas</span>
+                <strong id="finance-ride-escrow">R$ 0,00</strong>
+                <small>Valor recebido ainda não liquidado</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Carteiras passageiros</span>
+                <strong id="finance-passenger-wallet">R$ 0,00</strong>
+                <small>Saldo contábil agregado</small>
+              </article>
+            </div>
+
+            <div class="finance-status-strip">
+              <span><strong id="finance-payments-total">0</strong> pagamentos</span>
+              <span><strong id="finance-payments-pending">0</strong> pendentes</span>
+              <span><strong id="finance-payments-failed">0</strong> falhos</span>
+              <span><strong id="finance-payments-cancelled">0</strong> cancelados</span>
+              <span><strong id="finance-payments-refunded">0</strong> estornados</span>
+            </div>
+
+            <article class="panel-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">REPASSES DOS MOTORISTAS</span>
+                  <h2>Controle de repasses</h2>
+                  <p class="muted-copy">
+                    Por padrão, os saldos disponíveis são enviados
+                    segunda, quarta e sexta às 07:00 (horário de Fortaleza).
+                    Antecipações sempre exigem aprovação do ADM.
+                  </p>
+                </div>
+                <span id="finance-payout-policy-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <div class="finance-payout-actions">
+                <button
+                  id="finance-payout-mode-toggle"
+                  class="button button--dark"
+                  type="button"
+                  disabled
+                >
+                  Alterar modo de repasse
+                </button>
+                <span id="finance-payout-policy-note">
+                  Carregando política de repasses.
+                </span>
+              </div>
+
+              <div class="finance-payout-actions">
+                <button id="finance-payout-reconcile" class="button button--ghost-dark" type="button" disabled>
+                  Processar e conciliar pendentes
+                </button>
+                <small id="finance-payout-reconcile-note">
+                  Disponível ao proprietário após configurar o provedor de repasses.
+                </small>
+              </div>
+
+              <div id="finance-manual-payouts" hidden>
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">MODO MANUAL</span>
+                    <h3>Motoristas com saldo a receber</h3>
+                    <p class="muted-copy">
+                      Selecione um, vários ou todos. O Core reserva o saldo
+                      e envia o Pix pelo provedor configurado.
+                    </p>
+                  </div>
+                  <button
+                    id="finance-manual-payout-selected"
+                    class="button button--dark"
+                    type="button"
+                    disabled
+                  >
+                    Pagar selecionados
+                  </button>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input
+                            id="finance-manual-select-all"
+                            type="checkbox"
+                            aria-label="Selecionar todos os motoristas"
+                          >
+                        </th>
+                        <th>Motorista</th>
+                        <th>Saldo disponível</th>
+                        <th>Pix</th>
+                        <th>Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-manual-payouts-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-manual-payouts-empty" class="empty-state">
+                  Nenhum motorista com saldo disponível para repasse.
+                </div>
+                <small id="finance-manual-payout-selection-note">
+                  Nenhum motorista selecionado.
+                </small>
+              </div>
+            </article>
+
+            <article class="panel-card" id="finance-company-payout-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">SALDO DA EMPRESA</span>
+                  <h2>Repasse do saldo da plataforma</h2>
+                  <p class="muted-copy">
+                    Envie manualmente parte ou todo o saldo disponível da
+                    empresa para uma chave Pix vinculada. A operação é exclusiva
+                    do proprietário autorizado.
+                  </p>
+                </div>
+                <span id="finance-company-owner-status" class="pill pill--neutral">
+                  Carregando
+                </span>
+              </div>
+
+              <div class="finance-status-strip">
+                <span>
+                  Disponível
+                  <strong id="finance-company-available">R$ 0,00</strong>
+                </span>
+                <span>
+                  Em processamento
+                  <strong id="finance-company-pending">R$ 0,00</strong>
+                </span>
+                <span>
+                  Comissão cash ainda não recebida
+                  <strong id="finance-company-cash-debt">R$ 0,00</strong>
+                </span>
+              </div>
+
+              <p id="finance-company-note" class="muted-copy">
+                Carregando saldo da empresa.
+              </p>
+
+              <div class="finance-columns">
+                <form id="finance-company-pix-form" class="finance-payout-form">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONTA DE DESTINO</span>
+                    <h3>Chave Pix da empresa</h3>
+                    <p id="finance-company-pix-status" class="muted-copy">
+                      Nenhuma chave cadastrada.
+                    </p>
+                  </div>
+
+                  <label class="field">
+                    <span>Tipo da chave</span>
+                    <select id="finance-company-pix-type" required>
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="phone">Telefone</option>
+                      <option value="random">Chave aleatória</option>
+                    </select>
+                  </label>
+
+                  <label class="field">
+                    <span>Chave Pix</span>
+                    <input
+                      id="finance-company-pix-key"
+                      type="text"
+                      maxlength="160"
+                      autocomplete="off"
+                      placeholder="Digite a chave Pix completa"
+                      required
+                    >
+                  </label>
+
+                  <button
+                    id="finance-company-pix-save"
+                    class="button button--ghost-dark"
+                    type="submit"
+                    disabled
+                  >
+                    Salvar chave Pix
+                  </button>
+                </form>
+
+                <form id="finance-company-payout-form" class="finance-payout-form">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">RETIRADA</span>
+                    <h3>Enviar saldo por Pix</h3>
+                    <p class="muted-copy">
+                      O valor é reservado no ledger antes de chamar o provedor
+                      Pix. Se a transferência falhar, volta automaticamente ao
+                      saldo disponível da empresa.
+                    </p>
+                  </div>
+
+                  <label class="field">
+                    <span>Valor a transferir</span>
+                    <input
+                      id="finance-company-payout-amount"
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      required
+                    >
+                  </label>
+
+                  <div class="finance-payout-actions">
+                    <button
+                      id="finance-company-use-all"
+                      class="button button--ghost-dark"
+                      type="button"
+                      disabled
+                    >
+                      Usar saldo total
+                    </button>
+                    <button
+                      id="finance-company-payout-submit"
+                      class="button button--dark"
+                      type="submit"
+                      disabled
+                    >
+                      Enviar Pix da empresa
+                    </button>
+                  </div>
+                  <small id="finance-company-payout-action-note">
+                    Cadastre uma chave Pix para habilitar a retirada.
+                  </small>
+                </form>
+              </div>
+
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">HISTÓRICO DA EMPRESA</span>
+                  <h3>Repasses recentes</h3>
+                </div>
+                <span id="finance-company-payouts-visible" class="pill">0 itens</span>
+              </div>
+
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Valor</th>
+                      <th>Destino</th>
+                      <th>Processador</th>
+                      <th>Criado</th>
+                      <th>Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="finance-company-payouts-body"></tbody>
+                </table>
+              </div>
+              <div id="finance-company-payouts-empty" class="empty-state">
+                Nenhum repasse da empresa realizado.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table" id="finance-external-adjustments-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">AJUSTES EXTERNOS</span>
+                  <h2>Refunds parciais e contestações</h2>
+                  <p class="muted-copy">
+                    Eventos confirmados pelo processador. Valores que já não
+                    estavam no escrow ficam em revisão financeira e reduzem o
+                    saldo disponível da empresa sem debitar motorista
+                    automaticamente.
+                  </p>
+                </div>
+                <span id="finance-external-adjustments-visible" class="pill">0 itens</span>
+              </div>
+
+              <div class="finance-status-strip">
+                <span>
+                  Em revisão
+                  <strong id="finance-external-review-total">R$ 0,00</strong>
+                </span>
+                <span>
+                  Casos em revisão
+                  <strong id="finance-external-review-count">0</strong>
+                </span>
+              </div>
+
+              <div class="table-wrap">
+                <table class="finance-table">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Status</th>
+                      <th>Pagamento</th>
+                      <th>Valor</th>
+                      <th>Escrow</th>
+                      <th>Revisão</th>
+                      <th>Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="finance-external-adjustments-body"></tbody>
+                </table>
+              </div>
+              <div id="finance-external-adjustments-empty" class="empty-state">
+                Nenhum refund parcial ou chargeback registrado.
+              </div>
+            </article>
+
+            <div class="finance-columns">
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">PAGAMENTOS</span>
+                    <h2>Mais recentes</h2>
+                  </div>
+                  <span id="finance-payments-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Método</th>
+                        <th>Corrida</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payments-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payments-empty" class="empty-state">
+                  Nenhum pagamento registrado.
+                </div>
+              </article>
+
+              <article class="panel-card panel-card--table">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">SAQUES</span>
+                    <h2>Solicitações recentes</h2>
+                  </div>
+                  <span id="finance-payouts-visible" class="pill">0 itens</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="finance-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Motorista</th>
+                        <th>Valor</th>
+                        <th>Processador</th>
+                        <th>Criado</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finance-payouts-body"></tbody>
+                  </table>
+                </div>
+                <div id="finance-payouts-empty" class="empty-state">
+                  Nenhum saque solicitado.
+                </div>
+              </article>
+            </div>
+
+            <article
+              id="finance-payout-detail"
+              class="panel-card finance-payout-detail-card"
+              hidden
+            >
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CONCILIAÇÃO DE SAQUE</span>
+                  <h2>Detalhes da solicitação</h2>
+                  <p id="finance-payout-detail-copy" class="muted-copy">
+                    Antecipações ficam aguardando sua aprovação. Ao aprovar,
+                    o Core envia o valor líquido pelo provedor Pix configurado.
+                  </p>
+                </div>
+                <button
+                  id="finance-payout-close"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div class="finance-payout-detail-grid">
+                <div>
+                  <span>Status</span>
+                  <strong id="finance-payout-detail-status">—</strong>
+                </div>
+                <div>
+                  <span>Motorista</span>
+                  <strong id="finance-payout-detail-driver">—</strong>
+                </div>
+                <div>
+                  <span>Tipo</span>
+                  <strong id="finance-payout-detail-kind">—</strong>
+                </div>
+                <div>
+                  <span>Valor solicitado</span>
+                  <strong id="finance-payout-detail-gross">—</strong>
+                </div>
+                <div>
+                  <span>Taxa de antecipação</span>
+                  <strong id="finance-payout-detail-fee">—</strong>
+                </div>
+                <div>
+                  <span>Valor líquido do Pix</span>
+                  <strong id="finance-payout-detail-amount">—</strong>
+                </div>
+                <div>
+                  <span>Chave Pix</span>
+                  <strong id="finance-payout-detail-pix">—</strong>
+                </div>
+                <div>
+                  <span>Processador / método</span>
+                  <strong id="finance-payout-detail-processor">—</strong>
+                </div>
+                <div>
+                  <span>Referência externa</span>
+                  <strong id="finance-payout-detail-reference">—</strong>
+                </div>
+              </div>
+
+              <form id="finance-payout-paid-form" class="finance-payout-form">
+                <label class="field">
+                  <span>Processador ou método usado</span>
+                  <input
+                    id="finance-payout-processor"
+                    type="text"
+                    maxlength="80"
+                    placeholder="Ex.: Mercado Pago, banco, Pix manual"
+                    required
+                  >
+                </label>
+                <label class="field">
+                  <span>Referência externa</span>
+                  <input
+                    id="finance-payout-reference"
+                    type="text"
+                    maxlength="160"
+                    placeholder="ID/comprovante do repasse (opcional)"
+                  >
+                </label>
+                <div class="finance-payout-actions">
+                  <button
+                    id="finance-payout-approve-button"
+                    class="button button--dark"
+                    type="button"
+                    hidden
+                    disabled
+                  >
+                    Aprovar e enviar Pix
+                  </button>
+                  <button
+                    id="finance-payout-paid-button"
+                    class="button button--ghost-dark"
+                    type="submit"
+                  >
+                    Registrar pagamento externo
+                  </button>
+                  <button
+                    id="finance-payout-cancel-button"
+                    class="button button--danger"
+                    type="button"
+                  >
+                    Recusar / cancelar
+                  </button>
+                </div>
+                <small id="finance-payout-action-note">
+                  Antecipações precisam de aprovação; repasses externos podem ser conciliados manualmente.
+                </small>
+              </form>
+            </article>
+          </section>

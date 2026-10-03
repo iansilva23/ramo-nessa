@@ -1,0 +1,456 @@
+<section id="view-localities" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">EXPANSÃO OPERACIONAL</span>
+      <h1>Nova localidade</h1>
+      <p>
+        Cadastre, visualize e edite áreas de atendimento por etapas, com alfinete,
+        raio, veículos, preços e regras. Tudo fica em rascunho até a publicação.
+      </p>
+    </div>
+    <div class="dashboard-refresh localities-heading-actions">
+      <small id="localities-draft-status">Carregando catálogo…</small>
+      <div class="localities-heading-buttons">
+        <button id="localities-refresh-button" class="button button--ghost-dark" type="button">
+          Atualizar
+        </button>
+        <button id="localities-new-button" class="button button--primary" type="button">
+          + Nova localidade
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="localities-message" class="global-message" aria-live="polite" hidden></div>
+
+  <article class="panel-card localities-publish-card">
+    <div class="localities-publish-copy">
+      <span class="eyebrow eyebrow--dark">ALTERAÇÕES SEGURAS</span>
+      <h2>Rascunho e publicação</h2>
+      <p>
+        Tudo que você editar aqui fica guardado em um rascunho. O app só passa a
+        usar as mudanças depois que você clicar em “Publicar agora”.
+      </p>
+    </div>
+    <div class="localities-publish-status">
+      <div>
+        <span>Rascunho atual</span>
+        <strong id="localities-current-draft">Nenhum</strong>
+      </div>
+      <div>
+        <span>Versão em vigor</span>
+        <strong id="localities-effective-version">Catálogo padrão</strong>
+      </div>
+    </div>
+    <div class="localities-publish-actions">
+      <button
+        id="localities-discard-draft-button"
+        class="button button--ghost-dark"
+        type="button"
+        hidden
+      >
+        Excluir rascunho
+      </button>
+      <button
+        id="localities-publish-draft-button"
+        class="button button--dark"
+        type="button"
+        hidden
+      >
+        Publicar agora
+      </button>
+    </div>
+  </article>
+
+  <div class="localities-summary-grid">
+    <article class="metric-card metric-card--signal">
+      <span class="metric-label">Localidades</span>
+      <strong id="localities-total">0</strong>
+      <small>Áreas locais e destinos externos</small>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Com área no mapa</span>
+      <strong id="localities-geofenced">0</strong>
+      <small>Alfinete e raio configurados</small>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Preá</span>
+      <strong id="localities-prea">0</strong>
+      <small>Localidades vinculadas à base</small>
+    </article>
+    <article class="metric-card">
+      <span class="metric-label">Jijoca</span>
+      <strong id="localities-jijoca">0</strong>
+      <small>Localidades vinculadas à base</small>
+    </article>
+  </div>
+
+  <div class="localities-overview-grid">
+    <article class="panel-card localities-map-card">
+      <div class="panel-card__header">
+        <div>
+          <span class="eyebrow eyebrow--dark">MAPA DE COBERTURA</span>
+          <h2>Áreas cadastradas</h2>
+          <p class="panel-card__copy">
+            Cada círculo representa o raio de uma localidade. Clique em um alfinete
+            para editar a área correspondente.
+          </p>
+        </div>
+      </div>
+
+      <div
+        id="localities-overview-map"
+        class="pricing-geofence-map localities-overview-map"
+        aria-label="Mapa com as localidades cadastradas"
+      >
+        <div id="localities-overview-map-tiles" class="pricing-geofence-map__tiles"></div>
+        <div id="localities-overview-map-overlay" class="pricing-geofence-map__overlay"></div>
+        <div class="pricing-geofence-map__controls">
+          <button id="localities-overview-map-zoom-in" type="button" aria-label="Aumentar zoom">+</button>
+          <button id="localities-overview-map-zoom-out" type="button" aria-label="Diminuir zoom">−</button>
+        </div>
+        <a
+          class="pricing-geofence-map__attribution"
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer noopener"
+        >© OpenStreetMap</a>
+      </div>
+    </article>
+
+    <article class="panel-card localities-directory-card">
+      <div class="panel-card__header">
+        <div>
+          <span class="eyebrow eyebrow--dark">CADASTRADAS</span>
+          <h2>Localidades</h2>
+        </div>
+        <span id="localities-list-count" class="pill">0</span>
+      </div>
+      <div id="localities-list" class="localities-list"></div>
+      <div id="localities-empty" class="empty-state">
+        Nenhuma localidade encontrada.
+      </div>
+    </article>
+  </div>
+
+  <article id="locality-wizard" class="panel-card locality-wizard" hidden>
+    <div class="locality-wizard__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">ASSISTENTE</span>
+        <h2 id="locality-wizard-title">Nova localidade</h2>
+        <p id="locality-wizard-subtitle">Preencha uma etapa por vez.</p>
+      </div>
+      <button id="locality-wizard-close" class="button button--ghost-dark" type="button">
+        Fechar
+      </button>
+    </div>
+
+    <ol class="locality-stepper" aria-label="Etapas do cadastro">
+      <li data-locality-step="1"><span>1</span><strong>Identificação</strong></li>
+      <li data-locality-step="2"><span>2</span><strong>Mapa e raio</strong></li>
+      <li data-locality-step="3"><span>3</span><strong>Veículos</strong></li>
+      <li data-locality-step="4"><span>4</span><strong>Preços</strong></li>
+      <li data-locality-step="5"><span>5</span><strong>Regras</strong></li>
+      <li data-locality-step="6"><span>6</span><strong>Revisar</strong></li>
+    </ol>
+
+    <div class="locality-wizard__body">
+      <section id="locality-step-1" class="locality-step-panel">
+        <div class="locality-step-heading">
+          <span>ETAPA 1 DE 6</span>
+          <h3>Onde esta localidade pertence?</h3>
+          <p>Escolha a base e informe um nome fácil de reconhecer.</p>
+        </div>
+        <div class="locality-form-grid">
+          <label class="field">
+            <span>Base / região</span>
+            <select id="locality-scope">
+              <option value="prea">Preá</option>
+              <option value="jijoca">Jijoca</option>
+              <option value="external">Destino externo</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Nome da localidade</span>
+            <input id="locality-name" autocomplete="off" placeholder="Lagoa Grande" maxlength="80">
+            <small>O identificador técnico será criado automaticamente.</small>
+          </label>
+          <div class="locality-id-preview">
+            <span>Identificador</span>
+            <strong id="locality-id-preview">—</strong>
+            <input id="locality-id" type="hidden">
+          </div>
+        </div>
+      </section>
+
+      <section id="locality-step-2" class="locality-step-panel" hidden>
+        <div class="locality-step-heading">
+          <span>ETAPA 2 DE 6</span>
+          <h3>Marque o ponto e ajuste o raio</h3>
+          <p>Clique no mapa para posicionar o alfinete e use o campo para aumentar ou reduzir a cobertura.</p>
+        </div>
+        <div class="locality-map-layout">
+          <div
+            id="locality-wizard-map"
+            class="pricing-geofence-map locality-wizard-map"
+            aria-label="Mapa para definir o ponto e o raio da localidade"
+          >
+            <div id="locality-wizard-map-tiles" class="pricing-geofence-map__tiles"></div>
+            <div id="locality-wizard-map-overlay" class="pricing-geofence-map__overlay"></div>
+            <div class="pricing-geofence-map__controls">
+              <button id="locality-wizard-map-zoom-in" type="button" aria-label="Aumentar zoom">+</button>
+              <button id="locality-wizard-map-zoom-out" type="button" aria-label="Diminuir zoom">−</button>
+            </div>
+            <a
+              class="pricing-geofence-map__attribution"
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer noopener"
+            >© OpenStreetMap</a>
+          </div>
+          <div class="locality-map-settings">
+            <label class="field">
+              <span>Raio de atendimento (km)</span>
+              <input id="locality-radius" type="number" min="0.05" max="100" step="0.05" value="2">
+            </label>
+            <div class="locality-coordinate-card">
+              <span>Alfinete</span>
+              <strong id="locality-coordinate-label">—</strong>
+              <small>Clique no mapa ou digite as coordenadas abaixo.</small>
+            </div>
+          </div>
+          <div class="locality-map-settings">
+            <label class="field"><span>Latitude</span><input id="locality-latitude" type="text" inputmode="decimal" placeholder="-2.7956" aria-label="Latitude"></label>
+            <label class="field"><span>Longitude</span><input id="locality-longitude" type="text" inputmode="decimal" placeholder="-40.5142" aria-label="Longitude"></label>
+            <button id="locality-apply-coordinates" type="button" class="button">Posicionar alfinete</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="locality-step-3" class="locality-step-panel" hidden>
+        <div class="locality-step-heading">
+          <span>ETAPA 3 DE 6</span>
+          <h3>Quais serviços podem operar aqui?</h3>
+          <p>Marque somente as categorias que devem aparecer para esta localidade.</p>
+        </div>
+        <div id="locality-category-grid" class="locality-category-grid">
+          <label class="locality-option-card">
+            <input id="locality-category-moto" type="checkbox">
+            <span><strong>Moto</strong><small>Mototáxi</small></span>
+          </label>
+          <label class="locality-option-card">
+            <input id="locality-category-delivery" type="checkbox">
+            <span><strong>Entrega</strong><small>Entrega por moto</small></span>
+          </label>
+          <label class="locality-option-card">
+            <input id="locality-category-car" type="checkbox">
+            <span><strong>Carro</strong><small>Categoria popular</small></span>
+          </label>
+          <label id="locality-category-comfort-card" class="locality-option-card">
+            <input id="locality-category-comfort" type="checkbox">
+            <span><strong>Comfort/Black</strong><small>4x4 premium</small></span>
+          </label>
+        </div>
+        <div id="locality-external-services-note" class="locality-inline-note" hidden>
+          Para uma cidade nova, marque os serviços que poderão usar a cobrança automática por distância.
+          Rotas com preço fixo continuam tendo prioridade.
+        </div>
+      </section>
+
+      <section id="locality-step-4" class="locality-step-panel" hidden>
+        <div class="locality-step-heading">
+          <span>ETAPA 4 DE 6</span>
+          <h3>Defina os preços por categoria</h3>
+          <p>Você pode usar valor exato ou uma faixa de preço.</p>
+        </div>
+        <div id="locality-price-grid" class="locality-price-grid">
+          <article id="locality-price-moto-card" class="locality-price-card" hidden>
+            <div class="locality-price-card__heading"><strong>Moto</strong></div>
+            <label class="field">
+              <span>Formato</span>
+              <select id="locality-price-moto-kind">
+                <option value="exact">Valor exato</option>
+                <option value="range">Faixa</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="locality-price-moto-min-label">Preço (R$)</span>
+              <input id="locality-price-moto-min" inputmode="decimal" placeholder="20,00">
+            </label>
+            <label id="locality-price-moto-max-field" class="field" hidden>
+              <span>Máximo (R$)</span>
+              <input id="locality-price-moto-max" inputmode="decimal" placeholder="30,00">
+            </label>
+          </article>
+
+          <article id="locality-price-delivery-card" class="locality-price-card" hidden>
+            <div class="locality-price-card__heading"><strong>Entrega</strong></div>
+            <label class="field">
+              <span>Formato</span>
+              <select id="locality-price-delivery-kind">
+                <option value="exact">Valor exato</option>
+                <option value="range">Faixa</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="locality-price-delivery-min-label">Preço (R$)</span>
+              <input id="locality-price-delivery-min" inputmode="decimal" placeholder="20,00">
+            </label>
+            <label id="locality-price-delivery-max-field" class="field" hidden>
+              <span>Máximo (R$)</span>
+              <input id="locality-price-delivery-max" inputmode="decimal" placeholder="30,00">
+            </label>
+          </article>
+
+          <article id="locality-price-car-card" class="locality-price-card" hidden>
+            <div class="locality-price-card__heading"><strong>Carro</strong></div>
+            <label class="field">
+              <span>Formato</span>
+              <select id="locality-price-car-kind">
+                <option value="exact">Valor exato</option>
+                <option value="range">Faixa</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="locality-price-car-min-label">Preço (R$)</span>
+              <input id="locality-price-car-min" inputmode="decimal" placeholder="60,00">
+            </label>
+            <label id="locality-price-car-max-field" class="field" hidden>
+              <span>Máximo (R$)</span>
+              <input id="locality-price-car-max" inputmode="decimal" placeholder="80,00">
+            </label>
+          </article>
+        </div>
+        <div id="locality-external-price-note" class="locality-inline-note" hidden>
+          Para destinos externos, preços fixos entre cidades continuam em “Operação e Tarifas”.
+          Abaixo você pode ativar um fallback por distância para qualquer ponto sem preço cadastrado.
+        </div>
+
+        <div class="locality-distance-section">
+          <div class="locality-distance-section__heading">
+            <span class="eyebrow eyebrow--dark">PONTOS SEM PREÇO CADASTRADO</span>
+            <h4>Cobrança automática por distância</h4>
+            <p>
+              Se não existir preço fixo ou tarifa específica para o destino, o Ramo Nessa
+              usa a distância real da rota a partir desta localidade. Preços cadastrados
+              continuam tendo prioridade.
+            </p>
+          </div>
+
+          <div id="locality-distance-grid" class="locality-distance-grid">
+            <article id="locality-distance-moto-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-moto-enabled" type="checkbox">
+                <span><strong>Moto</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-moto-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-moto-minimum-fare" inputmode="decimal" placeholder="10,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-moto-per-km" inputmode="decimal" placeholder="2,50"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-moto-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-moto-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-delivery-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-delivery-enabled" type="checkbox">
+                <span><strong>Entrega</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-delivery-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-delivery-minimum-fare" inputmode="decimal" placeholder="10,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-delivery-per-km" inputmode="decimal" placeholder="2,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-delivery-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-delivery-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-car-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-car-enabled" type="checkbox">
+                <span><strong>Carro</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-car-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-car-minimum-fare" inputmode="decimal" placeholder="15,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-car-per-km" inputmode="decimal" placeholder="3,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-car-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-car-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+
+            <article id="locality-distance-comfort_black-card" class="locality-distance-card" hidden>
+              <label class="locality-distance-toggle">
+                <input id="locality-distance-comfort_black-enabled" type="checkbox">
+                <span><strong>Comfort/Black</strong><small>Usar fallback por distância</small></span>
+              </label>
+              <div id="locality-distance-comfort_black-fields" class="locality-distance-fields" hidden>
+                <label class="field"><span>Corrida mínima (R$)</span><input id="locality-distance-comfort_black-minimum-fare" inputmode="decimal" placeholder="25,00"></label>
+                <label class="field"><span>Preço por km (R$)</span><input id="locality-distance-comfort_black-per-km" inputmode="decimal" placeholder="4,00"></label>
+                <label class="field"><span>Mínimo de km cobrados</span><input id="locality-distance-comfort_black-min-km" type="number" min="0" max="1000" step="0.1" value="0"></label>
+                <label class="field"><span>Até quantos km</span><input id="locality-distance-comfort_black-max-km" type="number" min="0.1" max="2000" step="0.1" placeholder="30"></label>
+              </div>
+            </article>
+          </div>
+
+          <div class="locality-inline-note">
+            Exemplo: se Preá → Sobral tiver preço fixo, esse valor continua valendo.
+            Para um ponto no caminho sem preço cadastrado, o sistema usa a distância
+            real da rota e esta regra automática, respeitando corrida mínima e km máximo.
+          </div>
+        </div>
+      </section>
+
+      <section id="locality-step-5" class="locality-step-panel" hidden>
+        <div class="locality-step-heading">
+          <span>ETAPA 5 DE 6</span>
+          <h3>Regras adicionais</h3>
+          <p>Defina comportamentos específicos sem misturar esta etapa com os preços.</p>
+        </div>
+        <label id="locality-night-card" class="locality-option-card locality-option-card--wide">
+          <input id="locality-night-surcharge" type="checkbox">
+          <span>
+            <strong>Aplicar adicional noturno do Preá</strong>
+            <small>Usa o adicional global configurado em Operação e Tarifas.</small>
+          </span>
+        </label>
+        <div id="locality-rules-note" class="locality-inline-note">
+          Outras regras globais, como horário noturno, comissão, Buggy e deslocamento até o passageiro, continuam em “Operação e Tarifas”.
+        </div>
+      </section>
+
+      <section id="locality-step-6" class="locality-step-panel" hidden>
+        <div class="locality-step-heading">
+          <span>ETAPA 6 DE 6</span>
+          <h3>Revise antes de salvar</h3>
+          <p>Nada será publicado agora. A alteração entra somente no rascunho.</p>
+        </div>
+        <div id="locality-review" class="locality-review"></div>
+        <div class="locality-draft-protection">
+          <strong>Proteção ativa</strong>
+          <span>Depois de salvar, você ainda poderá editar ou excluir antes de publicar a versão.</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="locality-wizard__footer">
+      <div class="locality-wizard__secondary">
+        <button id="locality-wizard-reset" class="button button--ghost-dark" type="button">
+          Desfazer alterações
+        </button>
+        <button id="locality-wizard-cancel" class="button button--ghost-dark" type="button">
+          Cancelar
+        </button>
+      </div>
+      <div class="locality-wizard__primary">
+        <button id="locality-wizard-back" class="button button--ghost-dark" type="button">
+          Voltar
+        </button>
+        <button id="locality-wizard-next" class="button button--primary" type="button">
+          Continuar
+        </button>
+        <button id="locality-wizard-save" class="button button--dark" type="button" hidden>
+          Salvar no rascunho
+        </button>
+      </div>
+    </div>
+  </article>
+</section>

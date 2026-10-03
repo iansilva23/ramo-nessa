@@ -2,9 +2,6 @@ name: Mobile Build Audit
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/mobile-build-audit.yml"
 
 concurrency:
   group: mobile-build-audit-${{ github.ref }}
@@ -14,62 +11,379 @@ permissions:
   contents: read
 
 jobs:
-  android-release:
-    runs-on: ubuntu-latest
+  preflight:
+    uses: ./.github/workflows/preflight.yml
+
+  passenger-android-release:
+    needs: preflight
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
-
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21 for Android build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
+      - name: Validate production Core URL
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+        run: |
+          if [[ ! "$RAMO_CORE_BASE_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Configure RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release."
+            exit 1
+          fi
+
+      - name: Validate Passenger Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY
+          --surface="Passenger Android"
+
+      - name: Validate Passenger Android Firebase push config
+        env:
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=android
+          --surface="Passenger Android"
+
+      - name: Prepare Passenger Android production signing
+        env:
+          RAMO_ANDROID_KEYSTORE_BASE64: ${{ secrets.RAMO_ANDROID_KEYSTORE_BASE64 }}
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+        run: |
+          for variable in RAMO_ANDROID_KEYSTORE_BASE64 RAMO_ANDROID_KEYSTORE_PASSWORD RAMO_ANDROID_KEY_ALIAS RAMO_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Configure o Secret $variable antes do build Android de produção."
+              exit 1
+            fi
+          done
+          printf '%s' "$RAMO_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ramo-android-release.jks"
+          chmod 600 "$RUNNER_TEMP/ramo-android-release.jks"
+          keytool -list             -keystore "$RUNNER_TEMP/ramo-android-release.jks"             -storepass "$RAMO_ANDROID_KEYSTORE_PASSWORD"             -alias "$RAMO_ANDROID_KEY_ALIAS" > /dev/null
+
+      - name: Build Passenger Android release
         working-directory: apps/passenger
-        run: flutter analyze
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_PRODUCTION_SIGNING: "true"
+          RAMO_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ramo-android-release.jks
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_PASSENGER_API_KEY }}
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_PASSENGER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
 
-      - name: Test
-        working-directory: apps/passenger
-        run: flutter test
+      - name: Verify Passenger production APK signature
+        run: |
+          APK="apps/passenger/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$APKSIGNER" ]]; then
+            echo "::error::apksigner não foi encontrado no Android SDK."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
-      - name: Build Android release
-        working-directory: apps/passenger
-        run: flutter build apk --release
+      - name: Upload Passenger APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-passenger-release
+          path: apps/passenger/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
 
-  ios-simulator:
-    runs-on: macos-latest
+  driver-android-release:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21 for Android build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Validate production Core URL
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+        run: |
+          if [[ ! "$RAMO_CORE_BASE_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Configure RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release."
+            exit 1
+          fi
+
+      - name: Validate Driver Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_ANDROID_API_KEY
+          --surface="Driver Android"
+
+      - name: Validate Driver Android Firebase push config
+        env:
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=android
+          --surface="Driver Android"
+
+      - name: Prepare Driver Android production signing
+        env:
+          RAMO_ANDROID_KEYSTORE_BASE64: ${{ secrets.RAMO_ANDROID_KEYSTORE_BASE64 }}
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+        run: |
+          for variable in RAMO_ANDROID_KEYSTORE_BASE64 RAMO_ANDROID_KEYSTORE_PASSWORD RAMO_ANDROID_KEY_ALIAS RAMO_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Configure o Secret $variable antes do build Android de produção."
+              exit 1
+            fi
+          done
+          printf '%s' "$RAMO_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ramo-android-release.jks"
+          chmod 600 "$RUNNER_TEMP/ramo-android-release.jks"
+          keytool -list             -keystore "$RUNNER_TEMP/ramo-android-release.jks"             -storepass "$RAMO_ANDROID_KEYSTORE_PASSWORD"             -alias "$RAMO_ANDROID_KEY_ALIAS" > /dev/null
+
+      - name: Build Driver Android release
+        working-directory: apps/driver
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_PRODUCTION_SIGNING: "true"
+          RAMO_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ramo-android-release.jks
+          RAMO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAMO_ANDROID_KEYSTORE_PASSWORD }}
+          RAMO_ANDROID_KEY_ALIAS: ${{ secrets.RAMO_ANDROID_KEY_ALIAS }}
+          RAMO_ANDROID_KEY_PASSWORD: ${{ secrets.RAMO_ANDROID_KEY_PASSWORD }}
+          RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_ANDROID_DRIVER_API_KEY }}
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_ANDROID_DRIVER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+        run: >
+          flutter build apk --release
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
+
+      - name: Verify Driver production APK signature
+        run: |
+          APK="apps/driver/build/app/outputs/flutter-apk/app-release.apk"
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$APKSIGNER" ]]; then
+            echo "::error::apksigner não foi encontrado no Android SDK."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Upload Driver APK
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ramo-nessa-driver-release
+          path: apps/driver/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+  passenger-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: preflight
+    runs-on: macos-15
     timeout-minutes: 30
-
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      - name: Resolve Passenger dependencies from lockfile
         working-directory: apps/passenger
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      - name: Analyze
-        working-directory: apps/passenger
-        run: flutter analyze
+      - name: Validate production Core URL
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+        run: |
+          if [[ ! "$RAMO_CORE_BASE_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Configure RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release."
+            exit 1
+          fi
 
-      - name: Test
-        working-directory: apps/passenger
-        run: flutter test
+      - name: Validate Passenger Google Maps iOS key
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_IOS_API_KEY
+          --surface="Passenger iOS"
 
-      - name: Build iOS simulator
+      - name: Configure Passenger Google Maps iOS key
+        working-directory: apps/passenger/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_PASSENGER_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
+
+      - name: Validate Passenger iOS Firebase push config
+        env:
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=ios
+          --surface="Passenger iOS"
+
+      - name: Build Passenger iOS simulator
         working-directory: apps/passenger
-        run: flutter build ios --simulator --debug
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_MERCADO_PAGO_PUBLIC_KEY: APP_USR-d88c8e2c-cc73-4792-a348-41d6282af1fd
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_PASSENGER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+          SWIFT_VERSION: "5.0"
+        run: >
+          flutter build ios --simulator --debug
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
+          --dart-define=RAMO_MERCADO_PAGO_PUBLIC_KEY=$RAMO_MERCADO_PAGO_PUBLIC_KEY
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET
+
+
+  driver-ios-simulator:
+    if: github.event_name == 'workflow_dispatch'
+    needs: preflight
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: Resolve Driver dependencies from lockfile
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+
+      - name: Validate production Core URL
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+        run: |
+          if [[ ! "$RAMO_CORE_BASE_URL" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Configure RAMO_CORE_BASE_URL com a URL HTTPS pública do Core antes do release."
+            exit 1
+          fi
+
+      - name: Validate Driver Google Maps iOS key
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+        run: >
+          node tooling/validate-google-maps-key.mjs
+          --env=RAMO_GOOGLE_MAPS_IOS_API_KEY
+          --surface="Driver iOS"
+
+      - name: Configure Driver Google Maps iOS key
+        working-directory: apps/driver/ios/Flutter
+        env:
+          RAMO_GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_IOS_DRIVER_API_KEY }}
+        run: printf 'GOOGLE_MAPS_API_KEY = %s\n' "$RAMO_GOOGLE_MAPS_IOS_API_KEY" > GoogleMaps.local.xcconfig
+
+      - name: Validate Driver iOS Firebase push config
+        env:
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+        run: >
+          node tooling/validate-firebase-mobile-config.mjs
+          --platform=ios
+          --surface="Driver iOS"
+
+      - name: Build Driver iOS simulator
+        working-directory: apps/driver
+        env:
+          RAMO_CORE_BASE_URL: ${{ secrets.RAMO_CORE_BASE_URL }}
+          RAMO_FIREBASE_API_KEY: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_API_KEY || secrets.RAMO_FIREBASE_API_KEY }}
+          RAMO_FIREBASE_APP_ID: ${{ secrets.RAMO_FIREBASE_IOS_DRIVER_APP_ID }}
+          RAMO_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.RAMO_FIREBASE_MESSAGING_SENDER_ID }}
+          RAMO_FIREBASE_PROJECT_ID: ${{ secrets.RAMO_FIREBASE_PROJECT_ID }}
+          RAMO_FIREBASE_STORAGE_BUCKET: ${{ secrets.RAMO_FIREBASE_STORAGE_BUCKET }}
+        run: >
+          flutter build ios --simulator --debug
+          --dart-define=RAMO_CORE_BASE_URL=$RAMO_CORE_BASE_URL
+          --dart-define=RAMO_FIREBASE_API_KEY=$RAMO_FIREBASE_API_KEY
+          --dart-define=RAMO_FIREBASE_APP_ID=$RAMO_FIREBASE_APP_ID
+          --dart-define=RAMO_FIREBASE_MESSAGING_SENDER_ID=$RAMO_FIREBASE_MESSAGING_SENDER_ID
+          --dart-define=RAMO_FIREBASE_PROJECT_ID=$RAMO_FIREBASE_PROJECT_ID
+          --dart-define=RAMO_FIREBASE_STORAGE_BUCKET=$RAMO_FIREBASE_STORAGE_BUCKET

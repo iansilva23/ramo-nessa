@@ -20,7 +20,7 @@ class RamoBrandLockup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = inverse ? Colors.white : RamoColors.brandBlack;
+    final foreground = inverse ? Colors.white : Theme.of(context).colorScheme.onSurface;
 
     return Semantics(
       label: 'Ramo Nessa',

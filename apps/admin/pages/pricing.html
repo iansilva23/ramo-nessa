@@ -1,0 +1,577 @@
+<section id="view-pricing" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO OPERACIONAL</span>
+                <h1>Operação e Tarifas</h1>
+                <p>Tarifas, rotas, categorias, disponibilidade e regras operacionais em um catálogo versionado e protegido.</p>
+              </div>
+              <div class="dashboard-refresh">
+                <small id="pricing-mode">Aguardando catálogo</small>
+                <button
+                  id="refresh-pricing-button"
+                  class="button button--ghost-dark"
+                  type="button"
+                >
+                  Atualizar catálogo
+                </button>
+              </div>
+            </div>
+
+            <nav class="pricing-section-nav" aria-label="Atalhos de Operação e Tarifas">
+              <a href="#pricing-section-editor">Tarifas e regras</a>
+              <a href="#pricing-section-availability">Disponibilidade</a>
+              <a href="#pricing-section-routes">Rotas</a>
+              <a href="/admin/nova-localidade" data-view="localities">Nova localidade</a>
+            </nav>
+
+            <div class="pricing-locality-callout">
+              <div>
+                <strong>Localidades agora têm uma área própria.</strong>
+                <span>Use “Nova localidade” para cadastrar, editar, excluir, posicionar alfinete e ajustar o raio por etapas.</span>
+              </div>
+              <a class="button button--primary" href="/admin/nova-localidade" data-view="localities">Gerenciar localidades</a>
+            </div>
+
+            <div class="pricing-summary-grid" aria-label="Resumo do catálogo de preços">
+              <article class="metric-card metric-card--signal">
+                <span class="metric-label">Versão</span>
+                <strong id="pricing-version">—</strong>
+                <small>Fonte autoritativa do Core</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Comissão</span>
+                <strong id="pricing-commission">—</strong>
+                <small>Percentual da plataforma</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Localidades</span>
+                <strong id="pricing-localities">0</strong>
+                <small>Preá + Jijoca</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Rotas fixas</span>
+                <strong id="pricing-fixed-routes">0</strong>
+                <small>Com valor diurno / noturno</small>
+              </article>
+            </div>
+
+            <div class="pricing-readonly-note">
+              <strong>Catálogo ativo protegido</strong>
+              <span>
+                O preço em produção nunca é alterado diretamente. Mudanças são feitas em rascunho, revisadas e só entram em vigor quando uma versão é publicada com vigência definida.
+              </span>
+            </div>
+
+            <div class="pricing-workflow-grid">
+              <article class="panel-card pricing-draft-card">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ALTERAÇÕES PENDENTES</span>
+                  <h2>Modo de edição</h2>
+                  <p class="panel-card__copy">
+                    Para evitar confusão, o histórico técnico saiu desta tela.
+                    Aqui você apenas edita. A publicação ou exclusão do rascunho
+                    fica em “Nova localidade”.
+                  </p>
+                </div>
+                <div class="pricing-draft-card__status">
+                  <span>Rascunho atual</span>
+                  <strong id="pricing-current-draft-label">Nenhum</strong>
+                </div>
+                <div class="pricing-draft-card__actions">
+                  <button
+                    id="pricing-create-draft-button"
+                    class="button button--primary"
+                    type="button"
+                  >
+                    Começar alterações
+                  </button>
+                  <a
+                    class="button button--ghost-dark"
+                    href="/admin/nova-localidade"
+                    data-view="localities"
+                  >
+                    Revisar / publicar
+                  </a>
+                </div>
+              </article>
+
+              <article id="pricing-section-editor" class="panel-card pricing-editor-card">
+                <div class="panel-card__header">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">CONFIGURAÇÃO</span>
+                    <h2>Editar tarifas e regras</h2>
+                  </div>
+                  <span id="pricing-editor-status" class="pill pill--neutral">Nenhum</span>
+                </div>
+
+                <div id="pricing-editor-empty" class="empty-state">
+                  Clique em “Começar alterações” para editar tarifas e regras.
+                </div>
+
+                <div id="pricing-editor-controls" hidden>
+                  <div class="pricing-selected-version">
+                    <strong id="pricing-selected-version-title">—</strong>
+                    <small id="pricing-selected-version-meta">—</small>
+                  </div>
+
+                  <form id="pricing-edit-form" class="pricing-edit-form">
+                    <label class="field">
+                      <span>Tipo de alteração</span>
+                      <select id="pricing-edit-kind">
+                        <option value="fixed_route">Rota fixa</option>
+                        <option value="category_policy">Categoria e elegibilidade</option>
+                        <option value="zone_policy">Disponibilidade de zona</option>
+                        <option value="commission_policy">Comissão da plataforma</option>
+                        <option value="period_policy">Horário diurno / noturno</option>
+                        <option value="pickup_policy">Deslocamento até o passageiro</option>
+                        <option value="surcharge_policy">Adicionais do Preá</option>
+                        <option value="buggy_policy">Regra do Buggy em Jeri</option>
+                        <option value="delivery_bands">Faixas de Entrega em Jeri</option>
+                      </select>
+                    </label>
+
+                    <div id="pricing-fixed-route-fields" class="pricing-edit-group">
+                      <label class="field">
+                        <span>ID da rota</span>
+                        <input id="pricing-route-id" autocomplete="off" placeholder="prea-jijoca-car">
+                      </label>
+                      <label class="field">
+                        <span>Preço dia (R$)</span>
+                        <input id="pricing-route-day" inputmode="decimal" placeholder="120,00">
+                      </label>
+                      <label class="field">
+                        <span>Preço noturno (R$)</span>
+                        <input id="pricing-route-night" inputmode="decimal" placeholder="140,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Base</span>
+                        <select id="pricing-locality-hub">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input id="pricing-locality-id" autocomplete="off" placeholder="formosa">
+                      </label>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-locality-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Formato do preço</span>
+                        <select id="pricing-locality-price-kind">
+                          <option value="exact">Valor exato</option>
+                          <option value="range">Faixa</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span id="pricing-locality-min-label">Preço (R$)</span>
+                        <input id="pricing-locality-min" inputmode="decimal" placeholder="25,00">
+                      </label>
+                      <label id="pricing-locality-max-field" class="field" hidden>
+                        <span>Máximo (R$)</span>
+                        <input id="pricing-locality-max" inputmode="decimal" placeholder="30,00">
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Base</span>
+                        <select id="pricing-locality-policy-hub">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-policy-id"
+                          autocomplete="off"
+                          placeholder="lagoa-grande"
+                        >
+                      </label>
+
+                      <label class="field pricing-toggle-field">
+                        <span>Moto</span>
+                        <input id="pricing-locality-policy-moto" type="checkbox">
+                        <small>Permitir corridas de Moto nesta localidade.</small>
+                      </label>
+                      <label class="field pricing-toggle-field">
+                        <span>Entrega</span>
+                        <input id="pricing-locality-policy-delivery" type="checkbox">
+                        <small>Permitir Entrega nesta localidade.</small>
+                      </label>
+                      <label class="field pricing-toggle-field">
+                        <span>Carro</span>
+                        <input id="pricing-locality-policy-car" type="checkbox">
+                        <small>Permitir Carro nesta localidade.</small>
+                      </label>
+                      <label
+                        id="pricing-locality-policy-comfort-field"
+                        class="field pricing-toggle-field"
+                      >
+                        <span>Comfort/Black</span>
+                        <input id="pricing-locality-policy-comfort" type="checkbox">
+                        <small>Disponível para localidades do Preá quando houver preço-base de carro.</small>
+                      </label>
+                      <label
+                        id="pricing-locality-policy-night-field"
+                        class="field pricing-toggle-field pricing-edit-span"
+                      >
+                        <span>Adicional noturno do Preá</span>
+                        <input id="pricing-locality-policy-night" type="checkbox">
+                        <small>Aplica o adicional noturno global configurado para o Preá nesta localidade.</small>
+                      </label>
+                    </div>
+
+                    <div id="pricing-category-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Categoria</span>
+                        <select id="pricing-policy-category">
+                          <option value="moto">Moto</option>
+                          <option value="delivery">Entrega</option>
+                          <option value="car">Carro</option>
+                          <option value="comfort_black">Comfort/Black</option>
+                          <option value="buggy">Buggy</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Ao cruzar Jeri</span>
+                        <select id="pricing-policy-four-by-four">
+                          <option value="false">Não exigir 4x4</option>
+                          <option value="true">Exigir 4x4</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="pricing-zone-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Zona</span>
+                        <select id="pricing-zone-policy-id">
+                          <option value="jericoacoara">Jericoacoara</option>
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destinos externos</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Disponibilidade</span>
+                        <select id="pricing-zone-policy-enabled">
+                          <option value="true">Ativa</option>
+                          <option value="false">Desativada</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <div id="pricing-locality-map-fields" class="pricing-edit-group pricing-edit-group--map" hidden>
+                      <label class="field">
+                        <span>Base / zona</span>
+                        <select id="pricing-locality-map-scope">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destino externo</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-map-id"
+                          autocomplete="off"
+                          placeholder="lagoa-grande"
+                        >
+                        <small>Use um ID curto sem espaços. Ex.: lagoa-grande.</small>
+                      </label>
+
+                      <label class="field">
+                        <span>Raio da localidade (km)</span>
+                        <input
+                          id="pricing-locality-map-radius"
+                          type="number"
+                          min="0.05"
+                          max="100"
+                          step="0.05"
+                          inputmode="decimal"
+                          value="2"
+                        >
+                        <small>O círculo do mapa muda junto com este valor.</small>
+                      </label>
+                      <div class="pricing-geofence-coordinates">
+                        <span>Alfinete</span>
+                        <strong id="pricing-locality-map-coordinate-label">—</strong>
+                        <input id="pricing-locality-map-latitude" type="hidden">
+                        <input id="pricing-locality-map-longitude" type="hidden">
+                      </div>
+
+                      <div class="pricing-geofence-map-shell pricing-edit-span">
+                        <div
+                          id="pricing-locality-map"
+                          class="pricing-geofence-map"
+                          aria-label="Mapa para posicionar o alfinete e definir o raio da localidade"
+                        >
+                          <div id="pricing-locality-map-tiles" class="pricing-geofence-map__tiles"></div>
+                          <div id="pricing-locality-map-overlay" class="pricing-geofence-map__overlay"></div>
+                          <div class="pricing-geofence-map__controls">
+                            <button id="pricing-locality-map-zoom-in" type="button" aria-label="Aumentar zoom">+</button>
+                            <button id="pricing-locality-map-zoom-out" type="button" aria-label="Diminuir zoom">−</button>
+                          </div>
+                          <a
+                            class="pricing-geofence-map__attribution"
+                            href="https://www.openstreetmap.org/copyright"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            © OpenStreetMap
+                          </a>
+                        </div>
+                        <div class="pricing-geofence-map-help">
+                          <strong>Clique para posicionar o alfinete.</strong>
+                          <span>Arraste o mapa para navegar e ajuste o raio acima. A área só entra em produção quando você publicar o rascunho.</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div id="pricing-locality-structure-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Ação</span>
+                        <select id="pricing-locality-structure-operation">
+                          <option value="add">Adicionar</option>
+                          <option value="remove">Remover</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>Estrutura</span>
+                        <select id="pricing-locality-structure-scope">
+                          <option value="prea">Preá</option>
+                          <option value="jijoca">Jijoca</option>
+                          <option value="external">Destino externo</option>
+                        </select>
+                      </label>
+                      <label class="field">
+                        <span>ID da localidade</span>
+                        <input
+                          id="pricing-locality-structure-id"
+                          autocomplete="off"
+                          placeholder="novo-destino"
+                        >
+                      </label>
+                    </div>
+
+                    <div id="pricing-commission-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Comissão da plataforma (%)</span>
+                        <input id="pricing-commission-percent" type="number" min="0" max="100" step="0.01" inputmode="decimal">
+                        <small>Ex.: 10 corresponde a 10% da tarifa-base. O valor restante é do motorista.</small>
+                      </label>
+                    </div>
+
+                    <div id="pricing-period-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Início do período noturno</span>
+                        <input id="pricing-night-start-hour" type="number" min="0" max="23" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Fim do período noturno / início do dia</span>
+                        <input id="pricing-day-start-hour" type="number" min="0" max="23" step="1" inputmode="numeric">
+                      </label>
+                      <small class="pricing-policy-help">
+                        Horário de Fortaleza. Ex.: 22 e 6 = noturno das 22h até 05:59.
+                      </small>
+                    </div>
+
+                    <div id="pricing-pickup-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Distância grátis para coleta (km)</span>
+                        <input id="pricing-pickup-free-km" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Preço de referência do combustível (R$/L)</span>
+                        <input id="pricing-fuel-price-reais" type="number" min="0.01" max="1000" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Consumo de referência Moto (km/L)</span>
+                        <input id="pricing-moto-km-liter" type="number" min="1" max="200" step="0.1" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Consumo de referência Carro/4x4 (km/L)</span>
+                        <input id="pricing-car-km-liter" type="number" min="1" max="100" step="0.1" inputmode="decimal">
+                      </label>
+                    </div>
+
+                    <div id="pricing-surcharge-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Adicional Comfort/Black no Preá (R$)</span>
+                        <input id="pricing-prea-comfort-surcharge" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Adicional noturno do carro local no Preá (R$)</span>
+                        <input id="pricing-prea-night-surcharge" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field pricing-edit-span">
+                        <span>Localidades que recebem o adicional noturno</span>
+                        <textarea id="pricing-prea-night-localities" rows="6" spellcheck="false" placeholder="prea&#10;formosa&#10;cavalo-bravo"></textarea>
+                        <small>Uma localidade por linha. Use os IDs já cadastrados no catálogo.</small>
+                      </label>
+                    </div>
+
+                    <div id="pricing-buggy-policy-fields" class="pricing-edit-group" hidden>
+                      <label class="field">
+                        <span>Mínimo de passageiros</span>
+                        <input id="pricing-buggy-min-passengers" type="number" min="1" max="20" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Máximo de passageiros</span>
+                        <input id="pricing-buggy-max-passengers" type="number" min="1" max="20" step="1" inputmode="numeric">
+                      </label>
+                      <label class="field">
+                        <span>Preço base diurno (R$)</span>
+                        <input id="pricing-buggy-day-price" type="number" min="0.01" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Preço base noturno (R$)</span>
+                        <input id="pricing-buggy-night-price" type="number" min="0.01" step="0.01" inputmode="decimal">
+                      </label>
+                      <label class="field">
+                        <span>Adicional por passageiro (R$)</span>
+                        <input id="pricing-buggy-passenger-price" type="number" min="0" step="0.01" inputmode="decimal">
+                      </label>
+                    </div>
+
+                    <div id="pricing-delivery-bands-fields" class="pricing-edit-group" hidden>
+                      <label class="field pricing-edit-span">
+                        <span>Faixas de distância e preço</span>
+                        <textarea id="pricing-delivery-bands" rows="7" spellcheck="false" placeholder="0,7 | 5,00&#10;1,2 | 5,00&#10;1,6 | 5,00&#10;2,0 | 5,00"></textarea>
+                        <small>Uma faixa por linha no formato “km | R$”. As distâncias precisam estar em ordem crescente.</small>
+                      </label>
+                      <label class="field">
+                        <span>Preço acima da última faixa (R$)</span>
+                        <input id="pricing-delivery-above-max" type="number" min="0.01" step="0.01" inputmode="decimal">
+                      </label>
+                    </div>
+
+                    <button id="pricing-save-draft-button" class="button button--primary" type="submit">
+                      Salvar no rascunho
+                    </button>
+                  </form>
+
+                  <div class="pricing-publish-panel pricing-publish-panel--redirect">
+                    <div>
+                      <strong>Terminou as alterações?</strong>
+                      <small>
+                        Revise, publique ou exclua o rascunho na página “Nova localidade”.
+                      </small>
+                    </div>
+                    <a
+                      class="button button--dark"
+                      href="/admin/nova-localidade"
+                      data-view="localities"
+                    >
+                      Revisar rascunho
+                    </a>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div id="pricing-section-availability" class="pricing-section-heading">
+              <span>DISPONIBILIDADE</span>
+              <h2>Categorias e zonas operacionais</h2>
+              <p>Defina onde cada serviço pode operar sem misturar disponibilidade com cadastro de localidade.</p>
+            </div>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">CATEGORIAS</span>
+                  <h2>Disponibilidade e elegibilidade</h2>
+                </div>
+                <span id="pricing-category-count" class="pill">0 categorias</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Categoria</th>
+                      <th>Status</th>
+                      <th>Ao cruzar Jeri</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-category-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-category-policies-empty" class="empty-state">
+                Nenhuma política de categoria carregada.
+              </div>
+            </article>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ZONAS</span>
+                  <h2>Disponibilidade operacional</h2>
+                </div>
+                <span id="pricing-zone-count" class="pill">0 zonas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Zona</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-zone-policies-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-zone-policies-empty" class="empty-state">
+                Nenhuma política de zona carregada.
+              </div>
+            </article>
+
+            <div id="pricing-section-routes" class="pricing-section-heading">
+              <span>ROTAS</span>
+              <h2>Corredores e tarifas fixas</h2>
+              <p>Consulte as ligações fixas e os valores de dia e noite.</p>
+            </div>
+
+            <article class="panel-card panel-card--table pricing-table-card">
+              <div class="pricing-table-heading">
+                <div>
+                  <span class="eyebrow eyebrow--dark">ROTAS FIXAS</span>
+                  <h2>Corredores e horários</h2>
+                </div>
+                <span id="pricing-route-count" class="pill">0 rotas</span>
+              </div>
+              <div class="table-wrap">
+                <table class="pricing-table">
+                  <thead>
+                    <tr>
+                      <th>Rota</th>
+                      <th>Categoria</th>
+                      <th>Dia</th>
+                      <th>Noturno</th>
+                      <th>Regra</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pricing-routes-body"></tbody>
+                </table>
+              </div>
+              <div id="pricing-routes-empty" class="empty-state">
+                Nenhuma rota fixa carregada.
+              </div>
+            </article>
+          </section>

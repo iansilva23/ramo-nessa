@@ -15,7 +15,6 @@ Este arquivo registra projetos avaliados como possíveis fontes de referência o
 - **gskinner/flutter_animate** — BSD-3-Clause
 - **rive-app/rive-flutter** — MIT
 - **xvrh/lottie-flutter** — MIT
-- **Project-OSRM/osrm-backend** — BSD-2-Clause
 
 ## Não incorporar sem nova verificação
 
@@ -30,15 +29,15 @@ Nenhuma credencial, chave privada ou configuração de terceiros será copiada p
 
 ## Dependências atualmente incorporadas ao app Passageiro
 
-- **flutter_map 8.3.2** — BSD-3-Clause
+- **google_maps_flutter 2.18.1** — BSD-3-Clause
 - **geolocator 14.0.3** — MIT
 - **http 1.6.0** — BSD-3-Clause
 - **latlong2 0.10.1** — Apache-2.0
 
-## Dados e serviços usados durante desenvolvimento
+## Serviços de mapas
 
-- **OpenStreetMap** — dados sob ODbL; atribuição deve permanecer visível.
-- **Nominatim público (OSMF)** — somente para desenvolvimento/baixo volume e pesquisa explícita do usuário; não usar como autocomplete.
-- **OSRM demo server** — somente para desenvolvimento/validação; sem garantia de disponibilidade para operação comercial.
+- **Google Maps Platform** — Maps SDK for Android/iOS, Routes API e Places API (New).
+- As credenciais são mantidas separadas entre Android, iOS e Core.
+- Preview e Test Stack usam serviços locais/mocks para não depender de chamadas externas.
 
-Os serviços públicos acima não devem ser tratados como infraestrutura de produção do Ramo Nessa.
+O uso comercial deve seguir os termos, restrições de chave, billing e quotas configurados no projeto Google Cloud da operação.

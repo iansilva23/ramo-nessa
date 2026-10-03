@@ -1,0 +1,159 @@
+# Homologação em VPS — Ramo Nessa
+
+Ambiente público de homologação, separado de `deploy/prod`.
+
+Objetivos:
+- PostgreSQL, migrations, Core, Admin e HTTPS reais no VPS;
+- banco e storage persistentes de homologação;
+- deploy, reinício, backup, restore e acesso administrativo;
+- integrar Mercado Pago, Firebase, SMS e Google Maps depois, uma etapa por vez.
+
+## Segurança inicial
+
+Use apenas dados fictícios. O ambiente começa com identidade de desenvolvimento
+desabilitada, OTP sem entrega, Push desabilitado, Mercado Pago sem token,
+Google Routes/Places em mock interno e Payouts desabilitado.
+
+## Infraestrutura alvo
+
+- Amazon Lightsail;
+- São Paulo (`sa-east-1`);
+- um VPS Linux inicialmente;
+- Core, PostgreSQL e gateway em containers separados;
+- PostgreSQL e Core sem porta pública;
+- Caddy publica apenas 80/443;
+- SSH administrativo por chave.
+
+## Preparação
+
+1. Aponte um subdomínio exclusivo de homologação para o IP estático do VPS.
+2. Gere o ambiente:
+
+```bash
+node deploy/staging/generate-env.mjs
+```
+
+3. Edite somente `APP_DOMAIN` e `ACME_EMAIL`.
+4. Valide:
+
+```bash
+node deploy/staging/validate-env.mjs
+docker compose --env-file deploy/staging/.env -f deploy/staging/compose.yml config > /dev/null
+```
+
+5. Suba:
+
+```bash
+node deploy/staging/start.mjs
+```
+
+Valide:
+- `https://<APP_DOMAIN>/health`
+- `https://<APP_DOMAIN>/ready`
+- `https://<APP_DOMAIN>/admin/`
+
+## Google Maps real na homologação
+
+O padrão continua sendo o mock interno. Para usar Places API (New) e Routes API,
+crie uma chave exclusiva do servidor, restrita ao IP de saída da VPS e a essas
+duas APIs. Guarde o valor fora do repositório em um arquivo regular privado
+(0600), nunca em mensagens ou comandos com o valor literal.
+
+Configure no `.env` somente:
+
+```dotenv
+GOOGLE_MAPS_PROVIDER=google
+GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE=/home/ubuntu/.config/ramo-nessa/staging/google-maps-api-key
+```
+
+Execute `node deploy/staging/start.mjs` com permissão para ler o arquivo.
+O helper valida a chave, injeta o valor somente no ambiente do Core e seleciona
+`compose.google-maps.yml` junto com o overlay Firebase quando habilitado.
+Não imprima `docker compose config` nem `docker inspect`: o ambiente do Core
+contém a chave. Readiness confirma a saúde do Core, mas chamadas reais de
+Places e Routes ainda devem ser verificadas após o deploy. APIs reais podem
+gerar cobrança conforme o uso. Para retornar ao simulador, defina
+`GOOGLE_MAPS_PROVIDER=mock` e execute `start.mjs` novamente.
+
+## Conta proprietária
+
+```bash
+node deploy/staging/create-admin.mjs --name="Seu nome" --email="seu@email.com"
+node deploy/staging/set-owner.mjs --user-id=<UUID>
+```
+
+O segundo comando grava o mesmo UUID em `ADMIN_OWNER_USER_ID` e
+`ADMIN_PAYOUT_APPROVER_USER_ID` e recria apenas o Core.
+
+## Backup e restore drill
+
+```bash
+node deploy/staging/backup.mjs --output-dir=/var/backups/ramo-nessa-staging
+node deploy/staging/verify-backup.mjs --backup-dir=/var/backups/ramo-nessa-staging/<snapshot>
+node deploy/staging/restore-drill.mjs --backup-dir=/var/backups/ramo-nessa-staging/<snapshot>
+```
+
+Nunca use `docker compose down -v` para resolver falhas.
+Nunca versione `.env`, tokens, TOTP, chaves privadas ou Service Accounts.
+
+## Firebase / FCM opcional na homologação
+
+Apps e API FCM precisam pertencer ao mesmo projeto. A chave privada da conta de
+serviço permanece fora do repositório e é montada somente no Core, como arquivo
+somente leitura. Não enviar o JSON pelo chat ou incluí-lo nos builds móveis.
+
+Depois de transferir a credencial para um caminho privado absoluto no VPS,
+configure no `.env` existente, preservando os demais valores:
+
+```dotenv
+PUSH_PROVIDER=fcm
+FIREBASE_PROJECT_ID=ramo-nessa
+FIREBASE_SERVICE_ACCOUNT_HOST_FILE=/home/ubuntu/.config/ramo-nessa/staging/firebase-service-account.json
+```
+
+Arquivo regular (sem symlink), permissão `0600`, proprietário UID `1000` (o mesmo
+usuário `node` do Core). O validador confere projeto, conta e chave RSA antes de
+iniciar. Erros não imprimem a chave privada. Credencial ausente/incorreta impede
+a ativação; não há fallback silencioso para Push desligado.
+
+Use `node deploy/staging/start.mjs` para iniciar/atualizar. Ele seleciona
+automaticamente `compose.firebase.yml` quando FCM está habilitado. O script de
+proprietário também preserva essa seleção. Não recrie Core com apenas o Compose
+base: ele mantém Push desligado. Consultas `ps` e backups continuam usando o
+mesmo projeto/volumes. Para voltar a desativar, defina `PUSH_PROVIDER=disabled`
+e execute `start.mjs`; a montagem privada é retirada do Core.
+
+O ambiente antigo, sem os novos campos, continua com Push desativado e não exige
+credencial. FCM não ativa SMS, mapas reais, pagamentos ou repasses. Configuração
+do servidor não certifica entrega: ainda são necessários configuração Firebase
+nos binários, registro de token após login e teste em Android físico; iPhone
+também depende de APNs e assinatura Apple.
+
+### OTP pelo WhatsApp (entrar.api.br)
+
+Opt-in: criar no painel do fornecedor um app Ramo Nessa e obter seu API Secret.
+Salvar esse segredo em arquivo privado no VPS (sem colocá-lo no repositório):
+`/home/ubuntu/.config/ramo-nessa/staging/entrar-api-secret`, modo 0600.
+Configurar no `.env` apenas `OTP_PROVIDER=entrar-whatsapp` e
+`ENTRAR_API_SECRET_HOST_FILE` com esse caminho. `start.mjs` valida o arquivo e
+seleciona `compose.otp.yml`, mantendo Firebase e Google Maps já configurados.
+
+Antes de alterar o ambiente, fazer backup verificado. A migration 072 adiciona
+referência externa e reserva de verificação; não altera desafios antigos.
+A inicialização aplica migrations pelo fluxo existente. Verificar `/ready` e o
+status OTP no Admin, depois solicitar e verificar um código em aparelho físico.
+Não imprimir `docker compose config` nem `docker inspect` com a chave ativada.
+Código aceito para envio não comprova entrega. Configuração padrão existente
+continua sem OTP real até esse opt-in. Ver `docs/OTP_PRODUCTION.md`.
+
+### Endereços pelo alfinete
+
+O passageiro pode escolher o ponto exato no mapa, informar número ou Sem número,
+complemento e referência. Os detalhes ficam salvos na conta e acompanham a corrida.
+Para identificar automaticamente a rua, habilite **Geocoding API** no mesmo projeto
+Google Cloud e inclua-a nas APIs permitidas da chave privada do servidor, mantendo
+sua restrição ao IP da VPS. A chave continua somente no backend. Sem resultado ou
+com indisponibilidade da API, o endereço pode ser salvo com as coordenadas do pin.
+A área de atendimento e a identidade de preço são verificadas pelo catálogo do Core
+a cada seleção; a geocodificação nunca altera o ponto escolhido nem autoriza preços.
+A migração 079 e os aplicativos atualizados devem ser instalados na atualização conjunta.
