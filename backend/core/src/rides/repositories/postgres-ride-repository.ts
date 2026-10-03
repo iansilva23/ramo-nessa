@@ -172,7 +172,7 @@ export class PostgresRideRepository implements RideRepository {
       INSERT INTO rides (
         id, passenger_id, state, payment_status, payment_method, driver_id,
         reserved_driver_id, driver_hold_expires_at, driver_search_max_distance_km,
-    pickup_latitude, pickup_longitude,
+        pickup_latitude, pickup_longitude,
         dropoff_latitude, dropoff_longitude,
         origin_zone_id, origin_locality_id,
         destination_zone_id, destination_locality_id,

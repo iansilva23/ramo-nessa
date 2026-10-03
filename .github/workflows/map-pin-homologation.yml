@@ -136,4 +136,3 @@ jobs:
             apps/${{ matrix.app }}/APK-SHA256.txt
             apps/${{ matrix.app }}/BUILD-INFO.json
           retention-days: 7
-
