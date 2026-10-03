@@ -35,7 +35,7 @@ async function setup() {
   return { registry, documents, storage, directory };
 }
 
-test('motorista envia CNH privada e documento entra em análise', async () => {
+test('motorista envia CNH sem informar validade e documento entra em análise', async () => {
   const { registry, documents, storage, directory } = await setup();
 
   try {
@@ -51,7 +51,6 @@ test('motorista envia CNH privada e documento entra em análise', async () => {
       documentType: 'driver_license',
       bytes,
       mimeType: 'application/pdf',
-      expiresOn: '2028-09-24',
       now: new Date('2026-09-24T21:00:00.000Z'),
     });
 
@@ -60,13 +59,14 @@ test('motorista envia CNH privada e documento entra em análise', async () => {
     assert.equal(result.effectiveStatus, 'pending');
     assert.equal(result.mimeType, 'application/pdf');
     assert.equal(result.sizeBytes, bytes.length);
-    assert.equal(result.expiresOn, '2028-09-24');
+    assert.equal(result.expiresOn, undefined);
 
     const current = await documents.findCurrent(
       'driver-doc-self',
       'driver_license',
     );
     assert.ok(current);
+    assert.equal(current.expiresOn, undefined);
     assert.match(
       current.storageKey,
       /^drivers\/driver-doc-self\/driver_license\/.+\.pdf$/,

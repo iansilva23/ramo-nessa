@@ -71,12 +71,6 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
     }
   }
 
-  String _dateOnly(DateTime value) {
-    final month = value.month.toString().padLeft(2, '0');
-    final day = value.day.toString().padLeft(2, '0');
-    return '${value.year}-$month-$day';
-  }
-
   Future<void> _pickAndUpload(String documentType) async {
     if (_uploadingType != null) return;
 
@@ -117,19 +111,8 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
         return;
       }
 
-      final now = DateTime.now();
-      final expires = await showDatePicker(
-        context: context,
-        initialDate: DateTime(now.year + 1, now.month, now.day),
-        firstDate: DateTime(now.year, now.month, now.day),
-        lastDate: DateTime(now.year + 20, 12, 31),
-        helpText: 'Validade do documento (opcional)',
-        cancelText: 'Sem validade',
-        confirmText: 'Usar esta data',
-      );
-      if (!mounted) return;
-
       final bytes = await file.readAsBytes();
+      if (!mounted) return;
       if (bytes.isEmpty || bytes.length > 20 * 1024 * 1024) {
         setState(() {
           _error = bytes.isEmpty
@@ -148,7 +131,6 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
         documentType: documentType,
         mimeType: mimeType,
         bytes: bytes,
-        expiresOn: expires == null ? null : _dateOnly(expires),
       );
       await _load();
       if (!mounted) return;
@@ -329,8 +311,8 @@ class _DriverDocumentsScreenState extends State<DriverDocumentsScreen> {
                     Expanded(
                       child: Text(
                         'Envie CNH e CRLV em JPG, PNG ou PDF. '
-                        'Os arquivos ficam em storage privado e só entram '
-                        'como aprovados depois da revisão administrativa.',
+                        'Seus arquivos são privados. A equipe confere os '
+                        'documentos e a validade antes de aprovar o cadastro.',
                       ),
                     ),
                   ],
