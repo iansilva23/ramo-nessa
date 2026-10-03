@@ -1,3 +1,4 @@
+import type { RoutingDistanceProvider } from '../routing/distance-provider.js';
 import type { OperationalSettingsRepository } from '../config/operational-settings-repository.js';
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
 import type { RideMatchingRepository } from '../matching/ride-matching-repository.js';
@@ -48,6 +49,7 @@ async function requirePassengerNoDriverRide(input: {
 }
 
 export async function retryPassengerRideSearch(input: {
+  routing?: RoutingDistanceProvider;
   rides: RideRepository;
   drivers: DriverSupplyRepository;
   matching: RideMatchingRepository;
@@ -68,6 +70,7 @@ export async function retryPassengerRideSearch(input: {
   });
 
   const dispatch = await dispatchRideAfterPayment({
+    ...(input.routing == null ? {} : { routing: input.routing }),
     ride: searching,
     rides: input.rides,
     drivers: input.drivers,

@@ -93,6 +93,8 @@ test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode
   const ctx = await setupWalletPaidRide(
     '44444444-4444-4444-8444-444444444444',
   );
+  ctx.paid = await ctx.rides.save({ ...ctx.paid, driverSearchMaxDistanceKm: 5 });
+  const routing = { routeDistanceKm: async () => 2 };
   const driverId = 'driver-payment-hold';
   const drivers = new InMemoryDriverSupplyRepository();
   await drivers.upsert({
@@ -114,6 +116,7 @@ test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode
   );
 
   const firstDispatch = await dispatchRideAfterPayment({
+    routing,
     ride: ctx.paid,
     rides: ctx.rides,
     drivers,
@@ -144,6 +147,7 @@ test('passageiro tenta novamente após NO_DRIVER_FOUND sem nova cobrança e pode
   assert.equal(balanceBeforeRetry, 3000);
 
   const retried = await retryPassengerRideSearch({
+    routing,
     rides: ctx.rides,
     drivers,
     matching,

@@ -7520,6 +7520,7 @@ const server = createServer(async (request, response) => {
         identities: authOtpRepository,
       });
       const result = await retryPassengerRideSearch({
+        ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
         rides: rideRepository,
         drivers: driverSupplyRepository,
         matching: rideMatchingRepository,
