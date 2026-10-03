@@ -19,11 +19,30 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_ride_pa
 import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/driver_confirmation_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/passenger_ride_tracking_snapshot.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
 
 void main() {
+  testWidgets('server payment-first response opens payment without requesting driver acceptance', (tester) async {
+    final service = _PaymentFirstService();
+    final ride = PreparedRide.fromJson({
+      'driverConsentRequired': false,
+      'holdExpiresAt': DateTime.now().add(const Duration(minutes: 2)).toIso8601String(),
+      'ride': {'id': 'payment-first-ride', 'state': 'AWAITING_PAYMENT',
+        'quote': {'baseAmountCents': 4500, 'pickupCompensationCents': 0, 'totalAmountCents': 4500}},
+    });
+    await tester.pumpWidget(MaterialApp(home: RidePaymentScreen(ride: ride,
+      pickupLatitude: -2.82017, pickupLongitude: -40.41467,
+      paymentService: service, networkTilesEnabled: false)));
+    await tester.pumpAndSettle();
+    expect(find.text('Preço e pagamento'), findsOneWidget);
+    expect(find.text('Formas de pagamento'), findsOneWidget);
+    expect(service.confirmationRequests, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('digitar destino não faz autocomplete no Nominatim', (tester) async {
     final search = _FakePlaceSearchService();
 
@@ -941,4 +960,18 @@ class _EmailPixService extends _FakePixPassengerPaymentService implements PixEma
     pixCalls++; email = payerEmail;
     return super.createPixRidePayment(rideId:rideId,idempotencyKey:idempotencyKey);
   }
+}
+
+class _PaymentFirstService extends _FakePassengerPaymentService implements DriverConfirmationService {
+  int confirmationRequests = 0;
+  @override
+  Future<void> requestDriverConfirmation(String rideId) async {
+    confirmationRequests += 1;
+    throw StateError('Driver acceptance must not precede payment.');
+  }
+  @override
+  Future<DriverConfirmation> driverConfirmation(String rideId) async =>
+      throw StateError('No prepayment confirmation is expected.');
+  @override
+  Future<void> releaseDriverReservation(String rideId) async {}
 }

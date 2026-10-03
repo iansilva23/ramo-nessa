@@ -306,3 +306,12 @@ export async function prepareRideForPayment(input: {
     'Os motoristas elegíveis ficaram indisponíveis durante a preparação.',
   );
 }
+
+/** New passenger bookings choose price/payment before notifying any driver.
+ * Keep the legacy consent path only for already-created bookings in flight.
+ */
+export async function preparePassengerRideForPayment(
+  input: Omit<Parameters<typeof prepareRideForPayment>[0], 'requireDriverConsent'>,
+): Promise<RideRecord> {
+  return prepareRideForPayment({ ...input, requireDriverConsent: false });
+}

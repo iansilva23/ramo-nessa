@@ -1,3 +1,13 @@
+# Fluxo atual da corrida
+
+Destino → categoria e preço → pagamento → busca de motorista.
+
+Novas corridas do passageiro abrem o pagamento imediatamente após a categoria/preço. Nenhum motorista recebe uma oferta para aceitar antes da confirmação de pagamento (ou da autorização de dinheiro, quando habilitada). O preço final e as regras de coleta continuam calculados no servidor. Sair antes de pagar não gera uma solicitação de corrida para o motorista.
+
+O servidor responde `driverConsentRequired: false` nas novas preparações. Os APKs de homologação build 1507 já interpretam essa resposta e não precisam ser recompilados. Corridas antigas em andamento preservam seu estado durante a atualização.
+
+Os detalhes abaixo descrevem os componentes e o fluxo anterior mantido para compatibilidade de corridas já criadas.
+
 # Ride confirmation and payment experience
 
 The passenger chooses the route/category, explicitly approves a wider search when allowed, receives a nearby driver's acceptance, and confirms that driver before payment. Offers last up to 35 seconds. The existing exclusive payment hold and backend payment/late-Pix/refund rules remain authoritative.

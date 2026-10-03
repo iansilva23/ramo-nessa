@@ -294,7 +294,7 @@ import {
   parsePrepareRideRequest,
 } from './rides/validation.js';
 import {
-  prepareRideForPayment,
+  preparePassengerRideForPayment,
   RidePreparationError,
 } from './rides/prepare-ride.js';
 import { adminFleetSnapshot } from './admin/admin-fleet-service.js';
@@ -7607,7 +7607,7 @@ const server = createServer(async (request, response) => {
       let searchRadiusKm: number;
       try { searchRadiusKm = selectedDriverSearchRadius(searchPolicy, requestedRadius == null ? undefined : Number(requestedRadius)); }
       catch (error) { throw new InvalidQuoteRequestError(error instanceof Error ? error.message : 'Raio inválido.'); }
-      let ride = await prepareRideForPayment({
+      let ride = await preparePassengerRideForPayment({
         repository: ridePreparationRepository,
         drivers: driverSupplyRepository,
         routing: routingDistanceProvider,
@@ -7621,7 +7621,6 @@ const server = createServer(async (request, response) => {
         holdSeconds: operationalSettings.driverPaymentHoldSeconds,
         maxPickupDistanceKm: searchRadiusKm,
         pickupFeeForDistance: (km) => customPickupFee(searchPolicy, km),
-        requireDriverConsent: true,
         canUseDriver: (candidateDriverId) =>
           canDriverReceiveNewWorkUnderPolicy(
             candidateDriverId,
@@ -7647,7 +7646,7 @@ const server = createServer(async (request, response) => {
       }
       json(response, 201, {
         ...(promotionMessage == null ? {} : { promotionMessage }),
-        driverConsentRequired: true,
+        driverConsentRequired: ride.driverConsentRequired === true,
         ride: passengerRideView(ride),
         priceFinal: true,
         holdExpiresAt: ride.driverHoldExpiresAt,
