@@ -56,15 +56,16 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
   Future<void> _confirm() async {
     if (_saving || _moving) return;
     final point = _point;
+    _revision++;
     setState(() => _saving = true);
     RamoPlace? resolved;
     final service = widget.searchService;
     try {
-      if (service is CoordinateAddressResolver) resolved = await service.reverseCoordinate(point);
+      if (service is CoordinateAddressResolver) resolved = await (service as CoordinateAddressResolver).reverseCoordinate(point);
     } catch (_) { /* The exact pin remains usable without an address. */ }
     if (!mounted) return;
-    Navigator.of(context).pop(resolved ?? RamoPlace(name: 'Local escolhido no mapa',
-      address: 'Local escolhido no mapa', position: point, mapPinned: true));
+    Navigator.of(context).pop(RamoPlace(name: resolved?.name ?? 'Local escolhido no mapa',
+      address: resolved?.address ?? 'Local escolhido no mapa', position: point, mapPinned: true));
   }
 
   @override

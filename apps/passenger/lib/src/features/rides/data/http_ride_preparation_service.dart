@@ -105,8 +105,10 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
               'tripDistanceKm': route.distanceMeters / 1000,
               'passengers': passengers,
             },
-            'pickupInstructions': origin.address,
-            'dropoffInstructions': destination.address,
+            if (origin.address.trim().isNotEmpty && origin.address != 'Coordenada aprovada pelo catálogo vigente')
+              'pickupInstructions': origin.address,
+            if (destination.address.trim().isNotEmpty && destination.address != 'Coordenada aprovada pelo catálogo vigente')
+              'dropoffInstructions': destination.address,
             'pickup': {
               'latitude': origin.position.latitude,
               'longitude': origin.position.longitude,

@@ -140,7 +140,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
       try {
         final resolver = _searchService;
         if (resolver is! CoordinatePlaceResolver) throw StateError('Classificação indisponível');
-        final approved = await resolver.classifyCoordinate(place.position);
+        final approved = await (resolver as CoordinatePlaceResolver).classifyCoordinate(place.position);
         if (!mounted) return;
         if (approved == null) {
           setState(() { _loading = false; _error = 'Este endereço está fora da área atendida.'; });

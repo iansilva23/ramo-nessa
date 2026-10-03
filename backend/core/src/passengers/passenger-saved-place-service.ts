@@ -94,8 +94,9 @@ function coordinates(input: {
   latitude: unknown;
   longitude: unknown;
 }): { latitude: number; longitude: number } {
-  if (input.latitude == null || input.longitude == null ||
-      input.latitude === '' || input.longitude === '') {
+  if ((typeof input.latitude !== 'number' && typeof input.latitude !== 'string') ||
+      (typeof input.longitude !== 'number' && typeof input.longitude !== 'string') ||
+      String(input.latitude).trim() === '' || String(input.longitude).trim() === '') {
     throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Coordenadas do local salvo são inválidas.');
   }
   const latitude =
@@ -136,7 +137,7 @@ function addressDetails(value: unknown): SavedAddressDetails | undefined {
   const optional = (key: string, max: number) => v[key] == null || v[key] === ''
     ? undefined : cleanText(v[key], 1, max, key);
   const houseNumber = optional('houseNumber', 20);
-  if (v.mapPinned && !v.noNumber && !houseNumber || v.noNumber && houseNumber) {
+  if ((v.mapPinned && !v.noNumber && !houseNumber) || (v.noNumber && houseNumber)) {
     throw new PassengerSavedPlaceError('INVALID_SAVED_PLACE', 'Informe o número ou marque Sem número.');
   }
   const complement = optional('complement', 100);
