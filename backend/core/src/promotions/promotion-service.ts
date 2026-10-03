@@ -476,6 +476,7 @@ export async function applyPromotionToRide(input: {
   clientInstanceId: string;
   rideId: string;
   code?: string;
+  preparationPreference?: PassengerPromotionPreferenceRecord;
   now?: Date;
 }): Promise<RideRecord> {
   const now = input.now ?? new Date();
@@ -498,7 +499,13 @@ export async function applyPromotionToRide(input: {
 
   const deviceHash = promotionDeviceHash(input.clientInstanceId);
   let campaign: PromotionCampaignRecord | null = null;
-  if (input.code != null && input.code.trim()) {
+  if (input.preparationPreference != null) {
+    const preference = input.preparationPreference;
+    if (preference.passengerId !== ride.passengerId || Date.parse(preference.updatedAt) > Date.parse(ride.createdAt)) {
+      throw new PromotionError('PROMOTION_RIDE_STATE_INVALID', 'Ative o cupom no Perfil antes de pedir a corrida.');
+    }
+    campaign = await input.promotions.findCampaignById(preference.campaignId);
+  } else if (input.code != null && input.code.trim()) {
     campaign = await input.promotions.findCampaignByCode(
       normalizePromotionCode(input.code),
     );

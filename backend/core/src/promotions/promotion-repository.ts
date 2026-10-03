@@ -203,5 +203,6 @@ export interface PromotionRepository {
     status: PromotionRedemptionStatus,
     updatedAt: string,
   ): Promise<PromotionRedemptionRecord>;
+  extendReservedExpiry(id: string, expiresAt: string, at: string): Promise<void>;
   countRedeemed(campaignId: string): Promise<number>;
 }

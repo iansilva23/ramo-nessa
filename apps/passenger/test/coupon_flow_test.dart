@@ -12,8 +12,40 @@ import 'package:ramo_nessa_passenger/src/features/payments/domain/wallet_topup_r
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/ride_payment_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/presentation/passenger_coupons_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/domain/prepared_ride.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/driver_confirmation_service.dart';
 
 void main() {
+  testWidgets('motorista aceito aparece antes do pagamento e cancelamento libera reserva', (tester) async {
+    final base = _normalRide();
+    final ride = PreparedRide(id: base.id, state: base.state, baseAmountCents: base.baseAmountCents,
+      pickupCompensationCents: 0, totalAmountCents: base.totalAmountCents,
+      holdExpiresAt: base.holdExpiresAt, driverConsentRequired: true);
+    final service = _CouponPaymentService(promotedRide: ride);
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(body: TextButton(
+      onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RidePaymentScreen(
+        ride: ride, paymentService: service, networkTilesEnabled: false))), child: const Text('Pedir corrida'))))));
+    await tester.tap(find.text('Pedir corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(service.driverRequests, 1);
+    expect(find.byKey(const Key('payment-option-pix')), findsNothing);
+    await tester.scrollUntilVisible(find.byKey(const Key('confirm-driver-and-pay')), 150,
+      scrollable: find.descendant(of: find.byType(ListView), matching: find.byType(Scrollable)).first);
+    expect(find.text('Motorista de teste'), findsOneWidget);
+    expect(find.text('Buggy local · ABC1D23'), findsOneWidget);
+    expect(find.textContaining('3 minutos'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-driver-and-pay')));
+    await tester.pump();
+    expect(find.byKey(const Key('payment-option-pix')), findsOneWidget);
+    expect(find.byKey(const Key('ride-payment-coupon-code')), findsNothing);
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(service.reservationReleases, 1);
+    expect(find.text('Pedir corrida'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final failRefresh in [false, true]) {
     testWidgets(
       'crédito de carteira preserva cupom no perfil (refresh falha: $failRefresh)',
@@ -58,7 +90,7 @@ void main() {
     );
   }
   testWidgets(
-    'cupom salvo é aplicado automaticamente e atualiza o preço',
+    'pagamento recebe preço com cupom pré-ativado sem aplicar ou editar cupons',
     (tester) async {
       final service = _CouponPaymentService(
         promotedRide: _discountedRide(
@@ -71,7 +103,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: RidePaymentScreen(
-            ride: _normalRide(),
+            ride: service.promotedRide,
             paymentService: service,
             networkTilesEnabled: false,
           ),
@@ -80,13 +112,13 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(service.preferenceCalls, 1);
-      expect(service.applyCalls, 1);
+      expect(service.preferenceCalls, 0);
+      expect(service.applyCalls, 0);
       expect(
-        find.byKey(const Key('ride-payment-coupon-applied')),
-        findsOneWidget,
+        find.byKey(const Key('ride-payment-coupon-code')),
+        findsNothing,
       );
-      expect(find.text('INFLU50'), findsOneWidget);
+      expect(find.textContaining('Cupom ativado no Perfil: INFLU50'), findsOneWidget);
       expect(find.text(r'R$ 150,00'), findsWidgets);
       expect(find.textContaining(r'Preço normal: R$ 200,00'), findsOneWidget);
 
@@ -131,7 +163,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: RidePaymentScreen(
-            ride: _normalRide(),
+            ride: service.promotedRide,
             paymentService: service,
             networkTilesEnabled: false,
           ),
@@ -178,7 +210,7 @@ void main() {
     'claro': RamoTheme.light,
     'escuro': RamoTheme.dark,
   }.entries) {
-    testWidgets('cupom manual cabe no tema ${theme.key} em celular', (
+    testWidgets('ativação no Perfil cabe no tema ${theme.key} em celular', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(360, 800);
@@ -196,15 +228,11 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: theme.value,
-          home: RidePaymentScreen(
-            ride: _normalRide(),
-            paymentService: service,
-            networkTilesEnabled: false,
-          ),
+          home: PassengerCouponsScreen(service: service),
         ),
       );
       await tester.pump();
-      final apply = find.byKey(const Key('ride-payment-coupon-apply'));
+      final apply = find.byKey(const Key('passenger-coupon-apply'));
       await tester.scrollUntilVisible(
         apply,
         200,
@@ -220,7 +248,7 @@ void main() {
       expect(button.width.isFinite, isTrue);
       expect(button.right, lessThanOrEqualTo(360));
       await tester.enterText(
-        find.byKey(const Key('ride-payment-coupon-code')),
+        find.byKey(const Key('passenger-coupon-code')),
         'INFLU50',
       );
       tester.testTextInput.hide();
@@ -231,9 +259,9 @@ void main() {
       await tester.tap(apply);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(service.applyCalls, 1);
+      expect(service.applyCalls, 0);
       expect(
-        find.byKey(const Key('ride-payment-coupon-applied')),
+        find.textContaining('Cupom ativado.'),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
@@ -278,7 +306,7 @@ PreparedRide _discountedRide({
   );
 }
 
-class _CouponPaymentService implements PassengerPaymentService {
+class _CouponPaymentService implements PassengerPaymentService, DriverConfirmationService {
   _CouponPaymentService({
     required this.promotedRide,
     this.savedCoupon = true,
@@ -292,6 +320,19 @@ class _CouponPaymentService implements PassengerPaymentService {
   int preferenceCalls = 0;
   int applyCalls = 0;
   int confirmCalls = 0;
+  String confirmationStatus = 'READY_TO_PAY';
+  int reservationReleases = 0;
+  int driverRequests = 0;
+  @override
+  Future<void> requestDriverConfirmation(String rideId) async { driverRequests += 1; }
+  @override
+  Future<DriverConfirmation> driverConfirmation(String rideId) async => DriverConfirmation(
+    ride: promotedRide, status: confirmationStatus,
+    driver: confirmationStatus == 'READY_TO_PAY' ? const ConfirmedDriver(name: 'Motorista de teste',
+      vehicle: 'Buggy local', plate: 'ABC1D23', arrivalSeconds: 180) : null);
+  @override
+  Future<void> releaseDriverReservation(String rideId) async { reservationReleases += 1; }
+
 
   PassengerPromotionPreference get _preference =>
       PassengerPromotionPreference(

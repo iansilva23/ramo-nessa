@@ -266,6 +266,7 @@ export function driverOfferView(offer: {
     destination: ride.destination,
     driverEarningsCents: ride.quote.driverNetCents,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
+    awaitingPassengerPayment: ride.state === 'AWAITING_PAYMENT',
     paymentMethod: ride.paymentMethod ?? null,
     cashCollectionAmountCents:
       ride.paymentMethod === 'cash'
@@ -368,6 +369,7 @@ export async function currentDriverOffer(input: {
 }
 
 export async function acceptOfferFromDriverApp(input: {
+  paymentHoldSeconds?: number;
   rides: RideRepository;
   registry: DriverRegistryRepository;
   documents: DriverDocumentRepository;
@@ -391,6 +393,7 @@ export async function acceptOfferFromDriverApp(input: {
     repository: input.matching,
     offerId: input.offerId,
     driverId: input.driverId,
+    ...(input.paymentHoldSeconds == null ? {} : { paymentHoldSeconds: input.paymentHoldSeconds }),
     now,
   });
 
@@ -399,6 +402,7 @@ export async function acceptOfferFromDriverApp(input: {
     ride: {
       id: result.ride.id,
       state: result.ride.state,
+      driverHoldExpiresAt: result.ride.driverHoldExpiresAt,
       category: result.ride.category,
       passengers: result.ride.passengers,
       origin: result.ride.origin,
@@ -460,6 +464,10 @@ export async function rejectOfferFromDriverApp(input: {
       'RIDE_NOT_PREPARED',
       'Corrida não possui ponto de embarque preparado.',
     );
+  }
+
+  if (ride.state === 'AWAITING_PAYMENT' && ride.driverConsentRequired) {
+    return { rejectedOfferId: rejected.id, retryStatus: 'NO_DRIVER_FOUND' as const };
   }
 
   const dispatch = await dispatchNextDriver({

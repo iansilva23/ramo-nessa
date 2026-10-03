@@ -613,6 +613,13 @@ export class PostgresPromotionRepository implements PromotionRepository {
     return mapRedemption(result.rows[0]);
   }
 
+  async extendReservedExpiry(id: string, expiresAt: string, at: string): Promise<void> {
+    const result = await this.pool.query(
+      `UPDATE promotion_redemptions SET expires_at = $2, updated_at = $3
+       WHERE id = $1 AND status = 'reserved' AND (expires_at IS NULL OR expires_at > $3)`, [id, expiresAt, at]);
+    if (result.rowCount !== 1) throw new PromotionRepositoryError('PROMOTION_REFERENCE_CONFLICT', 'A reserva do cupom expirou. Peça uma nova corrida.');
+  }
+
   async countRedeemed(campaignId: string): Promise<number> {
     const result = await this.pool.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count

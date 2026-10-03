@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../rides/data/passenger_ride_realtime_service.dart';
 import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
+import '../../rides/data/driver_confirmation_service.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
 import '../../map/data/route_service.dart';
 import '../data/card_tokenization_service.dart';
@@ -42,12 +43,22 @@ class RidePaymentScreen extends StatefulWidget {
 }
 
 class _RidePaymentScreenState extends State<RidePaymentScreen> {
+  Timer? _confirmationTimer;
+  bool _findingDriver = false;
+  bool _confirmationRequestInFlight = false;
+  bool _paymentOptionsOpen = false;
+  bool _leaving = false;
+  DriverConfirmation? _confirmation;
+  String? _driverMessage;
+  bool get _canPay => !_ride.driverConsentRequired ||
+    (_confirmation?.status == 'READY_TO_PAY' && _paymentOptionsOpen);
+  DriverConfirmationService? get _confirmationService {
+    final service = widget.paymentService;
+    return service is DriverConfirmationService ? service as DriverConfirmationService : null;
+  }
   Timer? _timer;
   late PreparedRide _ride;
-  final _couponController = TextEditingController();
-  bool _couponLoading = false;
   bool _confirmingPromotion = false;
-  String? _couponMessage;
   String? _couponError;
   Duration _remaining = Duration.zero;
   int? _walletBalanceCents;
@@ -71,6 +82,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   void initState() {
     super.initState();
     _ride = widget.ride;
+    _couponError = widget.ride.promotionMessage;
     final nonce = DateTime.now().microsecondsSinceEpoch;
     _walletIdempotencyKey =
         'wallet-${_ride.id}-$nonce';
@@ -86,163 +98,107 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       (_) => _updateRemaining(),
     );
     _loadPaymentPolicy();
-    unawaited(_applySavedCoupon());
+    if (_ride.driverConsentRequired) unawaited(_findDriver());
   }
 
-  Future<void> _applySavedCoupon() async {
-    final service = widget.paymentService;
-    if (service == null || _couponLoading) return;
-
-    setState(() {
-      _couponLoading = true;
-      _couponError = null;
-      _couponMessage = null;
-    });
-
+  Future<void> _findDriver() async {
+    final service = _confirmationService;
+    if (service == null || _findingDriver) return;
+    setState(() { _findingDriver = true; _driverMessage = null; });
     try {
-      final preference = await service.promotionPreference();
+      await service.requestDriverConfirmation(_ride.id);
+      await _refreshDriverConfirmation();
       if (!mounted) return;
-      if (preference == null) {
-        setState(() => _couponLoading = false);
-        return;
-      }
-
-      _couponController.text = preference.campaign.code;
-      try {
-        final promoted = await service.applyPromotionToRide(
-          rideId: _ride.id,
-        );
-        if (!mounted) return;
-        setState(() {
-          _ride = promoted;
-          _couponLoading = false;
-          _couponMessage = 'Cupom salvo aplicado nesta corrida.';
-        });
-      } on PassengerPaymentException catch (error) {
-        if (!mounted) return;
-        setState(() {
-          _couponLoading = false;
-          _couponError =
-              'Seu cupom salvo não pode ser usado nesta corrida. ${error.message}';
-        });
-      }
-    } on PassengerPaymentException catch (error) {
+      _confirmationTimer?.cancel();
+      _confirmationTimer = Timer.periodic(const Duration(seconds: 3), (_) => _refreshDriverConfirmation());
+    } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = error.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = 'Não conseguimos consultar seu cupom agora.';
-      });
+      setState(() { _findingDriver = false; _driverMessage = error is PassengerPaymentException
+        ? error.message : 'Não conseguimos encontrar um motorista agora.'; });
     }
   }
 
-  Future<void> _applyCouponCode() async {
-    final service = widget.paymentService;
-    final code = _couponController.text.trim();
-    if (
-      service == null ||
-      code.length < 3 ||
-      _couponLoading ||
-      _remaining == Duration.zero
-    ) {
-      return;
-    }
-
-    setState(() {
-      _couponLoading = true;
-      _couponError = null;
-      _couponMessage = null;
-    });
-
+  Future<void> _refreshDriverConfirmation() async {
+    final service = _confirmationService;
+    if (service == null || _confirmationRequestInFlight || _leaving) return;
+    _confirmationRequestInFlight = true;
     try {
-      final saved = await service.savePromotionCode(code);
+      final confirmation = await service.driverConfirmation(_ride.id);
       if (!mounted) return;
-
-      if (saved.creditedWallet) {
-        await _loadWallet();
-        if (!mounted) return;
-        final value = saved.walletCreditCents ?? 0;
-        setState(() {
-          _couponLoading = false;
-          _couponController.clear();
-          _couponMessage = value > 0
-              ? '${PreparedRide.formatCents(value)} entrou na sua Carteira Ramo Nessa.'
-              : 'Crédito promocional adicionado à sua carteira.';
-        });
-        return;
+      setState(() { _confirmation = confirmation; _ride = confirmation.ride; _driverMessage = null; });
+      _updateRemaining();
+      if (confirmation.status == 'EXPIRED' || confirmation.status == 'NO_DRIVER_FOUND') {
+        _confirmationTimer?.cancel();
       }
-
-      final promoted = await service.applyPromotionToRide(
-        rideId: _ride.id,
-        code: saved.preference?.campaign.code ?? code,
-      );
-      if (!mounted) return;
-      setState(() {
-        _ride = promoted;
-        _couponLoading = false;
-        _couponController.text =
-            promoted.promotion?.code ?? code.toUpperCase();
-        _couponMessage = 'Cupom aplicado. O preço da corrida foi atualizado.';
-      });
-    } on PassengerPaymentException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = error.message;
-      });
     } catch (_) {
+      if (mounted) { setState(() { _driverMessage = 'Não conseguimos confirmar a disponibilidade. Tente novamente.';
+        _paymentOptionsOpen = false; }); }
+    } finally { _confirmationRequestInFlight = false; }
+  }
+
+  Future<void> _leaveReservation() async {
+    if (_leaving) return;
+    try {
+      await _confirmationService?.releaseDriverReservation(_ride.id);
       if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = 'Não foi possível aplicar esse cupom agora.';
-      });
+      setState(() => _leaving = true);
+      _confirmationTimer?.cancel();
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) { setState(() => _driverMessage = error is PassengerPaymentException
+        ? error.message : 'Não conseguimos cancelar agora. Tente novamente.'); }
     }
   }
 
-  Future<void> _removeCouponFromRide() async {
-    final service = widget.paymentService;
-    if (
-      service == null ||
-      _ride.promotion == null ||
-      _couponLoading ||
-      _remaining == Duration.zero
-    ) {
-      return;
-    }
-
-    setState(() {
-      _couponLoading = true;
-      _couponError = null;
-      _couponMessage = null;
-    });
-
-    try {
-      final restored = await service.removePromotionFromRide(_ride.id);
-      if (!mounted) return;
-      setState(() {
-        _ride = restored;
-        _couponLoading = false;
-        _couponMessage =
-            'Cupom removido desta corrida. Ele continua salvo no seu perfil.';
-      });
-    } on PassengerPaymentException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = error.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _couponLoading = false;
-        _couponError = 'Não foi possível remover o cupom desta corrida.';
-      });
-    }
+  Widget _driverConfirmationCard() {
+    final driver = _confirmation?.driver;
+    final ready = _confirmation?.status == 'READY_TO_PAY' && driver != null;
+    final unavailable = ['EXPIRED', 'NO_DRIVER_FOUND'].contains(_confirmation?.status);
+    return Container(
+      padding: const EdgeInsets.all(RamoSpacing.lg),
+      decoration: BoxDecoration(color: RamoColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(RamoRadius.lg)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(ready ? 'Seu motorista está pronto para te buscar!' : unavailable
+          ? 'Nenhum motorista confirmado' : _findingDriver ? 'Aguardando o aceite do motorista…'
+          : 'Encontre seu motorista antes de pagar',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 16),
+        if (driver != null && ready) ...[
+          Row(children: [
+            CircleAvatar(radius: 32,
+              backgroundImage: driver.photoUrl == null ? null : NetworkImage(driver.photoUrl!),
+              onBackgroundImageError: driver.photoUrl == null ? null : (_, __) {},
+              child: driver.photoUrl == null ? const Icon(Icons.person_rounded, size: 32) : null),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(driver.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              Text('${driver.vehicle} · ${driver.plate}'),
+              if (driver.ratingCount > 0 && driver.ratingAverage != null)
+                Text('★ ${driver.ratingAverage!.toStringAsFixed(1)} · ${driver.ratingCount} avaliações'),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Text(driver.arrivalSeconds == null ? 'Previsão de chegada indisponível no momento'
+            : 'Chega em aproximadamente ${(driver.arrivalSeconds! / 60).ceil().clamp(1, 999)} minutos'),
+          const SizedBox(height: 8),
+          Text('Valor da corrida: ${_ride.formattedPayable}'),
+          const SizedBox(height: 16),
+          if (!_paymentOptionsOpen) FilledButton(
+            key: const Key('confirm-driver-and-pay'),
+            onPressed: _remaining == Duration.zero || _driverMessage != null ? null
+              : () => setState(() => _paymentOptionsOpen = true),
+            child: const Text('Confirmar e pagar')),
+        ] else if (!_findingDriver) FilledButton(
+          key: const Key('find-driver-before-payment'),
+          onPressed: _remaining == Duration.zero ? null : _findDriver,
+          child: const Text('Encontrar motorista'))
+        else if (!unavailable) const Center(child: CircularProgressIndicator()),
+        if (unavailable) const Text('Volte e tente novamente. Nenhum pagamento foi solicitado.'),
+        if (_driverMessage != null) Text(_driverMessage!),
+        TextButton(onPressed: _leaveReservation, child: const Text('Voltar e cancelar reserva')),
+      ]),
+    );
   }
 
   Future<void> _confirmFullyPromotionalRide() async {
@@ -385,7 +341,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _couponController.dispose();
+    _confirmationTimer?.cancel();
     super.dispose();
   }
 
@@ -791,9 +747,13 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
             _ => _walletMessage ?? 'Saldo indisponível agora',
           };
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_ride.driverConsentRequired || _leaving,
+      onPopInvokedWithResult: (didPop, result) { if (!didPop) _leaveReservation(); },
+      child: Scaffold(
       appBar: AppBar(
-        title: const Text('Preço e pagamento'),
+        title: Text(_canPay ? 'Pagamento' : 'Confirmar corrida'),
+        leading: _ride.driverConsentRequired ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _leaveReservation) : null,
       ),
       body: SafeArea(
         child: ListView(
@@ -876,128 +836,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
             ),
             const SizedBox(height: RamoSpacing.xl),
-            Text(
-              'Cupom',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-            const SizedBox(height: RamoSpacing.xs),
-            if (_ride.promotion == null)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const Key('ride-payment-coupon-code'),
-                      controller: _couponController,
-                      enabled: !_couponLoading && !expired,
-                      textCapitalization: TextCapitalization.characters,
-                      textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        hintText: 'Digite seu cupom',
-                        prefixIcon: Icon(Icons.local_offer_outlined),
-                      ),
-                      onSubmitted: (_) => _applyCouponCode(),
-                    ),
-                  ),
-                  const SizedBox(width: RamoSpacing.sm),
-                  FilledButton(
-                    key: const Key('ride-payment-coupon-apply'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 54),
-                    ),
-                    onPressed:
-                        _couponLoading || expired
-                            ? null
-                            : _applyCouponCode,
-                    child: _couponLoading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text('Aplicar'),
-                  ),
-                ],
-              )
-            else
-              Container(
-                key: const Key('ride-payment-coupon-applied'),
-                padding: const EdgeInsets.all(RamoSpacing.md),
-                decoration: BoxDecoration(
-                  color: RamoColors.brandYellow.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(RamoRadius.lg),
-                  border: Border.all(
-                    color: RamoColors.brandYellow.withValues(alpha: .55),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.confirmation_number_rounded),
-                        const SizedBox(width: RamoSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            _ride.promotion!.code,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: .7,
-                            ),
-                          ),
-                        ),
-                        Flexible(
-                          child: TextButton(
-                            onPressed:
-                                _couponLoading || expired
-                                    ? null
-                                    : _removeCouponFromRide,
-                            child: Text(
-                              _couponLoading
-                                  ? 'Aguarde…'
-                                  : 'Não usar nesta corrida',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      _ride.promotion!.name,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                    const SizedBox(height: RamoSpacing.sm),
-                    _PriceRow(
-                      label: 'Preço normal',
-                      cents: _ride.promotion!.normalTotalCents,
-                    ),
-                    _PriceRow(
-                      label: 'Benefício do cupom',
-                      cents: _ride.promotion!.discountCents,
-                    ),
-                    const Divider(),
-                    _PriceRow(
-                      label: 'Você paga',
-                      cents: _ride.promotion!.passengerPayableCents,
-                    ),
-                  ],
-                ),
-              ),
-            if (_couponMessage != null) ...[
-              const SizedBox(height: RamoSpacing.sm),
-              Text(
-                _couponMessage!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: RamoColors.muted,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-            ],
+            if (_ride.promotion != null) Text('Cupom ativado no Perfil: ${_ride.promotion!.code}'),
+            if (_ride.promotionMessage != null) Text(_ride.promotionMessage!),
             if (_couponError != null) ...[
               const SizedBox(height: RamoSpacing.sm),
               Text(
@@ -1008,6 +848,11 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
             ],
             const SizedBox(height: RamoSpacing.xl),
+            if (_ride.driverConsentRequired) ...[
+              _driverConfirmationCard(),
+              const SizedBox(height: RamoSpacing.lg),
+            ],
+            if (_canPay) ...[
             if (_ride.payableAmountCents == 0) ...[
               Container(
                 padding: const EdgeInsets.all(RamoSpacing.lg),
@@ -1032,7 +877,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     ),
                     const SizedBox(height: RamoSpacing.xs),
                     Text(
-                      'Não é necessário gerar Pix nem cobrar cartão. Confirme para procurar seu motorista.',
+                      'Não é necessário gerar Pix nem cobrar cartão. Confirme para liberar seu motorista.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: RamoColors.muted,
@@ -1206,11 +1051,12 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
             ],
             ],
+            ],
             const SizedBox(height: RamoSpacing.lg),
           ],
         ),
       ),
-    );
+    ));
   }
 }
 

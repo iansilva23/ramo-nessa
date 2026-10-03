@@ -262,6 +262,14 @@ export class InMemoryPromotionRepository
     return structuredClone(next);
   }
 
+  async extendReservedExpiry(id: string, expiresAt: string, at: string): Promise<void> {
+    const current = this.redemptions.get(id);
+    if (current?.status !== 'reserved' || (current.expiresAt != null && Date.parse(current.expiresAt) <= Date.parse(at))) {
+      throw new PromotionRepositoryError('PROMOTION_REFERENCE_CONFLICT', 'A reserva do cupom expirou. Peça uma nova corrida.');
+    }
+    this.redemptions.set(id, { ...current, expiresAt, updatedAt: at });
+  }
+
   async countRedeemed(campaignId: string): Promise<number> {
     return [...this.redemptions.values()].filter(
       (item) =>

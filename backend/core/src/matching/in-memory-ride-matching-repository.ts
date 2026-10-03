@@ -1,3 +1,4 @@
+import type { PromotionRepository } from '../promotions/promotion-repository.js';
 import { randomUUID } from 'node:crypto';
 
 import type { DriverSupplyRepository } from '../drivers/driver-supply-repository.js';
@@ -26,7 +27,30 @@ export class InMemoryRideMatchingRepository
   constructor(
     private readonly rides: RideRepository,
     private readonly drivers: DriverSupplyRepository,
+    private readonly promotions?: PromotionRepository,
   ) {}
+
+  async releasePrepaymentHold(input: { rideId: string; at: string }) {
+    const ride = await this.rides.findById(input.rideId);
+    if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driverConsentRequired) {
+      throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
+    }
+    for (const [id, offer] of this.offers) {
+      if (offer.rideId === ride.id && ['OFFERED', 'ACCEPTED'].includes(offer.status)) {
+        this.offers.set(id, { ...offer, status: 'CANCELLED', updatedAt: input.at });
+      }
+    }
+    if (ride.reservedDriverId != null) {
+      const driver = await this.drivers.findByDriverId(ride.reservedDriverId);
+      if (driver?.reservedRideId === ride.id) {
+        const { reservedRideId: _id, reservedUntil: _until, ...released } = driver;
+        await this.drivers.upsert({ ...released, updatedAt: input.at });
+      }
+    }
+    const { driverId: _driver, ...pending } = ride;
+    // Retain the expiry for the existing late-Pix refund path.
+    return this.rides.save({ ...pending, driverHoldExpiresAt: input.at, updatedAt: input.at });
+  }
 
   async findOfferById(id: string): Promise<RideOfferRecord | null> {
     const offer = this.offers.get(id);
@@ -58,7 +82,10 @@ export class InMemoryRideMatchingRepository
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult> {
     const ride = await this.rides.findById(input.rideId);
-    if (ride == null || (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER')) {
+    if (ride == null || (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER' &&
+      !(ride.state === 'AWAITING_PAYMENT' && ride.driverConsentRequired &&
+        ride.reservedDriverId === input.driverId && ride.driverId == null &&
+        Date.parse(ride.driverHoldExpiresAt ?? '') > Date.parse(input.createdAt)))) {
       throw new RideOfferError(
         'RIDE_NOT_READY',
         'Corrida não está pronta para receber oferta.',
@@ -430,7 +457,11 @@ export class InMemoryRideMatchingRepository
       );
     }
 
-    if (offer.status === 'ACCEPTED') {
+    const pendingRide = await this.rides.findById(offer.rideId);
+    const activatePaidReservation = offer.status === 'ACCEPTED' &&
+      pendingRide?.driverConsentRequired === true && pendingRide.state === 'PAID' &&
+      pendingRide.driverId === input.driverId;
+    if (offer.status === 'ACCEPTED' && !activatePaidReservation) {
       const acceptedRide = await this.rides.findById(offer.rideId);
       if (acceptedRide?.driverId === input.driverId) {
         return {
@@ -439,14 +470,14 @@ export class InMemoryRideMatchingRepository
         };
       }
     }
-    if (offer.status !== 'OFFERED') {
+    if (offer.status !== 'OFFERED' && !activatePaidReservation) {
       throw new RideOfferError(
         'OFFER_NOT_ACTIVE',
         'Oferta não está mais ativa.',
       );
     }
 
-    if (Date.parse(offer.expiresAt) <= Date.parse(input.acceptedAt)) {
+    if (!activatePaidReservation && Date.parse(offer.expiresAt) <= Date.parse(input.acceptedAt)) {
       const expired = {
         ...offer,
         status: 'EXPIRED' as const,
@@ -457,10 +488,13 @@ export class InMemoryRideMatchingRepository
     }
 
     const ride = await this.rides.findById(offer.rideId);
+    const prepayment = ride?.state === 'AWAITING_PAYMENT' && ride.driverConsentRequired === true;
     if (
       ride == null ||
-      ride.state !== 'SEARCHING_DRIVER' ||
-      ride.driverId != null
+      (!prepayment && !activatePaidReservation && ride.state !== 'SEARCHING_DRIVER') ||
+      (!activatePaidReservation && ride.driverId != null) ||
+      ((prepayment || activatePaidReservation) && (ride.reservedDriverId !== input.driverId ||
+        Date.parse(ride.driverHoldExpiresAt ?? '') <= Date.parse(input.acceptedAt)))
     ) {
       throw new RideOfferError(
         'RIDE_NOT_READY',
@@ -469,7 +503,9 @@ export class InMemoryRideMatchingRepository
     }
 
     const driver = await this.drivers.findByDriverId(input.driverId);
-    if (driver == null || !driver.online || driver.busy) {
+    if (driver == null || !driver.online || driver.busy ||
+      ((prepayment || activatePaidReservation) && (driver.reservedRideId !== ride.id ||
+        Date.parse(driver.reservedUntil ?? '') <= Date.parse(input.acceptedAt)))) {
       throw new RideOfferError(
         'DRIVER_NOT_AVAILABLE',
         'Motorista não está mais disponível.',
@@ -481,6 +517,18 @@ export class InMemoryRideMatchingRepository
       status: 'ACCEPTED',
       updatedAt: input.acceptedAt,
     };
+    if (prepayment) {
+      const holdExpiresAt = new Date(Date.parse(input.acceptedAt) + (input.paymentHoldSeconds ?? 120) * 1000).toISOString();
+      if (ride.promotion != null) {
+        if (this.promotions == null) throw new RideOfferError('RIDE_NOT_READY', 'Não foi possível reservar o cupom.');
+        await this.promotions.extendReservedExpiry(ride.promotion.applicationId, holdExpiresAt, input.acceptedAt);
+      }
+      const waiting = await this.rides.save({ ...ride, driverId: input.driverId,
+        driverHoldExpiresAt: holdExpiresAt, updatedAt: input.acceptedAt });
+      await this.drivers.upsert({ ...driver, reservedUntil: holdExpiresAt, updatedAt: input.acceptedAt });
+      this.offers.set(offer.id, structuredClone(accepted));
+      return { ride: waiting, offer: accepted };
+    }
     const {
       reservedDriverId: _reservedDriverId,
       driverHoldExpiresAt: _driverHoldExpiresAt,
@@ -488,7 +536,7 @@ export class InMemoryRideMatchingRepository
     } = ride;
     const assigned = await this.rides.save({
       ...rideWithoutHold,
-      state: transitionRide(ride.state, 'DRIVER_ASSIGNED'),
+      state: transitionRide(ride.state === 'PAID' ? 'SEARCHING_DRIVER' : ride.state, 'DRIVER_ASSIGNED'),
       driverId: input.driverId,
       updatedAt: input.acceptedAt,
     });

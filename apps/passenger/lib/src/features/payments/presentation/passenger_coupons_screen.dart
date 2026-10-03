@@ -117,7 +117,7 @@ class _PassengerCouponsScreenState
         _preference = result.preference;
         _saving = false;
         _codeController.clear();
-        _message = 'Cupom salvo. Ele será aplicado automaticamente quando for válido para a corrida.';
+        _message = 'Cupom ativado. Ele será aplicado às próximas corridas compatíveis que você pedir.';
       });
     } on PassengerPaymentException catch (error) {
       if (!mounted) return;
@@ -221,7 +221,7 @@ class _PassengerCouponsScreenState
                     SizedBox(width: RamoSpacing.md),
                     Expanded(
                       child: Text(
-                        'Nenhum cupom de corrida salvo.',
+                        'Nenhum cupom de corrida ativado.',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -274,7 +274,7 @@ class _PassengerCouponsScreenState
             ],
             const SizedBox(height: RamoSpacing.lg),
             Text(
-              'Cupons de crédito entram direto na Carteira Ramo Nessa. Cupons de desconto e de corrida promocional ficam salvos para uma corrida compatível.',
+              'Cupons de crédito entram direto na Carteira Ramo Nessa. Ative os cupons de desconto e de corrida promocional aqui antes de pedir uma corrida compatível.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: RamoColors.muted,
                     height: 1.4,

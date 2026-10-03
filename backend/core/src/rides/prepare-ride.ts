@@ -55,6 +55,7 @@ export async function prepareRideForPayment(input: {
   maxCandidates?: number;
   maxPickupDistanceKm?: number;
   pickupFeeForDistance?: (distanceKm: number) => number | undefined;
+  requireDriverConsent?: boolean;
   canUseDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<RideRecord> {
   const passengerId = input.passengerId.trim();
@@ -169,6 +170,7 @@ export async function prepareRideForPayment(input: {
     id: rideId,
     passengerId,
     ...(input.maxPickupDistanceKm == null ? {} : { driverSearchMaxDistanceKm: input.maxPickupDistanceKm }),
+    ...(input.requireDriverConsent ? { driverConsentRequired: true } : {}),
     state: transitionRide('CREATED', 'AWAITING_PAYMENT'),
     paymentStatus: 'created',
     pickupLatitude: input.pickup.latitude,

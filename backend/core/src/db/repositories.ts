@@ -153,6 +153,7 @@ export function createRepositories(): RepositoryBundle {
     );
   }
 
+  const promotionRepository = new InMemoryPromotionRepository();
   const rideRepository = new InMemoryRideRepository();
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
@@ -180,6 +181,7 @@ export function createRepositories(): RepositoryBundle {
     rideMatchingRepository: new InMemoryRideMatchingRepository(
       rideRepository,
       driverSupplyRepository,
+      promotionRepository,
     ),
     ridePreparationRepository: new InMemoryRidePreparationRepository(
       rideRepository,
@@ -193,7 +195,7 @@ export function createRepositories(): RepositoryBundle {
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
-    promotionRepository: new InMemoryPromotionRepository(),
+    promotionRepository,
     driverBenefitRepository: new InMemoryDriverBenefitRepository(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},

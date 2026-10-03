@@ -1000,7 +1000,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       }
 
       unawaited(
-        Navigator.of(context).pushReplacement(
+        Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RidePaymentScreen(
               ride: prepared,

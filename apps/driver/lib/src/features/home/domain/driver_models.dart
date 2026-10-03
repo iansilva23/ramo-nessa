@@ -171,6 +171,7 @@ class AcceptedDriverRide {
     required this.driverEarningsCents,
     required this.pickupCompensationCents,
     this.paymentMethod,
+    this.driverHoldExpiresAt,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
     this.pickupLatitude,
@@ -195,6 +196,7 @@ class AcceptedDriverRide {
       pickupCompensationCents:
           (json['pickupCompensationCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
+      driverHoldExpiresAt: DateTime.tryParse(json['driverHoldExpiresAt'] as String? ?? ''),
       cashCollectionAmountCents:
           (json['cashCollectionAmountCents'] as num?)?.toInt(),
       cashCommissionCents:
@@ -215,6 +217,7 @@ class AcceptedDriverRide {
   final int driverEarningsCents;
   final int pickupCompensationCents;
   final String? paymentMethod;
+  final DateTime? driverHoldExpiresAt;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
   final double? pickupLatitude;

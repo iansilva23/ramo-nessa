@@ -17,19 +17,23 @@ class HttpRidePreparationService implements RidePreparationService, ExpandableRi
     required Uri baseUrl,
     String? accessToken,
     String? passengerId,
+    String? clientInstanceId,
     http.Client? client,
   })  : _baseUrl = baseUrl,
         _accessToken = accessToken ?? '',
+        _clientInstanceId = clientInstanceId ?? '',
         _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
         _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
+  final String _clientInstanceId;
   final String _passengerId;
   final http.Client _client;
 
   Map<String, String> get _identityHeaders => {
         'content-type': 'application/json',
+        if (_clientInstanceId.trim().isNotEmpty) 'x-client-instance-id': _clientInstanceId.trim(),
         if (_accessToken.trim().isNotEmpty)
           'authorization': 'Bearer ${_accessToken.trim()}'
         else if (_passengerId.trim().isNotEmpty)
