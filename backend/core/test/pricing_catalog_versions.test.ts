@@ -35,7 +35,7 @@ test('cria rascunho imutável do catálogo atual e registra auditoria', async ()
 
   assert.equal(draft.versionNumber, 1);
   assert.equal(draft.status, 'draft');
-  assert.equal(draft.snapshot.catalogVersion, 'v1');
+  assert.equal(draft.snapshot.catalogVersion, 'approved-2026-10-03');
   assert.equal(draft.snapshot.commissionBps, 1000);
   assert.equal(draft.effectiveFrom, undefined);
 
@@ -762,7 +762,7 @@ test('Admin versiona comissão, horário, coleta, adicionais, Buggy e entrega', 
   assert.equal(STATIC_PRICING_CATALOG_V1.commissionBps, 1000);
   assert.equal(STATIC_PRICING_CATALOG_V1.periodPolicy.nightStartHour, 22);
   assert.equal(STATIC_PRICING_CATALOG_V1.pickupPolicy.freeKm, 8);
-  assert.equal(STATIC_PRICING_CATALOG_V1.jeri.buggy.dayBaseCents, 4000);
+  assert.equal(STATIC_PRICING_CATALOG_V1.jeri.buggy.dayBaseCents, 3500);
   assert.equal(STATIC_PRICING_CATALOG_V1.jeri.deliveryAboveMaxCents, 600);
 });
 

@@ -262,7 +262,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.equal(html.includes('id="pricing-external-localities-body"'), false);
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
-  assert.match(html, /Adicional noturno do Preá/i);
+  assert.match(html, /Aplicar adicional noturno da região/i);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);

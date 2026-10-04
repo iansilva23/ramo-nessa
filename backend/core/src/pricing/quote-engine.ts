@@ -153,6 +153,8 @@ function localityPrice(
       return entry.delivery;
     case 'car':
       return entry.car;
+    case 'buggy':
+      return entry.buggy;
     default:
       return undefined;
   }
@@ -162,7 +164,7 @@ function localityCategoryEnabled(
   catalog: PricingCatalogSnapshot,
   hub: 'prea' | 'jijoca',
   localityId: string,
-  category: 'moto' | 'delivery' | 'car' | 'comfort_black',
+  category: ServiceCategory,
 ): boolean {
   const policy = catalog.localityPolicies[hub][localityId];
   return policy?.enabledCategories.includes(category) === true;
@@ -315,6 +317,19 @@ function quotePrea(
   const localityId = resolveHubLocality(request.origin, request.destination, 'prea');
   if (localityId == null) return null;
 
+  if (request.category === 'buggy' && catalog.commercialPolicy != null) {
+    if (!localityCategoryEnabled(catalog, 'prea', localityId, 'buggy')) return null;
+    const entry = catalog.localities.prea[localityId];
+    const explicitNight = request.period === 'after_22' ? entry?.after22?.buggy : undefined;
+    const price = explicitNight ?? entry?.buggy;
+    if (typeof price !== 'number') return null;
+    const passengers = request.passengers ?? 1;
+    return exactQuote(`prea-${localityId}-buggy`, price +
+      (request.period === 'after_22' && explicitNight == null ? catalog.commercialPolicy.preaBuggyAfter22Cents : 0) +
+      (passengers - 1) * catalog.commercialPolicy.buggyPerAdditionalPassengerCents,
+      request, catalog);
+  }
+
   if (request.category === 'comfort_black') {
     if (
       !localityCategoryEnabled(
@@ -326,7 +341,9 @@ function quotePrea(
     ) {
       return null;
     }
-    const car = localityPrice(catalog.localities.prea, localityId, 'car');
+    const entry = catalog.localities.prea[localityId];
+    const explicitNight = request.period === 'after_22' ? entry?.after22?.car : undefined;
+    const car = explicitNight ?? localityPrice(catalog.localities.prea, localityId, 'car');
     if (car == null) return null;
     if (isBand(car)) {
       return rangeQuote(
@@ -341,7 +358,7 @@ function quotePrea(
     }
 
     const night =
-      request.period === 'after_22' &&
+      request.period === 'after_22' && explicitNight == null &&
       localityNightSurchargeEnabled(catalog, localityId)
         ? catalog.surcharges.preaLocalCarAfter22Cents
         : 0;
@@ -372,7 +389,8 @@ function quotePrea(
     return null;
   }
 
-  const value = localityPrice(catalog.localities.prea, localityId, request.category);
+  const entry = catalog.localities.prea[localityId];
+  const value = (request.period === 'after_22' ? entry?.after22?.[request.category] : undefined) ?? localityPrice(catalog.localities.prea, localityId, request.category);
   if (value == null) return null;
 
   if (isBand(value)) {
@@ -386,6 +404,7 @@ function quotePrea(
 
   const localCarNight =
     request.category === 'car' &&
+    entry?.after22?.car == null &&
     request.period === 'after_22' &&
     localityNightSurchargeEnabled(catalog, localityId)
       ? catalog.surcharges.preaLocalCarAfter22Cents
@@ -399,53 +418,57 @@ function quotePrea(
   );
 }
 
-function quoteJijoca(
-  request: QuoteRequest,
-  catalog: PricingCatalogSnapshot,
-): FareQuote | null {
-  const localityId = resolveHubLocality(
-    request.origin,
-    request.destination,
-    'jijoca',
-  );
-  if (localityId == null) return null;
-
-  if (
-    request.category !== 'moto' &&
-    request.category !== 'delivery' &&
-    request.category !== 'car'
-  ) {
-    return null;
-  }
-  if (
-    !localityCategoryEnabled(
-      catalog,
-      'jijoca',
-      localityId,
-      request.category,
-    )
-  ) {
-    return null;
-  }
-
-  const value = localityPrice(catalog.localities.jijoca, localityId, request.category);
+function quoteJijoca(request: QuoteRequest, catalog: PricingCatalogSnapshot): FareQuote | null {
+  const localityId = resolveHubLocality(request.origin, request.destination, 'jijoca');
+  if (localityId == null || request.category === 'buggy') return null;
+  if (!localityCategoryEnabled(catalog, 'jijoca', localityId, request.category)) return null;
+  const category = request.category === 'comfort_black' ? 'car' : request.category;
+  if (request.category === 'comfort_black' && catalog.commercialPolicy == null) return null;
+  const entry = catalog.localities.jijoca[localityId];
+  const explicitNight = request.period === 'after_22' ? entry?.after22?.[category] : undefined;
+  const value = explicitNight ?? localityPrice(catalog.localities.jijoca, localityId, category);
   if (value == null) return null;
+  if (isBand(value)) return rangeQuote(`jijoca-${localityId}-${request.category}`,value,request,catalog);
+  const nightFactor = request.period === 'after_22' && explicitNight == null &&
+    catalog.localityPolicies.jijoca[localityId]?.applyNightSurcharge === true
+    ? 1 + (catalog.commercialPolicy?.jijocaNightBps ?? 0) / 10000 : 1;
+  const comfort = request.category === 'comfort_black' ? catalog.commercialPolicy!.jijocaComfortCents : 0;
+  return exactQuote(`jijoca-${localityId}-${request.category}`, Math.round(value * nightFactor) + comfort,request,catalog);
+}
 
-  if (isBand(value)) {
-    return rangeQuote(
-      `jijoca-${localityId}-${request.category}`,
-      value,
-      request,
-      catalog,
-    );
+function assertApprovedRoute(request: QuoteRequest, catalog: PricingCatalogSnapshot): void {
+  const policy = catalog.commercialPolicy;
+  if (policy == null) return;
+  if (request.category === 'buggy') {
+    const passengers = request.passengers ?? 1;
+    if (!Number.isInteger(passengers) || passengers < 1 || passengers > 4) {
+      throw new PricingError('INVALID_PASSENGER_COUNT','Buggy aceita de 1 a 4 passageiros.');
+    }
   }
+  const originJeri = request.origin.zoneId === 'jericoacoara';
+  const destinationJeri = request.destination.zoneId === 'jericoacoara';
+  if (!originJeri && !destinationJeri) return;
+  const other = endpointId(originJeri ? request.destination : request.origin);
+  const local = originJeri && destinationJeri;
+  const allowed = local ? ['buggy','delivery'].includes(request.category)
+    : (['car','comfort_black'].includes(request.category) && policy.jeriTransferDestinationIds.includes(other)) ||
+      (request.category === 'buggy' && other === 'prea');
+  if (!allowed) throw new PricingError('UNAVAILABLE_CATEGORY','Esta categoria não opera nesta rota de Jericoacoara.');
+}
 
-  return exactQuote(
-    `jijoca-${localityId}-${request.category}`,
-    value,
-    request,
-    catalog,
-  );
+function quoteRegionalDelivery(request: QuoteRequest, catalog: PricingCatalogSnapshot): FareQuote | null {
+  const policy = catalog.commercialPolicy;
+  if (policy == null || request.category !== 'delivery' ||
+      ![request.origin.zoneId,request.destination.zoneId].some(zone=>zone === 'prea' || zone === 'jijoca')) return null;
+  for (const ref of [request.origin, request.destination]) {
+    if ((ref.zoneId === 'prea' || ref.zoneId === 'jijoca') && ref.localityId != null &&
+        !localityCategoryEnabled(catalog,ref.zoneId,ref.localityId,'delivery')) {
+      throw new PricingError('UNAVAILABLE_CATEGORY','Entrega está desativada nesta localidade.');
+    }
+  }
+  if (request.tripDistanceKm == null) throw new PricingError('MISSING_DISTANCE','A distância roteada da retirada até a entrega é obrigatória.');
+  return exactQuote('regional-delivery-distance', policy.deliveryBaseCents +
+    Math.round(Math.max(0, request.tripDistanceKm-policy.deliveryIncludedKm)*policy.deliveryPerExcessKmCents),request,catalog);
 }
 
 function quoteJeriLocal(
@@ -543,6 +566,9 @@ export function quoteFare(
       `Categoria ${request.category} está desativada no catálogo vigente.`,
     );
   }
+  assertApprovedRoute(request, catalog);
+  const delivery = quoteRegionalDelivery(request, catalog);
+  if (delivery != null) return delivery;
   const fixed = quoteFixedRoute(request, catalog);
   if (fixed != null) return fixed;
 

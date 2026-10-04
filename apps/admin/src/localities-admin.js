@@ -5,7 +5,7 @@ import {
 } from './pricing-geofence-map.js';
 
 const LOCAL_SCOPES = new Set(['prea', 'jijoca']);
-const PRICE_CATEGORIES = ['moto', 'delivery', 'car'];
+const PRICE_CATEGORIES = ['moto', 'delivery', 'car', 'buggy'];
 const DISTANCE_CATEGORIES = [
   'moto',
   'delivery',
@@ -17,6 +17,7 @@ const LOCALITY_CATEGORY_CONTROL_IDS = Object.freeze([
   'locality-category-delivery',
   'locality-category-car',
   'locality-category-comfort',
+  'locality-category-buggy',
 ]);
 const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-moto-kind',
@@ -28,6 +29,9 @@ const LOCALITY_PRICE_CONTROL_IDS = Object.freeze([
   'locality-price-car-kind',
   'locality-price-car-min',
   'locality-price-car-max',
+  'locality-price-buggy-kind',
+  'locality-price-buggy-min',
+  'locality-price-buggy-max',
 ]);
 const DISTANCE_CONTROL_IDS = Object.freeze([
   'locality-distance-moto-enabled',
@@ -56,6 +60,7 @@ const CATEGORY_LABELS = Object.freeze({
   delivery: 'Entrega',
   car: 'Carro',
   comfort_black: 'Comfort/Black',
+  buggy: 'Buggy',
 });
 
 function byId(id) {
@@ -297,7 +302,6 @@ export function createLocalitiesAdmin(input) {
       }
     }
     if (
-      scope !== 'jijoca' &&
       categoryCheckbox('comfort_black')?.checked
     ) {
       categories.push('comfort_black');
@@ -308,7 +312,7 @@ export function createLocalitiesAdmin(input) {
   function syncPriceCard(category) {
     const enabled = byId(`locality-category-${category}`)?.checked === true;
     const card = byId(`locality-price-${category}-card`);
-    if (card != null) card.hidden = !enabled;
+    if (card != null) card.hidden = !enabled || (category === 'delivery' && catalog?.commercialPolicy != null);
     const kind = byId(`locality-price-${category}-kind`)?.value ?? 'exact';
     const maxField = byId(`locality-price-${category}-max-field`);
     const minLabel = byId(`locality-price-${category}-min-label`);
@@ -333,8 +337,8 @@ export function createLocalitiesAdmin(input) {
     const local = LOCAL_SCOPES.has(scope);
     const comfort = byId('locality-category-comfort-card');
     const night = byId('locality-night-card');
-    if (comfort != null) comfort.hidden = scope === 'jijoca';
-    if (night != null) night.hidden = scope !== 'prea';
+    if (comfort != null) comfort.hidden = !local;
+    if (night != null) night.hidden = !local;
     const serviceNote = byId('locality-external-services-note');
     const priceNote = byId('locality-external-price-note');
     const priceGrid = byId('locality-price-grid');
@@ -343,15 +347,6 @@ export function createLocalitiesAdmin(input) {
     if (priceNote != null) priceNote.hidden = local;
     if (priceGrid != null) priceGrid.hidden = !local;
     if (categoryGrid != null) categoryGrid.hidden = false;
-
-    if (scope === 'jijoca') {
-      const comfortCheckbox = categoryCheckbox('comfort_black');
-      if (comfortCheckbox != null) comfortCheckbox.checked = false;
-    }
-    if (scope !== 'prea') {
-      const nightCheckbox = byId('locality-night-surcharge');
-      if (nightCheckbox != null) nightCheckbox.checked = false;
-    }
 
     for (const category of PRICE_CATEGORIES) syncPriceCard(category);
     for (const category of DISTANCE_CATEGORIES) {
@@ -469,6 +464,7 @@ export function createLocalitiesAdmin(input) {
       selection,
       categories: activeCategoriesFromForm(),
       prices,
+      nightPrices: deepClone(entry.prices?.after22 ?? {}),
       distancePricing,
       nightSurcharge: byId('locality-night-surcharge')?.checked === true,
     };
@@ -581,6 +577,7 @@ export function createLocalitiesAdmin(input) {
           },
       categories,
       prices,
+      nightPrices: deepClone(entry.prices?.after22 ?? {}),
       distancePricing,
       nightSurcharge:
         entry.policy?.applyNightSurcharge === true,
@@ -611,6 +608,7 @@ export function createLocalitiesAdmin(input) {
     if (LOCAL_SCOPES.has(model.scope)) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
         const price = model.prices[category];
         let label = '—';
         if (price.min) {
@@ -716,6 +714,7 @@ export function createLocalitiesAdmin(input) {
       if (LOCAL_SCOPES.has(scope)) {
         for (const category of PRICE_CATEGORIES) {
           if (!categories.includes(category)) continue;
+          if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
           const kind = byId(`locality-price-${category}-kind`).value;
           const min = moneyToCents(
             byId(`locality-price-${category}-min`).value,
@@ -937,6 +936,7 @@ export function createLocalitiesAdmin(input) {
     if (LOCAL_SCOPES.has(model.scope)) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
         await applyPatch(
           buildPricePatch(
             model.scope,
@@ -950,13 +950,9 @@ export function createLocalitiesAdmin(input) {
         kind: 'locality_policy',
         hub: model.scope,
         localityId,
-        enabledCategories: model.categories.filter(
-          (category) =>
-            category !== 'comfort_black' ||
-            model.scope === 'prea',
-        ),
+        enabledCategories: model.categories,
         applyNightSurcharge:
-          model.scope === 'prea' && model.nightSurcharge,
+          LOCAL_SCOPES.has(model.scope) && model.nightSurcharge,
       });
     }
 
@@ -1067,6 +1063,7 @@ export function createLocalitiesAdmin(input) {
     if (LOCAL_SCOPES.has(model.scope)) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
+        if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
         const price = model.prices?.[category];
         if (!price?.min) continue;
         await applyPatch(
@@ -1078,17 +1075,16 @@ export function createLocalitiesAdmin(input) {
           ),
         );
       }
+      for (const [category,price] of Object.entries(model.nightPrices ?? {})) {
+        if (price != null) await applyPatch({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
+      }
       await applyPatch({
         kind: 'locality_policy',
         hub: model.scope,
         localityId: model.localityId,
-        enabledCategories: model.categories.filter(
-          (category) =>
-            category !== 'comfort_black' ||
-            model.scope === 'prea',
-        ),
+        enabledCategories: model.categories,
         applyNightSurcharge:
-          model.scope === 'prea' && model.nightSurcharge,
+          LOCAL_SCOPES.has(model.scope) && model.nightSurcharge,
       });
     }
     for (const category of DISTANCE_CATEGORIES) {

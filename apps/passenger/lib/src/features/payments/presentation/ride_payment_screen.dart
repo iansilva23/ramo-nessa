@@ -1,3 +1,5 @@
+import '../../pricing/data/shared_transfer_option.dart';
+import '../../home/presentation/widgets/shared_transfer_button.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'card_checkout_screen.dart';
@@ -27,6 +29,7 @@ class RidePaymentScreen extends StatefulWidget {
     super.key,
     required this.ride,
     this.paymentService,
+    this.sharedTransfer,
     this.cardTokenizationService,
     this.rideTrackingService,
     this.rideRealtimeService,
@@ -36,6 +39,7 @@ class RidePaymentScreen extends StatefulWidget {
     this.pickupLongitude,
   });
 
+  final SharedTransferOption? sharedTransfer;
   final PreparedRide ride;
   final double? pickupLatitude, pickupLongitude;
   final PassengerPaymentService? paymentService;
@@ -985,6 +989,18 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     const Icon(Icons.lock_rounded, size: 18),
                   ],
                 ),
+              ),
+              if (widget.sharedTransfer != null) SharedTransferButton(
+                option: widget.sharedTransfer!,
+                enabled: !_creatingPix && !_creatingCard && !_payingWallet && !_authorizingCash && !_leaving,
+                beforeOpen: () async {
+                  await _confirmationService?.releaseDriverReservation(_ride.id);
+                  if (!mounted) return false;
+                  setState(() => _leaving = true);
+                  _confirmationTimer?.cancel();
+                  Navigator.of(context).pop();
+                  return true;
+                },
               ),
               if (_ride.pickupCompensationCents > 0) ...[
                 const SizedBox(height: RamoSpacing.sm),

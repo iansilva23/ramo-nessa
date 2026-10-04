@@ -33,13 +33,16 @@ test('criar corrida congela preço, comissão e regra comercial', async () => {
   assert.deepEqual(stored, ride);
 });
 
-test('corrida não nasce quando a cotação ainda é uma faixa', async () => {
+test('corrida não nasce quando um catálogo versionado mantém tarifa em faixa', async () => {
   const repository = repo();
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.localities.jijoca['corrego-do-mourao']!.moto = {minCents:3500,maxCents:4000};
 
   await assert.rejects(
     () =>
       createRide(repository, {
         passengerId: 'passenger-test-2',
+        pricing:{snapshot,reference:{catalogVersion:snapshot.catalogVersion},version:null},
         quoteRequest: {
           origin: { zoneId: 'jijoca', localityId: 'jijoca' },
           destination: {

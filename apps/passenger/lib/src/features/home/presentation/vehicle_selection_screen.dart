@@ -1,3 +1,5 @@
+import '../../pricing/data/shared_transfer_option.dart';
+import 'widgets/shared_transfer_button.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -17,6 +19,8 @@ class VehicleSelectionResult {
 class VehicleSelectionScreen extends StatefulWidget {
   const VehicleSelectionScreen({
     super.key,
+    this.sharedTransfer,
+    this.requiresFourByFour = false,
     required this.originLabel,
     required this.destinationLabel,
     required this.routeSummary,
@@ -27,6 +31,8 @@ class VehicleSelectionScreen extends StatefulWidget {
     required this.onContinue,
   });
 
+  final SharedTransferOption? sharedTransfer;
+  final bool requiresFourByFour;
   final String originLabel;
   final String destinationLabel;
   final String routeSummary;
@@ -58,8 +64,10 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     });
   }
 
+  bool get _hasPassengerCounter => [ServiceType.buggy, ServiceType.car, ServiceType.comfortBlack].contains(_selected);
+
   void _changePassengers(int value) {
-    if (_selected != ServiceType.buggy) return;
+    if (!_hasPassengerCounter) return;
     if (
       value < widget.buggyMinPassengers ||
       value > widget.buggyMaxPassengers
@@ -158,13 +166,14 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     ),
                   ),
                   const SizedBox(height: RamoSpacing.xl),
+                  if (widget.requiresFourByFour) const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('Carro e Comfort/Black nesta rota exigem veículo 4x4 aprovado.')),
                   if (_submitting) const Column(children: [Center(child:RamoSearchPulse()), Text('Procurando motorista próximo…'), SizedBox(height:16)]),
                   ServiceSelector(
                     selected: _selected,
                     services: widget.availableServices,
                     onChanged: _select,
                   ),
-                  if (_selected == ServiceType.buggy) ...[
+                  if (_hasPassengerCounter) ...[
                     const SizedBox(height: RamoSpacing.md),
                     _PassengerCounter(
                       count: _passengerCount,
@@ -180,6 +189,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
+                  if (widget.sharedTransfer != null) SharedTransferButton(option: widget.sharedTransfer!, enabled: !_submitting),
                   if (_error != null) ...[
                     const SizedBox(height: RamoSpacing.sm),
                     Text(

@@ -12,7 +12,7 @@ import {
 const zone = (zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external', localityId?: string) =>
   localityId == null ? { zoneId } : { zoneId, localityId };
 
-test('Jeri <-> Preá aplica Carro R$140 e Comfort/Black R$150/R$200', () => {
+test('Jeri <-> Preá aplica Carro R$130/R$150 e Comfort/Black R$150/R$190', () => {
   const car = quoteFare({
     origin: zone('prea'),
     destination: zone('jericoacoara'),
@@ -40,9 +40,9 @@ test('Jeri <-> Preá aplica Carro R$140 e Comfort/Black R$150/R$200', () => {
     day.kind === 'exact' &&
     night.kind === 'exact'
   ) {
-    assert.equal(car.totalAmountCents, 14000);
+    assert.equal(car.totalAmountCents, 13000);
     assert.equal(day.totalAmountCents, 15000);
-    assert.equal(night.totalAmountCents, 20000);
+    assert.equal(night.totalAmountCents, 19000);
   }
 });
 
@@ -68,7 +68,7 @@ test('Jijoca <-> Jeri fecha R$160 dia / R$200 após 22h', () => {
   }
 });
 
-test('Preá <-> Jijoca oferece Carro e Comfort com adicional de R$50', () => {
+test('Preá <-> Jijoca oferece Carro e Comfort com adicional de R$30', () => {
   const car = quoteFare({
     origin: zone('prea'),
     destination: zone('jijoca'),
@@ -86,7 +86,7 @@ test('Preá <-> Jijoca oferece Carro e Comfort com adicional de R$50', () => {
   assert.equal(comfort.kind, 'exact');
   if (car.kind === 'exact' && comfort.kind === 'exact') {
     assert.equal(car.totalAmountCents, 12000);
-    assert.equal(comfort.totalAmountCents, 17000);
+    assert.equal(comfort.totalAmountCents, 15000);
   }
 });
 
@@ -120,9 +120,9 @@ test('Aeroporto JJD respeita Carro/Comfort para Preá e apenas 4x4 para Jeri', (
     comfortPrea.kind === 'exact' &&
     comfortJeri.kind === 'exact'
   ) {
-    assert.equal(carPrea.totalAmountCents, 18000);
-    assert.equal(comfortPrea.totalAmountCents, 23000);
-    assert.equal(comfortJeri.totalAmountCents, 24000);
+    assert.equal(carPrea.totalAmountCents, 7000);
+    assert.equal(comfortPrea.totalAmountCents, 9000);
+    assert.equal(comfortJeri.totalAmountCents, 22000);
   }
 });
 
@@ -145,8 +145,8 @@ test('Buggy em Jeri mantém o preço-base para 1 pessoa e soma R$2 só por adici
   assert.equal(single.kind, 'exact');
   assert.equal(four.kind, 'exact');
   if (single.kind === 'exact' && four.kind === 'exact') {
-    assert.equal(single.baseAmountCents, 4000);
-    assert.equal(four.baseAmountCents, 6600);
+    assert.equal(single.baseAmountCents, 3500);
+    assert.equal(four.baseAmountCents, 5600);
   }
 });
 
@@ -174,7 +174,7 @@ test('Entrega em Jeri custa R$5 até 2 km e R$6 acima, sem adicional noturno', (
   }
 });
 
-test('Comfort local do Preá soma R$40 e viagens longas preservam os valores aprovados', () => {
+test('Comfort local do Preá soma R$25 e viagens longas preservam os valores aprovados', () => {
   const local = quoteFare({
     origin: zone('prea', 'prea'),
     destination: zone('prea', 'buraco-azul'),
@@ -191,12 +191,12 @@ test('Comfort local do Preá soma R$40 e viagens longas preservam os valores apr
   assert.equal(local.kind, 'exact');
   assert.equal(long.kind, 'exact');
   if (local.kind === 'exact' && long.kind === 'exact') {
-    assert.equal(local.baseAmountCents, 7500);
-    assert.equal(long.baseAmountCents, 57000);
+    assert.equal(local.baseAmountCents, 6700);
+    assert.equal(long.baseAmountCents, 67600);
   }
 });
 
-test('noturno local do Preá soma R$10, mas viagem longa mantém preço-base', () => {
+test('noturno local do Preá soma R$5, mas viagem longa mantém preço-base', () => {
   const local = quoteFare({
     origin: zone('prea', 'prea'),
     destination: zone('prea', 'buraco-azul'),
@@ -213,24 +213,16 @@ test('noturno local do Preá soma R$10, mas viagem longa mantém preço-base', (
   assert.equal(local.kind, 'exact');
   assert.equal(long.kind, 'exact');
   if (local.kind === 'exact' && long.kind === 'exact') {
-    assert.equal(local.baseAmountCents, 4500);
+    assert.equal(local.baseAmountCents, 4700);
     assert.equal(long.baseAmountCents, 52000);
   }
 });
 
-test('faixas ainda não fechadas em Jijoca permanecem faixa e impedem falsa precisão', () => {
-  const quote = quoteFare({
-    origin: zone('jijoca', 'jijoca'),
-    destination: zone('jijoca', 'corrego-do-mourao'),
-    category: 'moto',
-    period: 'day',
-  });
-
-  assert.equal(quote.kind, 'range');
-  if (quote.kind === 'range') {
-    assert.equal(quote.minBaseAmountCents, 3500);
-    assert.equal(quote.maxBaseAmountCents, 4000);
-    assert.equal(quote.requiresExactResolution, true);
+test('Mourão tem tarifa exata aprovada de R$40/R$52', () => {
+  for (const [period,amount] of [['day',4000],['after_22',5200]] as const) {
+    const quote = quoteFare({origin:zone('jijoca','jijoca'),destination:zone('jijoca','corrego-do-mourao'),category:'moto',period});
+    assert.equal(quote.kind,'exact');
+    if (quote.kind === 'exact') assert.equal(quote.baseAmountCents,amount);
   }
 });
 
@@ -265,23 +257,25 @@ test('Entrega no Preá mantém o mesmo preço depois das 22h', () => {
     destination: zone('prea', 'buraco-azul'),
     category: 'delivery',
     period: 'day',
+    tripDistanceKm: 6.5,
   });
   const night = quoteFare({
     origin: zone('prea', 'prea'),
     destination: zone('prea', 'buraco-azul'),
     category: 'delivery',
     period: 'after_22',
+    tripDistanceKm: 6.5,
   });
 
   assert.equal(day.kind, 'exact');
   assert.equal(night.kind, 'exact');
   if (day.kind === 'exact' && night.kind === 'exact') {
-    assert.equal(day.baseAmountCents, 1900);
-    assert.equal(night.baseAmountCents, 1900);
+    assert.equal(day.baseAmountCents, 750);
+    assert.equal(night.baseAmountCents, 750);
   }
 });
 
-test('Moto Preá <-> Aeroporto custa R$60 dia e R$80 após 22h', () => {
+test('Moto Preá <-> Aeroporto custa R$60 dia e R$84 após 22h', () => {
   const airport = zone('external', 'airport-jjd');
   const day = quoteFare({
     origin: zone('prea'),
@@ -300,7 +294,7 @@ test('Moto Preá <-> Aeroporto custa R$60 dia e R$80 após 22h', () => {
   assert.equal(night.kind, 'exact');
   if (day.kind === 'exact' && night.kind === 'exact') {
     assert.equal(day.baseAmountCents, 6000);
-    assert.equal(night.baseAmountCents, 8000);
+    assert.equal(night.baseAmountCents, 8400);
   }
 });
 
@@ -322,7 +316,7 @@ test('regra da localidade pode desligar categoria sem apagar o preço salvo', ()
 
   assert.equal(
     catalog.localities.prea['buraco-azul']?.car,
-    3500,
+    4200,
   );
   assert.throws(
     () =>
@@ -359,7 +353,7 @@ test('regra local controla adicional noturno do Preá', () => {
 
   assert.equal(quote.kind, 'exact');
   if (quote.kind === 'exact') {
-    assert.equal(quote.baseAmountCents, 3500);
+    assert.equal(quote.baseAmountCents, 4200);
   }
 });
 

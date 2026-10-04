@@ -1,3 +1,5 @@
+import 'package:latlong2/latlong.dart';
+import '../../service_area/domain/service_zone.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
@@ -9,6 +11,8 @@ class PassengerPricingPolicy {
     required this.enabledZones,
     required this.buggyMinPassengers,
     required this.buggyMaxPassengers,
+    this.sharedTransfers,
+    this.catalogZones,
     this.preaLocalityCategories = const {},
     this.jijocaLocalityCategories = const {},
   });
@@ -44,6 +48,8 @@ class PassengerPricingPolicy {
     }
 
     return PassengerPricingPolicy(
+      sharedTransfers: json['sharedTransfers'],
+      catalogZones: _catalogZones(json['localityGeofences']),
       enabledCategories: categories
           .whereType<String>()
           .map((value) => value.trim())
@@ -67,6 +73,8 @@ class PassengerPricingPolicy {
     );
   }
 
+  final List<ServiceZone>? catalogZones;
+  final dynamic sharedTransfers;
   final Set<String> enabledCategories;
   final Set<String> enabledZones;
   final int buggyMinPassengers;
@@ -85,6 +93,23 @@ class PassengerPricingPolicy {
       return jijocaLocalityCategories[localityId];
     }
     return null;
+  }
+
+  static List<ServiceZone>? _catalogZones(dynamic raw) {
+    if (raw is! List) return null;
+    final zones = <ServiceZone>[];
+    for (final area in raw.whereType<Map>()) {
+      final id = area['zoneId']?.toString();
+      final locality = area['localityId']?.toString();
+      final lat = area['centerLatitude'], lng = area['centerLongitude'], radius = area['radiusKm'];
+      if (!['jericoacoara','prea','jijoca','external'].contains(id) || locality == null ||
+          lat is! num || lng is! num || radius is! num ||
+          !lat.isFinite || !lng.isFinite || !radius.isFinite ||
+          lat.abs() > 90 || lng.abs() > 180 || radius <= 0) continue;
+      zones.add(ServiceZone(id: id!,label: locality,localityId: locality,
+        center: LatLng(lat.toDouble(),lng.toDouble()),radiusMeters: radius.toDouble()*1000));
+    }
+    return zones;
   }
 
   static Map<String, Set<String>> _localityCategories(

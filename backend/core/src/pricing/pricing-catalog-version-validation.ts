@@ -1,3 +1,4 @@
+import type { CommercialPolicy, SharedTransferSettings } from './catalog-snapshot.js';
 export class InvalidPricingCatalogPatchError extends Error {
   constructor(message: string) {
     super(message);
@@ -6,6 +7,8 @@ export class InvalidPricingCatalogPatchError extends Error {
 }
 
 export type PricingCatalogDraftPatch =
+  | { kind: 'commercial_policy'; policy: CommercialPolicy }
+  | { kind: 'shared_transfers'; settings: SharedTransferSettings }
   | {
       kind: 'fixed_route';
       routeId: string;
@@ -16,7 +19,8 @@ export type PricingCatalogDraftPatch =
       kind: 'locality_price';
       hub: 'prea' | 'jijoca';
       localityId: string;
-      category: 'moto' | 'delivery' | 'car';
+      category: 'moto' | 'delivery' | 'car' | 'buggy';
+      period?: 'day' | 'after_22';
       price:
         | { kind: 'exact'; amountCents: number }
         | { kind: 'range'; minCents: number; maxCents: number };
@@ -26,7 +30,7 @@ export type PricingCatalogDraftPatch =
       hub: 'prea' | 'jijoca';
       localityId: string;
       enabledCategories: Array<
-        'moto' | 'delivery' | 'car' | 'comfort_black'
+        'moto' | 'delivery' | 'car' | 'comfort_black' | 'buggy'
       >;
       applyNightSurcharge: boolean;
     }
@@ -251,6 +255,40 @@ export function parsePricingCatalogDraftPatch(
   const value = objectValue(input, 'body');
   const kind = textValue(value.kind, 'kind', 40);
 
+  if (kind === 'commercial_policy') {
+    const policy = objectValue(value.policy, 'policy');
+    return {kind, policy: {
+      revision: '2026-10-03',
+      jijocaNightBps: integerValue(policy.jijocaNightBps,'jijocaNightBps',0,10000),
+      jijocaComfortCents: nonNegativeCentsValue(policy.jijocaComfortCents,'jijocaComfortCents'),
+      preaBuggyAfter22Cents: nonNegativeCentsValue(policy.preaBuggyAfter22Cents,'preaBuggyAfter22Cents'),
+      buggyPerAdditionalPassengerCents: nonNegativeCentsValue(policy.buggyPerAdditionalPassengerCents,'buggyPerAdditionalPassengerCents'),
+      deliveryBaseCents: centsValue(policy.deliveryBaseCents,'deliveryBaseCents'),
+      deliveryIncludedKm: decimalValue(policy.deliveryIncludedKm,'deliveryIncludedKm',0,100),
+      deliveryPerExcessKmCents: centsValue(policy.deliveryPerExcessKmCents,'deliveryPerExcessKmCents'),
+      jeriTransferDestinationIds: identifierListValue(policy.jeriTransferDestinationIds,'jeriTransferDestinationIds'),
+    }};
+  }
+  if (kind === 'shared_transfers') {
+    const raw = objectValue(value.settings,'settings');
+    const enabled = booleanValue(raw.enabled,'enabled');
+    const whatsappPhone = typeof raw.whatsappPhone === 'string' ? raw.whatsappPhone.replace(/[ +().-]/g,'') : '';
+    if ((enabled || whatsappPhone !== '') && !/^[1-9][0-9]{7,14}$/.test(whatsappPhone)) {
+      throw new InvalidPricingCatalogPatchError('Informe o WhatsApp com código do país e DDD.');
+    }
+    if (!Array.isArray(raw.routes) || raw.routes.length > 50) throw new InvalidPricingCatalogPatchError('Rotas de compartilhado inválidas.');
+    const routes = raw.routes.map((item,index)=>{
+      const route = objectValue(item,`routes[${index}]`);
+      const originId = identifierValue(route.originId,'originId');
+      const destinationId = identifierValue(route.destinationId,'destinationId');
+      if (originId === destinationId) throw new InvalidPricingCatalogPatchError('Origem e destino precisam ser diferentes.');
+      return {originId,destinationId,enabled:booleanValue(route.enabled,'enabled')};
+    });
+    return {kind,settings:{enabled,whatsappPhone,
+      buttonLabel:textValue(raw.buttonLabel,'buttonLabel',80),
+      messageTemplate:textValue(raw.messageTemplate,'messageTemplate',500),routes}};
+  }
+
   if (kind === 'fixed_route') {
     return {
       kind,
@@ -275,7 +313,7 @@ export function parsePricingCatalogDraftPatch(
     if (
       category !== 'moto' &&
       category !== 'delivery' &&
-      category !== 'car'
+      category !== 'car' && category !== 'buggy'
     ) {
       throw new InvalidPricingCatalogPatchError(
         'category deve ser moto, delivery ou car.',
@@ -293,6 +331,7 @@ export function parsePricingCatalogDraftPatch(
           'localityId',
         ),
         category,
+        period: value.period === 'after_22' ? 'after_22' : 'day',
         price: {
           kind: 'exact',
           amountCents: centsValue(
@@ -324,6 +363,7 @@ export function parsePricingCatalogDraftPatch(
           'localityId',
         ),
         category,
+        period: value.period === 'after_22' ? 'after_22' : 'day',
         price: {
           kind: 'range',
           minCents,
@@ -367,7 +407,7 @@ export function parsePricingCatalogDraftPatch(
             category !== 'moto' &&
             category !== 'delivery' &&
             category !== 'car' &&
-            category !== 'comfort_black'
+            category !== 'comfort_black' && category !== 'buggy'
           ) {
             throw new InvalidPricingCatalogPatchError(
               'Categoria da localidade é inválida.',
@@ -377,28 +417,13 @@ export function parsePricingCatalogDraftPatch(
         }),
       ),
     ] as Array<
-      'moto' | 'delivery' | 'car' | 'comfort_black'
+      'moto' | 'delivery' | 'car' | 'comfort_black' | 'buggy'
     >;
-
-    if (
-      hub === 'jijoca' &&
-      enabledCategories.includes('comfort_black')
-    ) {
-      throw new InvalidPricingCatalogPatchError(
-        'Comfort/Black por localidade está disponível somente no Preá.',
-      );
-    }
 
     const applyNightSurcharge = booleanValue(
       value.applyNightSurcharge,
       'applyNightSurcharge',
     );
-    if (hub !== 'prea' && applyNightSurcharge) {
-      throw new InvalidPricingCatalogPatchError(
-        'Adicional noturno por localidade está disponível somente no Preá.',
-      );
-    }
-
     return {
       kind,
       hub,

@@ -246,6 +246,7 @@
             <input id="locality-category-car" type="checkbox">
             <span><strong>Carro</strong><small>Categoria popular</small></span>
           </label>
+          <label class="locality-option-card"><input id="locality-category-buggy" type="checkbox"><span>Buggy</span></label>
           <label id="locality-category-comfort-card" class="locality-option-card">
             <input id="locality-category-comfort" type="checkbox">
             <span><strong>Comfort/Black</strong><small>4x4 premium</small></span>
@@ -264,7 +265,7 @@
           <p>Você pode usar valor exato ou uma faixa de preço.</p>
         </div>
         <div id="locality-price-grid" class="locality-price-grid">
-          <article id="locality-price-moto-card" class="locality-price-card" hidden>
+          <article id="locality-price-buggy-card" class="locality-price-card" hidden><h3>Buggy — preço diurno</h3><label class="field"><span>Formato</span><select id="locality-price-buggy-kind"><option value="exact">Valor exato</option><option value="range">Faixa</option></select></label><label class="field"><span id="locality-price-buggy-min-label">Preço (R$)</span><input id="locality-price-buggy-min" inputmode="decimal"></label><label id="locality-price-buggy-max-field" class="field" hidden><span>Máximo (R$)</span><input id="locality-price-buggy-max" inputmode="decimal"></label></article><article id="locality-price-moto-card" class="locality-price-card" hidden>
             <div class="locality-price-card__heading"><strong>Moto</strong></div>
             <label class="field">
               <span>Formato</span>

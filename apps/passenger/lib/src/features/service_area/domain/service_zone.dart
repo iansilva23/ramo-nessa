@@ -5,15 +5,19 @@ import 'package:latlong2/latlong.dart';
 class ServiceZone {
   const ServiceZone({
     required this.id,
+    this.localityId,
     required this.label,
     required this.center,
     required this.radiusMeters,
   });
 
   final String id;
+  final String? localityId;
   final String label;
   final LatLng center;
   final double radiusMeters;
+
+  double distanceTo(LatLng point) => _distanceMeters(center, point);
 
   bool contains(LatLng point) {
     return _distanceMeters(center, point) <= radiusMeters;

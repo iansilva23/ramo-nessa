@@ -43,10 +43,10 @@ test('política pública expõe somente disponibilidade operacional necessária 
         item.localityId === 'jijoca' &&
         item.enabledCategories.includes('comfort_black'),
     ),
-    false,
+    true,
   );
   assert.deepEqual(view.pricingCatalog, {
-    catalogVersion: 'v1',
+    catalogVersion: 'approved-2026-10-03',
     catalogVersionId: 'version-public-policy',
     catalogVersionNumber: 7,
   });

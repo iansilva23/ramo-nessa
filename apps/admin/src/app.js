@@ -4652,6 +4652,17 @@ function parsePricingDeliveryBands(value) {
 function fillPricingPolicyFields(payload) {
   if (payload == null) return;
 
+  const commercial = payload.commercialPolicy ?? {};
+  const commercialFields = {'pricing-commercial-jijoca-comfort':'jijocaComfortCents','pricing-commercial-prea-buggy-night':'preaBuggyAfter22Cents','pricing-commercial-buggy-extra':'buggyPerAdditionalPassengerCents','pricing-commercial-delivery-base':'deliveryBaseCents','pricing-commercial-delivery-excess':'deliveryPerExcessKmCents'};
+  for (const [id,key] of Object.entries(commercialFields)) byId(id).value = pricingCentsToReais(commercial[key]);
+  byId('pricing-commercial-jijoca-night').value = (commercial.jijocaNightBps ?? 3000)/100;
+  byId('pricing-commercial-delivery-included').value = commercial.deliveryIncludedKm ?? 5;
+  const shared = payload.sharedTransfers ?? {};
+  byId('pricing-shared-enabled').checked = shared.enabled === true;
+  byId('pricing-shared-phone').value = shared.whatsappPhone ?? '';
+  byId('pricing-shared-label').value = shared.buttonLabel ?? 'Compartilhado · Valor mais acessível';
+  byId('pricing-shared-message').value = shared.messageTemplate ?? 'Olá! Vim pelo Ramo Nessa e gostaria de consultar um transfer compartilhado de {origem} para {destino}.';
+  byId('pricing-shared-routes').value = (shared.routes ?? []).filter(route=>route.enabled).map(route=>`${route.originId} | ${route.destinationId}`).join('\n');
   const commissionBps = Number(payload.commissionBps);
   byId('pricing-commission-percent').value =
     Number.isFinite(commissionBps)
@@ -4794,6 +4805,8 @@ function renderPricingEditor(version = null) {
 function syncPricingEditFields() {
   const kind = byId('pricing-edit-kind').value;
   const groups = {
+    'pricing-commercial-policy-fields': 'commercial_policy',
+    'pricing-shared-transfers-fields': 'shared_transfers',
     'pricing-fixed-route-fields': 'fixed_route',
     'pricing-locality-fields': 'locality_price',
     'pricing-locality-policy-fields': 'locality_policy',
@@ -4997,6 +5010,8 @@ function syncPricingLocalityPolicyFields() {
       : [],
   );
 
+  const buggyField = byId('pricing-locality-policy-buggy');
+  if (buggyField != null) buggyField.checked = enabled.has('buggy');
   const moto = byId('pricing-locality-policy-moto');
   const delivery = byId('pricing-locality-policy-delivery');
   const car = byId('pricing-locality-policy-car');
@@ -5008,12 +5023,10 @@ function syncPricingLocalityPolicyFields() {
   }
   if (car != null) car.checked = enabled.has('car');
   if (comfort != null) {
-    comfort.checked =
-      hub === 'prea' && enabled.has('comfort_black');
+    comfort.checked = enabled.has('comfort_black');
   }
   if (night != null) {
     night.checked =
-      hub === 'prea' &&
       entry?.policy?.applyNightSurcharge === true;
   }
 
@@ -5022,10 +5035,10 @@ function syncPricingLocalityPolicyFields() {
   const nightField =
     byId('pricing-locality-policy-night-field');
   if (comfortField != null) {
-    comfortField.hidden = hub !== 'prea';
+    comfortField.hidden = false;
   }
   if (nightField != null) {
-    nightField.hidden = hub !== 'prea';
+    nightField.hidden = false;
   }
 }
 
@@ -5300,6 +5313,30 @@ async function handlePricingCreateDraft() {
 
 function buildPricingDraftPatch() {
   const kind = byId('pricing-edit-kind').value;
+  if (kind === 'commercial_policy') {
+    const existing = state.pricingCatalog?.commercialPolicy;
+    if (!existing) throw new Error('Abra uma versão da revisão comercial aprovada.');
+    return {kind,policy:{...existing,
+      jijocaNightBps: Math.round(pricingDecimalValue(byId('pricing-commercial-jijoca-night').value,'Adicional de Jijoca',{min:0,max:100})*100),
+      jijocaComfortCents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-jijoca-comfort').value,'Comfort de Jijoca'),
+      preaBuggyAfter22Cents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-prea-buggy-night').value,'Buggy noturno'),
+      buggyPerAdditionalPassengerCents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-buggy-extra').value,'Passageiro adicional'),
+      deliveryBaseCents:pricingMoneyToCents(byId('pricing-commercial-delivery-base').value,'Entrega'),
+      deliveryIncludedKm:pricingDecimalValue(byId('pricing-commercial-delivery-included').value,'Km incluídos',{min:0,max:100}),
+      deliveryPerExcessKmCents:pricingMoneyToCents(byId('pricing-commercial-delivery-excess').value,'Km excedente'),
+    }};
+  }
+  if (kind === 'shared_transfers') {
+    const routes = byId('pricing-shared-routes').value.split(/\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+      const parts = line.split('|').map(value=>value.trim());
+      if (parts.length !== 2 || !parts[0] || !parts[1]) throw new Error('Use origem | destino em cada linha de rota.');
+      return {originId:parts[0],destinationId:parts[1],enabled:true};
+    });
+    return {kind,settings:{enabled:byId('pricing-shared-enabled').checked,
+      whatsappPhone:byId('pricing-shared-phone').value.trim(),buttonLabel:byId('pricing-shared-label').value.trim(),
+      messageTemplate:byId('pricing-shared-message').value.trim(),routes}};
+  }
+
   if (kind === 'fixed_route') {
     const routeId = byId('pricing-route-id').value.trim();
     if (!routeId) {
@@ -5328,6 +5365,7 @@ function buildPricingDraftPatch() {
     }
 
     const enabledCategories = [];
+    if (byId('pricing-locality-policy-buggy')?.checked) enabledCategories.push('buggy');
     if (byId('pricing-locality-policy-moto').checked) {
       enabledCategories.push('moto');
     }
@@ -5338,7 +5376,6 @@ function buildPricingDraftPatch() {
       enabledCategories.push('car');
     }
     if (
-      hub === 'prea' &&
       byId('pricing-locality-policy-comfort').checked
     ) {
       enabledCategories.push('comfort_black');
@@ -5350,7 +5387,6 @@ function buildPricingDraftPatch() {
       localityId,
       enabledCategories,
       applyNightSurcharge:
-        hub === 'prea' &&
         byId('pricing-locality-policy-night').checked,
     };
   }
@@ -5554,6 +5590,7 @@ function buildPricingDraftPatch() {
     hub: byId('pricing-locality-hub').value,
     localityId,
     category: byId('pricing-locality-category').value,
+    period: byId('pricing-locality-period').value,
     price:
       priceKind === 'range'
         ? {

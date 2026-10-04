@@ -6,7 +6,7 @@ import { adminPricingCatalogView } from '../src/pricing/admin-catalog.js';
 test('catálogo Admin é somente leitura e preserva a autoridade do Core', () => {
   const catalog = adminPricingCatalogView();
 
-  assert.equal(catalog.catalogVersion, 'v1');
+  assert.equal(catalog.catalogVersion, 'approved-2026-10-03');
   assert.equal(catalog.authority, 'core');
   assert.equal(catalog.mode, 'static');
   assert.equal(catalog.editable, false);
@@ -72,7 +72,7 @@ test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tari
   );
   assert.deepEqual(prea?.prices.car, {
     kind: 'exact',
-    amountCents: 2500,
+    amountCents: 3000,
   });
 
   const formosa = catalog.localities.prea.find(
@@ -93,7 +93,7 @@ test('catálogo Admin expõe localidades, faixas e rotas fixas sem resolver tari
     (item) => item.id === 'prea-airport-moto',
   );
   assert.equal(airportMoto?.dayCents, 6000);
-  assert.equal(airportMoto?.after22Cents, 8000);
+  assert.equal(airportMoto?.after22Cents, 8400);
   assert.equal(catalog.jeri.deliveryAboveMaxCents, 600);
 
   assert.equal(

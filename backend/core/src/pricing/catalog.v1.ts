@@ -11,6 +11,8 @@ export interface LocalityPricing {
   moto?: PriceValue;
   delivery?: PriceValue;
   car?: PriceValue;
+  buggy?: PriceValue;
+  after22?: Partial<Record<ServiceCategory, PriceValue>>;
 }
 
 export const COMMISSION_BPS = 1000;

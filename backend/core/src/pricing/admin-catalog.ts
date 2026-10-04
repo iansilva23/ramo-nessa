@@ -30,6 +30,8 @@ function localityView(
       moto: priceValueView(pricing.moto),
       delivery: priceValueView(pricing.delivery),
       car: priceValueView(pricing.car),
+      buggy: priceValueView(pricing.buggy),
+      after22: Object.fromEntries(Object.entries(pricing.after22 ?? {}).map(([category,value])=>[category,priceValueView(value)])),
     },
     policy: {
       enabledCategories: [
@@ -53,6 +55,8 @@ export function adminPricingCatalogView(
 ) {
   return {
     catalogVersion: snapshot.catalogVersion,
+    commercialPolicy: snapshot.commercialPolicy == null ? null : structuredClone(snapshot.commercialPolicy),
+    sharedTransfers: snapshot.sharedTransfers == null ? null : structuredClone(snapshot.sharedTransfers),
     authority: 'core' as const,
     mode: options.mode ?? 'static',
     editable: options.editable ?? false,

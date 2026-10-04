@@ -14,6 +14,7 @@ import {
   type FixedRoutePrice,
   type LocalityPricing,
 } from './catalog.v1.js';
+import { applyApprovedCommercialRevision } from './approved-commercial-revision.js';
 import type {
   PricePeriod,
   ServiceCategory,
@@ -32,7 +33,8 @@ export type PricingLocalityServiceCategory =
   | 'moto'
   | 'delivery'
   | 'car'
-  | 'comfort_black';
+  | 'comfort_black'
+  | 'buggy';
 
 export interface PricingLocalityPolicy {
   enabledCategories: PricingLocalityServiceCategory[];
@@ -62,6 +64,7 @@ function localityPoliciesFor(
       const enabledCategories: PricingLocalityServiceCategory[] = [];
       if (pricing.moto != null) enabledCategories.push('moto');
       if (pricing.delivery != null) enabledCategories.push('delivery');
+      if (pricing.buggy != null) enabledCategories.push('buggy');
       if (pricing.car != null) {
         enabledCategories.push('car');
         if (options.includeComfortBlack) {
@@ -80,7 +83,29 @@ function localityPoliciesFor(
   );
 }
 
+export interface CommercialPolicy {
+  revision: string;
+  jijocaNightBps: number;
+  jijocaComfortCents: number;
+  preaBuggyAfter22Cents: number;
+  buggyPerAdditionalPassengerCents: number;
+  deliveryBaseCents: number;
+  deliveryIncludedKm: number;
+  deliveryPerExcessKmCents: number;
+  jeriTransferDestinationIds: string[];
+}
+
+export interface SharedTransferSettings {
+  enabled: boolean;
+  whatsappPhone: string;
+  buttonLabel: string;
+  messageTemplate: string;
+  routes: Array<{ originId: string; destinationId: string; enabled: boolean }>;
+}
+
 export interface PricingCatalogSnapshot {
+  commercialPolicy?: CommercialPolicy;
+  sharedTransfers?: SharedTransferSettings;
   catalogVersion: string;
   categories: ServiceCategory[];
   periods: PricePeriod[];
@@ -137,7 +162,7 @@ export interface PricingCatalogSnapshot {
   fixedRoutes: FixedRoutePrice[];
 }
 
-export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
+const BASE_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
   catalogVersion: 'v1',
   categories: [
     'moto',
@@ -276,6 +301,8 @@ export const STATIC_PRICING_CATALOG_V1: PricingCatalogSnapshot = {
   fixedRoutes: structuredClone(FIXED_ROUTES),
 };
 
+
+export const STATIC_PRICING_CATALOG_V1 = applyApprovedCommercialRevision(BASE_PRICING_CATALOG_V1);
 
 export function normalizePricingCatalogSnapshot(
   input: PricingCatalogSnapshot,

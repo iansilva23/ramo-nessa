@@ -1,3 +1,4 @@
+import '../../pricing/data/shared_transfer_option.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -653,8 +654,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   List<ServiceType> _servicesForCoverage(ServiceAreaCheck coverage) {
-    final origin = coverage.originZone?.id;
-    final destination = coverage.destinationZone?.id;
+    final origin = coverage.originZone?.id == 'external' && coverage.originZone?.localityId == 'airport-jjd' ? 'airport-jjd' : coverage.originZone?.id;
+    final destination = coverage.destinationZone?.id == 'external' && coverage.destinationZone?.localityId == 'airport-jjd' ? 'airport-jjd' : coverage.destinationZone?.id;
 
     if (origin == null || destination == null) {
       return const [];
@@ -679,25 +680,23 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         ServiceType.delivery,
       ];
     } else if (_isPair(origin, destination, 'jericoacoara', 'prea')) {
-      services = const [
-        ServiceType.moto,
-        ServiceType.delivery,
-        ServiceType.comfortBlack,
-      ];
+      services = const [ServiceType.car, ServiceType.comfortBlack, ServiceType.buggy];
     } else if (
       _isPair(origin, destination, 'jericoacoara', 'jijoca') ||
-      _isPair(origin, destination, 'jericoacoara', 'airport-jjd')
+      _isPair(origin, destination, 'jericoacoara', 'airport-jjd') ||
+      (_isPair(origin, destination, 'jericoacoara', 'external') &&
+        (coverage.originZone?.localityId == 'fortaleza' || coverage.destinationZone?.localityId == 'fortaleza'))
     ) {
-      services = const [ServiceType.comfortBlack];
+      services = const [ServiceType.car, ServiceType.comfortBlack];
     } else if (origin == 'prea' && destination == 'prea') {
-      services = const [
+      services = const [ServiceType.buggy,
         ServiceType.car,
         ServiceType.moto,
         ServiceType.delivery,
         ServiceType.comfortBlack,
       ];
     } else if (origin == 'jijoca' && destination == 'jijoca') {
-      services = const [
+      services = const [ServiceType.comfortBlack,
         ServiceType.car,
         ServiceType.moto,
         ServiceType.delivery,
@@ -759,6 +758,15 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         .toList(growable: false);
   }
 
+  SharedTransferOption? _sharedOption(ServiceAreaCheck coverage) {
+    final origin = _origin, destination = _destination;
+    if (origin == null || destination == null) return null;
+    String endpoint(ServiceAreaEndpoint? value) => value?.localityId ?? value?.id ?? '';
+    return SharedTransferOption.forRoute(settings: _pricingPolicy?.sharedTransfers,
+      originId: endpoint(coverage.originZone), destinationId: endpoint(coverage.destinationZone),
+      originLabel: origin.displayName, destinationLabel: destination.displayName);
+  }
+
   ServiceType _suggestService(List<ServiceType> available) {
     return available.first;
   }
@@ -774,6 +782,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     await _loadPricingPolicy();
 
     final coverage = RamoServiceArea.checkPlaceTrip(
+      catalogZones: _pricingPolicy?.catalogZones,
       origin: origin,
       destination: destination,
     );
@@ -880,6 +889,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     final coverage = RamoServiceArea.checkPlaceTrip(
+      catalogZones: _pricingPolicy?.catalogZones,
       origin: origin,
       destination: destination,
     );
@@ -922,6 +932,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => VehicleSelectionScreen(
+          sharedTransfer: _sharedOption(coverage),
+          requiresFourByFour: coverage.originZone?.id == 'jericoacoara' || coverage.destinationZone?.id == 'jericoacoara',
           originLabel: origin.displayName,
           destinationLabel: destination.displayName,
           routeSummary: '${route.distanceLabel} · ${route.durationLabel}',
@@ -1003,6 +1015,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => RidePaymentScreen(
+              sharedTransfer: _sharedOption(coverage),
               ride: prepared,
               pickupLatitude: origin.position.latitude,
               pickupLongitude: origin.position.longitude,

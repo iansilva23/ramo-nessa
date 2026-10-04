@@ -144,8 +144,8 @@ test('Operação e Tarifas direciona cadastro geográfico para Nova localidade',
       /<select id=["']pricing-edit-kind["']>[\s\S]*?<\/select>/,
     )?.[0] ?? '';
 
-  assert.equal(select.includes('value="locality_price"'), false);
-  assert.equal(select.includes('value="locality_policy"'), false);
+  assert.equal(select.includes('value="locality_price"'), true);
+  assert.equal(select.includes('value="locality_policy"'), true);
   assert.equal(select.includes('value="locality_map"'), false);
   assert.equal(select.includes('value="locality_structure"'), false);
   assert.match(select, /value="fixed_route"/);

@@ -69,16 +69,20 @@ abstract final class RamoServiceArea {
     ),
   ];
 
-  static ServiceZone? zoneFor(LatLng point) {
-    for (final zone in zones) {
-      if (zone.contains(point)) {
-        return zone;
-      }
-    }
-    return null;
+  static ServiceZone? zoneFor(LatLng point, {List<ServiceZone>? catalogZones}) {
+    final candidates = (catalogZones ?? zones).where((zone)=>zone.contains(point)).toList();
+    candidates.sort((a,b) {
+      final radius = a.radiusMeters.compareTo(b.radiusMeters);
+      if (radius != 0) return radius;
+      final proximity = (a.distanceTo(point)/a.radiusMeters).compareTo(b.distanceTo(point)/b.radiusMeters);
+      if (proximity != 0) return proximity;
+      final zone = a.id.compareTo(b.id);
+      return zone != 0 ? zone : (a.localityId ?? a.id).compareTo(b.localityId ?? b.id);
+    });
+    return candidates.isEmpty ? null : candidates.first;
   }
 
-  static ServiceAreaEndpoint? endpointForPlace(RamoPlace place) {
+  static ServiceAreaEndpoint? endpointForPlace(RamoPlace place, {List<ServiceZone>? catalogZones}) {
     final approvedZone = place.approvedPricingZoneId?.trim();
     final approvedLocality =
         place.approvedPricingLocalityId?.trim();
@@ -100,12 +104,12 @@ abstract final class RamoServiceArea {
       );
     }
 
-    final local = zoneFor(place.position);
+    final local = zoneFor(place.position, catalogZones: catalogZones);
     if (local != null) {
       return ServiceAreaEndpoint(
         id: local.id,
         label: local.label,
-        localityId: local.id,
+        localityId: local.localityId ?? local.id,
       );
     }
 
@@ -149,10 +153,11 @@ abstract final class RamoServiceArea {
   static ServiceAreaCheck checkPlaceTrip({
     required RamoPlace origin,
     required RamoPlace destination,
+    List<ServiceZone>? catalogZones,
   }) {
     return ServiceAreaCheck(
-      originZone: endpointForPlace(origin),
-      destinationZone: endpointForPlace(destination),
+      originZone: endpointForPlace(origin, catalogZones: catalogZones),
+      destinationZone: endpointForPlace(destination, catalogZones: catalogZones),
     );
   }
 }

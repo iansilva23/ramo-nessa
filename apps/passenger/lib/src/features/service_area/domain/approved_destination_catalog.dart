@@ -19,6 +19,7 @@ class ApprovedExternalDestination {
 /// uma busca nacional sem existir preço/regra comercial para a rota.
 abstract final class ApprovedDestinationCatalog {
   static const destinations = <ApprovedExternalDestination>[
+    ApprovedExternalDestination(id: 'fortaleza', label: 'Fortaleza', aliases: ['fortaleza']),
     ApprovedExternalDestination(
       id: 'triangulo-do-marco',
       label: 'Triângulo do Marco',

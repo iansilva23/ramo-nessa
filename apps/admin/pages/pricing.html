@@ -119,6 +119,10 @@
                       <span>Tipo de alteração</span>
                       <select id="pricing-edit-kind">
                         <option value="fixed_route">Rota fixa</option>
+                        <option value="locality_price">Preço por localidade e horário</option>
+                        <option value="locality_policy">Categorias por localidade</option>
+                        <option value="commercial_policy">Regras regionais e Entrega</option>
+                        <option value="shared_transfers">Compartilhado pelo WhatsApp</option>
                         <option value="category_policy">Categoria e elegibilidade</option>
                         <option value="zone_policy">Disponibilidade de zona</option>
                         <option value="commission_policy">Comissão da plataforma</option>
@@ -130,6 +134,12 @@
                       </select>
                     </label>
 
+                    <div id="pricing-commercial-policy-fields" class="pricing-edit-group" hidden><label class="field"><span>Adicional noturno de Jijoca (%)</span><input id="pricing-commercial-jijoca-night" type="number" step="0.01"></label><label class="field"><span>Comfort/Black acima do Carro em Jijoca (R$)</span><input id="pricing-commercial-jijoca-comfort" type="text" step="0.01"></label><label class="field"><span>Adicional noturno do Buggy no Preá (R$)</span><input id="pricing-commercial-prea-buggy-night" type="text" step="0.01"></label><label class="field"><span>Passageiro adicional do Buggy no Preá (R$)</span><input id="pricing-commercial-buggy-extra" type="text" step="0.01"></label><label class="field"><span>Entrega — preço-base (R$)</span><input id="pricing-commercial-delivery-base" type="text" step="0.01"></label><label class="field"><span>Entrega — km incluídos</span><input id="pricing-commercial-delivery-included" type="number" step="0.01"></label><label class="field"><span>Entrega — preço por km excedente (R$)</span><input id="pricing-commercial-delivery-excess" type="text" step="0.01"></label></div><div id="pricing-shared-transfers-fields" class="pricing-edit-group" hidden><label class="field"><span>Compartilhado ativo</span><input id="pricing-shared-enabled" type="checkbox"></label>
+<label class="field"><span>WhatsApp — país + DDD + número</span><input id="pricing-shared-phone" placeholder="5588999999999" inputmode="tel"></label>
+<label class="field"><span>Texto do botão</span><input id="pricing-shared-label" maxlength="80"></label>
+<label class="field pricing-edit-span"><span>Mensagem — use {origem} e {destino}</span><textarea id="pricing-shared-message" maxlength="500"></textarea></label>
+<label class="field pricing-edit-span"><span>Rotas — uma por linha: origem | destino</span><textarea id="pricing-shared-routes" placeholder="jericoacoara | airport-jjd&#10;jericoacoara | fortaleza"></textarea><small>Para oferecer a volta, inclua outra linha com origem e destino invertidos. Preço e reserva são combinados pela agência.</small></label>
+</div>
                     <div id="pricing-fixed-route-fields" class="pricing-edit-group">
                       <label class="field">
                         <span>ID da rota</span>
@@ -160,10 +170,15 @@
                       <label class="field">
                         <span>Categoria</span>
                         <select id="pricing-locality-category">
+                          <option value="buggy">Buggy</option>
                           <option value="moto">Moto</option>
                           <option value="delivery">Entrega</option>
                           <option value="car">Carro</option>
                         </select>
+                      </label>
+                      <label class="field">
+                        <span>Horário</span>
+                        <select id="pricing-locality-period"><option value="day">Dia</option><option value="after_22">Noite — preço específico</option></select>
                       </label>
                       <label class="field">
                         <span>Formato do preço</span>
@@ -200,6 +215,10 @@
                       </label>
 
                       <label class="field pricing-toggle-field">
+                        <span>Buggy</span>
+                        <input id="pricing-locality-policy-buggy" type="checkbox">
+                      </label>
+                      <label class="field pricing-toggle-field">
                         <span>Moto</span>
                         <input id="pricing-locality-policy-moto" type="checkbox">
                         <small>Permitir corridas de Moto nesta localidade.</small>
@@ -220,15 +239,15 @@
                       >
                         <span>Comfort/Black</span>
                         <input id="pricing-locality-policy-comfort" type="checkbox">
-                        <small>Disponível para localidades do Preá quando houver preço-base de carro.</small>
+                        <small>Disponível no Preá e em Jijoca quando houver preço-base de Carro.</small>
                       </label>
                       <label
                         id="pricing-locality-policy-night-field"
                         class="field pricing-toggle-field pricing-edit-span"
                       >
-                        <span>Adicional noturno do Preá</span>
+                        <span>Aplicar adicional noturno da região</span>
                         <input id="pricing-locality-policy-night" type="checkbox">
-                        <small>Aplica o adicional noturno global configurado para o Preá nesta localidade.</small>
+                        <small>Aplica o adicional configurado para a região nesta localidade.</small>
                       </label>
                     </div>
 

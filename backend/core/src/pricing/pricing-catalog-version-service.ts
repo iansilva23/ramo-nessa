@@ -210,7 +210,20 @@ export async function updatePricingCatalogDraft(input: {
 
   const patch = input.patch;
 
-  if (patch.kind === 'fixed_route') {
+  if (patch.kind === 'commercial_policy') {
+    if (snapshot.commercialPolicy == null) throw new PricingCatalogVersionError('PRICING_RULE_NOT_FOUND','Use a revisão comercial aprovada para editar estas regras.');
+    snapshot.commercialPolicy = structuredClone(patch.policy);
+    auditMetadata = {kind:patch.kind, policy:patch.policy};
+  } else if (patch.kind === 'shared_transfers') {
+    for (const route of patch.settings.routes) {
+      if (!snapshot.fixedRoutes.some(item => ['car','comfort_black'].includes(item.category) &&
+          ((item.a === route.originId && item.b === route.destinationId) || (item.b === route.originId && item.a === route.destinationId)))) {
+        throw new PricingCatalogVersionError('PRICING_RULE_NOT_FOUND','Compartilhado precisa de uma rota de transfer cadastrada.');
+      }
+    }
+    snapshot.sharedTransfers = structuredClone(patch.settings);
+    auditMetadata = {kind:patch.kind, settings:patch.settings};
+  } else if (patch.kind === 'fixed_route') {
     const route = snapshot.fixedRoutes.find(
       (candidate) => candidate.id === patch.routeId,
     );
@@ -238,7 +251,8 @@ export async function updatePricingCatalogDraft(input: {
       );
     }
 
-    locality[patch.category] =
+    const priceTarget = patch.period === 'after_22' ? (locality.after22 ??= {}) : locality;
+    priceTarget[patch.category] =
       patch.price.kind === 'exact'
         ? patch.price.amountCents
         : {
@@ -266,6 +280,7 @@ export async function updatePricingCatalogDraft(input: {
       hub: patch.hub,
       localityId: patch.localityId,
       category: patch.category,
+      period: patch.period ?? 'day',
       price: patch.price,
     };
   } else if (patch.kind === 'locality_policy') {
