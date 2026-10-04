@@ -992,13 +992,13 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
               ),
               if (widget.sharedTransfer != null) SharedTransferButton(
                 option: widget.sharedTransfer!,
-                enabled: !_creatingPix && !_creatingCard && !_payingWallet && !_authorizingCash && !_leaving,
+                enabled: !_creatingPix && !_creatingCard && !_payingWallet && !_authorizingCash && !_confirmingPromotion && !_leaving,
                 beforeOpen: () async {
                   await _confirmationService?.releaseDriverReservation(_ride.id);
                   if (!mounted) return false;
                   setState(() => _leaving = true);
                   _confirmationTimer?.cancel();
-                  Navigator.of(context).pop();
+                  Navigator.of(this.context).pop();
                   return true;
                 },
               ),

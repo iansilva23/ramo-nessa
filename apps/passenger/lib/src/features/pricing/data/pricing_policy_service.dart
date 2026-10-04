@@ -105,7 +105,9 @@ class PassengerPricingPolicy {
       if (!['jericoacoara','prea','jijoca','external'].contains(id) || locality == null ||
           lat is! num || lng is! num || radius is! num ||
           !lat.isFinite || !lng.isFinite || !radius.isFinite ||
-          lat.abs() > 90 || lng.abs() > 180 || radius <= 0) continue;
+          lat.abs() > 90 || lng.abs() > 180 || radius <= 0) {
+        continue;
+      }
       zones.add(ServiceZone(id: id!,label: locality,localityId: locality,
         center: LatLng(lat.toDouble(),lng.toDouble()),radiusMeters: radius.toDouble()*1000));
     }
