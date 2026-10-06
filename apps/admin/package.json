@@ -1,0 +1,9 @@
+{
+  "name": "@ramo-nessa/admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/company-costs-admin.js && node --check src/driver-search-admin.js && node --check src/driver-benefits-admin.js && node --check src/finance-reconciliation.js && node --check src/promotions-admin.js && node --check src/security.js && node --check src/api.js && node --check src/app.js && node --check src/fleet-map.js && node --check src/pricing-geofence-map.js && node --check src/localities-admin.js",
+    "test": "node --test test/*.test.js"
+  }
+}

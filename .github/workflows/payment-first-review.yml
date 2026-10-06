@@ -1,0 +1,9 @@
+name: Payment Before Driver Review
+on:
+  push:
+    branches: [fix/payment-before-driver-20261003]
+permissions:
+  contents: read
+jobs:
+  preflight:
+    uses: ./.github/workflows/preflight.yml

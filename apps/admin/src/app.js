@@ -1,0 +1,10757 @@
+import { createCompanyCostsAdmin } from './company-costs-admin.js';
+let companyCostsAdmin = null;
+import { createDriverSearchAdmin } from './driver-search-admin.js';
+let driverSearchAdmin = null;
+import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
+import { createPromotionsAdmin } from './promotions-admin.js';
+import { createDriverBenefitsAdmin } from './driver-benefits-admin.js';
+import { AdminApiError, createAdminApi } from './api.js';
+import { createFleetMap } from './fleet-map.js';
+import { createLocalitiesAdmin } from './localities-admin.js';
+import { createPricingGeofenceMap } from './pricing-geofence-map.js';
+import {
+  actionLabel,
+  actorLabel,
+  driverDocumentStatusPresentation,
+  driverDocumentTypeLabel,
+  formatCurrencyCents,
+  formatDateTime,
+  formatSessionRemaining,
+  locationLabel,
+  paymentStatusLabel,
+  pricePeriodLabel,
+  registryStatusPresentation,
+  rideStatePresentation,
+  secondsUntil,
+  serviceCategoryLabel,
+  statusPresentation,
+  validateDriverId,
+  validateDriverRegistryStatus,
+  validateDriverStatus,
+  validatePhone,
+} from './security.js';
+
+const api = createAdminApi();
+
+const state = {
+  token: null,
+  user: null,
+  expiresAt: null,
+  currentDriver: null,
+  currentDriverRegistry: null,
+  currentDriverDocuments: null,
+  currentDriverDocumentCompliance: null,
+  currentDriverCashPolicy: null,
+  currentDriverFinance: null,
+  documentInspectionObjectUrl: null,
+  documentInspectionTimer: null,
+  pricingCatalog: null,
+  pricingVersions: {
+    items: [],
+    effectiveVersionId: null,
+  },
+  selectedPricingVersion: null,
+  pricingGeofenceMap: null,
+  fleet: {
+    generatedAt: null,
+    staleAfterSeconds: null,
+    summary: {
+      totalOnline: 0,
+      free: 0,
+      reserved: 0,
+      onRide: 0,
+      busy: 0,
+      staleGps: 0,
+    },
+    items: [],
+  },
+  fleetTimer: null,
+  fleetLoading: false,
+  finance: {
+    generatedAt: null,
+    readOnly: true,
+    summary: {
+      paymentsTotal: 0,
+      paymentsPaid: 0,
+      paymentsPaidCents: 0,
+      paymentsPending: 0,
+      paymentsFailed: 0,
+      paymentsCancelled: 0,
+      paymentsRefunded: 0,
+      platformRevenueCents: 0,
+      companyProfitAvailableCents: 0,
+      companyPayoutPendingCents: 0,
+      externalAdjustmentReviewCents: 0,
+      externalAdjustmentReviewCount: 0,
+      driverCashCommissionDebtCents: 0,
+      driverPayableCents: 0,
+      driverPayoutPendingCents: 0,
+      rideEscrowCents: 0,
+      passengerWalletCents: 0,
+      payoutsRequested: 0,
+      payoutsRequestedCents: 0,
+    },
+    payments: [],
+    payouts: [],
+    payoutPolicy: null,
+    payoutCandidates: [],
+    companyPayout: null,
+    companyPayouts: [],
+    externalAdjustments: [],
+    pendingCompanyPayoutRequestId: null,
+    policy: null,
+    selectedPayout: null,
+    writeLocked: true,
+  },
+  dashboard: {
+    generatedAt: null,
+    rides: {
+      active: 0,
+      searchingDriver: 0,
+      driverOnTheWay: 0,
+      inProgress: 0,
+      completedLast24h: 0,
+      cancelledLast24h: 0,
+    },
+    activeRides: [],
+  },
+  driverDirectory: {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  },
+  selectedPassenger: null,
+  passengerPhotoObjectUrl: null,
+  passengerDirectory: {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  },
+  rideDirectory: {
+    items: [],
+    nextCursor: null,
+    scope: 'active',
+    state: '',
+    query: '',
+    from: '',
+    to: '',
+  },
+  operationalSettings: null,
+  selectedRide: null,
+  selectedTourSlug: null,
+  tourCoverObjectUrl: null,
+  appAuthHeroObjectUrl: null,
+  appBrandingIconObjectUrl: null,
+  auditEntries: [],
+  auditDirectory: {
+    nextCursor: null,
+    actorKind: '',
+    action: '',
+    targetType: '',
+    query: '',
+  },
+  communications: {
+    loaded: false,
+    deliveryProvider: 'disabled',
+    campaigns: [],
+    releasePolicies: [],
+    agencyPromotion: null,
+    socialLinks: null,
+    tours: [],
+    appAuthBranding: null,
+  },
+  privacy: {
+    legalDocuments: [],
+    requests: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
+  },
+  support: {
+    tickets: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
+  },
+  staff: {
+    users: [],
+    selectedId: null,
+    onboarding: null,
+  },
+  sessionTimer: null,
+};
+
+const byId = (id) => document.getElementById(id);
+const authView = byId('auth-view');
+const adminView = byId('admin-view');
+const loginForm = byId('login-form');
+const loginEmail = byId('login-email');
+const loginPassword = byId('login-password');
+const loginTotp = byId('login-totp');
+const loginButton = byId('login-button');
+const loginMessage = byId('login-message');
+const globalMessage = byId('global-message');
+const routeOutlet = byId('route-outlet');
+const routeLoading = byId('route-loading');
+let fleetMap = null;
+let localitiesAdmin = null;
+let promotionsAdmin = null;
+let driverBenefitsAdmin = null;
+let payoutReconciliationBusy = false;
+let currentView = null;
+let routeLoadSequence = 0;
+
+const adminRoutes = Object.freeze({
+  coupons: {
+    path: '/admin/cupons',
+    title: 'Cupons',
+    page: 'coupons',
+  },
+  overview: {
+    path: '/admin/visao-geral',
+    title: 'Visão geral',
+    page: 'overview',
+  },
+  fleet: {
+    path: '/admin/frota',
+    title: 'Frota',
+    page: 'fleet',
+  },
+  rides: {
+    path: '/admin/viagens',
+    title: 'Viagens',
+    page: 'rides',
+  },
+  drivers: {
+    path: '/admin/motoristas',
+    title: 'Motoristas',
+    page: 'drivers',
+  },
+  benefits: {
+    path: '/admin/ranking-beneficios',
+    title: 'Ranking & Benefícios',
+    page: 'benefits',
+  },
+  passengers: {
+    path: '/admin/passageiros',
+    title: 'Passageiros',
+    page: 'passengers',
+  },
+  localities: {
+    path: '/admin/nova-localidade',
+    title: 'Nova localidade',
+    page: 'localities',
+  },
+  pricing: {
+    path: '/admin/operacao-tarifas',
+    title: 'Operação e Tarifas',
+    page: 'pricing',
+  },
+  costs: {
+    path: '/admin/custos-resultado',
+    title: 'Custos & Resultado',
+    page: 'costs',
+  },
+  finance: {
+    path: '/admin/financeiro',
+    title: 'Financeiro',
+    page: 'finance',
+  },
+  notifications: {
+    path: '/admin/notificacoes',
+    title: 'Notificações',
+    page: 'notifications',
+  },
+  design: {
+    path: '/admin/design-apps',
+    title: 'Design dos Apps',
+    page: 'design',
+  },
+  support: {
+    path: '/admin/suporte',
+    title: 'Suporte',
+    page: 'support',
+  },
+  privacy: {
+    path: '/admin/privacidade',
+    title: 'Privacidade e LGPD',
+    page: 'privacy',
+  },
+  agency: {
+    path: '/admin/passeios',
+    title: 'Ramo Nessa Agência',
+    page: 'agency',
+  },
+  integrations: {
+    path: '/admin/integracoes',
+    title: 'Integrações',
+    page: 'integrations',
+  },
+  staff: {
+    path: '/admin/funcionarios',
+    title: 'Funcionários',
+    page: 'staff',
+  },
+  audit: {
+    path: '/admin/auditoria',
+    title: 'Auditoria',
+    page: 'audit',
+  },
+});
+
+const routeByPath = new Map(
+  Object.entries(adminRoutes).map(([view, route]) => [
+    route.path,
+    view,
+  ]),
+);
+routeByPath.set('/admin/precos', 'pricing');
+
+function requestedViewFromLocation() {
+  const path = window.location.pathname.replace(/\/$/, '') || '/admin';
+  return routeByPath.get(path) ?? 'overview';
+}
+
+function routePath(view) {
+  return adminRoutes[view]?.path ?? adminRoutes.overview.path;
+}
+
+function setMobileNavOpen(open) {
+  const expanded = open === true;
+  document.body.classList.toggle('nav-open', expanded);
+  const button = byId('mobile-menu-button');
+  if (button != null) {
+    button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    button.setAttribute(
+      'aria-label',
+      expanded ? 'Fechar menu' : 'Abrir menu',
+    );
+  }
+}
+
+const scopeLabels = new Map([
+  ['drivers:auth:read', 'Consultar acesso de motoristas'],
+  ['drivers:auth:write', 'Aprovar e suspender acessos de motoristas'],
+  ['drivers:profile:read', 'Consultar perfil e veículo de motoristas'],
+  ['drivers:profile:write', 'Editar e aprovar perfil e veículo'],
+  ['drivers:documents:read', 'Consultar documentos de motoristas'],
+  ['drivers:documents:write', 'Revisar documentos de motoristas'],
+  ['drivers:benefits:read', 'Consultar Ranking & Benefícios'],
+  ['drivers:benefits:write', 'Administrar Ranking & Benefícios'],
+  ['passengers:auth:read', 'Consultar acesso de passageiros'],
+  ['passengers:auth:write', 'Bloquear e desbloquear passageiros'],
+  ['rides:read', 'Consultar operação de corridas'],
+  ['rides:write', 'Cancelar corridas antes do início da viagem'],
+  ['fleet:read', 'Consultar frota e posições operacionais'],
+  ['costs:read', 'Consultar custos e resultado da empresa'],
+  ['costs:write', 'Cadastrar despesas e regras de custos'],
+  ['finance:read', 'Consultar pagamentos, comissões e saques'],
+  ['finance:write', 'Administrar políticas financeiras permitidas'],
+  ['pricing:read', 'Consultar catálogo de preços e zonas'],
+  ['pricing:write', 'Editar e publicar versões de preços'],
+  ['communications:read', 'Consultar comunicação, versões e agência'],
+  ['communications:write', 'Enviar avisos e editar comunicação'],
+  ['support:read', 'Consultar chamados de suporte'],
+  ['support:write', 'Responder e encerrar chamados de suporte'],
+  ['privacy:read', 'Consultar documentos e solicitações LGPD'],
+  ['privacy:write', 'Publicar documentos e atender solicitações LGPD'],
+  ['audit:read', 'Consultar auditoria'],
+]);
+
+const ADMIN_CANCELLABLE_RIDE_STATES = new Set([
+  'PAID',
+  'SEARCHING_DRIVER',
+  'DRIVER_ASSIGNED',
+  'DRIVER_ARRIVING',
+  'DRIVER_ARRIVED',
+  'CANCELLED_BY_ADMIN',
+  'REFUND_PENDING',
+]);
+
+function hasScope(scope) {
+  return state.user?.scopes?.includes(scope) === true;
+}
+
+function canManageStaff() {
+  return state.user?.capabilities?.manageStaff === true;
+}
+
+const viewAccessScopes = Object.freeze({
+  fleet: ['fleet:read'],
+  rides: ['rides:read', 'rides:write'],
+  drivers: [
+    'drivers:auth:read',
+    'drivers:auth:write',
+    'drivers:profile:read',
+    'drivers:profile:write',
+    'drivers:documents:read',
+    'drivers:documents:write',
+    'finance:read',
+    'finance:write',
+  ],
+  benefits: ['drivers:benefits:read', 'drivers:benefits:write'],
+  passengers: ['passengers:auth:read', 'passengers:auth:write'],
+  localities: ['pricing:read', 'pricing:write'],
+  pricing: ['pricing:read', 'pricing:write'],
+  coupons: ['finance:read', 'finance:write'],
+  finance: ['finance:read', 'finance:write'],
+  costs: ['costs:read', 'costs:write'],
+  notifications: ['communications:read', 'communications:write'],
+  design: ['communications:read', 'communications:write'],
+  support: ['support:read', 'support:write'],
+  privacy: ['privacy:read', 'privacy:write'],
+  agency: ['communications:read', 'communications:write'],
+  integrations: ['rides:read', 'rides:write'],
+  audit: ['audit:read'],
+});
+
+function canAccessView(view) {
+  if (view === 'staff') return canManageStaff();
+  if (view === 'overview') return true;
+  const scopes = viewAccessScopes[view];
+  return scopes == null || scopes.some((scope) => hasScope(scope));
+}
+
+function setMessage(element, message = '', tone = 'neutral') {
+  element.textContent = message;
+  element.dataset.tone = tone;
+  element.hidden = !message;
+}
+
+function initials(name) {
+  const parts = String(name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+  if (parts.length === 0) return 'RN';
+  return parts.map((part) => part[0]?.toUpperCase() ?? '').join('');
+}
+
+function clearSensitiveInputs() {
+  loginPassword.value = '';
+  loginTotp.value = '';
+}
+
+function stopSessionTimer() {
+  if (state.sessionTimer != null) {
+    clearInterval(state.sessionTimer);
+    state.sessionTimer = null;
+  }
+}
+
+function stopFleetPolling() {
+  if (state.fleetTimer != null) {
+    clearInterval(state.fleetTimer);
+    state.fleetTimer = null;
+  }
+}
+
+function destroyFleetMap() {
+  if (fleetMap == null) return;
+  fleetMap.destroy();
+  fleetMap = null;
+}
+
+function destroyLocalitiesAdmin() {
+  if (localitiesAdmin == null) return;
+  localitiesAdmin.destroy();
+  localitiesAdmin = null;
+}
+
+function destroyPricingGeofenceMap() {
+  if (state.pricingGeofenceMap == null) return;
+  state.pricingGeofenceMap.destroy();
+  state.pricingGeofenceMap = null;
+}
+
+function closeDriverDocumentInspection() {
+  if (state.documentInspectionTimer != null) {
+    clearTimeout(state.documentInspectionTimer);
+    state.documentInspectionTimer = null;
+  }
+  if (state.documentInspectionObjectUrl != null) {
+    URL.revokeObjectURL(state.documentInspectionObjectUrl);
+    state.documentInspectionObjectUrl = null;
+  }
+
+  const panel = byId('driver-document-inspection-panel');
+  const frame = byId('driver-document-inspection-frame');
+  const image = byId('driver-document-inspection-image');
+  if (frame != null) {
+    frame.removeAttribute('src');
+    frame.hidden = true;
+  }
+  if (image != null) {
+    image.removeAttribute('src');
+    image.hidden = true;
+  }
+  if (panel != null) panel.hidden = true;
+}
+
+function clearPassengerPhoto() {
+  if (state.passengerPhotoObjectUrl != null) {
+    URL.revokeObjectURL(state.passengerPhotoObjectUrl);
+    state.passengerPhotoObjectUrl = null;
+  }
+  const image = byId('passenger-photo-preview');
+  if (image != null) {
+    image.removeAttribute('src');
+    image.hidden = true;
+  }
+  const empty = byId('passenger-photo-empty');
+  if (empty != null) {
+    empty.hidden = false;
+    empty.textContent = 'Nenhuma foto cadastrada.';
+  }
+}
+
+function clearSession(message = '') {
+  stopSessionTimer();
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
+  stopFleetPolling();
+  closeDriverDocumentInspection();
+  state.token = null;
+  state.user = null;
+  state.expiresAt = null;
+  state.currentDriver = null;
+  state.currentDriverRegistry = null;
+  state.currentDriverDocuments = null;
+  state.currentDriverDocumentCompliance = null;
+  state.currentDriverCashPolicy = null;
+  state.currentDriverFinance = null;
+  destroyLocalitiesAdmin();
+  destroyPricingGeofenceMap();
+  state.pricingCatalog = null;
+  state.pricingVersions = {
+    items: [],
+    effectiveVersionId: null,
+  };
+  state.selectedPricingVersion = null;
+  state.fleet = {
+    generatedAt: null,
+    staleAfterSeconds: null,
+    summary: {
+      totalOnline: 0,
+      free: 0,
+      reserved: 0,
+      onRide: 0,
+      busy: 0,
+      staleGps: 0,
+    },
+    items: [],
+  };
+  state.fleetLoading = false;
+  state.finance = {
+    generatedAt: null,
+    readOnly: true,
+    summary: {
+      paymentsTotal: 0,
+      paymentsPaid: 0,
+      paymentsPaidCents: 0,
+      paymentsPending: 0,
+      paymentsFailed: 0,
+      paymentsCancelled: 0,
+      paymentsRefunded: 0,
+      platformRevenueCents: 0,
+      companyProfitAvailableCents: 0,
+      companyPayoutPendingCents: 0,
+      externalAdjustmentReviewCents: 0,
+      externalAdjustmentReviewCount: 0,
+      driverCashCommissionDebtCents: 0,
+      driverPayableCents: 0,
+      driverPayoutPendingCents: 0,
+      rideEscrowCents: 0,
+      passengerWalletCents: 0,
+      payoutsRequested: 0,
+      payoutsRequestedCents: 0,
+    },
+    payments: [],
+    payouts: [],
+    payoutPolicy: null,
+    payoutCandidates: [],
+    companyPayout: null,
+    companyPayouts: [],
+    externalAdjustments: [],
+    pendingCompanyPayoutRequestId: null,
+    policy: null,
+    selectedPayout: null,
+    writeLocked: true,
+  };
+  if (fleetMap != null) {
+    fleetMap.update([]);
+  }
+  state.dashboard = {
+    generatedAt: null,
+    rides: {
+      active: 0,
+      searchingDriver: 0,
+      driverOnTheWay: 0,
+      inProgress: 0,
+      completedLast24h: 0,
+      cancelledLast24h: 0,
+    },
+    activeRides: [],
+  };
+  state.driverDirectory = {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  };
+  state.selectedPassenger = null;
+  clearPassengerPhoto();
+  state.passengerDirectory = {
+    items: [],
+    nextCursor: null,
+    summary: { total: 0, active: 0, suspended: 0 },
+    query: '',
+    status: '',
+  };
+  state.rideDirectory = {
+    items: [],
+    nextCursor: null,
+    scope: 'active',
+    state: '',
+    query: '',
+    from: '',
+    to: '',
+  };
+  state.operationalSettings = null;
+  state.selectedRide = null;
+  state.selectedTourSlug = null;
+  if (state.tourCoverObjectUrl != null) {
+    URL.revokeObjectURL(state.tourCoverObjectUrl);
+    state.tourCoverObjectUrl = null;
+  }
+  if (state.appAuthHeroObjectUrl != null) {
+    URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+    state.appAuthHeroObjectUrl = null;
+  }
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+    state.appBrandingIconObjectUrl = null;
+  }
+  state.auditEntries = [];
+  state.auditDirectory = {
+    nextCursor: null,
+    actorKind: '',
+    action: '',
+    targetType: '',
+    query: '',
+  };
+  state.communications = {
+    loaded: false,
+    deliveryProvider: 'disabled',
+    campaigns: [],
+    releasePolicies: [],
+    agencyPromotion: null,
+    socialLinks: null,
+    tours: [],
+  };
+  state.privacy = {
+    legalDocuments: [],
+    requests: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
+  };
+  state.support = {
+    tickets: [],
+    selectedId: null,
+    status: '',
+    nextCursor: null,
+  };
+  state.staff = {
+    users: [],
+    selectedId: null,
+    onboarding: null,
+  };
+  routeLoadSequence += 1;
+  currentView = null;
+  destroyFleetMap();
+  routeLoading.hidden = true;
+  routeOutlet.removeAttribute('aria-busy');
+  routeOutlet.replaceChildren();
+  adminView.hidden = true;
+  authView.hidden = false;
+  setMobileNavOpen(false);
+  clearSensitiveInputs();
+  if (message) setMessage(loginMessage, message, 'danger');
+  loginEmail.focus();
+}
+
+function errorMessage(error) {
+  if (error instanceof AdminApiError) {
+    if (
+      error.code === 'ADMIN_LOGIN_RATE_LIMITED' &&
+      error.retryAfterSeconds
+    ) {
+      return `${error.message} Aguarde cerca de ${error.retryAfterSeconds}s.`;
+    }
+    return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return 'Ocorreu um erro inesperado.';
+}
+
+function handleAuthenticatedError(error) {
+  if (
+    error instanceof AdminApiError &&
+    (error.status === 401 ||
+      error.code === 'ADMIN_SESSION_INVALID' ||
+      error.code === 'ADMIN_SESSION_EXPIRED')
+  ) {
+    clearSession('Sua sessão terminou. Entre novamente.');
+    return true;
+  }
+  setMessage(globalMessage, errorMessage(error), 'danger');
+  return false;
+}
+
+function updateSessionClock() {
+  if (!state.expiresAt) return;
+  const seconds = secondsUntil(state.expiresAt);
+  const label = formatSessionRemaining(seconds);
+  const sessionTime = byId('session-time');
+  if (sessionTime != null) sessionTime.textContent = label;
+  const sidebarSessionTime = byId('sidebar-session-time');
+  if (sidebarSessionTime != null) {
+    sidebarSessionTime.textContent = label;
+  }
+  const overviewExpiry = byId('overview-expiry');
+  if (overviewExpiry != null) {
+    overviewExpiry.textContent = formatDateTime(state.expiresAt);
+  }
+
+  if (seconds <= 0) {
+    clearSession('Sua sessão administrativa expirou.');
+  }
+}
+
+function startSessionTimer() {
+  stopSessionTimer();
+  updateSessionClock();
+  state.sessionTimer = setInterval(updateSessionClock, 30_000);
+}
+
+function renderIdentity() {
+  const user = state.user;
+  if (!user) return;
+
+  const operatorName = byId('operator-name');
+  const operatorEmail = byId('operator-email');
+  const operatorInitials = byId('operator-initials');
+  if (operatorName != null) operatorName.textContent = user.name;
+  if (operatorEmail != null) operatorEmail.textContent = user.email;
+  if (operatorInitials != null) {
+    operatorInitials.textContent = initials(user.name);
+  }
+
+  const overviewUser = byId('overview-user');
+  const overviewEmail = byId('overview-email');
+  if (overviewUser != null) overviewUser.textContent = user.name;
+  if (overviewEmail != null) overviewEmail.textContent = user.email;
+
+  const scopeList = byId('scope-list');
+  if (scopeList == null) return;
+
+  scopeList.replaceChildren();
+  for (const scope of user.scopes ?? []) {
+    const item = document.createElement('div');
+    item.className = 'scope-item';
+
+    const dot = document.createElement('span');
+    dot.className = 'scope-item__dot';
+
+    const content = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = scopeLabels.get(scope) ?? scope;
+    const code = document.createElement('small');
+    code.textContent = scope;
+
+    content.append(title, code);
+    item.append(dot, content);
+    scopeList.append(item);
+  }
+
+  if (scopeList.childElementCount === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'muted-copy';
+    empty.textContent = 'Nenhum escopo administrativo disponível.';
+    scopeList.append(empty);
+  }
+}
+
+async function loadRouteMarkup(view) {
+  const route = adminRoutes[view] ?? adminRoutes.overview;
+  const sequence = ++routeLoadSequence;
+  routeLoading.hidden = false;
+  routeOutlet.setAttribute('aria-busy', 'true');
+
+  try {
+    const response = await fetch(
+      `/admin/pages/${encodeURIComponent(route.page)}.html`,
+      {
+        method: 'GET',
+        headers: { accept: 'text/html' },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Não foi possível abrir esta página do Admin (${response.status}).`,
+      );
+    }
+
+    const source = await response.text();
+    if (sequence !== routeLoadSequence) return false;
+
+    const parsed = new DOMParser().parseFromString(
+      source,
+      'text/html',
+    );
+    const panel = parsed.querySelector('.view-panel');
+    if (panel == null || panel.id !== `view-${view}`) {
+      throw new Error('A página administrativa retornou conteúdo inválido.');
+    }
+
+    panel.hidden = false;
+    const mounted = document.importNode(panel, true);
+    routeOutlet.replaceChildren(mounted);
+    return true;
+  } finally {
+    if (sequence === routeLoadSequence) {
+      routeLoading.hidden = true;
+      routeOutlet.removeAttribute('aria-busy');
+    }
+  }
+}
+
+function syncRouteNavigation(view) {
+  document.querySelectorAll('.nav-item').forEach((link) => {
+    const allowed = canAccessView(link.dataset.view);
+    link.hidden = !allowed;
+    const selected = allowed && link.dataset.view === view;
+    link.classList.toggle('is-active', selected);
+    if (selected) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
+  });
+
+  const route = adminRoutes[view] ?? adminRoutes.overview;
+  byId('page-title').textContent = route.title;
+  document.title = `Ramo Nessa — ${route.title}`;
+  setMobileNavOpen(false);
+}
+
+async function activateView(
+  viewName,
+  { historyMode = 'push' } = {},
+) {
+  const requestedView =
+    adminRoutes[viewName] == null ? 'overview' : viewName;
+  const view = canAccessView(requestedView)
+    ? requestedView
+    : 'overview';
+  const targetPath = routePath(view);
+
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
+  stopFleetPolling();
+  closeDriverDocumentInspection();
+  if (currentView === 'staff' && view !== 'staff') {
+    state.staff.onboarding = null;
+  }
+  if (currentView === 'fleet') {
+    destroyFleetMap();
+  }
+  if (currentView === 'localities') {
+    destroyLocalitiesAdmin();
+  }
+  if (currentView === 'pricing') {
+    destroyPricingGeofenceMap();
+  }
+
+  setMessage(globalMessage);
+
+  let loaded = false;
+  try {
+    loaded = await loadRouteMarkup(view);
+  } catch (error) {
+    setMessage(
+      globalMessage,
+      errorMessage(error),
+      'danger',
+    );
+    return;
+  }
+  if (!loaded) return;
+
+  currentView = view;
+  syncRouteNavigation(view);
+  bindRouteEvents(view);
+  renderIdentity();
+  updateSessionClock();
+
+  if (historyMode === 'push' && window.location.pathname !== targetPath) {
+    window.history.pushState({ adminView: view }, '', targetPath);
+  } else if (
+    historyMode === 'replace' &&
+    window.location.pathname !== targetPath
+  ) {
+    window.history.replaceState({ adminView: view }, '', targetPath);
+  }
+
+  initializeRouteView(view);
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+async function openSession(payload) {
+  if (
+    !payload?.accessToken?.startsWith('rn_admin_session_') ||
+    !payload?.user ||
+    !payload?.expiresAt
+  ) {
+    throw new Error('Resposta de autenticação inválida.');
+  }
+
+  state.token = payload.accessToken;
+  state.user = payload.user;
+  state.expiresAt = payload.expiresAt;
+  authView.hidden = true;
+  adminView.hidden = false;
+  setMessage(loginMessage);
+  setMessage(globalMessage);
+  clearSensitiveInputs();
+  renderIdentity();
+  startSessionTimer();
+
+  const requested = requestedViewFromLocation();
+  const historyMode =
+    window.location.pathname === routePath(requested)
+      ? 'none'
+      : 'replace';
+  await activateView(requested, { historyMode });
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  setMessage(loginMessage);
+
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  const totpCode = loginTotp.value.trim();
+
+  if (!email || password.length < 12 || !/^\d{6}$/.test(totpCode)) {
+    setMessage(
+      loginMessage,
+      'Preencha e-mail, senha e o código MFA de 6 dígitos.',
+      'danger',
+    );
+    return;
+  }
+
+  loginButton.disabled = true;
+  loginButton.textContent = 'Validando…';
+  try {
+    const payload = await api.login({ email, password, totpCode });
+    await openSession(payload);
+  } catch (error) {
+    clearSensitiveInputs();
+    setMessage(loginMessage, errorMessage(error), 'danger');
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = 'Entrar com segurança';
+  }
+}
+
+async function handleLogout() {
+  const token = state.token;
+  if (!token) {
+    clearSession();
+    return;
+  }
+
+  try {
+    await api.logout(token);
+  } catch {
+    // A limpeza local acontece mesmo se a rede cair; o token expira em até 2h.
+  } finally {
+    clearSession('Sessão encerrada com segurança.');
+  }
+}
+
+function detailRow(label, value) {
+  const row = document.createElement('div');
+  const term = document.createElement('span');
+  term.className = 'driver-detail__label';
+  term.textContent = label;
+  const content = document.createElement('strong');
+  content.textContent = value;
+  row.append(term, content);
+  return row;
+}
+
+function setDriverProvisionControlsVisible() {
+  const card = byId('driver-provision-card');
+  if (card != null) {
+    card.hidden = !hasScope('drivers:auth:write');
+  }
+}
+
+function setRegistryWriteControlsVisible() {
+  const controls = byId('driver-registry-write-controls');
+  controls.hidden = !hasScope('drivers:profile:write');
+}
+
+function clearDriverRegistryForm() {
+  byId('registry-full-name').value = '';
+  byId('registry-preferred-name').value = '';
+  byId('registry-plate').value = '';
+  byId('registry-make').value = '';
+  byId('registry-model').value = '';
+  byId('registry-model-year').value = '';
+  byId('registry-color').value = '';
+  byId('registry-seat-capacity').value = '';
+  byId('registry-four-by-four').checked = false;
+  document
+    .querySelectorAll('input[name="registry-category"]')
+    .forEach((input) => {
+      input.checked = false;
+    });
+  byId('registry-profile-status').value = 'pending';
+  byId('registry-vehicle-status').value = 'pending';
+}
+
+function fillDriverRegistryForm(payload) {
+  const profile = payload?.profile ?? null;
+  const vehicle = payload?.vehicle ?? null;
+  byId('registry-full-name').value = profile?.fullName ?? '';
+  byId('registry-preferred-name').value =
+    profile?.preferredName ?? '';
+  byId('registry-plate').value = vehicle?.plateNormalized ?? '';
+  byId('registry-make').value = vehicle?.make ?? '';
+  byId('registry-model').value = vehicle?.model ?? '';
+  byId('registry-model-year').value =
+    vehicle?.modelYear == null ? '' : String(vehicle.modelYear);
+  byId('registry-color').value = vehicle?.color ?? '';
+  byId('registry-seat-capacity').value =
+    vehicle?.seatCapacity == null
+      ? ''
+      : String(vehicle.seatCapacity);
+  byId('registry-four-by-four').checked =
+    vehicle?.fourByFour === true;
+
+  const categories = new Set(
+    Array.isArray(vehicle?.categories) ? vehicle.categories : [],
+  );
+  document
+    .querySelectorAll('input[name="registry-category"]')
+    .forEach((input) => {
+      input.checked = categories.has(input.value);
+    });
+
+  byId('registry-profile-status').value =
+    profile?.status ?? 'pending';
+  byId('registry-vehicle-status').value =
+    vehicle?.status ?? 'pending';
+}
+
+function registrySummaryItem(label, value) {
+  const item = document.createElement('div');
+  const caption = document.createElement('span');
+  caption.textContent = label;
+  const strong = document.createElement('strong');
+  strong.textContent = value;
+  item.append(caption, strong);
+  return item;
+}
+
+function renderDriverRegistry(payload, driverId) {
+  state.currentDriverRegistry = payload;
+  setRegistryWriteControlsVisible();
+  fillDriverRegistryForm(payload);
+
+  const target = byId('driver-registry-result');
+  const overall = byId('driver-registry-overall');
+  target.replaceChildren();
+
+  const profile = payload?.profile ?? null;
+  const vehicle = payload?.vehicle ?? null;
+  const approved = payload?.registryApproved === true;
+  overall.className = `pill pill--${approved ? 'success' : 'warning'}`;
+  overall.textContent = approved
+    ? 'Cadastro aprovado'
+    : profile || vehicle
+      ? 'Aguardando aprovação'
+      : 'Cadastro pendente';
+
+  if (!profile && !vehicle) {
+    target.className = 'driver-registry-result empty-state';
+    target.textContent =
+      `O motorista ${driverId} ainda não possui perfil e veículo cadastrados.`;
+    byId('registry-status-button').disabled = true;
+    syncDriverAuthActionAvailability();
+    return;
+  }
+
+  target.className = 'driver-registry-result';
+  const profileStatus = registryStatusPresentation(profile?.status);
+  const vehicleStatus = registryStatusPresentation(vehicle?.status);
+
+  if (profile?.photoUpdatedAt) {
+    const photo = document.createElement('figure');
+    photo.className = 'driver-registry-photo';
+    const image = document.createElement('img');
+    image.alt = `Foto de ${profile.preferredName || profile.fullName}`;
+    image.src =
+      `/v1/drivers/${encodeURIComponent(driverId)}/photo?v=` +
+      encodeURIComponent(profile.photoUpdatedAt);
+    const caption = document.createElement('figcaption');
+    caption.textContent =
+      `Foto atualizada em ${formatDateTime(profile.photoUpdatedAt)}`;
+    photo.append(image, caption);
+    target.append(photo);
+  }
+
+  const summary = document.createElement('div');
+  summary.className = 'driver-registry-summary';
+  summary.append(
+    registrySummaryItem(
+      'Nome',
+      profile?.preferredName || profile?.fullName || '—',
+    ),
+    registrySummaryItem(
+      'Perfil',
+      profileStatus.label,
+    ),
+    registrySummaryItem(
+      'Veículo',
+      vehicle
+        ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNormalized}`
+        : '—',
+    ),
+    registrySummaryItem(
+      'Status do veículo',
+      vehicleStatus.label,
+    ),
+    registrySummaryItem(
+      'Categorias',
+      Array.isArray(vehicle?.categories) &&
+        vehicle.categories.length > 0
+        ? vehicle.categories
+            .map((category) => serviceCategoryLabel(category))
+            .join(', ')
+        : '—',
+    ),
+    registrySummaryItem(
+      'Capacidade',
+      vehicle?.seatCapacity == null
+        ? '—'
+        : `${vehicle.seatCapacity} lugar(es)`,
+    ),
+    registrySummaryItem(
+      'Tração',
+      vehicle?.fourByFour === true ? '4x4' : 'Convencional',
+    ),
+    registrySummaryItem(
+      'Atualizado',
+      formatDateTime(
+        vehicle?.updatedAt ?? profile?.updatedAt,
+      ),
+    ),
+  );
+  target.append(summary);
+  byId('registry-status-button').disabled =
+    !profile || !vehicle || !hasScope('drivers:profile:write');
+  syncDriverAuthActionAvailability();
+}
+
+function renderDriverCashPolicyUnavailable(
+  message = 'Abra um motorista para consultar a política cash.',
+) {
+  state.currentDriverCashPolicy = null;
+  const summary = byId('driver-cash-policy-summary');
+  summary.replaceChildren();
+  summary.className =
+    'driver-cash-policy-summary empty-state';
+  summary.textContent = message;
+  const status = byId('driver-cash-policy-status');
+  status.className = 'pill';
+  status.textContent = 'Não carregado';
+  const form = byId('driver-cash-policy-form');
+  form.hidden = true;
+  byId('driver-cash-limit-reais').value = '';
+}
+
+function renderDriverCashPolicy(policy) {
+  state.currentDriverCashPolicy = policy;
+  const summary = byId('driver-cash-policy-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-cash-policy-summary';
+
+  const items = [
+    ['Limite padrão', formatCurrencyCents(policy.defaultDebtLimitCents)],
+    [
+      'Override',
+      policy.overrideDebtLimitCents == null
+        ? 'Sem override'
+        : formatCurrencyCents(policy.overrideDebtLimitCents),
+    ],
+    ['Limite efetivo', formatCurrencyCents(policy.effectiveDebtLimitCents)],
+    ['Dívida atual', formatCurrencyCents(policy.currentDebtCents)],
+    [
+      'Capacidade restante',
+      formatCurrencyCents(policy.remainingDebtCapacityCents),
+    ],
+  ];
+  for (const [label, value] of items) {
+    summary.append(registrySummaryItem(label, value));
+  }
+
+  const status = byId('driver-cash-policy-status');
+  status.className =
+    policy.cashEnabled ? 'pill pill--success' : 'pill pill--neutral';
+  status.textContent =
+    policy.cashEnabled ? 'Dinheiro ativado' : 'Dinheiro desativado';
+
+  const canEdit =
+    policy.cashEnabled && hasScope('finance:write');
+  const form = byId('driver-cash-policy-form');
+  form.hidden = !hasScope('finance:read');
+  const input = byId('driver-cash-limit-reais');
+  input.disabled = !canEdit;
+  input.min =
+    (policy.defaultDebtLimitCents / 100).toFixed(2);
+  input.value =
+    (
+      (policy.overrideDebtLimitCents ??
+        policy.defaultDebtLimitCents) / 100
+    ).toFixed(2);
+  byId('driver-cash-limit-save').disabled = !canEdit;
+  byId('driver-cash-limit-reset').disabled =
+    !canEdit || policy.overrideDebtLimitCents == null;
+  byId('driver-cash-policy-note').textContent =
+    policy.cashEnabled
+      ? 'O override afeta somente este motorista. O limite efetivo nunca fica abaixo do padrão.'
+      : 'A edição será liberada somente quando dinheiro estiver ativado.';
+}
+
+async function loadDriverCashPolicy(driverId) {
+  if (!state.token) return;
+  if (!hasScope('finance:read')) {
+    renderDriverCashPolicyUnavailable(
+      'Sua conta não possui permissão finance:read.',
+    );
+    return;
+  }
+
+  try {
+    const policy = await api.getDriverCashPolicy(
+      state.token,
+      driverId,
+    );
+    renderDriverCashPolicy(policy);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 404) {
+      renderDriverCashPolicyUnavailable(
+        'Motorista não encontrado para política cash.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderDriverFinanceUnavailable(
+  message = 'Abra um motorista para consultar o financeiro.',
+) {
+  state.currentDriverFinance = null;
+  const summary = byId('driver-finance-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-finance-summary empty-state';
+  summary.textContent = message;
+  const status = byId('driver-finance-status');
+  status.className = 'pill';
+  status.textContent = 'Não carregado';
+  byId('driver-finance-statement').hidden = true;
+  byId('driver-finance-statement-body').replaceChildren();
+}
+
+function formatFinancialDelta(cents) {
+  const value = Number(cents ?? 0);
+  return value > 0
+    ? `+${formatCurrencyCents(value)}`
+    : formatCurrencyCents(value);
+}
+
+function renderDriverFinance(payload) {
+  state.currentDriverFinance = payload;
+  const finance = payload?.finance ?? {};
+  const destination = payload?.payoutDestination ?? {};
+  const summary = byId('driver-finance-summary');
+  summary.replaceChildren();
+  summary.className = 'driver-finance-summary';
+  summary.append(
+    registrySummaryItem(
+      'Saldo disponível',
+      formatCurrencyCents(finance.availableBalanceCents),
+    ),
+    registrySummaryItem(
+      'Saque pendente',
+      formatCurrencyCents(finance.payoutPendingCents),
+    ),
+    registrySummaryItem(
+      'Dívida cash',
+      formatCurrencyCents(finance.cashCommissionDebtCents),
+    ),
+    registrySummaryItem(
+      'Pix de recebimento',
+      destination.configured
+        ? `${String(destination.pixKeyType ?? '').toUpperCase()} · ${destination.pixKeyMasked}`
+        : 'Não configurado',
+    ),
+  );
+
+  const status = byId('driver-finance-status');
+  status.className = 'pill pill--success';
+  status.textContent = `Atualizado ${formatDateTime(payload?.generatedAt)}`;
+
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const body = byId('driver-finance-statement-body');
+  body.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement('tr');
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(item.createdAt);
+    const movement = document.createElement('td');
+    const title = document.createElement('strong');
+    title.textContent = item.title ?? 'Movimentação financeira';
+    const reference = document.createElement('small');
+    reference.className = 'table-subtext';
+    reference.textContent = item.rideId ?? item.payoutId ?? item.id ?? '—';
+    movement.append(title, reference);
+    const available = document.createElement('td');
+    available.textContent = formatFinancialDelta(item.availableDeltaCents);
+    const pending = document.createElement('td');
+    pending.textContent = formatFinancialDelta(item.pendingDeltaCents);
+    const debt = document.createElement('td');
+    debt.textContent = formatFinancialDelta(item.debtDeltaCents);
+    const maintenance = document.createElement('td');
+    maintenance.textContent = formatCurrencyCents(item.platformFeeCents);
+    const balance = document.createElement('td');
+    balance.textContent = formatCurrencyCents(item.balanceAfterCents);
+    row.append(
+      created,
+      movement,
+      available,
+      pending,
+      debt,
+      maintenance,
+      balance,
+    );
+    body.append(row);
+  }
+  byId('driver-finance-statement-empty').hidden = items.length !== 0;
+  byId('driver-finance-statement').hidden = false;
+}
+
+async function loadDriverFinance(driverId) {
+  if (!state.token) return;
+  if (!hasScope('finance:read')) {
+    renderDriverFinanceUnavailable(
+      'Sua conta não possui permissão finance:read.',
+    );
+    return;
+  }
+  try {
+    renderDriverFinance(
+      await api.getDriverFinance(state.token, driverId),
+    );
+  } catch (error) {
+    renderDriverFinanceUnavailable(
+      'Não foi possível carregar o financeiro deste motorista.',
+    );
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverCashPolicySubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !state.currentDriverCashPolicy ||
+    !hasScope('finance:write')
+  ) {
+    return;
+  }
+
+  if (!state.currentDriverCashPolicy.cashEnabled) {
+    setMessage(
+      globalMessage,
+      'Ative dinheiro no Financeiro antes de alterar o limite individual.',
+      'danger',
+    );
+    return;
+  }
+
+  const reais = Number(byId('driver-cash-limit-reais').value);
+  const cents = Math.round(reais * 100);
+  const minimumCents =
+    state.currentDriverCashPolicy.defaultDebtLimitCents;
+  if (
+    !Number.isFinite(reais) ||
+    cents < minimumCents ||
+    cents > 100_000_000 ||
+    Math.abs(reais * 100 - cents) > 0.000001
+  ) {
+    setMessage(
+      globalMessage,
+      `O limite individual deve ficar entre ${formatCurrencyCents(minimumCents)} e R$ 1.000.000,00, com no máximo 2 casas decimais.`,
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('driver-cash-limit-save');
+  button.disabled = true;
+  try {
+    const policy = await api.setDriverCashPolicy(state.token, {
+      driverId: state.currentDriver.driverId,
+      debtLimitCents: cents,
+    });
+    renderDriverCashPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Limite individual cash atualizado e auditado.',
+      'success',
+    );
+    if (state.currentDriver?.driverId) {
+      void loadDriverDocumentCompliance(
+        state.currentDriver.driverId,
+        { announce: false },
+      );
+    }
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      !state.currentDriverCashPolicy?.cashEnabled;
+  }
+}
+
+async function handleDriverCashPolicyReset() {
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !state.currentDriverCashPolicy?.cashEnabled ||
+    !hasScope('finance:write')
+  ) {
+    return;
+  }
+
+  const button = byId('driver-cash-limit-reset');
+  button.disabled = true;
+  try {
+    const policy = await api.setDriverCashPolicy(state.token, {
+      driverId: state.currentDriver.driverId,
+      debtLimitCents: null,
+    });
+    renderDriverCashPolicy(policy);
+    setMessage(
+      globalMessage,
+      `Limite individual removido. O motorista voltou ao padrão de ${formatCurrencyCents(policy.defaultDebtLimitCents)}.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.currentDriverCashPolicy?.overrideDebtLimitCents == null;
+  }
+}
+
+function renderDriverRegistryUnavailable(
+  message = 'Cadastre ou abra um motorista para continuar.',
+) {
+  state.currentDriverRegistry = null;
+  clearDriverRegistryForm();
+  setRegistryWriteControlsVisible();
+  const target = byId('driver-registry-result');
+  target.replaceChildren();
+  target.className = 'driver-registry-result empty-state';
+  target.textContent = message;
+  const overall = byId('driver-registry-overall');
+  overall.className = 'pill';
+  overall.textContent = 'Não carregado';
+  byId('registry-status-button').disabled = true;
+  syncDriverAuthActionAvailability();
+}
+
+async function loadDriverRegistry(driverId) {
+  if (!state.token) return;
+
+  if (!hasScope('drivers:profile:read')) {
+    renderDriverRegistryUnavailable(
+      hasScope('drivers:profile:write')
+        ? 'Sem permissão de leitura do cadastro. É possível criar dados, mas não consultar os existentes.'
+        : 'Sua conta não possui acesso ao cadastro de perfil e veículo.',
+    );
+    return;
+  }
+
+  try {
+    const payload = await api.getDriverRegistry(
+      state.token,
+      driverId,
+    );
+    renderDriverRegistry(payload, driverId);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderDriverRegistryUnavailable(
+        'A identidade do motorista não foi encontrada para o cadastro.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+function requiredRegistryText(value, label, min, max) {
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (
+    normalized.length < min ||
+    normalized.length > max
+  ) {
+    throw new Error(
+      `${label} deve ter entre ${min} e ${max} caracteres.`,
+    );
+  }
+  return normalized;
+}
+
+function collectDriverRegistryForm() {
+  const categories = [
+    ...document.querySelectorAll(
+      'input[name="registry-category"]:checked',
+    ),
+  ].map((input) => input.value);
+
+  if (categories.length === 0) {
+    throw new Error('Selecione ao menos uma categoria do veículo.');
+  }
+
+  const modelYear = Number(byId('registry-model-year').value);
+  if (
+    !Number.isInteger(modelYear) ||
+    modelYear < 1980 ||
+    modelYear > 2100
+  ) {
+    throw new Error('Informe um ano de veículo válido.');
+  }
+
+  const seatCapacity = Number(
+    byId('registry-seat-capacity').value,
+  );
+  if (
+    !Number.isInteger(seatCapacity) ||
+    seatCapacity < 1 ||
+    seatCapacity > 12
+  ) {
+    throw new Error('A capacidade deve ficar entre 1 e 12 lugares.');
+  }
+
+  const preferredName = String(
+    byId('registry-preferred-name').value ?? '',
+  ).trim();
+
+  return {
+    fullName: requiredRegistryText(
+      byId('registry-full-name').value,
+      'Nome completo',
+      3,
+      120,
+    ),
+    ...(preferredName
+      ? {
+          preferredName: requiredRegistryText(
+            preferredName,
+            'Nome preferido',
+            2,
+            80,
+          ),
+        }
+      : {}),
+    vehicle: {
+      plate: requiredRegistryText(
+        byId('registry-plate').value,
+        'Placa',
+        7,
+        10,
+      ),
+      make: requiredRegistryText(
+        byId('registry-make').value,
+        'Marca',
+        2,
+        60,
+      ),
+      model: requiredRegistryText(
+        byId('registry-model').value,
+        'Modelo',
+        1,
+        80,
+      ),
+      modelYear,
+      color: requiredRegistryText(
+        byId('registry-color').value,
+        'Cor',
+        2,
+        40,
+      ),
+      categories,
+      fourByFour: byId('registry-four-by-four').checked,
+      seatCapacity,
+    },
+  };
+}
+
+async function handleDriverRegistrySubmit(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de salvar o cadastro.',
+      'danger',
+    );
+    return;
+  }
+  if (!hasScope('drivers:profile:write')) {
+    setMessage(
+      globalMessage,
+      'Sua conta não pode editar o cadastro do motorista.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('registry-save-button');
+  button.disabled = true;
+  try {
+    const payload = collectDriverRegistryForm();
+    const result = await api.upsertDriverRegistry(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        ...payload,
+      },
+    );
+    renderDriverRegistry(
+      result,
+      state.currentDriver.driverId,
+    );
+    setMessage(
+      globalMessage,
+      'Perfil e veículo salvos. A aprovação continua explícita.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleDriverRegistryStatus() {
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de alterar a aprovação.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !state.currentDriverRegistry?.profile ||
+    !state.currentDriverRegistry?.vehicle
+  ) {
+    setMessage(
+      globalMessage,
+      'Salve o perfil e o veículo antes de alterar a aprovação.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('registry-status-button');
+  button.disabled = true;
+  try {
+    const profileStatus = validateDriverRegistryStatus(
+      byId('registry-profile-status').value,
+    );
+    const vehicleStatus = validateDriverRegistryStatus(
+      byId('registry-vehicle-status').value,
+    );
+    const confirmed = window.confirm(
+      'Confirmar alteração cadastral do motorista? ' +
+        `Perfil: ${profileStatus} · Veículo: ${vehicleStatus}. ` +
+        'Essa decisão pode liberar ou bloquear a elegibilidade para corridas.',
+    );
+    if (!confirmed) return;
+
+    const result = await api.setDriverRegistryStatus(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        profileStatus,
+        vehicleStatus,
+      },
+    );
+    const driverId = state.currentDriver.driverId;
+    await lookupDriver(driverId);
+    setMessage(
+      globalMessage,
+      result.registryApproved
+        ? 'Perfil e veículo aprovados. O acesso OTP pode ser liberado.'
+        : result.authStatus === 'suspended' &&
+            Number(result.revokedSessions ?? 0) > 0
+          ? `Status cadastral atualizado. Acesso suspenso e ${result.revokedSessions} sessão(ões) revogada(s).`
+          : 'Status cadastral atualizado. O acesso permanece suspenso.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function formatDocumentFileSize(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return '—';
+  if (bytes < 1024) return `${Math.trunc(bytes)} B`;
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDocumentDate(value) {
+  if (typeof value !== 'string') return '—';
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return '—';
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function setDocumentReviewControlsVisible(payload = null) {
+  const panel = byId('driver-document-review-panel');
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const hasPending = items.some(
+    (item) => item?.status === 'pending',
+  );
+  panel.hidden =
+    !hasScope('drivers:documents:write') || !hasPending;
+}
+
+function documentItemByType(payload, type) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  return items.find((item) => item?.documentType === type) ?? null;
+}
+
+function syncDocumentReviewForm(payload) {
+  const select = byId('driver-document-review-type');
+  const pending = (Array.isArray(payload?.items) ? payload.items : [])
+    .filter((item) => item?.status === 'pending');
+  select.replaceChildren();
+
+  for (const item of pending) {
+    const option = document.createElement('option');
+    option.value = item.documentType;
+    option.textContent = driverDocumentTypeLabel(item.documentType);
+    select.append(option);
+  }
+
+  byId('driver-document-review-status').value = 'approved';
+  byId('driver-document-rejection-reason').value = '';
+  syncDocumentRejectionRequirement();
+  byId('driver-document-review-button').disabled =
+    pending.length === 0 || !hasScope('drivers:documents:write');
+}
+
+function documentMeta(label, value) {
+  const item = document.createElement('div');
+  const caption = document.createElement('span');
+  caption.textContent = label;
+  const strong = document.createElement('strong');
+  strong.textContent = value;
+  item.append(caption, strong);
+  return item;
+}
+
+function renderDriverDocumentCard(type, record) {
+  const card = document.createElement('article');
+  card.className = 'driver-document-item';
+
+  const header = document.createElement('div');
+  header.className = 'driver-document-item__header';
+
+  const titleWrap = document.createElement('div');
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'eyebrow eyebrow--dark';
+  eyebrow.textContent = 'DOCUMENTO';
+  const title = document.createElement('h3');
+  title.textContent = driverDocumentTypeLabel(type);
+  titleWrap.append(eyebrow, title);
+
+  const presentation = driverDocumentStatusPresentation(
+    record?.effectiveStatus ?? record?.status,
+  );
+  const pill = document.createElement('span');
+  pill.className = `pill pill--${presentation.tone}`;
+  pill.textContent = presentation.label;
+  header.append(titleWrap, pill);
+
+  const detail = document.createElement('p');
+  detail.className = 'muted-copy';
+  detail.textContent = presentation.detail;
+
+  const meta = document.createElement('div');
+  meta.className = 'driver-document-meta';
+
+  if (record == null) {
+    meta.append(
+      documentMeta('Arquivo privado', 'Não recebido'),
+      documentMeta('Validade', '—'),
+      documentMeta('Enviado', '—'),
+      documentMeta('Revisado', '—'),
+    );
+  } else {
+    meta.append(
+      documentMeta(
+        'Arquivo privado',
+        record.hasPrivateFile === true
+          ? `${record.mimeType ?? 'Arquivo'} · ${formatDocumentFileSize(record.sizeBytes)}`
+          : 'Indisponível',
+      ),
+      documentMeta('Validade', formatDocumentDate(record.expiresOn)),
+      documentMeta('Enviado', formatDateTime(record.submittedAt)),
+      documentMeta('Revisado', formatDateTime(record.reviewedAt)),
+    );
+  }
+
+  card.append(header, detail, meta);
+
+  if (
+    record?.hasPrivateFile === true &&
+    hasScope('drivers:documents:read')
+  ) {
+    const actions = document.createElement('div');
+    actions.className = 'driver-document-actions';
+    const inspect = document.createElement('button');
+    inspect.type = 'button';
+    inspect.className = 'button button--ghost-dark';
+    inspect.textContent = 'Inspecionar arquivo';
+    inspect.addEventListener('click', () => {
+      void handleDriverDocumentInspection(type, inspect);
+    });
+    actions.append(inspect);
+    card.append(actions);
+  }
+
+  if (record?.rejectionReason) {
+    const reason = document.createElement('p');
+    reason.className = 'driver-document-rejection';
+    reason.textContent = `Motivo: ${record.rejectionReason}`;
+    card.append(reason);
+  }
+
+  return card;
+}
+
+function renderDriverDocuments(payload) {
+  state.currentDriverDocuments = payload;
+  const target = byId('driver-documents-result');
+  const overall = byId('driver-documents-overall');
+  target.replaceChildren();
+
+  const approved = payload?.documentsApproved === true;
+  overall.className = `pill pill--${approved ? 'success' : 'warning'}`;
+  overall.textContent = approved
+    ? 'Documentos aprovados'
+    : 'Revisão pendente';
+
+  const grid = document.createElement('div');
+  grid.className = 'driver-documents-grid';
+  grid.append(
+    renderDriverDocumentCard(
+      'driver_license',
+      documentItemByType(payload, 'driver_license'),
+    ),
+    renderDriverDocumentCard(
+      'vehicle_registration',
+      documentItemByType(payload, 'vehicle_registration'),
+    ),
+  );
+  target.className = 'driver-documents-result';
+  target.append(grid);
+
+  syncDocumentReviewForm(payload);
+  setDocumentReviewControlsVisible(payload);
+  syncDriverAuthActionAvailability();
+}
+
+function renderDriverDocumentCompliance(payload) {
+  state.currentDriverDocumentCompliance = payload;
+  const panel = byId('driver-document-compliance-panel');
+  const status = byId('driver-document-compliance-status');
+  const message = byId('driver-document-compliance-message');
+  const issuesTarget = byId('driver-document-compliance-issues');
+  const notify = byId('driver-document-notify-button');
+  const keepActive = byId('driver-document-keep-active-button');
+  const block = byId('driver-document-block-button');
+  const unblock = byId('driver-document-unblock-button');
+  const meta = byId('driver-document-compliance-meta');
+
+  panel.hidden = false;
+  issuesTarget.replaceChildren();
+
+  const approved = payload?.documentsApproved === true;
+  const manualBlocked = payload?.manualBlocked === true;
+  const automaticBlock = payload?.automaticBlock === true;
+  const autoEnabled = payload?.autoEnforcementEnabled === true;
+  const decisionRequired = payload?.decisionRequired === true;
+  const issues = Array.isArray(payload?.issues) ? payload.issues : [];
+
+  if (manualBlocked) {
+    status.className = 'pill pill--danger';
+    status.textContent = 'Bloqueado por você';
+    message.textContent = approved
+      ? 'Os documentos já estão regulares, mas novas corridas continuam bloqueadas até você liberar manualmente.'
+      : 'Novas corridas estão bloqueadas manualmente. O motorista continua com acesso ao app para regularizar os documentos.';
+  } else if (approved) {
+    status.className = 'pill pill--success';
+    status.textContent = 'Regular';
+    message.textContent =
+      'CNH e CRLV estão regulares. Nenhuma decisão operacional é necessária.';
+  } else if (automaticBlock) {
+    status.className = 'pill pill--danger';
+    status.textContent = 'Bloqueio automático';
+    message.textContent =
+      'O modo automático está ligado e a pendência documental bloqueia novas corridas. Viagens já iniciadas não são interrompidas.';
+  } else if (decisionRequired) {
+    status.className = 'pill pill--warning';
+    status.textContent = 'Aguardando sua decisão';
+    message.textContent =
+      'Há pendência documental, mas o motorista continua ativo. Avise primeiro e decida se deseja bloquear novas corridas.';
+  } else {
+    status.className = 'pill pill--warning';
+    status.textContent = 'Mantido ativo';
+    message.textContent =
+      'A pendência foi reconhecida e o motorista continua recebendo novas corridas até você decidir diferente.';
+  }
+
+  for (const issue of issues) {
+    const chip = document.createElement('span');
+    chip.className = 'pill pill--warning';
+    chip.textContent = issue.label ?? issue.status ?? 'Pendência';
+    issuesTarget.append(chip);
+  }
+
+  const canWrite = hasScope('drivers:documents:write');
+  notify.hidden = approved;
+  notify.disabled = !canWrite || approved;
+  block.hidden = approved || manualBlocked || automaticBlock;
+  block.disabled = !canWrite;
+  keepActive.hidden =
+    approved || manualBlocked || automaticBlock || autoEnabled;
+  keepActive.disabled = !canWrite;
+  unblock.hidden = !manualBlocked;
+  unblock.disabled = !canWrite;
+
+  const details = [];
+  details.push(
+    autoEnabled
+      ? 'Modo global: automático'
+      : 'Modo global: decisão manual',
+  );
+  if (payload?.notifiedAt) {
+    details.push(`Avisado em ${formatDateTime(payload.notifiedAt)}`);
+  }
+  if (payload?.acknowledgedAt) {
+    details.push(
+      `Última decisão em ${formatDateTime(payload.acknowledgedAt)}`,
+    );
+  }
+  meta.textContent = details.join(' · ');
+}
+
+function renderDriverDocumentComplianceUnavailable() {
+  state.currentDriverDocumentCompliance = null;
+  const panel = byId('driver-document-compliance-panel');
+  if (panel != null) panel.hidden = true;
+}
+
+async function loadDriverDocumentCompliance(
+  driverId,
+  { announce = false } = {},
+) {
+  if (!state.token || !hasScope('drivers:documents:read')) {
+    renderDriverDocumentComplianceUnavailable();
+    return;
+  }
+  try {
+    const payload = await api.getDriverDocumentCompliance(
+      state.token,
+      driverId,
+    );
+    renderDriverDocumentCompliance(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Controle documental atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    renderDriverDocumentComplianceUnavailable();
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverDocumentComplianceAction(action, button) {
+  if (
+    !state.token ||
+    !state.currentDriver?.driverId ||
+    !hasScope('drivers:documents:write')
+  ) {
+    return;
+  }
+
+  const confirmationByAction = {
+    block:
+      'Confirmar bloqueio documental? O motorista deixará de receber novas corridas, mas continuará acessando o app.',
+    unblock:
+      'Confirmar liberação documental? O motorista poderá voltar a receber novas corridas se cumprir as demais regras.',
+    keep_active:
+      'Confirmar decisão de manter ativo? A pendência ficará registrada, mas o motorista continuará recebendo novas corridas.',
+  };
+  const confirmation = confirmationByAction[action];
+  if (!confirmation || !window.confirm(confirmation)) return;
+
+  button.disabled = true;
+  try {
+    const payload = await api.decideDriverDocumentCompliance(
+      state.token,
+      {
+        driverId: state.currentDriver.driverId,
+        action,
+      },
+    );
+    renderDriverDocumentCompliance(payload);
+    setMessage(
+      globalMessage,
+      action === 'block'
+        ? 'Novas corridas bloqueadas. O motorista continua com acesso ao app.'
+        : action === 'unblock'
+          ? 'Novas corridas liberadas novamente.'
+          : 'Pendência reconhecida. O motorista foi mantido ativo.',
+      'success',
+    );
+    void loadDriverDocumentAlerts({ announce: false });
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+    if (hasScope('fleet:read')) {
+      void loadFleet({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleDriverDocumentComplianceNotify(button) {
+  if (
+    !state.token ||
+    !state.currentDriver?.driverId ||
+    !hasScope('drivers:documents:write')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const payload = await api.notifyDriverDocumentCompliance(
+      state.token,
+      state.currentDriver.driverId,
+    );
+    renderDriverDocumentCompliance(payload);
+    const delivered = payload?.notification?.delivered ?? 0;
+    setMessage(
+      globalMessage,
+      delivered > 0
+        ? 'Motorista avisado pelo app.'
+        : 'Aviso registrado, mas nenhum aparelho recebeu a notificação.',
+      delivered > 0 ? 'success' : 'neutral',
+    );
+    void loadDriverDocumentAlerts({ announce: false });
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderDriverDocumentsUnavailable(
+  message = 'Abra um motorista para consultar os documentos.',
+) {
+  closeDriverDocumentInspection();
+  state.currentDriverDocuments = null;
+  renderDriverDocumentComplianceUnavailable();
+  const target = byId('driver-documents-result');
+  target.replaceChildren();
+  target.className = 'driver-documents-result empty-state';
+  target.textContent = message;
+
+  const overall = byId('driver-documents-overall');
+  overall.className = 'pill';
+  overall.textContent = 'Não carregado';
+
+  const select = byId('driver-document-review-type');
+  select.replaceChildren();
+  byId('driver-document-review-status').value = 'approved';
+  byId('driver-document-rejection-reason').value = '';
+  byId('driver-document-review-button').disabled = true;
+  byId('driver-document-review-panel').hidden = true;
+}
+
+async function loadDriverDocuments(driverId) {
+  closeDriverDocumentInspection();
+  if (!state.token) return;
+
+  if (!hasScope('drivers:documents:read')) {
+    renderDriverDocumentsUnavailable(
+      'Sua conta não possui permissão para consultar documentos.',
+    );
+    return;
+  }
+
+  try {
+    const [payload, compliance] = await Promise.all([
+      api.getDriverDocuments(state.token, driverId),
+      api.getDriverDocumentCompliance(state.token, driverId),
+    ]);
+    renderDriverDocuments(payload);
+    renderDriverDocumentCompliance(compliance);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderDriverDocumentsUnavailable(
+        'Cadastre o perfil do motorista antes de revisar documentos.',
+      );
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverDocumentInspection(
+  documentType,
+  button,
+) {
+  if (
+    !state.token ||
+    !state.currentDriver ||
+    !hasScope('drivers:documents:read')
+  ) {
+    return;
+  }
+
+  button.disabled = true;
+  closeDriverDocumentInspection();
+  try {
+    const issued = await api.issueDriverDocumentInspection(
+      state.token,
+      state.currentDriver.driverId,
+      documentType,
+    );
+    const file = await api.readDriverDocumentInspection(
+      state.token,
+      issued.inspectionToken,
+    );
+    if (
+      file.contentType !== 'application/pdf' &&
+      file.contentType !== 'image/jpeg' &&
+      file.contentType !== 'image/png'
+    ) {
+      throw new Error(
+        'O Core retornou um tipo de arquivo documental não permitido.',
+      );
+    }
+    if (
+      issued.mimeType != null &&
+      issued.mimeType !== file.contentType
+    ) {
+      throw new Error(
+        'O tipo do arquivo inspecionado não corresponde aos metadados.',
+      );
+    }
+
+    const blob = new Blob([file.bytes], { type: file.contentType });
+    const objectUrl = URL.createObjectURL(blob);
+    state.documentInspectionObjectUrl = objectUrl;
+
+    const panel = byId('driver-document-inspection-panel');
+    const frame = byId('driver-document-inspection-frame');
+    const image = byId('driver-document-inspection-image');
+    byId('driver-document-inspection-title').textContent =
+      driverDocumentTypeLabel(documentType);
+    byId('driver-document-inspection-expiry').textContent =
+      `Visualização temporária até ${formatDateTime(issued.expiresAt)}`;
+
+    if (file.contentType === 'application/pdf') {
+      frame.src = objectUrl;
+      frame.hidden = false;
+      image.hidden = true;
+    } else {
+      image.src = objectUrl;
+      image.hidden = false;
+      frame.hidden = true;
+    }
+    panel.hidden = false;
+
+    const remainingMs =
+      Date.parse(issued.expiresAt) - Date.now();
+    state.documentInspectionTimer = setTimeout(
+      closeDriverDocumentInspection,
+      Math.max(1000, Math.min(300000, remainingMs)),
+    );
+
+    setMessage(
+      globalMessage,
+      'Arquivo privado validado e aberto temporariamente.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    closeDriverDocumentInspection();
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function normalizedRejectionReason() {
+  return String(
+    byId('driver-document-rejection-reason').value ?? '',
+  )
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function syncDocumentRejectionRequirement() {
+  const rejected =
+    byId('driver-document-review-status').value === 'rejected';
+  const field = byId('driver-document-rejection-reason');
+  field.required = rejected;
+  field.disabled = !rejected;
+  if (!rejected) field.value = '';
+}
+
+async function handleDriverDocumentReview(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  if (!state.token || !state.currentDriver) {
+    setMessage(
+      globalMessage,
+      'Abra um motorista antes de revisar documentos.',
+      'danger',
+    );
+    return;
+  }
+  if (!hasScope('drivers:documents:write')) {
+    setMessage(
+      globalMessage,
+      'Sua conta não pode revisar documentos.',
+      'danger',
+    );
+    return;
+  }
+
+  const documentType =
+    byId('driver-document-review-type').value;
+  const current = documentItemByType(
+    state.currentDriverDocuments,
+    documentType,
+  );
+  if (current?.status !== 'pending') {
+    setMessage(
+      globalMessage,
+      'Selecione um documento pendente de revisão.',
+      'danger',
+    );
+    return;
+  }
+
+  const status = byId('driver-document-review-status').value;
+  if (status !== 'approved' && status !== 'rejected') {
+    setMessage(globalMessage, 'Decisão documental inválida.', 'danger');
+    return;
+  }
+
+  const rejectionReason = normalizedRejectionReason();
+  if (
+    status === 'rejected' &&
+    (rejectionReason.length < 3 || rejectionReason.length > 240)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um motivo de rejeição entre 3 e 240 caracteres.',
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    status === 'approved'
+      ? `Confirmar decisão sobre o documento ${driverDocumentTypeLabel(documentType)}? Ele será aprovado.`
+      : `Confirmar decisão sobre o documento ${driverDocumentTypeLabel(documentType)}? Ele será rejeitado pelo motivo informado.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('driver-document-review-button');
+  button.disabled = true;
+  try {
+    await api.reviewDriverDocument(state.token, {
+      driverId: state.currentDriver.driverId,
+      documentType,
+      status,
+      ...(status === 'rejected' ? { rejectionReason } : {}),
+    });
+    await loadDriverDocuments(state.currentDriver.driverId);
+    void loadDriverDocumentAlerts({ announce: false });
+    setMessage(
+      globalMessage,
+      status === 'approved'
+        ? 'Documento aprovado e decisão auditada.'
+        : 'Documento rejeitado e decisão auditada.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const pending = Array.isArray(
+      state.currentDriverDocuments?.items,
+    )
+      ? state.currentDriverDocuments.items.some(
+          (item) => item?.status === 'pending',
+        )
+      : false;
+    button.disabled =
+      !pending || !hasScope('drivers:documents:write');
+  }
+}
+
+function syncDriverAuthActionAvailability() {
+  const button = byId('driver-auth-status-action');
+  const driver = state.currentDriver;
+  if (button == null || driver == null) return;
+
+  if (driver.status === 'active' && !driver.registrationOnly) {
+    button.disabled = false;
+    button.title = 'Suspender o acesso e revogar as sessões do motorista.';
+    return;
+  }
+
+  const registryApproved =
+    state.currentDriverRegistry?.registryApproved === true;
+  const documentsApproved = !driver.registrationOnly || state.currentDriverDocuments?.documentsApproved === true;
+  button.disabled = !registryApproved || !documentsApproved;
+  button.title = registryApproved
+    ? 'Liberar o login OTP para este motorista.'
+    : 'Aprove o perfil, o veículo, a CNH e o CRLV antes de liberar o motorista.';
+}
+
+function renderDriver(driver) {
+  const target = byId('driver-result');
+  target.replaceChildren();
+  target.className = 'driver-result';
+
+  const presentation = driver.registrationOnly ? { label: 'Aguardando aprovação', tone: 'warning', detail: 'Cadastro iniciado. O acesso permite enviar dados e documentos; as corridas dependem de aprovação.' } : statusPresentation(driver.status);
+  const header = document.createElement('div');
+  header.className = 'driver-result__header';
+
+  const identity = document.createElement('div');
+  const kicker = document.createElement('span');
+  kicker.className = 'eyebrow eyebrow--dark';
+  kicker.textContent = 'IDENTIDADE';
+  const title = document.createElement('h3');
+  title.textContent = driver.driverId;
+  identity.append(kicker, title);
+
+  const pill = document.createElement('span');
+  pill.className = `pill pill--${presentation.tone}`;
+  pill.textContent = presentation.label;
+  header.append(identity, pill);
+
+  const details = document.createElement('div');
+  details.className = 'driver-details';
+  details.append(
+    detailRow('Telefone', driver.phoneE164 ?? '—'),
+    detailRow('Atualizado', formatDateTime(driver.updatedAt)),
+  );
+
+  const statusCopy = document.createElement('p');
+  statusCopy.className = 'driver-result__status-copy';
+  statusCopy.textContent = presentation.detail;
+
+  target.append(header, details, statusCopy);
+
+  if (hasScope('drivers:auth:write')) {
+    const actions = document.createElement('div');
+    actions.className = 'driver-actions';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'driver-auth-status-action';
+    button.className =
+      driver.status === 'active' && !driver.registrationOnly
+        ? 'button button--danger'
+        : 'button button--primary';
+    button.textContent =
+      driver.status === 'active' && !driver.registrationOnly
+        ? 'Suspender acesso'
+        : driver.registrationOnly ? 'Liberar motorista' : 'Liberar acesso OTP';
+    button.addEventListener('click', () => {
+      void changeDriverStatus(
+        driver.driverId,
+        driver.status === 'active' && !driver.registrationOnly ? 'suspended' : 'active',
+        button,
+      );
+    });
+    actions.append(button);
+    target.append(actions);
+    syncDriverAuthActionAvailability();
+  }
+}
+
+function renderDriverUnavailable(title, message) {
+  const target = byId('driver-result');
+  target.replaceChildren();
+  target.className = 'driver-result empty-state';
+
+  const strong = document.createElement('strong');
+  strong.textContent = title;
+  const copy = document.createElement('p');
+  copy.textContent = message;
+  target.append(strong, copy);
+}
+
+function renderDriverNotFound(driverId) {
+  renderDriverUnavailable(
+    'Motorista não provisionado',
+    `Nenhuma identidade de autenticação foi encontrada para ${driverId}.`,
+  );
+}
+
+function numericMetric(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0
+    ? Math.trunc(number)
+    : 0;
+}
+
+function renderDashboard(payload = null) {
+  const rides = payload?.rides ?? {};
+  const summary = {
+    active: numericMetric(rides.active),
+    searchingDriver: numericMetric(rides.searchingDriver),
+    driverOnTheWay: numericMetric(rides.driverOnTheWay),
+    inProgress: numericMetric(rides.inProgress),
+    completedLast24h: numericMetric(rides.completedLast24h),
+    cancelledLast24h: numericMetric(rides.cancelledLast24h),
+  };
+  const activeRides = Array.isArray(payload?.activeRides)
+    ? payload.activeRides
+    : [];
+
+  state.dashboard = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    rides: summary,
+    activeRides,
+  };
+
+  byId('dashboard-active').textContent = String(summary.active);
+  byId('dashboard-searching').textContent = String(
+    summary.searchingDriver,
+  );
+  byId('dashboard-on-way').textContent = String(
+    summary.driverOnTheWay,
+  );
+  byId('dashboard-in-progress').textContent = String(
+    summary.inProgress,
+  );
+  byId('dashboard-completed-24h').textContent = String(
+    summary.completedLast24h,
+  );
+  byId('dashboard-cancelled-24h').textContent = String(
+    summary.cancelledLast24h,
+  );
+  byId('dashboard-active-count').textContent =
+    summary.active > activeRides.length
+      ? `${activeRides.length} de ${summary.active} corrida(s)`
+      : `${summary.active} corrida(s)`;
+  byId('dashboard-updated-at').textContent =
+    state.dashboard.generatedAt == null
+      ? hasScope('rides:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão rides:read'
+      : `Atualizado em ${formatDateTime(state.dashboard.generatedAt)}`;
+
+  const body = byId('dashboard-rides-body');
+  const empty = byId('dashboard-rides-empty');
+  body.replaceChildren();
+
+  for (const ride of activeRides) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const statePill = document.createElement('span');
+    statePill.className = `pill pill--${stateInfo.tone}`;
+    statePill.textContent = stateInfo.label;
+    stateCell.append(statePill);
+
+    const route = document.createElement('td');
+    const routeStrong = document.createElement('strong');
+    routeStrong.textContent =
+      `${locationLabel(ride.origin)} → ` +
+      locationLabel(ride.destination);
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = String(ride.id ?? '—');
+    route.append(routeStrong, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const passenger = document.createElement('td');
+    passenger.textContent = String(ride.passengerId ?? '—');
+
+    const driver = document.createElement('td');
+    driver.textContent = String(
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando',
+    );
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(
+      ride.totalAmountCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    row.append(
+      stateCell,
+      route,
+      category,
+      passenger,
+      driver,
+      amount,
+      updated,
+    );
+    body.append(row);
+  }
+
+  empty.hidden = activeRides.length !== 0;
+}
+
+async function loadDashboard({ announce = true } = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    renderDashboard();
+    return;
+  }
+
+  const refreshButton = byId('refresh-dashboard-button');
+  refreshButton.disabled = true;
+  try {
+    const payload = await api.dashboard(state.token);
+    renderDashboard(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Dashboard operacional atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    const updatedAt = byId('dashboard-updated-at');
+    updatedAt.textContent =
+      state.dashboard.generatedAt == null
+        ? 'Falha ao atualizar · sem dados atuais'
+        : `Falha ao atualizar · último dado ${formatDateTime(state.dashboard.generatedAt)}`;
+    handleAuthenticatedError(error);
+  } finally {
+    refreshButton.disabled = false;
+  }
+}
+
+function fleetAvailabilityPresentation(value) {
+  if (value === 'on_ride') {
+    return { label: 'Em corrida', tone: 'info' };
+  }
+  if (value === 'reserved') {
+    return { label: 'Reservado', tone: 'warning' };
+  }
+  if (value === 'busy') {
+    return { label: 'Ocupado', tone: 'warning' };
+  }
+  return { label: 'Livre', tone: 'success' };
+}
+
+function fleetGpsLabel(location) {
+  if (location?.status === 'stale') {
+    const minutes = Math.max(
+      1,
+      Math.round(Number(location.ageSeconds ?? 0) / 60),
+    );
+    return `GPS há ${minutes} min`;
+  }
+  const seconds = Math.max(
+    0,
+    Math.trunc(Number(location?.ageSeconds ?? 0)),
+  );
+  return seconds < 5 ? 'GPS agora' : `GPS há ${seconds}s`;
+}
+
+function ensureFleetMap() {
+  if (fleetMap != null) return fleetMap;
+  fleetMap = createFleetMap({
+    root: byId('fleet-map'),
+    tiles: byId('fleet-map-tiles'),
+    markers: byId('fleet-map-markers'),
+    zoomIn: byId('fleet-map-zoom-in'),
+    zoomOut: byId('fleet-map-zoom-out'),
+  });
+  return fleetMap;
+}
+
+function renderFleet(payload = null) {
+  const summary = {
+    totalOnline: numericMetric(payload?.summary?.totalOnline),
+    free: numericMetric(payload?.summary?.free),
+    reserved: numericMetric(payload?.summary?.reserved),
+    onRide: numericMetric(payload?.summary?.onRide),
+    busy: numericMetric(payload?.summary?.busy),
+    staleGps: numericMetric(payload?.summary?.staleGps),
+  };
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+
+  state.fleet = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    staleAfterSeconds:
+      Number.isFinite(Number(payload?.staleAfterSeconds)) &&
+      Number(payload?.staleAfterSeconds) >= 15
+        ? Math.trunc(Number(payload.staleAfterSeconds))
+        : null,
+    summary,
+    items,
+  };
+
+  byId('fleet-total-online').textContent =
+    String(summary.totalOnline);
+  byId('fleet-free').textContent = String(summary.free);
+  byId('fleet-on-ride').textContent = String(summary.onRide);
+  byId('fleet-stale-gps').textContent =
+    String(summary.staleGps);
+  byId('fleet-roster-count').textContent =
+    `${items.length} online`;
+  byId('fleet-updated-at').textContent =
+    state.fleet.generatedAt == null
+      ? hasScope('fleet:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão fleet:read'
+      : `Atualizado em ${formatDateTime(state.fleet.generatedAt)}`;
+
+  const staleSeconds = state.fleet.staleAfterSeconds;
+  if (staleSeconds == null) {
+    byId('fleet-live-note').textContent =
+      'Atualização automática a cada 5 segundos. Aguardando a política de validade do GPS do Core.';
+  } else {
+    const staleLabel =
+      staleSeconds % 60 === 0
+        ? `${staleSeconds / 60} min`
+        : `${staleSeconds}s`;
+    byId('fleet-live-note').textContent =
+      `Atualização automática a cada 5 segundos enquanto esta tela estiver aberta. GPS acima de ${staleLabel} aparece como atrasado.`;
+  }
+
+  const roster = byId('fleet-roster');
+  const empty = byId('fleet-roster-empty');
+  roster.replaceChildren();
+
+  for (const item of items) {
+    const card = document.createElement('article');
+    card.className = 'fleet-roster-item';
+
+    const top = document.createElement('div');
+    top.className = 'fleet-roster-item__top';
+
+    const identity = document.createElement('div');
+    identity.className = 'fleet-roster-item__identity';
+    const name = document.createElement('strong');
+    name.textContent = item.driverName ?? item.driverId ?? 'Motorista';
+    const vehicle = document.createElement('small');
+    const vehicleParts = [
+      item.vehicle?.make,
+      item.vehicle?.model,
+      item.vehicle?.plate,
+    ].filter(Boolean);
+    vehicle.textContent =
+      vehicleParts.length > 0
+        ? vehicleParts.join(' · ')
+        : String(item.driverId ?? '—');
+    identity.append(name, vehicle);
+
+    const availability = fleetAvailabilityPresentation(
+      item.availability,
+    );
+    const status = document.createElement('span');
+    status.className = `pill pill--${availability.tone}`;
+    status.textContent = availability.label;
+
+    top.append(identity, status);
+
+    const meta = document.createElement('div');
+    meta.className = 'fleet-roster-item__meta';
+    const service = document.createElement('span');
+    service.textContent =
+      item.currentServiceCategory != null
+        ? serviceCategoryLabel(item.currentServiceCategory)
+        : Array.isArray(item.categories) && item.categories.length > 0
+          ? item.categories
+              .map((category) => serviceCategoryLabel(category))
+              .join(', ')
+          : 'Sem categoria';
+
+    const gps = document.createElement('span');
+    gps.textContent = fleetGpsLabel(item.location);
+    if (item.location?.status === 'stale') {
+      gps.className = 'text-danger';
+    }
+
+    meta.append(service, gps);
+    card.append(top, meta);
+    roster.append(card);
+  }
+
+  empty.hidden = items.length !== 0;
+
+  if (!byId('view-fleet').hidden) {
+    ensureFleetMap().update(items);
+  }
+}
+
+async function loadFleet({ announce = true } = {}) {
+  if (
+    !state.token ||
+    !hasScope('fleet:read') ||
+    state.fleetLoading
+  ) {
+    if (!hasScope('fleet:read')) renderFleet();
+    return;
+  }
+
+  state.fleetLoading = true;
+  const button = byId('refresh-fleet-button');
+  button.disabled = true;
+  try {
+    const payload = await api.fleet(state.token);
+    renderFleet(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Mapa da frota atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    state.fleetLoading = false;
+    button.disabled = false;
+  }
+}
+
+function startFleetPolling() {
+  stopFleetPolling();
+  if (!state.token || !hasScope('fleet:read')) {
+    renderFleet();
+    return;
+  }
+  state.fleetTimer = setInterval(() => {
+    void loadFleet({ announce: false });
+  }, 5_000);
+}
+
+function payoutStatusPresentation(status) {
+  const value = String(status ?? '');
+  if (value === 'paid') {
+    return { label: 'Pago', tone: 'success' };
+  }
+  if (value === 'processing') {
+    return { label: 'Processando', tone: 'info' };
+  }
+  if (value === 'requested') {
+    return { label: 'Solicitado', tone: 'warning' };
+  }
+  if (value === 'failed') {
+    return { label: 'Falhou', tone: 'danger' };
+  }
+  if (value === 'cancelled') {
+    return { label: 'Cancelado', tone: 'neutral' };
+  }
+  return { label: value || '—', tone: 'neutral' };
+}
+
+function paymentMethodLabel(method) {
+  if (method === 'pix') return 'Pix';
+  if (method === 'card') return 'Cartão';
+  if (method === 'wallet') return 'Carteira';
+  return String(method ?? '—');
+}
+
+function financeWritesAvailable() {
+  return (
+    hasScope('finance:write') &&
+    state.finance.writeLocked !== true
+  );
+}
+
+function renderPaymentPolicy(policy = null) {
+  state.finance.policy = policy;
+
+  const loaded =
+    policy != null && typeof policy === 'object';
+  const canWrite =
+    loaded && financeWritesAvailable();
+
+  const status = byId('finance-cash-status');
+  const methodsStatus = byId('finance-methods-status');
+  const cashLimitStatus = byId('finance-cash-limit-status');
+  const cashLimitInput = byId('finance-cash-limit-input');
+  const pixInput = byId('finance-pix-price-percent');
+  const cardInput = byId('finance-card-price-percent');
+  const enableButton = byId('finance-enable-cash-button');
+  const disableButton = byId('finance-disable-cash-button');
+
+  if (!loaded) {
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Carregando';
+    byId('finance-cash-debt-limit').textContent = '—';
+    byId('finance-cash-readiness').textContent = '—';
+    byId('finance-cash-updated-at').textContent =
+      'Aguardando política';
+
+    methodsStatus.className = 'pill pill--neutral';
+    methodsStatus.textContent = 'Carregando';
+    for (const id of [
+      'finance-pix-enabled',
+      'finance-card-enabled',
+      'finance-wallet-enabled',
+    ]) {
+      const input = byId(id);
+      input.checked = false;
+      input.disabled = true;
+    }
+    byId('finance-methods-save').disabled = true;
+
+    cashLimitStatus.className = 'pill pill--neutral';
+    cashLimitStatus.textContent = 'Carregando';
+    cashLimitInput.value = '';
+    cashLimitInput.disabled = true;
+    byId('finance-cash-limit-save').disabled = true;
+
+    enableButton.hidden = true;
+    enableButton.disabled = true;
+    disableButton.hidden = true;
+    disableButton.disabled = true;
+    byId('finance-cash-note').textContent =
+      'Aguardando a política real do Core.';
+
+    for (const [prefix, input] of [
+      ['pix', pixInput],
+      ['card', cardInput],
+    ]) {
+      const priceStatus = byId(
+        `finance-${prefix}-price-status`,
+      );
+      priceStatus.className = 'pill pill--neutral';
+      priceStatus.textContent = 'Carregando';
+      input.value = '';
+      input.disabled = true;
+      byId(`finance-${prefix}-price-save`).disabled = true;
+      byId(`finance-${prefix}-price-example`).textContent =
+        'R$ 150,00 → —';
+      byId(`finance-${prefix}-price-note`).textContent =
+        'Aguardando a política real do Core.';
+    }
+    return;
+  }
+
+  const cashEnabled = policy.cashEnabled === true;
+  const activationReady =
+    policy.cashActivationReady === true;
+  status.className = cashEnabled
+    ? 'pill pill--danger'
+    : 'pill pill--success';
+  status.textContent = cashEnabled ? 'Ativado' : 'Desativado';
+
+  const defaultCashLimitCents = Math.max(
+    0,
+    numericMetric(policy.futureCashDebtLimitCents),
+  );
+  byId('finance-cash-debt-limit').textContent =
+    formatCurrencyCents(defaultCashLimitCents);
+  byId('finance-cash-readiness').textContent =
+    activationReady ? 'Pronta' : 'Bloqueada';
+  byId('finance-cash-updated-at').textContent =
+    policy.updatedAt
+      ? `Atualizada em ${formatDateTime(policy.updatedAt)}`
+      : 'Política carregada';
+
+  const pixEnabled = policy.pixEnabled === true;
+  const cardEnabled = policy.cardEnabled === true;
+  const walletEnabled = policy.walletEnabled === true;
+  const activeDigitalCount = [
+    pixEnabled,
+    cardEnabled,
+    walletEnabled,
+  ].filter(Boolean).length;
+  methodsStatus.className =
+    activeDigitalCount > 0
+      ? 'pill pill--success'
+      : 'pill pill--warning';
+  methodsStatus.textContent =
+    `${activeDigitalCount}/3 ativos`;
+
+  for (const [id, enabled] of [
+    ['finance-pix-enabled', pixEnabled],
+    ['finance-card-enabled', cardEnabled],
+    ['finance-wallet-enabled', walletEnabled],
+  ]) {
+    const input = byId(id);
+    input.checked = enabled;
+    input.disabled = !canWrite;
+  }
+  byId('finance-methods-save').disabled = !canWrite;
+
+  cashLimitStatus.className = 'pill pill--info';
+  cashLimitStatus.textContent =
+    formatCurrencyCents(defaultCashLimitCents);
+  cashLimitInput.value =
+    (defaultCashLimitCents / 100).toFixed(2);
+  cashLimitInput.disabled = !canWrite;
+  byId('finance-cash-limit-save').disabled = !canWrite;
+
+  enableButton.hidden =
+    cashEnabled || !activationReady || !canWrite;
+  enableButton.disabled = !canWrite;
+
+  disableButton.hidden = !cashEnabled || !canWrite;
+  disableButton.disabled = !canWrite;
+
+  byId('finance-cash-note').textContent = cashEnabled
+    ? 'Dinheiro está ativo. O Passageiro pode selecionar essa forma de pagamento.'
+    : activationReady
+      ? 'Estrutura pronta. O Passageiro continuará vendo “Em breve” até você ativar aqui.'
+      : 'A ativação está temporariamente indisponível.';
+
+  const pixBps = Math.max(
+    0,
+    Math.min(2000, numericMetric(policy.pixPriceAdjustmentBps)),
+  );
+  const pixPercent = pixBps / 100;
+  const pixStatus = byId('finance-pix-price-status');
+  pixStatus.className =
+    pixBps > 0 ? 'pill pill--info' : 'pill pill--neutral';
+  pixStatus.textContent =
+    pixBps > 0
+      ? `${pixPercent.toFixed(2).replace('.', ',')}%`
+      : 'Sem diferença';
+
+  pixInput.value = pixPercent.toFixed(2);
+  pixInput.disabled = !canWrite;
+  byId('finance-pix-price-save').disabled = !canWrite;
+
+  const pixDenominator = 10000 - pixBps;
+  const sampleBaseCents = 15000;
+  const samplePixCents =
+    pixBps <= 0
+      ? sampleBaseCents
+      : Math.ceil((sampleBaseCents * 10000) / pixDenominator);
+  byId('finance-pix-price-example').textContent =
+    `${formatCurrencyCents(sampleBaseCents)} → ` +
+    formatCurrencyCents(samplePixCents);
+  byId('finance-pix-price-note').textContent =
+    pixBps > 0
+      ? 'O Passageiro verá o preço final do Pix antes de confirmar.'
+      : 'Pix está sem acréscimo de processamento.';
+
+  const cardBps = Math.max(
+    0,
+    Math.min(2000, numericMetric(policy.cardPriceAdjustmentBps)),
+  );
+  const cardPercent = cardBps / 100;
+  const cardStatus = byId('finance-card-price-status');
+  cardStatus.className =
+    cardBps > 0 ? 'pill pill--info' : 'pill pill--neutral';
+  cardStatus.textContent =
+    cardBps > 0
+      ? `${cardPercent.toFixed(2).replace('.', ',')}%`
+      : 'Sem diferença';
+
+  cardInput.value = cardPercent.toFixed(2);
+  cardInput.disabled = !canWrite;
+  byId('finance-card-price-save').disabled = !canWrite;
+
+  const denominator = 10000 - cardBps;
+  const sampleCardCents =
+    cardBps <= 0
+      ? sampleBaseCents
+      : Math.ceil((sampleBaseCents * 10000) / denominator);
+  byId('finance-card-price-example').textContent =
+    `${formatCurrencyCents(sampleBaseCents)} → ` +
+    formatCurrencyCents(sampleCardCents);
+  byId('finance-card-price-note').textContent =
+    cardBps > 0
+      ? 'O Passageiro verá o preço final do cartão antes de confirmar.'
+      : 'Cartão está sem acréscimo de processamento.';
+}
+
+function payoutKindLabel(kind) {
+  switch (kind) {
+    case 'anticipation':
+      return 'Antecipação';
+    case 'scheduled':
+      return 'Programado';
+    case 'manual':
+      return 'Manual';
+    default:
+      return 'Legado';
+  }
+}
+
+function renderFinance(payload = null) {
+  const summary = payload?.summary ?? {};
+  const payments = Array.isArray(payload?.payments)
+    ? payload.payments
+    : [];
+  const payouts = Array.isArray(payload?.payouts)
+    ? payload.payouts
+    : [];
+  const payoutCandidates = Array.isArray(payload?.payoutCandidates)
+    ? payload.payoutCandidates
+    : [];
+  const payoutPolicy =
+    payload?.payoutPolicy != null &&
+    typeof payload.payoutPolicy === 'object'
+      ? payload.payoutPolicy
+      : state.finance.payoutPolicy;
+  const companyPayout =
+    payload?.companyPayout != null &&
+    typeof payload.companyPayout === 'object'
+      ? payload.companyPayout
+      : state.finance.companyPayout;
+  const companyPayouts = Array.isArray(payload?.companyPayouts)
+    ? payload.companyPayouts
+    : state.finance.companyPayouts ?? [];
+  const externalAdjustments = Array.isArray(payload?.externalAdjustments)
+    ? payload.externalAdjustments
+    : state.finance.externalAdjustments ?? [];
+  const pendingCompanyPayoutRequestId =
+    state.finance.pendingCompanyPayoutRequestId ?? null;
+
+  state.finance = {
+    generatedAt:
+      typeof payload?.generatedAt === 'string'
+        ? payload.generatedAt
+        : null,
+    readOnly: payload?.readOnly !== false,
+    summary: {
+      paymentsTotal: numericMetric(summary.paymentsTotal),
+      paymentsPaid: numericMetric(summary.paymentsPaid),
+      paymentsPaidCents: numericMetric(summary.paymentsPaidCents),
+      paymentsPending: numericMetric(summary.paymentsPending),
+      paymentsFailed: numericMetric(summary.paymentsFailed),
+      paymentsCancelled: numericMetric(summary.paymentsCancelled),
+      paymentsRefunded: numericMetric(summary.paymentsRefunded),
+      platformRevenueCents: numericMetric(
+        summary.platformRevenueCents,
+      ),
+      companyProfitAvailableCents: numericMetric(
+        summary.companyProfitAvailableCents,
+      ),
+      companyPayoutPendingCents: numericMetric(
+        summary.companyPayoutPendingCents,
+      ),
+      externalAdjustmentReviewCents: numericMetric(
+        summary.externalAdjustmentReviewCents,
+      ),
+      externalAdjustmentReviewCount: numericMetric(
+        summary.externalAdjustmentReviewCount,
+      ),
+      driverCashCommissionDebtCents: numericMetric(
+        summary.driverCashCommissionDebtCents,
+      ),
+      driverPayableCents: numericMetric(summary.driverPayableCents),
+      driverPayoutPendingCents: numericMetric(
+        summary.driverPayoutPendingCents,
+      ),
+      rideEscrowCents: numericMetric(summary.rideEscrowCents),
+      passengerWalletCents: numericMetric(
+        summary.passengerWalletCents,
+      ),
+      payoutsRequested: numericMetric(summary.payoutsRequested),
+      payoutsRequestedCents: numericMetric(
+        summary.payoutsRequestedCents,
+      ),
+    },
+    payments,
+    payouts,
+    payoutReconciliation: payload?.payoutReconciliation ?? null,
+    payoutPolicy,
+    payoutCandidates,
+    companyPayout,
+    companyPayouts,
+    externalAdjustments,
+    pendingCompanyPayoutRequestId,
+    policy: state.finance.policy,
+    selectedPayout: state.finance.selectedPayout ?? null,
+    writeLocked: state.finance.writeLocked === true,
+  };
+
+  const current = state.finance.summary;
+  byId('finance-updated-at').textContent =
+    state.finance.generatedAt == null
+      ? hasScope('finance:read')
+        ? 'Aguardando atualização'
+        : 'Sem permissão finance:read'
+      : `Atualizado em ${formatDateTime(state.finance.generatedAt)}`;
+  byId('finance-paid-total').textContent =
+    formatCurrencyCents(current.paymentsPaidCents);
+  byId('finance-paid-count').textContent =
+    `${current.paymentsPaid} pagamento(s)`;
+  byId('finance-platform-revenue').textContent =
+    formatCurrencyCents(current.platformRevenueCents);
+  byId('finance-driver-payable').textContent =
+    formatCurrencyCents(current.driverPayableCents);
+  byId('finance-payout-pending').textContent =
+    formatCurrencyCents(current.driverPayoutPendingCents);
+  byId('finance-payout-count').textContent =
+    `${current.payoutsRequested} solicitação(ões) aberta(s)`;
+  byId('finance-ride-escrow').textContent =
+    formatCurrencyCents(current.rideEscrowCents);
+  byId('finance-passenger-wallet').textContent =
+    formatCurrencyCents(current.passengerWalletCents);
+  byId('finance-payments-total').textContent =
+    String(current.paymentsTotal);
+  byId('finance-payments-pending').textContent =
+    String(current.paymentsPending);
+  byId('finance-payments-failed').textContent =
+    String(current.paymentsFailed);
+  byId('finance-payments-cancelled').textContent =
+    String(current.paymentsCancelled);
+  byId('finance-payments-refunded').textContent =
+    String(current.paymentsRefunded);
+
+  renderFinancePayoutPolicy();
+  renderFinanceReconciliation();
+  renderCompanyPayoutControls();
+  renderExternalAdjustments();
+
+  const paymentBody = byId('finance-payments-body');
+  paymentBody.replaceChildren();
+  for (const payment of payments) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className = 'pill pill--neutral';
+    statusPill.textContent = paymentStatusLabel(payment.status);
+    statusCell.append(statusPill);
+
+    const method = document.createElement('td');
+    method.textContent = paymentMethodLabel(payment.method);
+
+    const ride = document.createElement('td');
+    ride.textContent = payment.rideId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(payment.amountCents);
+
+    const processor = document.createElement('td');
+    processor.textContent = payment.processor ?? '—';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payment.createdAt);
+
+    row.append(
+      statusCell,
+      method,
+      ride,
+      amount,
+      processor,
+      created,
+    );
+    paymentBody.append(row);
+  }
+  byId('finance-payments-visible').textContent =
+    `${payments.length} item(ns)`;
+  byId('finance-payments-empty').hidden = payments.length !== 0;
+
+  const payoutBody = byId('finance-payouts-body');
+  payoutBody.replaceChildren();
+  for (const payout of payouts) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const presentation = payoutStatusPresentation(payout.status);
+    const statusPill = document.createElement('span');
+    statusPill.className = `pill pill--${presentation.tone}`;
+    statusPill.textContent = presentation.label;
+    statusCell.append(statusPill);
+
+    const driver = document.createElement('td');
+    driver.textContent = payout.driverId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(
+      payout.requestedAmountCents ?? payout.amountCents,
+    );
+
+    const processor = document.createElement('td');
+    processor.textContent =
+      payout.requiresApproval === true
+        ? 'Aguardando sua aprovação'
+        : payout.processor ?? 'Aguardando integração';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payout.createdAt);
+
+    const actions = document.createElement('td');
+    const manageButton = document.createElement('button');
+    manageButton.type = 'button';
+    manageButton.className = 'button button--ghost-dark button--compact';
+    manageButton.textContent =
+      payout.requiresApproval === true ? 'Analisar' : 'Gerenciar';
+    manageButton.disabled = !hasScope('finance:write');
+    manageButton.addEventListener('click', () => {
+      void openFinancePayout(payout.id);
+    });
+    actions.append(manageButton);
+
+    row.append(
+      statusCell,
+      driver,
+      amount,
+      processor,
+      created,
+      actions,
+    );
+    payoutBody.append(row);
+  }
+  byId('finance-payouts-visible').textContent =
+    `${payouts.length} item(ns)`;
+  byId('finance-payouts-empty').hidden = payouts.length !== 0;
+}
+
+function renderFinanceReconciliation() {
+  const button = byId('finance-payout-reconcile');
+  const note = byId('finance-payout-reconcile-note');
+  if (button == null || note == null) return;
+  const config = state.finance.payoutReconciliation;
+  button.disabled = !canReconcilePayouts({config, canWrite: financeWritesAvailable(), busy: payoutReconciliationBusy});
+  note.textContent = config?.canManage !== true
+    ? 'Somente o proprietário autorizado pode processar repasses.'
+    : config?.providerConfigured !== true
+      ? 'Configure e homologue o provedor de repasses antes de usar esta ação.'
+      : state.finance.writeLocked === true
+        ? 'Atualize o Financeiro para consultar dados atuais.'
+        : 'Pode enviar repasses autorizados pendentes e consultar transferências em andamento de motoristas e empresa.';
+}
+
+async function handleFinancePayoutReconcile() {
+  if (!state.token || !canReconcilePayouts({config: state.finance.payoutReconciliation,
+    canWrite: financeWritesAvailable(), busy: payoutReconciliationBusy})) return;
+  if (!window.confirm('Processar os repasses já autorizados e conciliar transferências pendentes de motoristas e empresa? Esta ação pode enviar Pix pelo provedor configurado.')) return;
+  const token = state.token;
+  payoutReconciliationBusy = true;
+  renderFinanceReconciliation();
+  try {
+    const result = await api.reconcileFinancePayouts(token);
+    const message = reconciliationMessage(result);
+    if (state.token !== token || currentView !== 'finance') return;
+    await loadFinance({announce: false});
+    if (state.token !== token || currentView !== 'finance') return;
+    if (state.finance.writeLocked === true) return;
+    setMessage(globalMessage, message.text, message.tone);
+  } catch (error) {
+    if (state.token === token && currentView === 'finance') handleAuthenticatedError(error);
+  } finally {
+    payoutReconciliationBusy = false;
+    if (currentView === 'finance') renderFinanceReconciliation();
+  }
+}
+
+function companyPayoutWritesAvailable() {
+  return (
+    financeWritesAvailable() &&
+    state.finance.companyPayout?.canManage === true
+  );
+}
+
+function renderCompanyPayoutControls() {
+  const company = state.finance.companyPayout ?? {};
+  const payouts = Array.isArray(state.finance.companyPayouts)
+    ? state.finance.companyPayouts
+    : [];
+  const canManage = companyPayoutWritesAvailable();
+  const availableCents = numericMetric(company.availableCents);
+  const pendingCents = numericMetric(company.pendingCents);
+  const cashDebtCents = numericMetric(
+    company.unrecoveredCashCommissionCents,
+  );
+
+  const ownerStatus = byId('finance-company-owner-status');
+  if (ownerStatus != null) {
+    ownerStatus.className = company.canManage === true
+      ? 'pill pill--success'
+      : 'pill pill--neutral';
+    ownerStatus.textContent = company.canManage === true
+      ? 'Proprietário'
+      : 'Somente proprietário';
+  }
+
+  const available = byId('finance-company-available');
+  const pending = byId('finance-company-pending');
+  const cashDebt = byId('finance-company-cash-debt');
+  if (available != null) {
+    available.textContent = formatCurrencyCents(availableCents);
+  }
+  if (pending != null) {
+    pending.textContent = formatCurrencyCents(pendingCents);
+  }
+  if (cashDebt != null) {
+    cashDebt.textContent = formatCurrencyCents(cashDebtCents);
+  }
+
+  const note = byId('finance-company-note');
+  if (note != null) {
+    note.textContent =
+      company.note ??
+      'O saldo da empresa será carregado a partir do ledger.';
+  }
+
+  const destinationStatus = byId('finance-company-pix-status');
+  if (destinationStatus != null) {
+    destinationStatus.textContent =
+      company.destinationConfigured === true
+        ? `${String(company.pixKeyType ?? '').toUpperCase()} · ${company.pixKeyMasked ?? '••••'}`
+        : 'Nenhuma chave Pix cadastrada.';
+  }
+
+  const pixType = byId('finance-company-pix-type');
+  const pixKey = byId('finance-company-pix-key');
+  const pixSave = byId('finance-company-pix-save');
+  if (pixType != null) {
+    if (company.pixKeyType) {
+      pixType.value = company.pixKeyType;
+    }
+    pixType.disabled = !canManage;
+  }
+  if (pixKey != null) {
+    pixKey.disabled = !canManage;
+  }
+  if (pixSave != null) {
+    pixSave.disabled = !canManage;
+  }
+
+  const amount = byId('finance-company-payout-amount');
+  const useAll = byId('finance-company-use-all');
+  const submit = byId('finance-company-payout-submit');
+  const payoutReady =
+    canManage &&
+    company.destinationConfigured === true &&
+    availableCents >= 100;
+
+  if (amount != null) {
+    amount.disabled = !payoutReady;
+    amount.max = (availableCents / 100).toFixed(2);
+  }
+  if (useAll != null) {
+    useAll.disabled = !payoutReady;
+  }
+  if (submit != null) {
+    submit.disabled = !payoutReady;
+  }
+
+  const actionNote = byId('finance-company-payout-action-note');
+  if (actionNote != null) {
+    actionNote.textContent =
+      company.canManage !== true
+        ? 'Somente o proprietário autorizado pode movimentar este saldo.'
+        : company.destinationConfigured !== true
+          ? 'Cadastre uma chave Pix para habilitar a retirada.'
+          : availableCents < 100
+            ? 'Não há saldo mínimo de R$ 1,00 disponível para retirada.'
+            : 'Você pode retirar parte ou todo o saldo disponível.';
+  }
+
+  const body = byId('finance-company-payouts-body');
+  const empty = byId('finance-company-payouts-empty');
+  const visible = byId('finance-company-payouts-visible');
+  if (body == null || empty == null || visible == null) return;
+
+  body.replaceChildren();
+  for (const payout of payouts) {
+    const row = document.createElement('tr');
+
+    const statusCell = document.createElement('td');
+    const presentation = payoutStatusPresentation(payout.status);
+    const statusPill = document.createElement('span');
+    statusPill.className = `pill pill--${presentation.tone}`;
+    statusPill.textContent = presentation.label;
+    statusCell.append(statusPill);
+
+    const payoutAmount = document.createElement('td');
+    payoutAmount.textContent = formatCurrencyCents(payout.amountCents);
+
+    const destination = document.createElement('td');
+    destination.textContent =
+      `${String(payout.pixKeyType ?? '').toUpperCase()} · ${payout.pixKeyMasked ?? '••••'}`;
+
+    const processor = document.createElement('td');
+    processor.textContent = payout.processor ?? 'Aguardando provedor';
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(payout.createdAt);
+
+    const action = document.createElement('td');
+    if (payout.status === 'requested' && canManage) {
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'button button--danger button--compact';
+      cancel.textContent = 'Cancelar';
+      cancel.addEventListener('click', () => {
+        void handleCompanyPayoutCancel(payout.id);
+      });
+      action.append(cancel);
+    } else {
+      action.textContent = '—';
+    }
+
+    row.append(
+      statusCell,
+      payoutAmount,
+      destination,
+      processor,
+      created,
+      action,
+    );
+    body.append(row);
+  }
+
+  visible.textContent = `${payouts.length} item(ns)`;
+  empty.hidden = payouts.length !== 0;
+}
+
+function externalAdjustmentKindLabel(kind) {
+  return kind === 'chargeback'
+    ? 'Contestação'
+    : kind === 'partial_refund'
+      ? 'Refund parcial'
+      : 'Ajuste externo';
+}
+
+function externalAdjustmentStatusPresentation(adjustment) {
+  if (adjustment.accountingStatus === 'review_required') {
+    return { label: 'Revisão necessária', tone: 'warning' };
+  }
+  if (adjustment.accountingStatus === 'applied_to_escrow') {
+    return { label: 'Aplicado ao escrow', tone: 'success' };
+  }
+  return { label: 'Observado', tone: 'neutral' };
+}
+
+function renderExternalAdjustments() {
+  const adjustments = Array.isArray(state.finance.externalAdjustments)
+    ? state.finance.externalAdjustments
+    : [];
+  const body = byId('finance-external-adjustments-body');
+  const empty = byId('finance-external-adjustments-empty');
+  const visible = byId('finance-external-adjustments-visible');
+  const reviewTotal = byId('finance-external-review-total');
+  const reviewCount = byId('finance-external-review-count');
+
+  if (reviewTotal != null) {
+    reviewTotal.textContent = formatCurrencyCents(
+      state.finance.summary.externalAdjustmentReviewCents,
+    );
+  }
+  if (reviewCount != null) {
+    reviewCount.textContent = String(
+      state.finance.summary.externalAdjustmentReviewCount,
+    );
+  }
+  if (body == null || empty == null || visible == null) return;
+
+  body.replaceChildren();
+  for (const adjustment of adjustments) {
+    const row = document.createElement('tr');
+
+    const kind = document.createElement('td');
+    kind.textContent = externalAdjustmentKindLabel(adjustment.kind);
+
+    const status = document.createElement('td');
+    const presentation =
+      externalAdjustmentStatusPresentation(adjustment);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    status.append(pill);
+
+    const payment = document.createElement('td');
+    payment.textContent = adjustment.paymentId ?? '—';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(adjustment.amountCents);
+
+    const escrow = document.createElement('td');
+    escrow.textContent = formatCurrencyCents(
+      adjustment.escrowAppliedCents,
+    );
+
+    const review = document.createElement('td');
+    review.textContent = formatCurrencyCents(
+      adjustment.reviewRequiredCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(adjustment.updatedAt);
+
+    row.append(kind, status, payment, amount, escrow, review, updated);
+    body.append(row);
+  }
+
+  visible.textContent = `${adjustments.length} item(ns)`;
+  empty.hidden = adjustments.length !== 0;
+}
+
+function renderFinancePayoutPolicy() {
+  const policy = state.finance.payoutPolicy;
+  const candidates = state.finance.payoutCandidates ?? [];
+  const status = byId('finance-payout-policy-status');
+  const toggle = byId('finance-payout-mode-toggle');
+  const note = byId('finance-payout-policy-note');
+  const manual = byId('finance-manual-payouts');
+  const body = byId('finance-manual-payouts-body');
+  const empty = byId('finance-manual-payouts-empty');
+
+  if (
+    status == null ||
+    toggle == null ||
+    note == null ||
+    manual == null ||
+    body == null ||
+    empty == null
+  ) {
+    return;
+  }
+
+  const loaded = policy != null;
+  const automaticEnabled = policy?.automaticEnabled === true;
+  const canWrite = financeWritesAvailable();
+
+  status.className = automaticEnabled
+    ? 'pill pill--success'
+    : loaded
+      ? 'pill pill--warning'
+      : 'pill pill--neutral';
+  status.textContent = automaticEnabled
+    ? 'Automático'
+    : loaded
+      ? 'Manual'
+      : 'Indisponível';
+
+  toggle.textContent = automaticEnabled
+    ? 'Pausar automáticos / usar modo manual'
+    : 'Reativar repasses automáticos';
+  toggle.disabled = !loaded || !canWrite;
+  note.textContent = automaticEnabled
+    ? 'Próximos ciclos: segunda, quarta e sexta às 07:00.'
+    : loaded
+      ? 'Repasses programados estão pausados. Você decide quem receberá.'
+      : 'Política de repasses ainda não carregada.';
+
+  manual.hidden = !loaded || automaticEnabled;
+  body.replaceChildren();
+
+  if (!manual.hidden) {
+    for (const candidate of candidates) {
+      const row = document.createElement('tr');
+
+      const selection = document.createElement('td');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'finance-manual-payout-checkbox';
+      checkbox.dataset.driverId = candidate.driverId ?? '';
+      checkbox.disabled =
+        !canWrite ||
+        candidate.pixConfigured !== true ||
+        numericMetric(candidate.availableBalanceCents) <= 0;
+      checkbox.setAttribute(
+        'aria-label',
+        `Selecionar motorista ${candidate.driverId ?? ''}`,
+      );
+      checkbox.addEventListener('change', syncManualPayoutSelection);
+      selection.append(checkbox);
+
+      const driver = document.createElement('td');
+      driver.textContent = candidate.driverId ?? '—';
+
+      const balance = document.createElement('td');
+      balance.textContent = formatCurrencyCents(
+        candidate.availableBalanceCents,
+      );
+
+      const pix = document.createElement('td');
+      pix.textContent =
+        candidate.pixConfigured === true
+          ? `${String(candidate.pixKeyType ?? '').toUpperCase()} · ${candidate.pixKeyMasked ?? '••••'}`
+          : 'Chave Pix não cadastrada';
+
+      const action = document.createElement('td');
+      const payButton = document.createElement('button');
+      payButton.type = 'button';
+      payButton.className =
+        'button button--ghost-dark button--compact';
+      payButton.textContent = 'Pagar';
+      payButton.disabled = checkbox.disabled;
+      payButton.addEventListener('click', () => {
+        void handleManualFinancePayouts([candidate.driverId]);
+      });
+      action.append(payButton);
+
+      row.append(selection, driver, balance, pix, action);
+      body.append(row);
+    }
+  }
+
+  empty.hidden = candidates.length !== 0;
+  const selectAll = byId('finance-manual-select-all');
+  if (selectAll != null) {
+    selectAll.checked = false;
+    selectAll.indeterminate = false;
+    selectAll.disabled = !canWrite || candidates.length === 0;
+  }
+  syncManualPayoutSelection();
+}
+
+function syncManualPayoutSelection() {
+  const checkboxes = [
+    ...document.querySelectorAll(
+      '.finance-manual-payout-checkbox:not(:disabled)',
+    ),
+  ];
+  const selected = checkboxes.filter((checkbox) => checkbox.checked);
+  const selectAll = byId('finance-manual-select-all');
+  if (selectAll != null) {
+    selectAll.checked =
+      checkboxes.length > 0 && selected.length === checkboxes.length;
+    selectAll.indeterminate =
+      selected.length > 0 && selected.length < checkboxes.length;
+  }
+
+  const button = byId('finance-manual-payout-selected');
+  if (button != null) {
+    button.disabled =
+      !financeWritesAvailable() || selected.length === 0;
+  }
+  const note = byId('finance-manual-payout-selection-note');
+  if (note != null) {
+    note.textContent =
+      selected.length === 0
+        ? 'Nenhum motorista selecionado.'
+        : `${selected.length} motorista(s) selecionado(s).`;
+  }
+}
+
+function selectedManualDriverIds() {
+  return [
+    ...document.querySelectorAll(
+      '.finance-manual-payout-checkbox:checked',
+    ),
+  ]
+    .map((checkbox) => checkbox.dataset.driverId ?? '')
+    .filter(Boolean);
+}
+
+function renderFinancePayoutDetail(payout = null) {
+  state.finance.selectedPayout = payout;
+  const panel = byId('finance-payout-detail');
+  if (panel == null) return;
+
+  if (payout == null) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  const presentation = payoutStatusPresentation(payout.status);
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const feeCents = numericMetric(payout.feeCents);
+  const requiresApproval =
+    payout.requiresApproval === true ||
+    (
+      payout.payoutKind === 'anticipation' &&
+      payout.approvedAt == null &&
+      payout.status === 'requested'
+    );
+
+  byId('finance-payout-detail-status').textContent =
+    presentation.label;
+  byId('finance-payout-detail-driver').textContent =
+    payout.driverId ?? '—';
+  byId('finance-payout-detail-kind').textContent =
+    payoutKindLabel(payout.payoutKind);
+  byId('finance-payout-detail-gross').textContent =
+    formatCurrencyCents(grossCents);
+  byId('finance-payout-detail-fee').textContent =
+    feeCents > 0
+      ? `- ${formatCurrencyCents(feeCents)}`
+      : formatCurrencyCents(0);
+  byId('finance-payout-detail-amount').textContent =
+    formatCurrencyCents(payout.amountCents);
+  byId('finance-payout-detail-pix').textContent =
+    payout.pixKey
+      ? `${String(payout.pixKeyType ?? '').toUpperCase()} · ${payout.pixKey}`
+      : '—';
+  byId('finance-payout-detail-processor').textContent =
+    payout.processor ?? 'Ainda não informado';
+  byId('finance-payout-detail-reference').textContent =
+    payout.processorPayoutId ?? '—';
+
+  const detailCopy = byId('finance-payout-detail-copy');
+  if (detailCopy != null) {
+    detailCopy.textContent = requiresApproval
+      ? `O motorista solicitou ${formatCurrencyCents(grossCents)}. A taxa é ${formatCurrencyCents(feeCents)} e o Pix líquido será ${formatCurrencyCents(payout.amountCents)}. Só será enviado após sua aprovação.`
+      : payout.payoutKind === 'scheduled'
+        ? 'Repasse normal criado pelo ciclo de segunda, quarta e sexta às 07:00.'
+        : payout.payoutKind === 'manual'
+          ? 'Repasse criado manualmente pelo ADM.'
+          : 'Use a conciliação manual apenas para um pagamento realizado fora do provedor automático.';
+  }
+
+  const processorInput = byId('finance-payout-processor');
+  const referenceInput = byId('finance-payout-reference');
+  processorInput.value = payout.processor ?? '';
+  referenceInput.value = payout.processorPayoutId ?? '';
+
+  const actionable =
+    payout.status === 'requested' ||
+    payout.status === 'processing';
+  const canWrite = financeWritesAvailable() && actionable;
+  const approveButton = byId('finance-payout-approve-button');
+  const paidButton = byId('finance-payout-paid-button');
+  const cancelButton = byId('finance-payout-cancel-button');
+
+  approveButton.hidden = !requiresApproval;
+  approveButton.disabled = !canWrite || !requiresApproval;
+
+  const externalPaymentAllowed =
+    canWrite && !requiresApproval;
+  paidButton.hidden = requiresApproval;
+  paidButton.disabled = !externalPaymentAllowed;
+  processorInput.disabled = !externalPaymentAllowed;
+  referenceInput.disabled = !externalPaymentAllowed;
+
+  const cancellationAllowed =
+    canWrite &&
+    (
+      requiresApproval ||
+      payout.approvedAt == null ||
+      payout.payoutKind === 'legacy'
+    );
+  cancelButton.disabled = !cancellationAllowed;
+  cancelButton.textContent = requiresApproval
+    ? 'Recusar antecipação'
+    : 'Cancelar solicitação';
+
+  byId('finance-payout-action-note').textContent = actionable
+    ? state.finance.writeLocked === true
+      ? 'Atualize o financeiro antes de executar ações neste repasse.'
+      : requiresApproval
+        ? 'Aprovar envia o Pix líquido pelo provedor configurado. Recusar devolve o valor bruto e não cobra a taxa.'
+        : hasScope('finance:write')
+          ? 'O repasse já está autorizado. Use conciliação manual somente quando necessário.'
+          : 'Sua conta não possui permissão finance:write.'
+    : 'Este repasse já foi finalizado e não aceita novas alterações.';
+}
+
+function closeFinancePayoutDetail() {
+  renderFinancePayoutDetail(null);
+}
+
+async function openFinancePayout(payoutId) {
+  if (!state.token || !financeWritesAvailable()) return;
+  renderFinancePayoutDetail(null);
+  try {
+    const payout = await api.financePayout(state.token, payoutId);
+    renderFinancePayoutDetail(payout);
+    byId('finance-payout-detail')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleFinancePayoutApprove() {
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    payout == null ||
+    payout.status !== 'requested'
+  ) {
+    return;
+  }
+
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const confirmed = window.confirm(
+    `Aprovar a antecipação de ${formatCurrencyCents(grossCents)}? A taxa de ${formatCurrencyCents(payout.feeCents ?? 0)} será descontada e o Pix líquido de ${formatCurrencyCents(payout.amountCents)} será enviado pelo provedor configurado.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-approve-button');
+  button.disabled = true;
+  try {
+    const result = await api.approveFinancePayout(
+      state.token,
+      payout.id,
+    );
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.providerRetryPending === true
+        ? 'Antecipação aprovada. O provedor Pix ainda não confirmou o envio e a conciliação continuará automaticamente.'
+        : result.duplicate === true
+          ? 'Essa antecipação já estava aprovada.'
+          : 'Antecipação aprovada e enviada ao provedor Pix.',
+      result.providerRetryPending === true ? 'warning' : 'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !financeWritesAvailable() ||
+      current == null ||
+      current.status !== 'requested' ||
+      current.approvedAt != null;
+  }
+}
+
+async function handleFinancePayoutPaid(event) {
+  event.preventDefault();
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    payout == null ||
+    payout.requiresApproval === true
+  ) {
+    return;
+  }
+
+  const processor = byId('finance-payout-processor').value.trim();
+  const processorPayoutId =
+    byId('finance-payout-reference').value.trim();
+  if (processor.length < 2) {
+    setMessage(
+      globalMessage,
+      'Informe o método ou processador usado no repasse.',
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Confirma que o repasse de ${formatCurrencyCents(payout.amountCents)} já foi realizado para a chave Pix exibida? Esta ação fecha o saldo reservado como pago.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-paid-button');
+  button.disabled = true;
+  try {
+    const result = await api.completeFinancePayout(state.token, {
+      payoutId: payout.id,
+      processor,
+      ...(processorPayoutId ? { processorPayoutId } : {}),
+    });
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.duplicate
+        ? 'Esse repasse já estava registrado como pago.'
+        : 'Repasse registrado como pago e conciliado no ledger.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !financeWritesAvailable() ||
+      current == null ||
+      !['requested', 'processing'].includes(current.status);
+  }
+}
+
+async function handleFinancePayoutCancel() {
+  const payout = state.finance.selectedPayout;
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    payout == null
+  ) {
+    return;
+  }
+
+  const grossCents =
+    payout.requestedAmountCents ?? payout.amountCents;
+  const requiresApproval =
+    payout.requiresApproval === true ||
+    (
+      payout.payoutKind === 'anticipation' &&
+      payout.approvedAt == null
+    );
+  const confirmed = window.confirm(
+    requiresApproval
+      ? `Recusar a antecipação de ${formatCurrencyCents(grossCents)}? O valor reservado voltará ao saldo do motorista e a taxa não será cobrada.`
+      : `Cancelar o repasse de ${formatCurrencyCents(grossCents)}? O saldo será devolvido conforme o estado do ledger.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-cancel-button');
+  button.disabled = true;
+  try {
+    const result = await api.cancelFinancePayout(
+      state.token,
+      payout.id,
+    );
+    renderFinancePayoutDetail(result.payout);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.duplicate
+        ? 'Esse repasse já estava cancelado.'
+        : requiresApproval
+          ? 'Antecipação recusada. O valor bruto voltou ao saldo e nenhuma taxa foi cobrada.'
+          : 'Repasse cancelado e saldo devolvido conforme o ledger.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    const current = state.finance.selectedPayout;
+    button.disabled =
+      !financeWritesAvailable() ||
+      current == null ||
+      !['requested', 'processing'].includes(current.status);
+  }
+}
+
+async function handleFinancePayoutModeToggle() {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    state.finance.payoutPolicy == null
+  ) {
+    return;
+  }
+
+  const enable =
+    state.finance.payoutPolicy.automaticEnabled !== true;
+  const confirmed = window.confirm(
+    enable
+      ? 'Reativar repasses automáticos de segunda, quarta e sexta às 07:00?'
+      : 'Pausar os repasses automáticos? Enquanto estiver no modo manual, nenhum ciclo programado será criado.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-payout-mode-toggle');
+  button.disabled = true;
+  try {
+    await api.updateFinancePayoutPolicy(state.token, {
+      automaticEnabled: enable,
+    });
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      enable
+        ? 'Repasses automáticos reativados.'
+        : 'Repasses automáticos pausados. O Financeiro está em modo manual.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleManualFinancePayouts(driverIds) {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    !Array.isArray(driverIds) ||
+    driverIds.length === 0
+  ) {
+    return;
+  }
+
+  const candidates = new Map(
+    (state.finance.payoutCandidates ?? []).map((candidate) => [
+      candidate.driverId,
+      candidate,
+    ]),
+  );
+  const totalCents = driverIds.reduce(
+    (sum, driverId) =>
+      sum + numericMetric(candidates.get(driverId)?.availableBalanceCents),
+    0,
+  );
+
+  const confirmed = window.confirm(
+    `Enviar agora ${formatCurrencyCents(totalCents)} para ${driverIds.length} motorista(s) selecionado(s)? O Core usará o provedor Pix configurado.`,
+  );
+  if (!confirmed) return;
+
+  try {
+    const result = await api.createManualFinancePayouts(state.token, {
+      driverIds,
+      batchId: globalThis.crypto.randomUUID(),
+    });
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      `Lote manual processado: ${result.created?.length ?? 0} repasse(s) criado(s), ${result.skipped?.length ?? 0} ignorado(s).`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+function handleManualPayoutSelectAll(event) {
+  const checked = event.currentTarget.checked === true;
+  for (const checkbox of document.querySelectorAll(
+    '.finance-manual-payout-checkbox:not(:disabled)',
+  )) {
+    checkbox.checked = checked;
+  }
+  syncManualPayoutSelection();
+}
+
+async function handleCompanyPayoutDestinationSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+
+  const pixKeyType = byId('finance-company-pix-type').value;
+  const pixKey = byId('finance-company-pix-key').value.trim();
+  if (!pixKey) {
+    setMessage(
+      globalMessage,
+      'Informe a chave Pix da empresa.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-company-pix-save');
+  button.disabled = true;
+  try {
+    await api.saveCompanyPayoutDestination(state.token, {
+      pixKeyType,
+      pixKey,
+    });
+    byId('finance-company-pix-key').value = '';
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      'Chave Pix da empresa salva e auditada.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    renderCompanyPayoutControls();
+  }
+}
+
+function handleCompanyPayoutUseAll() {
+  const availableCents = numericMetric(
+    state.finance.companyPayout?.availableCents,
+  );
+  const input = byId('finance-company-payout-amount');
+  if (input == null || availableCents < 100) return;
+  input.value = (availableCents / 100).toFixed(2);
+}
+
+async function handleCompanyPayoutSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+
+  const company = state.finance.companyPayout ?? {};
+  const availableCents = numericMetric(company.availableCents);
+  const amount = Number(byId('finance-company-payout-amount').value);
+  const amountCents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amountCents < 100 ||
+    amountCents > availableCents ||
+    Math.abs(amount * 100 - amountCents) > 0.000001
+  ) {
+    setMessage(
+      globalMessage,
+      `Informe um valor entre R$ 1,00 e ${formatCurrencyCents(availableCents)}.`,
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Enviar ${formatCurrencyCents(amountCents)} do saldo da empresa para ${String(company.pixKeyType ?? '').toUpperCase()} · ${company.pixKeyMasked ?? '••••'}? O valor será reservado antes do envio Pix.`,
+  );
+  if (!confirmed) return;
+
+  const requestId =
+    state.finance.pendingCompanyPayoutRequestId ??
+    globalThis.crypto.randomUUID();
+  state.finance.pendingCompanyPayoutRequestId = requestId;
+
+  const button = byId('finance-company-payout-submit');
+  button.disabled = true;
+  try {
+    const result = await api.createCompanyPayout(state.token, {
+      amountCents,
+      requestId,
+    });
+    state.finance.pendingCompanyPayoutRequestId = null;
+    byId('finance-company-payout-amount').value = '';
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      result.providerRetryPending === true
+        ? 'Repasse da empresa reservado. O provedor Pix ainda não confirmou o envio e a reconciliação continuará automaticamente.'
+        : result.payout?.status === 'paid'
+          ? 'Repasse da empresa concluído por Pix.'
+          : 'Repasse da empresa enviado ao provedor Pix.',
+      result.providerRetryPending === true ? 'warning' : 'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.code !== 'NETWORK_ERROR'
+    ) {
+      state.finance.pendingCompanyPayoutRequestId = null;
+    }
+    handleAuthenticatedError(error);
+  } finally {
+    renderCompanyPayoutControls();
+  }
+}
+
+async function handleCompanyPayoutCancel(payoutId) {
+  if (!state.token || !companyPayoutWritesAvailable()) return;
+  const payout = (state.finance.companyPayouts ?? []).find(
+    (item) => item.id === payoutId,
+  );
+  if (payout == null || payout.status !== 'requested') return;
+
+  const confirmed = window.confirm(
+    `Cancelar o repasse de ${formatCurrencyCents(payout.amountCents)} da empresa? O valor reservado voltará ao saldo disponível.`,
+  );
+  if (!confirmed) return;
+
+  try {
+    await api.cancelCompanyPayout(state.token, payoutId);
+    await loadFinance({ announce: false });
+    setMessage(
+      globalMessage,
+      'Repasse da empresa cancelado e saldo devolvido.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function loadFinance({ announce = true } = {}) {
+  if (!state.token || !hasScope('finance:read')) {
+    renderFinance();
+    return;
+  }
+
+  const button = byId('refresh-finance-button');
+  button.disabled = true;
+  try {
+    const [payload, policy] = await Promise.all([
+      api.finance(state.token, 25),
+      api.paymentPolicy(state.token),
+    ]);
+    state.finance.writeLocked = false;
+    renderFinance(payload);
+    renderPaymentPolicy(policy);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Financeiro atualizado pelo ledger.',
+        'success',
+      );
+    }
+  } catch (error) {
+    state.finance.writeLocked = true;
+    renderFinanceReconciliation();
+    byId('finance-updated-at').textContent =
+      state.finance.generatedAt == null
+        ? 'Falha ao atualizar · sem dados atuais'
+        : `Falha ao atualizar · último dado ${formatDateTime(state.finance.generatedAt)}`;
+    renderPaymentPolicy(state.finance.policy);
+    renderFinancePayoutDetail(null);
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handlePaymentMethodsSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !financeWritesAvailable()) return;
+
+  const pixEnabled = byId('finance-pix-enabled').checked;
+  const cardEnabled = byId('finance-card-enabled').checked;
+  const walletEnabled = byId('finance-wallet-enabled').checked;
+  const cashEnabled = state.finance.policy?.cashEnabled === true;
+
+  if (!pixEnabled && !cardEnabled && !walletEnabled && !cashEnabled) {
+    setMessage(
+      globalMessage,
+      'Mantenha pelo menos uma forma de pagamento ativa.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-methods-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      pixEnabled,
+      cardEnabled,
+      walletEnabled,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Métodos de pagamento atualizados.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleDefaultCashLimitSubmit(event) {
+  event.preventDefault();
+  if (!state.token || !financeWritesAvailable()) return;
+
+  const amount = Number(byId('finance-cash-limit-input').value);
+  const cents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    amount > 1_000_000 ||
+    !Number.isInteger(cents)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um limite cash entre R$ 0,00 e R$ 1.000.000,00.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('finance-cash-limit-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      defaultCashDebtLimitCents: cents,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Limite cash padrão atualizado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleEnableCash() {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    state.finance.policy?.cashEnabled !== false ||
+    state.finance.policy?.cashActivationReady !== true
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    'Ativar pagamento em dinheiro para os passageiros? ' +
+      'A opção deixará de aparecer como “Em breve” imediatamente.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('finance-enable-cash-button');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cashEnabled: true,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Pagamento em dinheiro ativado.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handlePixPricePolicySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !financeWritesAvailable()) return;
+
+  const input = byId('finance-pix-price-percent');
+  const percent = Number(input.value);
+  const bps = Math.round(percent * 100);
+  if (
+    !Number.isFinite(percent) ||
+    percent < 0 ||
+    percent > 20 ||
+    !Number.isInteger(bps)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um percentual Pix entre 0% e 20%.',
+      'error',
+    );
+    return;
+  }
+
+  const button = byId('finance-pix-price-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      pixPriceAdjustmentBps: bps,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Preço do Pix atualizado. O Passageiro verá o novo total antes de pagar.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleCardPricePolicySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !financeWritesAvailable()) return;
+
+  const input = byId('finance-card-price-percent');
+  const percent = Number(input.value);
+  const bps = Math.round(percent * 100);
+  if (
+    !Number.isFinite(percent) ||
+    percent < 0 ||
+    percent > 20 ||
+    !Number.isInteger(bps)
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe um percentual entre 0% e 20%.',
+      'error',
+    );
+    return;
+  }
+
+  const button = byId('finance-card-price-save');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cardPriceAdjustmentBps: bps,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Preço do cartão atualizado. O Passageiro verá o novo total antes de pagar.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+async function handleDisableCash() {
+  if (
+    !state.token ||
+    !financeWritesAvailable() ||
+    state.finance.policy?.cashEnabled !== true
+  ) {
+    return;
+  }
+
+  const button = byId('finance-disable-cash-button');
+  button.disabled = true;
+  try {
+    const policy = await api.updatePaymentPolicy(state.token, {
+      cashEnabled: false,
+    });
+    renderPaymentPolicy(policy);
+    setMessage(
+      globalMessage,
+      'Dinheiro desativado com segurança.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !financeWritesAvailable();
+  }
+}
+
+function pricingValueLabel(value) {
+  if (value == null || typeof value !== 'object') return '—';
+  if (value.kind === 'exact') {
+    return formatCurrencyCents(value.amountCents);
+  }
+  if (value.kind === 'range') {
+    return (
+      `${formatCurrencyCents(value.minCents)} – ` +
+      formatCurrencyCents(value.maxCents)
+    );
+  }
+  return '—';
+}
+
+function pricingIdentifierLabel(value) {
+  return String(value ?? '—')
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) =>
+      part.length <= 3
+        ? part.toUpperCase()
+        : part[0].toUpperCase() + part.slice(1),
+    )
+    .join(' ');
+}
+
+function pricingMoneyToCents(value, label) {
+  const raw = String(value ?? '').trim();
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  const amount = Number(normalized);
+  const cents = Math.round(amount * 100);
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    !Number.isInteger(cents) ||
+    cents > 10_000_000
+  ) {
+    throw new Error(`${label} deve ser um valor positivo válido.`);
+  }
+  return cents;
+}
+
+function pricingDecimalValue(value, label, { min = 0, max = 100000 } = {}) {
+  const raw = String(value ?? '').trim().replace(',', '.');
+  const number = Number(raw);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw new Error(`${label} deve ficar entre ${min} e ${max}.`);
+  }
+  return Math.round(number * 1000) / 1000;
+}
+
+function pricingNonNegativeMoneyToCents(value, label) {
+  const amount = pricingDecimalValue(value, label, {
+    min: 0,
+    max: 100000,
+  });
+  return Math.round(amount * 100);
+}
+
+function pricingCentsToReais(cents) {
+  const number = Number(cents);
+  return Number.isFinite(number)
+    ? (number / 100).toFixed(2)
+    : '';
+}
+
+function pricingLines(value) {
+  return String(value ?? '')
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parsePricingDeliveryBands(value) {
+  const lines = String(value ?? '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error('Informe pelo menos uma faixa de entrega.');
+  }
+  return lines.map((line, index) => {
+    const parts = line.split(/\s*[|=;]\s*/);
+    if (parts.length !== 2) {
+      throw new Error(
+        `Faixa de entrega ${index + 1} deve usar o formato “km | R$”.`,
+      );
+    }
+    return {
+      maxKm: pricingDecimalValue(
+        parts[0],
+        `Distância da faixa ${index + 1}`,
+        { min: 0.1, max: 100 },
+      ),
+      amountCents: pricingMoneyToCents(
+        parts[1],
+        `Preço da faixa ${index + 1}`,
+      ),
+    };
+  });
+}
+
+function fillPricingPolicyFields(payload) {
+  if (payload == null) return;
+
+  const commercial = payload.commercialPolicy ?? {};
+  const commercialFields = {'pricing-commercial-jijoca-comfort':'jijocaComfortCents','pricing-commercial-prea-buggy-night':'preaBuggyAfter22Cents','pricing-commercial-buggy-extra':'buggyPerAdditionalPassengerCents','pricing-commercial-delivery-base':'deliveryBaseCents','pricing-commercial-delivery-excess':'deliveryPerExcessKmCents'};
+  for (const [id,key] of Object.entries(commercialFields)) byId(id).value = pricingCentsToReais(commercial[key]);
+  byId('pricing-commercial-jijoca-night').value = (commercial.jijocaNightBps ?? 3000)/100;
+  byId('pricing-commercial-delivery-included').value = commercial.deliveryIncludedKm ?? 5;
+  const shared = payload.sharedTransfers ?? {};
+  byId('pricing-shared-enabled').checked = shared.enabled === true;
+  byId('pricing-shared-phone').value = shared.whatsappPhone ?? '';
+  byId('pricing-shared-label').value = shared.buttonLabel ?? 'Compartilhado · Valor mais acessível';
+  byId('pricing-shared-message').value = shared.messageTemplate ?? 'Olá! Vim pelo Ramo Nessa e gostaria de consultar um transfer compartilhado de {origem} para {destino}.';
+  byId('pricing-shared-routes').value = (shared.routes ?? []).filter(route=>route.enabled).map(route=>`${route.originId} | ${route.destinationId}`).join('\n');
+  const commissionBps = Number(payload.commissionBps);
+  byId('pricing-commission-percent').value =
+    Number.isFinite(commissionBps)
+      ? String(commissionBps / 100)
+      : '';
+
+  const period = payload.periodPolicy ?? {};
+  byId('pricing-night-start-hour').value =
+    period.nightStartHour ?? 22;
+  byId('pricing-day-start-hour').value =
+    period.dayStartHour ?? 6;
+
+  const pickup = payload.pickupPolicy ?? {};
+  byId('pricing-pickup-free-km').value =
+    pickup.freeKm ?? '';
+  byId('pricing-fuel-price-reais').value =
+    pricingCentsToReais(pickup.fuelPriceCentsPerLiter);
+  byId('pricing-moto-km-liter').value =
+    pickup.motoReferenceKmPerLiter ?? '';
+  byId('pricing-car-km-liter').value =
+    pickup.carReferenceKmPerLiter ?? '';
+
+  const surcharges = payload.surcharges ?? {};
+  byId('pricing-prea-comfort-surcharge').value =
+    pricingCentsToReais(surcharges.preaComfortCents);
+  byId('pricing-prea-night-surcharge').value =
+    pricingCentsToReais(surcharges.preaLocalCarAfter22Cents);
+  byId('pricing-prea-night-localities').value =
+    Array.isArray(surcharges.preaLocalCarAfter22LocalityIds)
+      ? surcharges.preaLocalCarAfter22LocalityIds.join('\n')
+      : '';
+
+  const buggy = payload.jeri?.buggy ?? {};
+  byId('pricing-buggy-min-passengers').value =
+    buggy.minPassengers ?? '';
+  byId('pricing-buggy-max-passengers').value =
+    buggy.maxPassengers ?? '';
+  byId('pricing-buggy-day-price').value =
+    pricingCentsToReais(buggy.dayBaseCents);
+  byId('pricing-buggy-night-price').value =
+    pricingCentsToReais(buggy.after22BaseCents);
+  byId('pricing-buggy-passenger-price').value =
+    pricingCentsToReais(buggy.perPassengerCents);
+
+  const deliveryBands = Array.isArray(payload.jeri?.deliveryBands)
+    ? payload.jeri.deliveryBands
+    : [];
+  byId('pricing-delivery-bands').value = deliveryBands
+    .map(
+      (band) =>
+        `${String(band.maxKm).replace('.', ',')} | ${pricingCentsToReais(band.amountCents).replace('.', ',')}`,
+    )
+    .join('\n');
+  byId('pricing-delivery-above-max').value =
+    pricingCentsToReais(payload.jeri?.deliveryAboveMaxCents);
+}
+
+function pricingVersionStatusPresentation(version) {
+  if (version?.status === 'draft') {
+    return { label: 'Rascunho', tone: 'warning' };
+  }
+  if (
+    version?.status === 'published' &&
+    version?.id === state.pricingVersions.effectiveVersionId
+  ) {
+    return { label: 'Em vigor', tone: 'success' };
+  }
+  if (version?.status === 'published') {
+    const future =
+      version.effectiveFrom != null &&
+      Date.parse(version.effectiveFrom) > Date.now();
+    return future
+      ? { label: 'Agendada', tone: 'info' }
+      : { label: 'Publicada', tone: 'neutral' };
+  }
+  return { label: 'Desconhecida', tone: 'neutral' };
+}
+
+function renderPricingVersions() {
+  const createButton = byId('pricing-create-draft-button');
+  const label = byId('pricing-current-draft-label');
+  const draft =
+    state.pricingVersions.items.find(
+      (version) => version.status === 'draft',
+    ) ?? null;
+
+  if (label != null) {
+    label.textContent =
+      draft == null
+        ? 'Nenhum'
+        : `#${draft.versionNumber} · alterações não publicadas`;
+  }
+
+  if (createButton != null) {
+    createButton.hidden =
+      !hasScope('pricing:write') || draft != null;
+    createButton.disabled = false;
+  }
+}
+
+function renderPricingEditor(version = null) {
+  state.selectedPricingVersion = version;
+  const empty = byId('pricing-editor-empty');
+  const controls = byId('pricing-editor-controls');
+  const status = byId('pricing-editor-status');
+
+  if (version == null) {
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Nenhum';
+    controls.hidden = true;
+    empty.hidden = false;
+    empty.textContent =
+      'Clique em “Começar alterações” para editar tarifas e regras.';
+    return;
+  }
+
+  const presentation = pricingVersionStatusPresentation(version);
+  status.className = `pill pill--${presentation.tone}`;
+  status.textContent = presentation.label;
+
+  byId('pricing-selected-version-title').textContent =
+    `Versão #${version.versionNumber} · ${version.catalogVersion ?? 'v1'}`;
+  byId('pricing-selected-version-meta').textContent =
+    version.status === 'draft'
+      ? 'Alterações ficam isoladas até a publicação.'
+      : `Vigência: ${formatDateTime(version.effectiveFrom)}`;
+
+  const editable =
+    version.status === 'draft' && hasScope('pricing:write');
+  controls.hidden = !editable;
+  empty.hidden = editable;
+  if (!editable) {
+    empty.textContent =
+      version.status === 'published'
+        ? 'Esta versão já foi publicada e é imutável. O catálogo acima está em modo de consulta.'
+        : 'Sua conta não possui permissão para editar esta versão.';
+  }
+}
+
+function syncPricingEditFields() {
+  const kind = byId('pricing-edit-kind').value;
+  const groups = {
+    'pricing-commercial-policy-fields': 'commercial_policy',
+    'pricing-shared-transfers-fields': 'shared_transfers',
+    'pricing-fixed-route-fields': 'fixed_route',
+    'pricing-locality-fields': 'locality_price',
+    'pricing-locality-policy-fields': 'locality_policy',
+    'pricing-category-policy-fields': 'category_policy',
+    'pricing-zone-policy-fields': 'zone_policy',
+    'pricing-locality-map-fields': 'locality_map',
+    'pricing-locality-structure-fields': 'locality_structure',
+    'pricing-commission-policy-fields': 'commission_policy',
+    'pricing-period-policy-fields': 'period_policy',
+    'pricing-pickup-policy-fields': 'pickup_policy',
+    'pricing-surcharge-policy-fields': 'surcharge_policy',
+    'pricing-buggy-policy-fields': 'buggy_policy',
+    'pricing-delivery-bands-fields': 'delivery_bands',
+  };
+  for (const [id, groupKind] of Object.entries(groups)) {
+    byId(id).hidden = kind !== groupKind;
+  }
+
+  if (kind === 'locality_map') {
+    ensurePricingGeofenceMap();
+    requestAnimationFrame(() => {
+      state.pricingGeofenceMap?.render();
+    });
+  }
+  if (kind === 'locality_policy') {
+    syncPricingLocalityPolicyFields();
+  }
+}
+
+function syncPricingLocalityPriceFields() {
+  const range =
+    byId('pricing-locality-price-kind').value === 'range';
+  byId('pricing-locality-max-field').hidden = !range;
+  byId('pricing-locality-min-label').textContent =
+    range ? 'Mínimo (R$)' : 'Preço (R$)';
+}
+
+function pricingScopeDefault(scope) {
+  if (scope === 'prea') {
+    return { latitude: -2.82017, longitude: -40.41467 };
+  }
+  if (scope === 'jijoca') {
+    return { latitude: -2.89860, longitude: -40.45060 };
+  }
+  return { latitude: -2.906425, longitude: -40.357338 };
+}
+
+function setPricingLocalityMapCoordinate(selection) {
+  const latitude = Number(selection?.latitude);
+  const longitude = Number(selection?.longitude);
+  const radiusKm = Number(selection?.radiusKm);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(radiusKm)
+  ) {
+    return;
+  }
+
+  byId('pricing-locality-map-latitude').value =
+    latitude.toFixed(7);
+  byId('pricing-locality-map-longitude').value =
+    longitude.toFixed(7);
+  byId('pricing-locality-map-coordinate-label').textContent =
+    `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function ensurePricingGeofenceMap() {
+  if (state.pricingGeofenceMap != null) {
+    return state.pricingGeofenceMap;
+  }
+
+  const root = byId('pricing-locality-map');
+  if (root == null) return null;
+
+  state.pricingGeofenceMap = createPricingGeofenceMap({
+    root,
+    tiles: byId('pricing-locality-map-tiles'),
+    overlay: byId('pricing-locality-map-overlay'),
+    zoomIn: byId('pricing-locality-map-zoom-in'),
+    zoomOut: byId('pricing-locality-map-zoom-out'),
+    onChange(selection) {
+      setPricingLocalityMapCoordinate(selection);
+    },
+  });
+
+  const scope = byId('pricing-locality-map-scope').value;
+  const center = pricingScopeDefault(scope);
+  const radiusKm = Number(
+    byId('pricing-locality-map-radius').value || '2',
+  );
+  state.pricingGeofenceMap.setSelection({
+    ...center,
+    radiusKm,
+  });
+  setPricingLocalityMapCoordinate(
+    state.pricingGeofenceMap.getSelection(),
+  );
+  return state.pricingGeofenceMap;
+}
+
+function pricingLocalityExists(scope, localityId) {
+  if (!localityId) return false;
+  if (scope === 'external') {
+    return (state.pricingCatalog?.externalLocalities ?? [])
+      .includes(localityId);
+  }
+  const items = Array.isArray(
+    state.pricingCatalog?.localities?.[scope],
+  )
+    ? state.pricingCatalog.localities[scope]
+    : [];
+  return items.some((item) => item.localityId === localityId);
+}
+
+function findPricingGeofence(scope, localityId) {
+  const geofences = Array.isArray(
+    state.pricingCatalog?.localityGeofences,
+  )
+    ? state.pricingCatalog.localityGeofences
+    : [];
+  return geofences.find(
+    (geofence) =>
+      geofence.zoneId === scope &&
+      geofence.localityId === localityId,
+  ) ?? null;
+}
+
+function syncPricingLocalityMapSelection({ forceDefault = false } = {}) {
+  const map = ensurePricingGeofenceMap();
+  if (map == null) return;
+
+  const scope = byId('pricing-locality-map-scope').value;
+  const localityId =
+    byId('pricing-locality-map-id').value.trim();
+  const existing = findPricingGeofence(scope, localityId);
+  const radiusKm = Number(
+    byId('pricing-locality-map-radius').value || '2',
+  );
+
+  if (existing != null) {
+    byId('pricing-locality-map-radius').value =
+      String(existing.radiusKm);
+    map.setSelection({
+      latitude: existing.centerLatitude,
+      longitude: existing.centerLongitude,
+      radiusKm: existing.radiusKm,
+    });
+  } else if (forceDefault) {
+    map.setSelection({
+      ...pricingScopeDefault(scope),
+      radiusKm,
+    });
+  } else {
+    map.setRadiusKm(radiusKm);
+  }
+
+  setPricingLocalityMapCoordinate(map.getSelection());
+}
+
+function openPricingGeofenceEditor(geofence) {
+  byId('pricing-edit-kind').value = 'locality_map';
+  byId('pricing-locality-map-scope').value = geofence.zoneId;
+  byId('pricing-locality-map-id').value = geofence.localityId;
+  byId('pricing-locality-map-radius').value =
+    String(geofence.radiusKm);
+  syncPricingEditFields();
+  const map = ensurePricingGeofenceMap();
+  map?.setSelection({
+    latitude: geofence.centerLatitude,
+    longitude: geofence.centerLongitude,
+    radiusKm: geofence.radiusKm,
+  });
+  setPricingLocalityMapCoordinate(map?.getSelection());
+  byId('pricing-locality-map')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+}
+
+function findPricingLocalityEntry(hub, localityId) {
+  if (!localityId) return null;
+  const items = Array.isArray(
+    state.pricingCatalog?.localities?.[hub],
+  )
+    ? state.pricingCatalog.localities[hub]
+    : [];
+  return items.find(
+    (item) => item.localityId === localityId,
+  ) ?? null;
+}
+
+function syncPricingLocalityPolicyFields() {
+  const hub = byId('pricing-locality-policy-hub')?.value;
+  const localityId =
+    byId('pricing-locality-policy-id')?.value.trim() ?? '';
+  const entry = findPricingLocalityEntry(hub, localityId);
+  const enabled = new Set(
+    Array.isArray(entry?.policy?.enabledCategories)
+      ? entry.policy.enabledCategories
+      : [],
+  );
+
+  const buggyField = byId('pricing-locality-policy-buggy');
+  if (buggyField != null) buggyField.checked = enabled.has('buggy');
+  const moto = byId('pricing-locality-policy-moto');
+  const delivery = byId('pricing-locality-policy-delivery');
+  const car = byId('pricing-locality-policy-car');
+  const comfort = byId('pricing-locality-policy-comfort');
+  const night = byId('pricing-locality-policy-night');
+  if (moto != null) moto.checked = enabled.has('moto');
+  if (delivery != null) {
+    delivery.checked = enabled.has('delivery');
+  }
+  if (car != null) car.checked = enabled.has('car');
+  if (comfort != null) {
+    comfort.checked = enabled.has('comfort_black');
+  }
+  if (night != null) {
+    night.checked =
+      entry?.policy?.applyNightSurcharge === true;
+  }
+
+  const comfortField =
+    byId('pricing-locality-policy-comfort-field');
+  const nightField =
+    byId('pricing-locality-policy-night-field');
+  if (comfortField != null) {
+    comfortField.hidden = false;
+  }
+  if (nightField != null) {
+    nightField.hidden = false;
+  }
+}
+
+function openPricingLocalityPolicyEditor(hub, item) {
+  byId('pricing-edit-kind').value = 'locality_policy';
+  byId('pricing-locality-policy-hub').value = hub;
+  byId('pricing-locality-policy-id').value =
+    item.localityId;
+  syncPricingEditFields();
+  syncPricingLocalityPolicyFields();
+  byId('pricing-locality-policy-fields')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+  });
+}
+
+function renderPricingCatalog(payload = null) {
+  state.pricingCatalog = payload;
+
+  const prea = Array.isArray(payload?.localities?.prea)
+    ? payload.localities.prea
+    : [];
+  const jijoca = Array.isArray(payload?.localities?.jijoca)
+    ? payload.localities.jijoca
+    : [];
+  const localities = [
+    ...prea.map((item) => ({
+      base: 'Preá',
+      hub: 'prea',
+      item,
+    })),
+    ...jijoca.map((item) => ({
+      base: 'Jijoca',
+      hub: 'jijoca',
+      item,
+    })),
+  ];
+  const fixedRoutes = Array.isArray(payload?.fixedRoutes)
+    ? payload.fixedRoutes
+    : [];
+  const categoryPolicies = Array.isArray(payload?.categoryPolicies)
+    ? payload.categoryPolicies
+    : [];
+  const zonePolicies = Array.isArray(payload?.zonePolicies)
+    ? payload.zonePolicies
+    : [];
+  const versionLabel =
+    payload?.versionNumber == null
+      ? payload?.catalogVersion ?? '—'
+      : `#${payload.versionNumber}`;
+  byId('pricing-version').textContent = versionLabel;
+
+  const commissionBps = Number(payload?.commissionBps);
+  byId('pricing-commission').textContent =
+    Number.isFinite(commissionBps)
+      ? `${(commissionBps / 100).toLocaleString('pt-BR')}%`
+      : '—';
+
+  if (payload != null) {
+    fillPricingPolicyFields(payload);
+  }
+
+  byId('pricing-localities').textContent =
+    String(localities.length);
+  byId('pricing-fixed-routes').textContent =
+    String(fixedRoutes.length);
+  byId('pricing-route-count').textContent =
+    `${fixedRoutes.length} rota(s)`;
+  byId('pricing-category-count').textContent =
+    `${categoryPolicies.length} categoria(s)`;
+  byId('pricing-zone-count').textContent =
+    `${zonePolicies.length} zona(s)`;
+  const mode = byId('pricing-mode');
+  if (payload == null) {
+    mode.textContent = hasScope('pricing:read')
+      ? 'Aguardando catálogo'
+      : 'Sem permissão pricing:read';
+  } else if (payload.mode === 'versioned') {
+    mode.textContent =
+      `Versão #${payload.versionNumber ?? '—'} · ` +
+      (payload.editable ? 'rascunho' : 'publicada') +
+      (payload.effectiveFrom
+        ? ` · ${formatDateTime(payload.effectiveFrom)}`
+        : '');
+  } else {
+    mode.textContent =
+      `Catálogo ${payload.catalogVersion ?? '—'} · ` +
+      'fallback estático';
+  }
+
+  const zoneBody = byId('pricing-zone-policies-body');
+  zoneBody.replaceChildren();
+  for (const policy of zonePolicies) {
+    const row = document.createElement('tr');
+
+    const zone = document.createElement('td');
+    zone.textContent = pricingIdentifierLabel(policy.zoneId);
+
+    const status = document.createElement('td');
+    const pill = document.createElement('span');
+    pill.className =
+      `pill pill--${policy.enabled ? 'success' : 'danger'}`;
+    pill.textContent =
+      policy.enabled ? 'Ativa' : 'Desativada';
+    status.append(pill);
+
+    row.append(zone, status);
+    zoneBody.append(row);
+  }
+  byId('pricing-zone-policies-empty').hidden =
+    zonePolicies.length !== 0;
+
+  const categoryBody = byId('pricing-category-policies-body');
+  categoryBody.replaceChildren();
+  for (const policy of categoryPolicies) {
+    const row = document.createElement('tr');
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(policy.category);
+
+    const status = document.createElement('td');
+    const statusPill = document.createElement('span');
+    statusPill.className =
+      `pill pill--${policy.enabled ? 'success' : 'danger'}`;
+    statusPill.textContent =
+      policy.enabled ? 'Ativa' : 'Desativada';
+    status.append(statusPill);
+
+    const jeri = document.createElement('td');
+    jeri.textContent = policy.requiresFourByFourOnJeriBoundary
+      ? 'Exige 4x4'
+      : 'Sem exigência 4x4';
+
+    row.append(category, status, jeri);
+    categoryBody.append(row);
+  }
+  byId('pricing-category-policies-empty').hidden =
+    categoryPolicies.length !== 0;
+
+  const routeBody = byId('pricing-routes-body');
+  routeBody.replaceChildren();
+  for (const route of fixedRoutes) {
+    const row = document.createElement('tr');
+
+    const pair = document.createElement('td');
+    pair.textContent =
+      `${pricingIdentifierLabel(route.a)} → ` +
+      pricingIdentifierLabel(route.b);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(route.category);
+
+    const day = document.createElement('td');
+    day.textContent = formatCurrencyCents(route.dayCents);
+
+    const night = document.createElement('td');
+    night.textContent = formatCurrencyCents(route.after22Cents);
+
+    const rule = document.createElement('td');
+    rule.textContent = route.id;
+
+    row.append(pair, category, day, night, rule);
+    routeBody.append(row);
+  }
+  byId('pricing-routes-empty').hidden =
+    fixedRoutes.length !== 0;
+}
+
+async function loadPricingCatalog({ announce = true } = {}) {
+  if (!state.token || !hasScope('pricing:read')) {
+    renderPricingCatalog();
+    renderPricingEditor();
+    return;
+  }
+
+  const button = byId('refresh-pricing-button');
+  button.disabled = true;
+  try {
+    const payload = await api.pricingCatalog(state.token);
+    renderPricingCatalog(payload);
+    renderPricingEditor();
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Catálogo ativo de preços atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadPricingVersions({ announce = true } = {}) {
+  if (!state.token || !hasScope('pricing:read')) {
+    state.pricingVersions = {
+      items: [],
+      effectiveVersionId: null,
+    };
+    renderPricingVersions();
+    return;
+  }
+
+  try {
+    const payload = await api.pricingVersions(state.token);
+    state.pricingVersions = {
+      items: Array.isArray(payload?.items) ? payload.items : [],
+      effectiveVersionId:
+        typeof payload?.effectiveVersionId === 'string'
+          ? payload.effectiveVersionId
+          : null,
+    };
+    renderPricingVersions();
+    const draft =
+      state.pricingVersions.items.find(
+        (version) => version.status === 'draft',
+      ) ?? null;
+    if (draft != null) {
+      await openPricingVersion(draft.id);
+    } else {
+      renderPricingEditor();
+    }
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Estado das alterações pendentes atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function openPricingVersion(versionId) {
+  if (!state.token || !hasScope('pricing:read')) return;
+  try {
+    const payload = await api.getPricingVersion(
+      state.token,
+      versionId,
+    );
+    renderPricingCatalog(payload?.catalog ?? null);
+    renderPricingEditor(payload?.version ?? null);
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handlePricingCreateDraft() {
+  if (!state.token || !hasScope('pricing:write')) return;
+  const button = byId('pricing-create-draft-button');
+  button.disabled = true;
+  try {
+    const created = await api.createPricingVersion(state.token);
+    await loadPricingVersions({ announce: false });
+    setMessage(
+      globalMessage,
+      `Rascunho #${created.versionNumber} criado a partir do catálogo vigente.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function buildPricingDraftPatch() {
+  const kind = byId('pricing-edit-kind').value;
+  if (kind === 'commercial_policy') {
+    const existing = state.pricingCatalog?.commercialPolicy;
+    if (!existing) throw new Error('Abra uma versão da revisão comercial aprovada.');
+    return {kind,policy:{...existing,
+      jijocaNightBps: Math.round(pricingDecimalValue(byId('pricing-commercial-jijoca-night').value,'Adicional de Jijoca',{min:0,max:100})*100),
+      jijocaComfortCents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-jijoca-comfort').value,'Comfort de Jijoca'),
+      preaBuggyAfter22Cents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-prea-buggy-night').value,'Buggy noturno'),
+      buggyPerAdditionalPassengerCents:pricingNonNegativeMoneyToCents(byId('pricing-commercial-buggy-extra').value,'Passageiro adicional'),
+      deliveryBaseCents:pricingMoneyToCents(byId('pricing-commercial-delivery-base').value,'Entrega'),
+      deliveryIncludedKm:pricingDecimalValue(byId('pricing-commercial-delivery-included').value,'Km incluídos',{min:0,max:100}),
+      deliveryPerExcessKmCents:pricingMoneyToCents(byId('pricing-commercial-delivery-excess').value,'Km excedente'),
+    }};
+  }
+  if (kind === 'shared_transfers') {
+    const routes = byId('pricing-shared-routes').value.split(/\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+      const parts = line.split('|').map(value=>value.trim());
+      if (parts.length !== 2 || !parts[0] || !parts[1]) throw new Error('Use origem | destino em cada linha de rota.');
+      return {originId:parts[0],destinationId:parts[1],enabled:true};
+    });
+    return {kind,settings:{enabled:byId('pricing-shared-enabled').checked,
+      whatsappPhone:byId('pricing-shared-phone').value.trim(),buttonLabel:byId('pricing-shared-label').value.trim(),
+      messageTemplate:byId('pricing-shared-message').value.trim(),routes}};
+  }
+
+  if (kind === 'fixed_route') {
+    const routeId = byId('pricing-route-id').value.trim();
+    if (!routeId) {
+      throw new Error('Informe o ID da rota fixa.');
+    }
+    return {
+      kind: 'fixed_route',
+      routeId,
+      dayCents: pricingMoneyToCents(
+        byId('pricing-route-day').value,
+        'Preço dia',
+      ),
+      after22Cents: pricingMoneyToCents(
+        byId('pricing-route-night').value,
+        'Preço noturno',
+      ),
+    };
+  }
+
+  if (kind === 'locality_policy') {
+    const hub = byId('pricing-locality-policy-hub').value;
+    const localityId =
+      byId('pricing-locality-policy-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+
+    const enabledCategories = [];
+    if (byId('pricing-locality-policy-buggy')?.checked) enabledCategories.push('buggy');
+    if (byId('pricing-locality-policy-moto').checked) {
+      enabledCategories.push('moto');
+    }
+    if (byId('pricing-locality-policy-delivery').checked) {
+      enabledCategories.push('delivery');
+    }
+    if (byId('pricing-locality-policy-car').checked) {
+      enabledCategories.push('car');
+    }
+    if (
+      byId('pricing-locality-policy-comfort').checked
+    ) {
+      enabledCategories.push('comfort_black');
+    }
+
+    return {
+      kind,
+      hub,
+      localityId,
+      enabledCategories,
+      applyNightSurcharge:
+        byId('pricing-locality-policy-night').checked,
+    };
+  }
+
+  if (kind === 'category_policy') {
+    return {
+      kind: 'category_policy',
+      category: byId('pricing-policy-category').value,
+      enabled: byId('pricing-policy-enabled').value === 'true',
+      requiresFourByFourOnJeriBoundary:
+        byId('pricing-policy-four-by-four').value === 'true',
+    };
+  }
+
+  if (kind === 'zone_policy') {
+    return {
+      kind: 'zone_policy',
+      zoneId: byId('pricing-zone-policy-id').value,
+      enabled: byId('pricing-zone-policy-enabled').value === 'true',
+    };
+  }
+
+  if (kind === 'locality_map') {
+    const scope = byId('pricing-locality-map-scope').value;
+    const localityId =
+      byId('pricing-locality-map-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+    const centerLatitude = Number(
+      byId('pricing-locality-map-latitude').value,
+    );
+    const centerLongitude = Number(
+      byId('pricing-locality-map-longitude').value,
+    );
+    const radiusKm = pricingDecimalValue(
+      byId('pricing-locality-map-radius').value,
+      'Raio da localidade',
+      { min: 0.05, max: 100 },
+    );
+    if (
+      !Number.isFinite(centerLatitude) ||
+      !Number.isFinite(centerLongitude)
+    ) {
+      throw new Error(
+        'Clique no mapa para posicionar o alfinete da localidade.',
+      );
+    }
+    return {
+      kind: 'locality_map',
+      scope,
+      zoneId: scope,
+      localityId,
+      centerLatitude,
+      centerLongitude,
+      radiusKm,
+    };
+  }
+
+  if (kind === 'locality_structure') {
+    const localityId =
+      byId('pricing-locality-structure-id').value.trim();
+    if (!localityId) {
+      throw new Error('Informe o ID da localidade.');
+    }
+    return {
+      kind: 'locality_structure',
+      operation:
+        byId('pricing-locality-structure-operation').value,
+      scope:
+        byId('pricing-locality-structure-scope').value,
+      localityId,
+    };
+  }
+
+  if (kind === 'commission_policy') {
+    const percent = pricingDecimalValue(
+      byId('pricing-commission-percent').value,
+      'Comissão',
+      { min: 0, max: 100 },
+    );
+    return {
+      kind,
+      commissionBps: Math.round(percent * 100),
+    };
+  }
+
+  if (kind === 'period_policy') {
+    const nightStartHour = Number(
+      byId('pricing-night-start-hour').value,
+    );
+    const dayStartHour = Number(
+      byId('pricing-day-start-hour').value,
+    );
+    if (
+      !Number.isInteger(nightStartHour) ||
+      !Number.isInteger(dayStartHour) ||
+      nightStartHour < 0 ||
+      nightStartHour > 23 ||
+      dayStartHour < 0 ||
+      dayStartHour > 23 ||
+      nightStartHour === dayStartHour
+    ) {
+      throw new Error('Informe horários válidos e diferentes entre 0 e 23.');
+    }
+    return { kind, nightStartHour, dayStartHour };
+  }
+
+  if (kind === 'pickup_policy') {
+    return {
+      kind,
+      freeKm: pricingDecimalValue(
+        byId('pricing-pickup-free-km').value,
+        'Distância grátis',
+        { min: 0, max: 100 },
+      ),
+      fuelPriceCentsPerLiter: pricingMoneyToCents(
+        byId('pricing-fuel-price-reais').value,
+        'Preço do combustível',
+      ),
+      motoReferenceKmPerLiter: pricingDecimalValue(
+        byId('pricing-moto-km-liter').value,
+        'Consumo da moto',
+        { min: 1, max: 200 },
+      ),
+      carReferenceKmPerLiter: pricingDecimalValue(
+        byId('pricing-car-km-liter').value,
+        'Consumo do carro',
+        { min: 1, max: 100 },
+      ),
+    };
+  }
+
+  if (kind === 'surcharge_policy') {
+    return {
+      kind,
+      preaComfortCents: pricingNonNegativeMoneyToCents(
+        byId('pricing-prea-comfort-surcharge').value,
+        'Adicional Comfort/Black',
+      ),
+      preaLocalCarAfter22Cents:
+        pricingNonNegativeMoneyToCents(
+          byId('pricing-prea-night-surcharge').value,
+          'Adicional noturno do Preá',
+        ),
+      preaLocalCarAfter22LocalityIds: pricingLines(
+        byId('pricing-prea-night-localities').value,
+      ),
+    };
+  }
+
+  if (kind === 'buggy_policy') {
+    return {
+      kind,
+      minPassengers: Number(
+        byId('pricing-buggy-min-passengers').value,
+      ),
+      maxPassengers: Number(
+        byId('pricing-buggy-max-passengers').value,
+      ),
+      dayBaseCents: pricingMoneyToCents(
+        byId('pricing-buggy-day-price').value,
+        'Preço diurno do Buggy',
+      ),
+      after22BaseCents: pricingMoneyToCents(
+        byId('pricing-buggy-night-price').value,
+        'Preço noturno do Buggy',
+      ),
+      perPassengerCents: pricingNonNegativeMoneyToCents(
+        byId('pricing-buggy-passenger-price').value,
+        'Adicional por passageiro',
+      ),
+    };
+  }
+
+  if (kind === 'delivery_bands') {
+    return {
+      kind,
+      bands: parsePricingDeliveryBands(
+        byId('pricing-delivery-bands').value,
+      ),
+      aboveMaxCents: pricingMoneyToCents(
+        byId('pricing-delivery-above-max').value,
+        'Preço acima da última faixa',
+      ),
+    };
+  }
+
+  const localityId = byId('pricing-locality-id').value.trim();
+  if (!localityId) {
+    throw new Error('Informe o ID da localidade.');
+  }
+  const priceKind = byId('pricing-locality-price-kind').value;
+  const minCents = pricingMoneyToCents(
+    byId('pricing-locality-min').value,
+    priceKind === 'range' ? 'Preço mínimo' : 'Preço',
+  );
+
+  return {
+    kind: 'locality_price',
+    hub: byId('pricing-locality-hub').value,
+    localityId,
+    category: byId('pricing-locality-category').value,
+    period: byId('pricing-locality-period').value,
+    price:
+      priceKind === 'range'
+        ? {
+            kind: 'range',
+            minCents,
+            maxCents: pricingMoneyToCents(
+              byId('pricing-locality-max').value,
+              'Preço máximo',
+            ),
+          }
+        : {
+            kind: 'exact',
+            amountCents: minCents,
+          },
+  };
+}
+
+async function handlePricingEditSubmit(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+
+  const version = state.selectedPricingVersion;
+  if (
+    !state.token ||
+    !hasScope('pricing:write') ||
+    version?.status !== 'draft'
+  ) {
+    setMessage(
+      globalMessage,
+      'Abra um rascunho editável antes de salvar.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('pricing-save-draft-button');
+  button.disabled = true;
+  try {
+    const patch = buildPricingDraftPatch();
+    let payload;
+
+    if (patch.kind === 'locality_map') {
+      let expectedUpdatedAt = version.updatedAt;
+      const exists = pricingLocalityExists(
+        patch.scope,
+        patch.localityId,
+      );
+
+      if (!exists) {
+        const created = await api.updatePricingVersion(
+          state.token,
+          {
+            versionId: version.id,
+            patch: {
+              kind: 'locality_structure',
+              operation: 'add',
+              scope: patch.scope,
+              localityId: patch.localityId,
+            },
+            expectedUpdatedAt,
+          },
+        );
+        expectedUpdatedAt = created.version.updatedAt;
+        renderPricingCatalog(created.catalog);
+        renderPricingEditor(created.version);
+      }
+
+      payload = await api.updatePricingVersion(state.token, {
+        versionId: version.id,
+        patch: {
+          kind: 'locality_geofence',
+          operation: 'upsert',
+          zoneId: patch.zoneId,
+          localityId: patch.localityId,
+          centerLatitude: patch.centerLatitude,
+          centerLongitude: patch.centerLongitude,
+          radiusKm: patch.radiusKm,
+        },
+        expectedUpdatedAt,
+      });
+
+      renderPricingCatalog(payload.catalog);
+      renderPricingEditor(payload.version);
+
+      if (patch.scope === 'prea' || patch.scope === 'jijoca') {
+        byId('pricing-edit-kind').value = 'locality_price';
+        byId('pricing-locality-hub').value = patch.scope;
+        byId('pricing-locality-id').value = patch.localityId;
+        syncPricingEditFields();
+        setMessage(
+          globalMessage,
+          'Localidade e área salvas no rascunho. Agora configure o preço desta localidade.',
+          'success',
+        );
+      } else {
+        setMessage(
+          globalMessage,
+          'Destino externo e área salvos no rascunho. Agora configure a rota/preço aplicável.',
+          'success',
+        );
+      }
+    } else {
+      payload = await api.updatePricingVersion(state.token, {
+        versionId: version.id,
+        patch,
+        expectedUpdatedAt: version.updatedAt,
+      });
+      renderPricingCatalog(payload.catalog);
+      renderPricingEditor(payload.version);
+    }
+    await loadPricingVersions({ announce: false });
+    if (patch.kind !== 'locality_map') {
+      setMessage(
+        globalMessage,
+        'Alteração salva somente no rascunho.',
+        'success',
+      );
+    }
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handlePricingPublish() {
+  const version = state.selectedPricingVersion;
+  if (
+    !state.token ||
+    !hasScope('pricing:write') ||
+    version?.status !== 'draft'
+  ) {
+    setMessage(
+      globalMessage,
+      'Abra um rascunho antes de publicar.',
+      'danger',
+    );
+    return;
+  }
+
+  const rawEffective = byId('pricing-effective-from').value;
+  let effectiveFrom = '';
+  if (rawEffective) {
+    const parsed = new Date(rawEffective);
+    if (Number.isNaN(parsed.getTime())) {
+      setMessage(
+        globalMessage,
+        'A vigência informada é inválida.',
+        'danger',
+      );
+      return;
+    }
+    effectiveFrom = parsed.toISOString();
+  }
+
+  const publishWhen = effectiveFrom
+    ? `com vigência em ${formatDateTime(effectiveFrom)}`
+    : 'com vigência imediata';
+  const confirmed = window.confirm(
+    `Publicar a versão #${version.versionNumber} ${publishWhen}? ` +
+      'Esta ação coloca o catálogo em produção e não pode ser desfeita editando esta mesma versão.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('pricing-publish-button');
+  button.disabled = true;
+  try {
+    const published = await api.publishPricingVersion(
+      state.token,
+      {
+        versionId: version.id,
+        effectiveFrom,
+        expectedUpdatedAt: version.updatedAt,
+      },
+    );
+    byId('pricing-effective-from').value = '';
+    await loadPricingVersions({ announce: false });
+    await loadPricingCatalog({ announce: false });
+    setMessage(
+      globalMessage,
+      published.effectiveFrom
+        ? `Versão #${published.versionNumber} publicada com vigência em ${formatDateTime(published.effectiveFrom)}.`
+        : `Versão #${published.versionNumber} publicada.`,
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderDriverSummary(summary) {
+  const normalized = {
+    total: Number(summary?.total ?? 0),
+    active: Number(summary?.active ?? 0),
+    suspended: Number(summary?.suspended ?? 0),
+  };
+  state.driverDirectory.summary = normalized;
+
+  const total = byId('drivers-total');
+  const active = byId('drivers-active');
+  const suspended = byId('drivers-suspended');
+  const directorySummary = byId('driver-directory-summary');
+  if (total != null) total.textContent = String(normalized.total);
+  if (active != null) active.textContent = String(normalized.active);
+  if (suspended != null) {
+    suspended.textContent = String(normalized.suspended);
+  }
+  if (directorySummary != null) {
+    directorySummary.textContent =
+      `${normalized.total} motorista(s)`;
+  }
+}
+
+function renderDriverDirectory() {
+  const body = byId('driver-directory-body');
+  const empty = byId('driver-directory-empty');
+  const more = byId('driver-directory-more');
+  const count = byId('driver-directory-count');
+  body.replaceChildren();
+
+  const items = state.driverDirectory.items;
+  for (const driver of items) {
+    const row = document.createElement('tr');
+
+    const identity = document.createElement('td');
+    const driverId = document.createElement('strong');
+    driverId.textContent = driver.driverId;
+    identity.append(driverId);
+
+    const phone = document.createElement('td');
+    phone.textContent = driver.phoneE164 ?? '—';
+
+    const status = document.createElement('td');
+    const presentation = statusPresentation(driver.status);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    if (driver.registrationOnly) { pill.textContent = 'Aguardando aprovação'; pill.className = 'pill pill--warning'; }
+    status.append(pill);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(driver.updatedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir';
+    open.addEventListener('click', () => {
+      byId('driver-search-id').value = driver.driverId;
+      void lookupDriver(driver.driverId).then(() => {
+        byId('driver-result').scrollIntoView({ block: 'center' });
+      });
+    });
+    actions.append(open);
+
+    row.append(identity, phone, status, updated, actions);
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.driverDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent =
+    `${items.length} carregado(s) · ` +
+    `${state.driverDirectory.summary.total} total`;
+}
+
+async function loadDriverDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('drivers:auth:read')) {
+    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
+    state.driverDirectory.items = [];
+    state.driverDirectory.nextCursor = null;
+    renderDriverDirectory();
+    return;
+  }
+
+  const more = byId('driver-directory-more');
+  if (reset) {
+    state.driverDirectory.query =
+      byId('driver-directory-query').value.trim();
+    state.driverDirectory.status =
+      byId('driver-directory-status').value;
+    state.driverDirectory.items = [];
+    state.driverDirectory.nextCursor = null;
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.drivers(state.token, {
+      query: state.driverDirectory.query,
+      status: state.driverDirectory.status,
+      limit: 25,
+      cursor: reset ? null : state.driverDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.driverDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.driverDirectory.items.map((item) => item.driverId),
+      );
+      state.driverDirectory.items.push(
+        ...incoming.filter((item) => !known.has(item.driverId)),
+      );
+    }
+    state.driverDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+    renderDriverSummary(payload?.summary);
+    renderDriverDirectory();
+
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de motoristas atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function passengerStatusPresentation(status) {
+  if (status === 'active') {
+    return { label: 'Ativo', tone: 'success' };
+  }
+  if (status === 'suspended') {
+    return { label: 'Suspenso', tone: 'danger' };
+  }
+  return { label: 'Desconhecido', tone: 'neutral' };
+}
+
+function renderPassengerSummary(summary) {
+  const normalized = {
+    total: Number(summary?.total ?? 0),
+    active: Number(summary?.active ?? 0),
+    suspended: Number(summary?.suspended ?? 0),
+  };
+  state.passengerDirectory.summary = normalized;
+  byId('passengers-total').textContent = String(normalized.total);
+  byId('passengers-active').textContent = String(normalized.active);
+  byId('passengers-suspended').textContent = String(normalized.suspended);
+  byId('passenger-directory-summary').textContent =
+    `${normalized.total} passageiro(s)`;
+}
+
+function renderPassengerDirectory() {
+  const body = byId('passenger-directory-body');
+  const empty = byId('passenger-directory-empty');
+  const more = byId('passenger-directory-more');
+  const count = byId('passenger-directory-count');
+  body.replaceChildren();
+
+  const items = state.passengerDirectory.items;
+  for (const passenger of items) {
+    const row = document.createElement('tr');
+
+    const identity = document.createElement('td');
+    const passengerId = document.createElement('strong');
+    passengerId.textContent = passenger.passengerId;
+    identity.append(passengerId);
+
+    const phone = document.createElement('td');
+    phone.textContent = passenger.phoneE164 ?? '—';
+
+    const status = document.createElement('td');
+    const presentation = passengerStatusPresentation(passenger.status);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${presentation.tone}`;
+    pill.textContent = presentation.label;
+    status.append(pill);
+
+    const created = document.createElement('td');
+    created.textContent = formatDateTime(passenger.createdAt);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(passenger.updatedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    if (hasScope('rides:read')) {
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'button button--table';
+      open.textContent = 'Abrir';
+      open.addEventListener('click', () => {
+        void lookupPassenger(passenger.passengerId);
+      });
+      actions.append(open);
+    }
+
+    row.append(identity, phone, status, created, updated, actions);
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.passengerDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent =
+    `${items.length} carregado(s) · ` +
+    `${state.passengerDirectory.summary.total} total`;
+}
+
+async function loadPassengerDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('passengers:auth:read')) {
+    renderPassengerSummary({ total: 0, active: 0, suspended: 0 });
+    state.passengerDirectory.items = [];
+    state.passengerDirectory.nextCursor = null;
+    renderPassengerDirectory();
+    return;
+  }
+
+  const more = byId('passenger-directory-more');
+  if (reset) {
+    state.passengerDirectory.query =
+      byId('passenger-directory-query').value.trim();
+    state.passengerDirectory.status =
+      byId('passenger-directory-status').value;
+    state.passengerDirectory.items = [];
+    state.passengerDirectory.nextCursor = null;
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.passengers(state.token, {
+      query: state.passengerDirectory.query,
+      status: state.passengerDirectory.status,
+      limit: 25,
+      cursor: reset ? null : state.passengerDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.passengerDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.passengerDirectory.items.map(
+          (item) => item.passengerId,
+        ),
+      );
+      state.passengerDirectory.items.push(
+        ...incoming.filter(
+          (item) => !known.has(item.passengerId),
+        ),
+      );
+    }
+
+    state.passengerDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderPassengerSummary(payload?.summary);
+    renderPassengerDirectory();
+
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de passageiros atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderPassengerDetailEmpty(
+  message = 'Abra um passageiro na tabela para ver identidade e histórico recente.',
+) {
+  clearPassengerPhoto();
+  state.selectedPassenger = null;
+  const content = byId('passenger-detail-content');
+  content.replaceChildren();
+  content.className = 'passenger-detail-content empty-state';
+  content.textContent = message;
+
+  const status = byId('passenger-detail-status');
+  status.className = 'pill pill--neutral';
+  status.textContent = 'Nenhum';
+
+  byId('passenger-detail-history').hidden = true;
+  byId('passenger-access-actions').hidden = true;
+  byId('passenger-profile-edit-form').hidden = true;
+  byId('passenger-profile-full-name').value = '';
+  byId('passenger-profile-email').value = '';
+  byId('passenger-detail-rides-body').replaceChildren();
+  byId('passenger-operational-detail').hidden = true;
+  byId('passenger-wallet-balance').textContent = 'Sem permissão';
+  byId('passenger-saved-places-count').textContent = '0';
+  byId('passenger-notification-devices-count').textContent =
+    'Sem permissão';
+  byId('passenger-saved-places-body').replaceChildren();
+  byId('passenger-notification-devices-body').replaceChildren();
+}
+
+function passengerDetailItem(label, value) {
+  const item = document.createElement('div');
+  item.className = 'passenger-detail-item';
+  const term = document.createElement('span');
+  term.textContent = label;
+  const data = document.createElement('strong');
+  data.textContent = value;
+  item.append(term, data);
+  return item;
+}
+
+function savedPlaceKindLabel(kind) {
+  if (kind === 'home') return 'Casa';
+  if (kind === 'work') return 'Trabalho';
+  return 'Personalizado';
+}
+
+function renderPassengerOperationalDetail(payload) {
+  clearPassengerPhoto();
+  const photoEmpty = byId('passenger-photo-empty');
+  photoEmpty.textContent = payload?.passenger?.photoUpdatedAt
+    ? 'Carregando foto cadastrada…'
+    : 'Nenhuma foto cadastrada.';
+  const savedPlaces = Array.isArray(payload?.savedPlaces)
+    ? payload.savedPlaces
+    : [];
+  byId('passenger-saved-places-count').textContent = String(
+    savedPlaces.length,
+  );
+
+  const placesBody = byId('passenger-saved-places-body');
+  placesBody.replaceChildren();
+  for (const place of savedPlaces) {
+    const row = document.createElement('tr');
+    const kind = document.createElement('td');
+    kind.textContent = savedPlaceKindLabel(place.kind);
+    const name = document.createElement('td');
+    name.textContent = place.name || place.label || '—';
+    const address = document.createElement('td');
+    address.textContent = place.address || '—';
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(place.updatedAt);
+    row.append(kind, name, address, updated);
+    placesBody.append(row);
+  }
+  byId('passenger-saved-places-empty').hidden =
+    savedPlaces.length !== 0;
+
+  const wallet = payload?.wallet;
+  byId('passenger-wallet-balance').textContent =
+    wallet == null
+      ? 'Sem permissão'
+      : formatCurrencyCents(wallet.balanceCents);
+
+  const notifications = payload?.notifications;
+  const devices = Array.isArray(notifications?.devices)
+    ? notifications.devices
+    : [];
+  byId('passenger-notification-devices-count').textContent =
+    notifications == null
+      ? 'Sem permissão'
+      : String(Number(notifications.enabledDevices ?? devices.length));
+
+  const devicesBody = byId('passenger-notification-devices-body');
+  devicesBody.replaceChildren();
+  for (const device of devices) {
+    const row = document.createElement('tr');
+    const platform = document.createElement('td');
+    platform.textContent =
+      device.platform === 'ios' ? 'iOS' : 'Android';
+    const provider = document.createElement('td');
+    provider.textContent = String(device.provider ?? '—').toUpperCase();
+    const version = document.createElement('td');
+    version.textContent = device.appVersion
+      ? `${device.appVersion}${device.buildNumber == null ? '' : ` (${device.buildNumber})`}`
+      : device.buildNumber == null
+        ? '—'
+        : String(device.buildNumber);
+    const lastSeen = document.createElement('td');
+    lastSeen.textContent = formatDateTime(
+      device.lastSeenAt ?? device.updatedAt,
+    );
+    row.append(platform, provider, version, lastSeen);
+    devicesBody.append(row);
+  }
+  byId('passenger-notification-devices-empty').hidden =
+    devices.length !== 0;
+  byId('passenger-operational-detail').hidden = false;
+}
+
+async function loadPassengerPhoto(passengerId) {
+  if (!state.token || !hasScope('passengers:auth:read')) return;
+  try {
+    const file = await api.getPassengerPhoto(
+      state.token,
+      passengerId,
+    );
+    if (
+      state.selectedPassenger?.passenger?.passengerId !== passengerId
+    ) {
+      return;
+    }
+    clearPassengerPhoto();
+    const blob = new Blob([file.bytes], { type: file.contentType });
+    state.passengerPhotoObjectUrl = URL.createObjectURL(blob);
+    const image = byId('passenger-photo-preview');
+    image.src = state.passengerPhotoObjectUrl;
+    image.hidden = false;
+    byId('passenger-photo-empty').hidden = true;
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      clearPassengerPhoto();
+      return;
+    }
+    clearPassengerPhoto();
+    byId('passenger-photo-empty').textContent =
+      'Não foi possível carregar a foto cadastrada.';
+  }
+}
+
+function renderPassengerDetail(payload) {
+  state.selectedPassenger = payload;
+  const passenger = payload?.passenger;
+  if (passenger == null) {
+    renderPassengerDetailEmpty('Ficha do passageiro indisponível.');
+    return;
+  }
+
+  const presentation = passengerStatusPresentation(passenger.status);
+  const status = byId('passenger-detail-status');
+  status.className = `pill pill--${presentation.tone}`;
+  status.textContent = presentation.label;
+
+  const content = byId('passenger-detail-content');
+  content.replaceChildren();
+  content.className = 'passenger-detail-content';
+
+  const identity = document.createElement('div');
+  identity.className = 'passenger-detail-identity';
+  const title = document.createElement('div');
+  const kicker = document.createElement('span');
+  kicker.className = 'eyebrow eyebrow--dark';
+  kicker.textContent = 'PASSAGEIRO';
+  const id = document.createElement('h3');
+  id.textContent = passenger.passengerId;
+  title.append(kicker, id);
+  identity.append(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'passenger-detail-grid';
+  grid.append(
+    passengerDetailItem('Nome', passenger.fullName ?? '—'),
+    passengerDetailItem('E-mail', passenger.email ?? '—'),
+    passengerDetailItem('Telefone', passenger.phoneE164 ?? '—'),
+    passengerDetailItem('Status', presentation.label),
+    passengerDetailItem('Criado', formatDateTime(passenger.createdAt)),
+    passengerDetailItem(
+      'Atualizado',
+      formatDateTime(passenger.updatedAt),
+    ),
+  );
+  content.append(identity, grid);
+
+  const canEditProfile = hasScope('passengers:auth:write');
+  const editForm = byId('passenger-profile-edit-form');
+  editForm.hidden = !canEditProfile;
+  byId('passenger-profile-full-name').value =
+    passenger.fullName ?? '';
+  byId('passenger-profile-email').value =
+    passenger.email ?? '';
+  byId('passenger-profile-full-name').disabled = !canEditProfile;
+  byId('passenger-profile-email').disabled = !canEditProfile;
+  byId('passenger-profile-save-button').disabled =
+    !canEditProfile;
+
+  const accessActions = byId('passenger-access-actions');
+  const accessButton = byId('passenger-access-button');
+  const accessNote = byId('passenger-access-note');
+  const canManageAccess = hasScope('passengers:auth:write');
+  accessActions.hidden = !canManageAccess;
+  if (canManageAccess) {
+    const blocking = passenger.status === 'active';
+    accessButton.dataset.nextStatus =
+      blocking ? 'suspended' : 'active';
+    accessButton.textContent =
+      blocking ? 'Bloquear acesso' : 'Desbloquear acesso';
+    accessButton.className = blocking
+      ? 'button button--danger'
+      : 'button button--dark';
+    accessButton.disabled = false;
+    accessNote.textContent = blocking
+      ? 'O bloqueio revoga imediatamente todas as sessões do passageiro.'
+      : 'O desbloqueio libera novo login, mas não restaura sessões revogadas.';
+  }
+
+  const summary = payload?.rides ?? {};
+  byId('passenger-detail-total-rides').textContent =
+    String(numericMetric(summary.total));
+  byId('passenger-detail-active-rides').textContent =
+    String(numericMetric(summary.active));
+  byId('passenger-detail-completed-rides').textContent =
+    String(numericMetric(summary.completed));
+  byId('passenger-detail-cancelled-rides').textContent =
+    String(numericMetric(summary.cancelled));
+  byId('passenger-detail-completed-amount').textContent =
+    formatCurrencyCents(summary.completedAmountCents);
+
+  const rides = Array.isArray(payload?.recentRides)
+    ? payload.recentRides
+    : [];
+  const body = byId('passenger-detail-rides-body');
+  body.replaceChildren();
+
+  for (const ride of rides) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const pill = document.createElement('span');
+    pill.className = `pill pill--${stateInfo.tone}`;
+    pill.textContent = stateInfo.label;
+    stateCell.append(pill);
+
+    const route = document.createElement('td');
+    const routeName = document.createElement('strong');
+    routeName.textContent =
+      `${locationLabel(ride.origin)} → ${locationLabel(ride.destination)}`;
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = ride.id;
+    route.append(routeName, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(ride.totalAmountCents);
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    row.append(stateCell, route, category, amount, updated);
+    body.append(row);
+  }
+
+  byId('passenger-detail-rides-empty').hidden = rides.length !== 0;
+  byId('passenger-detail-history').hidden = false;
+  renderPassengerOperationalDetail(payload);
+}
+
+async function lookupPassenger(passengerId) {
+  if (
+    !state.token ||
+    !hasScope('passengers:auth:read') ||
+    !hasScope('rides:read')
+  ) {
+    renderPassengerDetailEmpty(
+      'Sua conta precisa de passengers:auth:read e rides:read para abrir a ficha.',
+    );
+    return;
+  }
+
+  renderPassengerDetailEmpty('Carregando ficha do passageiro…');
+  try {
+    const [profile, wallet, notifications] = await Promise.all([
+      api.getPassenger(state.token, passengerId),
+      hasScope('finance:read')
+        ? api.getPassengerWallet(state.token, passengerId)
+        : Promise.resolve(null),
+      hasScope('communications:read')
+        ? api.getPassengerNotifications(state.token, passengerId)
+        : Promise.resolve(null),
+    ]);
+    renderPassengerDetail({
+      ...profile,
+      wallet,
+      notifications,
+    });
+    if (profile?.passenger?.photoUpdatedAt) {
+      void loadPassengerPhoto(passengerId);
+    }
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      renderPassengerDetailEmpty('Passageiro não encontrado.');
+      return;
+    }
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handlePassengerProfileEdit(event) {
+  event.preventDefault();
+
+  const passenger =
+    state.selectedPassenger?.passenger;
+  const passengerId = passenger?.passengerId;
+  if (
+    !state.token ||
+    !passengerId ||
+    !hasScope('passengers:auth:write')
+  ) {
+    return;
+  }
+
+  const fullName =
+    byId('passenger-profile-full-name').value.trim();
+  const email =
+    byId('passenger-profile-email').value.trim();
+  const currentFullName =
+    String(passenger.fullName ?? '').trim();
+  const currentEmail =
+    String(passenger.email ?? '').trim();
+
+  const nameChanged = fullName !== currentFullName;
+  const emailChanged =
+    email.toLowerCase() !== currentEmail.toLowerCase();
+  if (!nameChanged && !emailChanged) {
+    setMessage(
+      globalMessage,
+      'Nenhuma alteração foi feita nos dados do passageiro.',
+      'neutral',
+    );
+    return;
+  }
+
+  const button = byId('passenger-profile-save-button');
+  button.disabled = true;
+  try {
+    await api.updatePassengerProfile(state.token, {
+      passengerId,
+      ...(nameChanged
+        ? { fullName: fullName || null }
+        : {}),
+      ...(emailChanged ? { email: email || null } : {}),
+    });
+
+    await loadPassengerDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupPassenger(passengerId);
+
+    setMessage(
+      globalMessage,
+      'Dados do passageiro atualizados.',
+      'success',
+    );
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('passengers:auth:write');
+  }
+}
+
+async function handlePassengerAccessChange() {
+  const passengerId =
+    state.selectedPassenger?.passenger?.passengerId;
+  const button = byId('passenger-access-button');
+  const nextStatus = button.dataset.nextStatus;
+
+  if (
+    !state.token ||
+    !passengerId ||
+    !hasScope('passengers:auth:write') ||
+    (nextStatus !== 'active' && nextStatus !== 'suspended')
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    nextStatus === 'suspended'
+      ? 'Confirmar alteração de acesso do passageiro? O bloqueio revoga imediatamente todas as sessões ativas.'
+      : 'Confirmar alteração de acesso do passageiro? O passageiro poderá fazer um novo login.',
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  try {
+    const result = await api.setPassengerStatus(state.token, {
+      passengerId,
+      status: nextStatus,
+    });
+
+    await loadPassengerDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupPassenger(passengerId);
+
+    const revoked = Number(result?.revokedSessions ?? 0);
+    setMessage(
+      globalMessage,
+      nextStatus === 'suspended'
+        ? `Passageiro bloqueado. ${revoked} sessão(ões) revogada(s).`
+        : 'Passageiro desbloqueado. Um novo login será necessário.',
+      'success',
+    );
+
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyIntegrationValue(value, button) {
+  const text = String(value ?? '').trim();
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = button.textContent;
+    button.textContent = 'Copiado';
+    button.disabled = true;
+    window.setTimeout(() => {
+      button.textContent = original;
+      button.disabled = false;
+    }, 1200);
+  } catch {
+    setMessage(
+      globalMessage,
+      'Não foi possível copiar automaticamente. Selecione o texto manualmente.',
+      'danger',
+    );
+  }
+}
+
+function integrationCredentialCard({
+  title,
+  destination,
+  identifierLabel,
+  identifier,
+  secretName,
+  allowedApi,
+  extra,
+}) {
+  const card = document.createElement('article');
+  card.className = 'integration-credential-card';
+
+  const heading = document.createElement('div');
+  heading.className = 'integration-credential-card__heading';
+  const titleElement = document.createElement('strong');
+  titleElement.textContent = title;
+  const badge = document.createElement('span');
+  badge.className = 'pill pill--neutral';
+  badge.textContent = destination;
+  heading.append(titleElement, badge);
+
+  const rows = document.createElement('div');
+  rows.className = 'integration-credential-values';
+
+  const addRow = (label, value, copyable = true) => {
+    const row = document.createElement('div');
+    const labelElement = document.createElement('span');
+    labelElement.textContent = label;
+    const code = document.createElement('code');
+    code.textContent = value;
+    row.append(labelElement, code);
+    if (copyable) {
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'button button--tiny button--ghost-dark';
+      copy.textContent = 'Copiar';
+      copy.addEventListener('click', () => {
+        void copyIntegrationValue(value, copy);
+      });
+      row.append(copy);
+    }
+    rows.append(row);
+  };
+
+  addRow(identifierLabel, identifier);
+  addRow('Nome do Secret', secretName);
+  addRow('API permitida', allowedApi, false);
+  if (extra) addRow(extra.label, extra.value, false);
+
+  card.append(heading, rows);
+  return card;
+}
+
+function renderIntegrations(payload) {
+  const googleMaps = payload?.googleMaps;
+  const server = googleMaps?.server;
+  const configured = server?.configured === true;
+  const providerValid = server?.routingProviderValid !== false;
+
+  const status = byId('google-server-status');
+  status.textContent = configured && providerValid
+    ? 'Configurado'
+    : configured
+      ? 'Provider precisa de correção'
+      : 'Aguardando chave privada';
+  status.className = configured && providerValid
+    ? 'integration-status-ok'
+    : 'integration-status-pending';
+
+  const detail = byId('google-server-detail');
+  detail.textContent = server
+    ? `${server.runtimeEnvironmentVariable} · Routes + Places`
+    : 'GOOGLE_MAPS_SERVER_API_KEY';
+
+  const mercadoPago = payload?.mercadoPago;
+  const mercadoPagoStatus = byId('mercado-pago-status');
+  const mercadoPagoDetail = byId('mercado-pago-detail');
+  if (mercadoPago == null) {
+    mercadoPagoStatus.textContent = 'Não verificado';
+    mercadoPagoStatus.className = 'integration-status-pending';
+    mercadoPagoDetail.textContent = 'Credenciais do servidor';
+  } else {
+    const testReady =
+      mercadoPago.mode === 'test' &&
+      mercadoPago.accessTokenConfigured === true;
+    mercadoPagoStatus.textContent = mercadoPago.productionReady === true
+      ? 'Produção pronta'
+      : testReady
+        ? 'Teste configurado'
+        : mercadoPago.mode === 'production'
+          ? 'Produção incompleta'
+          : 'Teste incompleto';
+    mercadoPagoStatus.className = mercadoPago.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+    mercadoPagoDetail.textContent =
+      `${mercadoPago.mode === 'production' ? 'Produção' : 'Teste'} · ` +
+      `${mercadoPago.accessTokenEnvironmentVariable} · ` +
+      `${mercadoPago.webhookSecretConfigured ? 'webhook configurado' : 'webhook pendente'}`;
+  }
+
+  const otp = payload?.otp;
+  const otpStatus = byId('otp-provider-status');
+  const otpDetail = byId('otp-provider-detail');
+  if (otp == null) {
+    otpStatus.textContent = 'Não verificado';
+    otpStatus.className = 'integration-status-pending';
+    otpDetail.textContent = 'Provider de produção';
+  } else {
+    otpStatus.textContent = otp.productionReady === true
+      ? otp.provider === 'entrar-whatsapp' ? 'WhatsApp configurado' : 'Produção pronta'
+      : otp.provider === 'entrar-whatsapp'
+        ? 'WhatsApp incompleto'
+        : otp.provider === 'dev'
+        ? 'Modo desenvolvimento'
+        : otp.provider === 'webhook'
+          ? 'Webhook incompleto'
+          : otp.provider === 'missing'
+            ? 'Não configurado'
+            : 'Provider inválido';
+    otpStatus.className = otp.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+    otpDetail.textContent =
+      `${otp.providerEnvironmentVariable} · ` +
+      `${otp.endpointConfigured ? 'endpoint HTTPS OK' : 'endpoint pendente'} · ` +
+      `${otp.tokenConfigured ? 'token configurado' : 'token pendente'}`;
+  }
+
+  const push = payload?.push;
+  const pushStatus = byId('push-provider-status');
+  const pushDetail = byId('push-provider-detail');
+  if (push == null) {
+    pushStatus.textContent = 'Não verificado';
+    pushStatus.className = 'integration-status-pending';
+    pushDetail.textContent = 'Provider do Core';
+  } else {
+    pushStatus.textContent = push.productionReady === true
+      ? 'Produção pronta'
+      : push.provider === 'fcm'
+        ? 'FCM sem credencial'
+        : push.provider === 'webhook'
+          ? 'Webhook incompleto'
+          : push.provider === 'disabled'
+            ? 'Desativado'
+            : 'Provider inválido';
+    pushStatus.className = push.productionReady === true
+      ? 'integration-status-ok'
+      : 'integration-status-pending';
+
+    if (push.provider === 'fcm') {
+      const source =
+        push.firebaseCredentialSource === 'json'
+          ? push.firebaseJsonEnvironmentVariable
+          : push.firebaseCredentialSource === 'file'
+            ? push.firebaseFileEnvironmentVariable
+            : 'service account pendente';
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=fcm · ${source}`;
+    } else if (push.provider === 'webhook') {
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=webhook · ` +
+        `${push.webhookEndpointConfigured ? 'endpoint HTTPS OK' : 'endpoint pendente'} · ` +
+        `${push.webhookSecretConfigured ? 'token configurado' : 'token pendente'}`;
+    } else if (push.provider === 'disabled') {
+      pushDetail.textContent =
+        `${push.providerEnvironmentVariable}=disabled`;
+    } else {
+      pushDetail.textContent =
+        `Revise ${push.providerEnvironmentVariable}`;
+    }
+  }
+
+  byId('integrations-updated-at').textContent =
+    payload ? `Verificado em ${new Date().toLocaleTimeString('pt-BR')}` : 'Ainda não verificado';
+
+  const target = byId('google-credential-cards');
+  target.replaceChildren();
+
+  if (!googleMaps) {
+    const empty = document.createElement('p');
+    empty.className = 'muted-copy';
+    empty.textContent =
+      'Entre com uma conta autorizada e clique em “Verificar configuração”.';
+    target.append(empty);
+    return;
+  }
+
+  for (const item of googleMaps.android ?? []) {
+    target.append(
+      integrationCredentialCard({
+        title: item.label,
+        destination: 'GitHub',
+        identifierLabel: 'Package',
+        identifier: item.packageName,
+        secretName: item.githubSecretName,
+        allowedApi: item.allowedApi,
+        extra: {
+          label: 'Restrição',
+          value: 'Package + SHA-1 da assinatura de produção',
+        },
+      }),
+    );
+  }
+
+  for (const item of googleMaps.ios ?? []) {
+    target.append(
+      integrationCredentialCard({
+        title: item.label,
+        destination: 'GitHub',
+        identifierLabel: 'Bundle ID',
+        identifier: item.bundleId,
+        secretName: item.githubSecretName,
+        allowedApi: item.allowedApi,
+      }),
+    );
+  }
+
+  target.append(
+    integrationCredentialCard({
+      title: 'Core / servidor',
+      destination: 'Servidor',
+      identifierLabel: 'Variável runtime',
+      identifier: server.runtimeEnvironmentVariable,
+      secretName: server.deploymentSecretName,
+      allowedApi: server.allowedApis.join(' + '),
+      extra: {
+        label: 'Regra',
+        value: 'Nunca colocar esta chave no APK ou no navegador',
+      },
+    }),
+  );
+}
+
+function canManageMercadoPagoPublicKey() {
+  return hasScope('finance:write') && hasScope('rides:write');
+}
+
+function renderMercadoPagoPublicKey(settings) {
+  const input = byId('mercado-pago-public-key');
+  const button = byId('save-mercado-pago-public-key-button');
+  const status = byId('mercado-pago-public-key-status');
+  const detail = byId('mercado-pago-public-key-detail');
+  if (input == null || button == null || status == null || detail == null) {
+    return;
+  }
+
+  if (settings == null || typeof settings !== 'object') {
+    input.value = '';
+    input.disabled = true;
+    button.disabled = true;
+    status.className = 'pill pill--neutral';
+    status.textContent = 'Indisponível';
+    detail.textContent = 'Aguardando configurações do Core';
+    return;
+  }
+
+  const value = typeof settings.mercadoPagoPublicKey === 'string'
+    ? settings.mercadoPagoPublicKey.trim()
+    : '';
+  const canWrite = canManageMercadoPagoPublicKey();
+  input.value = value;
+  input.disabled = !canWrite;
+  button.disabled = !canWrite;
+  status.className = value
+    ? 'pill pill--success'
+    : 'pill pill--neutral';
+  status.textContent = value ? 'Configurada' : 'Usando fallback do build';
+  detail.textContent = canWrite
+    ? 'Alterações passam a valer ao abrir novamente a tela de pagamento.'
+    : 'Permissões finance:write e rides:write necessárias para alterar.';
+}
+
+async function handleMercadoPagoPublicKeySubmit(event) {
+  event.preventDefault();
+  if (!state.token || !canManageMercadoPagoPublicKey()) return;
+
+  const input = byId('mercado-pago-public-key');
+  const button = byId('save-mercado-pago-public-key-button');
+  const publicKey = input.value.trim();
+  if (
+    publicKey.length > 0 &&
+    (publicKey.length < 20 || publicKey.length > 220 || /\s/.test(publicKey))
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe uma Public Key válida, sem espaços.',
+      'danger',
+    );
+    return;
+  }
+
+  const confirmed = window.confirm(
+    publicKey
+      ? 'Confirmar a nova Public Key do Mercado Pago? A mudança afetará novas tokenizações de cartão.'
+      : 'Remover a Public Key administrada e voltar ao fallback configurado no build?',
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  try {
+    const settings = await api.updateOperationalSettings(state.token, {
+      mercadoPagoPublicKey: publicKey || null,
+    });
+    renderMercadoPagoPublicKey(settings);
+    setMessage(
+      globalMessage,
+      publicKey
+        ? 'Public Key do Mercado Pago atualizada.'
+        : 'Public Key administrada removida; o app usará o fallback do build.',
+      'success',
+    );
+    if (hasScope('audit:read')) void loadAudit({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !canManageMercadoPagoPublicKey();
+  }
+}
+
+async function loadIntegrations({ announce = true } = {}) {
+  const button = byId('refresh-integrations-button');
+
+  if (!state.token || !hasScope('rides:read')) {
+    renderIntegrations(null);
+    renderMercadoPagoPublicKey(null);
+    button.disabled = true;
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const [payload, settings] = await Promise.all([
+      api.integrations(state.token),
+      api.operationalSettings(state.token),
+    ]);
+    renderIntegrations(payload);
+    renderMercadoPagoPublicKey(settings);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Integrações verificadas sem expor segredos.',
+        'success',
+      );
+    }
+  } catch (error) {
+    renderMercadoPagoPublicKey(null);
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('rides:read');
+  }
+}
+
+function formatKm(value) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? `${number.toFixed(1)} km`
+    : '—';
+}
+
+function renderOperationalSettings(
+  payload = state.operationalSettings,
+) {
+  const status = byId('operational-settings-status');
+  const updated = byId('operational-settings-updated-at');
+  const numericIds = [
+    'driver-offer-ttl-seconds',
+    'driver-payment-hold-seconds',
+    'no-driver-decision-timeout-seconds',
+    'driver-location-max-age-seconds',
+    'nearby-driver-max-distance-km',
+  ];
+  const toggleIds = [
+    'show-nearby-drivers',
+    'driver-document-auto-enforcement',
+  ];
+
+  const lock = (
+    statusText = 'Carregando',
+    detail = 'Aguardando configurações do Core',
+    tone = 'neutral',
+  ) => {
+    state.operationalSettings = null;
+    driverSearchAdmin?.load(null);
+    for (const id of numericIds) {
+      const input = byId(id);
+      input.value = '';
+      input.disabled = true;
+    }
+    for (const id of toggleIds) {
+      const input = byId(id);
+      input.checked = false;
+      input.disabled = true;
+    }
+    byId('save-operational-settings-button').disabled = true;
+    status.className = `pill pill--${tone}`;
+    status.textContent = statusText;
+    updated.textContent = detail;
+  };
+
+  if (payload == null || typeof payload !== 'object') {
+    lock();
+    return;
+  }
+
+  const searchRoot = byId('driver-search-policy-panel');
+  if (searchRoot) {
+    if (driverSearchAdmin?.root !== searchRoot) driverSearchAdmin = createDriverSearchAdmin({
+      root: searchRoot, api, getToken: () => state.token, canWrite: () => hasScope('rides:write'),
+      onSaved: (settings) => { state.operationalSettings = settings; },
+    });
+    driverSearchAdmin.load(payload);
+  }
+  const ttl = Number(payload.driverOfferTtlSeconds);
+  const paymentHold = Number(payload.driverPaymentHoldSeconds);
+  const noDriverDecisionTimeout = Number(
+    payload.noDriverDecisionTimeoutSeconds,
+  );
+  const locationMaxAge = Number(
+    payload.driverLocationMaxAgeSeconds,
+  );
+  const nearbyDistance = Number(
+    payload.nearbyDriverMaxDistanceKm,
+  );
+
+  const valid =
+    Number.isInteger(ttl) &&
+    ttl >= 5 &&
+    ttl <= 120 &&
+    Number.isInteger(paymentHold) &&
+    paymentHold >= 30 &&
+    paymentHold <= 300 &&
+    Number.isInteger(noDriverDecisionTimeout) &&
+    noDriverDecisionTimeout >= 60 &&
+    noDriverDecisionTimeout <= 3600 &&
+    Number.isInteger(locationMaxAge) &&
+    locationMaxAge >= 15 &&
+    locationMaxAge <= 600 &&
+    Number.isFinite(nearbyDistance) &&
+    nearbyDistance >= 0.5 &&
+    nearbyDistance <= 100;
+
+  if (!valid) {
+    lock(
+      'Dados inválidos',
+      'O Core retornou configurações operacionais inválidas. Atualize novamente antes de editar.',
+      'danger',
+    );
+    return;
+  }
+
+  const showNearbyDrivers =
+    payload.showNearbyDrivers === true;
+  const driverDocumentAutoEnforcement =
+    payload.driverDocumentAutoEnforcement === true;
+  const updatedAt =
+    typeof payload.updatedAt === 'string'
+      ? payload.updatedAt
+      : null;
+
+  state.operationalSettings = {
+    driverSearchPolicy: payload.driverSearchPolicy,
+    driverOfferTtlSeconds: ttl,
+    driverPaymentHoldSeconds: paymentHold,
+    noDriverDecisionTimeoutSeconds: noDriverDecisionTimeout,
+    driverLocationMaxAgeSeconds: locationMaxAge,
+    nearbyDriverMaxDistanceKm: nearbyDistance,
+    showNearbyDrivers,
+    driverDocumentAutoEnforcement,
+    updatedAt,
+  };
+
+  byId('driver-offer-ttl-seconds').value = String(ttl);
+  byId('driver-payment-hold-seconds').value =
+    String(paymentHold);
+  byId('no-driver-decision-timeout-seconds').value =
+    String(noDriverDecisionTimeout);
+  byId('driver-location-max-age-seconds').value =
+    String(locationMaxAge);
+  byId('nearby-driver-max-distance-km').value =
+    String(nearbyDistance);
+  byId('show-nearby-drivers').checked = showNearbyDrivers;
+  byId('driver-document-auto-enforcement').checked =
+    driverDocumentAutoEnforcement;
+
+  status.className = driverDocumentAutoEnforcement
+    ? 'pill pill--success'
+    : 'pill pill--neutral';
+  status.textContent = driverDocumentAutoEnforcement
+    ? 'Documentos: automático'
+    : 'Documentos: decisão manual';
+
+  updated.textContent = updatedAt
+    ? `Atualizado em ${formatDateTime(updatedAt)}`
+    : 'Configuração carregada';
+
+  const canWrite = hasScope('rides:write');
+  byId('driver-offer-ttl-seconds').disabled = !canWrite;
+  byId('driver-payment-hold-seconds').disabled = !canWrite;
+  byId('no-driver-decision-timeout-seconds').disabled = !canWrite;
+  byId('driver-location-max-age-seconds').disabled = !canWrite;
+  byId('nearby-driver-max-distance-km').disabled = !canWrite;
+  byId('show-nearby-drivers').disabled = !canWrite;
+  byId('driver-document-auto-enforcement').disabled =
+    !canWrite || !hasScope('drivers:documents:write');
+  byId('save-operational-settings-button').disabled = !canWrite;
+}
+
+async function loadOperationalSettings({ announce = true } = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    renderOperationalSettings(null);
+    byId('operational-settings-status').textContent =
+      'Sem permissão';
+    byId('operational-settings-updated-at').textContent =
+      'Escopo rides:read necessário';
+    return;
+  }
+
+  try {
+    const settings = await api.operationalSettings(state.token);
+    renderOperationalSettings(settings);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Configurações operacionais atualizadas.',
+        'success',
+      );
+    }
+  } catch (error) {
+    renderOperationalSettings(null);
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleOperationalSettingsSubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    !hasScope('rides:write') ||
+    state.operationalSettings == null
+  ) {
+    return;
+  }
+
+  const ttl = Number(byId('driver-offer-ttl-seconds').value);
+  const paymentHoldSeconds = Number(
+    byId('driver-payment-hold-seconds').value,
+  );
+  const noDriverDecisionTimeoutSeconds = Number(
+    byId('no-driver-decision-timeout-seconds').value,
+  );
+  const locationMaxAgeSeconds = Number(
+    byId('driver-location-max-age-seconds').value,
+  );
+  const nearbyMaxDistanceKm = Number(
+    byId('nearby-driver-max-distance-km').value,
+  );
+  const showNearbyDrivers = byId('show-nearby-drivers').checked;
+  const driverDocumentAutoEnforcement =
+    byId('driver-document-auto-enforcement').checked;
+  if (!Number.isInteger(ttl) || ttl < 5 || ttl > 120) {
+    setMessage(
+      globalMessage,
+      'O tempo de aceite deve ficar entre 5 e 120 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isInteger(paymentHoldSeconds) ||
+    paymentHoldSeconds < 30 ||
+    paymentHoldSeconds > 300
+  ) {
+    setMessage(
+      globalMessage,
+      'A reserva durante o pagamento deve ficar entre 30 e 300 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isInteger(noDriverDecisionTimeoutSeconds) ||
+    noDriverDecisionTimeoutSeconds < 60 ||
+    noDriverDecisionTimeoutSeconds > 3600
+  ) {
+    setMessage(
+      globalMessage,
+      'O prazo após não encontrar motorista deve ficar entre 60 e 3600 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isInteger(locationMaxAgeSeconds) ||
+    locationMaxAgeSeconds < 15 ||
+    locationMaxAgeSeconds > 600
+  ) {
+    setMessage(
+      globalMessage,
+      'A validade do GPS deve ficar entre 15 e 600 segundos.',
+      'danger',
+    );
+    return;
+  }
+  if (
+    !Number.isFinite(nearbyMaxDistanceKm) ||
+    nearbyMaxDistanceKm < 0.5 ||
+    nearbyMaxDistanceKm > 100
+  ) {
+    setMessage(
+      globalMessage,
+      'A distância de motoristas próximos deve ficar entre 0,5 e 100 km.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('save-operational-settings-button');
+  button.disabled = true;
+  try {
+    const settings = await api.updateOperationalSettings(state.token, {
+      driverOfferTtlSeconds: ttl,
+      driverPaymentHoldSeconds: paymentHoldSeconds,
+      noDriverDecisionTimeoutSeconds,
+      driverLocationMaxAgeSeconds: locationMaxAgeSeconds,
+      nearbyDriverMaxDistanceKm: nearbyMaxDistanceKm,
+      showNearbyDrivers,
+      ...(hasScope('drivers:documents:write')
+        ? { driverDocumentAutoEnforcement }
+        : {}),
+    });
+    renderOperationalSettings(settings);
+    setMessage(
+      globalMessage,
+      `Configurações salvas. Ofertas: ${settings.driverOfferTtlSeconds}s · reserva: ${settings.driverPaymentHoldSeconds}s · decisão sem motorista: ${settings.noDriverDecisionTimeoutSeconds}s · GPS válido por ${settings.driverLocationMaxAgeSeconds}s.`,
+      'success',
+    );
+    if (state.currentDriver?.driverId) {
+      void loadDriverDocumentCompliance(
+        state.currentDriver.driverId,
+        { announce: false },
+      );
+    }
+    void loadDriverDocumentAlerts({ announce: false });
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('rides:write');
+  }
+}
+
+function renderRideDirectory() {
+  const body = byId('ride-directory-body');
+  const empty = byId('ride-directory-empty');
+  const more = byId('ride-directory-more');
+  const count = byId('ride-directory-count');
+  const summary = byId('ride-directory-summary');
+
+  body.replaceChildren();
+  const items = state.rideDirectory.items;
+
+  for (const ride of items) {
+    const row = document.createElement('tr');
+
+    const stateCell = document.createElement('td');
+    const stateInfo = rideStatePresentation(ride.state);
+    const statePill = document.createElement('span');
+    statePill.className = `pill pill--${stateInfo.tone}`;
+    statePill.textContent = stateInfo.label;
+    stateCell.append(statePill);
+
+    const route = document.createElement('td');
+    const routeStrong = document.createElement('strong');
+    routeStrong.textContent =
+      `${locationLabel(ride.origin)} → ` +
+      locationLabel(ride.destination);
+    const rideId = document.createElement('small');
+    rideId.className = 'table-subtext';
+    rideId.textContent = ride.id;
+    route.append(routeStrong, rideId);
+
+    const category = document.createElement('td');
+    category.textContent = serviceCategoryLabel(ride.category);
+
+    const passenger = document.createElement('td');
+    passenger.textContent = ride.passengerId ?? '—';
+
+    const driver = document.createElement('td');
+    driver.textContent =
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando';
+
+    const amount = document.createElement('td');
+    amount.textContent = formatCurrencyCents(
+      ride.totalAmountCents,
+    );
+
+    const updated = document.createElement('td');
+    updated.textContent = formatDateTime(ride.updatedAt);
+
+    const actions = document.createElement('td');
+    actions.className = 'directory-row-actions';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir';
+    open.addEventListener('click', () => {
+      void lookupRide(ride.id);
+    });
+    actions.append(open);
+
+    row.append(
+      stateCell,
+      route,
+      category,
+      passenger,
+      driver,
+      amount,
+      updated,
+      actions,
+    );
+    body.append(row);
+  }
+
+  empty.hidden = items.length !== 0;
+  more.hidden = !state.rideDirectory.nextCursor;
+  more.disabled = false;
+  count.textContent = `${items.length} carregada(s)`;
+  summary.textContent = `${items.length} carregada(s)`;
+}
+
+function renderRideDetailEmpty(
+  message = 'Abra uma corrida na tabela para ver os detalhes.',
+) {
+  state.selectedRide = null;
+  const content = byId('ride-detail-content');
+  content.replaceChildren();
+  content.className = 'ride-detail-content empty-state';
+  content.textContent = message;
+
+  const status = byId('ride-detail-status');
+  status.className = 'pill pill--neutral';
+  status.textContent = 'Nenhuma';
+
+  byId('ride-cancel-panel').hidden = true;
+  byId('ride-cancel-reason').value = '';
+  byId('ride-cancel-button').disabled = false;
+  byId('ride-cancel-note').textContent =
+    'Disponível apenas antes do início da viagem.';
+}
+
+function rideDetailItem(label, value) {
+  const item = document.createElement('div');
+  item.className = 'ride-detail-item';
+
+  const term = document.createElement('span');
+  term.textContent = label;
+  const data = document.createElement('strong');
+  data.textContent = value;
+
+  item.append(term, data);
+  return item;
+}
+
+function renderRideDetail(ride) {
+  state.selectedRide = ride;
+  const content = byId('ride-detail-content');
+  content.replaceChildren();
+  content.className = 'ride-detail-content';
+
+  const stateInfo = rideStatePresentation(ride.state);
+  const status = byId('ride-detail-status');
+  status.className = `pill pill--${stateInfo.tone}`;
+  status.textContent = stateInfo.label;
+
+  const cancelPanel = byId('ride-cancel-panel');
+  const retryRefund =
+    ride.state === 'CANCELLED_BY_ADMIN' ||
+    ride.state === 'REFUND_PENDING';
+  const canCancel =
+    hasScope('rides:write') &&
+    ADMIN_CANCELLABLE_RIDE_STATES.has(ride.state);
+  cancelPanel.hidden = !canCancel;
+  const cancelButton = byId('ride-cancel-button');
+  cancelButton.disabled = false;
+  cancelButton.textContent = retryRefund
+    ? 'Tentar estorno novamente'
+    : 'Cancelar corrida';
+  byId('ride-cancel-reason').value = '';
+  byId('ride-cancel-note').textContent = retryRefund
+    ? 'A corrida já está cancelada. Esta ação tenta concluir o estorno pendente sem cancelar a viagem novamente.'
+    : ride.paymentStatus === 'paid'
+      ? 'Carteira é estornada imediatamente. Pix/cartão permanecem em reembolso pendente até o gateway confirmar.'
+      : 'O cancelamento só é aceito quando o pagamento está confirmado.';
+
+  const identity = document.createElement('div');
+  identity.className = 'ride-detail-hero';
+
+  const title = document.createElement('div');
+  const kicker = document.createElement('span');
+  kicker.className = 'eyebrow eyebrow--dark';
+  kicker.textContent = 'CORRIDA';
+  const id = document.createElement('h3');
+  id.textContent = ride.id;
+  title.append(kicker, id);
+
+  const route = document.createElement('strong');
+  route.className = 'ride-detail-route';
+  route.textContent =
+    `${locationLabel(ride.origin)} → ` +
+    locationLabel(ride.destination);
+
+  identity.append(title, route);
+
+  const grid = document.createElement('div');
+  grid.className = 'ride-detail-grid';
+  grid.append(
+    rideDetailItem(
+      'Pagamento',
+      paymentStatusLabel(ride.paymentStatus),
+    ),
+    rideDetailItem(
+      'Categoria',
+      serviceCategoryLabel(ride.category),
+    ),
+    rideDetailItem('Período', pricePeriodLabel(ride.period)),
+    rideDetailItem(
+      'Passageiros',
+      String(ride.passengers ?? '—'),
+    ),
+    rideDetailItem('Passageiro', ride.passengerId ?? '—'),
+    rideDetailItem(
+      'Motorista',
+      ride.driverId ?? ride.reservedDriverId ?? 'Aguardando',
+    ),
+    rideDetailItem(
+      'Distância da viagem',
+      formatKm(ride.tripDistanceKm),
+    ),
+    rideDetailItem(
+      'Distância até coleta',
+      formatKm(ride.driverPickupDistanceKm),
+    ),
+    rideDetailItem('Criada', formatDateTime(ride.createdAt)),
+    rideDetailItem('Atualizada', formatDateTime(ride.updatedAt)),
+  );
+
+  const finance = document.createElement('div');
+  finance.className = 'ride-finance-grid';
+  const quote = ride.quote ?? {};
+  finance.append(
+    rideDetailItem(
+      'Tarifa-base',
+      formatCurrencyCents(quote.baseAmountCents),
+    ),
+    rideDetailItem(
+      'Compensação de coleta',
+      formatCurrencyCents(quote.pickupCompensationCents),
+    ),
+    rideDetailItem(
+      'Total',
+      formatCurrencyCents(quote.totalAmountCents),
+    ),
+    rideDetailItem(
+      'Comissão plataforma',
+      formatCurrencyCents(quote.platformCommissionCents),
+    ),
+    rideDetailItem(
+      'Líquido motorista',
+      formatCurrencyCents(quote.driverNetCents),
+    ),
+  );
+
+  const financeTitle = document.createElement('div');
+  financeTitle.className = 'ride-detail-section-title';
+  financeTitle.textContent = 'Snapshot financeiro';
+
+  content.append(identity, grid, financeTitle, finance);
+  content.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+async function lookupRide(rideId) {
+  if (!state.token || !hasScope('rides:read')) return;
+
+  try {
+    const ride = await api.getRide(state.token, rideId);
+    renderRideDetail(ride);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 404) {
+      renderRideDetailEmpty('Corrida não encontrada.');
+      return;
+    }
+    renderRideDetailEmpty(
+      'Não foi possível atualizar esta corrida. Recarregue antes de executar ações.',
+    );
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleRideCancel(event) {
+  event.preventDefault();
+  const ride = state.selectedRide;
+  if (
+    !state.token ||
+    ride == null ||
+    !hasScope('rides:write') ||
+    !ADMIN_CANCELLABLE_RIDE_STATES.has(ride.state)
+  ) {
+    return;
+  }
+
+  const reason = byId('ride-cancel-reason').value
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (reason.length < 3 || reason.length > 500) {
+    setMessage(
+      globalMessage,
+      'Informe um motivo de cancelamento entre 3 e 500 caracteres.',
+      'danger',
+    );
+    return;
+  }
+
+  const retryRefund =
+    ride.state === 'CANCELLED_BY_ADMIN' ||
+    ride.state === 'REFUND_PENDING';
+  const confirmed = window.confirm(
+    retryRefund
+      ? 'Tentar concluir o estorno desta corrida novamente? A corrida continuará cancelada.'
+      : 'Confirmar cancelamento administrativo desta corrida? Esta ação libera o motorista e inicia o estorno quando aplicável.',
+  );
+  if (!confirmed) return;
+
+  const button = byId('ride-cancel-button');
+  button.disabled = true;
+  try {
+    const result = await api.cancelRide(state.token, {
+      rideId: ride.id,
+      reason,
+    });
+
+    if (
+      result.refundStatus !== 'refunded' &&
+      result.refundStatus !== 'pending_external_gateway'
+    ) {
+      throw new Error(
+        'Resposta de cancelamento retornou status de reembolso desconhecido.',
+      );
+    }
+    const pendingExternal =
+      result.refundStatus === 'pending_external_gateway';
+    const duplicate =
+      result.duplicateCancellation === true;
+    const message = pendingExternal
+      ? duplicate
+        ? 'Corrida permanece cancelada. O estorno externo ainda está pendente de confirmação do gateway.'
+        : 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.'
+      : duplicate
+        ? 'Estorno concluído. A corrida já estava cancelada.'
+        : 'Corrida cancelada e reembolso concluído.';
+    setMessage(
+      globalMessage,
+      message,
+      pendingExternal ? 'warning' : 'success',
+    );
+
+    await loadRideDirectory({
+      reset: true,
+      announce: false,
+    });
+    await lookupRide(ride.id);
+
+    if (hasScope('rides:read')) {
+      void loadDashboard({ announce: false });
+    }
+    if (hasScope('finance:read')) {
+      void loadFinance({ announce: false });
+    }
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+    if (state.token && hasScope('rides:read')) {
+      await loadRideDirectory({
+        reset: true,
+        announce: false,
+      });
+      await lookupRide(ride.id);
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function loadRideDirectory({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('rides:read')) {
+    state.rideDirectory.items = [];
+    state.rideDirectory.nextCursor = null;
+    renderRideDirectory();
+    renderRideDetailEmpty('Sua conta não possui o escopo rides:read.');
+    return;
+  }
+
+  const more = byId('ride-directory-more');
+  if (reset) {
+    state.rideDirectory.query =
+      byId('ride-directory-query').value.trim();
+    state.rideDirectory.scope =
+      byId('ride-directory-scope').value === 'all'
+        ? 'all'
+        : 'active';
+    state.rideDirectory.state =
+      byId('ride-directory-state').value;
+    state.rideDirectory.from =
+      byId('ride-directory-from').value;
+    state.rideDirectory.to =
+      byId('ride-directory-to').value;
+    if (
+      state.rideDirectory.from &&
+      state.rideDirectory.to &&
+      state.rideDirectory.from > state.rideDirectory.to
+    ) {
+      setMessage(
+        globalMessage,
+        'A data inicial não pode ser posterior à data final.',
+        'danger',
+      );
+      more.disabled = false;
+      return;
+    }
+    state.rideDirectory.items = [];
+    state.rideDirectory.nextCursor = null;
+    renderRideDetailEmpty();
+  }
+
+  more.disabled = true;
+  try {
+    const payload = await api.rides(state.token, {
+      scope: state.rideDirectory.scope,
+      state: state.rideDirectory.state,
+      query: state.rideDirectory.query,
+      from: state.rideDirectory.from,
+      to: state.rideDirectory.to,
+      limit: 25,
+      cursor: reset ? null : state.rideDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+    if (reset) {
+      state.rideDirectory.items = incoming;
+    } else {
+      const known = new Set(
+        state.rideDirectory.items.map((item) => item.id),
+      );
+      state.rideDirectory.items.push(
+        ...incoming.filter((item) => !known.has(item.id)),
+      );
+    }
+
+    state.rideDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderRideDirectory();
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Diretório de viagens atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function renderDriverDocumentAlerts(payload) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const summary = byId('driver-document-alerts-summary');
+  const list = byId('driver-document-alerts-list');
+  const empty = byId('driver-document-alerts-empty');
+
+  byId('driver-document-alerts-decision-count').textContent =
+    String(payload?.decisionRequired ?? 0);
+  byId('driver-document-alerts-blocked-count').textContent =
+    String(payload?.blocked ?? 0);
+  byId('driver-document-alerts-mode').textContent =
+    payload?.mode === 'automatic' ? 'Automático' : 'Manual';
+
+  summary.className =
+    Number(payload?.decisionRequired ?? 0) > 0
+      ? 'pill pill--warning'
+      : Number(payload?.blocked ?? 0) > 0
+        ? 'pill pill--danger'
+        : 'pill pill--neutral';
+  summary.textContent =
+    `${Number(payload?.total ?? items.length)} pendência(s)`;
+
+  list.replaceChildren();
+  empty.hidden = items.length !== 0;
+
+  for (const item of items) {
+    const row = document.createElement('article');
+    row.className = 'document-alert-item';
+
+    const content = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = item.driverId;
+    const phone = document.createElement('small');
+    phone.textContent = item.phoneE164 ?? 'Telefone indisponível';
+    const issues = document.createElement('p');
+    const issueText = (item.issues ?? [])
+      .map((issue) => issue.label)
+      .join(' · ');
+    issues.textContent = issueText ||
+      (item.manualBlocked && item.documentsApproved
+        ? 'Documentos regularizados. Falta liberar novas corridas.'
+        : 'Sem detalhe documental.');
+    content.append(title, phone, issues);
+
+    const stateWrap = document.createElement('div');
+    stateWrap.className = 'document-alert-item__state';
+    const pill = document.createElement('span');
+    if (item.manualBlocked) {
+      pill.className = 'pill pill--danger';
+      pill.textContent = item.documentsApproved
+        ? 'Regularizado · liberar'
+        : 'Bloqueado por você';
+    } else if (item.automaticBlock) {
+      pill.className = 'pill pill--danger';
+      pill.textContent = 'Automático';
+    } else if (item.decisionRequired) {
+      pill.className = 'pill pill--warning';
+      pill.textContent = 'Sua decisão';
+    } else {
+      pill.className = 'pill pill--neutral';
+      pill.textContent = 'Mantido ativo';
+    }
+
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'button button--table';
+    open.textContent = 'Abrir motorista';
+    open.addEventListener('click', () => {
+      byId('driver-search-id').value = item.driverId;
+      void lookupDriver(item.driverId);
+    });
+    stateWrap.append(pill, open);
+
+    row.append(content, stateWrap);
+    list.append(row);
+  }
+}
+
+async function loadDriverDocumentAlerts({ announce = false } = {}) {
+  if (
+    !state.token ||
+    !hasScope('drivers:documents:read') ||
+    !hasScope('drivers:auth:read')
+  ) {
+    renderDriverDocumentAlerts({
+      mode: state.operationalSettings?.driverDocumentAutoEnforcement
+        ? 'automatic'
+        : 'manual',
+      total: 0,
+      decisionRequired: 0,
+      blocked: 0,
+      items: [],
+    });
+    return;
+  }
+
+  try {
+    const payload = await api.driverDocumentComplianceAlerts(
+      state.token,
+    );
+    renderDriverDocumentAlerts(payload);
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Pendências documentais atualizadas.',
+        'success',
+      );
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function lookupDriver(driverId) {
+  if (!state.token) return;
+  state.currentDriver = null;
+  state.currentDriverRegistry = null;
+  state.currentDriverDocuments = null;
+  state.currentDriverCashPolicy = null;
+  state.currentDriverFinance = null;
+  renderDriverUnavailable(
+    'Carregando motorista…',
+    `Consultando os dados atuais de ${driverId}.`,
+  );
+  renderDriverRegistryUnavailable('Carregando cadastro operacional…');
+  renderDriverDocumentsUnavailable('Carregando documentos…');
+  renderDriverCashPolicyUnavailable('Carregando política cash…');
+  renderDriverFinanceUnavailable('Carregando financeiro…');
+  try {
+    const driver = await api.getDriver(state.token, driverId);
+    state.currentDriver = driver;
+    state.currentDriverRegistry = null;
+    renderDriver(driver);
+    await loadDriverRegistry(driverId);
+    await loadDriverDocuments(driverId);
+    await loadDriverCashPolicy(driverId);
+    await loadDriverFinance(driverId);
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      error.status === 404
+    ) {
+      state.currentDriver = null;
+      renderDriverNotFound(driverId);
+      renderDriverRegistryUnavailable(
+        'Provisione o acesso do motorista antes de cadastrar perfil e veículo.',
+      );
+      renderDriverDocumentsUnavailable(
+        'Provisione o motorista e cadastre o perfil antes dos documentos.',
+      );
+      renderDriverCashPolicyUnavailable(
+        'Provisione o motorista antes de configurar limite cash.',
+      );
+      renderDriverFinanceUnavailable(
+        'Provisione o motorista antes de consultar o financeiro.',
+      );
+      return;
+    }
+    renderDriverUnavailable(
+      'Não foi possível atualizar o motorista',
+      'A ficha anterior foi removida. Tente consultar novamente.',
+    );
+    renderDriverRegistryUnavailable(
+      'Não foi possível atualizar o cadastro operacional.',
+    );
+    renderDriverDocumentsUnavailable(
+      'Não foi possível atualizar os documentos.',
+    );
+    renderDriverCashPolicyUnavailable(
+      'Não foi possível atualizar a política cash.',
+    );
+    renderDriverFinanceUnavailable(
+      'Não foi possível atualizar o financeiro.',
+    );
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleDriverSearch(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+  try {
+    const driverId = validateDriverId(byId('driver-search-id').value);
+    await lookupDriver(driverId);
+  } catch (error) {
+    setMessage(globalMessage, errorMessage(error), 'danger');
+  }
+}
+
+async function handleDriverProvision(event) {
+  event.preventDefault();
+  setMessage(globalMessage);
+  if (!state.token || !hasScope('drivers:auth:write')) return;
+
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  try {
+    const driverId = validateDriverId(byId('provision-driver-id').value);
+    const phone = validatePhone(byId('provision-phone').value);
+    const status = 'suspended';
+
+    button.disabled = true;
+    const result = await api.provisionDriver(state.token, {
+      driverId,
+      phone,
+      status,
+    });
+    state.currentDriver = result;
+    state.currentDriverRegistry = null;
+    byId('driver-search-id').value = driverId;
+    renderDriver(result);
+    await loadDriverRegistry(driverId);
+    await loadDriverDocuments(driverId);
+    await loadDriverCashPolicy(driverId);
+    await loadDriverFinance(driverId);
+    setMessage(
+      globalMessage,
+      result.created
+        ? 'Acesso do motorista criado e auditado.'
+        : 'Cadastro do motorista confirmado e atualizado.',
+      'success',
+    );
+    event.currentTarget.reset();
+    if (hasScope('drivers:auth:read')) {
+      await loadDriverDirectory({ reset: true, announce: false });
+    }
+    if (hasScope('audit:read')) void loadAudit({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function changeDriverStatus(driverId, status, button) {
+  if (!state.token || !hasScope('drivers:auth:write')) return;
+
+  const nextStatus = validateDriverStatus(status);
+  const confirmed = window.confirm(
+    nextStatus === 'active'
+      ? 'Confirmar alteração de acesso do motorista? O login OTP será liberado para este motorista.'
+      : 'Confirmar alteração de acesso do motorista? A suspensão revoga imediatamente as sessões ativas.',
+  );
+  if (!confirmed) return;
+
+  setMessage(globalMessage);
+  button.disabled = true;
+
+  try {
+    const result = await api.setDriverStatus(state.token, {
+      driverId,
+      status: nextStatus,
+    });
+    state.currentDriver = result.driver ?? result;
+    renderDriver(state.currentDriver);
+    setMessage(
+      globalMessage,
+      status === 'active'
+        ? 'Acesso OTP liberado para motorista com cadastro aprovado.'
+        : `Motorista suspenso. ${result.revokedSessions ?? 0} sessão(ões) revogada(s).`,
+      'success',
+    );
+    if (hasScope('drivers:auth:read')) {
+      await loadDriverDirectory({ reset: true, announce: false });
+    }
+    if (hasScope('audit:read')) void loadAudit({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function metadataText(metadata) {
+  if (!metadata || typeof metadata !== 'object') return '—';
+  const labels = {
+    status: 'status',
+    previousStatus: 'anterior',
+    revokedSessions: 'sessões revogadas',
+  };
+  const entries = Object.entries(metadata);
+  if (entries.length === 0) return '—';
+  return entries
+    .map(([key, value]) => `${labels[key] ?? key}: ${String(value)}`)
+    .join(' · ');
+}
+
+function renderAudit(entries) {
+  state.auditEntries = entries;
+  const overviewCount = byId('audit-count');
+  if (overviewCount != null) {
+    overviewCount.textContent = String(entries.length);
+  }
+
+  const directoryCount = byId('audit-directory-count');
+  const more = byId('audit-load-more');
+  const body = byId('audit-table-body');
+  const empty = byId('audit-empty');
+  if (
+    directoryCount == null ||
+    more == null ||
+    body == null ||
+    empty == null
+  ) {
+    return;
+  }
+
+  directoryCount.textContent = `${entries.length} carregado(s)`;
+  more.hidden = !state.auditDirectory.nextCursor;
+  more.disabled = false;
+  body.replaceChildren();
+
+  if (entries.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  for (const entry of entries) {
+    const row = document.createElement('tr');
+
+    const when = document.createElement('td');
+    when.textContent = formatDateTime(entry.createdAt);
+
+    const actor = document.createElement('td');
+    const actorName = document.createElement('strong');
+    actorName.textContent = actorLabel(entry.actor);
+    const actorKind = document.createElement('small');
+    actorKind.className = 'table-subtext';
+    actorKind.textContent =
+      entry.actor?.kind === 'user' ? 'Usuário humano' : 'API key';
+    actor.append(actorName, actorKind);
+
+    const action = document.createElement('td');
+    action.textContent = actionLabel(entry.action);
+
+    const target = document.createElement('td');
+    const targetId = document.createElement('strong');
+    targetId.textContent = entry.targetId ?? '—';
+    const targetType = document.createElement('small');
+    targetType.className = 'table-subtext';
+    targetType.textContent = entry.targetType ?? '—';
+    target.append(targetId, targetType);
+
+    const metadata = document.createElement('td');
+    metadata.className = 'table-metadata';
+    metadata.textContent = metadataText(entry.metadata);
+
+    row.append(when, actor, action, target, metadata);
+    body.append(row);
+  }
+}
+
+async function loadAudit({
+  announce = true,
+  reset = true,
+} = {}) {
+  if (!state.token || !hasScope('audit:read')) {
+    state.auditDirectory.nextCursor = null;
+    renderAudit([]);
+    return;
+  }
+
+  if (reset) {
+    state.auditDirectory.nextCursor = null;
+  }
+
+  const more = byId('audit-load-more');
+  more.disabled = true;
+
+  try {
+    const payload = await api.audit(state.token, {
+      limit: 25,
+      actorKind: state.auditDirectory.actorKind,
+      action: state.auditDirectory.action,
+      targetType: state.auditDirectory.targetType,
+      query: state.auditDirectory.query,
+      cursor: reset ? null : state.auditDirectory.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.entries)
+      ? payload.entries
+      : [];
+
+    if (reset) {
+      state.auditEntries = incoming;
+    } else {
+      const known = new Set(
+        state.auditEntries.map((entry) => entry.id),
+      );
+      state.auditEntries.push(
+        ...incoming.filter((entry) => !known.has(entry.id)),
+      );
+    }
+
+    state.auditDirectory.nextCursor =
+      typeof payload?.nextCursor === 'string' &&
+      payload.nextCursor
+        ? payload.nextCursor
+        : null;
+
+    renderAudit(state.auditEntries);
+
+    if (announce) {
+      setMessage(globalMessage, 'Auditoria atualizada.', 'success');
+    }
+  } catch (error) {
+    more.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+function communicationAudienceLabel(value) {
+  if (value === 'passenger') return 'Passageiros';
+  if (value === 'driver') return 'Motoristas';
+  return 'Todos';
+}
+
+function communicationCategoryLabel(value) {
+  const labels = {
+    general: 'Aviso geral',
+    event: 'Evento',
+    service: 'Operação',
+    maintenance: 'Manutenção',
+    update: 'Atualização',
+    promotion: 'Divulgação',
+  };
+  return labels[value] ?? value ?? '—';
+}
+
+function selectedReleasePolicy() {
+  const appKind = byId('release-app-kind')?.value;
+  const platform = byId('release-platform')?.value;
+  return state.communications.releasePolicies.find(
+    (policy) =>
+      policy.appKind === appKind &&
+      policy.platform === platform,
+  ) ?? null;
+}
+
+function syncReleasePolicyForm() {
+  const policy = selectedReleasePolicy();
+  if (policy == null) return;
+  byId('release-latest-version').value =
+    policy.latestVersion ?? '';
+  byId('release-latest-build').value =
+    String(policy.latestBuild ?? 1);
+  byId('release-minimum-build').value =
+    String(policy.minimumBuild ?? 1);
+  byId('release-store-url').value =
+    policy.storeUrl ?? '';
+  byId('release-update-message').value =
+    policy.updateMessage ?? '';
+  byId('release-policy-meta').textContent =
+    `Atualizada em ${formatDateTime(policy.updatedAt)}`;
+}
+
+function renderNotificationHistory() {
+  const body = byId('notification-history-body');
+  const empty = byId('notification-history-empty');
+  body.replaceChildren();
+
+  const campaigns = state.communications.campaigns;
+  empty.hidden = campaigns.length > 0;
+
+  for (const campaign of campaigns) {
+    const row = document.createElement('tr');
+
+    const when = document.createElement('td');
+    when.textContent = formatDateTime(campaign.createdAt);
+
+    const audience = document.createElement('td');
+    audience.textContent =
+      communicationAudienceLabel(campaign.audience);
+
+    const category = document.createElement('td');
+    category.textContent =
+      communicationCategoryLabel(campaign.category);
+
+    const message = document.createElement('td');
+    const title = document.createElement('strong');
+    title.textContent = campaign.title ?? '—';
+    const copy = document.createElement('small');
+    copy.className = 'table-subtext';
+    copy.textContent = campaign.body ?? '';
+    message.append(title, copy);
+
+    const delivery = document.createElement('td');
+    const delivered = Number(campaign.deliveredCount ?? 0);
+    const devices = Number(campaign.deviceCount ?? 0);
+    const summary = document.createElement('strong');
+    summary.textContent = `${delivered}/${devices}`;
+    const provider = document.createElement('small');
+    provider.className = 'table-subtext';
+    provider.textContent =
+      `${campaign.providerKind ?? '—'} · ${campaign.createdByName ?? 'Admin'}`;
+    delivery.append(summary, provider);
+
+    row.append(when, audience, category, message, delivery);
+    body.append(row);
+  }
+}
+
+function renderAgencyPromotion() {
+  const promotion = state.communications.agencyPromotion;
+  if (promotion == null) return;
+
+  byId('agency-enabled').checked = promotion.enabled === true;
+  byId('agency-title').value = promotion.title ?? '';
+  byId('agency-subtitle').value = promotion.subtitle ?? '';
+  byId('agency-description').value = promotion.description ?? '';
+  byId('agency-cta-label').value = promotion.ctaLabel ?? '';
+  byId('agency-cta-url').value = promotion.ctaUrl ?? '';
+  byId('agency-updated-at').textContent =
+    `Atualizada em ${formatDateTime(promotion.updatedAt)}`;
+
+  byId('agency-preview-title').textContent =
+    promotion.title ?? 'Ramo Nessa Agência';
+  byId('agency-preview-subtitle').textContent =
+    promotion.subtitle ?? '';
+  byId('agency-preview-description').textContent =
+    promotion.description ?? '';
+  byId('agency-preview-cta').textContent =
+    promotion.ctaLabel ?? 'Conhecer passeios';
+  byId('agency-preview-url').textContent =
+    promotion.ctaUrl ?? 'Sem link configurado';
+
+  const status = byId('agency-preview-status');
+  status.textContent = promotion.enabled ? 'Ativa' : 'Desativada';
+  status.className =
+    `pill ${promotion.enabled ? 'pill--success' : 'pill--neutral'}`;
+}
+
+function renderSocialLinks() {
+  const socialLinks = state.communications.socialLinks;
+  const handle = socialLinks?.instagramHandle ?? '';
+
+  byId('social-instagram-handle').value = handle;
+  byId('social-instagram-preview').textContent =
+    handle || 'Não configurado';
+  byId('social-links-updated-at').textContent =
+    socialLinks?.updatedAt == null
+      ? 'Ainda não configurado'
+      : `Atualizado em ${formatDateTime(socialLinks.updatedAt)}`;
+}
+
+function tourLines(value) {
+  return String(value ?? '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function resetTourCoverPreview() {
+  if (state.tourCoverObjectUrl != null) {
+    URL.revokeObjectURL(state.tourCoverObjectUrl);
+    state.tourCoverObjectUrl = null;
+  }
+  const image = byId('tour-cover-preview');
+  image.removeAttribute('src');
+  image.hidden = true;
+  byId('tour-cover-placeholder').hidden = false;
+}
+
+async function loadTourCoverPreview(tour) {
+  if (
+    tour == null ||
+    !state.token ||
+    Number(tour.coverImageVersion ?? 0) <= 0
+  ) {
+    return;
+  }
+
+  const requestedSlug = tour.slug;
+  const placeholder = byId('tour-cover-placeholder');
+  placeholder.hidden = false;
+  placeholder.textContent = 'Carregando foto salva…';
+
+  try {
+    const cover = await api.agencyTourCover(
+      state.token,
+      requestedSlug,
+    );
+    if (state.selectedTourSlug !== requestedSlug) return;
+
+    if (state.tourCoverObjectUrl != null) {
+      URL.revokeObjectURL(state.tourCoverObjectUrl);
+    }
+    const blob = new Blob(
+      [cover.bytes],
+      { type: cover.contentType },
+    );
+    state.tourCoverObjectUrl = URL.createObjectURL(blob);
+
+    const image = byId('tour-cover-preview');
+    image.src = state.tourCoverObjectUrl;
+    image.hidden = false;
+    placeholder.hidden = true;
+  } catch (error) {
+    if (state.selectedTourSlug !== requestedSlug) return;
+    placeholder.hidden = false;
+    placeholder.textContent =
+      'A foto foi registrada, mas não foi possível carregar a prévia.';
+    if (
+      !(error instanceof AdminApiError && error.status === 404)
+    ) {
+      handleAuthenticatedError(error);
+    }
+  }
+}
+
+function fillTourForm(tour) {
+  const existing = tour != null;
+  byId('tour-slug').readOnly = existing;
+  byId('tour-slug').value = tour?.slug ?? '';
+  byId('tour-enabled').checked = tour?.enabled === true;
+  byId('tour-sort-order').value = String(tour?.sortOrder ?? 100);
+  byId('tour-title').value = tour?.title ?? '';
+  byId('tour-badge').value = tour?.badge ?? 'EXPERIÊNCIA';
+  byId('tour-short-description').value =
+    tour?.shortDescription ?? '';
+  byId('tour-description').value = tour?.description ?? '';
+  byId('tour-highlights').value =
+    Array.isArray(tour?.highlights) ? tour.highlights.join('\n') : '';
+  byId('tour-included').value =
+    Array.isArray(tour?.included) ? tour.included.join('\n') : '';
+  byId('tour-excluded').value =
+    Array.isArray(tour?.excluded) ? tour.excluded.join('\n') : '';
+  byId('tour-duration').value = tour?.duration ?? '';
+  byId('tour-schedule').value = tour?.schedule ?? '';
+  byId('tour-departure').value = tour?.departure ?? '';
+  byId('tour-price-label').value = tour?.priceLabel ?? 'A partir de';
+  byId('tour-price-reais').value =
+    tour?.priceCents == null
+      ? ''
+      : (Number(tour.priceCents) / 100).toFixed(2).replace('.', ',');
+  byId('tour-price-suffix').value = tour?.priceSuffix ?? '';
+  byId('tour-whatsapp-phone').value = tour?.whatsappPhone ?? '';
+  byId('tour-whatsapp-message').value = tour?.whatsappMessage ?? '';
+  byId('tour-updated-at').textContent =
+    tour?.updatedAt == null
+      ? 'Novo passeio'
+      : `Atualizado em ${formatDateTime(tour.updatedAt)}`;
+
+  resetTourCoverPreview();
+  const placeholder = byId('tour-cover-placeholder');
+  if (Number(tour?.coverImageVersion ?? 0) > 0) {
+    placeholder.textContent = 'Carregando foto salva…';
+    void loadTourCoverPreview(tour);
+  } else {
+    placeholder.textContent =
+      'Adicione uma foto de capa para o card do passeio.';
+  }
+}
+
+function selectTour(slug) {
+  const tour = state.communications.tours.find(
+    (item) => item.slug === slug,
+  );
+  if (tour == null) return;
+  state.selectedTourSlug = tour.slug;
+  fillTourForm(tour);
+  document.querySelectorAll('.tour-admin-item').forEach((button) => {
+    button.classList.toggle(
+      'is-active',
+      button.dataset.slug === tour.slug,
+    );
+  });
+}
+
+function renderTourCatalog() {
+  const tours = Array.isArray(state.communications.tours)
+    ? state.communications.tours
+    : [];
+  byId('tour-admin-summary').textContent =
+    `${tours.length} passeio(s)`;
+
+  const target = byId('tour-admin-list');
+  target.replaceChildren();
+
+  for (const tour of tours) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tour-admin-item';
+    button.dataset.slug = tour.slug;
+    button.classList.toggle(
+      'is-active',
+      state.selectedTourSlug === tour.slug,
+    );
+
+    const title = document.createElement('strong');
+    title.textContent = tour.title ?? tour.slug;
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${tour.enabled ? 'Publicado' : 'Rascunho'} · ordem ${tour.sortOrder ?? 0}`;
+    button.append(title, meta);
+    button.addEventListener('click', () => selectTour(tour.slug));
+    target.append(button);
+  }
+
+  const selected = tours.find(
+    (tour) => tour.slug === state.selectedTourSlug,
+  );
+  if (selected != null) {
+    fillTourForm(selected);
+  } else if (tours.length > 0) {
+    state.selectedTourSlug = tours[0].slug;
+    fillTourForm(tours[0]);
+    target.querySelector('[data-slug]')?.classList.add('is-active');
+  } else {
+    state.selectedTourSlug = null;
+    fillTourForm(null);
+  }
+
+  const canWrite =
+    state.communications.loaded === true &&
+    hasScope('communications:write');
+  byId('save-tour-button').disabled = !canWrite;
+  byId('upload-tour-cover-button').disabled = !canWrite;
+  byId('tour-new-button').disabled = !canWrite;
+}
+
+async function loadAppAuthHeroPreview() {
+  const image = byId('app-auth-hero-preview');
+  if (image == null || !state.token || !hasScope('communications:read')) return;
+  if (state.appAuthHeroObjectUrl != null) {
+    URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+    state.appAuthHeroObjectUrl = null;
+  }
+  const branding = state.communications.appAuthBranding;
+  const placeholder = byId('app-auth-hero-placeholder');
+  if (!branding || Number(branding.heroImageVersion || 0) < 1) {
+    image.hidden = true;
+    placeholder.hidden = false;
+    return;
+  }
+  try {
+    const payload = await api.appAuthHero(state.token);
+    state.appAuthHeroObjectUrl = URL.createObjectURL(
+      new Blob([payload.bytes], { type: payload.contentType }),
+    );
+    image.src = state.appAuthHeroObjectUrl;
+    image.hidden = false;
+    placeholder.hidden = true;
+  } catch (error) {
+    image.hidden = true;
+    placeholder.hidden = false;
+  }
+}
+
+function previewSelectedAppAuthHero(file) {
+  if (file == null) return;
+  if (state.appAuthHeroObjectUrl != null) URL.revokeObjectURL(state.appAuthHeroObjectUrl);
+  state.appAuthHeroObjectUrl = URL.createObjectURL(file);
+  const image = byId('app-auth-hero-preview');
+  image.src = state.appAuthHeroObjectUrl;
+  image.hidden = false;
+  byId('app-auth-hero-placeholder').hidden = true;
+}
+
+async function handleAppAuthHeroUpload() {
+  if (!state.token || !hasScope('communications:write')) return;
+  const file = byId('app-auth-hero-file').files?.[0] ?? null;
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha uma imagem para o login.', 'danger');
+    return;
+  }
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size <= 0 || file.size > 5 * 1024 * 1024) {
+    setMessage(globalMessage, 'Use JPEG, PNG ou WebP com no máximo 5 MB.', 'danger');
+    return;
+  }
+  if (!window.confirm('Confirmar publicação da nova imagem de login? Ela ficará visível nos apps Passageiro e Motorista.')) {
+    return;
+  }
+  const button = byId('upload-app-auth-hero-button');
+  button.disabled = true;
+  try {
+    await api.uploadAppAuthHero(state.token, {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      contentType: file.type,
+    });
+    byId('app-auth-hero-file').value = '';
+    setMessage(globalMessage, 'Imagem do login publicada para os dois apps.', 'success');
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('communications:write');
+  }
+}
+
+async function loadAppBrandingIconPreview() {
+  const image = byId('app-branding-icon-preview');
+  if (
+    image == null ||
+    !state.token ||
+    !hasScope('communications:read')
+  ) {
+    return;
+  }
+
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+    state.appBrandingIconObjectUrl = null;
+  }
+
+  const branding = state.communications.appAuthBranding;
+  const placeholder = byId('app-branding-icon-placeholder');
+  if (!branding || Number(branding.appIconVersion || 0) < 1) {
+    image.hidden = true;
+    if (placeholder != null) placeholder.hidden = false;
+    return;
+  }
+
+  try {
+    const payload = await api.appBrandingIcon(state.token);
+    state.appBrandingIconObjectUrl = URL.createObjectURL(
+      new Blob([payload.bytes], { type: payload.contentType }),
+    );
+    image.src = state.appBrandingIconObjectUrl;
+    image.hidden = false;
+    if (placeholder != null) placeholder.hidden = true;
+  } catch {
+    image.hidden = true;
+    if (placeholder != null) placeholder.hidden = false;
+  }
+}
+
+function previewSelectedAppBrandingIcon(file) {
+  if (file == null) return;
+  if (state.appBrandingIconObjectUrl != null) {
+    URL.revokeObjectURL(state.appBrandingIconObjectUrl);
+  }
+  state.appBrandingIconObjectUrl = URL.createObjectURL(file);
+  const image = byId('app-branding-icon-preview');
+  if (image != null) {
+    image.src = state.appBrandingIconObjectUrl;
+    image.hidden = false;
+  }
+  const placeholder = byId('app-branding-icon-placeholder');
+  if (placeholder != null) placeholder.hidden = true;
+}
+
+async function appIconDimensions(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve({
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+      });
+      image.onerror = () => reject(
+        new Error('Não foi possível ler as dimensões do ícone.'),
+      );
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function handleAppBrandingIconUpload() {
+  if (!state.token || !hasScope('communications:write')) return;
+
+  const file = byId('app-branding-icon-file')?.files?.[0] ?? null;
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha um ícone para os apps.', 'danger');
+    return;
+  }
+  if (
+    !['image/png', 'image/webp'].includes(file.type) ||
+    file.size <= 0 ||
+    file.size > 5 * 1024 * 1024
+  ) {
+    setMessage(
+      globalMessage,
+      'Use PNG ou WebP com no máximo 5 MB.',
+      'danger',
+    );
+    return;
+  }
+
+  try {
+    const dimensions = await appIconDimensions(file);
+    if (
+      dimensions.width !== dimensions.height ||
+      dimensions.width < 512
+    ) {
+      setMessage(
+        globalMessage,
+        'O ícone precisa ser quadrado e ter pelo menos 512 × 512 px. Recomendado: 1024 × 1024 px.',
+        'danger',
+      );
+      return;
+    }
+  } catch (error) {
+    setMessage(globalMessage, errorMessage(error), 'danger');
+    return;
+  }
+
+  if (
+    !window.confirm(
+      'Salvar este ícone para a próxima versão dos apps? Ele não muda os aparelhos já instalados; será aplicado no próximo build.',
+    )
+  ) {
+    return;
+  }
+
+  const button = byId('upload-app-branding-icon-button');
+  if (button != null) button.disabled = true;
+  try {
+    await api.uploadAppBrandingIcon(state.token, {
+      bytes: new Uint8Array(await file.arrayBuffer()),
+      contentType: file.type,
+    });
+    byId('app-branding-icon-file').value = '';
+    setMessage(
+      globalMessage,
+      'Novo ícone salvo para a próxima versão dos apps.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    if (button != null) {
+      button.disabled = !hasScope('communications:write');
+    }
+  }
+}
+
+function renderCommunications() {
+  const loaded = state.communications.loaded === true;
+  const provider = state.communications.deliveryProvider || 'disabled';
+
+  const providerPill = byId('communications-provider');
+  if (providerPill != null) {
+    if (!loaded) {
+      providerPill.textContent = 'Carregando';
+      providerPill.className = 'pill pill--neutral';
+    } else {
+      providerPill.textContent =
+        provider === 'disabled' ? 'Push desligado' : provider;
+      providerPill.className =
+        provider === 'disabled'
+          ? 'pill pill--warning'
+          : 'pill pill--success';
+    }
+  }
+
+  if (byId('notification-history-body') != null) {
+    renderNotificationHistory();
+    if (loaded) {
+      syncReleasePolicyForm();
+    } else {
+      byId('release-latest-version').value = '';
+      byId('release-latest-build').value = '';
+      byId('release-minimum-build').value = '';
+      byId('release-store-url').value = '';
+      byId('release-update-message').value = '';
+      byId('release-policy-meta').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+    }
+  }
+
+  if (byId('agency-form') != null) {
+    if (loaded) {
+      renderAgencyPromotion();
+      renderSocialLinks();
+      renderTourCatalog();
+    } else {
+      byId('agency-updated-at').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+      byId('social-links-updated-at').textContent =
+        hasScope('communications:read')
+          ? 'Aguardando dados do Core'
+          : 'Sem permissão communications:read';
+      byId('tour-admin-summary').textContent = '—';
+    }
+  }
+
+  const canWrite =
+    loaded && hasScope('communications:write');
+  const sendButton = byId('send-notification-button');
+  const releaseButton = byId('save-release-policy-button');
+  const agencyButton = byId('save-agency-button');
+  const socialButton = byId('save-social-links-button');
+  if (sendButton != null) sendButton.disabled = !canWrite;
+  if (releaseButton != null) releaseButton.disabled = !canWrite;
+  if (agencyButton != null) agencyButton.disabled = !canWrite;
+  if (socialButton != null) socialButton.disabled = !canWrite;
+  const authHeroButton = byId('upload-app-auth-hero-button');
+  if (authHeroButton != null) authHeroButton.disabled = !canWrite;
+  const appIconButton = byId('upload-app-branding-icon-button');
+  if (appIconButton != null) appIconButton.disabled = !canWrite;
+  const authHeroMeta = byId('app-auth-hero-meta');
+  if (authHeroMeta != null) {
+    const branding = state.communications.appAuthBranding;
+    authHeroMeta.textContent = branding?.heroImageVersion > 0
+      ? `Versão ${branding.heroImageVersion} · atualizada em ${formatDateTime(branding.updatedAt)}`
+      : 'Imagem padrão embarcada nos aplicativos.';
+  }
+  const appIconMeta = byId('app-branding-icon-meta');
+  if (appIconMeta != null) {
+    const branding = state.communications.appAuthBranding;
+    appIconMeta.textContent = branding?.appIconVersion > 0
+      ? `Ícone preparado · versão ${branding.appIconVersion} · salvo em ${formatDateTime(branding.updatedAt)} · exige novo build`
+      : 'Nenhum ícone novo preparado no ADM.';
+  }
+  const designUpdatedAt = byId('design-updated-at');
+  if (designUpdatedAt != null) {
+    const branding = state.communications.appAuthBranding;
+    designUpdatedAt.textContent =
+      loaded && branding?.updatedAt
+        ? `Atualizado em ${formatDateTime(branding.updatedAt)}`
+        : loaded
+          ? 'Identidade carregada'
+          : 'Aguardando dados';
+  }
+
+  if (byId('save-tour-button') != null) {
+    byId('save-tour-button').disabled = !canWrite;
+  }
+  if (byId('upload-tour-cover-button') != null) {
+    byId('upload-tour-cover-button').disabled = !canWrite;
+  }
+  if (byId('tour-new-button') != null) {
+    byId('tour-new-button').disabled = !canWrite;
+  }
+}
+
+async function loadCommunications({ announce = true } = {}) {
+  if (!state.token || !hasScope('communications:read')) {
+    state.communications = {
+      loaded: false,
+      deliveryProvider: 'disabled',
+      campaigns: [],
+      releasePolicies: [],
+      agencyPromotion: null,
+      socialLinks: null,
+      tours: [],
+      appAuthBranding: null,
+    };
+    renderCommunications();
+    return;
+  }
+
+  state.communications.loaded = false;
+  renderCommunications();
+
+  try {
+    const payload = await api.communications(state.token);
+    state.communications = {
+      loaded: true,
+      deliveryProvider: payload?.deliveryProvider ?? 'disabled',
+      campaigns: Array.isArray(payload?.campaigns)
+        ? payload.campaigns
+        : [],
+      releasePolicies: Array.isArray(payload?.releasePolicies)
+        ? payload.releasePolicies
+        : [],
+      agencyPromotion: payload?.agencyPromotion ?? null,
+      socialLinks: payload?.socialLinks ?? null,
+      tours: Array.isArray(payload?.tours) ? payload.tours : [],
+      appAuthBranding: payload?.appAuthBranding ?? null,
+    };
+    renderCommunications();
+    if (byId('app-auth-hero-preview') != null) void loadAppAuthHeroPreview();
+    if (byId('app-branding-icon-preview') != null) {
+      void loadAppBrandingIconPreview();
+    }
+    if (announce) {
+      setMessage(
+        globalMessage,
+        'Centro de comunicação atualizado.',
+        'success',
+      );
+    }
+  } catch (error) {
+    state.communications.loaded = false;
+    renderCommunications();
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleNotificationSubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+
+  const audience = byId('notification-audience').value;
+  const category = byId('notification-category').value;
+  const title = byId('notification-title').value.trim();
+  const body = byId('notification-body').value.trim();
+  const audienceLabel =
+    audience === 'passenger'
+      ? 'somente passageiros'
+      : audience === 'driver'
+        ? 'somente motoristas'
+        : 'toda a base';
+  const confirmed = window.confirm(
+    `Confirmar envio da notificação para ${audienceLabel}?\n\n${title}\n${body}`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('send-notification-button');
+  button.disabled = true;
+  try {
+    const result = await api.sendNotification(state.token, {
+      audience,
+      category,
+      title,
+      body,
+    });
+    byId('notification-title').value = '';
+    byId('notification-body').value = '';
+    const campaign = result?.campaign;
+    setMessage(
+      globalMessage,
+      campaign == null
+        ? 'Notificação enviada.'
+        : `Notificação processada: ${campaign.deliveredCount}/${campaign.deviceCount} aparelhos.`,
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+async function handleReleasePolicySubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+
+  const latestBuild = Number(byId('release-latest-build').value);
+  const minimumBuild = Number(byId('release-minimum-build').value);
+  const appKind = byId('release-app-kind').value;
+  const platform = byId('release-platform').value;
+  const latestVersion =
+    byId('release-latest-version').value.trim();
+  if (
+    !Number.isInteger(latestBuild) ||
+    !Number.isInteger(minimumBuild) ||
+    latestBuild < 1 ||
+    minimumBuild < 1 ||
+    minimumBuild > latestBuild
+  ) {
+    setMessage(
+      globalMessage,
+      'Build mínimo e build mais recente devem ser inteiros positivos, e o mínimo não pode superar o mais recente.',
+      'danger',
+    );
+    return;
+  }
+  const confirmed = window.confirm(
+    `Confirmar política de versão? ${appKind} · ${platform} · versão ${latestVersion} · build atual ${latestBuild} · mínimo ${minimumBuild}. Aparelhos desatualizados podem receber aviso automaticamente.`,
+  );
+  if (!confirmed) return;
+
+  const button = byId('save-release-policy-button');
+  button.disabled = true;
+  try {
+    const result = await api.updateReleasePolicy(state.token, {
+      appKind,
+      platform,
+      policy: {
+        latestVersion,
+        latestBuild,
+        minimumBuild,
+        storeUrl: byId('release-store-url').value.trim(),
+        updateMessage:
+          byId('release-update-message').value.trim(),
+      },
+    });
+    const auto = result?.automaticNotification;
+    setMessage(
+      globalMessage,
+      auto == null
+        ? 'Política de versão salva.'
+        : `Política salva. ${auto.outdatedDevices} aparelho(s) desatualizado(s); ${auto.delivered} aviso(s) entregue(s).`,
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+async function handleAgencySubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+
+  const payload = {
+    enabled: byId('agency-enabled').checked,
+    title: byId('agency-title').value.trim(),
+    subtitle: byId('agency-subtitle').value.trim(),
+    description: byId('agency-description').value.trim(),
+    ctaLabel: byId('agency-cta-label').value.trim(),
+    ctaUrl: byId('agency-cta-url').value.trim(),
+  };
+  const wasPublic =
+    state.communications.agencyPromotion?.enabled === true;
+  if (wasPublic || payload.enabled) {
+    const confirmed = window.confirm(
+      payload.enabled
+        ? 'Confirmar publicação da divulgação? As alterações ficarão visíveis no app assim que forem salvas.'
+        : 'Confirmar desativação da divulgação? Ela deixará de aparecer no app.',
+    );
+    if (!confirmed) return;
+  }
+
+  const button = byId('save-agency-button');
+  button.disabled = true;
+  try {
+    await api.updateAgencyPromotion(state.token, payload);
+    setMessage(
+      globalMessage,
+      'Divulgação da Ramo Nessa Agência salva.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+async function handleSocialLinksSubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+
+  const button = byId('save-social-links-button');
+  button.disabled = true;
+  try {
+    await api.updateSocialLinks(state.token, {
+      instagramHandle: byId('social-instagram-handle').value.trim(),
+    });
+    setMessage(
+      globalMessage,
+      'Instagram oficial salvo.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+function handleTourNew() {
+  if (
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+  state.selectedTourSlug = null;
+  fillTourForm(null);
+  document.querySelectorAll('.tour-admin-item').forEach((button) => {
+    button.classList.remove('is-active');
+  });
+  byId('tour-slug').focus();
+}
+
+function tourPriceCentsFromInput() {
+  const raw = byId('tour-price-reais').value.trim();
+  if (!raw) return null;
+  const normalized = raw.includes(',')
+    ? raw.replace(/\./g, '').replace(',', '.')
+    : raw;
+  const reais = Number(normalized);
+  if (!Number.isFinite(reais) || reais < 0) {
+    throw new Error('Informe um preço válido.');
+  }
+  return Math.round(reais * 100);
+}
+
+async function handleTourSubmit(event) {
+  event.preventDefault();
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+
+  const slug = byId('tour-slug').value
+    .trim()
+    .toLowerCase();
+  const payload = {
+      enabled: byId('tour-enabled').checked,
+      sortOrder: Number(byId('tour-sort-order').value),
+      title: byId('tour-title').value.trim(),
+      badge: byId('tour-badge').value.trim(),
+      shortDescription:
+        byId('tour-short-description').value.trim(),
+      description: byId('tour-description').value.trim(),
+      highlights: tourLines(byId('tour-highlights').value),
+      included: tourLines(byId('tour-included').value),
+      excluded: tourLines(byId('tour-excluded').value),
+      duration: byId('tour-duration').value.trim(),
+      schedule: byId('tour-schedule').value.trim(),
+      departure: byId('tour-departure').value.trim(),
+      priceLabel: byId('tour-price-label').value.trim(),
+      priceCents: tourPriceCentsFromInput(),
+      priceSuffix: byId('tour-price-suffix').value.trim(),
+      whatsappPhone:
+        byId('tour-whatsapp-phone').value.trim(),
+    whatsappMessage:
+      byId('tour-whatsapp-message').value.trim(),
+  };
+  const current = state.communications.tours.find(
+    (tour) => tour.slug === slug,
+  );
+  if (current?.enabled === true || payload.enabled) {
+    const confirmed = window.confirm(
+      payload.enabled
+        ? 'Confirmar publicação do passeio? As informações salvas ficarão visíveis no app do Passageiro.'
+        : 'Confirmar retirada do passeio? Ele deixará de aparecer no app do Passageiro.',
+    );
+    if (!confirmed) return;
+  }
+
+  const button = byId('save-tour-button');
+  button.disabled = true;
+  try {
+    await api.saveAgencyTour(state.token, slug, payload);
+    state.selectedTourSlug = slug;
+    setMessage(
+      globalMessage,
+      'Passeio salvo. O app usa essas informações sem precisar de novo build.',
+      'success',
+    );
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+function previewSelectedTourCover(file) {
+  resetTourCoverPreview();
+  if (file == null) return;
+  state.tourCoverObjectUrl = URL.createObjectURL(file);
+  const image = byId('tour-cover-preview');
+  image.src = state.tourCoverObjectUrl;
+  image.hidden = false;
+  byId('tour-cover-placeholder').hidden = true;
+}
+
+async function handleTourCoverUpload() {
+  if (
+    !state.token ||
+    state.communications.loaded !== true ||
+    !hasScope('communications:write')
+  ) {
+    return;
+  }
+  const slug = state.selectedTourSlug;
+  const file = byId('tour-cover-file').files?.[0] ?? null;
+  if (!slug) {
+    setMessage(
+      globalMessage,
+      'Salve o passeio antes de enviar a foto.',
+      'danger',
+    );
+    return;
+  }
+  if (file == null) {
+    setMessage(globalMessage, 'Escolha uma foto de capa.', 'danger');
+    return;
+  }
+  if (
+    !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+  ) {
+    setMessage(
+      globalMessage,
+      'A foto deve ser JPEG, PNG ou WebP.',
+      'danger',
+    );
+    return;
+  }
+  if (file.size <= 0 || file.size > 8 * 1024 * 1024) {
+    setMessage(
+      globalMessage,
+      'A foto deve ter no máximo 8 MB.',
+      'danger',
+    );
+    return;
+  }
+
+  const button = byId('upload-tour-cover-button');
+  button.disabled = true;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await api.uploadAgencyTourCover(state.token, slug, {
+      bytes,
+      contentType: file.type,
+    });
+    setMessage(
+      globalMessage,
+      'Foto de capa atualizada.',
+      'success',
+    );
+    byId('tour-cover-file').value = '';
+    await loadCommunications({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled =
+      state.communications.loaded !== true ||
+      !hasScope('communications:write');
+  }
+}
+
+function handleAuditFilter(event) {
+  event.preventDefault();
+  state.auditDirectory.actorKind =
+    byId('audit-actor-kind').value;
+  state.auditDirectory.action =
+    byId('audit-action').value.trim();
+  state.auditDirectory.targetType =
+    byId('audit-target-type').value.trim();
+  state.auditDirectory.query =
+    byId('audit-query').value.trim();
+  void loadAudit({ reset: true });
+}
+
+function supportStatusLabel(status) {
+  switch (status) {
+    case 'open':
+      return 'Aberto';
+    case 'in_progress':
+      return 'Em atendimento';
+    case 'resolved':
+      return 'Resolvido';
+    case 'closed':
+      return 'Fechado';
+    default:
+      return status || 'Desconhecido';
+  }
+}
+
+function supportCategoryLabel(category) {
+  switch (category) {
+    case 'ride':
+      return 'Corrida';
+    case 'payment':
+      return 'Pagamento';
+    case 'account':
+      return 'Conta';
+    case 'document':
+      return 'Documento';
+    default:
+      return 'Outro';
+  }
+}
+
+function selectedSupportTicket() {
+  return state.support.tickets.find(
+    (ticket) => ticket.id === state.support.selectedId,
+  ) ?? null;
+}
+
+function supportRequesterLabel(ticket) {
+  const type = ticket?.requesterType === 'passenger'
+    ? 'passageiro'
+    : 'motorista';
+  const id = ticket?.requesterId || ticket?.passengerId || ticket?.driverId;
+  return `${type} ${id || 'não identificado'}`;
+}
+
+function renderSupportSelection() {
+  const ticket = selectedSupportTicket();
+  const card = byId('support-response-card');
+  if (card == null) return;
+
+  if (ticket == null) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  byId('support-ticket-id').value = ticket.id;
+  byId('support-response-title').textContent = ticket.subject;
+  byId('support-response-meta').textContent =
+    `${supportCategoryLabel(ticket.category)} · ${supportRequesterLabel(ticket)} · ${formatDateTime(ticket.createdAt)}`;
+  byId('support-response-status').textContent =
+    supportStatusLabel(ticket.status);
+  byId('support-driver-message').textContent = ticket.message;
+  byId('support-ticket-status').value =
+    ticket.status === 'open' ? 'in_progress' : ticket.status;
+  byId('support-ticket-response').value = ticket.response ?? '';
+
+  const canWrite = hasScope('support:write');
+  byId('support-ticket-status').disabled = !canWrite;
+  byId('support-ticket-response').disabled = !canWrite;
+  byId('support-response-button').disabled = !canWrite;
+}
+
+function renderSupport() {
+  const tickets = Array.isArray(state.support.tickets)
+    ? state.support.tickets
+    : [];
+  const list = byId('support-list');
+  const empty = byId('support-empty');
+  const summary = byId('support-summary');
+  const loadedCount = byId('support-loaded-count');
+  const loadMore = byId('support-load-more');
+  if (list == null || empty == null || summary == null) return;
+
+  summary.textContent = `${tickets.length} chamado(s) carregado(s)`;
+  if (loadedCount != null) {
+    loadedCount.textContent = `${tickets.length} carregado(s)`;
+  }
+  if (loadMore != null) {
+    loadMore.hidden = state.support.nextCursor == null;
+    loadMore.disabled = false;
+  }
+  list.replaceChildren();
+
+  for (const ticket of tickets) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.classList.toggle(
+      'is-active',
+      ticket.id === state.support.selectedId,
+    );
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const title = document.createElement('strong');
+    title.textContent = ticket.subject;
+    const status = document.createElement('span');
+    status.className =
+      ticket.status === 'open' || ticket.status === 'in_progress'
+        ? 'pill pill--warning'
+        : 'pill pill--success';
+    status.textContent = supportStatusLabel(ticket.status);
+    heading.append(title, status);
+
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${supportCategoryLabel(ticket.category)} · ${supportRequesterLabel(ticket)} · ${formatDateTime(ticket.createdAt)}`;
+
+    const message = document.createElement('p');
+    message.textContent = ticket.message;
+
+    button.append(heading, meta, message);
+    button.addEventListener('click', () => {
+      state.support.selectedId = ticket.id;
+      renderSupport();
+    });
+    list.append(button);
+  }
+
+  empty.hidden = tickets.length !== 0;
+  renderSupportSelection();
+}
+
+async function loadSupport({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('support:read')) return;
+
+  const loadMore = byId('support-load-more');
+  if (reset) {
+    const filter = byId('support-status-filter');
+    state.support.status =
+      filter == null ? '' : String(filter.value ?? '');
+    state.support.nextCursor = null;
+  }
+  if (loadMore != null) loadMore.disabled = true;
+
+  try {
+    const payload = await api.support(state.token, {
+      limit: 50,
+      status: state.support.status,
+      cursor: reset ? null : state.support.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.tickets)
+      ? payload.tickets
+      : [];
+
+    if (reset) {
+      state.support.tickets = incoming;
+    } else {
+      const known = new Set(
+        state.support.tickets.map((ticket) => ticket.id),
+      );
+      state.support.tickets.push(
+        ...incoming.filter((ticket) => !known.has(ticket.id)),
+      );
+    }
+
+    state.support.nextCursor =
+      payload?.nextCursor != null &&
+      typeof payload.nextCursor === 'object' &&
+      typeof payload.nextCursor.createdAt === 'string' &&
+      typeof payload.nextCursor.id === 'string'
+        ? {
+            createdAt: payload.nextCursor.createdAt,
+            id: payload.nextCursor.id,
+          }
+        : null;
+
+    if (
+      state.support.selectedId != null &&
+      !state.support.tickets.some(
+        (ticket) => ticket.id === state.support.selectedId,
+      )
+    ) {
+      state.support.selectedId = null;
+    }
+    renderSupport();
+    if (announce) {
+      setMessage(globalMessage, 'Chamados atualizados.', 'success');
+    }
+  } catch (error) {
+    if (loadMore != null) loadMore.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleSupportResponse(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('support:write')) return;
+
+  const ticketId = byId('support-ticket-id').value.trim();
+  const response = byId('support-ticket-response').value.trim();
+  const status = byId('support-ticket-status').value;
+  const button = byId('support-response-button');
+  if (!ticketId || response.length < 3) {
+    setMessage(
+      globalMessage,
+      'Informe uma resposta válida para o chamado.',
+      'danger',
+    );
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    await api.respondSupportTicket(state.token, {
+      ticketId,
+      response,
+      status,
+    });
+    setMessage(
+      globalMessage,
+      'Resposta registrada no chamado.',
+      'success',
+    );
+    await loadSupport({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('support:write');
+  }
+}
+
+
+function selectedStaffUser() {
+  return state.staff.users.find(
+    (user) => user.id === state.staff.selectedId,
+  ) ?? null;
+}
+
+function staffScopeInputs(kind) {
+  return [...document.querySelectorAll(`[data-staff-${kind}-scope]`)];
+}
+
+function selectedStaffScopes(kind) {
+  const attribute =
+    kind === 'create' ? 'staffCreateScope' : 'staffEditScope';
+  return staffScopeInputs(kind)
+    .filter((input) => input.checked)
+    .map((input) => input.dataset[attribute])
+    .filter(Boolean);
+}
+
+function setStaffScopes(kind, scopes) {
+  const selected = new Set(Array.isArray(scopes) ? scopes : []);
+  const attribute =
+    kind === 'create' ? 'staffCreateScope' : 'staffEditScope';
+  for (const input of staffScopeInputs(kind)) {
+    input.checked = selected.has(input.dataset[attribute]);
+  }
+}
+
+function renderStaffOnboarding() {
+  const card = byId('staff-onboarding-card');
+  if (card == null) return;
+  const onboarding = state.staff.onboarding;
+  card.hidden = onboarding == null;
+  if (onboarding == null) {
+    byId('staff-onboarding-password').textContent = '—';
+    byId('staff-onboarding-totp').textContent = '—';
+    byId('staff-onboarding-uri').textContent = '—';
+    return;
+  }
+  byId('staff-onboarding-password').textContent =
+    onboarding.initialPassword ?? '—';
+  byId('staff-onboarding-totp').textContent =
+    onboarding.totpSecret ?? '—';
+  byId('staff-onboarding-uri').textContent =
+    onboarding.otpauthUri ?? '—';
+}
+
+function renderStaffEditor() {
+  const card = byId('staff-editor-card');
+  if (card == null) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  byId('staff-edit-user-id').value = user.id;
+  byId('staff-edit-name').value = user.name ?? '';
+  byId('staff-editor-title').textContent = user.name ?? 'Funcionário';
+  byId('staff-editor-email').textContent = user.email ?? '—';
+  const pill = byId('staff-editor-status-pill');
+  pill.textContent = user.status === 'active' ? 'Ativo' : 'Acesso revogado';
+  pill.className =
+    user.status === 'active'
+      ? 'pill pill--success'
+      : 'pill pill--warning';
+  setStaffScopes('edit', user.scopes);
+  byId('staff-access-toggle-button').textContent =
+    user.status === 'active' ? 'Revogar acesso' : 'Reativar acesso';
+}
+
+function renderStaff() {
+  const list = byId('staff-list');
+  const empty = byId('staff-empty');
+  const summary = byId('staff-summary');
+  if (list == null || empty == null || summary == null) return;
+
+  const users = Array.isArray(state.staff.users) ? state.staff.users : [];
+  summary.textContent = `${users.length} usuário(s)`;
+  list.replaceChildren();
+
+  for (const user of users) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.disabled = user.isOwner === true;
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const name = document.createElement('strong');
+    name.textContent = user.name ?? 'Usuário Admin';
+    const status = document.createElement('span');
+    status.className =
+      user.status === 'active'
+        ? 'pill pill--success'
+        : 'pill pill--warning';
+    status.textContent =
+      user.isOwner === true
+        ? 'Proprietário'
+        : user.status === 'active'
+          ? 'Ativo'
+          : 'Revogado';
+    heading.append(name, status);
+
+    const email = document.createElement('small');
+    email.textContent = user.email ?? '—';
+    const permissions = document.createElement('p');
+    permissions.textContent =
+      user.isOwner === true
+        ? 'Conta proprietária protegida'
+        : `${Array.isArray(user.scopes) ? user.scopes.length : 0} permissão(ões)`;
+
+    button.append(heading, email, permissions);
+    if (user.isOwner !== true) {
+      button.addEventListener('click', () => {
+        state.staff.selectedId = user.id;
+        renderStaff();
+      });
+    }
+    button.classList.toggle(
+      'is-active',
+      user.id === state.staff.selectedId,
+    );
+    list.append(button);
+  }
+
+  empty.hidden = users.length !== 0;
+  renderStaffEditor();
+  renderStaffOnboarding();
+}
+
+async function loadStaff({ announce = true } = {}) {
+  if (!state.token || !canManageStaff()) return;
+  try {
+    const payload = await api.staff(state.token);
+    state.staff.users = Array.isArray(payload?.users)
+      ? payload.users
+      : [];
+    if (
+      state.staff.selectedId != null &&
+      !state.staff.users.some(
+        (user) =>
+          user.id === state.staff.selectedId &&
+          user.isOwner !== true,
+      )
+    ) {
+      state.staff.selectedId = null;
+    }
+    renderStaff();
+    if (announce) {
+      setMessage(globalMessage, 'Equipe administrativa atualizada.', 'success');
+    }
+  } catch (error) {
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handleStaffCreate(event) {
+  event.preventDefault();
+  if (!state.token || !canManageStaff()) return;
+  const name = byId('staff-create-name').value.trim();
+  const email = byId('staff-create-email').value.trim();
+  const scopes = selectedStaffScopes('create');
+  const button = byId('staff-create-button');
+  if (name.length < 3 || !email || scopes.length === 0) {
+    setMessage(
+      globalMessage,
+      'Informe nome, e-mail e pelo menos uma permissão.',
+      'danger',
+    );
+    return;
+  }
+  button.disabled = true;
+  try {
+    const payload = await api.createStaff(state.token, {
+      name,
+      email,
+      scopes,
+    });
+    state.staff.onboarding = payload?.onboarding ?? null;
+    byId('staff-create-form').reset();
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      'Acesso criado. Guarde as credenciais iniciais exibidas abaixo.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffUpdate(event) {
+  event.preventDefault();
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  const name = byId('staff-edit-name').value.trim();
+  const scopes = selectedStaffScopes('edit');
+  const button = byId('staff-save-button');
+  if (name.length < 3 || scopes.length === 0) {
+    setMessage(
+      globalMessage,
+      'Informe um nome válido e pelo menos uma permissão.',
+      'danger',
+    );
+    return;
+  }
+  button.disabled = true;
+  try {
+    const payload = await api.updateStaff(state.token, user.id, {
+      name,
+      scopes,
+    });
+    await loadStaff({ announce: false });
+    const revoked = Number(payload?.revokedSessions ?? 0);
+    setMessage(
+      globalMessage,
+      revoked > 0
+        ? `Permissões salvas e ${revoked} sessão(ões) anterior(es) revogada(s).`
+        : 'Permissões salvas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffAccessToggle() {
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  const nextStatus =
+    user.status === 'active' ? 'suspended' : 'active';
+  const button = byId('staff-access-toggle-button');
+  button.disabled = true;
+  try {
+    await api.updateStaff(state.token, user.id, {
+      status: nextStatus,
+    });
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      nextStatus === 'active'
+        ? 'Acesso do funcionário reativado.'
+        : 'Acesso revogado e sessões abertas encerradas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function handleStaffDelete() {
+  if (!state.token || !canManageStaff()) return;
+  const user = selectedStaffUser();
+  if (user == null || user.isOwner === true) return;
+  if (
+    !window.confirm(
+      `Excluir o usuário ${user.name}? O acesso será encerrado e o histórico de auditoria será preservado.`,
+    )
+  ) {
+    return;
+  }
+  const button = byId('staff-delete-button');
+  button.disabled = true;
+  try {
+    await api.deleteStaff(state.token, user.id);
+    state.staff.selectedId = null;
+    await loadStaff({ announce: false });
+    setMessage(
+      globalMessage,
+      'Usuário administrativo excluído e sessões encerradas.',
+      'success',
+    );
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+
+function privacyRequestTypeLabel(type) {
+  return {
+    access: 'Acesso aos dados',
+    correction: 'Correção de dados',
+    deletion: 'Eliminação de dados',
+    anonymization: 'Anonimização',
+    portability: 'Portabilidade',
+    consent_revocation: 'Revogação de consentimento',
+  }[type] ?? type ?? 'Solicitação';
+}
+
+function privacyStatusLabel(status) {
+  return {
+    open: 'Aberto',
+    in_progress: 'Em atendimento',
+    completed: 'Concluído',
+    rejected: 'Rejeitado',
+  }[status] ?? status ?? '—';
+}
+
+function privacySubjectLabel(subjectType) {
+  return subjectType === 'driver' ? 'Motorista' : 'Passageiro';
+}
+
+function privacyDocumentByType(type) {
+  return state.privacy.legalDocuments.find(
+    (document) => document.documentType === type,
+  ) ?? null;
+}
+
+function localDateTimeValue(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return '';
+  const pad = (value) => String(value).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    '-',
+    pad(date.getMonth() + 1),
+    '-',
+    pad(date.getDate()),
+    'T',
+    pad(date.getHours()),
+    ':',
+    pad(date.getMinutes()),
+  ].join('');
+}
+
+const privacyDocumentFields = Object.freeze({
+  privacy_policy: Object.freeze({
+    currentId: 'privacy-policy-current',
+    titleId: 'privacy-policy-title',
+    contentId: 'privacy-policy-content',
+    effectiveAtId: 'privacy-policy-effective-at',
+    submitId: 'privacy-policy-submit',
+  }),
+  terms_of_use: Object.freeze({
+    currentId: 'terms-of-use-current',
+    titleId: 'terms-of-use-title',
+    contentId: 'terms-of-use-content',
+    effectiveAtId: 'terms-of-use-effective-at',
+    submitId: 'terms-of-use-submit',
+  }),
+});
+
+function renderPrivacyDocuments() {
+  const canWrite = hasScope('privacy:write');
+  for (const [type, fields] of Object.entries(privacyDocumentFields)) {
+    const document = privacyDocumentByType(type);
+    const current = byId(fields.currentId);
+    if (current != null) {
+      current.textContent = document == null
+        ? 'Nenhuma versão publicada.'
+        : `Versão ${document.version} · vigente desde ${formatDateTime(document.effectiveAt)}`;
+    }
+
+    const title = byId(fields.titleId);
+    const content = byId(fields.contentId);
+    const effectiveAt = byId(fields.effectiveAtId);
+    const submit = byId(fields.submitId);
+
+    if (title != null) {
+      title.disabled = !canWrite;
+      if (document != null && !title.value) title.value = document.title ?? '';
+    }
+    if (content != null) {
+      content.disabled = !canWrite;
+      if (document != null && !content.value) content.value = document.content ?? '';
+    }
+    if (effectiveAt != null) {
+      effectiveAt.disabled = !canWrite;
+      if (document != null && !effectiveAt.value) {
+        effectiveAt.value = localDateTimeValue(document.effectiveAt);
+      }
+    }
+    if (submit != null) submit.disabled = !canWrite;
+  }
+}
+
+function renderPrivacySelection() {
+  const card = byId('privacy-response-card');
+  if (card == null) return;
+
+  const request = state.privacy.requests.find(
+    (item) => item.id === state.privacy.selectedId,
+  );
+  if (request == null) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  byId('privacy-response-title').textContent =
+    privacyRequestTypeLabel(request.requestType);
+  byId('privacy-response-meta').textContent =
+    `${privacySubjectLabel(request.subjectType)} · ${request.subjectId} · ${formatDateTime(request.createdAt)}`;
+  byId('privacy-response-status').textContent =
+    privacyStatusLabel(request.status);
+  byId('privacy-request-note').textContent =
+    request.note?.trim() || 'Sem observação adicional.';
+  byId('privacy-request-id').value = request.id;
+
+  const status = byId('privacy-request-status');
+  const response = byId('privacy-request-response');
+  const button = byId('privacy-response-button');
+  const canWrite = hasScope('privacy:write');
+
+  if (status != null) {
+    status.value =
+      request.status === 'completed' || request.status === 'rejected'
+        ? request.status
+        : 'in_progress';
+    status.disabled = !canWrite;
+  }
+  if (response != null) {
+    response.value = request.response ?? '';
+    response.disabled = !canWrite;
+  }
+  if (button != null) button.disabled = !canWrite;
+}
+
+function renderPrivacy() {
+  renderPrivacyDocuments();
+
+  const list = byId('privacy-request-list');
+  const empty = byId('privacy-empty');
+  const summary = byId('privacy-summary');
+  const loaded = byId('privacy-loaded-count');
+  const loadMore = byId('privacy-load-more');
+  if (
+    list == null ||
+    empty == null ||
+    summary == null ||
+    loaded == null ||
+    loadMore == null
+  ) {
+    return;
+  }
+
+  list.replaceChildren();
+  const requests = state.privacy.requests;
+  summary.textContent =
+    `${requests.length} ${requests.length === 1 ? 'solicitação' : 'solicitações'}`;
+  loaded.textContent = `${requests.length} carregadas`;
+  loadMore.hidden = state.privacy.nextCursor == null;
+
+  for (const request of requests) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'support-ticket';
+    button.classList.toggle(
+      'is-active',
+      request.id === state.privacy.selectedId,
+    );
+
+    const heading = document.createElement('div');
+    heading.className = 'support-ticket__heading';
+    const title = document.createElement('strong');
+    title.textContent = privacyRequestTypeLabel(request.requestType);
+    const status = document.createElement('span');
+    status.className =
+      request.status === 'open' || request.status === 'in_progress'
+        ? 'pill pill--warning'
+        : request.status === 'completed'
+          ? 'pill pill--success'
+          : 'pill pill--neutral';
+    status.textContent = privacyStatusLabel(request.status);
+    heading.append(title, status);
+
+    const meta = document.createElement('small');
+    meta.textContent =
+      `${privacySubjectLabel(request.subjectType)} · ${formatDateTime(request.createdAt)}`;
+
+    const note = document.createElement('p');
+    note.textContent = request.note?.trim() || 'Sem observação adicional.';
+
+    button.append(heading, meta, note);
+    button.addEventListener('click', () => {
+      state.privacy.selectedId = request.id;
+      renderPrivacy();
+    });
+    list.append(button);
+  }
+
+  empty.hidden = requests.length !== 0;
+  renderPrivacySelection();
+}
+
+async function loadPrivacy({
+  reset = true,
+  announce = true,
+} = {}) {
+  if (!state.token || !hasScope('privacy:read')) return;
+
+  const loadMore = byId('privacy-load-more');
+  if (reset) {
+    const filter = byId('privacy-status-filter');
+    state.privacy.status =
+      filter == null ? '' : String(filter.value ?? '');
+    state.privacy.nextCursor = null;
+  }
+  if (loadMore != null) loadMore.disabled = true;
+
+  try {
+    const payload = await api.privacy(state.token, {
+      limit: 50,
+      status: state.privacy.status,
+      cursor: reset ? null : state.privacy.nextCursor,
+    });
+    const incoming = Array.isArray(payload?.requests)
+      ? payload.requests
+      : [];
+    if (reset) {
+      state.privacy.requests = incoming;
+      state.privacy.legalDocuments = Array.isArray(payload?.legalDocuments)
+        ? payload.legalDocuments
+        : [];
+    } else {
+      const known = new Set(
+        state.privacy.requests.map((request) => request.id),
+      );
+      state.privacy.requests.push(
+        ...incoming.filter((request) => !known.has(request.id)),
+      );
+    }
+
+    state.privacy.nextCursor =
+      payload?.nextCursor != null &&
+      typeof payload.nextCursor === 'object' &&
+      typeof payload.nextCursor.createdAt === 'string' &&
+      typeof payload.nextCursor.id === 'string'
+        ? {
+            createdAt: payload.nextCursor.createdAt,
+            id: payload.nextCursor.id,
+          }
+        : null;
+
+    if (
+      state.privacy.selectedId != null &&
+      !state.privacy.requests.some(
+        (request) => request.id === state.privacy.selectedId,
+      )
+    ) {
+      state.privacy.selectedId = null;
+    }
+
+    renderPrivacy();
+    if (announce) {
+      setMessage(globalMessage, 'Privacidade atualizada.', 'success');
+    }
+  } catch (error) {
+    if (loadMore != null) loadMore.disabled = false;
+    handleAuthenticatedError(error);
+  }
+}
+
+async function handlePrivacyDocumentSubmit(event, documentType) {
+  event.preventDefault();
+  if (!state.token || !hasScope('privacy:write')) return;
+
+  const fields = privacyDocumentFields[documentType];
+  if (fields == null) return;
+
+  const title = byId(fields.titleId).value.trim();
+  const content = byId(fields.contentId).value.trim();
+  const rawEffectiveAt =
+    byId(fields.effectiveAtId).value.trim();
+  const submit = byId(fields.submitId);
+
+  if (title.length < 3 || content.length < 50) {
+    setMessage(
+      globalMessage,
+      'Informe título e conteúdo jurídico completo antes de publicar.',
+      'danger',
+    );
+    return;
+  }
+
+  let effectiveAt = '';
+  if (rawEffectiveAt) {
+    const parsed = new Date(rawEffectiveAt);
+    if (!Number.isFinite(parsed.getTime())) {
+      setMessage(globalMessage, 'Data de vigência inválida.', 'danger');
+      return;
+    }
+    effectiveAt = parsed.toISOString();
+  }
+
+  submit.disabled = true;
+  try {
+    await api.publishPrivacyDocument(state.token, {
+      documentType,
+      title,
+      content,
+      effectiveAt,
+    });
+    setMessage(
+      globalMessage,
+      'Nova versão do documento legal publicada.',
+      'success',
+    );
+    await loadPrivacy({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    submit.disabled = !hasScope('privacy:write');
+  }
+}
+
+async function handlePrivacyResponse(event) {
+  event.preventDefault();
+  if (!state.token || !hasScope('privacy:write')) return;
+
+  const requestId = byId('privacy-request-id').value.trim();
+  const status = byId('privacy-request-status').value;
+  const response = byId('privacy-request-response').value.trim();
+  const button = byId('privacy-response-button');
+  if (!requestId) return;
+
+  if (
+    (status === 'completed' || status === 'rejected') &&
+    response.length < 3
+  ) {
+    setMessage(
+      globalMessage,
+      'Informe a resposta antes de concluir ou rejeitar a solicitação.',
+      'danger',
+    );
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    await api.updatePrivacyRequest(state.token, {
+      requestId,
+      status,
+      response,
+    });
+    setMessage(
+      globalMessage,
+      'Solicitação LGPD atualizada.',
+      'success',
+    );
+    await loadPrivacy({ announce: false });
+  } catch (error) {
+    handleAuthenticatedError(error);
+  } finally {
+    button.disabled = !hasScope('privacy:write');
+  }
+}
+
+function bindRouteEvent(id, eventName, handler) {
+  const element = byId(id);
+  if (element != null) {
+    element.addEventListener(eventName, handler);
+  }
+}
+
+function bindRouteEvents(view) {
+  if (view === 'overview') {
+    bindRouteEvent('refresh-dashboard-button', 'click', () => {
+      void loadDashboard();
+    });
+    return;
+  }
+
+  if (view === 'fleet') {
+    bindRouteEvent('refresh-fleet-button', 'click', () => {
+      void loadFleet();
+    });
+    return;
+  }
+
+  if (view === 'rides') {
+    bindRouteEvent('ride-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadRideDirectory({ reset: true });
+    });
+    bindRouteEvent('ride-cancel-form', 'submit', (event) => {
+      void handleRideCancel(event);
+    });
+    bindRouteEvent('ride-directory-more', 'click', () => {
+      void loadRideDirectory({ reset: false, announce: false });
+    });
+    return;
+  }
+
+  if (view === 'passengers') {
+    bindRouteEvent('passenger-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadPassengerDirectory({ reset: true });
+    });
+    bindRouteEvent('passenger-directory-more', 'click', () => {
+      void loadPassengerDirectory({
+        reset: false,
+        announce: false,
+      });
+    });
+    bindRouteEvent(
+      'passenger-profile-edit-form',
+      'submit',
+      (event) => {
+        void handlePassengerProfileEdit(event);
+      },
+    );
+    bindRouteEvent('passenger-access-button', 'click', () => {
+      void handlePassengerAccessChange();
+    });
+    return;
+  }
+
+  if (view === 'finance') {
+    bindRouteEvent('refresh-finance-button', 'click', () => {
+      void loadFinance();
+    });
+    bindRouteEvent('finance-methods-form', 'submit', (event) => {
+      void handlePaymentMethodsSubmit(event);
+    });
+    bindRouteEvent('finance-cash-limit-form', 'submit', (event) => {
+      void handleDefaultCashLimitSubmit(event);
+    });
+    bindRouteEvent('finance-enable-cash-button', 'click', () => {
+      void handleEnableCash();
+    });
+    bindRouteEvent('finance-disable-cash-button', 'click', () => {
+      void handleDisableCash();
+    });
+    bindRouteEvent('finance-pix-price-form', 'submit', (event) => {
+      void handlePixPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-card-price-form', 'submit', (event) => {
+      void handleCardPricePolicySubmit(event);
+    });
+    bindRouteEvent('finance-company-pix-form', 'submit', (event) => {
+      void handleCompanyPayoutDestinationSubmit(event);
+    });
+    bindRouteEvent('finance-company-payout-form', 'submit', (event) => {
+      void handleCompanyPayoutSubmit(event);
+    });
+    bindRouteEvent('finance-company-use-all', 'click', () => {
+      handleCompanyPayoutUseAll();
+    });
+    bindRouteEvent('finance-payout-reconcile', 'click', () => {
+      void handleFinancePayoutReconcile();
+    });
+    bindRouteEvent('finance-payout-mode-toggle', 'click', () => {
+      void handleFinancePayoutModeToggle();
+    });
+    bindRouteEvent('finance-manual-select-all', 'change', (event) => {
+      handleManualPayoutSelectAll(event);
+    });
+    bindRouteEvent('finance-manual-payout-selected', 'click', () => {
+      void handleManualFinancePayouts(selectedManualDriverIds());
+    });
+    bindRouteEvent('finance-payout-approve-button', 'click', () => {
+      void handleFinancePayoutApprove();
+    });
+    bindRouteEvent('finance-payout-paid-form', 'submit', (event) => {
+      void handleFinancePayoutPaid(event);
+    });
+    bindRouteEvent('finance-payout-cancel-button', 'click', () => {
+      void handleFinancePayoutCancel();
+    });
+    bindRouteEvent('finance-payout-close', 'click', () => {
+      closeFinancePayoutDetail();
+    });
+    return;
+  }
+
+  if (view === 'integrations') {
+    bindRouteEvent('refresh-integrations-button', 'click', () => {
+      void loadIntegrations();
+    });
+    bindRouteEvent('mercado-pago-public-key-form', 'submit', (event) => {
+      void handleMercadoPagoPublicKeySubmit(event);
+    });
+    return;
+  }
+
+  if (view === 'pricing') {
+    bindRouteEvent('refresh-pricing-button', 'click', () => {
+      void Promise.all([
+        loadPricingCatalog(),
+        loadPricingVersions({ announce: false }),
+      ]);
+    });
+    bindRouteEvent('pricing-create-draft-button', 'click', () => {
+      void handlePricingCreateDraft();
+    });
+    bindRouteEvent('pricing-edit-form', 'submit', (event) => {
+      void handlePricingEditSubmit(event);
+    });
+    bindRouteEvent('pricing-edit-kind', 'change', () => {
+      syncPricingEditFields();
+    });
+    bindRouteEvent('pricing-locality-map-radius', 'input', () => {
+      const radius = Number(
+        byId('pricing-locality-map-radius').value,
+      );
+      if (Number.isFinite(radius) && radius >= 0.05) {
+        ensurePricingGeofenceMap()?.setRadiusKm(radius);
+      }
+    });
+    bindRouteEvent('pricing-locality-map-scope', 'change', () => {
+      syncPricingLocalityMapSelection({ forceDefault: true });
+    });
+    bindRouteEvent('pricing-locality-map-id', 'change', () => {
+      syncPricingLocalityMapSelection({ forceDefault: false });
+    });
+    bindRouteEvent('pricing-locality-price-kind', 'change', () => {
+      syncPricingLocalityPriceFields();
+    });
+    bindRouteEvent('pricing-locality-policy-hub', 'change', () => {
+      syncPricingLocalityPolicyFields();
+    });
+    bindRouteEvent('pricing-locality-policy-id', 'change', () => {
+      syncPricingLocalityPolicyFields();
+    });
+    return;
+  }
+
+  if (view === 'drivers') {
+    bindRouteEvent(
+      'operational-settings-form',
+      'submit',
+      (event) => {
+        void handleOperationalSettingsSubmit(event);
+      },
+    );
+    bindRouteEvent('driver-directory-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadDriverDirectory({ reset: true });
+    });
+    bindRouteEvent('driver-directory-more', 'click', () => {
+      void loadDriverDirectory({
+        reset: false,
+        announce: false,
+      });
+    });
+    bindRouteEvent('driver-search-form', 'submit', (event) => {
+      void handleDriverSearch(event);
+    });
+    bindRouteEvent('driver-provision-form', 'submit', (event) => {
+      void handleDriverProvision(event);
+    });
+    bindRouteEvent('driver-registry-form', 'submit', (event) => {
+      void handleDriverRegistrySubmit(event);
+    });
+    bindRouteEvent('driver-cash-policy-form', 'submit', (event) => {
+      void handleDriverCashPolicySubmit(event);
+    });
+    bindRouteEvent('driver-cash-limit-reset', 'click', () => {
+      void handleDriverCashPolicyReset();
+    });
+    bindRouteEvent('registry-status-button', 'click', () => {
+      void handleDriverRegistryStatus();
+    });
+    bindRouteEvent(
+      'driver-document-inspection-close',
+      'click',
+      () => {
+        closeDriverDocumentInspection();
+      },
+    );
+    bindRouteEvent(
+      'driver-document-review-form',
+      'submit',
+      (event) => {
+        void handleDriverDocumentReview(event);
+      },
+    );
+    bindRouteEvent(
+      'driver-document-review-status',
+      'change',
+      () => {
+        syncDocumentRejectionRequirement();
+      },
+    );
+    bindRouteEvent(
+      'driver-document-notify-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceNotify(
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-keep-active-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'keep_active',
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-block-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'block',
+          event.currentTarget,
+        );
+      },
+    );
+    bindRouteEvent(
+      'driver-document-unblock-button',
+      'click',
+      (event) => {
+        void handleDriverDocumentComplianceAction(
+          'unblock',
+          event.currentTarget,
+        );
+      },
+    );
+    return;
+  }
+
+  if (view === 'notifications') {
+    bindRouteEvent('notification-form', 'submit', (event) => {
+      void handleNotificationSubmit(event);
+    });
+    bindRouteEvent('release-policy-form', 'submit', (event) => {
+      void handleReleasePolicySubmit(event);
+    });
+    bindRouteEvent('release-app-kind', 'change', () => {
+      syncReleasePolicyForm();
+    });
+    bindRouteEvent('release-platform', 'change', () => {
+      syncReleasePolicyForm();
+    });
+    bindRouteEvent(
+      'refresh-communications-button',
+      'click',
+      () => {
+        void loadCommunications();
+      },
+    );
+    bindRouteEvent('app-auth-hero-file', 'change', (event) => {
+      previewSelectedAppAuthHero(event.currentTarget.files?.[0] ?? null);
+    });
+    bindRouteEvent('upload-app-auth-hero-button', 'click', () => {
+      void handleAppAuthHeroUpload();
+    });
+    return;
+  }
+
+  if (view === 'design') {
+    bindRouteEvent('refresh-design-button', 'click', () => {
+      void loadCommunications();
+    });
+    bindRouteEvent('app-auth-hero-file', 'change', (event) => {
+      previewSelectedAppAuthHero(event.currentTarget.files?.[0] ?? null);
+    });
+    bindRouteEvent('upload-app-auth-hero-button', 'click', () => {
+      void handleAppAuthHeroUpload();
+    });
+    bindRouteEvent('app-branding-icon-file', 'change', (event) => {
+      previewSelectedAppBrandingIcon(
+        event.currentTarget.files?.[0] ?? null,
+      );
+    });
+    bindRouteEvent('upload-app-branding-icon-button', 'click', () => {
+      void handleAppBrandingIconUpload();
+    });
+    return;
+  }
+
+  if (view === 'privacy') {
+    bindRouteEvent('refresh-privacy-button', 'click', () => {
+      void loadPrivacy();
+    });
+    bindRouteEvent('privacy-filter-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadPrivacy({ reset: true });
+    });
+    bindRouteEvent('privacy-load-more', 'click', () => {
+      void loadPrivacy({ reset: false, announce: false });
+    });
+    bindRouteEvent('privacy-policy-form', 'submit', (event) => {
+      void handlePrivacyDocumentSubmit(
+        event,
+        'privacy_policy',
+      );
+    });
+    bindRouteEvent('terms-of-use-form', 'submit', (event) => {
+      void handlePrivacyDocumentSubmit(
+        event,
+        'terms_of_use',
+      );
+    });
+    bindRouteEvent('privacy-response-form', 'submit', (event) => {
+      void handlePrivacyResponse(event);
+    });
+    return;
+  }
+
+  if (view === 'support') {
+    bindRouteEvent('refresh-support-button', 'click', () => {
+      void loadSupport({ reset: true });
+    });
+    bindRouteEvent('support-filter-form', 'submit', (event) => {
+      event.preventDefault();
+      void loadSupport({ reset: true });
+    });
+    bindRouteEvent('support-load-more', 'click', () => {
+      void loadSupport({ reset: false, announce: false });
+    });
+    bindRouteEvent('support-response-form', 'submit', (event) => {
+      void handleSupportResponse(event);
+    });
+    return;
+  }
+
+  if (view === 'agency') {
+    bindRouteEvent('agency-form', 'submit', (event) => {
+      void handleAgencySubmit(event);
+    });
+    bindRouteEvent('social-links-form', 'submit', (event) => {
+      void handleSocialLinksSubmit(event);
+    });
+    bindRouteEvent('tour-form', 'submit', (event) => {
+      void handleTourSubmit(event);
+    });
+    bindRouteEvent('tour-new-button', 'click', () => {
+      handleTourNew();
+    });
+    bindRouteEvent('tour-cover-file', 'change', (event) => {
+      previewSelectedTourCover(
+        event.currentTarget.files?.[0] ?? null,
+      );
+    });
+    bindRouteEvent(
+      'upload-tour-cover-button',
+      'click',
+      () => {
+        void handleTourCoverUpload();
+      },
+    );
+    return;
+  }
+
+  if (view === 'staff') {
+    bindRouteEvent('staff-refresh-button', 'click', () => {
+      void loadStaff();
+    });
+    bindRouteEvent('staff-create-form', 'submit', (event) => {
+      void handleStaffCreate(event);
+    });
+    bindRouteEvent('staff-edit-form', 'submit', (event) => {
+      void handleStaffUpdate(event);
+    });
+    bindRouteEvent('staff-access-toggle-button', 'click', () => {
+      void handleStaffAccessToggle();
+    });
+    bindRouteEvent('staff-delete-button', 'click', () => {
+      void handleStaffDelete();
+    });
+    bindRouteEvent('staff-onboarding-dismiss', 'click', () => {
+      state.staff.onboarding = null;
+      renderStaffOnboarding();
+    });
+    return;
+  }
+
+  if (view === 'audit') {
+    bindRouteEvent('audit-filter-form', 'submit', (event) => {
+      handleAuditFilter(event);
+    });
+    bindRouteEvent('audit-load-more', 'click', () => {
+      void loadAudit({ reset: false, announce: false });
+    });
+    bindRouteEvent('refresh-audit-button', 'click', () => {
+      void loadAudit({ reset: true });
+    });
+  }
+}
+
+async function loadOverviewSecondaryMetrics() {
+  if (!state.token || currentView !== 'overview') return;
+
+  if (hasScope('drivers:auth:read')) {
+    try {
+      const payload = await api.drivers(state.token, {
+        query: '',
+        status: '',
+        limit: 1,
+        cursor: null,
+      });
+      if (currentView === 'overview') {
+        renderDriverSummary(payload?.summary);
+      }
+    } catch (error) {
+      handleAuthenticatedError(error);
+    }
+  } else {
+    renderDriverSummary({ total: 0, active: 0, suspended: 0 });
+  }
+
+  if (hasScope('audit:read')) {
+    try {
+      const payload = await api.audit(state.token, {
+        limit: 25,
+        actorKind: '',
+        action: '',
+        targetType: '',
+        query: '',
+        cursor: null,
+      });
+      if (currentView === 'overview') {
+        const entries = Array.isArray(payload?.entries)
+          ? payload.entries
+          : [];
+        const count = byId('audit-count');
+        if (count != null) count.textContent = String(entries.length);
+      }
+    } catch (error) {
+      handleAuthenticatedError(error);
+    }
+  }
+}
+
+function initializeRouteView(view) {
+  if(view === 'costs') {
+    companyCostsAdmin = createCompanyCostsAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,
+      onError(error){if(error instanceof AdminApiError && error.status===401)handleAuthenticatedError(error);}});
+    return;
+  }
+  if (view === 'coupons') {
+    promotionsAdmin = createPromotionsAdmin({root: routeOutlet, api,
+      getToken: () => state.token, hasScope,
+      onError(error) { if (error instanceof AdminApiError && error.status === 401) handleAuthenticatedError(error); },
+    });
+    return;
+  }
+
+  if (view === 'benefits') {
+    driverBenefitsAdmin = createDriverBenefitsAdmin({
+      root: routeOutlet,
+      api,
+      getToken: () => state.token,
+      hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
+
+  if (view === 'overview') {
+    renderDashboard(state.dashboard);
+    void loadDashboard({ announce: false });
+    void loadOverviewSecondaryMetrics();
+    return;
+  }
+
+  if (view === 'fleet') {
+    destroyFleetMap();
+    renderFleet(state.fleet);
+    void loadFleet({ announce: false });
+    startFleetPolling();
+    return;
+  }
+
+  if (view === 'rides') {
+    void loadRideDirectory({ reset: true, announce: false });
+    return;
+  }
+
+  if (view === 'drivers') {
+    setDriverProvisionControlsVisible();
+    renderDriverRegistryUnavailable();
+    renderDriverDocumentsUnavailable();
+    renderDriverDocumentComplianceUnavailable();
+    renderDriverDocumentAlerts({
+      mode: 'manual',
+      total: 0,
+      decisionRequired: 0,
+      blocked: 0,
+      items: [],
+    });
+    renderDriverCashPolicyUnavailable();
+    renderDriverFinanceUnavailable();
+    renderOperationalSettings();
+    renderDriverSummary(state.driverDirectory.summary);
+    renderDriverDirectory();
+    syncDocumentRejectionRequirement();
+    if (hasScope('drivers:auth:read')) {
+      void loadDriverDirectory({ reset: true, announce: false });
+      void loadOperationalSettings({ announce: false });
+      void loadDriverDocumentAlerts({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'passengers') {
+    renderPassengerSummary(state.passengerDirectory.summary);
+    renderPassengerDirectory();
+    renderPassengerDetailEmpty();
+    if (hasScope('passengers:auth:read')) {
+      void loadPassengerDirectory({ reset: true, announce: false });
+    }
+    return;
+  }
+
+  if (view === 'localities') {
+    destroyLocalitiesAdmin();
+    localitiesAdmin = createLocalitiesAdmin({
+      api,
+      getToken: () => state.token,
+      hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
+
+  if (view === 'pricing') {
+    renderPricingCatalog();
+    renderPricingVersions();
+    renderPricingEditor();
+    syncPricingEditFields();
+    syncPricingLocalityPriceFields();
+    if (byId('pricing-locality-map-radius') != null) {
+      byId('pricing-locality-map-radius').value = '2';
+    }
+    if (hasScope('pricing:read')) {
+      void loadPricingCatalog({ announce: false });
+      void loadPricingVersions({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'finance') {
+    renderFinance(state.finance);
+    renderPaymentPolicy(state.finance.policy);
+    if (hasScope('finance:read')) {
+      void loadFinance({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'integrations') {
+    renderIntegrations(null);
+    renderMercadoPagoPublicKey(null);
+    void loadIntegrations({ announce: false });
+    return;
+  }
+
+  if (view === 'notifications') {
+    renderNotificationHistory();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'design') {
+    renderCommunications();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'privacy') {
+    renderPrivacy();
+    if (hasScope('privacy:read')) {
+      void loadPrivacy({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'support') {
+    renderSupport();
+    if (hasScope('support:read')) {
+      void loadSupport({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'agency') {
+    renderAgencyPromotion();
+    renderSocialLinks();
+    renderTourCatalog();
+    if (hasScope('communications:read')) {
+      void loadCommunications({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'staff') {
+    renderStaff();
+    if (canManageStaff()) {
+      void loadStaff({ announce: false });
+    }
+    return;
+  }
+
+  if (view === 'audit') {
+    renderAudit(state.auditEntries);
+    if (hasScope('audit:read')) {
+      void loadAudit({ announce: false });
+    }
+  }
+}
+
+loginForm.addEventListener('submit', (event) => {
+  void handleLogin(event);
+});
+
+byId('logout-button').addEventListener('click', () => {
+  void handleLogout();
+});
+
+byId('mobile-menu-button').addEventListener('click', () => {
+  setMobileNavOpen(!document.body.classList.contains('nav-open'));
+});
+
+byId('mobile-nav-backdrop').addEventListener('click', () => {
+  setMobileNavOpen(false);
+});
+
+document.querySelectorAll('.nav-item').forEach((link) => {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (!state.token) return;
+    setMobileNavOpen(false);
+    void activateView(link.dataset.view);
+  });
+});
+
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const link = target.closest('a[data-view]:not(.nav-item)');
+  if (link == null || !state.token) return;
+  const view = link.dataset.view;
+  if (adminRoutes[view] == null || !canAccessView(view)) return;
+  event.preventDefault();
+  void activateView(view);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    setMobileNavOpen(false);
+  }
+});
+
+loginTotp.addEventListener('input', () => {
+  loginTotp.value = loginTotp.value.replace(/\D/g, '').slice(0, 6);
+});
+
+window.addEventListener('popstate', () => {
+  if (!state.token) return;
+  void activateView(requestedViewFromLocation(), {
+    historyMode: 'none',
+  });
+});
+
+window.addEventListener('pagehide', () => {
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
+  if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
+  stopFleetPolling();
+  destroyFleetMap();
+  destroyLocalitiesAdmin();
+  destroyPricingGeofenceMap();
+  closeDriverDocumentInspection();
+  state.token = null;
+});
+
+authView.hidden = false;
+adminView.hidden = true;
+routeLoading.hidden = true;
+routeOutlet.replaceChildren();
+setMessage(loginMessage);
+setMessage(globalMessage);
+

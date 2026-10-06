@@ -1,35 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
-import '../../domain/service_type.dart';
-import 'service_selector.dart';
-
 class RideBottomSheet extends StatelessWidget {
   const RideBottomSheet({
     super.key,
-    required this.selectedService,
-    required this.onServiceChanged,
     required this.onOriginTap,
     required this.onDestinationTap,
-    required this.onRequestRide,
+    required this.onContinue,
+    this.onDestinationClear,
     this.origin,
     this.destination,
     this.routeSummary,
-    this.estimatedFare,
     this.serviceAreaLabel,
     this.coverageMessage,
     this.routeLoading = false,
   });
 
-  final ServiceType selectedService;
-  final ValueChanged<ServiceType> onServiceChanged;
   final VoidCallback onOriginTap;
   final VoidCallback onDestinationTap;
-  final VoidCallback onRequestRide;
+  final VoidCallback onContinue;
+  final VoidCallback? onDestinationClear;
   final String? origin;
   final String? destination;
   final String? routeSummary;
-  final String? estimatedFare;
   final String? serviceAreaLabel;
   final String? coverageMessage;
   final bool routeLoading;
@@ -37,155 +30,217 @@ class RideBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasTrip = origin != null && destination != null;
-    final canRequest = hasTrip &&
-        estimatedFare != null &&
+    final canContinue =
+        hasTrip &&
+        routeSummary != null &&
         coverageMessage == null &&
         !routeLoading;
 
     return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.58 : 0.50,
-      minChildSize: 0.40,
-      maxChildSize: 0.82,
+      initialChildSize: hasTrip ? 0.48 : 0.42,
+      minChildSize: hasTrip ? 0.40 : 0.36,
+      maxChildSize: 0.76,
       snap: true,
-      snapSizes: const [0.50, 0.82],
+      snapSizes: hasTrip ? const [0.48, 0.76] : const [0.42, 0.70],
       builder: (context, scrollController) {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(RamoRadius.lg),
+              top: Radius.circular(28),
             ),
             boxShadow: RamoElevation.floating(context),
           ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              RamoSpacing.md,
-              RamoSpacing.xs,
-              RamoSpacing.md,
-              RamoSpacing.xl,
-            ),
+          child: Column(
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: RamoSpacing.md),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).dividerColor,
-                    borderRadius: BorderRadius.circular(RamoRadius.pill),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(
+                    RamoSpacing.md,
+                    RamoSpacing.xs,
+                    RamoSpacing.md,
+                    RamoSpacing.md,
                   ),
-                ),
-              ),
-              Text(
-                'Bora?',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Escolha de onde sai e pra onde vai.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.62),
-                    ),
-              ),
-              const SizedBox(height: RamoSpacing.md),
-              _LocationField(
-                icon: Icons.trip_origin_rounded,
-                label: 'Origem',
-                value: origin ?? 'Escolher origem',
-                onTap: onOriginTap,
-              ),
-              const SizedBox(height: RamoSpacing.xs),
-              _LocationField(
-                icon: Icons.flag_rounded,
-                label: 'Destino',
-                value: destination ?? 'Pra onde vamos?',
-                onTap: onDestinationTap,
-              ),
-              if (routeLoading) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                const LinearProgressIndicator(minHeight: 3),
-              ],
-              if (coverageMessage != null) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                _CoverageNotice(message: coverageMessage!),
-              ],
-              if (routeSummary != null && !routeLoading) ...[
-                const SizedBox(height: RamoSpacing.sm),
-                Row(
                   children: [
-                    const Icon(Icons.route_rounded, size: 18),
-                    const SizedBox(width: RamoSpacing.xs),
-                    Expanded(
-                      child: Text(
-                        serviceAreaLabel == null
-                            ? routeSummary!
-                            : '$routeSummary · $serviceAreaLabel',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(
+                          bottom: RamoSpacing.md,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).dividerColor,
+                          borderRadius:
+                              BorderRadius.circular(RamoRadius.pill),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: RamoSpacing.md),
-              ServiceSelector(
-                selected: selectedService,
-                onChanged: onServiceChanged,
-              ),
-              if (hasTrip) ...[
-                const SizedBox(height: RamoSpacing.lg),
-                AnimatedSwitcher(
-                  duration: RamoMotion.standard,
-                  child: Row(
-                    key: ValueKey((selectedService, estimatedFare)),
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              selectedService.description,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              estimatedFare ?? '—',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                            Text(
-                              'estimativa pela rota',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      FilledButton(
-                        onPressed: canRequest ? onRequestRide : null,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(154, 54),
-                          backgroundColor: RamoColors.signal,
-                          foregroundColor: RamoColors.signalInk,
-                        ),
-                        child: const Text('Solicitar'),
+                    Text(
+                      hasTrip ? 'Confira sua rota' : 'Escolha seu destino',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.9,
+                              ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      hasTrip
+                          ? 'Primeiro escolha o local. O veículo e o pagamento vêm nas próximas etapas.'
+                          : 'Escolha sua origem e o destino no mapa.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: RamoSpacing.md),
+                    _TripCard(
+                      origin: origin ?? 'Escolher origem',
+                      destination: destination ?? 'Pra onde vamos?',
+                      onOriginTap: onOriginTap,
+                      onDestinationTap: onDestinationTap,
+                      onDestinationClear: onDestinationClear,
+                    ),
+                    if (routeLoading) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      const ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(99)),
+                        child: LinearProgressIndicator(minHeight: 3),
                       ),
                     ],
+                    if (coverageMessage != null) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      _CoverageNotice(message: coverageMessage!),
+                    ],
+                    if (routeSummary != null && !routeLoading) ...[
+                      const SizedBox(height: RamoSpacing.sm),
+                      Row(
+                        children: [
+                          const Icon(Icons.route_rounded, size: 17),
+                          const SizedBox(width: RamoSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              serviceAreaLabel == null
+                                  ? routeSummary!
+                                  : '$routeSummary · $serviceAreaLabel',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (hasTrip)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(
+                    RamoSpacing.md,
+                    RamoSpacing.sm,
+                    RamoSpacing.md,
+                    RamoSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context)
+                            .dividerColor
+                            .withValues(alpha: .35),
+                      ),
+                    ),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: FilledButton(
+                        key: const Key('confirm-destination-button'),
+                        onPressed: canContinue ? onContinue : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: RamoColors.brandBlack,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          routeLoading
+                              ? 'Calculando rota…'
+                              : 'Confirmar destino',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ],
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _TripCard extends StatelessWidget {
+  const _TripCard({
+    required this.origin,
+    required this.destination,
+    required this.onOriginTap,
+    required this.onDestinationTap,
+    this.onDestinationClear,
+  });
+
+  final String origin;
+  final String destination;
+  final VoidCallback onOriginTap;
+  final VoidCallback onDestinationTap;
+  final VoidCallback? onDestinationClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(RamoRadius.lg),
+      ),
+      child: Column(
+        children: [
+          _LocationField(
+            icon: Icons.my_location_rounded,
+            label: 'Origem',
+            value: origin,
+            onTap: onOriginTap,
+          ),
+          Divider(
+            height: 1,
+            indent: 48,
+            endIndent: RamoSpacing.sm,
+            color: Theme.of(context).dividerColor.withValues(alpha: .55),
+          ),
+          _LocationField(
+            icon: Icons.location_on_rounded,
+            label: 'Destino',
+            value: destination,
+            onTap: onDestinationTap,
+            destination: true,
+            trailingAction: onDestinationClear,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -196,30 +251,45 @@ class _LocationField extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onTap,
+    this.destination = false,
+    this.trailingAction,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final VoidCallback onTap;
+  final bool destination;
+  final VoidCallback? trailingAction;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(RamoRadius.md),
+      borderRadius: BorderRadius.circular(RamoRadius.lg),
       onTap: onTap,
-      child: Ink(
+      child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: RamoSpacing.md,
-          vertical: RamoSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: BorderRadius.circular(RamoRadius.md),
+          vertical: 13,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20),
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: destination
+                    ? RamoColors.brandBlack
+                    : Theme.of(context).colorScheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 16,
+                color: destination ? Colors.white : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(width: RamoSpacing.sm),
             Expanded(
               child: Column(
@@ -227,21 +297,38 @@ class _LocationField extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.labelSmall,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded),
+            if (trailingAction != null)
+              IconButton(
+                tooltip: 'Remover destino',
+                onPressed: trailingAction,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: .35),
+              ),
           ],
         ),
       ),
@@ -272,7 +359,7 @@ class _CoverageNotice extends StatelessWidget {
           const SizedBox(width: RamoSpacing.xs),
           Expanded(
             child: Text(
-              '$message Atendemos Jeri, Jijoca e Preá.',
+              message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onErrorContainer,
                     fontWeight: FontWeight.w700,

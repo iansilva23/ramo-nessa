@@ -10,8 +10,8 @@ Esta matriz define como cada projeto pesquisado deve ser tratado. O objetivo é 
 | MoharibDigital/WayGo (Apache-2.0) | **ADAPTAR SELETIVAMENTE** | modelos de oferta, telas de chat/oferta, internacionalização, alguns fluxos | simuladores/mocks de motorista, chat automático, regras fake de corrida |
 | SANJAIKUMAR-28/Ride_Hailing_Service_UserApp (MIT) | **REFERÊNCIA** | fluxos de autenticação/mapa/pagamento, assets e organização de funcionalidades | dependências antigas e decisões de segurança no cliente |
 | ASWINKMANOJ/RideSync (MIT) | **ADAPTAR BACKEND** | WebSocket de telemetria, Redis, H3, consulta de motoristas próximos, fallback HTTP | usar como backend completo; ele resolve principalmente telemetria/dispatch |
-| Project-OSRM/osrm-backend (BSD-2-Clause) | **USAR COMO SERVIÇO CANDIDATO** | rota, distância e ETA baseados em OSM | expor instância pública/sem controle como dependência de produção |
-| TesteurManiak/flutter_map_animations (MIT) | **USAR SE ADOTARMOS flutter_map** | câmera e markers animados | dependência se o mapa final for Google/Mapbox com solução própria |
+| google_maps_flutter / Google Maps Platform | **STACK ATUAL** | mapa nativo, Places, Routes, distância, ETA e geometria via contratos próprios do Core | expor chave de servidor no app ou acoplar regras comerciais diretamente ao SDK |
+| TesteurManiak/flutter_map_animations (MIT) | **NÃO USAR NO STACK ATUAL** | referência de animações | adicionar dependência paralela ao Google Maps sem necessidade |
 | gskinner/flutter_animate (BSD-3-Clause) | **USAR** | microinterações e motion consistente | animação excessiva sem função |
 | rive-app/rive-flutter (MIT) | **USAR PONTUALMENTE** | busca de motorista e estados especiais | usar em cada elemento da interface |
 | xvrh/lottie-flutter (MIT) | **USAR PONTUALMENTE** | estados e loaders específicos | assets sem licença clara |

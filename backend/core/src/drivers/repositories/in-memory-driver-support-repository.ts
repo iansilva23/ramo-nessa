@@ -1,0 +1,105 @@
+import type {
+  DriverSupportAdminListInput,
+  DriverSupportAdminListPage,
+  DriverSupportRepository,
+  DriverSupportTicketRecord,
+} from '../driver-support-repository.js';
+
+export class InMemoryDriverSupportRepository
+  implements DriverSupportRepository {
+  private readonly tickets =
+      new Map<string, DriverSupportTicketRecord>();
+
+  async create(
+    ticket: DriverSupportTicketRecord,
+  ): Promise<DriverSupportTicketRecord> {
+    if (this.tickets.has(ticket.id)) {
+      throw new Error('Chamado de suporte duplicado.');
+    }
+    this.tickets.set(ticket.id, structuredClone(ticket));
+    return structuredClone(ticket);
+  }
+
+  async listByDriver(
+    driverId: string,
+    limit: number,
+  ): Promise<DriverSupportTicketRecord[]> {
+    return [...this.tickets.values()]
+      .filter(
+        (ticket) =>
+          ticket.requesterType === 'driver' &&
+          ticket.driverId === driverId,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((ticket) => structuredClone(ticket));
+  }
+
+  async listByPassenger(
+    passengerId: string,
+    limit: number,
+  ): Promise<DriverSupportTicketRecord[]> {
+    return [...this.tickets.values()]
+      .filter(
+        (ticket) =>
+          ticket.requesterType === 'passenger' &&
+          ticket.passengerId === passengerId,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, Math.max(1, Math.min(100, Math.trunc(limit))))
+      .map((ticket) => structuredClone(ticket));
+  }
+
+  async findById(
+    id: string,
+  ): Promise<DriverSupportTicketRecord | null> {
+    const found = this.tickets.get(id);
+    return found == null ? null : structuredClone(found);
+  }
+
+  async listAdmin(
+    input: DriverSupportAdminListInput,
+  ): Promise<DriverSupportAdminListPage> {
+    const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
+    const filtered = [...this.tickets.values()]
+      .filter(
+        (ticket) => input.status == null || ticket.status === input.status,
+      )
+      .filter((ticket) => {
+        if (input.cursor == null) return true;
+        return (
+          ticket.createdAt < input.cursor.createdAt ||
+          (ticket.createdAt === input.cursor.createdAt &&
+            ticket.id < input.cursor.id)
+        );
+      })
+      .sort((a, b) => {
+        const created = b.createdAt.localeCompare(a.createdAt);
+        return created !== 0 ? created : b.id.localeCompare(a.id);
+      });
+    const rows = filtered.slice(0, limit + 1);
+    return {
+      tickets: rows.slice(0, limit).map((ticket) => structuredClone(ticket)),
+      hasMore: rows.length > limit,
+    };
+  }
+
+  async respond(input: {
+    id: string;
+    response: string;
+    status: 'in_progress' | 'resolved' | 'closed';
+    respondedAt: string;
+  }): Promise<DriverSupportTicketRecord | null> {
+    const found = this.tickets.get(input.id);
+    if (found == null) return null;
+    const updated: DriverSupportTicketRecord = {
+      ...found,
+      response: input.response,
+      respondedAt: input.respondedAt,
+      status: input.status,
+      updatedAt: input.respondedAt,
+    };
+    this.tickets.set(input.id, updated);
+    return structuredClone(updated);
+  }
+}

@@ -1,0 +1,839 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { AuthIdentityRecord } from '../src/auth/auth-otp-repository.js';
+import {
+  applyMercadoPagoOrderStatus,
+  createMercadoPagoCardIntent,
+  createMercadoPagoPixIntent,
+  shouldRefundMercadoPagoPaymentBeforeDispatch,
+} from '../src/payments/mercado-pago-payment-service.js';
+import { MercadoPagoOrdersClient } from '../src/payments/mercado-pago-orders.js';
+import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
+import { confirmRidePayment } from '../src/rides/confirm-payment.js';
+import { refundMercadoPagoRideAfterNoDriver } from '../src/rides/refund-external-no-driver.js';
+import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
+import { transitionRide } from '../src/rides/ride-state.js';
+import type { RideRecord } from '../src/rides/ride.js';
+
+const now = new Date('2026-09-24T08:00:00.000Z');
+
+function preparedRide(): RideRecord {
+  return {
+    id: '21212121-2121-4121-8121-212121212121',
+    passengerId: 'passenger-mp-001',
+    state: 'AWAITING_PAYMENT',
+    paymentStatus: 'created',
+    reservedDriverId: 'driver-mp-reserved',
+    driverHoldExpiresAt: '2026-09-24T08:10:00.000Z',
+    pickupLatitude: -2.82017,
+    pickupLongitude: -40.41467,
+    dropoffLatitude: -2.89860,
+    dropoffLongitude: -40.45060,
+    origin: { zoneId: 'prea' },
+    destination: { zoneId: 'jijoca' },
+    category: 'car',
+    period: 'day',
+    passengers: 1,
+    quote: {
+      ruleId: 'mp-test-rule',
+      baseAmountCents: 12000,
+      pickupCompensationCents: 0,
+      totalAmountCents: 12000,
+      platformCommissionCents: 1200,
+      driverNetCents: 10800,
+    },
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+}
+
+function promotedRide(): RideRecord {
+  const ride = preparedRide();
+  return {
+    ...ride,
+    promotion: {
+      campaignId: 'campaign-exact-remainder',
+      applicationId: 'redemption-exact-remainder',
+      code: 'RESTO30',
+      name: 'Resto exato',
+      kind: 'fixed_discount',
+      normalTotalCents: 12000,
+      discountCents: 3000,
+      passengerPayableCents: 9000,
+      driverEarningsCents: 10800,
+      originalQuote: structuredClone(ride.quote),
+    },
+  };
+}
+
+function identity(): AuthIdentityRecord {
+  return {
+    id: '31313131-3131-4131-8131-313131313131',
+    subjectId: 'passenger-mp-001',
+    subjectType: 'passenger',
+    phoneE164: '+5588999991234',
+    emailNormalized: 'passageiro@example.com',
+    status: 'active',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  };
+}
+
+function gateway(
+  requests: string[],
+  options: { refundCompletes?: boolean } = {},
+) {
+  let externalReference = '';
+  let refunded = false;
+
+  return new MercadoPagoOrdersClient(
+    'test-token-' + 'x'.repeat(32),
+    async (url, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${url}`);
+
+      if (url.endsWith('/refund')) {
+        refunded = options.refundCompletes !== false;
+        return new Response(
+          JSON.stringify({
+            id: 'ORD01PIXTEST123456789',
+            status: refunded ? 'refunded' : 'processed',
+            status_detail: refunded ? 'refunded' : 'accredited',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      if ((init?.method ?? 'GET') === 'GET') {
+        return new Response(
+          JSON.stringify({
+            id: 'ORD01PIXTEST123456789',
+            external_reference: externalReference,
+            status: refunded ? 'refunded' : 'processed',
+            status_detail: refunded ? 'refunded' : 'accredited',
+            total_amount: '120.00',
+            transactions: {
+              payments: [
+                {
+                  id: 'PAY01PIXTEST123456789',
+                  status: refunded ? 'refunded' : 'processed',
+                  status_detail: refunded ? 'refunded' : 'accredited',
+                },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+
+      const body =
+        typeof init?.body === 'string'
+          ? JSON.parse(init.body) as { external_reference?: string }
+          : {};
+      externalReference = body.external_reference ?? '';
+
+      return new Response(
+        JSON.stringify({
+          id: 'ORD01PIXTEST123456789',
+          status: 'created',
+          status_detail: 'waiting_payment',
+          transactions: {
+            payments: [
+              {
+                id: 'PAY01PIXTEST123456789',
+                status: 'pending',
+                status_detail: 'pending_waiting_transfer',
+                payment_method: {
+                  id: 'pix',
+                  type: 'bank_transfer',
+                  ticket_url: 'https://example.test/pix',
+                  qr_code: '000201010212-test',
+                  qr_code_base64: 'dGVzdA==',
+                },
+              },
+            ],
+          },
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  );
+}
+
+test('Pix Mercado Pago passa de created para pending e depois paid', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = preparedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-test-001',
+    now,
+  });
+
+  assert.equal(intent.payment.status, 'pending');
+  assert.equal(
+    intent.payment.processorPaymentId,
+    'ORD01PIXTEST123456789',
+  );
+  assert.equal(intent.payment.processor, 'mercado-pago-orders');
+
+  const applied = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+
+  assert.equal(applied.kind, 'paid');
+  assert.equal(applied.payment.status, 'paid');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    12000,
+  );
+  assert.equal(requests[0], 'POST https://api.mercadopago.com/v1/orders');
+});
+
+test('cupom cobra exatamente o restante no Pix mesmo com ajuste configurado', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = promotedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    pixPriceAdjustmentBps: 1000,
+    idempotencyKey: 'pix-coupon-exact-remainder',
+    now,
+  });
+
+  assert.equal(intent.payment.amountCents, 9000);
+  assert.equal(intent.pricing.totalAmountCents, 9000);
+  assert.equal(intent.pricing.priceAdjustmentCents, 0);
+});
+
+test('cupom cobra exatamente o restante no cartão mesmo com ajuste configurado', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = promotedRide();
+
+  const intent = await createMercadoPagoCardIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    cardToken: 'card-token-coupon-test',
+    paymentMethodId: 'visa',
+    paymentMethodType: 'credit_card',
+    installments: 1,
+    cardPriceAdjustmentBps: 1000,
+    idempotencyKey: 'card-coupon-exact-remainder',
+    now,
+  });
+
+  assert.equal(intent.payment.amountCents, 9000);
+  assert.equal(intent.pricing.totalAmountCents, 9000);
+  assert.equal(intent.pricing.priceAdjustmentCents, 0);
+});
+
+test('sem motorista estorna Order Mercado Pago e reverte escrow uma vez', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const rides = new InMemoryRideRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = await rides.create(preparedRide());
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-refund-001',
+    now,
+  });
+
+  const applied = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(applied.kind, 'paid');
+
+  const paid = await confirmRidePayment(rides, {
+    rideId: ride.id,
+    payment: applied.payment,
+    confirmedAt: new Date('2026-09-24T08:01:01.000Z'),
+  });
+  const searching = await rides.save({
+    ...paid,
+    state: transitionRide(paid.state, 'SEARCHING_DRIVER'),
+    updatedAt: '2026-09-24T08:01:02.000Z',
+  });
+  const noDriver = await rides.save({
+    ...searching,
+    state: transitionRide(searching.state, 'NO_DRIVER_FOUND'),
+    updatedAt: '2026-09-24T08:01:03.000Z',
+  });
+
+  const first = await refundMercadoPagoRideAfterNoDriver({
+    rides,
+    finance,
+    gateway: mp,
+    rideId: noDriver.id,
+    paymentId: applied.payment.id,
+    passengerId: noDriver.passengerId,
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(first.ride.state, 'REFUNDED');
+  assert.equal(first.payment.status, 'refunded');
+  assert.equal(first.duplicateRefund, false);
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+
+  const second = await refundMercadoPagoRideAfterNoDriver({
+    rides,
+    finance,
+    gateway: mp,
+    rideId: noDriver.id,
+    paymentId: applied.payment.id,
+    passengerId: noDriver.passengerId,
+    now: new Date('2026-09-24T08:03:00.000Z'),
+  });
+
+  assert.equal(second.duplicateRefund, true);
+  assert.equal(
+    requests.filter((request) => request.endsWith('/refund')).length,
+    1,
+  );
+});
+
+
+test('status_detail refunded tem prioridade sobre status processed', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = preparedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-refund-status-detail',
+    now,
+  });
+
+  const paid = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(paid.kind, 'paid');
+
+  const refunded = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'refunded',
+    },
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(refunded.kind, 'refunded');
+  assert.equal(refunded.payment.status, 'refunded');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+});
+
+test('reembolso parcial confirmado reduz escrow uma vez e permanece idempotente', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests);
+  const ride = preparedRide();
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-partial-refund',
+    now,
+  });
+
+  const paid = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(paid.kind, 'paid');
+
+  const order = {
+    orderId: 'ORD01PIXTEST123456789',
+    externalReference: intent.payment.id,
+    status: 'processed',
+    statusDetail: 'partially_refunded',
+    totalAmountCents: 12000,
+    paymentId: 'PAY01PIXTEST123456789',
+    paymentStatus: 'processed',
+    paymentStatusDetail: 'partially_refunded',
+    refunds: [
+      {
+        id: 'REF01PARTIAL2000',
+        transactionId: 'PAY01PIXTEST123456789',
+        amountCents: 2000,
+        status: 'processed',
+      },
+    ],
+  };
+
+  const partial = await applyMercadoPagoOrderStatus({
+    finance,
+    order,
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(partial.kind, 'partially_refunded');
+  if (partial.kind !== 'partially_refunded') {
+    throw new Error('Resultado inesperado.');
+  }
+  assert.equal(partial.payment.status, 'paid');
+  assert.equal(partial.appliedAdjustments, 1);
+  assert.equal(partial.reviewRequiredCents, 0);
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    10000,
+  );
+
+  const duplicate = await applyMercadoPagoOrderStatus({
+    finance,
+    order,
+    now: new Date('2026-09-24T08:03:00.000Z'),
+  });
+  assert.equal(duplicate.kind, 'partially_refunded');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    10000,
+  );
+  const adjustments =
+    await finance.listRecentExternalPaymentAdjustments(10);
+  assert.equal(adjustments.length, 1);
+  assert.equal(adjustments[0]?.amountCents, 2000);
+  assert.equal(adjustments[0]?.escrowAppliedCents, 2000);
+  assert.equal(adjustments[0]?.accountingStatus, 'applied_to_escrow');
+});
+
+test('reembolso parcial após liquidação vira revisão sem debitar motorista', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const ride = preparedRide();
+
+  await finance.createPayment({
+    id: '51515151-5151-4151-8151-515151515151',
+    rideId: ride.id,
+    method: 'pix',
+    processor: 'mercado-pago-orders',
+    processorPaymentId: 'ORD01SETTLED123456789',
+    status: 'pending',
+    amountCents: 12000,
+    idempotencyKey: 'partial-after-settlement-payment',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await finance.capturePayment({
+    paymentId: '51515151-5151-4151-8151-515151515151',
+    processorEventId: 'mp-settled-capture-001',
+    capturedAt: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  await finance.settleRide({
+    rideId: ride.id,
+    paymentId: '51515151-5151-4151-8151-515151515151',
+    driverId: 'driver-partial-review',
+    totalAmountCents: 12000,
+    fareAmountCents: 12000,
+    paymentAdjustmentCents: 0,
+    platformCommissionCents: 1200,
+    driverNetCents: 10800,
+    settledAt: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  const driverBefore = await finance.getAccountBalanceCents(
+    'driver:driver-partial-review:payable',
+  );
+  assert.equal(driverBefore, 10800);
+
+  const partial = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01SETTLED123456789',
+      externalReference: '51515151-5151-4151-8151-515151515151',
+      status: 'processed',
+      statusDetail: 'partially_refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01SETTLED123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'partially_refunded',
+      refunds: [
+        {
+          id: 'REF01SETTLED2000',
+          transactionId: 'PAY01SETTLED123456789',
+          amountCents: 2000,
+          status: 'processed',
+        },
+      ],
+    },
+    now: new Date('2026-09-24T08:03:00.000Z'),
+  });
+
+  assert.equal(partial.kind, 'partially_refunded');
+  if (partial.kind !== 'partially_refunded') {
+    throw new Error('Resultado inesperado.');
+  }
+  assert.equal(partial.reviewRequiredCents, 2000);
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      'driver:driver-partial-review:payable',
+    ),
+    driverBefore,
+  );
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      'platform:external_adjustment_review',
+    ),
+    -2000,
+  );
+
+  const summary = await finance.adminFinanceSummary();
+  assert.equal(summary.externalAdjustmentReviewCents, 2000);
+  assert.equal(summary.externalAdjustmentReviewCount, 1);
+  assert.equal(summary.companyProfitAvailableCents, 0);
+});
+
+test('chargeback é registrado para revisão sem clawback automático', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const ride = preparedRide();
+
+  await finance.createPayment({
+    id: '61616161-6161-4161-8161-616161616161',
+    rideId: ride.id,
+    method: 'card',
+    processor: 'mercado-pago-orders',
+    processorPaymentId: 'ORD01CHARGEBACK123456',
+    status: 'pending',
+    amountCents: 12000,
+    idempotencyKey: 'chargeback-payment-001',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await finance.capturePayment({
+    paymentId: '61616161-6161-4161-8161-616161616161',
+    processorEventId: 'mp-chargeback-capture-001',
+    capturedAt: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  await finance.settleRide({
+    rideId: ride.id,
+    paymentId: '61616161-6161-4161-8161-616161616161',
+    driverId: 'driver-chargeback-review',
+    totalAmountCents: 12000,
+    fareAmountCents: 12000,
+    paymentAdjustmentCents: 0,
+    platformCommissionCents: 1200,
+    driverNetCents: 10800,
+    settledAt: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  const driverBefore = await finance.getAccountBalanceCents(
+    'driver:driver-chargeback-review:payable',
+  );
+  const result = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01CHARGEBACK123456',
+      externalReference: '61616161-6161-4161-8161-616161616161',
+      status: 'charged_back',
+      statusDetail: 'in_process',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01CHARGEBACK123456',
+      paymentStatus: 'charged_back',
+      paymentStatusDetail: 'in_process',
+      chargebacks: [
+        {
+          id: 'CHB01CASE123456',
+          transactionId: 'PAY01CHARGEBACK123456',
+          caseId: 'case-001',
+          amountCents: 12000,
+          status: 'in_process',
+        },
+      ],
+    },
+    now: new Date('2026-09-24T08:03:00.000Z'),
+  });
+
+  assert.equal(result.kind, 'charged_back');
+  if (result.kind !== 'charged_back') {
+    throw new Error('Resultado inesperado.');
+  }
+  assert.equal(result.recordedAdjustments, 1);
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      'driver:driver-chargeback-review:payable',
+    ),
+    driverBefore,
+  );
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      'platform:external_adjustment_review',
+    ),
+    0,
+  );
+
+  const adjustments =
+    await finance.listRecentExternalPaymentAdjustments(10);
+  assert.equal(adjustments.length, 1);
+  assert.equal(adjustments[0]?.kind, 'chargeback');
+  assert.equal(adjustments[0]?.accountingStatus, 'observed');
+  assert.equal(adjustments[0]?.amountCents, 12000);
+});
+
+test('refund total após parcial contabiliza somente o valor restante', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const ride = preparedRide();
+
+  await finance.createPayment({
+    id: '71717171-7171-4171-8171-717171717171',
+    rideId: ride.id,
+    method: 'pix',
+    processor: 'mercado-pago-orders',
+    processorPaymentId: 'ORD01PARTIALFULL123456',
+    status: 'pending',
+    amountCents: 12000,
+    idempotencyKey: 'partial-then-full-payment',
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+  await finance.capturePayment({
+    paymentId: '71717171-7171-4171-8171-717171717171',
+    processorEventId: 'mp-partial-full-capture',
+    capturedAt: new Date('2026-09-24T08:01:00.000Z'),
+  });
+
+  await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PARTIALFULL123456',
+      externalReference: '71717171-7171-4171-8171-717171717171',
+      status: 'processed',
+      statusDetail: 'partially_refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PARTIALFULL123456',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'partially_refunded',
+      refunds: [
+        {
+          id: 'REF01PARTIAL3000',
+          transactionId: 'PAY01PARTIALFULL123456',
+          amountCents: 3000,
+          status: 'processed',
+        },
+      ],
+    },
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  const full = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PARTIALFULL123456',
+      externalReference: '71717171-7171-4171-8171-717171717171',
+      status: 'refunded',
+      statusDetail: 'refunded',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PARTIALFULL123456',
+      paymentStatus: 'refunded',
+      paymentStatusDetail: 'refunded',
+      refunds: [
+        {
+          id: 'REF01PARTIAL3000',
+          transactionId: 'PAY01PARTIALFULL123456',
+          amountCents: 3000,
+          status: 'processed',
+        },
+        {
+          id: 'REF02REMAINING9000',
+          transactionId: 'PAY01PARTIALFULL123456',
+          amountCents: 9000,
+          status: 'processed',
+        },
+      ],
+    },
+    now: new Date('2026-09-24T08:03:00.000Z'),
+  });
+
+  assert.equal(full.kind, 'refunded');
+  assert.equal(full.payment.status, 'refunded');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    0,
+  );
+  assert.equal(
+    await finance.getAccountBalanceCents(
+      'processor:mercado-pago-orders:clearing',
+    ),
+    0,
+  );
+});
+
+
+test('estorno externo pendente mantém corrida em REFUND_PENDING', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const rides = new InMemoryRideRepository();
+  const requests: string[] = [];
+  const mp = gateway(requests, { refundCompletes: false });
+  const ride = await rides.create(preparedRide());
+
+  const intent = await createMercadoPagoPixIntent({
+    finance,
+    gateway: mp,
+    ride,
+    identity: identity(),
+    idempotencyKey: 'pix-idempotency-refund-pending',
+    now,
+  });
+
+  const applied = await applyMercadoPagoOrderStatus({
+    finance,
+    order: {
+      orderId: 'ORD01PIXTEST123456789',
+      externalReference: intent.payment.id,
+      status: 'processed',
+      statusDetail: 'accredited',
+      totalAmountCents: 12000,
+      paymentId: 'PAY01PIXTEST123456789',
+      paymentStatus: 'processed',
+      paymentStatusDetail: 'accredited',
+    },
+    now: new Date('2026-09-24T08:01:00.000Z'),
+  });
+  assert.equal(applied.kind, 'paid');
+
+  const paid = await confirmRidePayment(rides, {
+    rideId: ride.id,
+    payment: applied.payment,
+    confirmedAt: new Date('2026-09-24T08:01:01.000Z'),
+  });
+  const searching = await rides.save({
+    ...paid,
+    state: transitionRide(paid.state, 'SEARCHING_DRIVER'),
+    updatedAt: '2026-09-24T08:01:02.000Z',
+  });
+  const noDriver = await rides.save({
+    ...searching,
+    state: transitionRide(searching.state, 'NO_DRIVER_FOUND'),
+    updatedAt: '2026-09-24T08:01:03.000Z',
+  });
+
+  const result = await refundMercadoPagoRideAfterNoDriver({
+    rides,
+    finance,
+    gateway: mp,
+    rideId: noDriver.id,
+    paymentId: applied.payment.id,
+    passengerId: noDriver.passengerId,
+    now: new Date('2026-09-24T08:02:00.000Z'),
+  });
+
+  assert.equal(result.ride.state, 'REFUND_PENDING');
+  assert.equal(result.payment.status, 'paid');
+  assert.equal(
+    await finance.getAccountBalanceCents(`ride:${ride.id}:escrow`),
+    12000,
+  );
+  assert.equal(
+    requests.filter((request) => request.endsWith('/refund')).length,
+    1,
+  );
+});
+
+
+test('Pix confirmado após expirar hold exige estorno antes do dispatch', () => {
+  const ride = preparedRide();
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      ride,
+      new Date('2026-09-24T08:05:00.000Z'),
+    ),
+    false,
+  );
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      ride,
+      new Date('2026-09-24T08:10:00.000Z'),
+    ),
+    true,
+  );
+
+  assert.equal(
+    shouldRefundMercadoPagoPaymentBeforeDispatch(
+      {
+        ...ride,
+        state: 'PAID',
+      },
+      new Date('2026-09-24T08:11:00.000Z'),
+    ),
+    false,
+  );
+});
