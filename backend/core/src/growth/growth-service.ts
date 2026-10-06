@@ -134,7 +134,7 @@ export function baseEligibility(
   if (
     !c.enabled ||
     now.toISOString() < c.startsAt ||
-    now.toISOString() >= c.endsAt
+    (!c.repeatAnnually && now.toISOString() >= c.endsAt)
   )
     return 'Campanha desativada ou fora da vigência';
   if (u.identity.status !== 'active') return 'Conta indisponível';

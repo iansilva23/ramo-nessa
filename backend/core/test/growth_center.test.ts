@@ -397,3 +397,42 @@ test('canais ficam indisponíveis sem configuração; e-mail simulado gera opt-o
   assert.throws(() => channel.verify(token + 'x'));
   assert.throws(() => channel.verify(token + '.extra'));
 });
+
+test('automação anual permanece elegível e reserva uma vez por ano, sem renovar orçamento', async () => {
+  const { store, c } = await setup();
+  const annual = campaignInput({ ...c, repeatAnnually: true }, c, now);
+  await store.saveCampaign(annual, c.updatedAt, actor);
+  const next = new Date('2028-10-06T15:00:00Z');
+  assert.equal(baseEligibility(annual, customer(), next), null);
+  assert.equal(campaignOccurrence(annual, customer(), next), '2028');
+  assert.notEqual(
+    baseEligibility({ ...annual, repeatAnnually: false }, customer(), next),
+    null,
+  );
+  const reserve = (year: string) => ({
+    ...delivery(annual, 'p', year, ['inapp']),
+    createdAt: `${year}-10-06T15:00:00Z`,
+  });
+  assert.equal(await store.reserve(reserve('2028'), annual.updatedAt), true);
+  assert.equal(await store.reserve(reserve('2028'), annual.updatedAt), false);
+  assert.equal(await store.reserve(reserve('2029'), annual.updatedAt), true);
+  assert.equal(await store.reserve(reserve('2030'), annual.updatedAt), false);
+  assert.equal(
+    (await store.deliveries()).reduce((sum, d) => sum + d.heldCents, 0),
+    1000,
+  );
+  assert.throws(() =>
+    campaignInput(
+      { ...annual, trigger: 'inactive', repeatAnnually: true },
+      annual,
+      now,
+    ),
+  );
+  const paused = {
+    ...annual,
+    enabled: false,
+    updatedAt: '2026-10-06T15:00:01Z',
+  };
+  await store.saveCampaign(paused, annual.updatedAt, actor);
+  assert.notEqual(baseEligibility(paused, customer(), next), null);
+});

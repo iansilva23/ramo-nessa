@@ -65,3 +65,11 @@ O processamento bloqueia envios quando a consulta ultrapassa 1.000 clientes ou o
 ## Piloto no Preá
 
 Começar com uma campanha, região Preá e categoria moto; oferecer benefício somente com orçamento definido. Dar preferência ao canal dentro do app ou push consentido e exigir disponibilidade. Comparar com grupo sem contato após 14 dias, avaliar atendimento e custos reais antes de ampliar divulgação ou abrir Jeri. Aniversário e datas comemorativas podem ser preparados como rascunhos separados, mantendo o teto global de contatos.
+
+## Painéis simplificados e automações prontas
+
+A Central mostra cartões prontos para aniversário, Natal, Ano-Novo, Dia do Cliente, Dia do Trabalhador, São João e inatividade. **Ativar automático** cria um rascunho, ativa a campanha e liga o controle geral, reutilizando uma campanha existente de mesmo nome/regra/data. Nenhum envio acontece simplesmente ao abrir a tela. Permissões de escrita e envio continuam obrigatórias. Os cartões começam com mensagem pronta, sem cupom/custo declarado, Preá, app e push quando configurado, sem grupo de comparação. Campanhas próprias continuam disponíveis no editor recolhido.
+
+Aniversário e datas fixas podem repetir anualmente: `repeatAnnually` ignora apenas o término da vigência, preservando início, orçamento total, máximo total de destinatários, consentimento, silêncio, disponibilidade quando exigida e unicidade por ano. Limites **não** são renovados automaticamente; o painel sinaliza quando precisam ser ampliados. Clientes sem aniversário informado não recebem a campanha de aniversário. Datas móveis não são calculadas por estes modelos. Inatividade pronta tem vigência de dez anos e exige motorista disponível. Mensagens de felicitação não exigem disponibilidade.
+
+O editor permite acrescentar cupom e orçamento antes de ativar. Os gráficos usam contagens reais: prioridade dos problemas, contatos por campanha, aberturas no app e comparação. O relatório detalhado mostra conversões observadas. Não há série temporal inventada. Problemas abrem detalhes, recomendações e acompanhamento ao clicar; histórico e limitações ficam recolhidos.

@@ -1,8 +1,8 @@
 <section id="view-issues" class="view-panel" hidden>
-  <div class="page-heading">
+  <div class="page-heading growth-hero">
     <span class="eyebrow eyebrow--dark">ACOMPANHAMENTO</span>
     <h1>Problemas &amp; Recomendações</h1>
-    <p>Veja o que precisa de atenção, as evidências e os próximos passos.</p>
+    <p>Saiba o que resolver primeiro e acompanhe cada solução.</p>
   </div>
   <div class="growth-toolbar">
     <button id="growth-refresh" class="button button--dark" type="button">
@@ -41,19 +41,35 @@
   </div>
   <p id="growth-status" role="status" aria-live="polite"></p>
   <div id="growth-summary" class="growth-summary"></div>
+  <div class="growth-dashboard">
+    <article class="panel-card">
+      <span class="growth-kicker">PRIORIDADES</span>
+      <h2>Onde concentrar sua atenção</h2>
+      <div id="issue-chart"></div>
+    </article>
+    <article class="panel-card growth-guide">
+      <span class="growth-kicker">PRÓXIMO PASSO</span>
+      <h2 id="issue-next-title">Consultando os problemas…</h2>
+      <p id="issue-next-action"></p>
+      <p>
+        Abra um cartão para ver causas, recomendações e registrar o que foi
+        feito.
+      </p>
+    </article>
+  </div>
   <p id="issue-coverage" class="muted-copy"></p>
   <div id="issue-list" class="growth-list"></div>
-  <article class="panel-card">
-    <h2>Histórico de acompanhamento</h2>
+  <details class="panel-card growth-disclosure">
+    <summary>Histórico de acompanhamento</summary>
     <div id="issue-history" class="growth-list"></div>
-  </article>
-  <article class="panel-card">
-    <h2>O que ainda precisa de informação</h2>
+  </details>
+  <details class="panel-card growth-disclosure">
+    <summary>Informações que ainda não são medidas</summary>
     <div id="issue-unmeasured"></div>
     <p>
       As causas são hipóteses. Preços, serviços e campanhas permanecem sob
       controle do administrador. Uma condição ainda detectada continua visível,
       mesmo quando marcada como resolvida.
     </p>
-  </article>
+  </details>
 </section>

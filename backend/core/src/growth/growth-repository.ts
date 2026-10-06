@@ -82,7 +82,7 @@ function mayReserve(
     !campaign?.enabled ||
     campaign.updatedAt !== version ||
     campaign.startsAt > d.createdAt ||
-    campaign.endsAt <= d.createdAt
+    (!campaign.repeatAnnually && campaign.endsAt <= d.createdAt)
   )
     return false;
   if (

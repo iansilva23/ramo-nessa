@@ -72,12 +72,238 @@ export function createGrowthAdmin({
       }),
     );
   }
+  function chart(id, rows) {
+    const max = Math.max(1, ...rows.map((r) => r[1]));
+    el(id).replaceChildren(
+      ...rows.map(([label, value, tone]) => {
+        const row = node('div', '', 'growth-chart-row');
+        const caption = node('div', '', 'growth-chart-caption');
+        caption.append(node('span', label), node('strong', String(value)));
+        const track = node('div', '', 'growth-chart-track');
+        const bar = node('div', '', 'growth-chart-bar');
+        bar.dataset.tone = tone;
+        bar.style.width = `${(value / max) * 100}%`;
+        track.append(bar);
+        row.append(caption, track);
+        return row;
+      }),
+    );
+    if (rows.every((r) => r[1] === 0))
+      el(id).append(
+        node('p', 'Ainda não há ocorrências nestes indicadores.', 'muted-copy'),
+      );
+  }
+  function updateTriggerFields() {
+    const f = el('marketing-campaign-form'),
+      trigger = f.elements.namedItem('trigger').value;
+    const annual = ['birthday', 'calendar'].includes(trigger);
+    const repeat = f.elements.namedItem('repeatAnnually');
+    if (!annual) repeat.checked = false;
+    repeat.closest('label').hidden = !annual;
+    for (const [name, visible] of [
+      ['calendarDay', trigger === 'calendar'],
+      ['threshold', trigger === 'loyalty'],
+      ['days', !annual],
+      ['endsAt', !repeat.checked],
+    ]) {
+      const field = f.elements.namedItem(name);
+      field.closest('label').hidden = !visible;
+    }
+  }
+  function presetMessage(t) {
+    if (t.trigger === 'birthday')
+      return 'Feliz aniversário! O Ramo Nessa deseja um dia cheio de alegria. Conte com a gente para seus trajetos!';
+    if (t.name === 'Natal')
+      return 'Feliz Natal! Que seu dia seja cheio de bons encontros. Conte com o Ramo Nessa para chegar até eles.';
+    if (t.name === 'Ano-Novo')
+      return 'Feliz Ano-Novo! Que não faltem bons caminhos. O Ramo Nessa acompanha você nessa nova etapa.';
+    if (t.trigger === 'inactive')
+      return 'Sentimos sua falta! Quando precisar de uma corrida, o Ramo Nessa está por aqui. Abra o app e consulte a disponibilidade.';
+    return `Hoje é ${t.name}! Obrigado por fazer parte do Ramo Nessa. Conte com a gente para seus trajetos.`;
+  }
+  async function toggleCampaign(c) {
+    if (!hasScope('marketing:write') || !hasScope('marketing:send'))
+      throw new Error('Sua conta precisa de permissão para ativar campanhas.');
+    const enable = !c.enabled;
+    await api.saveMarketingCampaign(getToken(), {
+      id: c.id,
+      expectedUpdatedAt: c.updatedAt,
+      campaign: {
+        ...c,
+        enabled: enable,
+        automatic: enable ? true : c.automatic,
+      },
+    });
+    if (enable && !data.settings.enabled)
+      await api.saveMarketingSettings(getToken(), {
+        settings: { ...data.settings, enabled: true },
+        expectedUpdatedAt: data.settings.updatedAt,
+      });
+    await load();
+    status(
+      enable
+        ? 'Automação ativada. O app acompanha as regras a cada 15 minutos, dentro dos limites.'
+        : 'Campanha pausada.',
+    );
+  }
+  function renderAutomations() {
+    const templates = data.templates.filter((t) =>
+      ['birthday', 'calendar', 'inactive'].includes(t.trigger),
+    );
+    el('marketing-automations').replaceChildren(
+      ...templates.map((t) => {
+        const c = data.campaigns.find(
+          (c) =>
+            c.trigger === t.trigger &&
+            c.calendarDay === t.calendarDay &&
+            c.name === t.name,
+        );
+        const box = node('article', '', 'growth-automation');
+        box.dataset.active = String(!!c?.enabled && data.settings.enabled);
+        box.append(
+          node(
+            'span',
+            t.trigger === 'birthday'
+              ? 'ANIVERSÁRIOS'
+              : t.trigger === 'inactive'
+                ? 'RECONQUISTAR'
+                : 'DATA ESPECIAL',
+            'growth-kicker',
+          ),
+          node('h3', t.name),
+        );
+        const date = t.calendarDay
+          ? t.calendarDay.split('-').reverse().join('/')
+          : null;
+        box.append(
+          node(
+            'p',
+            t.trigger === 'birthday'
+              ? 'No aniversário de cada cliente, todos os anos.'
+              : date
+                ? `${date} · todos os anos`
+                : `Quando o cliente fica ${t.days} dias sem voltar.`,
+          ),
+        );
+        box.append(
+          node(
+            'small',
+            c
+              ? `${c.enabled ? (data.settings.enabled ? 'Automação ligada' : 'Marketing geral pausado') : 'Pausada'} · ${c.couponValueCents ? formatCurrencyCents(c.couponValueCents) + ' de presente' : 'Sem cupom'}`
+              : 'Mensagem pronta · sem cupom · Preá',
+          ),
+        );
+        if (c && c.metrics.processed >= c.maxRecipients)
+          box.append(
+            node(
+              'p',
+              'Limite de destinatários alcançado. Abra Personalizar para ampliar.',
+              'growth-warning',
+            ),
+          );
+        if (
+          c &&
+          c.couponValueCents > 0 &&
+          c.metrics.reservedCents + c.couponValueCents > c.budgetCents
+        )
+          box.append(
+            node(
+              'p',
+              'Orçamento insuficiente para novos presentes. Abra Personalizar.',
+              'growth-warning',
+            ),
+          );
+        box.append(
+          button(
+            c?.enabled ? 'Pausar' : 'Ativar automático',
+            'marketing:send',
+            async () => {
+              if (c) return toggleCampaign(c);
+              if (!hasScope('marketing:write'))
+                throw new Error('Sem permissão para criar campanhas.');
+              const saved = await api.saveMarketingCampaign(getToken(), {
+                campaign: {
+                  ...t,
+                  title:
+                    t.trigger === 'birthday' ? 'Feliz aniversário!' : t.name,
+                  message: presetMessage(t),
+                  audience: 'all',
+                  channels: data.channels.push ? ['inapp', 'push'] : ['inapp'],
+                  zones: ['prea'],
+                  categories: [],
+                  startsAt: new Date().toISOString(),
+                  endsAt: new Date(Date.now() + 3650 * 86400000).toISOString(),
+                  automatic: true,
+                  repeatAnnually: ['birthday', 'calendar'].includes(t.trigger),
+                  enabled: false,
+                  requireSupply: t.trigger === 'inactive',
+                  couponValueCents: 0,
+                  couponValidDays: 7,
+                  budgetCents: 0,
+                  maxRecipients: 100000,
+                  channelCostCents: {
+                    inapp: 0,
+                    push: 0,
+                    email: 0,
+                    whatsapp: 0,
+                  },
+                  controlPercent: 0,
+                },
+              });
+              // Reload first: if activation fails, the saved draft remains visible and reusable.
+              await load();
+              await toggleCampaign(saved.campaign);
+            },
+          ),
+        );
+        box.append(
+          button(
+            'Personalizar mensagem e cupom',
+            'marketing:write',
+            async () => {
+              fill(c ?? null);
+              if (!c) {
+                const f = el('marketing-campaign-form');
+                for (const key of ['name', 'trigger', 'days', 'threshold'])
+                  f.elements.namedItem(key).value = t[key];
+                f.elements.namedItem('calendarDay').value = t.calendarDay ?? '';
+                f.elements.namedItem('title').value = t.name;
+                f.elements.namedItem('message').value = presetMessage(t);
+                f.elements.namedItem('automatic').checked = true;
+                f.elements.namedItem('repeatAnnually').checked = [
+                  'birthday',
+                  'calendar',
+                ].includes(t.trigger);
+                for (const field of f.querySelectorAll('[name="zones"]'))
+                  field.checked = field.value === 'prea';
+                updateTriggerFields();
+              }
+              el('marketing-editor').open = true;
+              el('marketing-editor').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+              });
+              status(
+                'Mensagem pronta. Personalize o presente e o orçamento, se desejar.',
+              );
+            },
+          ),
+        );
+        return box;
+      }),
+    );
+  }
   function issueCard(i, active) {
-    const card = node('article', '', 'panel-card growth-issue');
+    const card = node('details', '', 'panel-card growth-issue');
+    const heading = node('summary', '', 'growth-issue-heading');
+    heading.append(
+      node('span', labels[i.severity], 'growth-badge'),
+      node('strong', i.title),
+      node('small', labels[i.review?.status ?? 'new']),
+    );
+    card.append(heading);
     card.dataset.severity = i.severity;
     card.append(
-      node('span', labels[i.severity], 'growth-badge'),
-      node('h2', i.title),
       node('p', i.evidence),
       node(
         'small',
@@ -177,6 +403,24 @@ export function createGrowthAdmin({
         data.items.filter((i) => i.severity === 'info').length,
       ],
     ]);
+    chart(
+      'issue-chart',
+      ['critical', 'warning', 'info'].map((severity) => [
+        labels[severity],
+        data.items.filter((i) => i.severity === severity).length,
+        severity,
+      ]),
+    );
+    const priority = [...data.items].sort(
+      (a, b) =>
+        ['critical', 'warning', 'info'].indexOf(a.severity) -
+        ['critical', 'warning', 'info'].indexOf(b.severity),
+    )[0];
+    el('issue-next-title').textContent =
+      priority?.title ?? 'Nenhum problema detectado';
+    el('issue-next-action').textContent =
+      priority?.actions[0] ??
+      'Confira a cobertura da consulta abaixo. Continue acompanhando a operação.';
     const f = (id) => el(id).value;
     const items = data.items
       .filter(
@@ -241,7 +485,12 @@ export function createGrowthAdmin({
     ])
       if (v[key] != null) form.elements.namedItem(key).value = v[key];
     form.elements.namedItem('calendarDay').value = v.calendarDay ?? '';
-    for (const key of ['enabled', 'automatic', 'requireSupply']) {
+    for (const key of [
+      'enabled',
+      'automatic',
+      'requireSupply',
+      'repeatAnnually',
+    ]) {
       const field = form.elements.namedItem(key);
       if (v[key] != null) field.checked = v[key];
     }
@@ -266,6 +515,7 @@ export function createGrowthAdmin({
       if (v[key])
         for (const field of form.querySelectorAll(`[name="${key}"]`))
           field.checked = v[key].includes(field.value);
+    updateTriggerFields();
     if (!hasScope('marketing:write'))
       for (const field of form.elements) field.disabled = true;
   }
@@ -302,6 +552,7 @@ export function createGrowthAdmin({
       },
       enabled: !!editing && checked('enabled'),
       automatic: checked('automatic'),
+      repeatAnnually: checked('repeatAnnually'),
       requireSupply: checked('requireSupply'),
     };
   }
@@ -346,9 +597,22 @@ export function createGrowthAdmin({
             `${g.assigned} participantes · ${g.observed} com 14 dias de observação · ${g.converted} fizeram corrida · ${g.redeemed} presentes usados · comissão bruta ${formatCurrencyCents(g.commissionCents)}.`,
           ),
         );
-      nodes.push(node('p', payload.interpretation));
+      const chartBox = node('div');
+      chartBox.id = 'marketing-conversion-chart';
+      nodes.push(chartBox, node('p', payload.interpretation));
     }
     el('marketing-detail').replaceChildren(...nodes);
+    if (type !== 'preview')
+      chart(
+        'marketing-conversion-chart',
+        Object.entries(payload.groups).map(([key, group]) => [
+          key === 'contact'
+            ? 'Fizeram corrida · campanha'
+            : 'Fizeram corrida · comparação',
+          group.converted,
+          key,
+        ]),
+      );
     el('marketing-detail-panel').hidden = false;
     el('marketing-detail-panel').scrollIntoView({
       behavior: 'smooth',
@@ -356,6 +620,11 @@ export function createGrowthAdmin({
     });
   }
   function renderMarketing() {
+    el('marketing-master').textContent = data.settings.enabled
+      ? 'Pausar todo o marketing'
+      : 'Ligar marketing';
+    el('marketing-master').disabled =
+      !hasScope('marketing:write') || !hasScope('marketing:send');
     cards([
       ['Marketing', data.settings.enabled ? 'Ativado' : 'Desligado'],
       ['Campanhas ativadas', data.campaigns.filter((c) => c.enabled).length],
@@ -382,6 +651,30 @@ export function createGrowthAdmin({
     for (const control of f.elements)
       control.disabled = !hasScope('marketing:write');
     f.elements.namedItem('enabled').disabled = !hasScope('marketing:send');
+    chart('marketing-chart', [
+      [
+        'Clientes contatados¹',
+        data.campaigns.reduce((n, c) => n + c.metrics.contacted, 0),
+        'contact',
+      ],
+      [
+        'Aberturas no app',
+        data.campaigns.reduce((n, c) => n + c.metrics.opened, 0),
+        'opened',
+      ],
+      [
+        'Grupo de comparação',
+        data.campaigns.reduce((n, c) => n + c.metrics.control, 0),
+        'control',
+      ],
+    ]);
+    el('marketing-chart').append(
+      node(
+        'small',
+        '¹ Soma por campanha; um cliente pode aparecer em mais de uma. Não representa corridas nem retorno financeiro.',
+      ),
+    );
+    renderAutomations();
     const select = el('marketing-template');
     select.replaceChildren(node('option', 'Escolha um modelo'));
     select.firstChild.value = '';
@@ -398,16 +691,44 @@ export function createGrowthAdmin({
               node('h3', c.name),
               node(
                 'p',
-                `${c.enabled ? 'Ativada' : 'Desligada'} · ${c.automatic ? 'Automática' : 'Manual'} · ${c.channels.map((ch) => labels[ch]).join(', ')} · ${c.zones.join(', ') || 'Todas as regiões'}`,
+                `${c.enabled ? 'Ativada' : 'Desligada'} · ${c.automatic ? 'Automática' : 'Manual'}${c.repeatAnnually ? ' · repete todo ano' : ''} · ${c.channels.map((ch) => labels[ch]).join(', ')} · ${c.zones.join(', ') || 'Todas as regiões'}`,
               ),
               node(
                 'p',
                 `Teto ${formatCurrencyCents(c.budgetCents)} · reservado ${formatCurrencyCents(c.metrics.reservedCents)} · ${c.metrics.contacted} contatados · ${c.metrics.opened} aberturas registradas · ${c.metrics.control} no grupo de comparação.`,
               ),
             );
+            if (
+              c.metrics.processed >= c.maxRecipients ||
+              (c.couponValueCents > 0 &&
+                c.metrics.reservedCents + c.couponValueCents > c.budgetCents)
+            )
+              box.append(
+                node(
+                  'p',
+                  'Limite alcançado. Personalize o orçamento ou o máximo de destinatários para continuar.',
+                  'growth-warning',
+                ),
+              );
+            if (!c.repeatAnnually && Date.parse(c.endsAt) <= Date.now())
+              box.append(
+                node(
+                  'p',
+                  'Período encerrado. Atualize as datas para continuar.',
+                  'growth-warning',
+                ),
+              );
             box.append(
-              button('Editar', 'marketing:write', async () => {
+              button(
+                c.enabled ? 'Pausar' : 'Ativar automático',
+                'marketing:send',
+                async () => {
+                  await toggleCampaign(c);
+                },
+              ),
+              button('Personalizar', 'marketing:write', async () => {
                 fill(c);
+                el('marketing-editor').open = true;
                 el('marketing-campaign-form').scrollIntoView({
                   behavior: 'smooth',
                   block: 'center',
@@ -430,6 +751,8 @@ export function createGrowthAdmin({
                 status('Resultados atualizados.');
               }),
             );
+            const actions = node('details', '', 'growth-secondary-actions');
+            actions.append(node('summary', 'Envio manual'));
             const send = button('Executar lote', 'marketing:send', async () => {
               const p = await api.marketingPreview(getToken(), c.id);
               detail(p, 'preview');
@@ -456,7 +779,8 @@ export function createGrowthAdmin({
                 `${result.reserved} reservas, ${result.processed} processadas. Confira os resultados por canal.`,
               );
             });
-            box.append(send);
+            actions.append(send);
+            box.append(actions);
             return box;
           })
         : [
@@ -502,7 +826,41 @@ export function createGrowthAdmin({
       });
   } else {
     fill();
+    listen(
+      el('marketing-master'),
+      'click',
+      () =>
+        void perform(async () => {
+          if (
+            !data ||
+            !hasScope('marketing:write') ||
+            !hasScope('marketing:send')
+          )
+            return;
+          const enabled = !data.settings.enabled;
+          await api.saveMarketingSettings(getToken(), {
+            settings: { ...data.settings, enabled },
+            expectedUpdatedAt: data.settings.updatedAt,
+          });
+          await load();
+          status(
+            enabled
+              ? 'Marketing ligado. Apenas campanhas ativadas serão executadas.'
+              : 'Todas as campanhas pausadas pelo controle geral.',
+          );
+        }),
+    );
     listen(el('marketing-reset'), 'click', () => fill());
+    listen(
+      el('marketing-campaign-form').elements.namedItem('trigger'),
+      'change',
+      updateTriggerFields,
+    );
+    listen(
+      el('marketing-campaign-form').elements.namedItem('repeatAnnually'),
+      'change',
+      updateTriggerFields,
+    );
     listen(el('marketing-template'), 'change', () => {
       if (!data) return;
       const t = data.templates[Number(el('marketing-template').value)];
@@ -513,8 +871,13 @@ export function createGrowthAdmin({
         form.elements.namedItem(key).value = t[key];
       form.elements.namedItem('calendarDay').value = t.calendarDay ?? '';
       form.elements.namedItem('title').value = t.name;
-      form.elements.namedItem('message').value =
-        'Confira as novidades e os benefícios disponíveis para você no Ramo Nessa.';
+      form.elements.namedItem('message').value = presetMessage(t);
+      form.elements.namedItem('automatic').checked = true;
+      form.elements.namedItem('repeatAnnually').checked = [
+        'birthday',
+        'calendar',
+      ].includes(t.trigger);
+      updateTriggerFields();
     });
     listen(el('marketing-settings'), 'submit', (e) => {
       e.preventDefault();
@@ -551,7 +914,9 @@ export function createGrowthAdmin({
           expectedUpdatedAt: editing?.updatedAt,
         });
         fill();
+        el('marketing-editor').open = false;
         await load();
+        status('Campanha salva. Use Ativar automático na lista para começar.');
       });
     });
   }

@@ -73,6 +73,7 @@ export interface MarketingCampaign {
   audience: 'all' | 'resident' | 'tourist';
   enabled: boolean;
   automatic: boolean;
+  repeatAnnually?: boolean;
   requireSupply: boolean;
   startsAt: string;
   endsAt: string;
@@ -263,6 +264,15 @@ export function campaignInput(
     throw new GrowthError(400, 'Escolha o dia e mês da campanha.');
   if (!['all', 'resident', 'tourist'].includes(String(b.audience)))
     throw new GrowthError(400, 'Público inválido.');
+  const repeatAnnually =
+    b.repeatAnnually === undefined
+      ? (old?.repeatAnnually ?? false)
+      : bool(b.repeatAnnually, 'Repetição anual');
+  if (repeatAnnually && b.trigger !== 'birthday' && b.trigger !== 'calendar')
+    throw new GrowthError(
+      400,
+      'Repetição anual disponível para aniversário e data fixa.',
+    );
   const cost = object(b.channelCostCents);
   return {
     id: old?.id ?? randomUUID(),
@@ -279,6 +289,7 @@ export function campaignInput(
     audience: b.audience as MarketingCampaign['audience'],
     enabled: old ? bool(b.enabled, 'Ativação') : false,
     automatic: bool(b.automatic, 'Automação'),
+    repeatAnnually,
     requireSupply: bool(b.requireSupply, 'Disponibilidade'),
     startsAt,
     endsAt,
@@ -345,6 +356,17 @@ export const CAMPAIGN_TEMPLATES = [
     days: 1,
     threshold: 1,
   },
+  ...[
+    ['Dia do Cliente', '09-15'],
+    ['Dia do Trabalhador', '05-01'],
+    ['São João', '06-24'],
+  ].map(([name, calendarDay]) => ({
+    name: name!,
+    trigger: 'calendar',
+    calendarDay: calendarDay!,
+    days: 1,
+    threshold: 1,
+  })),
   {
     name: 'Primeira corrida',
     trigger: 'first_ride',
