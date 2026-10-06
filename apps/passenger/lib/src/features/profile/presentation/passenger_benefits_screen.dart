@@ -26,6 +26,7 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
   @override
   void dispose() { _birthday.dispose(); _referral.dispose(); widget.service.close(); super.dispose(); }
   Future<void> _load() async {
+    if (_busy) return;
     setState(() { _busy = true; _error = null; });
     try {
       final data = await widget.service.load();
@@ -104,15 +105,15 @@ class _PassengerBenefitsScreenState extends State<PassengerBenefitsScreen> {
             if (!mounted) return;
             setState(() => m['openedAt'] = DateTime.now().toIso8601String());
             _notice(m['message'] as String? ?? 'Mensagem registrada como lida.');
-          }))),
+          })))),
         ],
         const SizedBox(height: 24), Text('Suas preferências', style: Theme.of(context).textTheme.titleLarge),
         const Text('Escolha onde deseja receber promoções. Avisos sobre suas corridas continuam independentes.'),
         for (final item in const {'inapp': 'Dentro do aplicativo', 'push': 'Notificações no celular', 'email': 'E-mail', 'whatsapp': 'WhatsApp'}.entries)
           SwitchListTile(contentPadding: EdgeInsets.zero, title: Text(item.value), value: _channels[item.key]!, onChanged: _busy ? null : (v) => setState(() => _channels[item.key] = v)),
         TextField(controller: _birthday, enabled: !_busy, maxLength: 5, keyboardType: TextInputType.datetime, decoration: const InputDecoration(labelText: 'Aniversário (opcional)', hintText: 'DD/MM', helperText: 'Somente dia e mês. Para apagar, deixe vazio e salve.')),
-        DropdownButtonFormField<String>(initialValue: _audience, decoration: const InputDecoration(labelText: 'Seu perfil (opcional)'), items: const [DropdownMenuItem(value: 'unspecified', child: Text('Prefiro não informar')), DropdownMenuItem(value: 'resident', child: Text('Morador')), DropdownMenuItem(value: 'tourist', child: Text('Turista'))], onChanged: _busy ? null : (v) => setState(() => _audience = v ?? 'unspecified')),
-        DropdownButtonFormField<String>(initialValue: _zone ?? '', decoration: const InputDecoration(labelText: 'Região de interesse (opcional)'), items: const [DropdownMenuItem(value: '', child: Text('Prefiro não informar')), DropdownMenuItem(value: 'prea', child: Text('Preá')), DropdownMenuItem(value: 'jijoca', child: Text('Jijoca')), DropdownMenuItem(value: 'jericoacoara', child: Text('Jericoacoara')), DropdownMenuItem(value: 'external', child: Text('Outra região'))], onChanged: _busy ? null : (v) => setState(() => _zone = v == '' ? null : v)),
+        DropdownButtonFormField<String>(key: ValueKey('audience:$_audience'), initialValue: _audience, decoration: const InputDecoration(labelText: 'Seu perfil (opcional)'), items: const [DropdownMenuItem(value: 'unspecified', child: Text('Prefiro não informar')), DropdownMenuItem(value: 'resident', child: Text('Morador')), DropdownMenuItem(value: 'tourist', child: Text('Turista'))], onChanged: _busy ? null : (v) => setState(() => _audience = v ?? 'unspecified')),
+        DropdownButtonFormField<String>(key: ValueKey('zone:$_zone'), initialValue: _zone ?? '', decoration: const InputDecoration(labelText: 'Região de interesse (opcional)'), items: const [DropdownMenuItem(value: '', child: Text('Prefiro não informar')), DropdownMenuItem(value: 'prea', child: Text('Preá')), DropdownMenuItem(value: 'jijoca', child: Text('Jijoca')), DropdownMenuItem(value: 'jericoacoara', child: Text('Jericoacoara')), DropdownMenuItem(value: 'external', child: Text('Outra região'))], onChanged: _busy ? null : (v) => setState(() => _zone = v == '' ? null : v)),
         const SizedBox(height: 16), FilledButton(onPressed: _busy ? null : _save, child: const Text('Salvar preferências')),
         const SizedBox(height: 24), Text('Indique amigos', style: Theme.of(context).textTheme.titleLarge),
         const Text('Benefícios dependem de uma campanha ativa e das condições. A indicação é validada após a primeira corrida paga e concluída.'),
