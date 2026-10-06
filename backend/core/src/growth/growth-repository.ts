@@ -202,6 +202,7 @@ export class InMemoryGrowthRepository implements GrowthRepository {
   async finish(d: MarketingDelivery) {
     const index = this.ds.findIndex((x) => x.id === d.id);
     if (index < 0) throw new GrowthError(404, 'Entrega não encontrada.');
+    if (this.ds[index]!.passengerId !== d.passengerId) return; // Do not restore erased data from an in-flight sender.
     this.ds[index] = structuredClone(d);
   }
   async markOpened(id: string, pid: string, now: string) {
@@ -427,8 +428,8 @@ export class PostgresGrowthRepository implements GrowthRepository {
   }
   async finish(d: MarketingDelivery) {
     await this.pool.query(
-      'UPDATE marketing_deliveries SET state=$2,data=$3::jsonb WHERE id=$1',
-      [d.id, d.state, JSON.stringify(d)],
+      'UPDATE marketing_deliveries SET state=$2,data=$3::jsonb WHERE id=$1 AND passenger_id=$4',
+      [d.id, d.state, JSON.stringify(d), d.passengerId],
     );
   }
   async markOpened(id: string, pid: string, now: string) {

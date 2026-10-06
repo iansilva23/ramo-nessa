@@ -192,7 +192,9 @@ test('limite soma canais entre campanhas e anonimização preserva orçamento', 
     await store.reserve(delivery(other, 'p', 'b'), other.updatedAt),
     false,
   );
+  const inflight = (await store.deliveries(c.id))[0]!;
   await store.forget('p');
+  await store.finish({ ...inflight, state: 'finished' });
   const saved = await store.deliveries(c.id);
   assert.equal(saved[0]?.heldCents, 500);
   assert.ok(saved[0]?.passengerId.startsWith('erased:'));

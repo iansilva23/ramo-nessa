@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { PostgresAdminRepository } from '../src/admin/repositories/postgres-admin-repository.js';
 import { createPostgresPool } from '../src/db/postgres.js';
 import { PostgresGrowthRepository } from '../src/growth/growth-repository.js';
 import {
@@ -69,6 +70,14 @@ test(
       openedAt: null,
     };
     try {
+      await new PostgresAdminRepository(pool).createApiKey({
+        id: actor.id,
+        name: actor.name,
+        tokenHash: randomUUID(),
+        scopes: ['marketing:write'],
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 86400000).toISOString(),
+      });
       await store.saveSettings(
         { ...initial, enabled: true, updatedAt: now.toISOString() },
         initial.updatedAt,
@@ -98,6 +107,7 @@ test(
         store.saveCampaign({ ...c, budgetCents: 499 }, c.updatedAt, actor),
       );
       await store.forget(pid);
+      await store.finish({ ...saved, state: 'finished' });
       const anonymized = (await store.deliveries(c.id))[0]!;
       assert.equal(anonymized.heldCents, 500);
       assert.ok(anonymized.passengerId.startsWith('erased:'));
@@ -116,6 +126,10 @@ test(
         'UPDATE marketing_settings SET data=$1::jsonb WHERE id=true',
         [JSON.stringify(initial)],
       );
+      await pool.query('DELETE FROM admin_audit_log WHERE actor_key_id=$1', [
+        actor.id,
+      ]);
+      await pool.query('DELETE FROM admin_api_keys WHERE id=$1', [actor.id]);
       await pool.end();
     }
   },

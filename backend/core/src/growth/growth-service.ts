@@ -814,6 +814,18 @@ export class GrowthService {
             allowedZones: c.zones,
           });
         }
+        if (
+          !(await this.deps.store.deliveries(undefined, d.passengerId)).some(
+            (x) => x.id === d.id,
+          )
+        ) {
+          await this.deps.promotions.setCampaignEnabled(
+            gift.id,
+            false,
+            now.toISOString(),
+          );
+          return true;
+        }
         d.couponId = gift.id;
         coupon = gift.code;
         await this.deps.store.finish(d);
@@ -965,6 +977,7 @@ export class GrowthService {
     };
   }
   async forget(id: string) {
+    await this.deps.store.forget(id);
     for (const gift of await this.deps.promotions.listCampaigns())
       if (gift.targetPassengerId === id && gift.enabled)
         await this.deps.promotions.setCampaignEnabled(
@@ -972,7 +985,6 @@ export class GrowthService {
           false,
           new Date().toISOString(),
         );
-    await this.deps.store.forget(id);
   }
   async passengerView(id: string) {
     const pref =
