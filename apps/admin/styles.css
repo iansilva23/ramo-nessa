@@ -5333,3 +5333,19 @@ td strong {
 .driver-search-tier { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
 .driver-search-tier label { display: grid; gap: 6px; }
 @media (max-width: 640px) { .driver-search-tier { grid-template-columns: 1fr 1fr; } .driver-search-tier button { grid-column: 1 / -1; } }
+
+/* Custos e resultado gerencial */
+.cost-summary {display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:20px 0;}
+.cost-summary strong {display:block;font-size:1.7rem;margin-top:10px;}
+.cost-negative {color:#ad2727;}
+.cost-forms {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:24px 0;}
+.cost-form {display:flex;flex-wrap:wrap;align-items:end;gap:14px;}
+.cost-form label {display:flex;flex-direction:column;gap:7px;flex:1 1 220px;min-width:0;}
+.cost-form input,.cost-form select,.cost-form textarea {width:100%;padding:12px;border:1px solid #d9dde4;border-radius:10px;background:#fff;color:#111827;font:inherit;}
+.cost-form small {color:#596474;font-size:.8rem;}
+.cost-form label[hidden] {display:none;}
+.cost-row {padding:16px 0;border-bottom:1px solid #e5e7eb;overflow-wrap:anywhere;}
+.cost-row button {margin:8px 8px 0 0;}
+.cost-list {max-height:650px;overflow:auto;}
+#view-costs > .panel-card {margin:20px 0;}
+@media(max-width:800px) {.cost-forms {grid-template-columns:1fr;}}

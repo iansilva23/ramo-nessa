@@ -159,6 +159,15 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    costs(token, {from, to} = {}) {
+      const params = new URLSearchParams(); if(from)params.set('from',from);if(to)params.set('to',to);
+      return request(`/v1/admin/costs?${params.toString()}`,{token});
+    },
+    saveCost(token, {id,kind,data,expectedUpdatedAt}) {
+      return request(`/v1/admin/costs/items${expectedUpdatedAt ? '/'+encodeURIComponent(id):''}`, {
+        token,method:expectedUpdatedAt?'PUT':'POST',body:{id,kind,data,...(expectedUpdatedAt?{expectedUpdatedAt}:{})},
+      });
+    },
     login({ email, password, totpCode }) {
       return request('/v1/admin/auth/login', {
         method: 'POST',

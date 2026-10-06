@@ -71,6 +71,7 @@ function normalizeScopes(value: unknown): AdminScope[] {
     ['drivers:benefits:write', 'drivers:benefits:read'],
     ['passengers:auth:write', 'passengers:auth:read'],
     ['finance:write', 'finance:read'],
+    ['costs:write', 'costs:read'],
     ['pricing:write', 'pricing:read'],
     ['communications:write', 'communications:read'],
     ['support:write', 'support:read'],

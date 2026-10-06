@@ -1,3 +1,4 @@
+import { InMemoryCompanyCostRepository, PostgresCompanyCostRepository, type CompanyCostRepository } from '../costs/company-cost-repository.js';
 import { InMemorySavedCardRepository, PostgresSavedCardRepository, type SavedCardRepository } from '../payments/saved-card-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
 import type { AuthSessionRepository } from '../auth/auth-session-repository.js';
@@ -74,6 +75,7 @@ export interface RepositoryBundle {
   adminHumanAuthRepository: AdminHumanAuthRepository;
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
+  companyCostRepository: CompanyCostRepository;
   paymentPolicySettingsRepository: PaymentPolicySettingsRepository;
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
@@ -113,6 +115,7 @@ export function createRepositories(): RepositoryBundle {
         new PostgresAdminHumanAuthRepository(pool),
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
+      companyCostRepository: new PostgresCompanyCostRepository(pool),
       paymentPolicySettingsRepository:
         new PostgresPaymentPolicySettingsRepository(pool),
       driverSupplyRepository,
@@ -156,6 +159,8 @@ export function createRepositories(): RepositoryBundle {
     );
   }
 
+  const financeRepository = new InMemoryFinanceRepository();
+  const adminRepository = new InMemoryAdminRepository();
   const promotionRepository = new InMemoryPromotionRepository();
   const rideRepository = new InMemoryRideRepository();
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
@@ -163,11 +168,12 @@ export function createRepositories(): RepositoryBundle {
   return {
     authSessionRepository: new InMemoryAuthSessionRepository(),
     authOtpRepository: new InMemoryAuthOtpRepository(),
-    adminRepository: new InMemoryAdminRepository(),
+    adminRepository,
     adminHumanAuthRepository:
       new InMemoryAdminHumanAuthRepository(),
     rideRepository,
-    financeRepository: new InMemoryFinanceRepository(),
+    financeRepository,
+    companyCostRepository: new InMemoryCompanyCostRepository(financeRepository, adminRepository),
     paymentPolicySettingsRepository:
       new InMemoryPaymentPolicySettingsRepository(),
     driverSupplyRepository,

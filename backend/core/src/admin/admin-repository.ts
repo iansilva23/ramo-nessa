@@ -14,6 +14,8 @@ export const ADMIN_SCOPES = [
   'fleet:read',
   'finance:read',
   'finance:write',
+  'costs:read',
+  'costs:write',
   'pricing:read',
   'pricing:write',
   'communications:read',

@@ -1,3 +1,5 @@
+import { createCompanyCostsAdmin } from './company-costs-admin.js';
+let companyCostsAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
 let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
@@ -249,6 +251,11 @@ const adminRoutes = Object.freeze({
     title: 'Operação e Tarifas',
     page: 'pricing',
   },
+  costs: {
+    path: '/admin/custos-resultado',
+    title: 'Custos & Resultado',
+    page: 'costs',
+  },
   finance: {
     path: '/admin/financeiro',
     title: 'Financeiro',
@@ -340,6 +347,8 @@ const scopeLabels = new Map([
   ['rides:read', 'Consultar operação de corridas'],
   ['rides:write', 'Cancelar corridas antes do início da viagem'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
+  ['costs:read', 'Consultar custos e resultado da empresa'],
+  ['costs:write', 'Cadastrar despesas e regras de custos'],
   ['finance:read', 'Consultar pagamentos, comissões e saques'],
   ['finance:write', 'Administrar políticas financeiras permitidas'],
   ['pricing:read', 'Consultar catálogo de preços e zonas'],
@@ -390,6 +399,7 @@ const viewAccessScopes = Object.freeze({
   pricing: ['pricing:read', 'pricing:write'],
   coupons: ['finance:read', 'finance:write'],
   finance: ['finance:read', 'finance:write'],
+  costs: ['costs:read', 'costs:write'],
   notifications: ['communications:read', 'communications:write'],
   design: ['communications:read', 'communications:write'],
   support: ['support:read', 'support:write'],
@@ -502,6 +512,7 @@ function clearPassengerPhoto() {
 
 function clearSession(message = '') {
   stopSessionTimer();
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
@@ -856,6 +867,7 @@ async function activateView(
     : 'overview';
   const targetPath = routePath(view);
 
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
@@ -10482,6 +10494,11 @@ async function loadOverviewSecondaryMetrics() {
 }
 
 function initializeRouteView(view) {
+  if(view === 'costs') {
+    companyCostsAdmin = createCompanyCostsAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,
+      onError(error){if(error instanceof AdminApiError && error.status===401)handleAuthenticatedError(error);}});
+    return;
+  }
   if (view === 'coupons') {
     promotionsAdmin = createPromotionsAdmin({root: routeOutlet, api,
       getToken: () => state.token, hasScope,
@@ -10720,6 +10737,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();

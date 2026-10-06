@@ -1,0 +1,53 @@
+<section id="view-costs" class="view-panel" hidden>
+  <div class="page-heading"><span class="eyebrow eyebrow--dark">GESTÃO DA EMPRESA</span>
+    <h1>Custos &amp; Resultado</h1><p>Acompanhe quanto sobra da sua receita depois dos custos registrados.</p></div>
+  <p class="finance-readonly-note">Controle informativo. Estes registros não movimentam dinheiro. O resultado não é o saldo disponível para saque; inclui apenas despesas cadastradas e os lançamentos indicados abaixo.</p>
+  <form id="cost-period-form" class="cost-form panel-card">
+    <label>De<input id="cost-from" type="date" required></label>
+    <label>Até<input id="cost-to" type="date" required></label>
+    <button class="button button--dark" type="submit">Consultar período</button>
+    <button id="cost-this-month" class="button button--ghost-dark" type="button">Este mês</button>
+  </form>
+  <p id="cost-status" role="status" aria-live="polite"></p>
+  <div id="cost-summary" class="cost-summary"></div>
+  <p class="muted-copy">Confirmado: custos registrados e cupons financiados pelo ledger. Estimado: regras por operação e ajustes externos em revisão. As regras usam o horário de Fortaleza. Custos mensais entram na data de vencimento e não são rateados por corrida.</p>
+  <div class="cost-forms">
+    <article class="panel-card"><h2 id="cost-expense-title">Cadastrar despesa</h2>
+      <form id="cost-expense-form" class="cost-form">
+        <label>Nome<input id="cost-expense-name" maxlength="100" required placeholder="Ex.: Divulgação no Instagram"></label>
+        <label>Categoria<input id="cost-expense-category" maxlength="60" required list="cost-categories" placeholder="Divulgação"></label>
+        <label>Tipo de custo<input id="cost-expense-slot" maxlength="50" pattern="[a-z][a-z0-9_-]*" required value="general"><small>Ex.: servidor, whatsapp, processing_fee. Mesmo tipo e operação substituem a estimativa.</small></label>
+        <label>Valor (R$)<input id="cost-expense-amount" inputmode="decimal" required placeholder="0,00"></label>
+        <label>Data<input id="cost-expense-date" type="date" required></label>
+        <label>Confirmação<select id="cost-expense-certainty"><option value="confirmed">Confirmado</option><option value="estimated">Estimado</option></select></label>
+        <label>ID da corrida (opcional)<input id="cost-expense-ride" maxlength="36"></label>
+        <label>ID do pagamento (opcional)<input id="cost-expense-payment" maxlength="36"><small>Obrigatório para confirmar uma taxa individual de pagamento.</small></label>
+        <label>ID da regra mensal (opcional)<input id="cost-expense-rule" maxlength="36"><small>Vincule à regra para substituir a previsão do mês, sem somar duas vezes.</small></label>
+        <label>Observação<textarea id="cost-expense-notes" maxlength="500"></textarea></label>
+        <button class="button button--dark" type="submit">Salvar despesa</button>
+        <button id="cost-expense-reset" class="button button--ghost-dark" type="button">Limpar formulário</button>
+      </form>
+    </article>
+    <article class="panel-card"><h2>Cadastrar regra recorrente</h2>
+      <form id="cost-rule-form" class="cost-form">
+        <label>Nome<input id="cost-rule-name" maxlength="100" required placeholder="Ex.: VPS mensal"></label>
+        <label>Categoria<input id="cost-rule-category" maxlength="60" required list="cost-categories" placeholder="Infraestrutura"></label>
+        <label>Tipo de custo<input id="cost-rule-slot" maxlength="50" pattern="[a-z][a-z0-9_-]*" required placeholder="servidor"></label>
+        <label>Aplicação<select id="cost-rule-basis"><option value="monthly">Mensal, no dia da data inicial</option><option value="ride">Por corrida liquidada</option><option value="pix_payment">Por pagamento Pix recebido</option><option value="card_payment">Por pagamento de cartão recebido</option><option value="commission_percent">Percentual sobre a comissão</option></select></label>
+        <label id="cost-rule-amount-label">Valor (R$)<input id="cost-rule-amount" inputmode="decimal" value="0,00" required></label>
+        <label id="cost-rule-rate-label" hidden>Percentual (%)<input id="cost-rule-rate" inputmode="decimal" value="0" required></label>
+        <label>Data inicial / primeiro vencimento<input id="cost-rule-start" type="date" required></label>
+        <label>Data final (opcional)<input id="cost-rule-end" type="date"></label>
+        <label>Custos mensais<select id="cost-rule-certainty"><option value="estimated">Estimados</option><option value="confirmed">Confirmados por contrato</option></select><small>Regras por operação são sempre estimativas até registrar o custo efetivo.</small></label>
+        <label>Observação<textarea id="cost-rule-notes" maxlength="500"></textarea></label>
+        <button class="button button--dark" type="submit">Criar regra</button>
+      </form>
+    </article>
+  </div>
+  <datalist id="cost-categories"><option value="Pagamentos"></option><option value="Infraestrutura"></option><option value="WhatsApp"></option><option value="Mapas"></option><option value="Divulgação"></option><option value="Impostos"></option><option value="Outros"></option></datalist>
+  <article class="panel-card"><h2>Gastos por categoria</h2><div id="cost-categories-summary"></div></article>
+  <article class="panel-card"><h2>Regras cadastradas</h2><p class="muted-copy">Para mudar um valor, encerre a vigência da regra antiga e crie a nova. O histórico permanece disponível.</p><div id="cost-rules" class="cost-list"></div></article>
+  <article class="panel-card"><h2>Despesas cadastradas</h2><div id="cost-expenses" class="cost-list"></div></article>
+  <article class="panel-card"><h2>Detalhamento do período</h2><p id="cost-lines-count" class="muted-copy"></p><div id="cost-lines" class="cost-list"></div></article>
+  <article class="panel-card"><h2>Resultado por corrida no período</h2><p class="muted-copy">Comissão e acréscimos recuperados, menos custos vinculados e registrados neste período. Despesas sem vínculo e mensais entram apenas no resumo geral.</p><div id="cost-rides" class="cost-list"></div></article>
+</section>

@@ -1,3 +1,4 @@
+import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
@@ -514,6 +515,7 @@ const {
   adminHumanAuthRepository,
   rideRepository,
   financeRepository,
+  companyCostRepository,
   paymentPolicySettingsRepository,
   driverSupplyRepository,
   driverRegistryRepository,
@@ -3771,6 +3773,29 @@ const server = createServer(async (request, response) => {
           operationalSettings.driverLocationMaxAgeSeconds,
       });
       json(response, 200, fleet);
+      return;
+    }
+
+    if (requestUrl.pathname === '/v1/admin/costs' && request.method === 'GET') {
+      await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,
+        headers:request.headers,requiredScope:'costs:read'});
+      const period=reportPeriod(requestUrl.searchParams.get('from'),requestUrl.searchParams.get('to'));
+      try { json(response,200,calculateCostReport(await companyCostRepository.source(period),period)); }
+      catch(error) { if(error instanceof CostConflictError) json(response,409,{error:'COST_CONFLICT',message:error.message}); else throw error; }
+      return;
+    }
+    const costMatch=requestUrl.pathname.match(/^\/v1\/admin\/costs\/items(?:\/([0-9a-fA-F-]{36}))?$/);
+    if (costMatch && (request.method === 'POST' || request.method === 'PUT')) {
+      const actor=await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,
+        headers:request.headers,requiredScope:'costs:write'});
+      const body=await readJson(request) as Record<string,unknown>;
+      if(!body || typeof body!=='object' || Array.isArray(body) || (body.kind!=='expense' && body.kind!=='rule')) throw new InvalidAdminRequestError('Tipo de custo inválido.');
+      const updating=request.method==='PUT';
+      if(updating && (!costMatch[1] || typeof body.expectedUpdatedAt!=='string' || !Number.isFinite(Date.parse(body.expectedUpdatedAt)))) throw new InvalidAdminRequestError('Atualize o custo antes de salvar.');
+      if(!updating && costMatch[1]) throw new InvalidAdminRequestError('Endereço inválido para cadastro.');
+      const item=createCostItem(body.kind,body.data,uuidValue(updating?costMatch[1]:body.id));
+      try { const saved=await companyCostRepository.save(item,actor,updating?String(body.expectedUpdatedAt):undefined); json(response,updating?200:201,{item:saved}); }
+      catch(error) { if(error instanceof CostConflictError) json(response,409,{error:'COST_CONFLICT',message:error.message}); else throw error; }
       return;
     }
 
