@@ -24,6 +24,8 @@ export type PromotionCategory =
 
 export interface PromotionCampaignRecord {
   id: string;
+  targetPassengerId?: string;
+  allowedZones?: import('../pricing/types.js').ZoneId[];
   code: string;
   name: string;
   kind: PromotionKind;

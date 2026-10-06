@@ -1,0 +1,9 @@
+name: Growth Center Review
+on:
+  push:
+    branches: [feature/admin-problems-marketing-20261006]
+permissions:
+  contents: read
+jobs:
+  validate:
+    uses: ./.github/workflows/preflight.yml

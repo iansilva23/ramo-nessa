@@ -5349,3 +5349,15 @@ td strong {
 .cost-list {max-height:650px;overflow:auto;}
 #view-costs > .panel-card {margin:20px 0;}
 @media(max-width:800px) {.cost-forms {grid-template-columns:1fr;}}
+
+/* Growth center: follows the existing admin surfaces, including mobile. */
+.growth-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:16px 0}
+.growth-toolbar label{display:grid;gap:6px}.growth-toolbar select,.growth-options,#view-marketing input,#view-marketing textarea{max-width:100%}
+.growth-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0}
+.growth-summary strong{display:block;font-size:1.8rem;margin-top:8px}.growth-list{display:grid;gap:16px;margin:16px 0}
+.growth-issue{border-left:4px solid #b9b3a1}.growth-issue[data-severity=critical]{border-left-color:#b42318}.growth-issue[data-severity=warning]{border-left-color:#b77912}
+.growth-badge{display:inline-block;border-radius:20px;background:#f3f1e9;padding:6px 12px;font-size:.85rem;color:#332e24}
+.growth-warning{color:#a13b17;font-weight:600}.growth-check{display:flex!important;align-items:center;gap:8px}.growth-check input{width:auto}
+.growth-options{border:1px solid #dedbd1;border-radius:12px;padding:12px;display:grid;gap:10px}.growth-options label{display:flex;gap:8px;align-items:center}.growth-options input{width:auto}
+.growth-campaign{padding:16px 0;border-bottom:1px solid #dedbd1}.growth-campaign button,.growth-issue>a{margin:6px 8px 6px 0}
+@media(max-width:600px){.growth-toolbar{align-items:stretch}.growth-toolbar label{flex:1 1 120px}.growth-summary{grid-template-columns:1fr}.growth-campaign button{width:100%;margin:6px 0}}

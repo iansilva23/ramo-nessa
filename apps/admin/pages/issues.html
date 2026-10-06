@@ -1,0 +1,59 @@
+<section id="view-issues" class="view-panel" hidden>
+  <div class="page-heading">
+    <span class="eyebrow eyebrow--dark">ACOMPANHAMENTO</span>
+    <h1>Problemas &amp; Recomendações</h1>
+    <p>Veja o que precisa de atenção, as evidências e os próximos passos.</p>
+  </div>
+  <div class="growth-toolbar">
+    <button id="growth-refresh" class="button button--dark" type="button">
+      Atualizar</button
+    ><label
+      >Gravidade<select id="issue-severity">
+        <option value="">Todas</option>
+        <option value="critical">Crítica</option>
+        <option value="warning">Atenção</option>
+        <option value="info">Informativa</option>
+      </select></label
+    ><label
+      >Região<select id="issue-zone">
+        <option value="">Todas</option>
+        <option value="prea">Preá</option>
+        <option value="jericoacoara">Jericoacoara</option>
+        <option value="jijoca">Jijoca</option>
+      </select></label
+    ><label
+      >Categoria<select id="issue-category">
+        <option value="">Todas</option>
+        <option value="moto">Mototáxi</option>
+        <option value="delivery">Entrega</option>
+        <option value="car">Carro</option>
+        <option value="comfort_black">4x4</option>
+        <option value="buggy">Buggy</option>
+      </select></label
+    ><label
+      >Situação<select id="issue-state">
+        <option value="">Todas</option>
+        <option value="new">Nova</option>
+        <option value="in_progress">Em análise</option>
+        <option value="resolved">Marcada como resolvida</option>
+      </select></label
+    >
+  </div>
+  <p id="growth-status" role="status" aria-live="polite"></p>
+  <div id="growth-summary" class="growth-summary"></div>
+  <p id="issue-coverage" class="muted-copy"></p>
+  <div id="issue-list" class="growth-list"></div>
+  <article class="panel-card">
+    <h2>Histórico de acompanhamento</h2>
+    <div id="issue-history" class="growth-list"></div>
+  </article>
+  <article class="panel-card">
+    <h2>O que ainda precisa de informação</h2>
+    <div id="issue-unmeasured"></div>
+    <p>
+      As causas são hipóteses. Preços, serviços e campanhas permanecem sob
+      controle do administrador. Uma condição ainda detectada continua visível,
+      mesmo quando marcada como resolvida.
+    </p>
+  </article>
+</section>

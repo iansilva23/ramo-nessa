@@ -1,3 +1,5 @@
+import '../data/passenger_growth_service.dart';
+import 'passenger_benefits_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -388,6 +390,24 @@ class _PassengerProfileScreenState extends State<PassengerProfileScreen> {
                       ),
                     ),
                   );
+                },
+              ),
+              _ProfileOption(
+                key: const Key('passenger-benefits'),
+                icon: Icons.card_giftcard_outlined,
+                title: 'Meus benefícios',
+                subtitle: 'Presentes, aniversário e preferências de promoções',
+                onTap: () {
+                  final base = RamoCoreConfig.baseUri;
+                  final token = widget.accessToken;
+                  if (widget.previewMode || base == null || token == null || token.length < 20) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Benefícios disponíveis ao entrar na sua conta.')));
+                    return;
+                  }
+                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PassengerBenefitsScreen(
+                    service: PassengerGrowthService(baseUrl: base, accessToken: token),
+                    paymentService: widget.paymentService,
+                  )));
                 },
               ),
               _ProfileOption(

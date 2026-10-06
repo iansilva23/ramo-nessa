@@ -1,3 +1,4 @@
+import { InMemoryGrowthRepository, PostgresGrowthRepository, type GrowthRepository } from '../growth/growth-repository.js';
 import { InMemoryCompanyCostRepository, PostgresCompanyCostRepository, type CompanyCostRepository } from '../costs/company-cost-repository.js';
 import { InMemorySavedCardRepository, PostgresSavedCardRepository, type SavedCardRepository } from '../payments/saved-card-repository.js';
 import type { RideRepository } from '../rides/ride-repository.js';
@@ -76,6 +77,7 @@ export interface RepositoryBundle {
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   companyCostRepository: CompanyCostRepository;
+  growthRepository: GrowthRepository;
   paymentPolicySettingsRepository: PaymentPolicySettingsRepository;
   driverSupplyRepository: DriverSupplyRepository;
   driverRegistryRepository: DriverRegistryRepository;
@@ -116,6 +118,7 @@ export function createRepositories(): RepositoryBundle {
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
       companyCostRepository: new PostgresCompanyCostRepository(pool),
+      growthRepository: new PostgresGrowthRepository(pool),
       paymentPolicySettingsRepository:
         new PostgresPaymentPolicySettingsRepository(pool),
       driverSupplyRepository,
@@ -174,6 +177,7 @@ export function createRepositories(): RepositoryBundle {
     rideRepository,
     financeRepository,
     companyCostRepository: new InMemoryCompanyCostRepository(financeRepository, adminRepository),
+    growthRepository: new InMemoryGrowthRepository(adminRepository),
     paymentPolicySettingsRepository:
       new InMemoryPaymentPolicySettingsRepository(),
     driverSupplyRepository,

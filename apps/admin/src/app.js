@@ -1,3 +1,5 @@
+import { createGrowthAdmin } from './growth-admin.js';
+let growthAdmin = null;
 import { createCompanyCostsAdmin } from './company-costs-admin.js';
 let companyCostsAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
@@ -206,6 +208,16 @@ let currentView = null;
 let routeLoadSequence = 0;
 
 const adminRoutes = Object.freeze({
+  issues: {
+    path: '/admin/problemas',
+    title: 'Problemas & Recomendações',
+    page: 'issues',
+  },
+  marketing: {
+    path: '/admin/marketing',
+    title: 'Central de Marketing',
+    page: 'marketing',
+  },
   coupons: {
     path: '/admin/cupons',
     title: 'Cupons',
@@ -347,6 +359,11 @@ const scopeLabels = new Map([
   ['rides:read', 'Consultar operação de corridas'],
   ['rides:write', 'Cancelar corridas antes do início da viagem'],
   ['fleet:read', 'Consultar frota e posições operacionais'],
+  ['issues:read','Consultar problemas e recomendações'],
+  ['issues:write','Acompanhar soluções de problemas'],
+  ['marketing:read','Consultar campanhas e resultados'],
+  ['marketing:write','Configurar campanhas e preferências'],
+  ['marketing:send','Ativar automações e executar campanhas'],
   ['costs:read', 'Consultar custos e resultado da empresa'],
   ['costs:write', 'Cadastrar despesas e regras de custos'],
   ['finance:read', 'Consultar pagamentos, comissões e saques'],
@@ -399,6 +416,8 @@ const viewAccessScopes = Object.freeze({
   pricing: ['pricing:read', 'pricing:write'],
   coupons: ['finance:read', 'finance:write'],
   finance: ['finance:read', 'finance:write'],
+  issues:['issues:read','issues:write'],
+  marketing:['marketing:read','marketing:write','marketing:send'],
   costs: ['costs:read', 'costs:write'],
   notifications: ['communications:read', 'communications:write'],
   design: ['communications:read', 'communications:write'],
@@ -512,6 +531,7 @@ function clearPassengerPhoto() {
 
 function clearSession(message = '') {
   stopSessionTimer();
+  if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
@@ -867,6 +887,7 @@ async function activateView(
     : 'overview';
   const targetPath = routePath(view);
 
+  if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
@@ -10494,6 +10515,8 @@ async function loadOverviewSecondaryMetrics() {
 }
 
 function initializeRouteView(view) {
+  if(view==='issues'||view==='marketing'){growthAdmin=createGrowthAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view,onError(error){if(error instanceof AdminApiError&&error.status===401)handleAuthenticatedError(error);}});return;}
+
   if(view === 'costs') {
     companyCostsAdmin = createCompanyCostsAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,
       onError(error){if(error instanceof AdminApiError && error.status===401)handleAuthenticatedError(error);}});
@@ -10737,6 +10760,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
