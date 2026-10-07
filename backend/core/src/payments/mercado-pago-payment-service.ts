@@ -3,6 +3,7 @@ import { isDriverPaymentHoldExpired, type RideRecord } from '../rides/ride.js';
 import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';
 import {
+  MercadoPagoOrdersError,
   mercadoPagoOrderRefundState,
   type MercadoPagoCardOrder,
   type MercadoPagoOrderStatus,
@@ -19,11 +20,13 @@ export class MercadoPagoPaymentServiceError extends Error {
     public readonly code:
       | 'MERCADO_PAGO_NOT_CONFIGURED'
       | 'PASSENGER_EMAIL_REQUIRED'
+      | 'CARD_PAYMENT_FAILED'
       | 'ORDER_PAYMENT_MISMATCH'
       | 'ORDER_AMOUNT_MISMATCH'
       | 'ORDER_REFERENCE_MISMATCH'
       | 'ORDER_STATUS_UNSUPPORTED',
     message: string,
+    public readonly payment?: PaymentRecord,
   ) {
     super(message);
     this.name = 'MercadoPagoPaymentServiceError';
@@ -183,17 +186,38 @@ export async function createMercadoPagoCardIntent(input: {
     );
   }
 
-  const card = await input.gateway.createCardOrder({
-    paymentId: payment.id,
-    amountCents: payment.amountCents,
-    payerEmail: email,
-    ...(input.customerId ? { customerId: input.customerId } : {}),
-    cardToken: input.cardToken,
-    paymentMethodId: input.paymentMethodId,
-    paymentMethodType: input.paymentMethodType,
-    installments: input.installments,
-    idempotencyKey: `mp-card-${payment.id}`,
-  });
+  let card: MercadoPagoCardOrder;
+  try {
+    card = await input.gateway.createCardOrder({
+      paymentId: payment.id,
+      amountCents: payment.amountCents,
+      payerEmail: email,
+      ...(input.customerId ? { customerId: input.customerId } : {}),
+      cardToken: input.cardToken,
+      paymentMethodId: input.paymentMethodId,
+      paymentMethodType: input.paymentMethodType,
+      installments: input.installments,
+      idempotencyKey: `mp-card-${payment.id}`,
+    });
+  } catch (error) {
+    // A confirmed transaction failure is different from an unavailable gateway.
+    // Keep ambiguous network/authentication errors retryable with the same key.
+    if (!(
+      error instanceof MercadoPagoOrdersError &&
+      error.statusCode === 402 && error.apiCode === 'failed'
+    )) throw error;
+
+    payment = await input.finance.markPaymentTerminal({
+      paymentId: payment.id,
+      status: 'failed',
+      ...(input.now != null ? { updatedAt: input.now } : {}),
+    });
+    throw new MercadoPagoPaymentServiceError(
+      'CARD_PAYMENT_FAILED',
+      'Pagamento não aprovado. Confira os dados ou tente outro cartão.',
+      payment,
+    );
+  }
 
   payment = await input.finance.markPaymentPending({
     paymentId: payment.id,

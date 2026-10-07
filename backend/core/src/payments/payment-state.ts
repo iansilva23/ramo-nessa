@@ -28,7 +28,7 @@ export class PaymentStateError extends Error {
 const ALLOWED_PAYMENT_TRANSITIONS: Readonly<
   Record<PaymentStatus, ReadonlySet<PaymentStatus>>
 > = {
-  created: new Set(['pending', 'cancelled']),
+  created: new Set(['pending', 'failed', 'cancelled']),
   pending: new Set(['authorized', 'paid', 'failed', 'cancelled']),
   authorized: new Set(['paid', 'cancelled']),
   paid: new Set(['refunded']),

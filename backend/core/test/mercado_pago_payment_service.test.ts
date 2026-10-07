@@ -6,9 +6,11 @@ import {
   applyMercadoPagoOrderStatus,
   createMercadoPagoCardIntent,
   createMercadoPagoPixIntent,
+  MercadoPagoPaymentServiceError,
   shouldRefundMercadoPagoPaymentBeforeDispatch,
 } from '../src/payments/mercado-pago-payment-service.js';
-import { MercadoPagoOrdersClient } from '../src/payments/mercado-pago-orders.js';
+import { MercadoPagoOrdersClient, MercadoPagoOrdersError } from '../src/payments/mercado-pago-orders.js';
+import { canDispatchWithPayment } from '../src/payments/payment-state.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { confirmRidePayment } from '../src/rides/confirm-payment.js';
 import { refundMercadoPagoRideAfterNoDriver } from '../src/rides/refund-external-no-driver.js';
@@ -836,4 +838,76 @@ test('Pix confirmado após expirar hold exige estorno antes do dispatch', () => 
     ),
     false,
   );
+});
+
+test('recusa HTTP 402 failed registra pagamento falho sem permitir dispatch ou repetir cobrança', async () => {
+  const finance = new InMemoryFinanceRepository();
+  let requests = 0;
+  const mp = new MercadoPagoOrdersClient('test-token-' + 'x'.repeat(32), async () => {
+    requests += 1;
+    return new Response(JSON.stringify({ errors: [{ code: 'failed' }] }), {
+      status: 402, headers: { 'content-type': 'application/json' },
+    });
+  });
+  const input = {
+    finance, gateway: mp, ride: preparedRide(), identity: identity(),
+    cardToken: 'declined-test-token', paymentMethodId: 'visa',
+    paymentMethodType: 'credit_card' as const, installments: 1,
+    cardPriceAdjustmentBps: 498, idempotencyKey: 'declined-card-attempt', now,
+  };
+  await assert.rejects(createMercadoPagoCardIntent(input), (error: unknown) => {
+    assert.ok(error instanceof MercadoPagoPaymentServiceError);
+    assert.equal(error.code, 'CARD_PAYMENT_FAILED');
+    assert.equal(error.payment?.status, 'failed');
+    assert.equal(canDispatchWithPayment(error.payment!.status), false);
+    assert.match(error.message, /Pagamento não aprovado/);
+    return true;
+  });
+  const payment = await finance.findPaymentByIdempotencyKey(input.idempotencyKey);
+  assert.equal(payment?.status, 'failed');
+  assert.equal(payment?.amountCents, 12629);
+  assert.equal(payment?.processorPaymentId, undefined);
+  await assert.rejects(createMercadoPagoCardIntent(input), /não pode gerar nova cobrança/);
+  assert.equal(requests, 1);
+});
+
+for (const scenario of [
+  { status: 401, code: 'invalid_credentials' },
+  { status: 503, code: 'failed' },
+  { status: 400, code: 'invalid_card_token' },
+  { status: 402, code: 'unknown_error' },
+]) {
+  test(`erro ${scenario.status} ${scenario.code} não é convertido em recusa confirmada`, async () => {
+    const finance = new InMemoryFinanceRepository();
+    const mp = new MercadoPagoOrdersClient('test-token-' + 'x'.repeat(32), async () => new Response(
+      JSON.stringify({ errors: [{ code: scenario.code }] }),
+      { status: scenario.status, headers: { 'content-type': 'application/json' } },
+    ));
+    const key = `technical-card-${scenario.status}-${scenario.code}`;
+    await assert.rejects(createMercadoPagoCardIntent({
+      finance, gateway: mp, ride: preparedRide(), identity: identity(),
+      cardToken: 'test-token', paymentMethodId: 'visa',
+      paymentMethodType: 'credit_card', installments: 1,
+      cardPriceAdjustmentBps: 498, idempotencyKey: key, now,
+    }), (error: unknown) => {
+      assert.ok(error instanceof MercadoPagoOrdersError);
+      assert.equal(error.statusCode, scenario.status);
+      assert.equal(error.apiCode, scenario.code);
+      return true;
+    });
+    assert.equal((await finance.findPaymentByIdempotencyKey(key))?.status, 'created');
+  });
+}
+
+test('timeout no cartão mantém tentativa ambígua para reconciliação, sem marcar como recusada', async () => {
+  const finance = new InMemoryFinanceRepository();
+  const failure = new DOMException('Request timed out', 'TimeoutError');
+  const mp = new MercadoPagoOrdersClient('test-token-' + 'x'.repeat(32), async () => { throw failure; });
+  await assert.rejects(createMercadoPagoCardIntent({
+    finance, gateway: mp, ride: preparedRide(), identity: identity(),
+    cardToken: 'test-token', paymentMethodId: 'visa',
+    paymentMethodType: 'credit_card', installments: 1,
+    cardPriceAdjustmentBps: 498, idempotencyKey: 'timeout-card-attempt', now,
+  }), (error: unknown) => error === failure);
+  assert.equal((await finance.findPaymentByIdempotencyKey('timeout-card-attempt'))?.status, 'created');
 });

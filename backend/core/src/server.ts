@@ -9345,8 +9345,13 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof MercadoPagoPaymentServiceError) {
+      if (error.code === 'CARD_PAYMENT_FAILED' && error.payment != null) {
+        await markMercadoPagoRidePaymentFailed(error.payment);
+      }
       const status =
-        error.code === 'MERCADO_PAGO_NOT_CONFIGURED'
+        error.code === 'CARD_PAYMENT_FAILED'
+          ? 402
+          : error.code === 'MERCADO_PAGO_NOT_CONFIGURED'
           ? 503
           : error.code === 'PASSENGER_EMAIL_REQUIRED'
             ? 422
