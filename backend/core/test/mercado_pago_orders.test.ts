@@ -203,13 +203,13 @@ test('consulta Order e lê refunds e chargebacks com valores autoritativos', asy
   ]);
 });
 
-test('valida assinatura HMAC com data.id em minúsculas no manifesto', () => {
+test('valida assinatura HMAC preservando maiúsculas do ID da Order', () => {
   const dataId = 'ORD01MiXeDCase123';
   const requestId = 'request-123';
   const timestamp = '1760000000000';
   const secret = 'webhook-secret-test-only-123456789';
   const manifest =
-    `id:${dataId.toLowerCase()};request-id:${requestId};ts:${timestamp};`;
+    `id:${dataId};request-id:${requestId};ts:${timestamp};`;
   const signature = createHmac('sha256', secret)
     .update(manifest, 'utf8')
     .digest('hex');
@@ -228,10 +228,10 @@ test('valida assinatura HMAC com data.id em minúsculas no manifesto', () => {
     verifyMercadoPagoWebhookSignature({
       xSignature: `ts=${timestamp},v1=${signature}`,
       xRequestId: requestId,
-      dataId,
+      dataId: dataId.toLowerCase(),
       secret,
     }),
-    true,
+    false,
   );
 
   assert.equal(
