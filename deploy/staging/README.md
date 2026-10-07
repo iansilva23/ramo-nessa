@@ -157,3 +157,17 @@ com indisponibilidade da API, o endereço pode ser salvo com as coordenadas do p
 A área de atendimento e a identidade de preço são verificadas pelo catálogo do Core
 a cada seleção; a geocodificação nunca altera o ponto escolhido nem autoriza preços.
 A migração 079 e os aplicativos atualizados devem ser instalados na atualização conjunta.
+# Simulação de aprovação Pix em sandbox
+
+Para homologar confirmação de Pix e recarga pelo backend, configure
+`MERCADO_PAGO_PIX_TEST_APPROVAL=true` no `.env` de staging e reinicie pelo
+`start.mjs`. O padrão é `false`. Somente com `MERCADO_PAGO_MODE=test` explícito,
+as novas Orders Pix recebem o pagador fictício oficial
+`test_user_br@testuser.com` e `first_name: APRO`, usados pelo Mercado Pago
+para simular aprovação. A confirmação continua dependendo da consulta ao
+Mercado Pago e da assinatura válida do webhook; não há crédito local forçado.
+Orders já criadas não são alteradas. Os créditos são de homologação, sem
+dinheiro real. Não habilite repasses reais sobre esses saldos.
+O modo `production` ignora a opção e preserva o pagador real.
+
+Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/integration-test/pix

@@ -229,6 +229,7 @@ export class MercadoPagoOrdersClient {
   constructor(
     private readonly accessToken: string,
     private readonly fetcher: MpFetch = (url, init) => fetch(url, init),
+    private readonly pixTestApproval = false,
   ) {
     if (accessToken.trim().length < 20) {
       throw new MercadoPagoOrdersError(
@@ -312,7 +313,9 @@ export class MercadoPagoOrdersClient {
             expiration_time: 'PT30M',
           }],
         },
-        payer: { email: input.payerEmail },
+        payer: this.pixTestApproval
+          ? { email: 'test_user_br@testuser.com', first_name: 'APRO' }
+          : { email: input.payerEmail },
       }),
     });
 
@@ -509,7 +512,9 @@ export function mercadoPagoOrdersClientFromEnv(
     ? env.MERCADO_PAGO_ACCESS_TOKEN?.trim()
     : env.MERCADO_PAGO_ACCESS_TOKEN_TEST?.trim();
 
-  return token ? new MercadoPagoOrdersClient(token) : null;
+  const pixTestApproval = env.MERCADO_PAGO_MODE === 'test' &&
+    env.MERCADO_PAGO_PIX_TEST_APPROVAL === 'true';
+  return token ? new MercadoPagoOrdersClient(token, undefined, pixTestApproval) : null;
 }
 
 

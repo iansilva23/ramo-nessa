@@ -42,6 +42,7 @@ export function buildStagingEnvironment() {
     'DOCUMENT_INSPECTION_TTL_SECONDS=60',
     '',
     'MERCADO_PAGO_ACCESS_TOKEN_TEST=',
+    'MERCADO_PAGO_PIX_TEST_APPROVAL=false',
     'MERCADO_PAGO_WEBHOOK_SECRET=',
     '',
   ].join('\n');

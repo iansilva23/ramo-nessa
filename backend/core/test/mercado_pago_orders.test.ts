@@ -4,8 +4,44 @@ import test from 'node:test';
 
 import {
   MercadoPagoOrdersClient,
+  mercadoPagoOrdersClientFromEnv,
   verifyMercadoPagoWebhookSignature,
 } from '../src/payments/mercado-pago-orders.js';
+
+test('simulação Pix exige opt-in e modo test explícito; produção nunca recebe APRO', async (t) => {
+  const bodies: Array<{ payer: { email: string; first_name?: string } }> = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify({
+      id: 'ORDTST123',
+      transactions: { payments: [{
+        id: 'PAYTST123',
+        payment_method: { qr_code: 'sandbox-pix' },
+      }] },
+    }), { status: 201 });
+  });
+  for (const env of [
+    { MERCADO_PAGO_MODE: 'test', MERCADO_PAGO_PIX_TEST_APPROVAL: 'true' },
+    { MERCADO_PAGO_MODE: 'test', MERCADO_PAGO_PIX_TEST_APPROVAL: 'false' },
+    { MERCADO_PAGO_MODE: 'production', MERCADO_PAGO_PIX_TEST_APPROVAL: 'true' },
+    { MERCADO_PAGO_PIX_TEST_APPROVAL: 'true' },
+  ]) {
+    const client = mercadoPagoOrdersClientFromEnv({
+      ...env,
+      MERCADO_PAGO_ACCESS_TOKEN_TEST: 'test-token-' + 'x'.repeat(32),
+      MERCADO_PAGO_ACCESS_TOKEN: 'production-token-' + 'x'.repeat(32),
+    });
+    assert.ok(client);
+    await client.createPixOrder({
+      paymentId: 'internal-id', amountCents: 100,
+      payerEmail: 'passageiro@example.com', idempotencyKey: 'sandbox-test',
+    });
+  }
+  assert.deepEqual(bodies[0]?.payer, { email: 'test_user_br@testuser.com', first_name: 'APRO' });
+  for (const body of bodies.slice(1)) {
+    assert.deepEqual(body.payer, { email: 'passageiro@example.com' });
+  }
+});
 
 test('cria Order Pix com idempotência e dados do pagador', async () => {
   let capturedUrl = '';
