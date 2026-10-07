@@ -203,7 +203,7 @@ test('consulta Order e lê refunds e chargebacks com valores autoritativos', asy
   ]);
 });
 
-test('valida assinatura HMAC preservando maiúsculas do ID da Order', () => {
+test('valida assinatura HMAC original do simulador sem autorizar outro ID', () => {
   const dataId = 'ORD01MiXeDCase123';
   const requestId = 'request-123';
   const timestamp = '1760000000000';
@@ -243,6 +243,29 @@ test('valida assinatura HMAC preservando maiúsculas do ID da Order', () => {
     }),
     false,
   );
+});
+
+test('valida assinatura automática com ID normalizado e rejeita dados adulterados', () => {
+  const input = {
+    dataId: 'ORDTST01M4A3J5TEGKY74PPG4CYBYXV8',
+    xRequestId: 'automatic-request-test',
+    secret: 'automatic-webhook-test-secret-123456',
+  };
+  const timestamp = '1791340651000';
+  const hash = createHmac('sha256', input.secret)
+    .update(`id:${input.dataId.toLowerCase()};request-id:${input.xRequestId};ts:${timestamp};`)
+    .digest('hex');
+  const signed = { ...input, xSignature: `ts=${timestamp},v1=${hash}` };
+  assert.equal(verifyMercadoPagoWebhookSignature(signed), true);
+  for (const altered of [
+    { ...signed, dataId: input.dataId + 'X' },
+    { ...signed, xRequestId: 'wrong-request' },
+    { ...signed, secret: 'different-secret-test-123456' },
+    { ...signed, xSignature: `ts=1791340652000,v1=${hash}` },
+    { ...signed, xSignature: `ts=${timestamp},v1=${'0'.repeat(64)}` },
+  ]) {
+    assert.equal(verifyMercadoPagoWebhookSignature(altered), false);
+  }
 });
 
 

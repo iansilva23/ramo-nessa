@@ -547,16 +547,19 @@ export function verifyMercadoPagoWebhookSignature(input: {
     return false;
   }
 
-  const manifest =
-    `id:${input.dataId};request-id:${input.xRequestId};ts:${timestamp};`;
-  const expected = createHmac('sha256', input.secret)
-    .update(manifest, 'utf8')
-    .digest('hex');
-
   const received = Buffer.from(signature, 'hex');
-  const expectedBytes = Buffer.from(expected, 'hex');
-  return (
-    received.length === expectedBytes.length &&
-    timingSafeEqual(received, expectedBytes)
-  );
+  // Automatic Orders notifications normalize the ID; the panel simulator
+  // can sign the original case. Both formats still require a valid HMAC.
+  const ids = new Set([input.dataId, input.dataId.toLowerCase()]);
+  let valid = false;
+  for (const id of ids) {
+    const manifest = `id:${id};request-id:${input.xRequestId};ts:${timestamp};`;
+    const expectedBytes = createHmac('sha256', input.secret)
+      .update(manifest, 'utf8')
+      .digest();
+    const matches = received.length === expectedBytes.length &&
+      timingSafeEqual(received, expectedBytes);
+    valid = matches || valid;
+  }
+  return valid;
 }

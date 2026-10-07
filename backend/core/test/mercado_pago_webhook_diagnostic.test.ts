@@ -18,21 +18,23 @@ test('diagnóstico compara chave candidata sem retornar chave ou assinatura', as
     candidateSignatureValid: true, candidateLowerCaseSignatureValid: false });
 });
 
-test('diagnóstico identifica somente a assinatura normalizada quando corresponde', async () => {
+test('diagnóstico reconhece assinatura automática compatível com ID normalizado', async () => {
   const result = await diagnoseMercadoPagoCandidateSignature({
     mode: 'test', dataId, xRequestId, xSignature: sign(dataId.toLowerCase()),
   }, async () => secret);
-  assert.equal(result.candidateSignatureValid, false);
+  assert.equal(result.candidateSignatureValid, true);
   assert.equal(result.candidateLowerCaseSignatureValid, true);
 });
 
 test('produção e modo ausente não leem chave candidata', async () => {
+  let reads = 0;
   for (const mode of ['production', undefined]) {
     const result = await diagnoseMercadoPagoCandidateSignature({
       mode, dataId, xRequestId, xSignature: sign(dataId),
-    }, async () => { assert.fail('leitura fora de teste'); });
+    }, async () => { reads++; return secret; });
     assert.equal(result.candidateKeyLoaded, false);
   }
+  assert.equal(reads, 0);
 });
 
 test('chave ausente ou malformada não interrompe a rejeição', async () => {
