@@ -316,19 +316,22 @@ export function createGrowthAdmin({
     const list = node('ol');
     for (const action of i.actions) list.append(node('li', action));
     card.append(list);
-    if (i.source === 'ride') {
+    if (i.source === 'ride' && hasScope('rides:read')) {
       const a = node('a', 'Consultar viagens', 'button button--ghost-dark');
       a.href = '/admin/viagens';
+      a.dataset.view = 'rides';
       card.append(a);
     }
-    if (i.source === 'support') {
+    if (i.source === 'support' && hasScope('support:read')) {
       const a = node('a', 'Abrir suporte', 'button button--ghost-dark');
       a.href = '/admin/suporte';
+      a.dataset.view = 'support';
       card.append(a);
     }
-    if (i.source === 'marketing') {
+    if (i.source === 'marketing' && hasScope('marketing:read')) {
       const a = node('a', 'Abrir marketing', 'button button--ghost-dark');
       a.href = '/admin/marketing';
+      a.dataset.view = 'marketing';
       card.append(a);
     }
     if (active && i.review?.status === 'resolved')

@@ -10737,8 +10737,12 @@ document.addEventListener('click', (event) => {
   const link = target.closest('a[data-view]:not(.nav-item)');
   if (link == null || !state.token) return;
   const view = link.dataset.view;
-  if (adminRoutes[view] == null || !canAccessView(view)) return;
+  if (adminRoutes[view] == null) return;
   event.preventDefault();
+  if (!canAccessView(view)) {
+    setMessage(globalMessage, 'Sua conta não tem permissão para abrir esta página.', 'danger');
+    return;
+  }
   void activateView(view);
 });
 
