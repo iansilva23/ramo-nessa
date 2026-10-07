@@ -1,3 +1,6 @@
+import { GrowthService } from './growth/growth-service.js';
+import { createGrowthChannels } from './growth/growth-channels.js';
+import { handleGrowthRoutes } from './growth/growth-routes.js';
 import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
@@ -516,6 +519,7 @@ const {
   rideRepository,
   financeRepository,
   companyCostRepository,
+  growthRepository,
   paymentPolicySettingsRepository,
   driverSupplyRepository,
   driverRegistryRepository,
@@ -552,6 +556,15 @@ const pushNotificationService = new PushNotificationService(
   pushDeviceRepository,
   resolvePushDeliveryProviderFromEnv(),
 );
+const growthChannels = createGrowthChannels(pushNotificationService);
+const growthService = new GrowthService({store:growthRepository,privacy:privacyRepository,identities:authOtpRepository,
+  rides:rideRepository,support:driverSupportRepository,matching:rideMatchingRepository,
+  drivers:driverSupplyRepository,promotions:promotionRepository,admin:adminRepository,
+  catalog:async()=>(await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository,at:new Date()})).snapshot,
+  canWork:canDriverReceiveNewWorkUnderPolicy,
+  send:growthChannels.send,readiness:growthChannels.readiness});
+let growthTimer:ReturnType<typeof setInterval>|null=null;
+async function runGrowthMarketing(){try{await growthService.runAutomatic();}catch{logError('marketing.worker.failed',{message:'Falha no processamento; consulte a central de problemas.'});}}
 resolveOtpHashSecret();
 const authRateLimitSecret = resolveOtpRateLimitSecret();
 const adminMfaEncryptionKey = resolveAdminMfaEncryptionKey();
@@ -3776,6 +3789,11 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if(await handleGrowthRoutes({request,response,url:requestUrl,service:growthService,
+      authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      readJson:()=>readJson(request),json:(status,payload)=>json(response,status,payload),verifyOptout:growthChannels.verify}))return;
+
     if (requestUrl.pathname === '/v1/admin/costs' && request.method === 'GET') {
       await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,
         headers:request.headers,requiredScope:'costs:read'});
@@ -6282,6 +6300,10 @@ const server = createServer(async (request, response) => {
         status: value.status,
         response: value.response,
       });
+      if(updated.subjectType==='passenger' && updated.status==='completed' && ['deletion','anonymization','consent_revocation'].includes(updated.requestType)) {
+        await growthService.forget(updated.subjectId);
+        await privacyRepository.savePreferences({subjectType:'passenger',subjectId:updated.subjectId,marketingNotificationsEnabled:false,updatedAt:new Date().toISOString()});
+      }
       json(response, 200, updated);
       return;
     }
@@ -9551,6 +9573,7 @@ function shutdown(signal: string): Promise<void> {
       clearInterval(driverBenefitFinalizationTimer);
       driverBenefitFinalizationTimer = null;
     }
+    if(growthTimer){clearInterval(growthTimer);growthTimer=null;}
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -9608,6 +9631,10 @@ server.listen(port, '0.0.0.0', () => {
     payoutReconciliationTimer.unref();
     void runPayoutReconciliation();
   }
+
+  growthTimer=setInterval(()=>void runGrowthMarketing(),15*60_000);
+  growthTimer.unref();
+  void runGrowthMarketing();
 
   noDriverDecisionSweepTimer = setInterval(
     () => void runNoDriverDecisionSweep(),

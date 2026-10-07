@@ -17,6 +17,8 @@ import type { RideRecord } from '../../rides/ride.js';
 import { PostgresRideRepository } from '../../rides/repositories/postgres-ride-repository.js';
 
 interface CampaignRow {
+  target_passenger_id: string | null;
+  allowed_zones: import('../../pricing/types.js').ZoneId[];
   id: string;
   code: string;
   name: string;
@@ -62,7 +64,7 @@ interface RedemptionRow {
 }
 
 const CAMPAIGN_COLUMNS = `
-  id, code, name, kind, value_cents, percent_bps,
+  id, target_passenger_id, allowed_zones, code, name, kind, value_cents, percent_bps,
   max_discount_cents, fixed_driver_fare_cents, fixed_driver_fares_by_category, categories,
   max_redemptions, per_passenger_limit, per_device_limit,
   starts_at, ends_at, enabled, created_at, updated_at
@@ -78,6 +80,8 @@ const REDEMPTION_COLUMNS = `
 function mapCampaign(row: CampaignRow): PromotionCampaignRecord {
   return {
     id: row.id,
+    ...(row.target_passenger_id ? {targetPassengerId:row.target_passenger_id} : {}),
+    allowedZones:row.allowed_zones??[],
     code: row.code,
     name: row.name,
     kind: row.kind,
@@ -215,9 +219,9 @@ export class PostgresPromotionRepository implements PromotionRepository {
           id, code, name, kind, value_cents, percent_bps,
           max_discount_cents, fixed_driver_fare_cents, categories,
           max_redemptions, per_passenger_limit, per_device_limit,
-          starts_at, ends_at, enabled, created_at, updated_at, fixed_driver_fares_by_category
+          starts_at, ends_at, enabled, created_at, updated_at, fixed_driver_fares_by_category, target_passenger_id, allowed_zones
         ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20
         )
         RETURNING ${CAMPAIGN_COLUMNS}
         `,
@@ -240,6 +244,8 @@ export class PostgresPromotionRepository implements PromotionRepository {
           record.createdAt,
           record.updatedAt,
           record.fixedDriverFaresByCategory == null ? null : JSON.stringify(record.fixedDriverFaresByCategory),
+          record.targetPassengerId ?? null,
+          record.allowedZones ?? [],
         ],
       );
       return mapCampaign(result.rows[0]!);

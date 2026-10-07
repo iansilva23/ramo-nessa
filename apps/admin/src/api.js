@@ -159,6 +159,14 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    issues(token){return request('/v1/admin/issues',{token});},
+    reviewIssue(token,body){return request('/v1/admin/issues/review',{token,method:'POST',body});},
+    marketing(token){return request('/v1/admin/marketing',{token});},
+    saveMarketingSettings(token,body){return request('/v1/admin/marketing/settings',{token,method:'PUT',body});},
+    saveMarketingCampaign(token,{id,campaign,expectedUpdatedAt}){return request(`/v1/admin/marketing/campaigns${id?'/'+encodeURIComponent(id):''}`,{token,method:id?'PUT':'POST',body:{campaign,...(id?{expectedUpdatedAt}:{})}});},
+    marketingPreview(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/preview`,{token});},
+    marketingReport(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/report`,{token});},
+    executeMarketing(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/execute`,{token,method:'POST',body:{}});},
     costs(token, {from, to} = {}) {
       const params = new URLSearchParams(); if(from)params.set('from',from);if(to)params.set('to',to);
       return request(`/v1/admin/costs?${params.toString()}`,{token});

@@ -1,0 +1,366 @@
+<section id="view-marketing" class="view-panel" hidden>
+  <div class="page-heading growth-hero">
+    <span class="eyebrow eyebrow--dark">RELACIONAMENTO</span>
+    <h1>Central de Marketing</h1>
+    <p>Seu app cuida do relacionamento. Você acompanha os resultados.</p>
+  </div>
+  <div class="growth-toolbar">
+    <button id="growth-refresh" type="button" class="button button--dark">
+      Atualizar</button
+    ><button id="marketing-master" type="button" class="button button--dark">
+      Carregando automações…</button
+    >
+  </div>
+  <p id="growth-status" role="status" aria-live="polite"></p>
+  <div id="growth-summary" class="growth-summary"></div>
+  <div class="growth-dashboard">
+    <article class="panel-card">
+      <span class="growth-kicker">RESULTADOS REAIS</span>
+      <h2>Relacionamento em números</h2>
+      <div id="marketing-chart"></div>
+    </article>
+    <article class="panel-card growth-guide">
+      <span class="growth-kicker">COMO FUNCIONA</span>
+      <h2>Configure uma vez. Deixe acontecer.</h2>
+      <p>
+        Escolha uma automação abaixo. O app verifica os clientes e as datas a
+        cada 15 minutos.
+      </p>
+      <p>
+        Somente quem autorizou recebe mensagens. Horário de descanso e limite de
+        contatos já vêm configurados.
+      </p>
+      <p>Comece sem gastar com presentes. Adicione um cupom quando quiser.</p>
+    </article>
+  </div>
+  <article class="panel-card">
+    <div class="growth-section-head">
+      <div>
+        <span class="growth-kicker">PRONTAS PARA USAR</span>
+        <h2>Seu marketing no piloto automático</h2>
+      </div>
+    </div>
+    <p>
+      Aniversários e datas fixas se repetem todos os anos. Cada cliente recebe
+      uma vez por ocasião, respeitando os limites.
+    </p>
+    <div id="marketing-automations" class="growth-automations"></div>
+  </article>
+  <details class="panel-card growth-disclosure">
+    <summary>Configurações e canais de envio</summary>
+    <div id="marketing-channels" class="growth-toolbar"></div>
+    <div>
+      <h2>Controle geral</h2>
+      <form id="marketing-settings" class="cost-form">
+        <label class="growth-check"
+          ><input name="enabled" type="checkbox" />Ativar marketing</label
+        ><label
+          >Máximo de contatos por cliente em 7 dias<input
+            name="maxContactsPerWeek"
+            type="number"
+            min="1"
+            max="7"
+            value="2"
+            required /></label
+        ><label
+          >Silêncio a partir de<input
+            name="quietStartHour"
+            type="number"
+            min="0"
+            max="23"
+            value="21"
+            required /></label
+        ><label
+          >Silêncio até<input
+            name="quietEndHour"
+            type="number"
+            min="0"
+            max="23"
+            value="8"
+            required /></label
+        ><button type="submit" class="button button--dark">
+          Salvar controles
+        </button>
+      </form>
+      <p class="muted-copy">
+        Horário de Fortaleza. O limite soma todas as campanhas e canais.
+        Mensagens de corridas continuam independentes.
+      </p>
+    </div>
+  </details>
+  <details id="marketing-editor" class="panel-card growth-disclosure">
+    <summary>Criar ou personalizar uma campanha</summary>
+    <h2 id="marketing-form-title">Nova campanha</h2>
+    <label
+      >Começar com um modelo<select id="marketing-template">
+        <option value="">Escolha um modelo</option>
+      </select></label
+    >
+    <form id="marketing-campaign-form" class="cost-form">
+      <label
+        >Nome<input name="name" maxlength="80" minlength="3" required
+      /></label>
+      <label
+        >Título<input name="title" maxlength="80" minlength="3" required
+      /></label>
+      <label
+        >Mensagem<textarea
+          name="message"
+          maxlength="500"
+          minlength="3"
+          required
+        ></textarea>
+      </label>
+      <label
+        >Presente pessoal (R$; zero = sem cupom)<input
+          name="couponValue"
+          inputmode="decimal"
+          value="0,00"
+          required
+      /></label>
+      <label
+        >Validade do presente em dias<input
+          name="couponValidDays"
+          type="number"
+          min="1"
+          max="30"
+          value="7"
+          required
+      /></label>
+      <label
+        >Teto de orçamento (R$)<input
+          name="budget"
+          inputmode="decimal"
+          value="0,00"
+          required
+      /></label>
+      <label class="growth-check"
+        ><input name="repeatAnnually" type="checkbox" />Repetir todos os anos
+        (aniversário ou data fixa)</label
+      >
+      <details class="growth-advanced">
+        <summary>Público, período e opções avançadas</summary>
+        <div class="cost-form">
+          <label
+            >Objetivo<select name="trigger">
+              <option value="birthday">Aniversário do cliente</option>
+              <option value="calendar">
+                Data comemorativa ou evento local
+              </option>
+              <option value="never_used">Nunca fez corrida</option>
+              <option value="inactive">Cliente sem voltar</option>
+              <option value="first_ride">Primeira corrida concluída</option>
+              <option value="loyalty">Cliente frequente</option>
+              <option value="no_driver">Pedido sem motorista</option>
+              <option value="abandoned">Pedido aguardando pagamento</option>
+              <option value="coupon_expiring">Cupom pessoal vencendo</option>
+              <option value="referral">
+                Indicação com corrida paga concluída
+              </option>
+              <option value="support_resolved">Chamado resolvido</option>
+            </select></label
+          >
+          <label
+            >Dias da regra<input
+              name="days"
+              type="number"
+              min="1"
+              max="365"
+              value="15"
+              required
+            /><small
+              >Inatividade, espera ou janela da ocasião, conforme o
+              objetivo.</small
+            ></label
+          >
+          <label
+            >Quantidade de corridas para fidelidade<input
+              name="threshold"
+              type="number"
+              min="1"
+              max="1000"
+              value="10"
+              required
+          /></label>
+          <label
+            >Data comemorativa (mês-dia)<input
+              name="calendarDay"
+              placeholder="12-25"
+              pattern="[0-9]{2}-[0-9]{2}"
+          /></label>
+          <label
+            >Público<select name="audience">
+              <option value="all">Todos os autorizados</option>
+              <option value="resident">Moradores declarados</option>
+              <option value="tourist">Turistas declarados</option>
+            </select></label
+          >
+          <fieldset class="growth-options">
+            <legend>Canais</legend>
+            <label
+              ><input
+                type="checkbox"
+                name="channels"
+                value="inapp"
+                checked
+              />Dentro do aplicativo</label
+            ><label
+              ><input type="checkbox" name="channels" value="push" />Push</label
+            ><label
+              ><input
+                type="checkbox"
+                name="channels"
+                value="email"
+              />E-mail</label
+            ><label
+              ><input
+                type="checkbox"
+                name="channels"
+                value="whatsapp"
+              />WhatsApp</label
+            >
+          </fieldset>
+          <fieldset class="growth-options">
+            <legend>Regiões (vazio = todas)</legend>
+            <label
+              ><input type="checkbox" name="zones" value="prea" />Preá</label
+            ><label
+              ><input
+                type="checkbox"
+                name="zones"
+                value="jijoca"
+              />Jijoca</label
+            ><label
+              ><input
+                type="checkbox"
+                name="zones"
+                value="jericoacoara"
+              />Jericoacoara</label
+            >
+          </fieldset>
+          <fieldset class="growth-options">
+            <legend>Categorias (vazio = todas)</legend>
+            <label
+              ><input
+                type="checkbox"
+                name="categories"
+                value="moto"
+              />Mototáxi</label
+            ><label
+              ><input
+                type="checkbox"
+                name="categories"
+                value="delivery"
+              />Entrega</label
+            ><label
+              ><input
+                type="checkbox"
+                name="categories"
+                value="car"
+              />Carro</label
+            ><label
+              ><input
+                type="checkbox"
+                name="categories"
+                value="comfort_black"
+              />4x4</label
+            ><label
+              ><input
+                type="checkbox"
+                name="categories"
+                value="buggy"
+              />Buggy</label
+            >
+          </fieldset>
+          <label
+            >Começa<input name="startsAt" type="datetime-local" required
+          /></label>
+          <label
+            >Termina<input name="endsAt" type="datetime-local" required
+          /></label>
+          <label
+            >Máximo de destinatários ao longo da campanha<input
+              name="maxRecipients"
+              type="number"
+              min="1"
+              max="100000"
+              value="100"
+              required
+          /></label>
+          <label
+            >Custo previsto por push (R$)<input
+              name="costPush"
+              inputmode="decimal"
+              value="0,00"
+              required
+          /></label>
+          <label
+            >Custo previsto por e-mail (R$)<input
+              name="costEmail"
+              inputmode="decimal"
+              value="0,00"
+              required
+          /></label>
+          <label
+            >Custo previsto por WhatsApp (R$)<input
+              name="costWhatsapp"
+              inputmode="decimal"
+              value="0,00"
+              required
+          /></label>
+          <label
+            >Grupo de comparação sem mensagem (%)<input
+              name="controlPercent"
+              type="number"
+              min="0"
+              max="50"
+              value="10"
+              required
+          /></label>
+          <label class="growth-check"
+            ><input name="requireSupply" type="checkbox" checked />Exigir
+            motorista disponível na região</label
+          >
+          <label class="growth-check"
+            ><input name="automatic" type="checkbox" />Executar automaticamente
+            quando ativada</label
+          >
+          <label class="growth-check"
+            ><input name="enabled" type="checkbox" />Ativar esta campanha após
+            salvar</label
+          >
+        </div>
+      </details>
+      <button class="button button--dark" type="submit">Salvar campanha</button
+      ><button
+        id="marketing-reset"
+        class="button button--ghost-dark"
+        type="button"
+      >
+        Nova campanha
+      </button>
+    </form>
+    <p class="muted-copy">
+      Campanhas novas sempre são criadas desligadas. Use o botão Ativar na lista
+      após revisar. Presentes são cupons de desconto financiados pela empresa;
+      preservam a tarifa normal do motorista. Outras modalidades continuam na
+      área Cupons.
+    </p>
+  </details>
+  <article class="panel-card">
+    <h2>Suas campanhas</h2>
+    <div id="marketing-campaigns" class="growth-list"></div>
+  </article>
+  <article id="marketing-detail-panel" class="panel-card" hidden>
+    <h2>Prévia ou resultado</h2>
+    <div id="marketing-detail"></div>
+  </article>
+  <details class="panel-card growth-disclosure">
+    <summary>Entenda os resultados e as permissões</summary>
+    <div id="marketing-notes"></div>
+    <p>
+      Datas, perfil e preferências são informados pelo cliente. Um cadastro com
+      telefone ou e-mail não autoriza automaticamente promoções.
+    </p>
+  </details>
+</section>

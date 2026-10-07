@@ -293,7 +293,9 @@ export function publicPromotionCampaignView(
 function assertCampaignActive(
   campaign: PromotionCampaignRecord,
   now: Date,
+  passengerId?: string,
 ): void {
+  if(campaign.targetPassengerId && campaign.targetPassengerId !== passengerId) throw new PromotionError('PROMOTION_NOT_ELIGIBLE','Este benefício é pessoal e pertence a outra conta.');
   const time = now.getTime();
   if (
     !campaign.enabled ||
@@ -325,7 +327,7 @@ export async function savePassengerPromotionPreference(input: {
       'Cupom não encontrado.',
     );
   }
-  assertCampaignActive(campaign, now);
+  assertCampaignActive(campaign, now, input.passengerId);
   const deviceHash = promotionDeviceHash(input.clientInstanceId);
   const updatedAt = now.toISOString();
 
@@ -359,7 +361,7 @@ export async function passengerPromotionPreference(input: {
   );
   if (campaign == null) return null;
   try {
-    assertCampaignActive(campaign, input.now ?? new Date());
+    assertCampaignActive(campaign, input.now ?? new Date(), input.passengerId);
   } catch {
     return null;
   }
@@ -525,7 +527,7 @@ export async function applyPromotionToRide(input: {
       'Cupom não encontrado.',
     );
   }
-  assertCampaignActive(campaign, now);
+  assertCampaignActive(campaign, now, input.passengerId);
 
   if (
     ride.promotion?.campaignId === campaign.id &&
@@ -549,6 +551,7 @@ export async function applyPromotionToRide(input: {
       'A reserva do cupom atual não pode mais ser substituída.',
     );
   }
+  if(campaign.allowedZones?.length && !campaign.allowedZones.includes(ride.origin.zoneId)) throw new PromotionError('PROMOTION_NOT_ELIGIBLE','Este benefício não está disponível nesta região.');
   ride = restoreOriginalQuote(ride);
 
   const values = promotionValues(campaign, ride);
@@ -689,7 +692,7 @@ export async function redeemWalletPromotionCode(input: {
       'Cupom não encontrado.',
     );
   }
-  assertCampaignActive(campaign, now);
+  assertCampaignActive(campaign, now, input.passengerId);
   if (campaign.kind !== 'wallet_credit') {
     throw new PromotionError(
       'PROMOTION_NOT_ELIGIBLE',
