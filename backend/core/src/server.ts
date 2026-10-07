@@ -1483,6 +1483,17 @@ const server = createServer(async (request, response) => {
           secret,
         })
       ) {
+        // Diagnose ID normalization without recording credentials or signatures.
+        // This comparison does not change which notifications are accepted.
+        logWarn('payments.mercado_pago.signature_rejected', {
+          orderId,
+          lowerCaseIdSignatureValid: verifyMercadoPagoWebhookSignature({
+            xSignature,
+            xRequestId,
+            dataId: orderId.toLowerCase(),
+            secret,
+          }),
+        });
         json(response, 401, {
           error: 'INVALID_MERCADO_PAGO_SIGNATURE',
         });
@@ -9648,4 +9659,3 @@ server.listen(port, '0.0.0.0', () => {
   driverBenefitFinalizationTimer.unref();
   void runDriverBenefitFinalization();
 });
-
