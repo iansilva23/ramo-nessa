@@ -267,6 +267,26 @@ export class PostgresRideRepository implements RideRepository {
     return result.rows[0] == null ? null : mapRow(result.rows[0]);
   }
 
+  async listPendingDispatch(before: string, limit: number): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const result = await this.pool.query<RideRow>(
+      `SELECT ${RETURNING} FROM rides
+       WHERE state IN ('PAID', 'SEARCHING_DRIVER')
+         AND payment_status IN ('paid', 'authorized')
+         AND COALESCE(driver_consent_required, false) = false
+         AND pickup_latitude IS NOT NULL AND pickup_longitude IS NOT NULL
+         AND updated_at <= $1::timestamptz
+         AND NOT EXISTS (
+           SELECT 1 FROM ride_offers
+           WHERE ride_id = rides.id AND status = 'OFFERED'
+             AND expires_at > $1::timestamptz
+         )
+       ORDER BY updated_at ASC, id ASC LIMIT $2`,
+      [before, safeLimit],
+    );
+    return result.rows.map(mapRow);
+  }
+
   async listNoDriverFoundBefore(
     before: string,
     limit: number,

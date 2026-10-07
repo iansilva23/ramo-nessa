@@ -45,7 +45,7 @@ export async function dispatchNextDriver(input: {
   allowPreviouslyAttemptedDrivers?: boolean;
 }): Promise<DispatchNextResult> {
   const now = input.now ?? new Date();
-  const ride = await input.rides.findById(input.rideId);
+  let ride = await input.rides.findById(input.rideId);
 
   if (
     ride == null ||
@@ -55,6 +55,7 @@ export async function dispatchNextDriver(input: {
   }
 
   const offers = await input.matching.listOffersForRide(ride.id);
+  let expiredOffer = false;
   for (const offer of offers) {
     if (offer.status !== 'OFFERED') continue;
 
@@ -66,6 +67,16 @@ export async function dispatchNextDriver(input: {
       offerId: offer.id,
       expiredAt: now.toISOString(),
     });
+    expiredOffer = true;
+  }
+
+  if (expiredOffer) {
+    // Expiration releases the original payment hold. Use the persisted state
+    // so the expired driver's old hold cannot exclude the next eligible driver.
+    ride = await input.rides.findById(input.rideId);
+    if (ride == null || (ride.state !== 'PAID' && ride.state !== 'SEARCHING_DRIVER')) {
+      throw new Error('Corrida não está pronta para despacho.');
+    }
   }
 
   const operationalSettings =

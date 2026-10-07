@@ -61,6 +61,7 @@ export interface RideRepository {
   create(ride: RideRecord): Promise<RideRecord>;
   findById(id: string): Promise<RideRecord | null>;
   findActiveByDriverId(driverId: string): Promise<RideRecord | null>;
+  listPendingDispatch(before: string, limit: number): Promise<RideRecord[]>;
   listNoDriverFoundBefore(
     before: string,
     limit: number,

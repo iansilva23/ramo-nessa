@@ -49,6 +49,18 @@ export class InMemoryRideRepository implements RideRepository {
     return rides[0] == null ? null : structuredClone(rides[0]);
   }
 
+  async listPendingDispatch(before: string, limit: number): Promise<RideRecord[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    return [...this.rides.values()]
+      .filter(ride => (ride.state === 'PAID' || ride.state === 'SEARCHING_DRIVER') &&
+        ['paid', 'authorized'].includes(ride.paymentStatus) &&
+        !ride.driverConsentRequired && ride.pickupLatitude != null &&
+        ride.pickupLongitude != null && Date.parse(ride.updatedAt) <= Date.parse(before))
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id))
+      .slice(0, safeLimit)
+      .map(ride => structuredClone(ride));
+  }
+
   async listNoDriverFoundBefore(
     before: string,
     limit: number,
