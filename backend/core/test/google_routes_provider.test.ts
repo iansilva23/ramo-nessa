@@ -166,6 +166,20 @@ test('Google Routes normaliza rota, ETA e manobras', async () => {
   assert.equal(route.maneuvers[1]?.endShapeIndex, 2);
 });
 
+test('distância financeira de pontos idênticos é zero sem chamada externa e mantém validação', async () => {
+  let calls = 0;
+  const fetcher = (async () => {
+    calls += 1;
+    throw new Error('No external request expected');
+  }) as typeof fetch;
+  const provider = new GoogleRoutesProvider('server-key', 'https://routes.example.test/', 5_000, fetcher);
+  const point = { latitude: -2.82017, longitude: -40.41467 };
+  assert.equal(await provider.routeDistanceKm({ from: point, to: { ...point } }), 0);
+  const invalid = { latitude: 91, longitude: 0 };
+  await assert.rejects(provider.routeDistanceKm({ from: invalid, to: { ...invalid } }));
+  assert.equal(calls, 0);
+});
+
 test('Google Routes usa Essentials e cache curto na distância financeira', async () => {
   const points = [
     { latitude: -2.7956, longitude: -40.5142 },

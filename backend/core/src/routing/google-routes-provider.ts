@@ -413,6 +413,13 @@ export class GoogleRoutesProvider
       throw error;
     }
 
+    // An identical validated point has no pickup travel distance. Google can
+    // omit a route for this request, so avoid requiring an external response.
+    if (input.from.latitude === input.to.latitude &&
+        input.from.longitude === input.to.longitude) {
+      return 0;
+    }
+
     const key = [
       input.from.latitude,
       input.from.longitude,
