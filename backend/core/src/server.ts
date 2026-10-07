@@ -408,6 +408,7 @@ import {
 } from './rides/confirm-payment.js';
 import { authorizeCashRide } from './rides/authorize-cash.js';
 import { dispatchRideAfterPayment as dispatchRideAfterPaymentBase } from './rides/dispatch-after-payment.js';
+import { advancePendingRideDispatch } from './rides/pending-dispatch-service.js';
 import {
   refundWalletRide,
   refundWalletRideAfterNoDriver,
@@ -1166,8 +1167,53 @@ let payoutReconciliationTimer: ReturnType<typeof setInterval> | null = null;
 let lastScheduledPayoutCycleDate: string | null = null;
 let noDriverDecisionSweepRunning = false;
 let noDriverDecisionSweepTimer: ReturnType<typeof setInterval> | null = null;
+let pendingDispatchTimer: ReturnType<typeof setInterval> | null = null;
+let pendingDispatchRunning = false;
 let driverBenefitFinalizationTimer: ReturnType<typeof setInterval> | null = null;
 let driverBenefitFinalizationRunning = false;
+
+async function runPendingDispatch(): Promise<void> {
+  if (shuttingDown || pendingDispatchRunning) return;
+  pendingDispatchRunning = true;
+  try {
+    await advancePendingRideDispatch({
+      rides: rideRepository,
+      dispatch: (ride, now) => dispatchRideAfterPayment({
+        ride, now, rides: rideRepository, drivers: driverSupplyRepository,
+        matching: rideMatchingRepository, finance: financeRepository,
+        paymentPolicySettings: paymentPolicySettingsRepository,
+        operationalSettings: operationalSettingsRepository,
+        ...(routingDistanceProvider == null ? {} : { routing: routingDistanceProvider }),
+        canOfferDriver: id => canDriverReceiveNewWorkUnderPolicy(id, now),
+      }),
+      onProgress: async (rideId, result) => {
+        const ride = await rideRepository.findById(rideId);
+        if (ride == null) return;
+        if (result.kind === 'OFFER_CREATED') {
+          realtimeHub.publishDriver(result.offer.driverId, {
+            type: 'driver.offer.updated', offer: driverOfferView(result.offer, ride),
+            serverTime: new Date().toISOString(),
+          });
+        }
+        const tracking = await passengerRideTracking({
+          rides: rideRepository, drivers: driverSupplyRepository,
+          registry: driverRegistryRepository, rideId,
+          passengerId: ride.passengerId,
+        });
+        if (tracking != null) realtimeHub.publishPassengerRide(rideId, {
+          type: 'passenger.ride.tracking', tracking, serverTime: new Date().toISOString(),
+        });
+      },
+      onFailure: (rideId, error) => logWarn('ride.dispatch.sweep_item_failed', {
+        rideId, ...errorFields(error),
+      }),
+    });
+  } catch (error) {
+    logWarn('ride.dispatch.sweep_failed', errorFields(error));
+  } finally {
+    pendingDispatchRunning = false;
+  }
+}
 
 async function runDriverBenefitFinalization(): Promise<void> {
   if (shuttingDown || driverBenefitFinalizationRunning) return;
@@ -9587,6 +9633,10 @@ function shutdown(signal: string): Promise<void> {
       clearInterval(noDriverDecisionSweepTimer);
       noDriverDecisionSweepTimer = null;
     }
+    if (pendingDispatchTimer != null) {
+      clearInterval(pendingDispatchTimer);
+      pendingDispatchTimer = null;
+    }
     if (driverBenefitFinalizationTimer != null) {
       clearInterval(driverBenefitFinalizationTimer);
       driverBenefitFinalizationTimer = null;
@@ -9653,6 +9703,10 @@ server.listen(port, '0.0.0.0', () => {
   growthTimer=setInterval(()=>void runGrowthMarketing(),15*60_000);
   growthTimer.unref();
   void runGrowthMarketing();
+
+  pendingDispatchTimer = setInterval(() => void runPendingDispatch(), 10_000);
+  pendingDispatchTimer.unref();
+  void runPendingDispatch();
 
   noDriverDecisionSweepTimer = setInterval(
     () => void runNoDriverDecisionSweep(),
