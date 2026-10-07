@@ -8,6 +8,7 @@ import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSe
 import type { RideRecord } from './rides/ride.js';
 import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from './rides/prepayment-driver-confirmation.js';
 import { randomUUID } from 'node:crypto';
+import { diagnoseMercadoPagoCandidateSignature } from './payments/mercado-pago-webhook-diagnostic.js';
 import {
   createServer,
   type IncomingMessage,
@@ -1487,6 +1488,12 @@ const server = createServer(async (request, response) => {
         // This comparison does not change which notifications are accepted.
         logWarn('payments.mercado_pago.signature_rejected', {
           orderId,
+          ...await diagnoseMercadoPagoCandidateSignature({
+            mode: process.env.MERCADO_PAGO_MODE,
+            xSignature,
+            xRequestId,
+            dataId: orderId,
+          }),
           lowerCaseIdSignatureValid: verifyMercadoPagoWebhookSignature({
             xSignature,
             xRequestId,
