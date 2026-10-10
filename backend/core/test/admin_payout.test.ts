@@ -79,6 +79,7 @@ async function setup() {
     driverId: 'driver-payout-admin',
     amountCents: 4000,
     idempotencyKey: 'admin-payout-request',
+    executionMode: 'manual',
     now: new Date('2026-09-26T16:31:00.000Z'),
   });
   return { finance, admin, payout: requested.payout };
@@ -183,4 +184,14 @@ test('Admin recebe PAYOUT_NOT_FOUND consistente em consulta e mutação', async 
         error.code === 'PAYOUT_NOT_FOUND',
     );
   }
+});
+
+
+test('registro manual exige comprovante e mantém saldo reservado até confirmação', async () => {
+  const ctx = await setup();
+  await assert.rejects(completeAdminPayout({ finance: ctx.finance, admin: ctx.admin, actor,
+    payoutId: ctx.payout.id, processor: 'Pix manual' }),
+    (error: unknown) => error instanceof Error && 'code' in error && error.code === 'INVALID_PAYOUT_REFERENCE');
+  assert.equal((await ctx.finance.findDriverPayoutById(ctx.payout.id))?.status, 'requested');
+  assert.equal(await ctx.finance.getAccountBalanceCents('driver:driver-payout-admin:payout_pending'), 4000);
 });

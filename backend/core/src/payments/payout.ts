@@ -21,7 +21,11 @@ export type DriverPayoutStatus =
   | 'failed'
   | 'cancelled';
 
+export type DriverPayoutMode = 'manual' | 'semi_automatic' | 'automatic';
+
 export interface DriverPayoutRecord {
+  /** Immutable payment channel; manual reservations must never reach a provider. */
+  executionMode?: 'manual' | 'api';
   id: string;
   driverId: string;
   /** Valor líquido enviado ao destino Pix. */
@@ -42,6 +46,7 @@ export interface DriverPayoutRecord {
 }
 
 export interface DriverPayoutSettings {
+  mode?: DriverPayoutMode;
   automaticEnabled: boolean;
   updatedAt: string;
 }
@@ -79,6 +84,7 @@ export class PayoutDomainError extends Error {
       | 'PAYOUT_NOT_FOUND'
       | 'INVALID_PAYOUT_TRANSITION'
       | 'PAYOUT_PROCESSOR_REQUIRED'
+      | 'PAYOUT_MANUAL_ONLY'
       | 'PAYOUT_APPROVAL_REQUIRED'
       | 'PAYOUT_ANTICIPATION_MINIMUM',
     message: string,

@@ -97,6 +97,10 @@ export async function processDriverPayout(input: {
     return { kind: 'terminal', payout };
   }
 
+  if (payout.executionMode === 'manual') {
+    throw new PayoutDomainError('PAYOUT_MANUAL_ONLY', 'Este repasse deve ser pago pelo banco e registrado no ADM.');
+  }
+
   if (
     payout.status === 'requested' &&
     payoutRequiresAdminApproval(payout)
@@ -167,6 +171,7 @@ export async function reconcileDriverPayouts(input: {
   let errors = 0;
 
   for (const payout of payouts) {
+    if (payout.executionMode === 'manual') continue;
     if (
       payout.status === 'requested' &&
       payoutRequiresAdminApproval(payout)

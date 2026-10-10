@@ -122,7 +122,8 @@ export class InMemoryFinanceRepository implements FinanceRepository {
       new Map<string, string>();
   private companyPayoutDestination: CompanyPayoutDestination | null = null;
   private payoutSettings: DriverPayoutSettings = {
-    automaticEnabled: true,
+    automaticEnabled: false,
+    mode: 'manual',
     updatedAt: '1970-01-01T00:00:00.000Z',
   };
 
@@ -2101,6 +2102,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   ): Promise<DriverPayoutSettings> {
     this.payoutSettings = {
       automaticEnabled: input.automaticEnabled,
+      mode: input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual'),
       updatedAt: (input.updatedAt ?? new Date()).toISOString(),
     };
     return structuredClone(this.payoutSettings);

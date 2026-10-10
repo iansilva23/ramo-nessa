@@ -8,6 +8,7 @@ import {
 } from './payout.js';
 
 export interface RequestDriverPayoutInput {
+  executionMode?: 'manual' | 'api';
   driverId: string;
   /** Valor líquido a enviar por Pix. */
   amountCents: number;
@@ -76,6 +77,7 @@ export async function requestDriverPayout(
     requestedAmountCents,
     feeCents,
     payoutKind: input.payoutKind ?? 'legacy',
+    executionMode: input.executionMode ?? 'api',
     status: 'requested',
     idempotencyKey,
     pixKeyType: destination.pixKeyType,

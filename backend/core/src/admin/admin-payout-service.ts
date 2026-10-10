@@ -60,6 +60,7 @@ export function adminPayoutDetailView(payout: DriverPayoutRecord) {
     requestedAmountCents: payoutRequestedAmountCents(payout),
     feeCents: payoutFeeCents(payout),
     payoutKind: payoutKind(payout),
+    executionMode: payout.executionMode ?? 'api',
     approvedAt: payout.approvedAt ?? null,
     requiresApproval:
       payoutKind(payout) === 'anticipation' && payout.approvedAt == null,
@@ -102,6 +103,13 @@ export async function completeAdminPayout(input: {
   const processorPayoutId = normalizeReference(
     input.processorPayoutId,
   );
+  const existing = await input.finance.findDriverPayoutById(input.payoutId);
+  if (existing?.executionMode === 'api') {
+    throw new PayoutDomainError('PAYOUT_MANUAL_ONLY', 'Repasse via API deve ser confirmado pela conciliação do provedor.');
+  }
+  if (existing?.executionMode === 'manual' && processorPayoutId == null) {
+    throw new AdminPayoutError('INVALID_PAYOUT_REFERENCE', 'Informe a referência ou identificador do comprovante Pix.');
+  }
   let result;
   try {
     result = await input.finance.completeDriverPayout({
@@ -236,15 +244,18 @@ export async function updateAdminPayoutAutomaticMode(input: {
   admin: AdminRepository;
   actor: AdminActor;
   automaticEnabled: boolean;
+  mode?: import('../payments/payout.js').DriverPayoutMode;
   now?: Date;
 }) {
   const current = await input.finance.getDriverPayoutSettings();
-  if (current.automaticEnabled === input.automaticEnabled) {
+  const mode = input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual');
+  if (current.automaticEnabled === input.automaticEnabled && current.mode === mode) {
     return current;
   }
 
   const updated = await input.finance.setDriverPayoutAutomaticEnabled({
     automaticEnabled: input.automaticEnabled,
+    mode,
     ...(input.now == null ? {} : { updatedAt: input.now }),
   });
 
@@ -256,6 +267,8 @@ export async function updateAdminPayoutAutomaticMode(input: {
     targetId: 'default',
     metadata: {
       previousAutomaticEnabled: current.automaticEnabled,
+      previousMode: current.mode ?? 'manual',
+      mode,
       automaticEnabled: updated.automaticEnabled,
     },
     createdAt: updated.updatedAt,
@@ -264,6 +277,7 @@ export async function updateAdminPayoutAutomaticMode(input: {
 }
 
 export async function createAdminManualPayoutBatch(input: {
+  executionMode?: 'manual' | 'api';
   finance: FinanceRepository;
   admin: AdminRepository;
   actor: AdminActor;
@@ -275,6 +289,7 @@ export async function createAdminManualPayoutBatch(input: {
     finance: input.finance,
     driverIds: input.driverIds,
     batchId: input.batchId,
+    executionMode: input.executionMode ?? 'manual',
     ...(input.now == null ? {} : { now: input.now }),
   });
 

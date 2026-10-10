@@ -290,11 +290,11 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/finance/payouts/reconcile', { method: 'POST', token });
     },
 
-    updateFinancePayoutPolicy(token, { automaticEnabled }) {
+    updateFinancePayoutPolicy(token, { automaticEnabled, mode }) {
       return request('/v1/admin/finance/payout-policy', {
         method: 'PATCH',
         token,
-        body: { automaticEnabled },
+        body: mode == null ? { automaticEnabled } : { mode },
       });
     },
 
