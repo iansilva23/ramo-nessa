@@ -382,6 +382,7 @@ button:disabled {
   display: flex;
   width: var(--sidebar-width);
   flex-direction: column;
+  overflow: hidden;
   padding: 24px 16px 18px;
   color: #fff;
   background:
@@ -409,7 +410,16 @@ button:disabled {
 .sidebar-nav {
   display: grid;
   gap: 5px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #767b82 transparent;
+  padding-right: 5px;
+  padding-bottom: 12px;
 }
+.sidebar-brand, .sidebar-security { flex-shrink: 0; }
+.sidebar-security { margin-top: 12px; }
 
 .nav-item {
   display: flex;
@@ -5413,3 +5423,7 @@ td strong {
 #view-costs .cost-delete {color:#a72d2d;border-color:#eed8d8;}
 #view-costs .cost-delete:hover {background:#fff0f0;}
 #view-costs .cost-presets button:disabled {opacity:.55;cursor:default;}
+
+#marketing-access {padding:16px;border:1px solid #e6c878;border-radius:12px;background:#fff8de;line-height:1.6;}
+#view-marketing .marketing-steps {display:flex;gap:12px;flex-wrap:wrap;padding:16px;background:#f5f7fb;border-radius:12px;}
+#view-marketing .marketing-steps span {flex:1;min-width:160px;}

@@ -1,3 +1,4 @@
+import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -299,6 +300,7 @@ export async function notifyDriverDocumentCompliance(input: {
 
 export async function listAdminDriverDocumentComplianceAlerts(input: {
   identities: AuthOtpRepository;
+  registry?: DriverRegistryRepository;
   documents: DriverDocumentRepository;
   controls: DriverDocumentComplianceRepository;
   settings: OperationalSettingsRepository;
@@ -349,6 +351,7 @@ export async function listAdminDriverDocumentComplianceAlerts(input: {
         }
         return {
           ...compliance,
+          driverName: (await input.registry?.findProfile(identity.subjectId))?.fullName ?? null,
           phoneE164: identity.phoneE164,
         };
       }),

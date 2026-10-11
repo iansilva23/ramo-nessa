@@ -11,6 +11,8 @@
       Carregando automações…</button
     >
   </div>
+  <p id="marketing-access" hidden></p>
+  <div class="marketing-steps"><span><strong>1. Escolha</strong> uma automação pronta.</span><span><strong>2. Personalize</strong> mensagem e presente, se quiser.</span><span><strong>3. Ative</strong> e acompanhe os resultados.</span></div>
   <p id="growth-status" role="status" aria-live="polite"></p>
   <div id="growth-summary" class="growth-summary"></div>
   <div class="growth-dashboard">
@@ -183,10 +185,9 @@
               required
           /></label>
           <label
-            >Data comemorativa (mês-dia)<input
+            >Dia da comemoração<input
               name="calendarDay"
-              placeholder="12-25"
-              pattern="[0-9]{2}-[0-9]{2}"
+              type="date"
           /></label>
           <label
             >Público<select name="audience">
@@ -326,8 +327,7 @@
             quando ativada</label
           >
           <label class="growth-check"
-            ><input name="enabled" type="checkbox" />Ativar esta campanha após
-            salvar</label
+            ><input name="enabled" type="checkbox" />Campanha ativa (disponível após o primeiro cadastro)</label
           >
         </div>
       </details>

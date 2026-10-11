@@ -1,3 +1,4 @@
+import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 
 function safeLimit(limit: number | undefined): number {
@@ -7,6 +8,7 @@ function safeLimit(limit: number | undefined): number {
 
 export async function adminFinanceView(input: {
   finance: FinanceRepository;
+  registry?: DriverRegistryRepository;
   limit?: number;
   canManageCompanyPayouts?: boolean;
   payoutProviderConfigured?: boolean;
@@ -32,6 +34,8 @@ export async function adminFinanceView(input: {
     input.finance.listRecentExternalPaymentAdjustments(limit),
   ]);
 
+  const names = new Map(await Promise.all([...new Set([...payouts, ...payoutCandidates].map(item => item.driverId))].map(async id => [id, (await input.registry?.findProfile(id))?.fullName ?? null] as const)));
+
   return {
     readOnly: false,
     paymentsReadOnly: true,
@@ -56,6 +60,7 @@ export async function adminFinanceView(input: {
     },
     payoutCandidates: payoutCandidates.map((candidate) => ({
       driverId: candidate.driverId,
+      driverName: names.get(candidate.driverId) ?? null,
       availableBalanceCents: candidate.availableBalanceCents,
       pixConfigured: candidate.destination != null,
       pixKeyType: candidate.destination?.pixKeyType ?? null,
@@ -122,6 +127,7 @@ export async function adminFinanceView(input: {
     payouts: payouts.map((payout) => ({
       id: payout.id,
       driverId: payout.driverId,
+      driverName: names.get(payout.driverId) ?? null,
       amountCents: payout.amountCents,
       requestedAmountCents: payout.requestedAmountCents ?? payout.amountCents,
       feeCents: payout.feeCents ?? 0,

@@ -40,7 +40,7 @@ export function createGrowthAdmin({
     if (!stopped) el('growth-status').textContent = t;
   };
   const listen = (target, event, fn) =>
-    target.addEventListener(event, fn, { signal: abort.signal });
+    target.addEventListener(event, fn, { signal: abort.signal, capture: event === 'invalid' });
   function button(label, scope, action) {
     const b = node('button', label, 'button button--ghost-dark');
     b.type = 'button';
@@ -108,6 +108,8 @@ export function createGrowthAdmin({
     ]) {
       const field = f.elements.namedItem(name);
       field.closest('label').hidden = !visible;
+      field.disabled = !visible || !hasScope('marketing:write');
+      field.required = visible && name !== 'calendarDay' ? true : visible && trigger === 'calendar';
     }
   }
   function presetMessage(t) {
@@ -124,7 +126,7 @@ export function createGrowthAdmin({
   async function toggleCampaign(c) {
     if (!hasScope('marketing:write') || !hasScope('marketing:send'))
       throw new Error('Sua conta precisa de permissão para ativar campanhas.');
-    const enable = !c.enabled;
+    const enable = !(c.enabled && data.settings.enabled);
     await api.saveMarketingCampaign(getToken(), {
       id: c.id,
       expectedUpdatedAt: c.updatedAt,
@@ -215,7 +217,7 @@ export function createGrowthAdmin({
           );
         box.append(
           button(
-            c?.enabled ? 'Pausar' : 'Ativar automático',
+            c?.enabled && data.settings.enabled ? 'Pausar' : 'Ativar automático',
             'marketing:send',
             async () => {
               if (c) return toggleCampaign(c);
@@ -266,7 +268,7 @@ export function createGrowthAdmin({
                 const f = el('marketing-campaign-form');
                 for (const key of ['name', 'trigger', 'days', 'threshold'])
                   f.elements.namedItem(key).value = t[key];
-                f.elements.namedItem('calendarDay').value = t.calendarDay ?? '';
+                f.elements.namedItem('calendarDay').value = t.calendarDay ? `2000-${t.calendarDay}` : '';
                 f.elements.namedItem('title').value = t.name;
                 f.elements.namedItem('message').value = presetMessage(t);
                 f.elements.namedItem('automatic').checked = true;
@@ -487,7 +489,7 @@ export function createGrowthAdmin({
       'controlPercent',
     ])
       if (v[key] != null) form.elements.namedItem(key).value = v[key];
-    form.elements.namedItem('calendarDay').value = v.calendarDay ?? '';
+    form.elements.namedItem('calendarDay').value = v.calendarDay ? `2000-${v.calendarDay}` : '';
     for (const key of [
       'enabled',
       'automatic',
@@ -533,7 +535,7 @@ export function createGrowthAdmin({
       trigger: val('trigger'),
       days: Number(val('days')),
       threshold: Number(val('threshold')),
-      calendarDay: val('calendarDay') || null,
+      calendarDay: val('trigger') === 'calendar' ? (val('calendarDay').slice(5) || null) : null,
       title: val('title'),
       message: val('message'),
       audience: val('audience'),
@@ -628,6 +630,9 @@ export function createGrowthAdmin({
       : 'Ligar marketing';
     el('marketing-master').disabled =
       !hasScope('marketing:write') || !hasScope('marketing:send');
+    const access = el('marketing-access');
+    access.hidden = hasScope('marketing:write') && hasScope('marketing:send');
+    access.textContent = 'Sua conta pode consultar o Marketing, mas falta autorização para configurar ou ativar campanhas. Em Funcionários, peça ao responsável para liberar Configurar campanhas e Ativar automações e executar campanhas. Depois entre novamente no ADM.';
     cards([
       ['Marketing', data.settings.enabled ? 'Ativado' : 'Desligado'],
       ['Campanhas ativadas', data.campaigns.filter((c) => c.enabled).length],
@@ -853,6 +858,12 @@ export function createGrowthAdmin({
           );
         }),
     );
+    listen(el('marketing-campaign-form'), 'invalid', (event) => {
+      const section = event.target.closest('details');
+      if (section) section.open = true;
+      el('marketing-editor').open = true;
+      status('Confira o campo indicado antes de salvar a campanha.');
+    });
     listen(el('marketing-reset'), 'click', () => fill());
     listen(
       el('marketing-campaign-form').elements.namedItem('trigger'),
@@ -872,7 +883,7 @@ export function createGrowthAdmin({
       const form = el('marketing-campaign-form');
       for (const key of ['name', 'trigger', 'days', 'threshold'])
         form.elements.namedItem(key).value = t[key];
-      form.elements.namedItem('calendarDay').value = t.calendarDay ?? '';
+      form.elements.namedItem('calendarDay').value = t.calendarDay ? `2000-${t.calendarDay}` : '';
       form.elements.namedItem('title').value = t.name;
       form.elements.namedItem('message').value = presetMessage(t);
       form.elements.namedItem('automatic').checked = true;

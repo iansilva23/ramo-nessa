@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in-memory-driver-registry-repository.js';
 import { adminFinanceView } from '../src/admin/admin-finance-service.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import type { PaymentRecord } from '../src/payments/payment.js';
@@ -62,10 +63,12 @@ test('financeiro Admin deriva comissão e saldos do ledger real', async () => {
   };
   await finance.reserveDriverPayout(payout);
 
-  const view = await adminFinanceView({
-    finance,
-    limit: 10,
-  });
+  const registry = new InMemoryDriverRegistryRepository();
+  await registry.upsertProfile({driverId: 'driver-finance-admin', fullName: 'João da Silva', status: 'approved', createdAt: payout.createdAt, updatedAt: payout.updatedAt});
+  const view = await adminFinanceView({finance, registry, limit: 10});
+  assert.equal(view.payouts[0]?.driverName, 'João da Silva');
+  assert.equal(view.payoutCandidates[0]?.driverName, 'João da Silva');
+
 
   assert.equal(view.readOnly, false);
   assert.equal(view.paymentsReadOnly, true);

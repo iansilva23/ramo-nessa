@@ -3894,6 +3894,7 @@ const server = createServer(async (request, response) => {
       const rawLimit = Number(requestUrl.searchParams.get('limit') ?? '25');
       const finance = await adminFinanceView({
         finance: financeRepository,
+        registry: driverRegistryRepository,
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
         canManageCompanyPayouts: isAdminPayoutOwner(actor),
         payoutProviderConfigured: driverPayoutProvider != null,
@@ -5487,14 +5488,15 @@ const server = createServer(async (request, response) => {
           : null;
 
       json(response, 200, {
-        items: page.identities.map((identity) => ({
+        items: await Promise.all(page.identities.map(async (identity) => ({
           driverId: identity.subjectId,
+          driverName: (await driverRegistryRepository.findProfile(identity.subjectId))?.fullName ?? null,
           registrationOnly: identity.driverRegistrationOnly === true,
           phoneE164: identity.phoneE164,
           status: identity.status,
           createdAt: identity.createdAt,
           updatedAt: identity.updatedAt,
-        })),
+        }))),
         summary,
         nextCursor,
       });
@@ -5615,6 +5617,7 @@ const server = createServer(async (request, response) => {
         200,
         await listAdminDriverDocumentComplianceAlerts({
           identities: authOtpRepository,
+          registry: driverRegistryRepository,
           documents: driverDocumentRepository,
           controls: driverDocumentComplianceRepository,
           settings: operationalSettingsRepository,
@@ -6065,6 +6068,7 @@ const server = createServer(async (request, response) => {
       });
       json(response, 200, {
         driverId: identity.subjectId,
+        driverName: (await driverRegistryRepository.findProfile(identity.subjectId))?.fullName ?? null,
         registrationOnly: identity.driverRegistrationOnly === true,
         phoneE164: identity.phoneE164,
         status: identity.status,

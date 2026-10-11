@@ -2453,7 +2453,8 @@ function renderDriver(driver) {
   kicker.className = 'eyebrow eyebrow--dark';
   kicker.textContent = 'IDENTIDADE';
   const title = document.createElement('h3');
-  title.textContent = driver.driverId;
+  title.textContent = driver.driverName || 'Nome ainda não cadastrado';
+  title.title = driver.driverId;
   identity.append(kicker, title);
 
   const pill = document.createElement('span');
@@ -3296,7 +3297,8 @@ function renderFinance(payload = null) {
     statusCell.append(statusPill);
 
     const driver = document.createElement('td');
-    driver.textContent = payout.driverId ?? '—';
+    driver.textContent = payout.driverName || 'Nome ainda não cadastrado';
+    driver.title = payout.driverId ?? '';
 
     const amount = document.createElement('td');
     amount.textContent = formatCurrencyCents(
@@ -3695,7 +3697,8 @@ function renderFinancePayoutPolicy() {
       selection.append(checkbox);
 
       const driver = document.createElement('td');
-      driver.textContent = candidate.driverId ?? '—';
+      driver.textContent = candidate.driverName || 'Nome ainda não cadastrado';
+      driver.title = candidate.driverId ?? '';
 
       const balance = document.createElement('td');
       balance.textContent = formatCurrencyCents(
@@ -3801,7 +3804,8 @@ function renderFinancePayoutDetail(payout = null) {
   byId('finance-payout-detail-status').textContent =
     presentation.label;
   byId('finance-payout-detail-driver').textContent =
-    payout.driverId ?? '—';
+    payout.driverName || state.finance.payouts?.find(item => item.id === payout.id)?.driverName || 'Nome ainda não cadastrado';
+  byId('finance-payout-detail-driver').title = payout.driverId ?? '';
   byId('finance-payout-detail-kind').textContent =
     payoutKindLabel(payout.payoutKind);
   byId('finance-payout-detail-gross').textContent =
@@ -5867,7 +5871,8 @@ function renderDriverDirectory() {
 
     const identity = document.createElement('td');
     const driverId = document.createElement('strong');
-    driverId.textContent = driver.driverId;
+    driverId.textContent = driver.driverName || 'Nome ainda não cadastrado';
+    identity.title = driver.driverId;
     identity.append(driverId);
 
     const phone = document.createElement('td');
@@ -7713,7 +7718,8 @@ function renderDriverDocumentAlerts(payload) {
 
     const content = document.createElement('div');
     const title = document.createElement('strong');
-    title.textContent = item.driverId;
+    title.textContent = item.driverName || 'Nome ainda não cadastrado';
+    title.title = item.driverId;
     const phone = document.createElement('small');
     phone.textContent = item.phoneE164 ?? 'Telefone indisponível';
     const issues = document.createElement('p');
