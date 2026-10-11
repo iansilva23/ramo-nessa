@@ -54,7 +54,7 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) throw new InvalidAdminRequestError('Custo inválido.');
   const r = raw as Record<string, unknown>;
   const allowed = ['name','category','slot','notes','certainty','amountCents',
-    ...(kind === 'expense' ? ['occurredOn','rideId','paymentId','voided','ruleId'] : ['basis','rateBps','startsOn','endsOn'])];
+    ...(kind === 'expense' ? ['occurredOn','rideId','paymentId','voided','ruleId'] : ['basis','rateBps','startsOn','endsOn','voided'])];
   if (Object.keys(r).some(k => !allowed.includes(k))) throw new InvalidAdminRequestError('Campo não reconhecido no custo.');
   if (r.certainty !== 'confirmed' && r.certainty !== 'estimated') throw new InvalidAdminRequestError('Escolha confirmado ou estimado.');
   if (!Number.isSafeInteger(r.amountCents) || Number(r.amountCents) < 0 || Number(r.amountCents) > 1000000000) throw new InvalidAdminRequestError('Valor inválido em centavos.');
@@ -75,6 +75,8 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
     if ((slot === 'processing_fee') && !data.paymentId) throw new InvalidAdminRequestError('Para confirmar uma taxa de pagamento, informe o ID do pagamento. Use outro tipo para uma fatura agregada.');
   } else {
     if (!['monthly','ride','pix_payment','card_payment','commission_percent'].includes(String(r.basis))) throw new InvalidAdminRequestError('Regra de recorrência inválida.');
+    if (r.voided != null && typeof r.voided !== 'boolean') throw new InvalidAdminRequestError('Exclusão inválida.');
+    if (r.voided === true) data.voided = true;
     data.basis = r.basis as CostBasis;
     data.startsOn = dateValue(r.startsOn, 'Início da regra');
     data.endsOn = r.endsOn ? dateValue(r.endsOn, 'Fim da regra') : null;
@@ -112,7 +114,7 @@ export function calculateCostReport(source: CostSource, period: ReturnType<typeo
   const payments = source.payments.filter(p => inside(localDate(p.at)));
   const isActive = (d: CostData, date: string) => date >= d.startsOn! && (!d.endsOn || date <= d.endsOn);
   const overrides = new Set(source.items.filter(i=>i.kind==='expense' && !i.data.voided).map(i=>i.data.paymentId ? `payment:${i.data.paymentId}:${i.data.slot}` : i.data.ruleId ? `month:${i.data.ruleId}:${i.data.occurredOn!.slice(0,7)}` : i.data.rideId ? `ride:${i.data.rideId}:${i.data.slot}` : `expense:${i.id}`));
-  for (const rule of source.items.filter(i => i.kind === 'rule')) {
+  for (const rule of source.items.filter(i => i.kind === 'rule' && !i.data.voided)) {
     const d = rule.data;
     const add = (key:string,date:string,amount:number,rideId?:string,paymentId?:string) => {
       if(overrides.has(key)) return;

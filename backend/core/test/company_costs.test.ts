@@ -94,3 +94,21 @@ test('somatórios não usam apenas primeiras500 linhas',()=>{
   const s=source();s.items=Array.from({length:501},()=>expense(100,{slot:'general',paymentId:null,rideId:null}));
   const r=calculateCostReport(s,period);assert.equal(r.lines.length,500);assert.equal(r.lineCount,501);assert.equal(r.summary.confirmedCostsCents,50100);
 });
+
+test('excluir regra retira estimativas, preserva despesas confirmadas e libera substituição',async()=>{
+  const admin=new InMemoryAdminRepository(),repo=new InMemoryCompanyCostRepository(new InMemoryFinanceRepository(),admin);
+  const actor={kind:'api_key' as const,id:randomUUID(),name:'Owner'},r=rule();
+  await repo.save(r,actor);
+  const deleted=createCostItem('rule',{...r.data,voided:true},r.id);
+  const saved=await repo.save(deleted,actor,r.updatedAt);
+  const s=source();s.items=[saved];assert.equal(calculateCostReport(s,period).summary.estimatedCostsCents,0);
+  s.items.push(expense(120));assert.equal(calculateCostReport(s,period).summary.confirmedCostsCents,120);
+  await repo.save(rule(),actor);
+  assert.equal((await admin.listAudit(100)).length,3);
+  await assert.rejects(()=>repo.save({...saved,data:{...saved.data,voided:false}},actor,saved.updatedAt),/reativada/);
+  await assert.rejects(()=>repo.save(deleted,actor,r.updatedAt),/outra pessoa/);
+});
+test('taxa Pix de 0,99% usa recebimento total e arredonda para centavos',()=>{
+  const s=source();s.items=[rule('pix_payment',0,99)];
+  assert.equal(calculateCostReport(s,period).summary.estimatedCostsCents,50);
+});

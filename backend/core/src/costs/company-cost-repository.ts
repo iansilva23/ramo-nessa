@@ -14,6 +14,7 @@ export interface CompanyCostRepository {
 const sameData = (a:object,b:object) => JSON.stringify(a,Object.keys(a).sort()) === JSON.stringify(b,Object.keys(b).sort());
 function matchScope(a: CostItem,b: CostItem) {
   if(a.kind !== b.kind || a.data.slot !== b.data.slot || a.id === b.id) return false;
+  if(a.data.voided || b.data.voided) return false;
   if(a.kind === 'rule') {
     if(a.data.basis !== b.data.basis) return false;
     return a.data.startsOn! <= (b.data.endsOn ?? '9999-12-31') && b.data.startsOn! <= (a.data.endsOn ?? '9999-12-31');
@@ -33,7 +34,8 @@ function assertWrite(items: CostItem[],item: CostItem,expected?: string) {
   if(old && old.kind !== item.kind) throw new InvalidAdminRequestError('Não é possível mudar o tipo de registro.');
   if(old?.kind==='rule') {
     // Terminar vigência é permitido; valores/âncora não mudam retroativamente.
-    const before={...old.data,endsOn:null},after={...item.data,endsOn:null};
+    const before={...old.data,endsOn:null,voided:false},after={...item.data,endsOn:null,voided:false};
+    if(old.data.voided && !item.data.voided) throw new InvalidAdminRequestError('Uma regra excluída não pode ser reativada. Crie uma nova regra.');
     if(!sameData(before,after)) throw new InvalidAdminRequestError('Encerre a regra antiga e crie uma nova para preservar o histórico.');
   }
   if(items.some(i=>matchScope(i,item))) throw new CostConflictError('Já existe um custo ou regra para esse tipo e operação/período. Edite o registro existente.');

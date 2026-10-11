@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {createAdminApi} from '../src/api.js';
-import {moneyToCents,reportCards} from '../src/company-costs-admin.js';
+import {moneyToCents,reportCards,ruleCalculation} from '../src/company-costs-admin.js';
 test('custos usam centavos com vírgula e ponto, sem aceitar separadores ambíguos',()=>{
   assert.equal(moneyToCents('0,99'),99);assert.equal(moneyToCents('50.01'),5001);assert.equal(moneyToCents('10'),1000);
   for(const value of ['1,999','1.000,00','-2','NaN','1e3',''])assert.throws(()=>moneyToCents(value));
@@ -23,4 +23,14 @@ test('nova página está no menu próprio e não dentro de financeiro; renderiza
   const index=readFileSync(new URL('../index.html',import.meta.url),'utf8'),page=readFileSync(new URL('../pages/costs.html',import.meta.url),'utf8'),controller=readFileSync(new URL('../src/company-costs-admin.js',import.meta.url),'utf8');
   assert.match(index,/href="\/admin\/custos-resultado" data-view="costs"/);assert.match(page,/view-costs/);assert.doesNotMatch(controller,/innerHTML|insertAdjacentHTML/);
   assert.match(controller,/costs:write/);assert.match(controller,/costs:read/);assert.match(controller,/expectedUpdatedAt/);
+});
+
+test('porcentagem ignora campo fixo oculto e aceita vírgula e ponto',()=>{
+  assert.deepEqual(ruleCalculation('pix_payment','percent','', '0,99'),{amountCents:0,rateBps:99,fixed:false,percentage:true});
+  assert.equal(ruleCalculation('card_payment','percent','', '4.98').rateBps,498);
+  assert.equal(ruleCalculation('commission_percent','fixed','', '6').rateBps,600);
+  assert.equal(ruleCalculation('monthly','percent','50','').amountCents,5000);
+  assert.deepEqual(ruleCalculation('card_payment','combined','0,10','4,98'),{amountCents:10,rateBps:498,fixed:true,percentage:true});
+  assert.throws(()=>ruleCalculation('pix_payment','percent','', '100,01'));
+  assert.throws(()=>ruleCalculation('pix_payment','percent','', '0'));
 });
