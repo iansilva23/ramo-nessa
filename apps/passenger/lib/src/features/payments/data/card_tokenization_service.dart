@@ -1,0 +1,156 @@
+import 'dart:io';
+import 'saved_card_service.dart';
+
+import 'package:flutter/services.dart';
+
+class CardTokenizationResult {
+  const CardTokenizationResult({
+    required this.token,
+    required this.paymentMethodId,
+    required this.paymentMethodType,
+    this.lastFourDigits,
+    this.storageToken,
+  });
+
+  final String token;
+  final String paymentMethodId;
+  final String paymentMethodType;
+  final String? lastFourDigits;
+  final String? storageToken;
+}
+
+abstract interface class CardTokenizationService {
+  Future<CardTokenizationResult> tokenize();
+}
+
+class CardTokenizationException implements Exception {
+  const CardTokenizationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class NativeCardTokenizationService
+    implements
+        CardTokenizationService,
+        SavedCardTokenizationService,
+        StorageCardTokenizationService {
+  const NativeCardTokenizationService({
+    required this.amountCents,
+    this.mercadoPagoPublicKey,
+  });
+
+  final int amountCents;
+  final String? mercadoPagoPublicKey;
+
+  static const _channel = MethodChannel('br.com.ramonessa.passenger/payments');
+
+  static const _mercadoPagoPublicKey = String.fromEnvironment(
+    'RAMO_MERCADO_PAGO_PUBLIC_KEY',
+    defaultValue: '',
+  );
+
+  @override
+  Future<CardTokenizationResult> tokenize() => _tokenize();
+
+  @override
+  Future<CardTokenizationResult> tokenizeSavedCard(SavedPassengerCard card) =>
+      _tokenize(card: card);
+
+  @override
+  Future<CardTokenizationResult> tokenizeForStorage() => _tokenize(save: true);
+
+  Future<CardTokenizationResult> _tokenize({
+    SavedPassengerCard? card,
+    bool save = false,
+  }) async {
+    if (amountCents <= 0) {
+      throw const CardTokenizationException(
+        'Valor da corrida inválido para pagamento por cartão.',
+      );
+    }
+
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      throw const CardTokenizationException(
+        'Cartão seguro ainda não está habilitado nesta plataforma.',
+      );
+    }
+
+    final publicKey = mercadoPagoPublicKey?.trim().isNotEmpty == true
+        ? mercadoPagoPublicKey!.trim()
+        : _mercadoPagoPublicKey.trim();
+
+    if (publicKey.isEmpty) {
+      throw const CardTokenizationException(
+        'Pagamento por cartão ainda não está configurado neste ambiente.',
+      );
+    }
+
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'tokenizeCard',
+        {
+          'amountCents': amountCents,
+          'publicKey': publicKey,
+          'requestStorageToken': save,
+          if (card != null) ...{
+            'savedCardId': card.id,
+            'paymentMethodId': card.paymentMethodId,
+            'paymentMethodType': card.paymentMethodType,
+            'lastFourDigits': card.lastFourDigits,
+          },
+        },
+      );
+      if (result == null) {
+        throw const CardTokenizationException(
+          'A tokenização do cartão foi cancelada.',
+        );
+      }
+
+      final token = result['token'];
+      final paymentMethodId = result['paymentMethodId'];
+      final paymentMethodType = result['paymentMethodType'];
+      final lastFourDigits = result['lastFourDigits'];
+
+      if (token is! String ||
+          token.length < 20 ||
+          paymentMethodId is! String ||
+          paymentMethodId.isEmpty ||
+          paymentMethodType is! String ||
+          (paymentMethodType != 'credit_card' &&
+              paymentMethodType != 'debit_card')) {
+        throw const CardTokenizationException(
+          'O Mercado Pago retornou um cartão tokenizado inválido.',
+        );
+      }
+
+      return CardTokenizationResult(
+        token: token,
+        storageToken: result['storageToken'] as String?,
+        paymentMethodId: paymentMethodId,
+        paymentMethodType: paymentMethodType,
+        lastFourDigits: lastFourDigits is String && lastFourDigits.isNotEmpty
+            ? lastFourDigits
+            : null,
+      );
+    } on PlatformException catch (error) {
+      if (error.code == 'CARD_CANCELLED') {
+        throw const CardTokenizationException('Cadastro do cartão cancelado.');
+      }
+      if (error.code == 'MERCADO_PAGO_NOT_CONFIGURED') {
+        throw const CardTokenizationException(
+          'Pagamento por cartão ainda não está configurado neste ambiente.',
+        );
+      }
+      throw CardTokenizationException(
+        error.message ?? 'Não conseguimos proteger os dados do cartão.',
+      );
+    } on MissingPluginException {
+      throw const CardTokenizationException(
+        'Pagamento por cartão ainda não está disponível nesta instalação.',
+      );
+    }
+  }
+}

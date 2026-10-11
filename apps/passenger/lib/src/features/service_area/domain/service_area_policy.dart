@@ -1,6 +1,20 @@
 import 'package:latlong2/latlong.dart';
 
+import '../../map/domain/ramo_place.dart';
+import 'approved_destination_catalog.dart';
 import 'service_zone.dart';
+
+class ServiceAreaEndpoint {
+  const ServiceAreaEndpoint({
+    required this.id,
+    required this.label,
+    this.localityId,
+  });
+
+  final String id;
+  final String label;
+  final String? localityId;
+}
 
 class ServiceAreaCheck {
   const ServiceAreaCheck({
@@ -8,8 +22,8 @@ class ServiceAreaCheck {
     required this.destinationZone,
   });
 
-  final ServiceZone? originZone;
-  final ServiceZone? destinationZone;
+  final ServiceAreaEndpoint? originZone;
+  final ServiceAreaEndpoint? destinationZone;
 
   bool get isSupported => originZone != null && destinationZone != null;
 
@@ -27,12 +41,6 @@ class ServiceAreaCheck {
   }
 }
 
-/// Geofences operacionais iniciais do MVP.
-///
-/// Os raios são configuração de produto, não limites administrativos.
-/// Eles foram dimensionados para cobrir Jeri, Jijoca, Preá e o corredor local
-/// entre essas regiões. Antes do lançamento comercial podem ser substituídos
-/// por polígonos vindos do backend/admin sem alterar o fluxo do app.
 abstract final class RamoServiceArea {
   static const zones = <ServiceZone>[
     ServiceZone(
@@ -53,14 +61,67 @@ abstract final class RamoServiceArea {
       center: LatLng(-2.82017, -40.41467),
       radiusMeters: 6500,
     ),
+    ServiceZone(
+      id: 'airport-jjd',
+      label: 'Aeroporto JJD',
+      center: LatLng(-2.906425, -40.357338),
+      radiusMeters: 3000,
+    ),
   ];
 
-  static ServiceZone? zoneFor(LatLng point) {
-    for (final zone in zones) {
-      if (zone.contains(point)) {
-        return zone;
-      }
+  static ServiceZone? zoneFor(LatLng point, {List<ServiceZone>? catalogZones}) {
+    final candidates = (catalogZones ?? zones).where((zone)=>zone.contains(point)).toList();
+    candidates.sort((a,b) {
+      final radius = a.radiusMeters.compareTo(b.radiusMeters);
+      if (radius != 0) return radius;
+      final proximity = (a.distanceTo(point)/a.radiusMeters).compareTo(b.distanceTo(point)/b.radiusMeters);
+      if (proximity != 0) return proximity;
+      final zone = a.id.compareTo(b.id);
+      return zone != 0 ? zone : (a.localityId ?? a.id).compareTo(b.localityId ?? b.id);
+    });
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  static ServiceAreaEndpoint? endpointForPlace(RamoPlace place, {List<ServiceZone>? catalogZones}) {
+    final approvedZone = place.approvedPricingZoneId?.trim();
+    final approvedLocality =
+        place.approvedPricingLocalityId?.trim();
+    if (
+      approvedZone == 'jericoacoara' ||
+      approvedZone == 'jijoca' ||
+      approvedZone == 'prea' ||
+      approvedZone == 'external'
+    ) {
+      return ServiceAreaEndpoint(
+        id: approvedZone!,
+        label: approvedLocality?.isNotEmpty == true
+            ? approvedLocality!
+            : approvedZone,
+        localityId:
+            approvedLocality?.isNotEmpty == true
+                ? approvedLocality
+                : approvedZone,
+      );
     }
+
+    final local = zoneFor(place.position, catalogZones: catalogZones);
+    if (local != null) {
+      return ServiceAreaEndpoint(
+        id: local.id,
+        label: local.label,
+        localityId: local.localityId ?? local.id,
+      );
+    }
+
+    final external = ApprovedDestinationCatalog.matchPlace(place);
+    if (external != null) {
+      return ServiceAreaEndpoint(
+        id: 'external',
+        label: external.label,
+        localityId: external.id,
+      );
+    }
+
     return null;
   }
 
@@ -70,9 +131,33 @@ abstract final class RamoServiceArea {
     required LatLng origin,
     required LatLng destination,
   }) {
+    final originZone = zoneFor(origin);
+    final destinationZone = zoneFor(destination);
+
     return ServiceAreaCheck(
-      originZone: zoneFor(origin),
-      destinationZone: zoneFor(destination),
+      originZone: originZone == null
+          ? null
+          : ServiceAreaEndpoint(
+              id: originZone.id,
+              label: originZone.label,
+            ),
+      destinationZone: destinationZone == null
+          ? null
+          : ServiceAreaEndpoint(
+              id: destinationZone.id,
+              label: destinationZone.label,
+            ),
+    );
+  }
+
+  static ServiceAreaCheck checkPlaceTrip({
+    required RamoPlace origin,
+    required RamoPlace destination,
+    List<ServiceZone>? catalogZones,
+  }) {
+    return ServiceAreaCheck(
+      originZone: endpointForPlace(origin, catalogZones: catalogZones),
+      destinationZone: endpointForPlace(destination, catalogZones: catalogZones),
     );
   }
 }

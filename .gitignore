@@ -50,7 +50,10 @@ logs/
 docker-data/
 postgres-data/
 redis-data/
+deploy/prod/secrets/
+deploy/prod/backups/
 
 # Generated
 *.g.dart
 *.freezed.dart
+**/ios/Flutter/GoogleMaps.local.xcconfig
