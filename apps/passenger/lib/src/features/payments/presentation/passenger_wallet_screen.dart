@@ -68,118 +68,11 @@ class _PassengerWalletScreenState extends State<PassengerWalletScreen> {
   Future<void> _newTopup() async {
     if (_creating) return;
 
-    final amountController = TextEditingController();
-    final emailController = TextEditingController();
-
     final input = await showDialog<_WalletTopupInput>(
       context: context,
-      builder: (context) {
-        String? validationError;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            void submit() {
-              final normalized =
-                  amountController.text.trim().replaceAll(',', '.');
-              final reais = double.tryParse(normalized);
-              final email = emailController.text.trim().toLowerCase();
-
-              if (reais == null || reais < 1 || reais > 10000) {
-                setDialogState(() {
-                  validationError =
-                      'Informe um valor entre R\$ 1,00 e R\$ 10.000,00.';
-                });
-                return;
-              }
-              if (
-                email.length < 5 ||
-                email.length > 254 ||
-                !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
-              ) {
-                setDialogState(() {
-                  validationError =
-                      'Informe um e-mail válido para gerar o Pix.';
-                });
-                return;
-              }
-
-              Navigator.of(context).pop(
-                _WalletTopupInput(
-                  amountCents: (reais * 100).round(),
-                  payerEmail: email,
-                ),
-              );
-            }
-
-            return AlertDialog(
-              title: const Text('Adicionar saldo via Pix'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'A recarga da Carteira Ramo Nessa é feita somente por Pix.',
-                    ),
-                    const SizedBox(height: RamoSpacing.md),
-                    TextField(
-                      controller: amountController,
-                      autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[0-9,.]'),
-                        ),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Valor da recarga',
-                        prefixText: 'R\$ ',
-                        hintText: '50,00',
-                      ),
-                    ),
-                    const SizedBox(height: RamoSpacing.md),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.done,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      decoration: const InputDecoration(
-                        labelText: 'E-mail para o pagamento',
-                        hintText: 'voce@exemplo.com',
-                      ),
-                      onSubmitted: (_) => submit(),
-                    ),
-                    if (validationError != null) ...[
-                      const SizedBox(height: RamoSpacing.sm),
-                      Text(
-                        validationError!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: submit,
-                  child: const Text('Gerar Pix'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => const _WalletTopupDialog(),
     );
 
-    amountController.dispose();
-    emailController.dispose();
     if (input == null || !mounted) return;
 
     setState(() {
@@ -540,6 +433,126 @@ class _PixWalletTopupScreenState extends State<_PixWalletTopupScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _WalletTopupDialog extends StatefulWidget {
+  const _WalletTopupDialog();
+
+  @override
+  State<_WalletTopupDialog> createState() => _WalletTopupDialogState();
+}
+
+class _WalletTopupDialogState extends State<_WalletTopupDialog> {
+  final _amountController = TextEditingController();
+  final _emailController = TextEditingController();
+  String? _validationError;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    void submit() {
+      final normalized =
+          _amountController.text.trim().replaceAll(',', '.');
+      final reais = double.tryParse(normalized);
+      final email = _emailController.text.trim().toLowerCase();
+
+      if (reais == null || reais < 1 || reais > 10000) {
+        setState(() {
+          _validationError =
+              'Informe um valor entre R\$ 1,00 e R\$ 10.000,00.';
+        });
+        return;
+      }
+      if (
+        email.length < 5 ||
+        email.length > 254 ||
+        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
+      ) {
+        setState(() {
+          _validationError =
+              'Informe um e-mail válido para gerar o Pix.';
+        });
+        return;
+      }
+
+      Navigator.of(context).pop(
+        _WalletTopupInput(
+          amountCents: (reais * 100).round(),
+          payerEmail: email,
+        ),
+      );
+    }
+
+    return AlertDialog(
+      title: const Text('Adicionar saldo via Pix'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'A recarga da Carteira Ramo Nessa é feita somente por Pix.',
+            ),
+            const SizedBox(height: RamoSpacing.md),
+            TextField(
+              controller: _amountController,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  RegExp(r'[0-9,.]'),
+                ),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Valor da recarga',
+                prefixText: 'R\$ ',
+                hintText: '50,00',
+              ),
+            ),
+            const SizedBox(height: RamoSpacing.md),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: const InputDecoration(
+                labelText: 'E-mail para o pagamento',
+                hintText: 'voce@exemplo.com',
+              ),
+              onSubmitted: (_) => submit(),
+            ),
+            if (_validationError != null) ...[
+              const SizedBox(height: RamoSpacing.sm),
+              Text(
+                _validationError!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: submit,
+          child: const Text('Gerar Pix'),
+        ),
+      ],
     );
   }
 }

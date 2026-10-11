@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../../pricing/domain/pricing_quote.dart';
 import '../../pricing/data/shared_transfer_option.dart';
 import 'widgets/shared_transfer_button.dart';
 import 'package:flutter/material.dart';
@@ -28,6 +30,7 @@ class VehicleSelectionScreen extends StatefulWidget {
     required this.initialService,
     required this.buggyMinPassengers,
     required this.buggyMaxPassengers,
+    this.onQuote,
     required this.onContinue,
   });
 
@@ -40,6 +43,7 @@ class VehicleSelectionScreen extends StatefulWidget {
   final ServiceType initialService;
   final int buggyMinPassengers;
   final int buggyMaxPassengers;
+  final Future<PricingQuote> Function(VehicleSelectionResult result)? onQuote;
   final Future<String?> Function(VehicleSelectionResult result) onContinue;
 
   @override
@@ -54,6 +58,82 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   bool _submitting = false;
   String? _error;
 
+  final Map<ServiceType, String> _priceLabels = {};
+  final Set<ServiceType> _priceFailures = {};
+  Timer? _quoteDebounce;
+  int _quoteGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPrices();
+  }
+
+  @override
+  void dispose() {
+    _quoteDebounce?.cancel();
+    _quoteGeneration++;
+    super.dispose();
+  }
+
+  int _passengersFor(ServiceType service) {
+    if (service == ServiceType.buggy) {
+      return _passengerCount < widget.buggyMinPassengers
+          ? widget.buggyMinPassengers
+          : _passengerCount;
+    }
+    if (service == ServiceType.car || service == ServiceType.comfortBlack) {
+      return _passengerCount;
+    }
+    return 1;
+  }
+
+  void _refreshPrices({bool debounce = false}) {
+    _quoteDebounce?.cancel();
+    final generation = ++_quoteGeneration;
+    final quote = widget.onQuote;
+    _priceFailures.clear();
+    for (final service in widget.availableServices) {
+      _priceLabels[service] = quote == null ? 'Preço indisponível' : 'Calculando…';
+    }
+    if (quote == null) return;
+    final selections = [
+      for (final service in widget.availableServices)
+        VehicleSelectionResult(
+          service: service,
+          passengerCount: _passengersFor(service),
+        ),
+    ];
+    void load() {
+      for (final selection in selections) {
+        unawaited(_loadPrice(selection, generation, quote));
+      }
+    }
+    if (debounce) {
+      _quoteDebounce = Timer(const Duration(milliseconds: 250), load);
+    } else {
+      load();
+    }
+  }
+
+  Future<void> _loadPrice(
+    VehicleSelectionResult selection,
+    int generation,
+    Future<PricingQuote> Function(VehicleSelectionResult) quote,
+  ) async {
+    try {
+      final result = await quote(selection);
+      if (!mounted || generation != _quoteGeneration) return;
+      setState(() => _priceLabels[selection.service] = result.formatted);
+    } catch (_) {
+      if (!mounted || generation != _quoteGeneration) return;
+      setState(() {
+        _priceLabels[selection.service] = 'Preço indisponível';
+        _priceFailures.add(selection.service);
+      });
+    }
+  }
+
   void _select(ServiceType service) {
     if (_selected == service || _submitting) return;
     setState(() {
@@ -61,20 +141,24 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
       _passengerCount =
           service == ServiceType.buggy ? widget.buggyMinPassengers : 1;
       _error = null;
+      _refreshPrices();
     });
   }
 
   bool get _hasPassengerCounter => [ServiceType.buggy, ServiceType.car, ServiceType.comfortBlack].contains(_selected);
 
   void _changePassengers(int value) {
-    if (!_hasPassengerCounter) return;
+    if (!_hasPassengerCounter || _submitting) return;
     if (
       value < widget.buggyMinPassengers ||
       value > widget.buggyMaxPassengers
     ) {
       return;
     }
-    setState(() => _passengerCount = value);
+    setState(() {
+      _passengerCount = value;
+      _refreshPrices(debounce: true);
+    });
   }
 
   Future<void> _continue() async {
@@ -172,6 +256,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                     selected: _selected,
                     services: widget.availableServices,
                     onChanged: _select,
+                    priceLabels: _priceLabels,
                   ),
                   if (_hasPassengerCounter) ...[
                     const SizedBox(height: RamoSpacing.md),
@@ -184,11 +269,19 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                   ],
                   const SizedBox(height: RamoSpacing.md),
                   Text(
-                    'O preço aparece na próxima etapa, junto com as formas de pagamento.',
+                    'Valores do trajeto. Descontos, adicionais e total da forma de pagamento serão confirmados na próxima etapa.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
+                  if (_priceFailures.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: _submitting
+                          ? null
+                          : () => setState(() => _refreshPrices()),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Atualizar preços'),
+                    ),
                   if (widget.sharedTransfer != null) SharedTransferButton(option: widget.sharedTransfer!, enabled: !_submitting),
                   if (_error != null) ...[
                     const SizedBox(height: RamoSpacing.sm),

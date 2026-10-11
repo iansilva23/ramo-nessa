@@ -9,11 +9,13 @@ class ServiceSelector extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.services = ServiceType.values,
+    this.priceLabels = const {},
   });
 
   final ServiceType selected;
   final ValueChanged<ServiceType> onChanged;
   final List<ServiceType> services;
+  final Map<ServiceType, String> priceLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +24,7 @@ class ServiceSelector extends StatelessWidget {
         for (var index = 0; index < services.length; index++) ...[
           _ServiceRow(
             service: services[index],
+            priceLabel: priceLabels[services[index]],
             selected: services[index] == selected,
             onTap: () => onChanged(services[index]),
           ),
@@ -42,11 +45,13 @@ class _ServiceRow extends StatelessWidget {
     required this.service,
     required this.selected,
     required this.onTap,
+    this.priceLabel,
   });
 
   final ServiceType service;
   final bool selected;
   final VoidCallback onTap;
+  final String? priceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +128,19 @@ class _ServiceRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: RamoSpacing.xs),
+              if (priceLabel != null) ...[
+                Flexible(
+                  child: Text(
+                    priceLabel!,
+                    key: Key('category-price-${service.backendKey}'),
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                const SizedBox(width: RamoSpacing.sm),
+              ],
               AnimatedSwitcher(
                 duration: RamoMotion.fast,
                 child: selected

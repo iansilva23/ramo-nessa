@@ -62,8 +62,8 @@ class RamoMapController {
 
   Future<void> fitCoordinates({
     required List<domain.LatLng> coordinates,
-    required EdgeInsets padding,
-    double maxZoom = 16,
+    double edgePadding = 24,
+    double maxZoom = 17,
   }) async {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
@@ -89,18 +89,15 @@ class RamoMapController {
           point.longitude > maxLongitude ? point.longitude : maxLongitude;
     }
 
-    final uniformPadding = math.max(
-      math.max(padding.left, padding.right),
-      math.max(padding.top, padding.bottom),
-    );
-
+    // Screen overlays are handled by GoogleMap.padding per edge. Only a
+    // small marker margin belongs in the symmetric bounds padding.
     await controller.animateCamera(
       gm.CameraUpdate.newLatLngBounds(
         gm.LatLngBounds(
           southwest: gm.LatLng(minLatitude, minLongitude),
           northeast: gm.LatLng(maxLatitude, maxLongitude),
         ),
-        uniformPadding,
+        edgePadding,
       ),
     );
 
@@ -130,6 +127,7 @@ class RamoLiveMap extends StatefulWidget {
     this.driverPositionStale = false,
     this.onMapReady,
     this.networkTilesEnabled = true,
+    this.cameraPadding = EdgeInsets.zero,
   });
 
   final RamoMapController controller;
@@ -141,6 +139,7 @@ class RamoLiveMap extends StatefulWidget {
   final bool driverPositionStale;
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
+  final EdgeInsets cameraPadding;
 
   @override
   State<RamoLiveMap> createState() => _RamoLiveMapState();
@@ -483,11 +482,14 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       style: Theme.of(context).brightness == Brightness.dark ? ramoDarkMapStyle : null,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(
-          RamoMapConfig.fallbackCenter.latitude,
-          RamoMapConfig.fallbackCenter.longitude,
+          widget.origin?.position.latitude ?? RamoMapConfig.fallbackCenter.latitude,
+          widget.origin?.position.longitude ?? RamoMapConfig.fallbackCenter.longitude,
         ),
-        zoom: RamoMapConfig.fallbackZoom,
+        zoom: widget.origin == null
+            ? RamoMapConfig.fallbackZoom
+            : RamoMapConfig.locationZoom,
       ),
+      padding: widget.cameraPadding,
       onMapCreated: _onMapCreated,
       markers: _markers,
       polylines: _polylines,

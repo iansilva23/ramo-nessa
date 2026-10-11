@@ -1,3 +1,6 @@
+import '../../../core/config/ramo_map_config.dart';
+import '../../pricing/data/http_pricing_quote_service.dart';
+import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/data/shared_transfer_option.dart';
 import 'dart:async';
 
@@ -50,6 +53,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.placeSearchService,
     this.savedPlaceService,
     this.pricingPolicyService,
+    this.pricingQuoteService,
     this.ridePreparationService,
     this.paymentService,
     this.rideTrackingService,
@@ -67,6 +71,7 @@ class PassengerHomeScreen extends StatefulWidget {
   final PlaceSearchService? placeSearchService;
   final PassengerSavedPlaceService? savedPlaceService;
   final PricingPolicyService? pricingPolicyService;
+  final PricingQuoteService? pricingQuoteService;
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
@@ -112,6 +117,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               ? HttpPricingPolicyService(
                   baseUrl: RamoCoreConfig.baseUri!,
                 )
+              : null);
+
+  late final PricingQuoteService? _pricingQuoteService =
+      widget.pricingQuoteService ??
+          (RamoCoreConfig.enabled
+              ? HttpPricingQuoteService(baseUrl: RamoCoreConfig.baseUri!)
               : null);
 
   late final RidePreparationService? _ridePreparationService =
@@ -176,6 +187,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   String? _coverageMessage;
   String? _serviceAreaLabel;
   bool _mapReady = false;
+  double? _mapSheetExtent;
   bool _locating = false;
   bool _routeLoading = false;
   bool _preparingRide = false;
@@ -506,7 +518,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       });
 
       if (_mapReady) {
-        unawaited(_mapController.move(location, 16));
+        unawaited(_mapController.move(location, RamoMapConfig.locationZoom));
       }
 
       if (_destination != null) {
@@ -574,7 +586,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     if (_destination != null) {
       await _loadRoute();
     } else if (_mapReady) {
-      unawaited(_mapController.move(origin.position, 16));
+      unawaited(_mapController.move(origin.position, RamoMapConfig.locationZoom));
     }
   }
 
@@ -590,7 +602,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
     final origin = _origin;
     if (_mapReady && origin != null) {
-      unawaited(_mapController.move(origin.position, 16));
+      unawaited(_mapController.move(origin.position, RamoMapConfig.locationZoom));
     }
   }
 
@@ -864,8 +876,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           ...route.points,
           destination.position,
         ],
-        padding: const EdgeInsets.fromLTRB(34, 130, 34, 390),
-        maxZoom: 16,
+        edgePadding: 24,
+        maxZoom: RamoMapConfig.locationZoom,
       ),
     );
   }
@@ -941,6 +953,21 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           initialService: _suggestService(services),
           buggyMinPassengers: _minimumPassengersFor(ServiceType.buggy),
           buggyMaxPassengers: _maximumPassengersFor(ServiceType.buggy),
+          onQuote: (selection) {
+            final pricing = _pricingQuoteService;
+            if (pricing == null) {
+              throw const PricingQuoteException('Preço indisponível agora.');
+            }
+            return pricing.quote(
+              service: selection.service,
+              origin: origin,
+              destination: destination,
+              originZoneId: originZoneId,
+              destinationZoneId: destinationZoneId,
+              route: route,
+              passengers: selection.passengerCount,
+            );
+          },
           onContinue: (selection) => _prepareSelectedRide(
             selection: selection,
             coverage: coverage,
@@ -1062,12 +1089,21 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               destination: _destination,
               routePoints: _route?.points ?? const [],
               networkTilesEnabled: widget.networkTilesEnabled,
+              cameraPadding: ramoHomeMapPadding(
+                viewport: MediaQuery.sizeOf(context),
+                safeTop: MediaQuery.paddingOf(context).top,
+                sheetExtent: _mapSheetExtent ??
+                    (_origin != null && _destination != null ? .48 : .42),
+                hasAgencyBanner: _agencyPromotion?.enabled == true,
+              ),
               onMapReady: () {
                 _mapReady = true;
 
                 final origin = _origin;
-                if (origin != null) {
-                  unawaited(_mapController.move(origin.position, 16));
+                if (_route != null) {
+                  _fitRoute();
+                } else if (origin != null) {
+                  unawaited(_mapController.move(origin.position, RamoMapConfig.locationZoom));
                 }
               },
             ),
@@ -1159,7 +1195,19 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               ),
             ),
           ),
-          RideBottomSheet(
+          NotificationListener<DraggableScrollableNotification>(
+            onNotification: (notification) {
+              if (!mounted) return false;
+              final extent = notification.extent;
+              if (_mapSheetExtent != extent) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || _mapSheetExtent == extent) return;
+                  setState(() => _mapSheetExtent = extent);
+                });
+              }
+              return false;
+            },
+            child: RideBottomSheet(
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
@@ -1173,6 +1221,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onContinue: _preparingRide
                 ? () {}
                 : () => unawaited(_continueToVehicleSelection()),
+            ),
           ),
         ],
       ),
