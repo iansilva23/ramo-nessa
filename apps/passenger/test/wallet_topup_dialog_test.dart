@@ -21,7 +21,9 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
-    await tester.pumpAndSettle();
+    // The pending Pix screen intentionally keeps its progress indicator alive.
+    // Advance past both route animations without waiting for it to settle.
+    await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
     expect(find.text('Recarga via Pix'), findsOneWidget);
     expect(service.requests, 1);

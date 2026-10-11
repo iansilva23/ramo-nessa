@@ -94,7 +94,11 @@ void main() {
     expect(find.text('Preço indisponível'), findsOneWidget);
     expect(find.text(r'R$ 7,00'), findsOneWidget);
     fail = false;
-    await tester.ensureVisible(find.text('Atualizar preços'));
+    await tester.scrollUntilVisible(
+      find.text('Atualizar preços'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text('Atualizar preços'));
     await tester.pumpAndSettle();
     expect(find.text(r'R$ 25,00'), findsOneWidget);
