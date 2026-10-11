@@ -27,6 +27,20 @@ import {
   verifyAdminTotp,
 } from './admin-human-crypto.js';
 
+/** Only the active human account explicitly configured as owner receives master scopes. */
+export function effectiveAdminHumanUser(
+  user: AdminHumanUserRecord,
+  ownerUserId = process.env.ADMIN_OWNER_USER_ID,
+): AdminHumanUserRecord {
+  const owner = ownerUserId?.trim() ?? '';
+  if (
+    user.status !== 'active' || user.deletedAt != null ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(owner) ||
+    user.id !== owner
+  ) return user;
+  return { ...user, scopes: [...ADMIN_SCOPES] };
+}
+
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
@@ -288,7 +302,7 @@ export async function loginAdminHuman(input: {
     createdAt: now.toISOString(),
   });
 
-  return { accessToken, session, user };
+  return { accessToken, session, user: effectiveAdminHumanUser(user) };
 }
 
 export async function authenticateAdminHumanSession(input: {
@@ -333,9 +347,10 @@ export async function authenticateAdminHumanSession(input: {
       'Sessão administrativa inválida.',
     );
   }
+  const effectiveUser = effectiveAdminHumanUser(user);
   if (
     input.requiredScope != null &&
-    !user.scopes.includes(input.requiredScope)
+    !effectiveUser.scopes.includes(input.requiredScope)
   ) {
     throw new AdminHumanAuthenticationError(
       'ADMIN_SCOPE_REQUIRED',
@@ -346,7 +361,7 @@ export async function authenticateAdminHumanSession(input: {
   await input.repository.touchSession(session.id, now.toISOString());
   return {
     session: { ...session, lastUsedAt: now.toISOString() },
-    user,
+    user: effectiveUser,
   };
 }
 
