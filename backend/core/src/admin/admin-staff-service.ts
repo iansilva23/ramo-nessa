@@ -1,3 +1,4 @@
+import { effectiveAdminHumanUser } from './admin-human-auth-service.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -91,7 +92,7 @@ function publicUser(user: AdminHumanUserRecord, ownerUserId: string) {
     id: user.id,
     name: user.name,
     email: user.emailNormalized,
-    scopes: [...user.scopes],
+    scopes: [...effectiveAdminHumanUser(user, ownerUserId).scopes],
     status: user.status,
     isOwner: user.id === ownerUserId,
     createdAt: user.createdAt,

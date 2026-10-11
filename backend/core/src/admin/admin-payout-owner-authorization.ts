@@ -1,3 +1,4 @@
+import { isAdminOwner } from './admin-owner-authorization.js';
 import type { AdminActor } from './admin-repository.js';
 
 export class AdminPayoutOwnerAuthorizationError extends Error {
@@ -34,6 +35,7 @@ export function assertAdminPayoutOwner(
   actor: AdminActor,
   environment: NodeJS.ProcessEnv = process.env,
 ): void {
+  if (isAdminOwner(actor, environment)) return;
   const ownerUserId = resolvePayoutApproverUserId(environment);
   if (actor.kind !== 'user' || actor.id !== ownerUserId) {
     throw new AdminPayoutOwnerAuthorizationError(
@@ -49,6 +51,7 @@ export function isAdminPayoutOwner(
   environment: NodeJS.ProcessEnv = process.env,
 ): boolean {
   if (actor.kind !== 'user') return false;
+  if (isAdminOwner(actor, environment)) return true;
   try {
     return actor.id === resolvePayoutApproverUserId(environment);
   } catch {

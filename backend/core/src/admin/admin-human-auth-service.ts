@@ -30,7 +30,7 @@ import {
 /** Only the active human account explicitly configured as owner receives master scopes. */
 export function effectiveAdminHumanUser(
   user: AdminHumanUserRecord,
-  ownerUserId = process.env.ADMIN_OWNER_USER_ID,
+  ownerUserId = process.env.ADMIN_OWNER_USER_ID?.trim() || process.env.ADMIN_PAYOUT_APPROVER_USER_ID,
 ): AdminHumanUserRecord {
   const owner = ownerUserId?.trim() ?? '';
   if (

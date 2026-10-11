@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {listAdminStaff} from '../src/admin/admin-staff-service.js';
 import {ADMIN_SCOPES} from '../src/admin/admin-repository.js';
 import {effectiveAdminHumanUser, createAdminHumanUser, loginAdminHuman, authenticateAdminHumanSession} from '../src/admin/admin-human-auth-service.js';
 import {totpCodeAt} from '../src/admin/admin-human-crypto.js';
@@ -15,7 +16,13 @@ test('master recebe permissões novas no login e no servidor; funcionário perma
   try {
     const logged = await loginAdminHuman({repository, email:created.user.emailNormalized, password:created.initialPassword, totpCode:totpCodeAt(created.totpSecretBase32, now), clientIp:'203.0.113.24', encryptionKey, rateLimitSecret:'master-scopes-test-secret-with-at-least-thirty-two-characters', now});
     assert.deepEqual(logged.user.scopes, ADMIN_SCOPES);
+    const staff = await listAdminStaff({repository, ownerUserId:created.user.id});
+    assert.equal(staff.users[0]?.isOwner, true);
+    assert.deepEqual(staff.users[0]?.scopes, ADMIN_SCOPES);
     const headers = {authorization:'Bearer ' + logged.accessToken};
+    for (const requiredScope of ADMIN_SCOPES) {
+      await authenticateAdminHumanSession({repository, headers, requiredScope, now});
+    }
     const authenticated = await authenticateAdminHumanSession({repository, headers, requiredScope:'marketing:send', now});
     assert.ok(authenticated.user.scopes.includes('marketing:write'));
     assert.deepEqual((await repository.findUserById(created.user.id))?.scopes, ['marketing:read'], 'permissões efetivas não reescrevem permissões de funcionário');

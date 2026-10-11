@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   AdminPayoutOwnerAuthorizationError,
   assertAdminPayoutOwner,
+  isAdminPayoutOwner,
   resolvePayoutApproverUserId,
 } from '../src/admin/admin-payout-owner-authorization.js';
 
@@ -75,4 +76,18 @@ test('only the configured human Admin owner can command protected payouts', () =
       error instanceof AdminPayoutOwnerAuthorizationError &&
       error.code === 'PAYOUT_APPROVER_REQUIRED',
   );
+});
+
+
+test('master mantém controle dos repasses mesmo com aprovador separado ou ainda não configurado', () => {
+  const master = {kind:'user' as const, id:ownerId, name:'Ian'};
+  for (const env of [
+    {ADMIN_OWNER_USER_ID:ownerId},
+    {ADMIN_OWNER_USER_ID:ownerId, ADMIN_PAYOUT_APPROVER_USER_ID:'22222222-2222-4222-8222-222222222222'},
+  ]) {
+    assert.equal(isAdminPayoutOwner(master, env), true);
+    assert.doesNotThrow(() => assertAdminPayoutOwner(master, env));
+    assert.equal(isAdminPayoutOwner({...master, kind:'api_key'}, env), false);
+    assert.equal(isAdminPayoutOwner({...master, id:'33333333-3333-4333-8333-333333333333'}, env), false);
+  }
 });
