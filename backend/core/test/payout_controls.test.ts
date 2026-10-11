@@ -7,6 +7,7 @@ import {
   requestDriverPayoutFromApp,
 } from '../src/drivers/driver-finance-service.js';
 import {
+  createManualDriverPayouts,
   createScheduledDriverPayouts,
   scheduledDriverPayoutCycleDate,
 } from '../src/payments/driver-payout-policy-service.js';
@@ -15,6 +16,7 @@ import {
   reconcileDriverPayouts,
 } from '../src/payments/driver-payout-processing-service.js';
 import type { DriverPayoutProvider } from '../src/payments/driver-payout-provider.js';
+import { requestDriverPayout } from '../src/payments/request-payout.js';
 import { PayoutDomainError } from '../src/payments/payout.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 
@@ -107,14 +109,14 @@ test('antecipação exige R$ 80 e não dispara Pix sem aprovação', async () =>
     }),
     (error: unknown) =>
       error instanceof PayoutDomainError &&
-      error.code === 'PAYOUT_APPROVAL_REQUIRED',
+      error.code === 'PAYOUT_MANUAL_ONLY',
   );
   const batch = await reconcileDriverPayouts({ finance, provider });
   assert.equal(sends, 0);
   assert.equal(batch.paid, 0);
 });
 
-test('aprovação cobra R$ 10 uma vez e envia somente o líquido', async () => {
+test('aprovação manual cobra R$ 10 uma vez sem enviar Pix', async () => {
   const finance = await fundedFinance();
   const request = await requestDriverPayoutFromApp({
     repository: finance,
@@ -143,24 +145,19 @@ test('aprovação cobra R$ 10 uma vez e envia somente o líquido', async () => {
   assert.equal(duplicate.duplicateApproval, true);
   assert.equal(await finance.getAccountBalanceCents('platform:revenue'), 2_000);
 
-  let sentAmount = 0;
+  let sends = 0;
   const provider: DriverPayoutProvider = {
     name: 'test-provider',
-    async createPixPayout(input) {
-      sentAmount = input.amountCents;
-      return { providerPayoutId: 'provider-paid', status: 'paid' };
-    },
-    async getPayoutStatus() {
-      throw new Error('not expected');
-    },
+    async createPixPayout() { sends++; return { providerPayoutId: 'unexpected', status: 'paid' }; },
+    async getPayoutStatus() { throw new Error('unexpected'); },
   };
-  const paid = await processDriverPayout({
-    finance,
-    provider,
-    payoutId: request.payout.id,
-  });
-  assert.equal(paid.kind, 'paid');
-  assert.equal(sentAmount, 9_000);
+  await reconcileDriverPayouts({ finance, provider });
+  await assert.rejects(processDriverPayout({ finance, provider, payoutId: request.payout.id }),
+    (e: unknown) => e instanceof PayoutDomainError && e.code === 'PAYOUT_MANUAL_ONLY');
+  assert.equal(sends, 0);
+  const paid = await finance.completeDriverPayout({ payoutId: request.payout.id, processor: 'Pix manual', processorPayoutId: 'bank-proof' });
+  assert.equal(paid.payout.status, 'paid');
+  assert.equal(paid.payout.amountCents, 9_000);
 });
 
 test('recusa antes da aprovação devolve o bruto sem cobrar taxa', async () => {
@@ -181,10 +178,10 @@ test('recusa antes da aprovação devolve o bruto sem cobrar taxa', async () => 
 
 test('falha Pix após aprovação devolve bruto e estorna a taxa', async () => {
   const finance = await fundedFinance();
-  const request = await requestDriverPayoutFromApp({
-    repository: finance,
+  const request = await requestDriverPayout(finance, {
     driverId: 'driver-controls',
-    amountCents: 10_000,
+    amountCents: 9_000,
+    requestedAmountCents: 10_000, feeCents: 1_000, payoutKind: 'anticipation', executionMode: 'api',
     idempotencyKey: 'early-failure-test',
   });
   await finance.approveDriverPayout({ payoutId: request.payout.id });
@@ -224,6 +221,7 @@ test('repasse normal respeita seg/qua/sex 07h Fortaleza e pode ser pausado', asy
   assert.equal(scheduledDriverPayoutCycleDate(thursday), null);
 
   const finance = await fundedFinance(9_000);
+  await finance.setDriverPayoutAutomaticEnabled({ automaticEnabled: true });
   const scheduled = await createScheduledDriverPayouts({
     finance,
     now: atSeven,
@@ -243,4 +241,30 @@ test('repasse normal respeita seg/qua/sex 07h Fortaleza e pode ser pausado', asy
   });
   assert.equal(paused.created.length, 0);
   assert.equal(paused.automaticEnabled, false);
+});
+
+
+test('manual libera saldo integral abaixo de R$ 80 e fica protegido da API mesmo após mudar modo', async () => {
+  const finance = await fundedFinance(630);
+  assert.equal((await finance.getDriverPayoutSettings()).mode, 'manual');
+  assert.equal((await finance.getDriverPayoutSettings()).automaticEnabled, false);
+  const batch = await createManualDriverPayouts({ finance, driverIds: ['driver-controls'], batchId: '11111111-1111-4111-8111-111111111112' });
+  const payout = batch.created[0]!;
+  assert.equal(payout.amountCents, 630);
+  assert.equal(payout.feeCents, 0);
+  assert.equal(payout.executionMode, 'manual');
+  assert.equal(await finance.getAccountBalanceCents('driver:driver-controls:payable'), 0);
+  await finance.setDriverPayoutAutomaticEnabled({ automaticEnabled: true });
+  let sends = 0;
+  await reconcileDriverPayouts({ finance, provider: {
+    name: 'test', async createPixPayout() { sends++; return { providerPayoutId: 'unexpected', status: 'paid' }; },
+    async getPayoutStatus() { throw new Error('unexpected'); },
+  } });
+  assert.equal(sends, 0);
+  const repeat = await createManualDriverPayouts({ finance, driverIds: ['driver-controls'], batchId: '11111111-1111-4111-8111-111111111113' });
+  assert.equal(repeat.created.length, 0);
+  await finance.completeDriverPayout({ payoutId: payout.id, processor: 'bank', processorPayoutId: 'proof-630' });
+  const again = await finance.completeDriverPayout({ payoutId: payout.id, processor: 'bank', processorPayoutId: 'proof-630' });
+  assert.equal(again.duplicateCompletion, true);
+  assert.equal(await finance.getAccountBalanceCents('driver:driver-controls:payout_pending'), 0);
 });

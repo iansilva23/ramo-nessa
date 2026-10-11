@@ -44,6 +44,9 @@ export async function adminFinanceView(input: {
     summary,
     payoutPolicy: {
       automaticEnabled: payoutSettings.automaticEnabled,
+      mode: payoutSettings.mode ?? (payoutSettings.automaticEnabled ? 'automatic' : 'manual'),
+      apiAvailable: input.payoutProviderConfigured === true,
+      asaas: { provider: 'asaas', status: 'awaiting_configuration', apiAvailable: false },
       updatedAt: payoutSettings.updatedAt,
       scheduleDays: ['monday', 'wednesday', 'friday'],
       scheduleHour: 7,
@@ -123,6 +126,7 @@ export async function adminFinanceView(input: {
       requestedAmountCents: payout.requestedAmountCents ?? payout.amountCents,
       feeCents: payout.feeCents ?? 0,
       payoutKind: payout.payoutKind ?? 'legacy',
+      executionMode: payout.executionMode ?? 'api',
       approvedAt: payout.approvedAt ?? null,
       status: payout.status,
       processor: payout.processor ?? null,

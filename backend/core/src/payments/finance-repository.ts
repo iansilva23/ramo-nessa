@@ -153,6 +153,7 @@ export interface DriverPayoutCandidate {
 }
 
 export interface SetDriverPayoutAutomaticEnabledInput {
+  mode?: import('./payout.js').DriverPayoutMode;
   automaticEnabled: boolean;
   updatedAt?: Date;
 }

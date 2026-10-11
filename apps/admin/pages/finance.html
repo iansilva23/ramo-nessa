@@ -327,8 +327,8 @@
                   <span class="eyebrow eyebrow--dark">REPASSES DOS MOTORISTAS</span>
                   <h2>Controle de repasses</h2>
                   <p class="muted-copy">
-                    Por padrão, os saldos disponíveis são enviados
-                    segunda, quarta e sexta às 07:00 (horário de Fortaleza).
+                    O modo manual está disponível agora. O automático fica desligado
+                    até configurar e homologar a API de repasses.
                     Antecipações sempre exigem aprovação do ADM.
                   </p>
                 </div>
@@ -338,6 +338,12 @@
               </div>
 
               <div class="finance-payout-actions">
+                <label for="finance-payout-mode">Modo de repasse</label>
+                <select id="finance-payout-mode">
+                  <option value="manual">Manual — Pix pelo banco</option>
+                  <option value="semi_automatic" disabled>Semiautomático — pagar pelo ADM via API</option>
+                  <option value="automatic" disabled>Automático — segunda, quarta e sexta às 07:00</option>
+                </select>
                 <button
                   id="finance-payout-mode-toggle"
                   class="button button--dark"
@@ -360,6 +366,10 @@
                 </small>
               </div>
 
+              <div class="empty-state">
+                <strong>Integração Asaas — aguardando configuração</strong>
+                <p>Após a aprovação da conta, a integração da API será configurada e testada no servidor. As credenciais não devem ser coladas neste painel. Os modos semiautomático e automático só estarão disponíveis após essa configuração.</p>
+              </div>
               <div id="finance-manual-payouts" hidden>
                 <div class="panel-card__header">
                   <div>
@@ -367,7 +377,7 @@
                     <h3>Motoristas com saldo a receber</h3>
                     <p class="muted-copy">
                       Selecione um, vários ou todos. O Core reserva o saldo
-                      e envia o Pix pelo provedor configurado.
+                      para pagar pelo banco ou, após configurar a API, enviar pelo ADM.
                     </p>
                   </div>
                   <button
@@ -678,7 +688,7 @@
                   <h2>Detalhes da solicitação</h2>
                   <p id="finance-payout-detail-copy" class="muted-copy">
                     Antecipações ficam aguardando sua aprovação. Ao aprovar,
-                    o Core envia o valor líquido pelo provedor Pix configurado.
+                    você faz o Pix líquido pelo banco e registra o comprovante.
                   </p>
                 </div>
                 <button
@@ -746,7 +756,7 @@
                     id="finance-payout-reference"
                     type="text"
                     maxlength="160"
-                    placeholder="ID/comprovante do repasse (opcional)"
+                    placeholder="Referência do comprovante Pix"
                   >
                 </label>
                 <div class="finance-payout-actions">

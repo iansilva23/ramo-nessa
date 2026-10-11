@@ -77,6 +77,7 @@ export async function createScheduledDriverPayouts(input: {
         requestedAmountCents: candidate.availableBalanceCents,
         feeCents: 0,
         payoutKind: 'scheduled',
+        executionMode: 'api',
         approvedAt: now,
         idempotencyKey:
           `scheduled:${cycleDate}:${candidate.driverId}`,
@@ -105,6 +106,7 @@ export async function createScheduledDriverPayouts(input: {
 }
 
 export async function createManualDriverPayouts(input: {
+  executionMode?: 'manual' | 'api';
   finance: FinanceRepository;
   driverIds: readonly string[];
   batchId: string;
@@ -145,6 +147,7 @@ export async function createManualDriverPayouts(input: {
       requestedAmountCents: candidate.availableBalanceCents,
       feeCents: 0,
       payoutKind: 'manual',
+      executionMode: input.executionMode ?? 'manual',
       approvedAt: now,
       idempotencyKey: `manual:${input.batchId}:${driverId}`,
       now,

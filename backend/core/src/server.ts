@@ -1256,7 +1256,7 @@ async function runPayoutReconciliation(): Promise<void> {
         finance: financeRepository,
         limit: 500,
       });
-      lastScheduledPayoutCycleDate = cycleDate;
+      if (scheduled.automaticEnabled) lastScheduledPayoutCycleDate = cycleDate;
 
       for (const payout of scheduled.created) {
         try {
@@ -4106,17 +4106,18 @@ const server = createServer(async (request, response) => {
       });
       assertAdminPayoutOwner(actor);
       const body = await readJson(request);
-      const automaticEnabled =
-        body != null &&
-        typeof body === 'object' &&
-        !Array.isArray(body)
-          ? (body as { automaticEnabled?: unknown }).automaticEnabled
-          : undefined;
-      if (typeof automaticEnabled !== 'boolean') {
-        throw new InvalidAdminRequestError(
-          'automaticEnabled deve ser booleano.',
-        );
+      const payload = body as { mode?: unknown; automaticEnabled?: unknown } | null;
+      const mode = payload?.mode ?? (typeof payload?.automaticEnabled === 'boolean'
+        ? (payload.automaticEnabled ? 'automatic' : 'manual') : undefined);
+      if (mode !== 'manual' && mode !== 'semi_automatic' && mode !== 'automatic') {
+        throw new InvalidAdminRequestError('Modo de repasse inválido.');
       }
+      if (mode !== 'manual' && driverPayoutProvider == null) {
+        json(response, 503, { error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
+          message: 'Configure e homologue a API de repasses antes de ativar este modo.' });
+        return;
+      }
+      const automaticEnabled = mode === 'automatic';
       json(
         response,
         200,
@@ -4125,6 +4126,7 @@ const server = createServer(async (request, response) => {
           admin: adminRepository,
           actor,
           automaticEnabled,
+          mode,
         }),
       );
       return;
@@ -4141,11 +4143,10 @@ const server = createServer(async (request, response) => {
         requiredScope: 'finance:write',
       });
       assertAdminPayoutOwner(actor);
-      if (driverPayoutProvider == null) {
-        json(response, 503, {
-          error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
-          message: 'Provedor automático de repasse Pix não configurado.',
-        });
+      const settings = await financeRepository.getDriverPayoutSettings();
+      const executionMode = (settings.mode ?? (settings.automaticEnabled ? 'automatic' : 'manual')) === 'manual' ? 'manual' : 'api';
+      if (executionMode === 'api' && driverPayoutProvider == null) {
+        json(response, 503, { error: 'PAYOUT_PROVIDER_NOT_CONFIGURED', message: 'API de repasses não configurada.' });
         return;
       }
 
@@ -4175,13 +4176,18 @@ const server = createServer(async (request, response) => {
         actor,
         driverIds: payload.driverIds as string[],
         batchId: payload.batchId,
+        executionMode,
       });
       const created = [];
       for (const payout of batch.created) {
+        if (payout.executionMode === 'manual') {
+          created.push({ payoutId: payout.id, driverId: payout.driverId, status: payout.status, executionMode: 'manual' });
+          continue;
+        }
         try {
           const processed = await processDriverPayout({
             finance: financeRepository,
-            provider: driverPayoutProvider,
+            provider: driverPayoutProvider!,
             payoutId: payout.id,
           });
           created.push({
@@ -4268,42 +4274,9 @@ const server = createServer(async (request, response) => {
           : '';
 
       if (action === 'approved') {
-        if (driverPayoutProvider == null) {
-          json(response, 503, {
-            error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
-            message: 'Provedor automático de repasse Pix não configurado.',
-          });
-          return;
-        }
-
-        const approved = await approveAdminPayout({
-          finance: financeRepository,
-          admin: adminRepository,
-          actor,
-          payoutId: adminPayoutMatch[1]!,
-        });
-        let payout = approved.payout;
-        let providerRetryPending = false;
-        try {
-          const processed = await processDriverPayout({
-            finance: financeRepository,
-            provider: driverPayoutProvider,
-            payoutId: adminPayoutMatch[1]!,
-          });
-          payout = adminPayoutDetailView(processed.payout);
-        } catch (error) {
-          providerRetryPending = true;
-          logWarn('driver.payout.approved_provider_retry_pending', {
-            payoutId: adminPayoutMatch[1]!,
-            ...errorFields(error),
-          });
-        }
-
-        json(response, 200, {
-          payout,
-          duplicate: approved.duplicate,
-          providerRetryPending,
-        });
+        const approved = await approveAdminPayout({ finance: financeRepository,
+          admin: adminRepository, actor, payoutId: adminPayoutMatch[1]! });
+        json(response, 200, approved);
         return;
       }
 

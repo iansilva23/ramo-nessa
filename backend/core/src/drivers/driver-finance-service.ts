@@ -113,6 +113,7 @@ export async function requestDriverPayoutFromApp(input: {
     requestedAmountCents: input.amountCents,
     feeCents: DRIVER_ANTICIPATION_FEE_CENTS,
     payoutKind: 'anticipation',
+    executionMode: 'manual',
     idempotencyKey: input.idempotencyKey,
   });
 

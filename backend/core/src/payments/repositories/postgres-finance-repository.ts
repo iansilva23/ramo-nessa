@@ -152,6 +152,7 @@ interface DriverPayoutRow {
   status: DriverPayoutRecord['status'];
   idempotency_key: string;
   payout_kind: NonNullable<DriverPayoutRecord['payoutKind']>;
+  execution_mode: 'manual' | 'api';
   requested_amount_cents: number;
   fee_cents: number;
   approved_at: Date | null;
@@ -271,6 +272,7 @@ function mapPayout(row: DriverPayoutRow): DriverPayoutRecord {
     status: row.status,
     idempotencyKey: row.idempotency_key,
     payoutKind: row.payout_kind,
+    executionMode: row.execution_mode,
     requestedAmountCents: row.requested_amount_cents,
     feeCents: row.fee_cents,
     ...(row.approved_at == null
@@ -325,7 +327,7 @@ const TOPUP_COLUMNS = `
 
 const PAYOUT_COLUMNS = `
   id, driver_id, amount_cents, status, idempotency_key,
-  payout_kind, requested_amount_cents, fee_cents, approved_at,
+  payout_kind, requested_amount_cents, fee_cents, approved_at, execution_mode,
   pix_key_type, pix_key,
   processor, processor_payout_id, created_at, updated_at
 `;
@@ -2388,10 +2390,10 @@ export class PostgresFinanceRepository implements FinanceRepository {
         `
         INSERT INTO driver_payouts (
           id, driver_id, amount_cents, status, idempotency_key,
-          payout_kind, requested_amount_cents, fee_cents, approved_at,
+          payout_kind, requested_amount_cents, fee_cents, approved_at, execution_mode,
           pix_key_type, pix_key,
           processor, processor_payout_id, created_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
         RETURNING ${PAYOUT_COLUMNS}
         `,
         [
@@ -2404,6 +2406,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
           requestedAmountCents,
           payout.feeCents ?? 0,
           payout.approvedAt ?? null,
+          payout.executionMode ?? 'api',
           payout.pixKeyType,
           payout.pixKey,
           payout.processor ?? null,
@@ -3651,9 +3654,10 @@ export class PostgresFinanceRepository implements FinanceRepository {
   async getDriverPayoutSettings(): Promise<DriverPayoutSettings> {
     const result = await this.pool.query<{
       automatic_enabled: boolean;
+      mode: import('../payout.js').DriverPayoutMode;
       updated_at: Date;
     }>(
-      `SELECT automatic_enabled, updated_at
+      `SELECT automatic_enabled, mode, updated_at
        FROM driver_payout_settings
        WHERE id = 1
        LIMIT 1`,
@@ -3664,6 +3668,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
     return {
       automaticEnabled: row.automatic_enabled,
+      mode: row.mode,
       updatedAt: row.updated_at.toISOString(),
     };
   }
@@ -3674,13 +3679,14 @@ export class PostgresFinanceRepository implements FinanceRepository {
     const updatedAt = (input.updatedAt ?? new Date()).toISOString();
     const result = await this.pool.query<{
       automatic_enabled: boolean;
+      mode: import('../payout.js').DriverPayoutMode;
       updated_at: Date;
     }>(
       `UPDATE driver_payout_settings
-       SET automatic_enabled = $1, updated_at = $2
+       SET automatic_enabled = $1, updated_at = $2, mode = $3
        WHERE id = 1
-       RETURNING automatic_enabled, updated_at`,
-      [input.automaticEnabled, updatedAt],
+       RETURNING automatic_enabled, mode, updated_at`,
+      [input.automaticEnabled, updatedAt, input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual')],
     );
     const row = result.rows[0];
     if (row == null) {
@@ -3688,6 +3694,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
     return {
       automaticEnabled: row.automatic_enabled,
+      mode: row.mode,
       updatedAt: row.updated_at.toISOString(),
     };
   }

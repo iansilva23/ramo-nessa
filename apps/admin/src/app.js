@@ -3644,6 +3644,12 @@ function renderFinancePayoutPolicy() {
 
   const loaded = policy != null;
   const automaticEnabled = policy?.automaticEnabled === true;
+  const mode = policy?.mode ?? (automaticEnabled ? 'automatic' : 'manual');
+  const modeSelect = byId('finance-payout-mode');
+  if (modeSelect) {
+    modeSelect.value = mode;
+    for (const option of modeSelect.options) option.disabled = option.value !== 'manual' && policy?.apiAvailable !== true;
+  }
   const canWrite = financeWritesAvailable();
 
   status.className = automaticEnabled
@@ -3654,20 +3660,18 @@ function renderFinancePayoutPolicy() {
   status.textContent = automaticEnabled
     ? 'Automático'
     : loaded
-      ? 'Manual'
+      ? (mode === 'semi_automatic' ? 'Semiautomático' : 'Manual')
       : 'Indisponível';
 
-  toggle.textContent = automaticEnabled
-    ? 'Pausar automáticos / usar modo manual'
-    : 'Reativar repasses automáticos';
+  toggle.textContent = 'Salvar modo de repasse';
   toggle.disabled = !loaded || !canWrite;
+  if (modeSelect) modeSelect.disabled = !loaded || !canWrite;
   note.textContent = automaticEnabled
-    ? 'Próximos ciclos: segunda, quarta e sexta às 07:00.'
-    : loaded
-      ? 'Repasses programados estão pausados. Você decide quem receberá.'
-      : 'Política de repasses ainda não carregada.';
-
-  manual.hidden = !loaded || automaticEnabled;
+    ? 'Ciclos automáticos: segunda, quarta e sexta às 07:00, horário de Fortaleza.'
+    : mode === 'semi_automatic'
+      ? 'Você seleciona os motoristas e confirma o envio pela API.'
+      : 'Prepare os repasses, faça os Pix pelo banco e registre cada comprovante. Não há envio automático.';
+  manual.hidden = !loaded;
   body.replaceChildren();
 
   if (!manual.hidden) {
@@ -3709,7 +3713,7 @@ function renderFinancePayoutPolicy() {
       payButton.type = 'button';
       payButton.className =
         'button button--ghost-dark button--compact';
-      payButton.textContent = 'Pagar';
+      payButton.textContent = mode === 'manual' ? 'Preparar repasse' : 'Pagar';
       payButton.disabled = checkbox.disabled;
       payButton.addEventListener('click', () => {
         void handleManualFinancePayouts([candidate.driverId]);
@@ -3748,6 +3752,7 @@ function syncManualPayoutSelection() {
 
   const button = byId('finance-manual-payout-selected');
   if (button != null) {
+    button.textContent = state.finance.payoutPolicy?.mode === 'manual' ? 'Preparar selecionados' : 'Pagar selecionados';
     button.disabled =
       !financeWritesAvailable() || selected.length === 0;
   }
@@ -3819,7 +3824,7 @@ function renderFinancePayoutDetail(payout = null) {
   const detailCopy = byId('finance-payout-detail-copy');
   if (detailCopy != null) {
     detailCopy.textContent = requiresApproval
-      ? `O motorista solicitou ${formatCurrencyCents(grossCents)}. A taxa é ${formatCurrencyCents(feeCents)} e o Pix líquido será ${formatCurrencyCents(payout.amountCents)}. Só será enviado após sua aprovação.`
+      ? `O motorista solicitou ${formatCurrencyCents(grossCents)}. A taxa é ${formatCurrencyCents(feeCents)} e o Pix líquido será ${formatCurrencyCents(payout.amountCents)}. Após sua aprovação, faça o Pix pelo banco e registre o comprovante.`
       : payout.payoutKind === 'scheduled'
         ? 'Repasse normal criado pelo ciclo de segunda, quarta e sexta às 07:00.'
         : payout.payoutKind === 'manual'
@@ -3829,7 +3834,8 @@ function renderFinancePayoutDetail(payout = null) {
 
   const processorInput = byId('finance-payout-processor');
   const referenceInput = byId('finance-payout-reference');
-  processorInput.value = payout.processor ?? '';
+  processorInput.value = payout.processor ?? (payout.executionMode === 'manual' ? 'Pix manual' : '');
+  referenceInput.required = payout.executionMode === 'manual';
   referenceInput.value = payout.processorPayoutId ?? '';
 
   const actionable =
@@ -3844,7 +3850,7 @@ function renderFinancePayoutDetail(payout = null) {
   approveButton.disabled = !canWrite || !requiresApproval;
 
   const externalPaymentAllowed =
-    canWrite && !requiresApproval;
+    canWrite && !requiresApproval && payout.executionMode !== 'api';
   paidButton.hidden = requiresApproval;
   paidButton.disabled = !externalPaymentAllowed;
   processorInput.disabled = !externalPaymentAllowed;
@@ -3854,6 +3860,7 @@ function renderFinancePayoutDetail(payout = null) {
     canWrite &&
     (
       requiresApproval ||
+      payout.executionMode === 'manual' ||
       payout.approvedAt == null ||
       payout.payoutKind === 'legacy'
     );
@@ -3866,7 +3873,7 @@ function renderFinancePayoutDetail(payout = null) {
     ? state.finance.writeLocked === true
       ? 'Atualize o financeiro antes de executar ações neste repasse.'
       : requiresApproval
-        ? 'Aprovar envia o Pix líquido pelo provedor configurado. Recusar devolve o valor bruto e não cobra a taxa.'
+        ? 'Aprovar autoriza a antecipação. Faça o Pix pelo banco e registre o comprovante. Recusar devolve o valor bruto e não cobra a taxa.'
         : hasScope('finance:write')
           ? 'O repasse já está autorizado. Use conciliação manual somente quando necessário.'
           : 'Sua conta não possui permissão finance:write.'
@@ -3906,7 +3913,7 @@ async function handleFinancePayoutApprove() {
   const grossCents =
     payout.requestedAmountCents ?? payout.amountCents;
   const confirmed = window.confirm(
-    `Aprovar a antecipação de ${formatCurrencyCents(grossCents)}? A taxa de ${formatCurrencyCents(payout.feeCents ?? 0)} será descontada e o Pix líquido de ${formatCurrencyCents(payout.amountCents)} será enviado pelo provedor configurado.`,
+    `Aprovar a antecipação de ${formatCurrencyCents(grossCents)}? A taxa de ${formatCurrencyCents(payout.feeCents ?? 0)} será descontada e o Pix líquido de ${formatCurrencyCents(payout.amountCents)} deverá ser pago por você pelo banco. A aprovação não envia dinheiro.`,
   );
   if (!confirmed) return;
 
@@ -3925,7 +3932,7 @@ async function handleFinancePayoutApprove() {
         ? 'Antecipação aprovada. O provedor Pix ainda não confirmou o envio e a conciliação continuará automaticamente.'
         : result.duplicate === true
           ? 'Essa antecipação já estava aprovada.'
-          : 'Antecipação aprovada e enviada ao provedor Pix.',
+          : 'Antecipação aprovada. Faça o Pix pelo banco e registre o comprovante.',
       result.providerRetryPending === true ? 'warning' : 'success',
     );
     if (hasScope('audit:read')) {
@@ -3958,10 +3965,10 @@ async function handleFinancePayoutPaid(event) {
   const processor = byId('finance-payout-processor').value.trim();
   const processorPayoutId =
     byId('finance-payout-reference').value.trim();
-  if (processor.length < 2) {
+  if (processor.length < 2 || !processorPayoutId) {
     setMessage(
       globalMessage,
-      'Informe o método ou processador usado no repasse.',
+      'Informe o método e a referência do comprovante Pix.',
       'danger',
     );
     return;
@@ -4069,27 +4076,27 @@ async function handleFinancePayoutModeToggle() {
     return;
   }
 
-  const enable =
-    state.finance.payoutPolicy.automaticEnabled !== true;
-  const confirmed = window.confirm(
-    enable
-      ? 'Reativar repasses automáticos de segunda, quarta e sexta às 07:00?'
-      : 'Pausar os repasses automáticos? Enquanto estiver no modo manual, nenhum ciclo programado será criado.',
-  );
+  const mode = byId('finance-payout-mode')?.value ?? 'manual';
+  const enable = mode === 'automatic';
+  const confirmed = window.confirm(mode === 'manual'
+    ? 'Usar Pix manual pelo banco? Os ciclos automáticos ficarão desligados.'
+    : mode === 'semi_automatic'
+      ? 'Usar envio pela API somente após sua confirmação no ADM?'
+      : 'Ativar repasses automáticos de segunda, quarta e sexta às 07:00?');
   if (!confirmed) return;
 
   const button = byId('finance-payout-mode-toggle');
   button.disabled = true;
   try {
     await api.updateFinancePayoutPolicy(state.token, {
-      automaticEnabled: enable,
+      mode,
     });
     await loadFinance({ announce: false });
     setMessage(
       globalMessage,
       enable
         ? 'Repasses automáticos reativados.'
-        : 'Repasses automáticos pausados. O Financeiro está em modo manual.',
+        : mode === 'semi_automatic' ? 'Modo semiautomático ativado.' : 'Modo manual ativado.',
       'success',
     );
     if (hasScope('audit:read')) {
@@ -4125,7 +4132,9 @@ async function handleManualFinancePayouts(driverIds) {
   );
 
   const confirmed = window.confirm(
-    `Enviar agora ${formatCurrencyCents(totalCents)} para ${driverIds.length} motorista(s) selecionado(s)? O Core usará o provedor Pix configurado.`,
+    state.finance.payoutPolicy?.mode === 'manual'
+      ? `Reservar ${formatCurrencyCents(totalCents)} para ${driverIds.length} motorista(s)? Depois faça os Pix pelo banco e registre os comprovantes.`
+      : `Enviar agora ${formatCurrencyCents(totalCents)} para ${driverIds.length} motorista(s) pela API configurada?`,
   );
   if (!confirmed) return;
 
@@ -4137,7 +4146,7 @@ async function handleManualFinancePayouts(driverIds) {
     await loadFinance({ announce: false });
     setMessage(
       globalMessage,
-      `Lote manual processado: ${result.created?.length ?? 0} repasse(s) criado(s), ${result.skipped?.length ?? 0} ignorado(s).`,
+      `Lote preparado: ${result.created?.length ?? 0} repasse(s) criado(s), ${result.skipped?.length ?? 0} ignorado(s).`,
       'success',
     );
     if (hasScope('audit:read')) {
