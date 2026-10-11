@@ -112,6 +112,15 @@ test(
       assert.equal(anonymized.heldCents, 500);
       assert.ok(anonymized.passengerId.startsWith('erased:'));
       assert.deepEqual(anonymized.channels, []);
+      await assert.rejects(store.deleteCampaign(c.id, 'stale', actor));
+      await store.deleteCampaign(c.id, c.updatedAt, actor);
+      const deleted = (await store.campaigns()).find(x => x.id === c.id)!;
+      assert.ok(deleted.deletedAt);
+      assert.equal(deleted.enabled, false);
+      assert.equal(deleted.automatic, false);
+      assert.equal((await store.deliveries(c.id)).length, 1);
+      await assert.rejects(store.saveCampaign({...deleted, enabled:true}, deleted.updatedAt, actor));
+      assert.equal(await store.reserve({...d, id:randomUUID(), occurrence:'after-delete'}, deleted.updatedAt), false);
     } finally {
       await pool.query(
         'DELETE FROM marketing_deliveries WHERE campaign_id=$1',

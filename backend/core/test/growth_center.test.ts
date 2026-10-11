@@ -436,3 +436,23 @@ test('automação anual permanece elegível e reserva uma vez por ano, sem renov
   await store.saveCampaign(paused, annual.updatedAt, actor);
   assert.notEqual(baseEligibility(paused, customer(), next), null);
 });
+
+test('exclusão interrompe campanhas sem apagar histórico ou permitir reativação', async () => {
+  const {store, c, admin} = await setup();
+  const d = delivery(c);
+  assert.equal(await store.reserve(d, c.updatedAt), true);
+  await assert.rejects(store.deleteCampaign(c.id, 'stale', actor));
+  await store.deleteCampaign(c.id, c.updatedAt, actor);
+  const deleted = (await store.campaigns()).find(x => x.id === c.id)!;
+  assert.ok(deleted.deletedAt);
+  assert.equal(deleted.enabled, false);
+  assert.equal(deleted.automatic, false);
+  assert.equal((await store.deliveries(c.id)).length, 1);
+  await assert.rejects(store.saveCampaign({...deleted, enabled:true}, deleted.updatedAt, actor));
+  assert.equal(await store.reserve({...d, id:randomUUID(), occurrence:'next'}, deleted.updatedAt), false);
+  assert.ok((await admin.listAudit(100)).some(x => x.action === 'marketing.campaign.deleted'));
+  const service = new GrowthService(serviceDeps(store, admin, new InMemoryPrivacyRepository(), new InMemoryPromotionRepository(), async () => 'published'));
+  const view = await service.view();
+  assert.equal(view.campaigns.length, 0);
+  assert.equal(view.archivedCampaigns[0]?.id, c.id);
+});

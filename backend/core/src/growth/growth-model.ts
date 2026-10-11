@@ -60,6 +60,7 @@ export function defaultPreference(passengerId: string): MarketingPreference {
 }
 export interface MarketingCampaign {
   id: string;
+  deletedAt?: string;
   name: string;
   trigger: Trigger;
   days: number;

@@ -164,6 +164,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     marketing(token){return request('/v1/admin/marketing',{token});},
     saveMarketingSettings(token,body){return request('/v1/admin/marketing/settings',{token,method:'PUT',body});},
     saveMarketingCampaign(token,{id,campaign,expectedUpdatedAt}){return request(`/v1/admin/marketing/campaigns${id?'/'+encodeURIComponent(id):''}`,{token,method:id?'PUT':'POST',body:{campaign,...(id?{expectedUpdatedAt}:{})}});},
+    deleteMarketingCampaign(token,id,expectedUpdatedAt){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}`,{token,method:'DELETE',body:{expectedUpdatedAt}});},
     marketingPreview(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/preview`,{token});},
     marketingReport(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/report`,{token});},
     executeMarketing(token,id){return request(`/v1/admin/marketing/campaigns/${encodeURIComponent(id)}/execute`,{token,method:'POST',body:{}});},

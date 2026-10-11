@@ -150,13 +150,20 @@ export async function handleGrowthRoutes(input: {
         input.json(200, await service.execute(id, actor));
         return true;
       }
+      if (id && !action && method === 'DELETE') {
+        const actor = await input.authorize('marketing:write');
+        const b = object(await input.readJson());
+        await store.deleteCampaign(id, textValue(b.expectedUpdatedAt, 40, 'Versão'), actor);
+        input.json(200, {deleted:true});
+        return true;
+      }
       if (!action && ((!id && method === 'POST') || (id && method === 'PUT'))) {
         const actor = await input.authorize('marketing:write'),
           b = object(await input.readJson()),
           old = id
             ? (await store.campaigns()).find((c) => c.id === id)
             : undefined;
-        if (id && !old) throw new GrowthError(404, 'Campanha não encontrada.');
+        if (id && (!old || old.deletedAt)) throw new GrowthError(404, 'Campanha não encontrada.');
         const c = campaignInput(b.campaign, old);
         if (c.enabled) await input.authorize('marketing:send');
         if (c.couponValueCents > 0) await input.authorize('finance:write');

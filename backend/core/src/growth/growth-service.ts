@@ -900,7 +900,8 @@ export class GrowthService {
       settings,
       templates: CAMPAIGN_TEMPLATES,
       channels: this.deps.readiness(),
-      campaigns: campaigns.map((c) => {
+      archivedCampaigns: campaigns.filter(c => c.deletedAt).map(c => ({id:c.id, name:c.name, deletedAt:c.deletedAt})),
+      campaigns: campaigns.filter(c => !c.deletedAt).map((c) => {
         const ds = deliveries.filter((d) => d.campaignId === c.id);
         return {
           ...c,

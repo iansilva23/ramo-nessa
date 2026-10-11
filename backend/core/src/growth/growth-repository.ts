@@ -22,6 +22,7 @@ export interface GrowthRepository {
     actor: AdminActor,
   ): Promise<void>;
   campaigns(): Promise<MarketingCampaign[]>;
+  deleteCampaign(id: string, expected: string, actor: AdminActor): Promise<void>;
   saveCampaign(
     c: MarketingCampaign,
     expected: string | null,
@@ -153,6 +154,7 @@ export class InMemoryGrowthRepository implements GrowthRepository {
     const old = this.cs.find((x) => x.id === c.id);
     if (expected === null ? !!old : old?.updatedAt !== expected)
       throw conflict();
+    if (old?.deletedAt) throw new GrowthError(409, 'Campanha excluída não pode ser reativada.');
     assertCampaignLimits(c, this.ds);
     await this.admin.appendAudit(
       audit(actor, 'marketing.campaign.saved', c.id, {
@@ -165,6 +167,13 @@ export class InMemoryGrowthRepository implements GrowthRepository {
   }
   async preference(id: string) {
     return structuredClone(this.ps.get(id) ?? defaultPreference(id));
+  }
+  async deleteCampaign(id: string, expected: string, actor: AdminActor) {
+    const old = this.cs.find(c => c.id === id);
+    if (!old || old.deletedAt || old.updatedAt !== expected) throw conflict();
+    const at = new Date(Math.max(Date.now(), Date.parse(old.updatedAt) + 1)).toISOString();
+    await this.admin.appendAudit(audit(actor, 'marketing.campaign.deleted', id));
+    this.cs = this.cs.map(c => c.id === id ? {...c, enabled:false, automatic:false, deletedAt:at, updatedAt:at} : c);
   }
   async savePreference(p: MarketingPreference) {
     this.ps.set(p.passengerId, structuredClone(p));
@@ -336,7 +345,7 @@ export class PostgresGrowthRepository implements GrowthRepository {
         ).rows.map((r) => r.data as MarketingDelivery);
         assertCampaignLimits(campaign, ds);
         const r = await c.query(
-          "UPDATE marketing_campaigns SET data=$2::jsonb,updated_at=$3 WHERE id=$1 AND data->>'updatedAt'=$4",
+          "UPDATE marketing_campaigns SET data=$2::jsonb,updated_at=$3 WHERE id=$1 AND data->>'updatedAt'=$4 AND data->>'deletedAt' IS NULL",
           [campaign.id, JSON.stringify(campaign), campaign.updatedAt, expected],
         );
         if (!r.rowCount) throw conflict();
@@ -347,6 +356,17 @@ export class PostgresGrowthRepository implements GrowthRepository {
           budgetCents: campaign.budgetCents,
         }),
       );
+    });
+  }
+  async deleteCampaign(id: string, expected: string, actor: AdminActor) {
+    await this.write(async c => {
+      const at = new Date(Math.max(Date.now(), Date.parse(expected) + 1)).toISOString();
+      const r = await c.query(
+        "UPDATE marketing_campaigns SET data=data || jsonb_build_object('enabled',false,'automatic',false,'deletedAt',$3::text,'updatedAt',$3::text),updated_at=$3::timestamptz WHERE id=$1 AND data->>'updatedAt'=$2 AND data->>'deletedAt' IS NULL",
+        [id, expected, at],
+      );
+      if (!r.rowCount) throw conflict();
+      await new PostgresAdminRepository(c).appendAudit(audit(actor, 'marketing.campaign.deleted', id));
     });
   }
   async savePreference(p: MarketingPreference) {

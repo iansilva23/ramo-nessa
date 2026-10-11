@@ -34,3 +34,18 @@ test('ativar campanha com controle geral pausado retoma o marketing', async () =
   assert.equal(calls[0].campaign.enabled, true);
   assert.equal(calls[1].settings.enabled, true);
 });
+
+test('excluir campanha exige confirmação e envia a versão atual', async () => {
+  const calls = [];
+  const context = {hasScope: () => true, confirm: () => false, getToken: () => 'session', editing:null, api:{deleteMarketingCampaign:async (...args) => calls.push(args)}, load:async () => {}, status: () => {}, fill: () => {}};
+  vm.createContext(context);
+  vm.runInContext(source.slice(source.indexOf('  async function deleteCampaign('), source.indexOf('  function renderAutomations(')), context);
+  await context.deleteCampaign({id:'campaign', name:'Nome', updatedAt:'version'});
+  assert.equal(calls.length, 0);
+  context.confirm = () => true;
+  await context.deleteCampaign({id:'campaign', name:'Nome', updatedAt:'version'});
+  assert.deepEqual(calls[0], ['session','campaign','version']);
+  context.hasScope = () => false;
+  await assert.rejects(context.deleteCampaign({}), /Sem permissão/);
+  assert.equal(calls.length, 1);
+});

@@ -148,6 +148,17 @@ export function createGrowthAdmin({
         : 'Campanha pausada.',
     );
   }
+  async function deleteCampaign(c) {
+    if (!hasScope('marketing:write')) throw new Error('Sem permissão para excluir campanhas.');
+    if (!globalThis.confirm(`Excluir a campanha “${c.name}”? Novos envios serão interrompidos. O histórico e os cupons já concedidos serão preservados.`)) {
+      status('Exclusão cancelada.');
+      return;
+    }
+    await api.deleteMarketingCampaign(getToken(), c.id, c.updatedAt);
+    if (editing?.id === c.id) fill();
+    await load();
+    status('Campanha excluída. Histórico disponível em Campanhas excluídas.');
+  }
   function renderAutomations() {
     const templates = data.templates.filter((t) =>
       ['birthday', 'calendar', 'inactive'].includes(t.trigger),
@@ -691,6 +702,14 @@ export function createGrowthAdmin({
       option.value = i;
       select.append(option);
     });
+    el('marketing-archived').replaceChildren(
+      ...(data.archivedCampaigns ?? []).map(c => {
+        const row = node('article', '', 'growth-campaign');
+        row.append(node('h3', c.name), node('p', 'Excluída em ' + formatDateTime(c.deletedAt)), button('Ver resultados anteriores', 'marketing:read', async () => detail(await api.marketingReport(getToken(), c.id), 'report')));
+        return row;
+      }),
+    );
+    el('marketing-archive-panel').hidden = !(data.archivedCampaigns?.length);
     el('marketing-campaigns').replaceChildren(
       ...(data.campaigns.length
         ? data.campaigns.map((c) => {
@@ -734,6 +753,7 @@ export function createGrowthAdmin({
                   await toggleCampaign(c);
                 },
               ),
+              button('Excluir campanha', 'marketing:write', () => deleteCampaign(c)),
               button('Personalizar', 'marketing:write', async () => {
                 fill(c);
                 el('marketing-editor').open = true;
