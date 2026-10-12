@@ -1,0 +1,78 @@
+<section id="view-geo" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">MAPAS E ECONOMIA</span>
+      <h1>GeoAgent</h1>
+      <p>Atualize o catálogo de destinos quando quiser, com comparação e aprovação antes de publicar. Esta área não modifica preços nem zonas de corrida.</p>
+    </div>
+    <div class="dashboard-refresh">
+      <small id="geo-mode-status">Consultando o Core…</small>
+      <button type="button" class="button button--ghost-dark" id="geo-refresh">Atualizar indicadores</button>
+    </div>
+  </div>
+  <p id="geo-feedback" class="global-message" role="status" aria-live="polite" hidden></p>
+  <div class="geo-metrics">
+    <article class="metric-card"><span class="metric-label">Buscas respondidas pelo GeoDB</span><strong id="geo-hits">—</strong><small>Contador do processo atual do Core</small></article>
+    <article class="metric-card"><span class="metric-label">Detalhes locais</span><strong id="geo-details">—</strong><small>Respostas sem Google Places</small></article>
+    <article class="metric-card"><span class="metric-label">Consultas externas</span><strong id="geo-fallbacks">—</strong><small>Fallback observado pelo Core</small></article>
+  </div>
+  <article class="panel-card geo-editor">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">EXECUÇÃO MANUAL</span>
+        <h2>Preparar atualização</h2>
+        <p class="panel-card__copy">Carregue um JSON de dados geográficos autorizados. O motor identifica novos registros e mudanças, sem publicá-los até sua confirmação.</p>
+      </div>
+      <span class="pill">Sem agendamento</span>
+    </div>
+    <div class="geo-form-grid">
+      <label class="field">
+        <span>Localidade a revisar</span>
+        <select id="geo-region">
+          <option value="all">Todos os registros do arquivo</option>
+          <option value="prea">Preá e proximidades</option>
+          <option value="jeri">Vila de Jericoacoara e proximidades</option>
+          <option value="jijoca">Jijoca e proximidades</option>
+        </select>
+        <small>Filtro geográfico aproximado apenas para os registros do arquivo. Não altera as zonas comerciais.</small>
+      </label>
+      <label class="field">
+        <span>Arquivo de atualização (.json)</span>
+        <input type="file" id="geo-upload" accept=".json,application/json" />
+        <small>Até 5 MB; formato: lista de lugares ou objeto com campo <code>places</code>. Fontes: osm, overture ou manual.</small>
+      </label>
+    </div>
+    <div class="geo-actions">
+      <button type="button" class="button button--dark" id="geo-preview">Analisar e comparar</button>
+      <button type="button" class="button button--ghost-dark" id="geo-clear">Limpar seleção</button>
+    </div>
+    <p class="muted-copy">A coleta externa ainda não está conectada: este primeiro módulo importa arquivos. Nenhum dado do Google é copiado para o catálogo permanente.</p>
+  </article>
+  <article class="panel-card geo-results">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">CONFERÊNCIA</span>
+        <h2>Prévia das alterações</h2>
+        <p class="panel-card__copy" id="geo-summary">Escolha um arquivo e clique em Analisar e comparar.</p>
+      </div>
+      <div class="geo-actions">
+        <button type="button" class="button button--ghost-dark" id="geo-select-all" disabled>Marcar novos e alterados</button>
+        <button type="button" class="button button--primary" id="geo-publish" disabled>Aprovar seleção</button>
+      </div>
+    </div>
+    <div class="geo-table-scroll">
+      <table class="geo-table">
+        <thead><tr><th scope="col">Aprovar</th><th scope="col">Lugar</th><th scope="col">Origem</th><th scope="col">Situação</th></tr></thead>
+        <tbody id="geo-table-body"><tr><td colspan="4">Sem dados para revisar.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="geo-pagination">
+      <span id="geo-pagination-label">0 resultados</span>
+      <div class="geo-actions">
+        <button type="button" class="button button--ghost-dark" id="geo-prev" disabled>Anterior</button>
+        <button type="button" class="button button--ghost-dark" id="geo-next" disabled>Próximo</button>
+      </div>
+    </div>
+    <p class="muted-copy">A aprovação ocorre somente após seu clique. A importação é feita em lotes de até 200 registros, com progresso visível. Se uma etapa falhar, as já confirmadas permanecem registradas.</p>
+  </article>
+</section>
