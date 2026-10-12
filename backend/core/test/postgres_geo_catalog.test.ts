@@ -29,6 +29,11 @@ test('PostgreSQL GeoDB: importação idempotente, revisão e busca sem acentos',
     assert.equal((await repo.search('pousada', true)).some(x => x.id === id), true);
     assert.equal((await repo.findById(id))?.address, record.address);
 
+    await pool.query("UPDATE geo_catalog_places SET updated_at=now()-interval '91 days' WHERE id=$1",[id]);
+    assert.equal((await repo.search('pousada',true)).some(x=>x.id===id),false);
+    assert.deepEqual(await repo.apply([record]),{added:0,changed:0,unchanged:1});
+    assert.equal((await repo.search('pousada',true)).some(x=>x.id===id),true);
+
     const changed = { ...record, name: 'Pousada da Lagoa Renovada' };
     assert.deepEqual((await repo.preview([changed])).map(x => x.kind), ['changed']);
     assert.deepEqual(await repo.apply([changed]), { added: 0, changed: 1, unchanged: 0 });
