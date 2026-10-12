@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS geo_catalog_places (
   source_id text NOT NULL,
   name text NOT NULL,
   normalized_name text NOT NULL,
+  normalized_address text NOT NULL,
   address text NOT NULL,
   category text NOT NULL,
   city text NOT NULL,
@@ -15,5 +16,6 @@ CREATE TABLE IF NOT EXISTS geo_catalog_places (
   UNIQUE(source, source_id)
 );
 CREATE INDEX IF NOT EXISTS geo_catalog_name_idx ON geo_catalog_places(normalized_name text_pattern_ops);
+CREATE INDEX IF NOT EXISTS geo_catalog_address_idx ON geo_catalog_places(normalized_address text_pattern_ops);
 CREATE INDEX IF NOT EXISTS geo_catalog_coordinates_idx ON geo_catalog_places(latitude, longitude);
 -- O ADM reutiliza os escopos de preços existentes; nenhum novo acesso é concedido.
