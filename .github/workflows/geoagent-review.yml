@@ -36,6 +36,13 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/core/package-lock.json
+      - name: Check staging GeoAgent Compose configuration
+        run: |
+          docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yml config --quiet
+          node --check deploy/staging/start.mjs
+          node --check deploy/staging/env.mjs
+          node --check deploy/staging/validate-env.mjs
+          node --check deploy/staging/firebase.mjs
       - name: Install backend dependencies
         working-directory: backend/core
         run: npm ci --no-audit --no-fund
