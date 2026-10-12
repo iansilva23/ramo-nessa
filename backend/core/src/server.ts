@@ -4,7 +4,8 @@ import { handleGrowthRoutes } from './growth/growth-routes.js';
 import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { validateGeoBatch, type GeoCatalogPlace } from './places/geo-catalog-repository.js';
-import { collectOsmPlaces, GeoCollectionError, type GeoCollectionRegion } from './places/geo-collect-service.js';
+import { collectOsmPlaces, GeoCollectionError, geoCollectionRegionForPoint, type GeoCollectionRegion } from './places/geo-collect-service.js';
+import { PassengerGeoLearner } from './places/passenger-geo-learning.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
@@ -538,6 +539,7 @@ const {
   operationalSettingsRepository,
   passengerSavedPlaceRepository,
   geoCatalogRepository,
+  passengerGeoLearningStore,
   savedCardRepository,
   privacyRepository,
   promotionRepository,
@@ -550,6 +552,21 @@ const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
 const googlePlacesService = createGooglePlacesServiceFromEnv();
 const geoSearchEnabled = process.env.GEO_CATALOG_SEARCH_ENABLED?.trim() === 'true';
+const passengerGeoLearningEnabled = process.env.GEO_PASSENGER_LEARNING_ENABLED?.trim() === 'true';
+const passengerGeoLearner = new PassengerGeoLearner(
+  passengerGeoLearningStore,
+  geoCatalogRepository,
+  async (region) => collectOsmPlaces({ region }),
+  (error) => logWarn('geo.passenger_learning.source_failed', errorFields(error)),
+);
+function observePassengerSelectedGooglePlace(placeId: string, localOnly: boolean,
+  latitude: number, longitude: number) {
+  if (!passengerGeoLearningEnabled) return;
+  const region = localOnly ? geoCollectionRegionForPoint(latitude,longitude) : null;
+  // Learning must never hold up a payment/ride/search response.
+  void passengerGeoLearner.observe({provider:'google',placeId,region})
+    .catch(error => logWarn('geo.passenger_learning.failed',errorFields(error)));
+}
 // Per-process diagnostic counters only; they do not claim actual billing.
 const geoLookupStats = { localSearchHits: 0, localDetails: 0, googleFallbacks: 0 };
 let geoCollectionRunning = false;
@@ -1903,7 +1920,11 @@ const server = createServer(async (request, response) => {
         apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
         headers: request.headers, requiredScope: 'pricing:read',
       });
-      json(response, 200, { ...geoLookupStats, enabled: geoSearchEnabled, counters: 'per-process' });
+      json(response, 200, {
+        ...geoLookupStats, enabled: geoSearchEnabled, counters: 'per-process',
+        passengerLearningEnabled: passengerGeoLearningEnabled,
+        passengerLearning: await passengerGeoLearningStore.stats(),
+      });
       return;
     }
     if (request.method === 'POST' &&
@@ -2245,6 +2266,8 @@ const server = createServer(async (request, response) => {
               ttlSeconds: placeProofTtlSeconds,
             });
 
+        observePassengerSelectedGooglePlace(place.id,localOnly,
+          place.latitude,place.longitude);
         json(response, 200, {
           provider: 'google',
           place: {
