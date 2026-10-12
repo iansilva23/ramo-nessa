@@ -4,6 +4,7 @@ import { handleGrowthRoutes } from './growth/growth-routes.js';
 import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { validateGeoBatch, type GeoCatalogPlace } from './places/geo-catalog-repository.js';
+import { collectOsmPlaces, GeoCollectionError, type GeoCollectionRegion } from './places/geo-collect-service.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
@@ -551,6 +552,8 @@ const googlePlacesService = createGooglePlacesServiceFromEnv();
 const geoSearchEnabled = process.env.GEO_CATALOG_SEARCH_ENABLED?.trim() === 'true';
 // Per-process diagnostic counters only; they do not claim actual billing.
 const geoLookupStats = { localSearchHits: 0, localDetails: 0, googleFallbacks: 0 };
+let geoCollectionRunning = false;
+let geoLastCollectedAt = 0;
 async function approvedGeoPlace(place: GeoCatalogPlace) {
   try {
     const pricing = await resolvePricingCatalogContext({
@@ -1856,6 +1859,41 @@ const server = createServer(async (request, response) => {
         return;
       }
       json(response, 200, { tour });
+      return;
+    }
+
+    // A coleta só inicia mediante clique de um admin com permissão de escrita.
+    if (request.method === 'POST' &&
+        requestUrl.pathname === '/v1/admin/geo/places/collect') {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: 'pricing:write',
+      });
+      const body = await readJson(request) as Record<string,unknown> | null;
+      const region = body?.region;
+      if (region !== 'prea' && region !== 'jeri' && region !== 'jijoca') {
+        json(response, 422, { error: 'GEO_REGION_INVALID', message: 'Área inválida.' });
+        return;
+      }
+      if (geoCollectionRunning || Date.now() - geoLastCollectedAt < 90_000) {
+        json(response, 429, { error: 'GEO_COLLECT_RATE_LIMIT',
+          message: 'Outra coleta está em andamento ou a última terminou há menos de 90 segundos.' });
+        return;
+      }
+      geoCollectionRunning = true;
+      geoLastCollectedAt = Date.now();
+      try {
+        const result = await collectOsmPlaces({region: region as GeoCollectionRegion});
+        json(response, 200, {
+          provider: 'osm', ...result, requiresApproval: true,
+        });
+      } catch (error) {
+        if (error instanceof GeoCollectionError) {
+          json(response, error.status, {error:'GEO_COLLECT_UNAVAILABLE',message:error.message});
+        } else throw error;
+      } finally {
+        geoCollectionRunning = false;
+      }
       return;
     }
 
