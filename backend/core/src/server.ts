@@ -6,6 +6,8 @@ import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { validateGeoBatch, type GeoCatalogPlace } from './places/geo-catalog-repository.js';
 import { collectOsmPlaces, GeoCollectionError, geoCollectionRegionForPoint, type GeoCollectionRegion } from './places/geo-collect-service.js';
 import { PassengerGeoLearner } from './places/passenger-geo-learning.js';
+import { GeoCatalogStorageLimitError } from './places/geo-catalog-repository.js';
+import { parseGeoStoragePolicy } from './places/geo-storage-maintenance.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
@@ -540,6 +542,7 @@ const {
   passengerSavedPlaceRepository,
   geoCatalogRepository,
   passengerGeoLearningStore,
+  geoStorageMaintenance,
   savedCardRepository,
   privacyRepository,
   promotionRepository,
@@ -553,6 +556,7 @@ const routingRouteProvider = createRoutingRouteProviderFromEnv();
 const googlePlacesService = createGooglePlacesServiceFromEnv();
 const geoSearchEnabled = process.env.GEO_CATALOG_SEARCH_ENABLED?.trim() === 'true';
 const passengerGeoLearningEnabled = process.env.GEO_PASSENGER_LEARNING_ENABLED?.trim() === 'true';
+const geoStorageAutomationArmed = process.env.GEO_STORAGE_AUTOMATION_ENABLED?.trim() === 'true';
 const passengerGeoLearner = new PassengerGeoLearner(
   passengerGeoLearningStore,
   geoCatalogRepository,
@@ -567,10 +571,42 @@ function observePassengerSelectedGooglePlace(placeId: string, localOnly: boolean
   void passengerGeoLearner.observe({provider:'google',placeId,region})
     .catch(error => logWarn('geo.passenger_learning.failed',errorFields(error)));
 }
+async function runGeoStorageMaintenance() {
+  if (!geoStorageAutomationArmed || geoStorageSweepRunning || shuttingDown) return;
+  geoStorageSweepRunning = true;
+  try {
+    const report = await geoStorageMaintenance.report();
+    if(report.status!=='ok')logWarn('geo.storage.limit_alert',{
+      status:report.status,usedBytes:report.usedBytes,maxStorageMb:report.policy.maxStorageMb,
+    });
+    if(!report.policy.autoCleanupEnabled)return;
+    if(passengerGeoLearningEnabled) {
+      const due = await geoStorageMaintenance.dueRegions();
+      for(const region of due) {
+        if(shuttingDown)break;
+        await passengerGeoLearner.refreshRegion(region);
+      }
+    }
+    const cleanup = await geoStorageMaintenance.cleanup({dryRun:false,automatic:true,limit:100});
+    if(cleanup.removed>0)logInfo('geo.storage.cleanup', { removed:cleanup.removed });
+  } catch(error) {
+    logWarn('geo.storage.maintenance_failed',errorFields(error));
+  } finally { geoStorageSweepRunning=false; }
+}
+function observeSelectedGeoPlace(placeId:string){
+  if(!geoSearchEnabled)return;
+  void (async()=>{
+    const due=await geoStorageMaintenance.recordSelection(placeId);
+    if(due && passengerGeoLearningEnabled)
+      await passengerGeoLearner.refreshRegion(due);
+  })().catch(error=>logWarn('geo.storage.selection_failed',errorFields(error)));
+}
 // Per-process diagnostic counters only; they do not claim actual billing.
 const geoLookupStats = { localSearchHits: 0, localDetails: 0, googleFallbacks: 0 };
 let geoCollectionRunning = false;
 let geoLastCollectedAt = 0;
+let geoStorageTimer: ReturnType<typeof setInterval> | null = null;
+let geoStorageSweepRunning = false;
 async function approvedGeoPlace(place: GeoCatalogPlace) {
   try {
     const pricing = await resolvePricingCatalogContext({
@@ -1924,7 +1960,39 @@ const server = createServer(async (request, response) => {
         ...geoLookupStats, enabled: geoSearchEnabled, counters: 'per-process',
         passengerLearningEnabled: passengerGeoLearningEnabled,
         passengerLearning: await passengerGeoLearningStore.stats(),
+        storage: await geoStorageMaintenance.report(),
+        storageAutomationArmed: geoStorageAutomationArmed,
       });
+      return;
+    }
+    if (request.method === 'PUT' &&
+        requestUrl.pathname === '/v1/admin/geo/storage-policy') {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: 'pricing:write',
+      });
+      const body=await readJson(request);
+      let policy;
+      try {policy=parseGeoStoragePolicy(body);}
+      catch {
+        json(response,422,{error:'GEO_STORAGE_INVALID_POLICY',
+          message:'Política inválida: limite 16–2048 MB, alerta 50–95%, retenção 120–365 dias.'});
+        return;
+      }
+      const updated=await geoStorageMaintenance.updatePolicy(policy);
+      json(response,200,{policy:updated});
+      return;
+    }
+    if (request.method === 'POST' &&
+        (requestUrl.pathname === '/v1/admin/geo/storage-cleanup/preview' ||
+         requestUrl.pathname === '/v1/admin/geo/storage-cleanup/confirm')) {
+      const preview=requestUrl.pathname.endsWith('/preview');
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: preview?'pricing:read':'pricing:write',
+      });
+      const result=await geoStorageMaintenance.cleanup({dryRun:preview,limit:100});
+      json(response,200,result);
       return;
     }
     if (request.method === 'POST' &&
@@ -1944,8 +2012,14 @@ const server = createServer(async (request, response) => {
         const changes = await geoCatalogRepository.preview(places);
         json(response, 200, { changes, count: changes.length });
       } else {
-        const summary = await geoCatalogRepository.apply(places);
-        json(response, 200, { summary });
+        try {
+          const summary = await geoCatalogRepository.apply(places);
+          json(response, 200, { summary });
+        } catch(error) {
+          if(!(error instanceof GeoCatalogStorageLimitError))throw error;
+          json(response,409,{error:'GEO_STORAGE_LIMIT',
+            message:'O GeoDB atingiu o limite configurado. Ajuste o limite ou faça a limpeza segura.'});
+        }
       }
       return;
     }
@@ -2193,6 +2267,7 @@ const server = createServer(async (request, response) => {
             return;
           }
           geoLookupStats.localDetails += 1;
+          if (isAuthenticatedPassenger) observeSelectedGeoPlace(requestedPlaceId);
           json(response, 200, { provider: 'ramo-geo', place: approvedPlace });
           return;
         }
@@ -9796,6 +9871,7 @@ function shutdown(signal: string): Promise<void> {
       driverBenefitFinalizationTimer = null;
     }
     if(growthTimer){clearInterval(growthTimer);growthTimer=null;}
+    if(geoStorageTimer){clearInterval(geoStorageTimer);geoStorageTimer=null;}
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -9852,6 +9928,12 @@ server.listen(port, '0.0.0.0', () => {
     );
     payoutReconciliationTimer.unref();
     void runPayoutReconciliation();
+  }
+
+  if(geoStorageAutomationArmed) {
+    geoStorageTimer=setInterval(()=>void runGeoStorageMaintenance(),24*60*60_000);
+    geoStorageTimer.unref();
+    void runGeoStorageMaintenance();
   }
 
   growthTimer=setInterval(()=>void runGrowthMarketing(),15*60_000);
