@@ -1,122 +1,111 @@
-# Ramo Nessa — atualização controlada do VPS de homologação (GeoAgent)
+# Ramo Nessa — atualização controlada do VPS OVH de homologação (GeoAgent)
 
-**Ambiente:** OVH VPS de homologação, repositório `/opt/ramo-nessa`.
-Não executar este procedimento no servidor de produção.
-**Branch:** `feature/geo-cost-optimization-20261012`.
-**Controle de alteração:** PR #4 permanece DRAFT; não fazer merge na main.
+**Acesso SSH do Mac:** `ssh ubuntu@15.235.24.180`.
+**Projeto no VPS:** `/opt/ramo-nessa`.
+**Backup histórico:** `/var/backups/ramo-nessa-staging`.
+**Branch GitHub:** `feature/geo-cost-optimization-20261012`.
+**PR #4:** DRAFT, sem merge na main.
 
-## O que será atualizado
+Este VPS exige **sudo** para os comandos Node de staging e para acesso
+ao socket Docker e arquivos de segredo. Os comandos Git são executados
+**sem sudo**, com usuário `ubuntu`.
 
-- Core, PostgreSQL (apenas migrations novas 082–084) e ADM via
-  `node deploy/staging/start.mjs`.
-- As integrações Google Maps, OTP, Firebase e Mercado Pago existentes
-  permanecem definidas pelo `deploy/staging/.env`, que **não deve ser apagado,
-  substituído ou gerado novamente**.
-- O Compose agora lê três flags independentes:
-  `GEO_CATALOG_SEARCH_ENABLED`,
-  `GEO_PASSENGER_LEARNING_ENABLED` e
-  `GEO_STORAGE_AUTOMATION_ENABLED`.
-  Ausentes ou definidas como `false`, ficam todas **desligadas**.
-- O ADM `/admin/geoagent` pode ser homologado sem habilitar coleta
-  automática, busca local para passageiros ou limpeza.
-- Nunca executar `docker compose down -v`,
-  `docker volume rm`, `git reset --hard` ou remover o banco.
+A atualização usa o helper **existente** `deploy/staging/start.mjs`, que
+preserva os overlays de Google Maps, Firebase e WhatsApp/OTP. Não sobrescrever
+`deploy/staging/.env` nem recriar credenciais ou volumes.
 
-## Passo 1: pré-checagens, backup e checkout seguro
+## Etapa 1 — levantamento, sem alterações
 
-Execute como usuário administrativo **no terminal SSH do VPS**. Não envie
-senhas, tokens, `.env`, chaves Google nem Firebase JSON para o chat.
+```bash
+cd /opt/ramo-nessa
+git branch --show-current
+git rev-parse HEAD
+git status --short
+sudo docker compose --env-file deploy/staging/.env -f deploy/staging/compose.yml ps
+df -h /opt/ramo-nessa /var/backups
+```
+
+**Parar** se houver mudanças locais inesperadas, falta de espaço, serviços
+incompletos ou branch inesperada. Antes do deploy, identificar o commit atual
+e confirmar se é ancestral da revisão a instalar.
+
+## Etapa 2 — backup VERIFICADO, depois código
+
+Somente após a pré-checagem sem problemas; executar como `ubuntu`.
+Os comandos abortam em qualquer falha.
 
 ```bash
 set -euo pipefail
 cd /opt/ramo-nessa
-test -f deploy/staging/.env || { echo "ERRO: arquivo .env não encontrado"; exit 1; }
+test -f deploy/staging/.env
 test -z "$(git status --porcelain)" || {
-  echo "ERRO: existem arquivos alterados/não rastreados. Não substitua nada."; exit 1;
+  echo "PARADO: há alterações no Git; não sobrescrever."; exit 1;
 }
 if grep -Eq '^GEO_(CATALOG_SEARCH|PASSENGER_LEARNING|STORAGE_AUTOMATION)_ENABLED=true' deploy/staging/.env; then
-  echo "ERRO: há flags do GeoAgent ativadas. Desligue-as antes do rollout."; exit 1;
+  echo "PARADO: funções GeoAgent já habilitadas; revisar antes de atualizar."; exit 1;
 fi
-df -h .
+
+# Guardar a revisão antes de mexer no código.
 OLD_COMMIT="$(git rev-parse HEAD)"
-BACKUP_DIR="$HOME/ramo-nessa-backups"
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
-node deploy/staging/backup.mjs --output-dir="$BACKUP_DIR"
-LATEST_BACKUP="$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '*.incomplete' | sort | tail -n 1)"
-test -n "$LATEST_BACKUP" || { echo "ERRO: backup ausente"; exit 1; }
-node deploy/staging/verify-backup.mjs --backup-dir="$LATEST_BACKUP"
-printf '%s\n' "$OLD_COMMIT" > "$BACKUP_DIR/geoagent-pre-deploy-commit.txt"
+sudo node deploy/staging/validate-env.mjs
+
+# O procedimento histórico usa /var/backups e precisa de sudo.
+sudo node deploy/staging/backup.mjs --output-dir=/var/backups/ramo-nessa-staging
+SNAPSHOT="$(sudo find /var/backups/ramo-nessa-staging   -mindepth 1 -maxdepth 1 -type d ! -name '*.incomplete'   | sort | tail -n 1)"
+test -n "$SNAPSHOT"
+sudo node deploy/staging/verify-backup.mjs --backup-dir="$SNAPSHOT"
+
+# Nunca avançar para uma revisão diferente da auditada.
 git fetch origin feature/geo-cost-optimization-20261012
-TARGET_COMMIT="$(git rev-parse FETCH_HEAD)"
-git merge-base --is-ancestor "$OLD_COMMIT" "$TARGET_COMMIT" || {
-  echo "ERRO: o código do VPS não é ancestral da release. Revisão necessária."; exit 1;
+TARGET="7f6086763d78f64c65d4939151d728e46f51b6fb"
+test "$(git rev-parse FETCH_HEAD)" = "$TARGET" || {
+  echo "PARADO: a branch remota mudou; revisar nova revisão."; exit 1;
 }
-git switch --detach "$TARGET_COMMIT"
-node deploy/staging/validate-env.mjs
+git merge-base --is-ancestor "$OLD_COMMIT" "$TARGET" || {
+  echo "PARADO: histórico divergente; não forçar nem sobrescrever."; exit 1;
+}
+
+# Manter a branch de trabalho original intocada.
+git switch -c deploy/geoagent-staging-20261012
+git merge --ff-only "$TARGET"
+
+sudo node deploy/staging/validate-env.mjs
+sudo node deploy/staging/start.mjs
+sudo node deploy/staging/health-check.mjs
+sudo docker compose --env-file deploy/staging/.env   -f deploy/staging/compose.yml ps
+git log -1 --format='%h %s'
 ```
 
-O `git switch --detach` fixa a revisão utilizada na homologação,
-sem alterar, excluir ou forçar uma branch local. Se o código atual não
-for ancestral da nova revisão, **o procedimento para sem modificar o checkout**.
+Se a branch local `deploy/geoagent-staging-20261012` já existir,
+**parar e inspecionar** em vez de sobrescrever.
 
-## Passo 2: iniciar e validar
+`start.mjs` seleciona automaticamente os overlays Google/Firebase/OTP e
+usa `docker compose up -d --build`, sem remover volumes. As migrations
+082, 083 e 084 são aditivas, mas sempre dependem de backup verificado.
 
-Depois do passo 1 sem erros:
+## Etapa 3 — homologação
 
-```bash
-cd /opt/ramo-nessa
-node deploy/staging/start.mjs
-node deploy/staging/health-check.mjs
-git rev-parse --short HEAD
-docker ps --format '{{.Names}} {{.Status}}' | grep ramo-nessa-staging
-```
+1. Verificar `https://vps-a70eab23.vps.ovh.ca/ready`.
+2. Acessar `https://vps-a70eab23.vps.ovh.ca/admin/`, abrir GeoAgent.
+3. Confirmar que **busca local, aprendizado e limpeza programada estão
+   desligados** (padrão `false`).
+4. Conferir métricas de armazenamento, **Simular limpeza** e acesso por perfil.
+5. Confirmar telas, regiões de preço, pagamentos e integrações existentes.
+6. Testar com Android e iOS antes de habilitar busca GeoDB para passageiros.
 
-`start.mjs` valida segredos privados sem exibi-los, seleciona os overlays
-Firebase/Google/OTP que já estavam configurados, recompila imagens e
-executa migrations pelo container `migrate`. As migrações são aditivas.
-`health-check.mjs` verifica `/health`, `/ready` e `/admin/`.
+Não ativar Google Places, importação automática ou limpeza real para
+homologação sem avaliação de cobranças, licenças e impacto de UX.
 
-## Passo 3: verificação funcional no ADM
+## Recuperação de código, sem restauração automática do banco
 
-1. Acessar `https://vps-a70eab23.vps.ovh.ca/admin/` com usuário administrador.
-2. Abrir **GeoAgent** na navegação. Confirmar o estado **Busca local desativada**.
-3. Confirmar armazenamento inicial e indicadores do Core.
-4. Clicar **Simular limpeza**: nenhum registro deve ser apagado.
-5. Confirmar preços e configurações existentes sem mudanças.
-6. Fazer coleta manual **apenas de teste**, com dados públicos; revisar a
-   comparação; não publicar dados sem conferência.
-7. Executar testes em Android e iOS antes de ligar busca ou aprendizado.
+**Somente em caso de falha**, voltar ao commit registrado antes da atualização
+(`OLD_COMMIT` acima), depois de confirmar seu valor pelo terminal.
+Para um procedimento repetível, antes do deploy salve esse valor em uma pasta
+administrativa privada (não em Git nem no chat). Em qualquer rollback, manter
+a migration aplicada sem tentar apagar tabelas ou substituir volumes.
+Nunca usar `docker compose down -v`, `git reset --hard`,
+`docker volume rm` ou `pg_restore` sem uma operação separada e verificada.
 
-Para ligar o aprendizado controlado **em homologação**, posteriormente:
-adicionar/editar em `deploy/staging/.env` os valores explícitos
-(`GEO_PASSENGER_LEARNING_ENABLED=true`, etc.) e executar o
-`start.mjs` novamente, sempre com backup e validação.
-`GEO_STORAGE_AUTOMATION_ENABLED` deve continuar `false`
-até aprovação específica da limpeza programada.
-
-## Rollback de código (não apagar migrations)
-
-Se a nova versão apresentar falha, e o **backup tiver sido verificado**,
-o banco não deve ser substituído automaticamente. As novas migrations
-adicionam tabelas/colunas e normalmente são ignoradas pelo código antigo.
-Para **reverter apenas Core e ADM**, execute:
-
-```bash
-set -euo pipefail
-cd /opt/ramo-nessa
-OLD_COMMIT="$(cat "$HOME/ramo-nessa-backups/geoagent-pre-deploy-commit.txt")"
-git switch --detach "$OLD_COMMIT"
-node deploy/staging/start.mjs
-node deploy/staging/health-check.mjs
-```
-
-Restauração de banco é uma operação separada, potencialmente destrutiva,
-e não deve ser executada sem verificar quais transações ocorreram após o backup.
-
-## Controles de segurança
-
-- Nunca publicar credenciais ou `docker compose config` completo em chat.
-- Backups ficam privados no usuário do VPS, não no GitHub.
-- Não há controle de terminal remoto nesta conversa: **só o operador do VPS
-  pode executar e confirmar a conclusão do rollout**.
+**Observação:** não há SSH remoto conectado a esta conversa. A atualização
+do VPS só pode ser considerada concluída depois que o operador executar
+o procedimento e enviar as saídas não sensíveis das verificações.
