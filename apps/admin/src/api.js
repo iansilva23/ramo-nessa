@@ -159,6 +159,19 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    geoStats(token) {
+      return request('/v1/admin/geo/stats', { token });
+    },
+    geoPreview(token, places) {
+      return request('/v1/admin/geo/places/preview', {
+        method: 'POST', token, body: { places },
+      });
+    },
+    geoImport(token, places) {
+      return request('/v1/admin/geo/places/import', {
+        method: 'POST', token, body: { places },
+      });
+    },
     issues(token){return request('/v1/admin/issues',{token});},
     reviewIssue(token,body){return request('/v1/admin/issues/review',{token,method:'POST',body});},
     marketing(token){return request('/v1/admin/marketing',{token});},
