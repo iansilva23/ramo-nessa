@@ -88,7 +88,7 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
   };
   const setBusy = active => {
     busy = active;
-    for (const id of ['geo-preview', 'geo-clear', 'geo-select-all',
+    for (const id of ['geo-preview', 'geo-collect', 'geo-clear', 'geo-select-all',
       'geo-publish', 'geo-prev', 'geo-next', 'geo-refresh']) {
       const btn = el(id);
       if (btn) btn.disabled = active;
@@ -163,6 +163,7 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     el('geo-next').disabled = busy || (page + 1) * PAGE_SIZE >= all;
     el('geo-select-all').disabled = busy || !canWrite || !changes.length;
     el('geo-publish').disabled = busy || !canWrite || approved.size === 0;
+    el('geo-collect').disabled = busy || !canWrite || el('geo-region').value === 'all';
   }
   const clear = () => {
     changes = []; approved = new Set(); page = 0;
@@ -170,6 +171,26 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     message('');
     render();
   };
+  async function comparePlaces(places) {
+    if (!places.length) throw new Error('Nenhum registro pertence à área escolhida.');
+    const result = [];
+    let completed = 0;
+    for (const part of chunks(places)) {
+      const response = await api.geoPreview(getToken(), part);
+      if (destroyed) return;
+      if (!Array.isArray(response?.changes) || response.changes.length !== part.length) {
+        throw new Error('O Core retornou uma comparação incompleta.');
+      }
+      result.push(...response.changes);
+      completed += part.length;
+      message(`Comparando ${short(completed)} de ${short(places.length)} registros…`);
+    }
+    changes = result;
+    approved = new Set(result.flatMap((item, index) =>
+      item.kind === 'unchanged' ? [] : [index]));
+    page = 0;
+    message(`Análise concluída. Revise os ${short(approved.size)} registros selecionados antes de publicar.`, 'success');
+  }
   async function preview() {
     if (busy) return;
     if (!hasScope('pricing:read')) { message('Sem permissão para consultar dados geográficos.','danger'); return; }
@@ -183,24 +204,31 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
       const raw = JSON.parse(await file.text());
       const all = parseGeoUpload(raw);
       const places = filterGeoRegion(all, el('geo-region').value);
-      if (!places.length) throw new Error('Nenhum registro do arquivo pertence à área escolhida.');
-      const result = [];
-      let completed = 0;
-      for (const part of chunks(places)) {
-        const response = await api.geoPreview(getToken(), part);
-        if (destroyed) return;
-        if (!Array.isArray(response?.changes) || response.changes.length !== part.length) {
-          throw new Error('O Core retornou uma comparação incompleta.');
-        }
-        result.push(...response.changes);
-        completed += part.length;
-        message(`Comparando ${short(completed)} de ${short(places.length)} registros…`);
+      await comparePlaces(places);
+    } catch (error) { changes = []; approved.clear(); sayError(error); }
+    finally { if (!destroyed) setBusy(false); }
+  }
+  async function collect() {
+    if (busy) return;
+    if (!canWrite) { message(readOnlyMessage,'danger'); return; }
+    const region = el('geo-region').value;
+    if (region === 'all') {
+      message('Escolha Preá, Jericoacoara ou Jijoca antes de coletar.', 'danger');
+      return;
+    }
+    setBusy(true); changes = []; approved = new Set(); page = 0;
+    try {
+      message('Consultando os dados abertos da localidade selecionada…');
+      const collection = await api.geoCollect(getToken(), region);
+      if (destroyed) return;
+      if (collection?.provider !== 'osm' || collection?.region !== region) {
+        throw new Error('A fonte retornou uma área diferente da selecionada.');
       }
-      changes = result;
-      approved = new Set(result.flatMap((item, index) =>
-        item.kind === 'unchanged' ? [] : [index]));
-      page = 0;
-      message(`Análise concluída. Revise os ${short(approved.size)} registros selecionados antes de publicar.`, 'success');
+      const places = filterGeoRegion(parseGeoUpload(collection.places), region);
+      await comparePlaces(places);
+      if (collection.truncated) {
+        message('Prévia parcial: a fonte atingiu o limite de coleta. Revise antes de publicar.', 'neutral');
+      }
     } catch (error) { changes = []; approved.clear(); sayError(error); }
     finally { if (!destroyed) setBusy(false); }
   }
@@ -238,6 +266,7 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     listeners.push(() => target.removeEventListener(event, handler));
   }
   listen('geo-preview','click',() => { void preview(); });
+  listen('geo-collect','click',() => { void collect(); });
   listen('geo-clear','click',clear);
   listen('geo-refresh','click',() => { if (!busy) void setStats().catch(sayError); });
   listen('geo-prev','click',() => { page = Math.max(0,page-1); render(); });
