@@ -68,6 +68,7 @@ import type { DriverBenefitRepository } from '../benefits/driver-benefit-reposit
 import { InMemoryDriverBenefitRepository } from '../benefits/repositories/in-memory-driver-benefit-repository.js';
 import { PostgresDriverBenefitRepository } from '../benefits/repositories/postgres-driver-benefit-repository.js';
 import { createPostgresPool } from './postgres.js';
+import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, type PassengerGeoLearningStore } from '../places/passenger-geo-learning.js';
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
@@ -93,6 +94,7 @@ export interface RepositoryBundle {
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
   geoCatalogRepository: GeoCatalogRepository;
+  passengerGeoLearningStore: PassengerGeoLearningStore;
   savedCardRepository: SavedCardRepository;
   privacyRepository: PrivacyRepository;
   promotionRepository: PromotionRepository;
@@ -145,6 +147,7 @@ export function createRepositories(): RepositoryBundle {
       passengerSavedPlaceRepository:
         new PostgresPassengerSavedPlaceRepository(pool),
       geoCatalogRepository: new PostgresGeoCatalogRepository(pool),
+      passengerGeoLearningStore: new PostgresPassengerGeoLearningStore(pool),
       savedCardRepository: new PostgresSavedCardRepository(pool),
       privacyRepository: new PostgresPrivacyRepository(pool),
       promotionRepository: new PostgresPromotionRepository(pool),
@@ -211,6 +214,7 @@ export function createRepositories(): RepositoryBundle {
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
     geoCatalogRepository: new InMemoryGeoCatalogRepository(),
+    passengerGeoLearningStore: new InMemoryPassengerGeoLearningStore(),
     savedCardRepository: new InMemorySavedCardRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
     promotionRepository,
