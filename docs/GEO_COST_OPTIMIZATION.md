@@ -116,6 +116,45 @@ cobrada conforme o SKU; só destinos cobertos por **dados independentes e
 permitidos** podem ser atendidos localmente. Rotas Google, GPS e trânsito
 seguem inalterados. Nenhum cache longo de respostas Google foi criado.
 
+## Proteção de armazenamento e manutenção (migração 084)
+
+- No ADM `/admin/geoagent`, a nova área **Armazenamento e limpeza** mostra
+  bytes reais ocupados no PostgreSQL pelas tabelas GeoDB, seus índices e
+  referências do aprendizado. Esses valores **não** incluem todos os dados
+  operacionais, logs ou backups do VPS.
+- Limite preventivo configurável de **16 a 2048 MB** (padrão: **128 MB**).
+  Alerta no ADM quando o GeoDB chegar a **80%** do limite (50–95% configurável).
+  Quando o espaço já estiver acima do limite, **novos** lugares são recusados
+  pela importação PostgreSQL; atualização de locais existentes continua
+  disponível. Esse controle é um **limite suave** de admissão de novos
+  registros, não uma cota física que impeça o crescimento dos índices.
+- Pesquisa OSM expira após **90 dias** sem revalidação independente.
+  A atualização regional tenta ocorrer no **75º dia**, permitindo renovar a
+  validade antes de expirar. Lugares selecionados pelo passageiro têm
+  contagem e data de último uso, sem identificação pessoal; registros
+  populares (3+ seleções) têm prioridade.
+- Registros OSM podem ser **excluídos** após **120 dias** ou mais,
+  configurável até 365 dias, somente se não houver seleção nos últimos
+  90 dias. **Cadastros manuais nunca entram nessa limpeza.**
+  A limpeza é limitada a **100 exclusões por execução** e serializada
+  com importações. O botão **Simular limpeza** não apaga nenhum registro.
+  Para excluir, o administrador precisa clicar **Confirmar limpeza** e
+  confirmar o aviso exibido.
+- A automação diária tem duas travas independentes: a opção
+  `autoCleanupEnabled` no ADM (desativada por padrão) **E** a variável
+  `GEO_STORAGE_AUTOMATION_ENABLED=true` no Core (também desativada por
+  padrão). Sem ambas, não há exclusão agendada. Quando armada, a tarefa
+  procura regiões populares pendentes de revalidação e aplica no máximo
+  uma limpeza limitada por dia.
+- Migração: `084_geo_storage_maintenance.sql`; endpoints com permissões
+  `GET /v1/admin/geo/stats` (`pricing:read`),
+  `PUT /v1/admin/geo/storage-policy` (`pricing:write`),
+  `POST /v1/admin/geo/storage-cleanup/preview` (`pricing:read`)
+  e `POST /v1/admin/geo/storage-cleanup/confirm` (`pricing:write`).
+- Não executamos migração nem limpeza no VPS. Os testes automatizados usam
+  banco PostgreSQL temporário. Antes da homologação, validar backups,
+  capacidade, eventuais bases importadas e funcionamento no ADM.
+
 ## Limitações ainda pendentes
 - Não há coletas agendadas; a coleta OSM exige seu clique e aprovação.
   A extração Google e o importador Overture nativo não estão implementados.
