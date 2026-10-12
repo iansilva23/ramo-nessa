@@ -19,6 +19,43 @@
     <article class="metric-card"><span class="metric-label">Lugares novos aprendidos</span><strong id="geo-learned-places">—</strong><small>Importados de dados abertos após uso do app</small></article>
   </div>
   <p class="muted-copy" id="geo-learned-status">Aprendizado automático desativado nesta versão.</p>
+  <article class="panel-card geo-storage">
+    <div class="panel-card__header">
+      <div>
+        <span class="eyebrow eyebrow--dark">PROTEÇÃO DO SERVIDOR</span>
+        <h2>Armazenamento e limpeza</h2>
+        <p class="panel-card__copy">Visualize o espaço ocupado no PostgreSQL, renove destinos populares e remova somente registros de fonte aberta vencidos e não utilizados.</p>
+      </div>
+      <span id="geo-storage-state" class="pill">Calculando…</span>
+    </div>
+    <div class="geo-storage-info">
+      <div><small>GeoDB + índices + referências</small><strong id="geo-storage-used">—</strong></div>
+      <div><small>Lugares cadastrados</small><strong id="geo-storage-count">—</strong></div>
+      <div><small>Vencidos para pesquisa</small><strong id="geo-storage-expired">—</strong></div>
+      <div><small>Elegíveis para limpeza segura</small><strong id="geo-storage-eligible">—</strong></div>
+      <div><small>Populares próximos da renovação</small><strong id="geo-storage-popular">—</strong></div>
+    </div>
+    <p id="geo-storage-alert" class="muted-copy" role="status" aria-live="polite">Consumo ainda não consultado.</p>
+    <form id="geo-storage-policy-form" class="geo-storage-policy">
+      <label class="field"><span>Limite de armazenamento (MB)</span>
+        <input id="geo-storage-limit" type="number" min="16" max="2048" step="1" value="128" required></label>
+      <label class="field"><span>Alerta ao atingir (%)</span>
+        <input id="geo-storage-threshold" type="number" min="50" max="95" step="1" value="80" required></label>
+      <label class="field"><span>Limpeza após (dias)</span>
+        <input id="geo-storage-retention" type="number" min="120" max="365" step="1" value="120" required></label>
+      <label class="field"><span>Manutenção programada</span>
+        <label class="geo-storage-auto-label"><input id="geo-storage-auto" type="checkbox">
+          Ativar limpeza diária, quando habilitada no servidor</label>
+        <small id="geo-storage-schedule-status">A execução programada exige autorização no Core.</small></label>
+      <div class="geo-actions">
+        <button class="button button--dark" type="submit" id="geo-storage-save">Salvar limites</button>
+        <button class="button button--ghost-dark" type="button" id="geo-storage-preview">Simular limpeza</button>
+        <button class="button button--ghost-dark" type="button" id="geo-storage-clean">Confirmar limpeza de até 100 registros</button>
+      </div>
+    </form>
+    <p class="muted-copy">O limite é preventivo: bloqueia novos cadastros quando o espaço configurado já está ocupado. Não limita fisicamente o tamanho do PostgreSQL nem apaga locais manuais. A exclusão automática fica desligada por padrão e só será executada quando habilitada no ADM e no servidor.</p>
+  </article>
+
   <article class="panel-card geo-editor">
     <div class="panel-card__header">
       <div>
