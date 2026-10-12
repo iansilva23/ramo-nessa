@@ -77,6 +77,8 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
   let page = 0;
   let changes = [];
   let approved = new Set();
+  let storagePolicyLoaded = false;
+  let lastCleanupPreview = null;
   const canWrite = hasScope('pricing:write');
   const readOnlyMessage = 'Seu perfil pode consultar, mas não aprovar atualizações.';
   const message = (value, tone = 'neutral') => {
@@ -89,7 +91,8 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
   const setBusy = active => {
     busy = active;
     for (const id of ['geo-preview', 'geo-collect', 'geo-clear', 'geo-select-all',
-      'geo-publish', 'geo-prev', 'geo-next', 'geo-refresh']) {
+      'geo-publish', 'geo-prev', 'geo-next', 'geo-refresh',
+      'geo-storage-save','geo-storage-preview','geo-storage-clean']) {
       const btn = el(id);
       if (btn) btn.disabled = active;
     }
@@ -120,7 +123,90 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
       : 'Aprendizado pelos passageiros desativado no Core.';
     el('geo-mode-status').textContent = stats.enabled
       ? 'Busca local ativada no Core' : 'Busca local desativada no Core';
+    const storage=stats.storage ?? {};
+    const policy=storage.policy ?? {};
+    const used=Number(storage.usedBytes || 0);
+    const mb=(used / 1048576).toLocaleString('pt-BR',{maximumFractionDigits:2});
+    el('geo-storage-used').textContent=mb+' MB / '+short(policy.maxStorageMb)+' MB';
+    el('geo-storage-count').textContent=short(storage.places);
+    el('geo-storage-expired').textContent=short(storage.expiredPlaces);
+    el('geo-storage-eligible').textContent=short(storage.cleanupEligible);
+    el('geo-storage-popular').textContent=short(storage.popularDue);
+    const level=storage.status || 'ok';
+    el('geo-storage-state').textContent=({
+      ok:'Dentro do limite',warning:'Atenção ao espaço',limit:'Limite alcançado',
+    })[level] || level;
+    el('geo-storage-alert').textContent=level==='ok'
+      ? 'Espaço monitorado. Os registros antigos só são removidos após o prazo de segurança.'
+      : level==='warning'
+        ? 'Atenção: o GeoDB se aproxima do limite configurado. Revise os cadastros vencidos.'
+        : 'Limite atingido: novos locais podem ficar bloqueados. Revise o espaço e as políticas.';
+    el('geo-storage-schedule-status').textContent=stats.storageAutomationArmed
+      ? 'Servidor permite manutenção programada quando marcada acima.'
+      : 'Servidor não permite limpeza programada nesta versão. Apenas limpeza manual.';
+    if(!storagePolicyLoaded && policy.maxStorageMb != null) {
+      el('geo-storage-limit').value=String(policy.maxStorageMb);
+      el('geo-storage-threshold').value=String(policy.alertPercent);
+      el('geo-storage-retention').value=String(policy.retentionDays);
+      el('geo-storage-auto').checked=policy.autoCleanupEnabled===true;
+      storagePolicyLoaded=true;
+    }
   };
+  function storageValues() {
+    const maxStorageMb=Number(el('geo-storage-limit').value);
+    const alertPercent=Number(el('geo-storage-threshold').value);
+    const retentionDays=Number(el('geo-storage-retention').value);
+    if(!Number.isInteger(maxStorageMb) || maxStorageMb<16 || maxStorageMb>2048 ||
+      !Number.isInteger(alertPercent) || alertPercent<50 || alertPercent>95 ||
+      !Number.isInteger(retentionDays) || retentionDays<120 || retentionDays>365) {
+      throw new Error('Informe limite de 16–2048 MB, alerta de 50–95% e retenção de 120–365 dias.');
+    }
+    return {maxStorageMb,alertPercent,retentionDays,
+      autoCleanupEnabled:el('geo-storage-auto').checked};
+  }
+  async function saveStoragePolicy(){
+    if(busy || !canWrite)return;
+    setBusy(true);
+    try {
+      const updated=await api.geoStoragePolicy(getToken(),storageValues());
+      if(!updated?.policy)throw new Error('O Core não confirmou as configurações.');
+      message('Política de armazenamento salva. O Core respeitará os novos limites.','success');
+      await setStats();
+    }catch(error){sayError(error);}
+    finally { if(!destroyed)setBusy(false); }
+  }
+  async function previewStorageCleanup(){
+    if(busy)return;
+    setBusy(true);
+    try{
+      lastCleanupPreview=await api.geoStorageCleanup(getToken(),true);
+      message(lastCleanupPreview.skipped==='busy'
+        ? 'Uma importação está em andamento; tente novamente após concluir.'
+        : `Limpeza simulada: ${short(lastCleanupPreview.eligible)} registros elegíveis. Até 100 seriam removidos por execução. Nenhum dado foi apagado.`,
+      lastCleanupPreview.skipped?'neutral':'success');
+    }catch(error){sayError(error);}
+    finally {if(!destroyed)setBusy(false);}
+  }
+  async function cleanStorage(){
+    if(busy || !canWrite)return;
+    if(lastCleanupPreview==null) {
+      message('Use Simular limpeza antes de confirmar.','danger');
+      return;
+    }
+    if(lastCleanupPreview.eligible<1){
+      message('Não há registros elegíveis para limpeza.','neutral');
+      return;
+    }
+    if(!window.confirm(`Excluir até 100 dos ${lastCleanupPreview.eligible} lugares vencidos e sem uso recente? Locais manuais serão preservados.`))return;
+    setBusy(true);
+    try{
+      const result=await api.geoStorageCleanup(getToken(),false);
+      lastCleanupPreview=null;
+      message(`${short(result.removed)} registros antigos removidos nesta operação.`,'success');
+      await setStats();
+    }catch(error){sayError(error);}
+    finally{if(!destroyed)setBusy(false);}
+  }
   function render() {
     if (destroyed) return;
     const all = changes.length;
@@ -276,6 +362,9 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     const target = el(id); target.addEventListener(event, handler);
     listeners.push(() => target.removeEventListener(event, handler));
   }
+  listen('geo-storage-policy-form','submit',event=>{event.preventDefault();void saveStoragePolicy();});
+  listen('geo-storage-preview','click',()=>{void previewStorageCleanup();});
+  listen('geo-storage-clean','click',()=>{void cleanStorage();});
   listen('geo-preview','click',() => { void preview(); });
   listen('geo-collect','click',() => { void collect(); });
   listen('geo-clear','click',clear);
@@ -292,6 +381,10 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     message('A área mudou. Clique novamente em Analisar e comparar para revisar o arquivo.');
   });
   el('geo-publish').title = canWrite ? '' : readOnlyMessage;
+  if(!canWrite) {
+    for(const id of ['geo-storage-limit','geo-storage-threshold','geo-storage-retention',
+      'geo-storage-auto','geo-storage-save','geo-storage-clean'])el(id).disabled=true;
+  }
   render();
   void setStats().catch(sayError);
   return { destroy() { destroyed = true; listeners.forEach(off => off()); changes = []; approved.clear(); } };
