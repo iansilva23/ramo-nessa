@@ -2136,12 +2136,14 @@ const server = createServer(async (request, response) => {
       requestUrl.pathname === '/v1/maps/places/details'
     ) {
       const authorization = headerValue(request, 'authorization');
+      let isAuthenticatedPassenger = false;
       if (process.env.NODE_ENV === 'production' || authorization != null) {
-        await authenticateBearer({
+        const session = await authenticateBearer({
           repository: authSessionRepository,
           identities: authOtpRepository,
           headers: request.headers,
         });
+        isAuthenticatedPassenger = session.subjectType === 'passenger';
       }
 
       if (googlePlacesService == null) {
@@ -2266,8 +2268,10 @@ const server = createServer(async (request, response) => {
               ttlSeconds: placeProofTtlSeconds,
             });
 
-        observePassengerSelectedGooglePlace(place.id,localOnly,
-          place.latitude,place.longitude);
+        if (isAuthenticatedPassenger) {
+          observePassengerSelectedGooglePlace(place.id,localOnly,
+            place.latitude,place.longitude);
+        }
         json(response, 200, {
           provider: 'google',
           place: {
