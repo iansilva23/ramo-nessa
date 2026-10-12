@@ -3,13 +3,9 @@ on:
   push:
     branches:
       - feature/geo-cost-optimization-20261012
-  pull_request:
-    branches:
-      - feature/zone-aware-pricing
-    paths:
-      - 'backend/core/**'
-      - 'apps/admin/**'
-      - '.github/workflows/geoagent-review.yml'
+concurrency:
+  group: geoagent-review-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
