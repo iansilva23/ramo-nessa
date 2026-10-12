@@ -71,6 +71,51 @@ Respeitar as licenças, atribuições e proveniência das fontes utilizadas.
 - Métricas em `/stats` são contadores **por processo**, não estimativas de
   faturamento real, não sobrevivem a reinício do Core.
 
+## Aprendizado automático por passageiros (novo, desligado por padrão)
+
+O passageiro usa a pesquisa normal, sem mudança na interface Flutter. Depois
+que um **passageiro autenticado seleciona e resolve um local Google**:
+
+1. A seleção é respondida imediatamente pelo Google, como no fluxo anterior.
+2. Em segundo plano, o Core registra exclusivamente o **Google `place_id`**
+   e contadores agregados, **sem nome, endereço, coordenadas, identidade do
+   passageiro ou texto digitado**.
+3. Se a posição da seleção estiver nas regiões Preá/Jeri/Jijoca, o Core tenta
+   adquirir uma trava compartilhada de atualização para essa região.
+4. O GeoAgent baixa os locais **diretamente do OpenStreetMap**, com atribuição
+   e dados independentes, e alimenta a GeoDB com os estabelecimentos retornados.
+   O sistema jamais reaproveita nomes, endereços ou geometrias da resposta Google.
+5. Com as flags de busca ativadas, futuras pesquisas que encontrem esses
+   registros no GeoDB são respondidas pelo Core, sem Places para aquela busca.
+6. Registros OSM vencem para **consulta** após 90 dias, até atualização;
+   reconsulta regional depois de 90 dias quando sucesso e mais cedo se
+   uma execução falhar ou a fonte estiver incompleta.
+
+A integração foi feita no **Core** para servir Android e iOS pela mesma API.
+O usuário só precisa selecionar um destino normalmente. O ADM mantém sua
+coleta manual para correção, antecipação de atualizações e revisão.
+
+### Flags independentes
+
+- `GEO_PASSENGER_LEARNING_ENABLED=false` (padrão): nenhum aprendizado
+  automático é disparado.
+- `GEO_CATALOG_SEARCH_ENABLED=false` (padrão): a pesquisa local ainda não
+  substitui o Google Places para nenhum passageiro.
+- Somente após homologação e ativação deliberada é que ambas devem ficar
+  `true` para a experiência completa. A coleta, mesmo ativada, depende da
+  disponibilidade do OpenStreetMap e do limite por região (1.500 itens).
+
+Os contadores persistentes aparecem no ADM `/admin/geoagent`, vindos de
+`GET /v1/admin/geo/stats`. Tabelas de banco:
+`geo_passenger_place_references` e `geo_passenger_learning_regions`
+(migração `083_geo_passenger_learning.sql`). Nenhuma dessas tabelas contém
+IDs de passageiros ou endereços de origem/destino.
+
+A taxa de acerto não será 100%: a primeira seleção Google continua sendo
+cobrada conforme o SKU; só destinos cobertos por **dados independentes e
+permitidos** podem ser atendidos localmente. Rotas Google, GPS e trânsito
+seguem inalterados. Nenhum cache longo de respostas Google foi criado.
+
 ## Limitações ainda pendentes
 - Não há coletas agendadas; a coleta OSM exige seu clique e aprovação.
   A extração Google e o importador Overture nativo não estão implementados.
