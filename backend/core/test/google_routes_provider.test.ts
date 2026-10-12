@@ -297,3 +297,26 @@ test('falha de distância não fica presa no cache', async () => {
   );
   assert.equal(calls, 2);
 });
+
+test('rotas simultâneas idênticas geram uma só consulta e não ficam guardadas após resposta', async () => {
+  const a = { latitude: -2.82017, longitude: -40.41467 };
+  const b = { latitude: -2.8986, longitude: -40.4506 };
+  let calls = 0;
+  const fetcher = (async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ routes: [{
+      distanceMeters: 20000, duration: '1800s',
+      polyline: { encodedPolyline: encodePolyline5([a,b]) },
+    }] }), { status: 200 });
+  }) as typeof fetch;
+  const provider = new GoogleRoutesProvider('key','https://routes.example.test/',5000,fetcher);
+  const [first, second] = await Promise.all([
+    provider.route({ from:a, to:b }),
+    provider.route({ from:a, to:b }),
+  ]);
+  assert.equal(calls,1);
+  assert.equal(first.distanceMeters,20000);
+  assert.deepEqual(first,second);
+  await provider.route({ from:a, to:b });
+  assert.equal(calls,2);
+});
