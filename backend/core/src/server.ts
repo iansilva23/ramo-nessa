@@ -3,6 +3,7 @@ import { createGrowthChannels } from './growth/growth-channels.js';
 import { handleGrowthRoutes } from './growth/growth-routes.js';
 import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
+import { validateGeoBatch, type GeoCatalogPlace } from './places/geo-catalog-repository.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
 import type { RideRecord } from './rides/ride.js';
@@ -535,6 +536,7 @@ const {
   adminCommunicationsRepository,
   operationalSettingsRepository,
   passengerSavedPlaceRepository,
+  geoCatalogRepository,
   savedCardRepository,
   privacyRepository,
   promotionRepository,
@@ -546,6 +548,43 @@ const {
 const routingDistanceProvider = createRoutingDistanceProviderFromEnv();
 const routingRouteProvider = createRoutingRouteProviderFromEnv();
 const googlePlacesService = createGooglePlacesServiceFromEnv();
+const geoSearchEnabled = process.env.GEO_CATALOG_SEARCH_ENABLED?.trim() === 'true';
+// Per-process diagnostic counters only; they do not claim actual billing.
+const geoLookupStats = { localSearchHits: 0, localDetails: 0, googleFallbacks: 0 };
+async function approvedGeoPlace(place: GeoCatalogPlace) {
+  try {
+    const pricing = await resolvePricingCatalogContext({
+      versions: pricingCatalogVersionRepository, at: new Date(),
+    });
+    const approved = classifyCoordinateByCatalog({
+      catalog: pricing.snapshot,
+      latitude: place.latitude,
+      longitude: place.longitude,
+    });
+    return {
+      id: place.id, name: place.name, address: place.address,
+      latitude: place.latitude, longitude: place.longitude,
+      approvedPricingZoneId: approved.zoneId,
+      approvedPricingLocalityId: approved.localityId,
+      placeProof: issuePlaceProof({
+        localityId: approved.localityId, placeId: place.id,
+        latitude: place.latitude, longitude: place.longitude,
+        secret: placeProofSecret, ttlSeconds: placeProofTtlSeconds,
+      }),
+    };
+  } catch (error) {
+    // Never use a catalog record to authorize a route in an unapproved zone.
+    if (error instanceof CoordinateClassificationError) return null;
+    throw error;
+  }
+}
+async function searchApprovedGeoPlaces(query: string) {
+  if (!geoSearchEnabled || query.trim().length < 2) return [];
+  const candidates = await geoCatalogRepository.search(query, true, 6);
+  const approved = await Promise.all(candidates.map(approvedGeoPlace));
+  return approved.filter((place): place is NonNullable<typeof place> => place != null);
+}
+
 const placeProofSecret = resolvePlaceProofSecret();
 const placeProofTtlSeconds = resolvePlaceProofTtlSeconds();
 assertGoogleMapsProductionConfig();
@@ -1819,6 +1858,38 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    // Manual import only: no scheduled jobs, no Google data harvesting.
+    if (request.method === 'GET' && requestUrl.pathname === '/v1/admin/geo/stats') {
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: 'pricing:read',
+      });
+      json(response, 200, { ...geoLookupStats, enabled: geoSearchEnabled, counters: 'per-process' });
+      return;
+    }
+    if (request.method === 'POST' &&
+        (requestUrl.pathname === '/v1/admin/geo/places/preview' ||
+         requestUrl.pathname === '/v1/admin/geo/places/import')) {
+      const preview = requestUrl.pathname.endsWith('/preview');
+      await authenticateAdminPrincipal({
+        apiKeys: adminRepository, humanAuth: adminHumanAuthRepository,
+        headers: request.headers, requiredScope: preview ? 'pricing:read' : 'pricing:write',
+      });
+      const raw = await readJson(request) as { places?: unknown } | null;
+      let places;
+      try { places = validateGeoBatch(raw?.places); }
+      catch { json(response, 422, { error: 'GEO_CATALOG_INVALID_BATCH',
+        message: 'Lote inválido: envie 1 a 200 locais de fontes autorizadas.' }); return; }
+      if (preview) {
+        const changes = await geoCatalogRepository.preview(places);
+        json(response, 200, { changes, count: changes.length });
+      } else {
+        const summary = await geoCatalogRepository.apply(places);
+        json(response, 200, { summary });
+      }
+      return;
+    }
+
     if (
       request.method === 'POST' &&
       requestUrl.pathname === '/v1/maps/places/autocomplete'
@@ -1861,6 +1932,18 @@ const server = createServer(async (request, response) => {
           return;
         }
 
+        if (localOnly) {
+          const localMatches = await searchApprovedGeoPlaces(query);
+          if (localMatches.length > 0) {
+            geoLookupStats.localSearchHits += 1;
+            json(response, 200, { provider: 'ramo-geo',
+              suggestions: localMatches.map(p => ({
+                placeId: p.id, mainText: p.name, secondaryText: p.address,
+              })) });
+            return;
+          }
+        }
+        geoLookupStats.googleFallbacks += 1;
         const suggestions = await googlePlacesService.autocomplete({
           query,
           sessionToken:
@@ -2037,6 +2120,20 @@ const server = createServer(async (request, response) => {
           }
         }
 
+        const requestedPlaceId =
+          typeof value.placeId === 'string' ? value.placeId : '';
+        if (geoSearchEnabled && localOnly && requestedPlaceId.startsWith('geo:')) {
+          const localPlace = await geoCatalogRepository.findById(requestedPlaceId);
+          const approvedPlace = localPlace == null ? null : await approvedGeoPlace(localPlace);
+          if (approvedPlace == null) {
+            json(response, 404, { error: 'LOCAL_PLACE_NOT_FOUND',
+              message: 'Destino não encontrado na base regional aprovada.' });
+            return;
+          }
+          geoLookupStats.localDetails += 1;
+          json(response, 200, { provider: 'ramo-geo', place: approvedPlace });
+          return;
+        }
         const place = await googlePlacesService.placeDetails({
           placeId:
             typeof value.placeId === 'string' ? value.placeId : '',
@@ -2195,6 +2292,15 @@ const server = createServer(async (request, response) => {
           return;
         }
 
+        if (localOnly) {
+          const localMatches = await searchApprovedGeoPlaces(query);
+          if (localMatches.length > 0) {
+            geoLookupStats.localSearchHits += 1;
+            json(response, 200, { provider: 'ramo-geo', places: localMatches });
+            return;
+          }
+        }
+        geoLookupStats.googleFallbacks += 1;
         const places = await googlePlacesService.searchText({
           query,
           localOnly,
