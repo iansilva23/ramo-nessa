@@ -5450,3 +5450,15 @@ td strong {
   .geo-pagination { align-items:flex-start;flex-direction:column; }
   .geo-results .panel-card__header { flex-direction:column;align-items:flex-start; }
 }
+
+/* GeoDB storage controls — compact and responsive. */
+.geo-storage { margin-bottom:22px; }
+.geo-storage-info { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0; }
+.geo-storage-info>div { min-width:0;border:1px solid var(--border);border-radius:12px;padding:12px; }
+.geo-storage-info small { display:block;font-size:11px;color:var(--muted);margin-bottom:6px; }
+.geo-storage-info strong { font-size:18px;line-height:1.2;display:block; }
+.geo-storage-policy { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:18px 0; }
+.geo-storage-policy>.geo-actions { grid-column:1/-1; }
+.geo-storage-auto-label { display:flex;gap:10px;align-items:center;font-size:13px;margin-top:8px; }
+.geo-storage-auto-label input { width:18px;height:18px; }
+@media(max-width:760px) { .geo-storage-policy{grid-template-columns:1fr;} }
