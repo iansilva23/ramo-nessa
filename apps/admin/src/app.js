@@ -1,7 +1,9 @@
 import { createGrowthAdmin } from './growth-admin.js';
 let growthAdmin = null;
 import { createCompanyCostsAdmin } from './company-costs-admin.js';
+import { createGeoAdmin } from './geo-admin.js';
 let companyCostsAdmin = null;
+let geoAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
 let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
@@ -258,6 +260,11 @@ const adminRoutes = Object.freeze({
     title: 'Nova localidade',
     page: 'localities',
   },
+  geo: {
+    path: '/admin/geoagent',
+    title: 'GeoAgent',
+    page: 'geo',
+  },
   pricing: {
     path: '/admin/operacao-tarifas',
     title: 'Operação e Tarifas',
@@ -413,6 +420,7 @@ const viewAccessScopes = Object.freeze({
   benefits: ['drivers:benefits:read', 'drivers:benefits:write'],
   passengers: ['passengers:auth:read', 'passengers:auth:write'],
   localities: ['pricing:read', 'pricing:write'],
+  geo: ['pricing:read', 'pricing:write'],
   pricing: ['pricing:read', 'pricing:write'],
   coupons: ['finance:read', 'finance:write'],
   finance: ['finance:read', 'finance:write'],
@@ -533,6 +541,7 @@ function clearSession(message = '') {
   stopSessionTimer();
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
@@ -889,6 +898,7 @@ async function activateView(
 
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
@@ -10530,6 +10540,17 @@ async function loadOverviewSecondaryMetrics() {
 }
 
 function initializeRouteView(view) {
+  if (view === 'geo') {
+    geoAdmin = createGeoAdmin({
+      root: routeOutlet, api, getToken: () => state.token, hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
   if(view==='issues'||view==='marketing'){growthAdmin=createGrowthAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view,onError(error){if(error instanceof AdminApiError&&error.status===401)handleAuthenticatedError(error);}});return;}
 
   if(view === 'costs') {
@@ -10781,6 +10802,7 @@ window.addEventListener('popstate', () => {
 window.addEventListener('pagehide', () => {
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
+  if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
   if (promotionsAdmin != null) { promotionsAdmin.destroy(); promotionsAdmin = null; }
   if (driverBenefitsAdmin != null) { driverBenefitsAdmin.destroy(); driverBenefitsAdmin = null; }
   stopFleetPolling();
