@@ -10,6 +10,17 @@ const regions: Record<GeoCollectionRegion, {
   jeri: { bbox: [-2.83, -40.56, -2.75, -40.465], city: 'Jijoca de Jericoacoara' },
   jijoca: { bbox: [-2.95, -40.53, -2.855, -40.395], city: 'Jijoca de Jericoacoara' },
 };
+// Used only transiently to choose an independent OSM region after selection.
+// Google Places geometry is never copied into our permanent GeoDB.
+export function geoCollectionRegionForPoint(latitude: number,longitude: number): GeoCollectionRegion|null {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  for (const region of ['jeri','prea','jijoca'] as GeoCollectionRegion[]) {
+    const [south,west,north,east]=regions[region].bbox;
+    if (latitude>=south && latitude<=north && longitude>=west && longitude<=east)
+      return region;
+  }
+  return null;
+}
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const MAX_RESULTS = 1500;
 const MAX_RESPONSE_BYTES = 3_000_000;
