@@ -74,6 +74,14 @@ export function validateStagingEnvironment(env) {
   assertBase64Bytes(requireValue(env, 'DOCUMENT_INSPECTION_ENCRYPTION_KEY', 32), 32, 'DOCUMENT_INSPECTION_ENCRYPTION_KEY');
   requireInteger(env, 'DOCUMENT_INSPECTION_TTL_SECONDS', 15, 600);
 
+  for (const key of ['GEO_CATALOG_SEARCH_ENABLED', 'GEO_PASSENGER_LEARNING_ENABLED',
+    'GEO_STORAGE_AUTOMATION_ENABLED']) {
+    const value = env.get(key) ?? 'false';
+    if (value !== 'true' && value !== 'false') {
+      throw new Error(key + ' deve ser true ou false.');
+    }
+  }
+
   const mpToken = env.get('MERCADO_PAGO_ACCESS_TOKEN_TEST') ?? '';
   const mpSecret = env.get('MERCADO_PAGO_WEBHOOK_SECRET') ?? '';
   if ((mpToken && mpToken.length < 20) || (mpSecret && mpSecret.length < 16) || Boolean(mpToken) !== Boolean(mpSecret)) {
