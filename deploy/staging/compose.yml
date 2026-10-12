@@ -35,6 +35,10 @@ x-core-environment: &core-environment
   GOOGLE_MAPS_SERVER_API_KEY: "staging-google-mock-key"
   GOOGLE_ROUTES_BASE_URL: "http://google-maps-mock:8091/"
   GOOGLE_PLACES_BASE_URL: "http://google-maps-mock:8091/v1/"
+  # GeoAgent is installed but off by default until staging acceptance.
+  GEO_CATALOG_SEARCH_ENABLED: ${GEO_CATALOG_SEARCH_ENABLED:-false}
+  GEO_PASSENGER_LEARNING_ENABLED: ${GEO_PASSENGER_LEARNING_ENABLED:-false}
+  GEO_STORAGE_AUTOMATION_ENABLED: ${GEO_STORAGE_AUTOMATION_ENABLED:-false}
   PLACE_PROOF_SECRET: ${PLACE_PROOF_SECRET:?PLACE_PROOF_SECRET is required}
   PLACE_PROOF_TTL_SECONDS: ${PLACE_PROOF_TTL_SECONDS:-1800}
   PUSH_PROVIDER: disabled
