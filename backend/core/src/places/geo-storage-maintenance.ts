@@ -82,12 +82,12 @@ export class PostgresGeoStorageMaintenance implements GeoStorageMaintenance {
     return toPolicy(rows[0]);
   }
   async report():Promise<GeoStorageReport>{
-    const [policy,counts,sizes]=await Promise.all([
-      this.settings(),
+    const policy=await this.settings();
+    const [counts,sizes]=await Promise.all([
       this.pool.query<CountRow>(`
         SELECT count(*)::text AS places,
           count(*) FILTER(WHERE source='osm' AND updated_at<now()-interval '90 days')::text AS expired,
-          count(*) FILTER(WHERE source='osm' AND updated_at<now()-interval '1 day' * $1
+          count(*) FILTER(WHERE source='osm' AND updated_at<now()-interval '1 day' * $1::integer
               AND (last_selected_at IS NULL OR last_selected_at<now()-interval '90 days'))::text AS eligible,
           count(*) FILTER(WHERE source='osm' AND selection_count>=3
               AND last_selected_at>=now()-interval '90 days'
