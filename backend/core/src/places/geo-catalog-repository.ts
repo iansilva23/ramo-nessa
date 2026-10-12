@@ -115,7 +115,7 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
     const {rows}=await this.pool.query<GeoRow>(`
       SELECT * FROM geo_catalog_places
       WHERE (normalized_name LIKE '%' || $1 || '%'
-        OR lower(address) LIKE '%' || $1 || '%')
+        OR normalized_address LIKE '%' || $1 || '%')
         AND ($2::boolean = false OR
           (latitude BETWEEN $3 AND $4 AND longitude BETWEEN $5 AND $6))
       ORDER BY CASE WHEN normalized_name LIKE $1 || '%' THEN 0 ELSE 1 END,
@@ -154,15 +154,16 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
         if(kind==='new')result.added++;else result.changed++;
         await client.query(`
           INSERT INTO geo_catalog_places
-            (id,source,source_id,name,normalized_name,address,category,city,latitude,longitude)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            (id,source,source_id,name,normalized_name,address,normalized_address,category,city,latitude,longitude)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
           ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,normalized_name=excluded.normalized_name,
-            address=excluded.address,category=excluded.category,
+            address=excluded.address,normalized_address=excluded.normalized_address,
+            category=excluded.category,
             city=excluded.city,latitude=excluded.latitude,
             longitude=excluded.longitude,updated_at=now()`,
           [place.id,place.source,place.sourceId,place.name,normalizeGeoText(place.name),
-            place.address,place.category,place.city,place.latitude,place.longitude]);
+            place.address,normalizeGeoText(place.address),place.category,place.city,place.latitude,place.longitude]);
       }
       await client.query('COMMIT');
       return result;
