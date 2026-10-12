@@ -72,6 +72,9 @@ export function stagingComposeEnvironment(maps = { provider: 'mock' }, otp = { p
   for (const key of ['GOOGLE_MAPS_PROVIDER', 'GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE',
     'GOOGLE_MAPS_SERVER_API_KEY', 'GOOGLE_ROUTES_BASE_URL', 'GOOGLE_PLACES_BASE_URL']) delete env[key];
   for (const key of ['OTP_PROVIDER', 'ENTRAR_API_SECRET', 'ENTRAR_API_SECRET_HOST_FILE']) delete env[key];
+  // Read GeoAgent gates only from the validated staging .env, not a shell override.
+  for (const key of ['GEO_CATALOG_SEARCH_ENABLED', 'GEO_PASSENGER_LEARNING_ENABLED',
+    'GEO_STORAGE_AUTOMATION_ENABLED']) delete env[key];
   if (otp.provider === 'entrar-whatsapp') env.ENTRAR_API_SECRET = otp.secret;
   if (maps.provider === 'google') env.GOOGLE_MAPS_SERVER_API_KEY = maps.apiKey;
   return env;

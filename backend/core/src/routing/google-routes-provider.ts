@@ -220,6 +220,9 @@ export class GoogleRoutesProvider
     string,
     { expiresAt: number; value: Promise<number> }
   >();
+  // Coalesce concurrent identical requests, without storing Google's route
+  // geometry, traffic ETA or instructions beyond the pending request.
+  private readonly routeInFlight = new Map<string, Promise<RouteResult>>();
 
   constructor(
     private readonly apiKey: string,
@@ -239,7 +242,19 @@ export class GoogleRoutesProvider
   }): Promise<RouteResult> {
     assertPoint(input.from);
     assertPoint(input.to);
+    const key = [input.from.latitude, input.from.longitude,
+      input.to.latitude, input.to.longitude].join(':');
+    const existing = this.routeInFlight.get(key);
+    if (existing != null) return existing;
+    const promise = this.fetchRoute(input);
+    this.routeInFlight.set(key, promise);
+    try { return await promise; }
+    finally {
+      if (this.routeInFlight.get(key) === promise) this.routeInFlight.delete(key);
+    }
+  }
 
+  private async fetchRoute(input: { from: GeoPoint; to: GeoPoint }): Promise<RouteResult> {
     const url = new URL('directions/v2:computeRoutes', this.baseUrl);
     let response: Response;
 
