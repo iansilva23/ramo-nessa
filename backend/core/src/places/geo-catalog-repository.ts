@@ -114,6 +114,9 @@ function fromRow(r:GeoRow): GeoCatalogPlace {
     category:r.category,city:r.city,latitude:Number(r.latitude),
     longitude:Number(r.longitude),updatedAt:new Date(r.updated_at).toISOString()};
 }
+export class GeoCatalogStorageLimitError extends Error {
+  constructor() {super('O GeoDB atingiu o limite de armazenamento configurado.');this.name='GeoCatalogStorageLimitError';}
+}
 export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
   constructor(private readonly pool:Pool){}
   async search(query:string,localOnly:boolean,limit=6):Promise<GeoCatalogPlace[]> {
@@ -132,7 +135,7 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
   }
   async findById(id:string):Promise<GeoCatalogPlace|null> {
     const {rows}=await this.pool.query<GeoRow>(
-      'SELECT * FROM geo_catalog_places WHERE id=$1',[id]);
+      'SELECT * FROM geo_catalog_places WHERE id=$1 AND (source<>\'osm\' OR updated_at>=now()-interval \'90 days\')',[id]);
     return rows[0]?fromRow(rows[0]):null;
   }
   async preview(input:GeoPlaceInput[]):Promise<GeoChange[]> {
@@ -154,6 +157,16 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
         'SELECT * FROM geo_catalog_places WHERE id=ANY($1::text[])',
         [places.map(p=>p.id)]);
       const old=new Map(rows.map(r=>{const p=fromRow(r);return[p.id,p] as const}));
+      // Soft admissions cap: preserve existing records and revalidations.
+      // The physical PostgreSQL size includes indexes and shared references.
+      const quota=await client.query<{bytes:string;max_storage_mb:number}>(`
+        SELECT (pg_total_relation_size('geo_catalog_places'::regclass) +
+          pg_total_relation_size('geo_passenger_place_references'::regclass) +
+          pg_total_relation_size('geo_passenger_learning_regions'::regclass))::text AS bytes,
+          max_storage_mb FROM geo_storage_settings WHERE id=1`);
+      if(quota.rows[0] &&
+        Number(quota.rows[0].bytes)>=quota.rows[0].max_storage_mb*1024*1024 &&
+        places.some(p=>!old.has(p.id))) throw new GeoCatalogStorageLimitError();
       const result={added:0,changed:0,unchanged:0};
       for(const place of places){
         const kind=compare(place,old.get(place.id)??null).kind;
