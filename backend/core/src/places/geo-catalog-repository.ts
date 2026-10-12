@@ -95,7 +95,12 @@ export class InMemoryGeoCatalogRepository implements GeoCatalogRepository {
     const changes=await this.preview(input);
     const counts={added:0,changed:0,unchanged:0};
     for(const c of changes) {
-      if(c.kind==='unchanged'){counts.unchanged++;continue}
+      if(c.kind==='unchanged'){
+        counts.unchanged++;
+        // The independent record was revalidated; renew its search TTL.
+        this.records.set(c.place.id,c.place);
+        continue;
+      }
       counts[c.kind==='new'?'added':'changed']++;
       this.records.set(c.place.id,c.place);
     }
@@ -152,7 +157,12 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
       const result={added:0,changed:0,unchanged:0};
       for(const place of places){
         const kind=compare(place,old.get(place.id)??null).kind;
-        if(kind==='unchanged'){result.unchanged++;continue}
+        if(kind==='unchanged'){
+          result.unchanged++;
+          // Refresh 90-day eligibility after a licensed-source recheck.
+          await client.query('UPDATE geo_catalog_places SET updated_at=now() WHERE id=$1',[place.id]);
+          continue;
+        }
         if(kind==='new')result.added++;else result.changed++;
         await client.query(`
           INSERT INTO geo_catalog_places
