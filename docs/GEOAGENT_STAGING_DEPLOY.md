@@ -47,6 +47,9 @@ fi
 
 # Guardar a revisão antes de mexer no código.
 OLD_COMMIT="$(git rev-parse HEAD)"
+sudo install -d -m 0700 /var/backups/ramo-nessa-staging
+printf '%s\n' "$OLD_COMMIT" | sudo tee /var/backups/ramo-nessa-staging/geoagent-pre-deploy-commit.txt >/dev/null
+sudo chmod 0600 /var/backups/ramo-nessa-staging/geoagent-pre-deploy-commit.txt
 sudo node deploy/staging/validate-env.mjs
 
 # O procedimento histórico usa /var/backups e precisa de sudo.
@@ -58,8 +61,10 @@ sudo node deploy/staging/verify-backup.mjs --backup-dir="$SNAPSHOT"
 # Nunca avançar para uma revisão diferente da auditada.
 git fetch origin feature/geo-cost-optimization-20261012
 TARGET="7f6086763d78f64c65d4939151d728e46f51b6fb"
-test "$(git rev-parse FETCH_HEAD)" = "$TARGET" || {
-  echo "PARADO: a branch remota mudou; revisar nova revisão."; exit 1;
+# A branch pode ter novos commits de documentação. Instalar somente
+# o commit auditado, exigindo que ainda pertença ao histórico remoto.
+git merge-base --is-ancestor "$TARGET" FETCH_HEAD || {
+  echo "PARADO: revisão auditada não encontrada no histórico remoto."; exit 1;
 }
 git merge-base --is-ancestor "$OLD_COMMIT" "$TARGET" || {
   echo "PARADO: histórico divergente; não forçar nem sobrescrever."; exit 1;
