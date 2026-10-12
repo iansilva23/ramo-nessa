@@ -68,6 +68,7 @@ import type { DriverBenefitRepository } from '../benefits/driver-benefit-reposit
 import { InMemoryDriverBenefitRepository } from '../benefits/repositories/in-memory-driver-benefit-repository.js';
 import { PostgresDriverBenefitRepository } from '../benefits/repositories/postgres-driver-benefit-repository.js';
 import { createPostgresPool } from './postgres.js';
+import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
   authSessionRepository: AuthSessionRepository;
@@ -91,6 +92,7 @@ export interface RepositoryBundle {
   adminCommunicationsRepository: AdminCommunicationsRepository;
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
+  geoCatalogRepository: GeoCatalogRepository;
   savedCardRepository: SavedCardRepository;
   privacyRepository: PrivacyRepository;
   promotionRepository: PromotionRepository;
@@ -142,6 +144,7 @@ export function createRepositories(): RepositoryBundle {
         new PostgresOperationalSettingsRepository(pool),
       passengerSavedPlaceRepository:
         new PostgresPassengerSavedPlaceRepository(pool),
+      geoCatalogRepository: new PostgresGeoCatalogRepository(pool),
       savedCardRepository: new PostgresSavedCardRepository(pool),
       privacyRepository: new PostgresPrivacyRepository(pool),
       promotionRepository: new PostgresPromotionRepository(pool),
@@ -207,6 +210,7 @@ export function createRepositories(): RepositoryBundle {
       new InMemoryOperationalSettingsRepository(),
     passengerSavedPlaceRepository:
       new InMemoryPassengerSavedPlaceRepository(),
+    geoCatalogRepository: new InMemoryGeoCatalogRepository(),
     savedCardRepository: new InMemorySavedCardRepository(),
     privacyRepository: new InMemoryPrivacyRepository(),
     promotionRepository,
