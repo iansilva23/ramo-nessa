@@ -107,6 +107,17 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     el('geo-hits').textContent = short(stats.localSearchHits);
     el('geo-details').textContent = short(stats.localDetails);
     el('geo-fallbacks').textContent = short(stats.googleFallbacks);
+    const learning=stats.passengerLearning ?? {};
+    el('geo-learned-selections').textContent = short(learning.selectedGooglePlaces);
+    const regions = Array.isArray(learning.regions) ? learning.regions : [];
+    el('geo-learned-places').textContent = short(regions.reduce((sum,item)=>sum+Number(item.totalImported||0),0));
+    const status = regions.map(item =>
+      `${({prea:'Preá',jeri:'Jeri',jijoca:'Jijoca'})[item.region] || item.region}: ` +
+      `${({running:'Atualizando',succeeded:'Atualizada',failed:'Tentará novamente'})[item.status] || item.status}`
+    ).join(' • ');
+    el('geo-learned-status').textContent = stats.passengerLearningEnabled
+      ? 'Aprendizado pelos passageiros ativado. ' + (status || 'Aguardando primeiras seleções.')
+      : 'Aprendizado pelos passageiros desativado no Core.';
     el('geo-mode-status').textContent = stats.enabled
       ? 'Busca local ativada no Core' : 'Busca local desativada no Core';
   };
