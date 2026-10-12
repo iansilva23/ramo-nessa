@@ -99,8 +99,8 @@ export class PostgresPassengerGeoLearningStore implements PassengerGeoLearningSt
   }
   async finish(region:GeoCollectionRegion,now:Date,added:number,success:boolean) {
     await this.pool.query(`UPDATE geo_passenger_learning_regions SET
-      status=$2,completed_at=$3,last_imported=$4,
-      total_imported=total_imported+$4,next_allowed_at=$5
+      status=$2,completed_at=$3,last_imported=$4::integer,
+      total_imported=total_imported+$4::integer,next_allowed_at=$5
       WHERE region=$1 AND status='running'`,
       [region,success?'succeeded':'failed',now.toISOString(),added,
         new Date(now.getTime()+(success?refreshMilliseconds:retryMilliseconds)).toISOString()]);
