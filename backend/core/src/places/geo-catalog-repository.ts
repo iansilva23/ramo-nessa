@@ -77,6 +77,7 @@ export class InMemoryGeoCatalogRepository implements GeoCatalogRepository {
     if (q.length < 2) return [];
     return [...this.records.values()]
       .filter(p=>(!localOnly || geoLocal(p)) &&
+        (p.source !== 'osm' || Date.parse(p.updatedAt)>Date.now()-90*24*3600000) &&
         (normalizeGeoText(p.name).includes(q) || normalizeGeoText(p.address).includes(q)))
       .sort((a,b)=>{
         const aStart=normalizeGeoText(a.name).startsWith(q)?0:1;
@@ -116,6 +117,7 @@ export class PostgresGeoCatalogRepository implements GeoCatalogRepository {
       SELECT * FROM geo_catalog_places
       WHERE (normalized_name LIKE '%' || $1 || '%'
         OR normalized_address LIKE '%' || $1 || '%')
+        AND (source <> 'osm' OR updated_at >= now() - interval '90 days')
         AND ($2::boolean = false OR
           (latitude BETWEEN $3 AND $4 AND longitude BETWEEN $5 AND $6))
       ORDER BY CASE WHEN normalized_name LIKE $1 || '%' THEN 0 ELSE 1 END,
