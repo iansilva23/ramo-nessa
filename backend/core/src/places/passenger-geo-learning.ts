@@ -23,7 +23,8 @@ export interface PassengerGeoLearningStore {
   stats(): Promise<PassengerGeoLearningStats>;
 }
 const retryMilliseconds = 6 * 60 * 60 * 1000;
-const refreshMilliseconds = 90 * 24 * 60 * 60 * 1000;
+// Revalidate regions at day 75, before OSM records stop being offered at day 90.
+const refreshMilliseconds = 75 * 24 * 60 * 60 * 1000;
 const runTimeoutMilliseconds = 30 * 60 * 1000;
 const validId = (id: string) =>
   typeof id === 'string' && id.length >= 3 && id.length <= 256 &&
