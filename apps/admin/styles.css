@@ -5430,7 +5430,7 @@ td strong {
 
 
 /* GeoAgent: página isolada da configuração de preços e geofences. */
-.geo-metrics { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:24px; }
+.geo-metrics { display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:16px;margin-bottom:24px; }
 .geo-editor, .geo-results { margin-bottom:22px; }
 .geo-form-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0; }
 .geo-form-grid .field { min-width:0; }
