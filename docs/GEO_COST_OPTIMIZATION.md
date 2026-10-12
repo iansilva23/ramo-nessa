@@ -10,19 +10,28 @@
   `pricing:write` para importação).
 
 ## GeoAgent manual
-1. Prepare um arquivo JSON contendo uma lista de destinos reutilizáveis ou
-   um objeto `{"places": [...]}`. Limites: 5 MiB / 10 mil registros por arquivo.
-2. Abra **GeoAgent**, selecione o arquivo e (opcionalmente) uma das regiões
-   aproximadas: Preá, Jeri ou Jijoca. O filtro se aplica somente ao arquivo.
-3. Clique **Analisar e comparar**. O Core valida lotes de até 200, compara
-   por `source + sourceId` e mostra **novo/alterado/igual**.
-4. Revise a tabela, desmarque o que não quer publicar e clique **Aprovar
-   seleção**. Nada é publicado automaticamente.
-5. O Core grava lotes de até 200 transacionalmente; importações repetidas não
-   duplicam o mesmo identificador da mesma fonte. Se um lote falhar, os lotes
-   anteriores podem já ter sido gravados. Reanalise antes de tentar novamente.
-6. Os destinos publicados ficam no catálogo geográfico, independente das
-   tabelas de tarifas e das geofences.
+Há dois modos, ambos **acionados manualmente**:
+- **Buscar locais no OpenStreetMap:** escolha Preá, Jeri ou Jijoca e clique no
+  botão. O Core consulta um perímetro fixo na API pública Overpass com limite
+  de 1.500 resultados por execução, aguarda um intervalo mínimo de 90 segundos
+  entre coletas e retorna candidatos para comparação; **não grava automaticamente**.
+  O serviço é compartilhado e pode estar indisponível/limitar requisições.
+  Não usar este endpoint para tentar varrer todo o Ceará: para grandes extratos,
+  usar download regional e processamento próprio.
+- **Arquivo JSON:** carregue uma lista de destinos reutilizáveis ou um objeto
+  `{"places": [...]}`. Limite de 5 MiB / 10 mil registros por arquivo.
+  Pode filtrar aproximadamente por Preá, Jeri ou Jijoca.
+
+Nos dois casos:
+1. O Core valida lotes de até 200 lugares e compara por `source + sourceId`,
+   mostrando **novo/alterado/igual**.
+2. Revise a tabela, desmarque o que não deseja e clique **Aprovar seleção**.
+3. A importação é feita em lotes transacionais de até 200, idempotentes por
+   fonte + ID. Se um lote falhar, os anteriores podem permanecer salvos:
+   reanalise antes de tentar novamente.
+4. Os lugares aprovados ficam no banco geográfico, sem mudar preços ou
+   áreas autorizadas.
+
 
 ### Formato de registro
 
@@ -46,6 +55,7 @@ Respeitar as licenças, atribuições e proveniência das fontes utilizadas.
 ## Integração no Core
 - Migração: `backend/core/migrations/082_geo_catalog.sql`.
 - Endpoints autorizados: `GET /v1/admin/geo/stats`,
+  `POST /v1/admin/geo/places/collect` (apenas `pricing:write`),
   `POST /v1/admin/geo/places/preview`,
   `POST /v1/admin/geo/places/import`.
 - Endpoints do passageiro usam GeoDB se ativado e houver resultados:
@@ -62,8 +72,9 @@ Respeitar as licenças, atribuições e proveniência das fontes utilizadas.
   faturamento real, não sobrevivem a reinício do Core.
 
 ## Limitações ainda pendentes
-- Ainda **não** há coleta automática de Google, OpenStreetMap ou Overture:
-  o GeoAgent importa arquivos que você enviar e clicar para aprovar.
+- Não há coletas agendadas; a coleta OSM exige seu clique e aprovação.
+  A extração Google e o importador Overture nativo não estão implementados.
+  Public Overpass pode impor limites ou indisponibilidade.
 - Não há cache de 90 dias das respostas Google. Para um cache duradouro,
   usar resultados produzidos por um motor de rotas próprio/dados com licença.
 - Não há instrumentação contábil para medir os valores exatos evitados.
