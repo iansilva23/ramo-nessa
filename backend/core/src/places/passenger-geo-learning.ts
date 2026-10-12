@@ -141,14 +141,13 @@ export class PassengerGeoLearner {
     try {
       const result=await this.collector(event.region);
       // An intentionally truncated source must not block the next refresh for 90 days.
-      if (!result.truncated && result.places.length>0) {
-        for (let i=0;i<result.places.length;i+=200) {
-          const batch=result.places.slice(i,i+200);
-          const response=await this.catalog.apply(batch);
-          added+=response.added;
-        }
-        success=true;
+      for (let i=0;i<result.places.length;i+=200) {
+        const batch=result.places.slice(i,i+200);
+        const response=await this.catalog.apply(batch);
+        added+=response.added;
       }
+      // A truncated regional extract is useful but must be refreshed sooner.
+      success=!result.truncated;
     } catch(error) {
       this.reportError(error);
     } finally {
