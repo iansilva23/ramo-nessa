@@ -135,11 +135,15 @@ export class PassengerGeoLearner {
   async observe(event:LearningEvent) {
     await this.store.recordGooglePlaceId(event.placeId);
     if (!event.region) return;
-    if (!await this.store.claim(event.region,new Date())) return;
+    await this.refreshRegion(event.region);
+  }
+  // A local (independently sourced) destination can also refresh its region.
+  async refreshRegion(region:GeoCollectionRegion) {
+    if (!await this.store.claim(region,new Date())) return;
     let added=0;
     let success=false;
     try {
-      const result=await this.collector(event.region);
+      const result=await this.collector(region);
       // An intentionally truncated source must not block the next refresh for 90 days.
       for (let i=0;i<result.places.length;i+=200) {
         const batch=result.places.slice(i,i+200);
@@ -151,7 +155,7 @@ export class PassengerGeoLearner {
     } catch(error) {
       this.reportError(error);
     } finally {
-      try {await this.store.finish(event.region,new Date(),added,success);}
+      try {await this.store.finish(region,new Date(),added,success);}
       catch(error){this.reportError(error);}
     }
   }
