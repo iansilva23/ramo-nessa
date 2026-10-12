@@ -261,6 +261,11 @@ export function createGeoAdmin({ root, api, getToken, hasScope, onError }) {
     el('geo-select-all').disabled = busy || !canWrite || !changes.length;
     el('geo-publish').disabled = busy || !canWrite || approved.size === 0;
     el('geo-collect').disabled = busy || !canWrite || el('geo-region').value === 'all';
+    for(const id of ['geo-storage-limit','geo-storage-threshold','geo-storage-retention',
+      'geo-storage-auto','geo-storage-save','geo-storage-clean']) {
+      el(id).disabled=busy || !canWrite;
+    }
+    el('geo-storage-preview').disabled=busy;
   }
   const clear = () => {
     changes = []; approved = new Set(); page = 0;
