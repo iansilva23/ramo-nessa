@@ -162,6 +162,11 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
     geoStats(token) {
       return request('/v1/admin/geo/stats', { token });
     },
+    geoCollect(token, region) {
+      return request('/v1/admin/geo/places/collect', {
+        method: 'POST', token, body: { region },
+      });
+    },
     geoPreview(token, places) {
       return request('/v1/admin/geo/places/preview', {
         method: 'POST', token, body: { places },
