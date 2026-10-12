@@ -562,7 +562,8 @@ async function approvedGeoPlace(place: GeoCatalogPlace) {
       longitude: place.longitude,
     });
     return {
-      id: place.id, name: place.name, address: place.address,
+      id: place.id, name: place.name,
+      address: place.address || [place.city, 'Ceará, Brasil'].filter(Boolean).join(', '),
       latitude: place.latitude, longitude: place.longitude,
       approvedPricingZoneId: approved.zoneId,
       approvedPricingLocalityId: approved.localityId,
