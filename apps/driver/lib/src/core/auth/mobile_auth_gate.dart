@@ -88,7 +88,9 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     final token = _accessToken;
     if (!mounted || !_foreground || _loggingOut || interval == null ||
         interval <= Duration.zero || token == null || token.length < 20 ||
-        _sessionValidationTimer != null) return;
+        _sessionValidationTimer != null) {
+      return;
+    }
     _sessionValidationTimer = Timer.periodic(interval, (_) {
       // A periodic session check must not re-register push or extend session TTL.
       unawaited(_bootstrap(notifyReady: false));
