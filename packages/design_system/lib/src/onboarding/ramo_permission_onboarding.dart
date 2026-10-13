@@ -11,6 +11,7 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
     required this.saveCompleted,
     required this.requestLocation,
     required this.requestNotifications,
+    required this.saveNotificationPreference,
     required this.child,
   });
 
@@ -20,6 +21,7 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
   final Future<void> Function() saveCompleted;
   final Future<bool> Function() requestLocation;
   final Future<bool> Function() requestNotifications;
+  final Future<void> Function(bool allNotifications) saveNotificationPreference;
   final Widget child;
 
   @override
@@ -86,6 +88,7 @@ class _RamoPermissionOnboardingGateState
     if (_saving) return;
     setState(() => _saving = true);
     try {
+      await widget.saveNotificationPreference(_allNotifications);
       await widget.saveCompleted();
     } catch (_) {
       // Falha local de escrita não deve prender o usuário no onboarding.
@@ -101,6 +104,7 @@ class _RamoPermissionOnboardingGateState
     required VoidCallback onPressed,
     bool busy = false,
     bool? granted,
+    bool unavailable = false,
   }) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -134,6 +138,8 @@ class _RamoPermissionOnboardingGateState
         const SizedBox(width: 8),
         if (granted == true)
           const Icon(Icons.check_circle_rounded, color: Color(0xFFFFCC00))
+        else if (unavailable)
+          const Text('Em breve', style: TextStyle(color: Color(0xFFFFCC00), fontSize: 11, fontWeight: FontWeight.w700))
         else
           TextButton(
             onPressed: busy ? null : onPressed,
@@ -204,6 +210,7 @@ class _RamoPermissionOnboardingGateState
                   action: 'Ativar',
                   busy: _notificationBusy,
                   granted: _notificationAllowed,
+                  unavailable: widget.web,
                   onPressed: _notifications,
                 ),
                 const SizedBox(height: 18),
