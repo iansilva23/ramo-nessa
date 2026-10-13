@@ -1,0 +1,65 @@
+name: Flutter Web and Permissions Review
+
+on:
+  push:
+    branches: [feature/flutter-web-permissions-20261013]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-web:
+    name: Web build and regressions - ${{ matrix.app }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            path: passageiro
+          - app: driver
+            path: motorista
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve Flutter dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get
+      - name: Analyze app and run regression tests
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Prepare browser Google Maps key
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        shell: bash
+        run: |
+          KEY="${RAMO_GOOGLE_MAPS_WEB_API_KEY:-WEB_KEY_NOT_CONFIGURED_FOR_CI}"
+          sed -i "s|__RAMO_GOOGLE_MAPS_WEB_KEY__|${KEY}|g" apps/${{ matrix.app }}/web/index.html
+      - name: Build browser/PWA application
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build web --release
+          --base-href=/${{ matrix.path }}/
+          --dart-define=RAMO_CORE_BASE_URL=https://vps-a70eab23.vps.ovh.ca
+          --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Check web artifact and PWA manifest
+        shell: bash
+        run: |
+          test -s "apps/${{ matrix.app }}/build/web/index.html"
+          test -s "apps/${{ matrix.app }}/build/web/manifest.json"
+          test -s "apps/${{ matrix.app }}/build/web/icons/Icon-192.png"
+          test -s "apps/${{ matrix.app }}/build/web/flutter_bootstrap.js"
+      - name: Store review-only static bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-nessa-web-${{ matrix.app }}-review
+          path: apps/${{ matrix.app }}/build/web/
+          retention-days: 7
