@@ -276,6 +276,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     );
     final destinationIcon = await buildRamoMapMarker(
       icon: Icons.flag_rounded,
+      assetName: RamoMapMarkerAssets.destination,
       background: const Color(0xFF111111),
       foreground: const Color(0xFFFFFFFF),
       border: const Color(0xFFFFFFFF),
@@ -403,7 +404,8 @@ class _RamoLiveMapState extends State<RamoLiveMap>
             destination.position.longitude,
           ),
           icon: _destinationIcon,
-          anchor: const Offset(.5, .5),
+          // A ponta inferior do pino 3D deve coincidir com o destino real.
+          anchor: const Offset(.5, .91),
           infoWindow: gm.InfoWindow(
             title: 'Destino',
             snippet: destination.name,
