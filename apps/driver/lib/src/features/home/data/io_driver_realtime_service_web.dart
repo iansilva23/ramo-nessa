@@ -28,8 +28,9 @@ class IoDriverRealtimeService implements DriverRealtimeService {
         'driver.bootstrap',
         'driver.offer.updated',
         'driver.ride.updated',
-      }.contains(type))
+      }.contains(type)) {
         continue;
+      }
       final offer = event['offer'];
       final ride = event['ride'];
       try {
