@@ -2995,6 +2995,22 @@ class _MapAvailabilityPanel extends StatelessWidget {
             ),
           ],
         ),
+        if (kIsWeb) ...[
+          const SizedBox(height: 10),
+          const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFB17D14)),
+              SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Mantenha o Ramo Nessa Web aberto e a tela desbloqueada. '
+                  'O Safari pode pausar o GPS e as ofertas em segundo plano.',
+                  style: TextStyle(fontSize: 12, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 14),
         SizedBox(
           width: double.infinity,
