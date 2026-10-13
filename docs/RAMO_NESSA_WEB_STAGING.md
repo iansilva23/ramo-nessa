@@ -93,3 +93,21 @@ não prova comportamento de login, pagamentos ou navegação.
 - Não publicar saída de `docker inspect`/`docker compose config` com segredos.
 - A mudança atual prepara arquivos somente, não registra domínio novo,
   não altera o VPS e não ativa pagamentos ou ofertas de motorista na Web.
+
+## Segurança do Motorista Web e CanvasKit
+
+No navegador do iPhone, o GPS, a conexão e os temporizadores podem ser
+suspensos quando a página fica oculta. O Motorista Web tenta desativar sua
+disponibilidade ao ir para segundo plano e repete a verificação ao retornar.
+Ele nunca tenta desligar uma viagem já ativa por causa desse evento; nesse
+caso mostra um aviso para conferir a corrida. Não é garantia de envio de rede
+antes da suspensão; o Core já exclui localizações antigas depois do TTL
+operacional (120 segundos por padrão). Portanto, ainda NÃO há autorização
+para liberar motoristas Web em produção sem teste real de visibilidade,
+localização e reconexão no Safari.
+
+As rotas /passageiro/ e /motorista/ permitem exclusivamente o mínimo
+adicional necessário para o CanvasKit Flutter: script da CDN gstatic e
+`'wasm-unsafe-eval'`. O ADM continua com CSP restrita; o navegador não
+recebe segredos de backend e o GPS segue limitado às PWAs. O workflow
+verifica esses cabeçalhos e valida a sintaxe do Caddy sem instalar no VPS.

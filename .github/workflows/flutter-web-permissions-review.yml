@@ -5,6 +5,10 @@ on:
     branches: [feature/flutter-web-permissions-20261013]
   workflow_dispatch:
 
+concurrency:
+  group: flutter-web-permissions-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -72,6 +76,8 @@ jobs:
           --role=${{ matrix.app }}
           --dist=apps/${{ matrix.app }}/build/web
           --ci-review
+      - name: Verify isolated browser security headers
+        run: node scripts/web/verify_web_gateway.mjs
       - name: Validate Caddy staging config (no server changes)
         env:
           APP_DOMAIN: example.com
