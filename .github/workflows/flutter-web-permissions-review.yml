@@ -102,10 +102,10 @@ jobs:
             apps/${{ matrix.app }}/pubspec.lock
             packages/ramo_realtime/pubspec.lock
           retention-days: 7
-      - name: Format new Web card source for review
+      - name: Check formatting of Web card source
         if: matrix.app == 'passenger'
         run: |
-          dart format \
+          dart format --output=none --set-exit-if-changed \
             apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart \
             apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
       - name: Store formatted card source for reproducibility
