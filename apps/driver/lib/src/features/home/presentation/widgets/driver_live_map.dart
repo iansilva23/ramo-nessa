@@ -277,6 +277,7 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     );
     final destinationIcon = await buildRamoMapMarker(
       icon: Icons.flag_rounded,
+      assetName: RamoMapMarkerAssets.destination,
       background: const Color(0xFF111111),
       foreground: const Color(0xFFFFFFFF),
       border: const Color(0xFFFFFFFF),
@@ -449,7 +450,8 @@ class _DriverLiveMapState extends State<DriverLiveMap>
           markerId: const gm.MarkerId('dropoff'),
           position: gm.LatLng(ride!.dropoffLatitude!, ride.dropoffLongitude!),
           icon: _destinationIcon,
-          anchor: const Offset(.5, .5),
+          // Alinhar a ponta do pino 3D às coordenadas da chegada.
+          anchor: const Offset(.5, .91),
           infoWindow: const gm.InfoWindow(title: 'Destino'),
         ),
       );
