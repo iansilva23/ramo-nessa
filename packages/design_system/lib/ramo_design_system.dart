@@ -9,3 +9,5 @@ export 'src/theme/ramo_theme.dart';
 export 'src/motion/ramo_ride_motion.dart';
 
 export 'src/theme/ramo_appearance.dart';
+
+export 'src/onboarding/ramo_permission_onboarding.dart';
