@@ -20,6 +20,8 @@ dependencies:
   latlong2: ^0.10.1
   google_maps_flutter: ^2.18.1
   image_picker: ^1.2.3
+  ramo_push:
+    path: ../../packages/ramo_push
   ramo_realtime:
     path: ../../packages/ramo_realtime
   ramo_design_system:

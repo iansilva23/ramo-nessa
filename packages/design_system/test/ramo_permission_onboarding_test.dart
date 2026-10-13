@@ -52,4 +52,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Perfil do motorista'), findsOneWidget);
   });
+  testWidgets('Web permite ativação por toque e mantém a preferência carregada', (tester) async {
+    var prompts = 0;
+    bool? saved;
+    await tester.pumpWidget(MaterialApp(home: RamoPermissionOnboardingGate(
+      role: 'passenger', web: true,
+      readCompleted: () async => false, saveCompleted: () async {},
+      requestLocation: () async => false,
+      requestNotifications: () async { prompts++; return true; },
+      notificationHelp: () => 'Abra pela Tela de Início',
+      readNotificationPreference: () async => true,
+      saveNotificationPreference: (all) async { saved = all; },
+      child: const Scaffold(body: Text('Mapa')),
+    )));
+    await tester.pumpAndSettle();
+    expect(prompts, 0);
+    expect(find.text('Em breve'), findsNothing);
+    expect(find.text('Abra pela Tela de Início'), findsOneWidget);
+    await tester.ensureVisible(find.text('Ativar').last);
+    await tester.tap(find.text('Ativar').last);
+    await tester.pumpAndSettle();
+    expect(prompts, 1);
+    await tester.ensureVisible(find.text('Continuar para o Ramo Nessa'));
+    await tester.tap(find.text('Continuar para o Ramo Nessa'));
+    await tester.pumpAndSettle();
+    expect(saved, true);
+    expect(find.text('Mapa'), findsOneWidget);
+  });
+
 }

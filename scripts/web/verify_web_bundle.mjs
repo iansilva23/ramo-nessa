@@ -25,6 +25,10 @@ const index = (await regularFile('index.html')).toString('utf8');
 const manifest = JSON.parse((await regularFile('manifest.json')).toString('utf8'));
 await regularFile('flutter_bootstrap.js');
 await regularFile('main.dart.js');
+for (const file of ['ramo_web_push.js', 'ramo_push_worker.js', 'ramo_push_config.js']) await regularFile(file);
+if (!index.includes('src="ramo_push_config.js"') || !index.includes('src="ramo_web_push.js"')) {
+  throw new Error('Web Push bridge/config missing from isolated app entry point.');
+}
 if (role === 'passenger') {
   await regularFile('ramo_card_fields.js');
   if (!index.includes('type="module" src="ramo_card_fields.js"')) {

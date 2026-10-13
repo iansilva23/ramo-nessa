@@ -5,6 +5,7 @@ import type {
   PushDeviceRecord,
   PushDeviceRepository,
   PushPlatform,
+  PushNotificationPreference,
   PushTokenProvider,
   RegisterPushDeviceInput,
 } from '../push-device-repository.js';
@@ -19,6 +20,8 @@ interface PushDeviceRow {
   token: string;
   token_hash: string;
   enabled: boolean;
+  notification_preference: PushNotificationPreference;
+  session_expires_at?: Date;
   app_version: string | null;
   build_number: number | null;
   last_seen_at: Date | null;
@@ -39,6 +42,9 @@ function mapDevice(row: PushDeviceRow): PushDeviceRecord {
     token: row.token,
     tokenHash: row.token_hash,
     enabled: row.enabled,
+    notificationPreference: row.notification_preference,
+    ...(row.session_expires_at == null ? {}
+      : { sessionExpiresAt: row.session_expires_at.toISOString() }),
     ...(row.app_version == null ? {} : { appVersion: row.app_version }),
     ...(row.build_number == null ? {} : { buildNumber: row.build_number }),
     ...(row.last_seen_at == null
@@ -74,9 +80,9 @@ async function registerWithClient(
     `INSERT INTO push_devices (
        id, session_id, subject_id, subject_type, platform, provider,
        token, token_hash, app_version, build_number, last_seen_at,
-       enabled, disabled_at, created_at, updated_at
+       enabled, disabled_at, created_at, updated_at, notification_preference
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,NULL,$12,$13)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,NULL,$12,$13,COALESCE($14,'all'))
      ON CONFLICT (token_hash)
      DO UPDATE SET
        session_id = EXCLUDED.session_id,
@@ -85,6 +91,7 @@ async function registerWithClient(
        platform = EXCLUDED.platform,
        provider = EXCLUDED.provider,
        token = EXCLUDED.token,
+       notification_preference = COALESCE($14, push_devices.notification_preference),
        app_version = COALESCE(EXCLUDED.app_version, push_devices.app_version),
        build_number = COALESCE(EXCLUDED.build_number, push_devices.build_number),
        last_seen_at = EXCLUDED.last_seen_at,
@@ -106,13 +113,15 @@ async function registerWithClient(
       input.updatedAt,
       input.createdAt,
       input.updatedAt,
+      input.notificationPreference ?? null,
     ],
   );
   const row = result.rows[0];
   if (row == null) {
     throw new Error('Dispositivo push não pôde ser persistido.');
   }
-  return mapDevice(row);
+  return { ...mapDevice(row), ...(input.sessionExpiresAt == null ? {}
+    : { sessionExpiresAt: input.sessionExpiresAt }) };
 }
 
 export class PostgresPushDeviceRepository
@@ -141,12 +150,16 @@ export class PostgresPushDeviceRepository
     subjectId: string,
   ): Promise<PushDeviceRecord[]> {
     const result = await this.pool.query<PushDeviceRow>(
-      `SELECT *
+      `SELECT push_devices.*, auth_sessions.expires_at AS session_expires_at
        FROM push_devices
-       WHERE subject_type = $1
-         AND subject_id = $2
-         AND enabled = true
-       ORDER BY updated_at DESC`,
+       JOIN auth_sessions ON auth_sessions.id = push_devices.session_id
+         AND auth_sessions.revoked_at IS NULL AND auth_sessions.expires_at > NOW()
+         AND auth_sessions.subject_id = push_devices.subject_id
+         AND auth_sessions.subject_type = push_devices.subject_type
+       WHERE push_devices.subject_type = $1
+         AND push_devices.subject_id = $2
+         AND push_devices.enabled = true
+       ORDER BY push_devices.updated_at DESC`,
       [subjectType, subjectId],
     );
     return result.rows.map(mapDevice);
@@ -157,17 +170,25 @@ export class PostgresPushDeviceRepository
   ): Promise<PushDeviceRecord[]> {
     const result = audience === 'all'
       ? await this.pool.query<PushDeviceRow>(
-          `SELECT *
+          `SELECT push_devices.*, auth_sessions.expires_at AS session_expires_at
            FROM push_devices
-           WHERE enabled = true
-           ORDER BY updated_at DESC`,
+       JOIN auth_sessions ON auth_sessions.id = push_devices.session_id
+         AND auth_sessions.revoked_at IS NULL AND auth_sessions.expires_at > NOW()
+         AND auth_sessions.subject_id = push_devices.subject_id
+         AND auth_sessions.subject_type = push_devices.subject_type
+           WHERE push_devices.enabled = true
+           ORDER BY push_devices.updated_at DESC`,
         )
       : await this.pool.query<PushDeviceRow>(
-          `SELECT *
+          `SELECT push_devices.*, auth_sessions.expires_at AS session_expires_at
            FROM push_devices
-           WHERE enabled = true
-             AND subject_type = $1
-           ORDER BY updated_at DESC`,
+       JOIN auth_sessions ON auth_sessions.id = push_devices.session_id
+         AND auth_sessions.revoked_at IS NULL AND auth_sessions.expires_at > NOW()
+         AND auth_sessions.subject_id = push_devices.subject_id
+         AND auth_sessions.subject_type = push_devices.subject_type
+           WHERE push_devices.enabled = true
+             AND push_devices.subject_type = $1
+           ORDER BY push_devices.updated_at DESC`,
           [audience],
         );
     return result.rows.map(mapDevice);
@@ -179,18 +200,22 @@ export class PostgresPushDeviceRepository
     latestBuild: number,
   ): Promise<PushDeviceRecord[]> {
     const result = await this.pool.query<PushDeviceRow>(
-      `SELECT *
+      `SELECT push_devices.*, auth_sessions.expires_at AS session_expires_at
        FROM push_devices
-       WHERE enabled = true
-         AND subject_type = $1
-         AND platform = $2
-         AND build_number IS NOT NULL
-         AND build_number < $3
+       JOIN auth_sessions ON auth_sessions.id = push_devices.session_id
+         AND auth_sessions.revoked_at IS NULL AND auth_sessions.expires_at > NOW()
+         AND auth_sessions.subject_id = push_devices.subject_id
+         AND auth_sessions.subject_type = push_devices.subject_type
+       WHERE push_devices.enabled = true
+         AND push_devices.subject_type = $1
+         AND push_devices.platform = $2
+         AND push_devices.build_number IS NOT NULL
+         AND push_devices.build_number < $3
          AND (
-           last_update_notified_build IS NULL
-           OR last_update_notified_build <> $3
+           push_devices.last_update_notified_build IS NULL
+           OR push_devices.last_update_notified_build <> $3
          )
-       ORDER BY updated_at DESC`,
+       ORDER BY push_devices.updated_at DESC`,
       [subjectType, platform, latestBuild],
     );
     return result.rows.map(mapDevice);

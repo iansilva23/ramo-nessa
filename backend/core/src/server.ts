@@ -3107,6 +3107,17 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'DELETE' && requestUrl.pathname === '/v1/notifications/device') {
+      const session = await authenticateBearer({
+        repository: authSessionRepository, identities: authOtpRepository,
+        headers: request.headers,
+      });
+      await pushDeviceRepository.disableForSession(session.id, new Date().toISOString());
+      response.writeHead(204, { 'cache-control': 'no-store' });
+      response.end();
+      return;
+    }
+
     if (request.method === 'POST' && requestUrl.pathname === '/v1/realtime/ticket') {
       const result = await issueBrowserRealtimeTicket({ request,
         sessions: authSessionRepository, identities: authOtpRepository,

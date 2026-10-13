@@ -1,6 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -171,20 +170,15 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
       Future<bool> requestNotifications() async {
         final normalized = token?.trim();
-        // Push Web será habilitado somente quando o Service Worker e
-        // cadastro de dispositivos forem homologados. Nunca fingir êxito.
-        if (kIsWeb || coreUri == null || normalized == null || normalized.length < 20) {
+        if (coreUri == null || normalized == null || normalized.length < 20) {
           return false;
         }
         try {
-          await FirebasePushRegistrationService.instance.start(
+          return await FirebasePushRegistrationService.instance.start(
             baseUrl: coreUri,
             accessToken: normalized,
             requestPermission: true,
           );
-          final settings = await FirebaseMessaging.instance.getNotificationSettings();
-          return settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional;
         } catch (_) {
           return false;
         }
@@ -197,10 +191,11 @@ class RamoNessaPassengerApp extends StatelessWidget {
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
-        saveNotificationPreference: (all) => storage.write(
-          key: 'ramo_nessa_notifications_passenger_v1',
-          value: all ? 'all' : 'important',
-        ),
+        notificationHelp: FirebasePushRegistrationService.instance.notificationHelp,
+        readNotificationPreference: FirebasePushRegistrationService.instance.readAllNotifications,
+        saveNotificationPreference: (all) async {
+          await FirebasePushRegistrationService.instance.setAllNotifications(all);
+        },
         child: content,
       );
     }
@@ -233,11 +228,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
-        onSessionReady: (token) =>
-            FirebasePushRegistrationService.instance.start(
-              baseUrl: coreUri,
-              accessToken: token,
-            ),
+        onSessionReady: (token) async {
+          await FirebasePushRegistrationService.instance.readAllNotifications();
+          await FirebasePushRegistrationService.instance.start(baseUrl: coreUri, accessToken: token);
+        },
         onSessionEnded:
             FirebasePushRegistrationService.instance.stop,
       );

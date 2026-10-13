@@ -1,6 +1,7 @@
 import type { AuthSubjectType } from '../auth/auth-session-repository.js';
 
-export type PushPlatform = 'android' | 'ios';
+export type PushPlatform = 'android' | 'ios' | 'web';
+export type PushNotificationPreference = 'important' | 'all';
 export type PushTokenProvider = 'apns' | 'webhook' | 'fcm';
 
 export interface PushDeviceRecord {
@@ -13,6 +14,8 @@ export interface PushDeviceRecord {
   token: string;
   tokenHash: string;
   enabled: boolean;
+  notificationPreference?: PushNotificationPreference;
+  sessionExpiresAt?: string;
   appVersion?: string;
   buildNumber?: number;
   lastSeenAt?: string;
@@ -31,6 +34,8 @@ export interface RegisterPushDeviceInput {
   provider: PushTokenProvider;
   token: string;
   tokenHash: string;
+  notificationPreference?: PushNotificationPreference;
+  sessionExpiresAt?: string;
   appVersion?: string;
   buildNumber?: number;
   createdAt: string;

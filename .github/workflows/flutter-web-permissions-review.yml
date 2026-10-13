@@ -34,8 +34,39 @@ jobs:
           npm test
           npm run build
 
+  push-postgres-contract:
+    name: Web Push persistence (disposable PostgreSQL only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramo_push_test
+          POSTGRES_PASSWORD: local_ci_fixture_only
+          POSTGRES_DB: ramo_push_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U ramo_push_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Install Core dependencies
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Validate isolated migration and repository, without staging access
+        working-directory: backend/core
+        env:
+          RAMO_PUSH_TEST_DATABASE_URL: postgresql://ramo_push_test:local_ci_fixture_only@localhost:5432/ramo_push_test
+        run: node --import tsx --test test/postgres_web_push.test.ts
+
   web-card-contract:
-    name: Browser Secure Fields contracts (mock provider, no payments)
+    name: Browser card and Web Push contracts (mock providers)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -55,7 +86,8 @@ jobs:
       - name: Check card bridge and run browser contracts without real credentials
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
-          node --test scripts/web/card_fields_browser_test.mjs
+          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs
+          node --test scripts/web/push_worker_test.mjs
 
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
@@ -86,11 +118,13 @@ jobs:
         working-directory: packages/design_system
         run: |
           flutter pub get
-          flutter test test/ramo_permission_onboarding_test.dart
+          flutter test test/ramo_permission_onboarding_test.dart test/ramo_notification_settings_test.dart
       - name: Generate correctly-sized PWA icons
         run: |
           python3 -m pip install --quiet "Pillow==11.3.0"
           python3 scripts/web/generate_pwa_icons.py
+      - name: Prepare isolated Web Push (disabled in review without public config)
+        run: node scripts/web/prepare_web_push.mjs --role=${{ matrix.app }}
       - name: Resolve Flutter dependencies
         working-directory: apps/${{ matrix.app }}
         run: flutter pub get
@@ -116,6 +150,22 @@ jobs:
           path: |
             apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart
             apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
+          retention-days: 7
+      - name: Format new push source for reproducibility
+        run: |
+          dart format packages/ramo_push/lib \
+            apps/${{ matrix.app }}/lib/src/core/communications/firebase_push_registration_service.dart \
+            apps/${{ matrix.app }}/lib/src/features/profile/presentation/${{ matrix.app }}_notifications_screen.dart \
+            packages/design_system/lib/src/onboarding/ramo_notification_settings.dart
+      - name: Store formatted push source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-push-source-${{ matrix.app }}
+          path: |
+            packages/ramo_push/lib/
+            apps/${{ matrix.app }}/lib/src/core/communications/firebase_push_registration_service.dart
+            apps/${{ matrix.app }}/lib/src/features/profile/presentation/${{ matrix.app }}_notifications_screen.dart
+            packages/design_system/lib/src/onboarding/ramo_notification_settings.dart
           retention-days: 7
       - name: Analyze app and run regression tests
         working-directory: apps/${{ matrix.app }}

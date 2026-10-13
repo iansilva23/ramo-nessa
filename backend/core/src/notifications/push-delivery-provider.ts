@@ -178,6 +178,29 @@ function parseFcmErrorCode(body: string): string | null {
   return null;
 }
 
+export function fcmMessagePayload(input: PushDeliveryRequest) {
+  const data = { ...(input.message.data ?? {}), type: input.message.type };
+  if (input.platform === 'web') {
+    // Dados apenas: o worker exibe UMA notificação e usa o destino local fixo.
+    // Não enviar URLs, Bearers ou instruções de aceite a partir do push.
+    return {
+      token: input.token,
+      data: { type: input.message.type, title: input.message.title, body: input.message.body },
+      webpush: { headers: {
+        TTL: input.message.type === 'driver.offer.new' ? '35' : '60',
+        Urgency: 'high',
+      } },
+    };
+  }
+  return {
+    token: input.token,
+    notification: { title: input.message.title, body: input.message.body },
+    data,
+    android: { priority: 'high' },
+    apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'default' } } },
+  };
+}
+
 class FcmPushDeliveryProvider implements PushDeliveryProvider {
   readonly kind = 'fcm';
 
@@ -281,30 +304,7 @@ class FcmPushDeliveryProvider implements PushDeliveryProvider {
         'content-type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify({
-        message: {
-          token: input.token,
-          notification: {
-            title: input.message.title,
-            body: input.message.body,
-          },
-          data: {
-            type: input.message.type,
-            ...(input.message.data ?? {}),
-          },
-          android: {
-            priority: 'high',
-          },
-          apns: {
-            headers: {
-              'apns-priority': '10',
-            },
-            payload: {
-              aps: {
-                sound: 'default',
-              },
-            },
-          },
-        },
+        message: fcmMessagePayload(input),
       }),
       signal: AbortSignal.timeout(8_000),
     });

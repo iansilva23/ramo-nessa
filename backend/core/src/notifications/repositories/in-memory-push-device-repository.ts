@@ -49,6 +49,10 @@ export class InMemoryPushDeviceRepository
             provider: input.provider,
             token: input.token,
             tokenHash: input.tokenHash,
+            ...(input.notificationPreference == null ? {}
+              : { notificationPreference: input.notificationPreference }),
+            ...(input.sessionExpiresAt == null ? {}
+              : { sessionExpiresAt: input.sessionExpiresAt }),
             ...(input.appVersion == null
               ? {}
               : { appVersion: input.appVersion }),

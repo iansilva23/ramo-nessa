@@ -1,6 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'features/registration/driver_registration_gate.dart';
 import 'features/registration/driver_registration_service.dart';
 import 'features/home/data/http_driver_api.dart';
@@ -111,20 +110,15 @@ class RamoNessaDriverApp extends StatelessWidget {
 
       Future<bool> requestNotifications() async {
         final normalized = token?.trim();
-        // Push Web será habilitado somente quando o Service Worker e
-        // cadastro de dispositivos forem homologados. Nunca fingir êxito.
-        if (kIsWeb || coreUri == null || normalized == null || normalized.length < 20) {
+        if (coreUri == null || normalized == null || normalized.length < 20) {
           return false;
         }
         try {
-          await DriverFirebasePushRegistrationService.instance.start(
+          return await DriverFirebasePushRegistrationService.instance.start(
             baseUrl: coreUri,
             accessToken: normalized,
             requestPermission: true,
           );
-          final settings = await FirebaseMessaging.instance.getNotificationSettings();
-          return settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional;
         } catch (_) {
           return false;
         }
@@ -137,10 +131,11 @@ class RamoNessaDriverApp extends StatelessWidget {
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
-        saveNotificationPreference: (all) => storage.write(
-          key: 'ramo_nessa_notifications_driver_v1',
-          value: all ? 'all' : 'important',
-        ),
+        notificationHelp: DriverFirebasePushRegistrationService.instance.notificationHelp,
+        readNotificationPreference: DriverFirebasePushRegistrationService.instance.readAllNotifications,
+        saveNotificationPreference: (all) async {
+          await DriverFirebasePushRegistrationService.instance.setAllNotifications(all);
+        },
         child: content,
       );
     }
@@ -183,11 +178,10 @@ class RamoNessaDriverApp extends StatelessWidget {
           logout: logout,
           homeBuilder: () => home(token, logout),
         )),
-        onSessionReady: (token) =>
-            DriverFirebasePushRegistrationService.instance.start(
-              baseUrl: coreUri,
-              accessToken: token,
-            ),
+        onSessionReady: (token) async {
+          await DriverFirebasePushRegistrationService.instance.readAllNotifications();
+          await DriverFirebasePushRegistrationService.instance.start(baseUrl: coreUri, accessToken: token);
+        },
         onSessionEnded:
             DriverFirebasePushRegistrationService.instance.stop,
       );

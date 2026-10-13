@@ -12,6 +12,8 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
     required this.requestLocation,
     required this.requestNotifications,
     required this.saveNotificationPreference,
+    this.notificationHelp,
+    this.readNotificationPreference,
     required this.child,
   });
 
@@ -22,6 +24,8 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
   final Future<bool> Function() requestLocation;
   final Future<bool> Function() requestNotifications;
   final Future<void> Function(bool allNotifications) saveNotificationPreference;
+  final String Function()? notificationHelp;
+  final Future<bool> Function()? readNotificationPreference;
   final Widget child;
 
   @override
@@ -48,12 +52,14 @@ class _RamoPermissionOnboardingGateState
 
   Future<void> _load() async {
     bool done = false;
+    bool all = false;
     try {
       done = await widget.readCompleted();
+      all = await widget.readNotificationPreference?.call() ?? false;
     } catch (_) {
       // A falta de storage não impede o usuário de configurar o app.
     }
-    if (mounted) setState(() => _completed = done);
+    if (mounted) setState(() { _completed = done; _allNotifications = all; });
   }
 
   Future<void> _location() async {
@@ -104,7 +110,6 @@ class _RamoPermissionOnboardingGateState
     required VoidCallback onPressed,
     bool busy = false,
     bool? granted,
-    bool unavailable = false,
   }) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -138,8 +143,6 @@ class _RamoPermissionOnboardingGateState
         const SizedBox(width: 8),
         if (granted == true)
           const Icon(Icons.check_circle_rounded, color: Color(0xFFFFCC00))
-        else if (unavailable)
-          const Text('Em breve', style: TextStyle(color: Color(0xFFFFCC00), fontSize: 11, fontWeight: FontWeight.w700))
         else
           TextButton(
             onPressed: busy ? null : onPressed,
@@ -204,13 +207,12 @@ class _RamoPermissionOnboardingGateState
                 _permissionCard(
                   icon: Icons.notifications_rounded,
                   title: 'Notificações',
-                  subtitle: widget.web
-                      ? 'Na Web, os avisos dependem da instalação e da configuração Web Push.'
-                      : 'Receba atualizações de corridas, mensagens e pagamentos.',
+                  subtitle: widget.notificationHelp?.call() ?? (widget.web
+                      ? 'No iPhone, instale na Tela de Início e abra pelo ícone para ativar os avisos.'
+                      : 'Receba atualizações de corridas, mensagens e pagamentos.'),
                   action: 'Ativar',
                   busy: _notificationBusy,
                   granted: _notificationAllowed,
-                  unavailable: widget.web,
                   onPressed: _notifications,
                 ),
                 const SizedBox(height: 18),

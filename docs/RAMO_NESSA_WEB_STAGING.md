@@ -216,3 +216,88 @@ Referências primárias:
 - https://github.com/mercadopago/sdk-js/blob/main/docs/fields.md
 - https://github.com/mercadopago/sdk-js/blob/main/docs/core-methods.md
 - https://www.mercadopago.com.br/developers/pt/docs/sdks-library/overview
+
+## Web Push e preferência de avisos — continuação do PR #6
+
+O cadastro `/v1/notifications/device` agora aceita `platform: web` somente com
+FCM. Os novos clientes enviam `notificationPreference: important|all`, a partir
+da mesma escolha local já existente. `important` mantém avisos operacionais de
+corrida, pagamento, manutenção e atualização, mas bloqueia `marketing.*` e
+broadcasts `promotion`, `event` e `general`. Escolher `all` não substitui os
+consentimentos de privacidade que o Growth já verifica. Clientes/registrados
+anteriores preservam o comportamento quando não enviam a nova preferência.
+A tela Notificações dos dois apps permite alterar e sincronizar a escolha e
+mostra quando a sincronização está pendente. O onboarding aprovado mantém seu
+layout; usuários que já o concluíram podem configurar push pelo perfil.
+
+`packages/ramo_push` contém o bridge Dart e o código JavaScript compartilhado.
+As cópias entregues nos dois diretórios `web/` são verificadas por teste.
+O bridge carrega Firebase JS 13.0.0 após consentimento, chama `getToken` com
+VAPID público e registro de worker explícito. Os workers de push usam
+`/passageiro/push-scope/` e `/motorista/push-scope/`, sem substituir o worker
+Flutter. O Bearer só existe em memória e no cabeçalho HTTP da mesma origem;
+nenhuma credencial Core é enviada ao worker, à URL ou ao armazenamento local.
+O armazenamento local guarda apenas um identificador aleatório de posse por
+app; Web Locks serializa mudanças entre abas. Trocar conta/aba rotaciona a
+assinatura anterior; logout em uma aba antiga não apaga o push da aba atual.
+A aba ativa mais recente é responsável pelo registro de avisos do mesmo app.
+
+O sucesso só é apresentado após permissão concedida e resposta válida do Core.
+Login/restauração nunca solicita permissão automaticamente. O prompt explícito
+é iniciado no toque do usuário, antes de imports/awaits. No iPhone/iPad, orientar
+instalação na Tela de Início e abertura pelo ícone; iOS/iPadOS 16.4 ou posterior
+é o requisito inicial. Bloqueio de permissão exige ajuste nas configurações.
+Web Push é opcional: falhas não bloqueiam login, perfil ou corrida.
+Isso não muda a limitação de GPS/suspensão em segundo plano do Motorista Web.
+
+### Preparação futura, sem publicar nem alterar a VPS neste PR
+
+Antes de um build para homologação real, preparar cada app:
+
+```sh
+node scripts/web/prepare_web_push.mjs --role=passenger
+node scripts/web/prepare_web_push.mjs --role=driver
+```
+
+O comando lê apenas cinco configurações **públicas** do ambiente:
+`RAMO_FIREBASE_WEB_API_KEY`, `RAMO_FIREBASE_WEB_APP_ID` (appId Web, não Android/iOS),
+`RAMO_FIREBASE_WEB_PROJECT_ID`, `RAMO_FIREBASE_WEB_MESSAGING_SENDER_ID` e
+`RAMO_FIREBASE_WEB_VAPID_KEY`. Usar registros Firebase Web próprios para cada
+app e repetir o comando com a configuração correspondente. Não usar service
+account nem chave VAPID privada no browser. Sem esses valores, o bundle de
+revisão mantém `ramoPushConfig = null` e mostra push não configurado. A CI não
+usa credenciais reais de push nem cobra provedores.
+
+A migration `085_web_push_preferences.sql` está apenas preparada no repositório.
+Ela preserva registros anteriores, aceita Web/FCM e adiciona a preferência.
+É testada duas vezes em PostgreSQL descartável no Actions para verificar
+idempotência. Não aplicar em homologação/produção sem autorização específica.
+Consultas PostgreSQL de envio agora excluem sessões revogadas/expiradas e
+validam o dono do dispositivo. `DELETE /v1/notifications/device` desativa somente
+os dispositivos da sessão autenticada, sem revogar a sessão ou outros aparelhos.
+O logout existente continua desativando dispositivos da sessão no Core.
+
+O FCM Web envia data-only; worker/primeiro plano exibem uma notificação de texto,
+com ícone local e clique no próprio aplicativo. URLs/ações externas do payload
+são ignoradas, sem aceite automático de corrida. Ofertas usam TTL de 35 segundos;
+outros avisos, 60. A validade real da oferta permanece determinada pelo Core,
+sem estender o prazo. Push é best-effort: mensagens já enfileiradas no provedor
+podem chegar durante uma mudança de sessão, e entrega/latência não são garantidas.
+A interface revalida sessão/estado da corrida; push não substitui WebSocket/polling.
+
+### Evidências e limites
+
+Testes automatizados cobrem consentimento por toque, falhas de configuração e
+Core, instruções do iPhone, preferências, logout durante tokenização, troca de
+conta/abas, isolamento dos apps/workers e clique seguro. Chromium usa SDK Firebase
+simulado; há também registro real de workers locais, sem assinatura FCM real.
+O teste PostgreSQL usa schema e banco descartáveis, sem acesso à VPS.
+Ainda falta configurar Firebase Web/VAPID no ambiente de homologação autorizado
+e verificar recebimento real em iPhone/Safari, Chrome/Android, tela bloqueada,
+permissão revogada, rede indisponível e logout. Regressões em aparelhos Android/iOS
+reais continuam pendentes; análise/testes Flutter não substituem essa homologação.
+
+Referências primárias usadas:
+- https://firebase.google.com/docs/cloud-messaging/web/receive-messages
+- https://firebase.google.com/docs/cloud-messaging/web/get-started
+- https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
