@@ -31,6 +31,7 @@ class DriverFirebasePushRegistrationService {
   Future<void> start({
     required Uri baseUrl,
     required String accessToken,
+    bool requestPermission = false,
   }) async {
     await _refreshSubscription?.cancel();
     _refreshSubscription = null;
@@ -55,13 +56,17 @@ class DriverFirebasePushRegistrationService {
       }
 
       final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      // Não exibir prompt do sistema antes da página de permissões.
+      final settings = requestPermission
+          ? await messaging.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+              provisional: false,
+            )
+          : await messaging.getNotificationSettings();
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
         return;
       }
 
