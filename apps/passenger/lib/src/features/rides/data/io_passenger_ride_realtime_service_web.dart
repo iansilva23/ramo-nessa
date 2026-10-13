@@ -23,9 +23,13 @@ class IoPassengerRideRealtimeService implements PassengerRideRealtimeService {
   @override
   Stream<PassengerRideTrackingSnapshot> watch(String rideId) async* {
     await for (final event in _client.watch('passenger', rideId: rideId)) {
-      if (event['type'] != 'passenger.ride.tracking') continue;
+      if (event['type'] != 'passenger.ride.tracking') {
+        continue;
+      }
       final tracking = event['tracking'];
-      if (tracking is! Map<String, dynamic>) continue;
+      if (tracking is! Map<String, dynamic>) {
+        continue;
+      }
       try {
         yield PassengerRideTrackingSnapshot.fromJson(tracking);
       } catch (_) {

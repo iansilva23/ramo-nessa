@@ -71,6 +71,14 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: apps/${{ matrix.app }}
         run: flutter pub get
+      - name: Store resolved dependency locks for reproducibility
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-dependency-locks-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/pubspec.lock
+            packages/ramo_realtime/pubspec.lock
+          retention-days: 7
       - name: Analyze app and run regression tests
         working-directory: apps/${{ matrix.app }}
         run: |
@@ -114,14 +122,6 @@ jobs:
             -e APP_DOMAIN -e ACME_EMAIL \
             -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
-      - name: Store resolved dependency locks for reproducibility
-        uses: actions/upload-artifact@v4
-        with:
-          name: ramo-web-dependency-locks-${{ matrix.app }}
-          path: |
-            apps/${{ matrix.app }}/pubspec.lock
-            packages/ramo_realtime/pubspec.lock
-          retention-days: 7
       - name: Store review-only static bundle
         uses: actions/upload-artifact@v4
         with:
