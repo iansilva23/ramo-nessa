@@ -19,6 +19,7 @@ import '../../rides/data/driver_confirmation_service.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
 import '../../map/data/route_service.dart';
 import '../data/card_tokenization_service.dart';
+import '../data/platform_card_tokenization_service.dart';
 import '../data/passenger_payment_service.dart';
 import '../domain/card_ride_payment_result.dart';
 import '../domain/passenger_payment_policy.dart';
@@ -626,7 +627,9 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
     try {
       final tokenizer =
           widget.cardTokenizationService ??
-          NativeCardTokenizationService(
+          createCardTokenizationService(
+            context: context,
+            holdExpiresAt: _ride.holdExpiresAt,
             amountCents: _cardTotalAmountCents,
             mercadoPagoPublicKey: _paymentPolicy?.mercadoPagoPublicKey,
           );

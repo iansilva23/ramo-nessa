@@ -34,6 +34,29 @@ jobs:
           npm test
           npm run build
 
+  web-card-contract:
+    name: Browser Secure Fields contracts (mock provider, no payments)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: scripts/web/browser-tests/package-lock.json
+      - name: Install browser test runner
+        run: npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+      - name: Use preinstalled Chrome for local-only tests
+        run: |
+          RAMO_CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)"
+          test -x "$RAMO_CHROMIUM_PATH"
+          echo "RAMO_CHROMIUM_EXECUTABLE_PATH=$RAMO_CHROMIUM_PATH" >> "$GITHUB_ENV"
+      - name: Check card bridge and run browser contracts without real credentials
+        run: |
+          node --check apps/passenger/web/ramo_card_fields.js
+          node --test scripts/web/card_fields_browser_test.mjs
+
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
     runs-on: ubuntu-24.04
@@ -78,6 +101,21 @@ jobs:
           path: |
             apps/${{ matrix.app }}/pubspec.lock
             packages/ramo_realtime/pubspec.lock
+          retention-days: 7
+      - name: Format new Web card source for review
+        if: matrix.app == 'passenger'
+        run: |
+          dart format \
+            apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart \
+            apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
+      - name: Store formatted card source for reproducibility
+        if: matrix.app == 'passenger'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-card-source-formatted
+          path: |
+            apps/passenger/lib/src/features/payments/data/platform_card_tokenization_service*.dart
+            apps/passenger/lib/src/features/payments/presentation/web_card_entry_screen.dart
           retention-days: 7
       - name: Analyze app and run regression tests
         working-directory: apps/${{ matrix.app }}

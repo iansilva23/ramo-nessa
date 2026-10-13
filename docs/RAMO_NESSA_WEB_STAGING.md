@@ -175,3 +175,44 @@ Verificação local em 13/10/2026: typecheck e build do Core aprovados;
 de PostgreSQL/configuração externa. Oito cenários novos de ticket e socket
 passaram, incluindo HTTP/WebSocket reais em loopback. As verificações Flutter
 ficam sob o workflow do PR; homologação real permanece pendente.
+
+
+## Cartão Web — continuação do PR #6
+
+Base remota conferida antes de editar: c9352583; workflow 38429760465 verde.
+O checkout Flutter existente continua separando adicionar/salvar cartão e
+confirmar pagamento. A nova fábrica escolhe o transportador Web somente no
+navegador, mantendo o MethodChannel Android/iOS.
+
+Na Web, uma tela Flutter no tema Ramo Nessa hospeda Secure Fields do
+MercadoPago.js. Número, validade e CVV ficam em iframes do provedor. A ponte
+não lê esses valores e retorna exclusivamente token, método/tipo, últimos
+quatro dígitos e um segundo token opcional, distinto, para salvar cartão.
+Nome/CPF do titular são enviados diretamente ao SDK, sem inclusão no pedido
+para o Core. Cartão salvo pede somente CVV e emite um token novo para cardId.
+
+A chave pública já disponibilizada na política de pagamentos é reutilizada;
+nenhuma chave financeira, modo, saldo ou regra foi alterada. O SDK remoto só
+é solicitado ao abrir a entrada de cartão. A ponte é entregue como arquivo
+local do Passageiro, e os bundles verificam sua presença. Motorista e ADM
+não carregam essa ponte nem recebem permissões CSP de pagamento.
+
+A tela e a ponte encerram os campos ao cancelar, navegar para trás ou expirar
+a reserva; respostas atrasadas não confirmam pagamento. Consulta de BIN usa
+controle de geração para não substituir o cartão atual com resposta antiga.
+A validação do provedor aceita somente suporte a pagamento à vista; o Core
+mantém installments=1, idempotência e confirmação reconciliada/webhook.
+O Core também recusa campos adicionais no pedido de cartão, incluindo PCI,
+sem incluir conteúdo sensível no erro. Nenhuma cobrança nasce na tokenização.
+
+Testes da ponte executam Chromium com SDK simulado e toda saída para serviços
+externos bloqueada. Eles verificam a fronteira dos dados, tokens separados,
+cartão salvo, cancelamento, falhas, validade e concorrência. Isso NÃO valida
+um cartão real no Mercado Pago, 3DS real ou Safari de iPhone. Homologação com
+credenciais de teste, CSP/antifraude reais, Pix/carteira/estornos e dispositivos
+continua pendente. Nenhum teste dispara uma transação ou OTP real.
+
+Referências primárias:
+- https://github.com/mercadopago/sdk-js/blob/main/docs/fields.md
+- https://github.com/mercadopago/sdk-js/blob/main/docs/core-methods.md
+- https://www.mercadopago.com.br/developers/pt/docs/sdks-library/overview

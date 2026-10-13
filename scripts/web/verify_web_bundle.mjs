@@ -25,6 +25,14 @@ const index = (await regularFile('index.html')).toString('utf8');
 const manifest = JSON.parse((await regularFile('manifest.json')).toString('utf8'));
 await regularFile('flutter_bootstrap.js');
 await regularFile('main.dart.js');
+if (role === 'passenger') {
+  await regularFile('ramo_card_fields.js');
+  if (!index.includes('type="module" src="ramo_card_fields.js"')) {
+    throw new Error('Secure Fields browser bridge missing from passenger entry point.');
+  }
+} else if (index.includes('ramo_card_fields.js')) {
+  throw new Error('Passenger card module must not load in driver app.');
+}
 
 if (!index.includes('<base href="' + expected + '">')) {
   throw new Error('O base href não corresponde à rota isolada ' + expected);

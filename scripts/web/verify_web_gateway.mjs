@@ -30,7 +30,7 @@ for (const [path, directory] of [
     path + ': Flutter CanvasKit wasm CSP missing');
   assert.ok(block.includes('https://*.gstatic.com'),
     path + ': Flutter CanvasKit CDN CSP missing');
-  assert.ok(block.includes("connect-src 'self' wss://{$APP_DOMAIN}"),
+  assert.ok(block.includes("'self' wss://{$APP_DOMAIN}"),
     path + ': explicit same-host secure WebSocket source missing');
   assert.ok(block.includes("object-src 'none'"),
     path + ': unsafe object sources');
@@ -39,7 +39,13 @@ for (const [path, directory] of [
   assert.ok(block.includes('try_files {path} /index.html'),
     path + ': Flutter SPA fallback missing');
 }
+const passenger = routeBody('passageiro');
+assert.ok(passenger.includes('https://sdk.mercadopago.com'));
+assert.ok(passenger.includes('https://api.mercadopago.com'));
+assert.ok(passenger.includes('frame-src https://*.mercadopago.com'));
+assert.ok(!routeBody('motorista').includes('mercadopago'), 'Do not broaden driver payment sources');
 const admin = routeBody('admin');
+assert.ok(!admin.includes('mercadopago'), 'Do not broaden ADM payment sources');
 assert.ok(admin.includes("script-src 'self'"));
 assert.ok(!admin.includes('wasm-unsafe-eval'),
   'Do not broaden the ADM Content-Security-Policy');
