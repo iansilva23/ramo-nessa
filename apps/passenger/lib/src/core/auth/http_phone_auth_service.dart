@@ -340,7 +340,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
         subjectType is! String) {
       throw const FormatException('Sessão autenticada inválida.');
     }
-    if (browserSession && (subjectType != _subjectType || !RegExp('^ramo_web_' + _subjectType + r'_v1_[a-f0-9]{32}$').hasMatch(token))) {
+    if (browserSession && (subjectType != _subjectType || !RegExp('^ramo_web_${_subjectType}_v1_[a-f0-9]{32}\$').hasMatch(token))) {
       throw const FormatException('Sessão Web não configurada no servidor.');
     }
     return AuthSession(

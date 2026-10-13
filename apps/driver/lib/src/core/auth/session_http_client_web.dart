@@ -20,7 +20,7 @@ class _SessionHttpClient extends http.BaseClient {
     if (!mutatesCookie) return _inner.send(request);
     // Serialize cookie mutations across tabs before another login can replace it.
     late http.StreamedResponse response;
-    await _requestLock(('ramo.web.auth.' + role).toJS, ((JSAny? _) {
+    await _requestLock('ramo.web.auth.$role'.toJS, ((JSAny? _) {
       return _inner.send(request).then<JSAny?>((value) {
         response = value;
         return null;
