@@ -313,3 +313,21 @@ Referências primárias usadas:
 - https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
 
 - Código primário da chave de armazenamento FCM: https://github.com/firebase/firebase-js-sdk/blob/main/packages/messaging/src/internals/idb-manager.ts
+
+## Revisão de logout e restauração — 13/10/2026
+
+O gate compartilhado em comportamento pelos dois apps aguardava a limpeza de
+push depois da revogação no Core. Um provedor sem resposta mantinha a área
+autenticada visível. Agora inicia a limpeza sem esperar sua conclusão e volta
+ao login após a confirmação do Core e tentativa de remoção do token local.
+Falhas tardias ou síncronas dos callbacks opcionais são contidas.
+
+Uma operação de logout por gate é permitida por vez; retomada do app não
+restaura push enquanto a revogação está em andamento. Se o Core não confirmar
+o logout, a sessão local é preservada e o usuário pode tentar novamente.
+Não há alteração de expiração, preços, permissões ou protocolo de login.
+
+Quatro cenários por app cobrem limpeza de push pendente, dois cliques com
+retomada durante revogação falha do Core seguida de nova tentativa e callbacks com falha síncrona.
+A validação será executada pelo workflow existente; não representa teste
+de OTP/provedor/Safari reais. PR DRAFT, sem deploy.

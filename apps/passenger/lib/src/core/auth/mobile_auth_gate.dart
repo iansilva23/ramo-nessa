@@ -41,6 +41,7 @@ class MobileAuthGate extends StatefulWidget {
 
 class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObserver {
   bool _refreshing = false;
+  bool _loggingOut = false;
   String? _accessToken;
   bool _checking = true;
 
@@ -64,7 +65,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
   }
 
   Future<void> _bootstrap() async {
-    if (_refreshing) return;
+    if (_refreshing || _loggingOut) return;
     _refreshing = true;
     final token = _accessToken;
     if (token == null || token.length < 20) {
@@ -76,7 +77,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
 
     try {
       final session = await widget.service.currentSession(token);
-      if (!mounted || _accessToken != token) { _refreshing = false; return; }
+      if (!mounted || _accessToken != token || _loggingOut) { _refreshing = false; return; }
       if (
         session == null ||
         session.subjectType != widget.subjectType ||
@@ -87,11 +88,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
         } catch (_) {}
         if (!mounted || _accessToken != token) { _refreshing = false; return; }
         _accessToken = null;
-        final ended = widget.onSessionEnded;
-        if (ended != null) {
-          // Remover push obsoleto sem atrasar o retorno ao login.
-          unawaited(ended().catchError((_) {}));
-        }
+        _notifySessionEnded();
       }
     } catch (_) {
       // Falha de rede/Core não remove uma sessão que ainda pode ser válida.
@@ -102,7 +99,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     if (readyToken != null && readyToken.length >= 20) {
       final callback = widget.onSessionReady;
       if (callback != null) {
-        unawaited(callback(readyToken));
+        unawaited(Future<void>.sync(() => callback(readyToken)).catchError((_) {}));
       }
     }
 
@@ -118,44 +115,48 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     });
     final callback = widget.onSessionReady;
     if (callback != null) {
-      unawaited(callback(token));
+      unawaited(Future<void>.sync(() => callback(token)).catchError((_) {}));
+    }
+  }
+
+  void _notifySessionEnded() {
+    final ended = widget.onSessionEnded;
+    if (ended != null) {
+      // Push cleanup is best-effort; a stalled provider must not retain the UI.
+      unawaited(Future<void>.sync(ended).catchError((_) {}));
     }
   }
 
   Future<bool> _logout() async {
     final token = _accessToken;
-    if (token == null || token.length < 20) {
-      return false;
-    }
+    if (_loggingOut || token == null || token.length < 20) return false;
+    _loggingOut = true;
 
     try {
-      await widget.service.logout(token);
-    } catch (_) {
-      return false;
-    }
-
-    try {
-      await widget.tokenStore.clearAccessToken();
-    } catch (_) {
-      // A sessão já foi revogada no Core. Um token local residual será
-      // rejeitado no próximo bootstrap e não deve manter a UI autenticada.
-    }
-
-    final ended = widget.onSessionEnded;
-    if (ended != null) {
       try {
-        await ended();
+        await widget.service.logout(token);
       } catch (_) {
-        // Logout do Core já foi concluído; push é best-effort.
+        // Keep the local session when the Core has not confirmed revocation.
+        return false;
       }
-    }
 
-    if (!mounted) return true;
-    setState(() {
-      _accessToken = null;
-      _checking = false;
-    });
-    return true;
+      try {
+        await widget.tokenStore.clearAccessToken();
+      } catch (_) {
+        // A residual token is already revoked and rejected at next bootstrap.
+      }
+
+      // Begin cleanup before exposing login, without waiting on push providers.
+      _notifySessionEnded();
+      if (!mounted) return true;
+      setState(() {
+        _accessToken = null;
+        _checking = false;
+      });
+      return true;
+    } finally {
+      _loggingOut = false;
+    }
   }
 
   @override

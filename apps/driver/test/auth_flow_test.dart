@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_driver/src/core/auth/auth_token_store.dart';
@@ -37,6 +39,8 @@ class _FakeAuthService implements PhoneAuthService {
   String? requestedPhone;
   int logoutCalls = 0;
   int sessionChecks = 0;
+  Completer<void>? pendingLogout;
+  bool throwLogout = false;
 
   @override
   Future<RequestedOtp> requestOtp({
@@ -83,6 +87,9 @@ class _FakeAuthService implements PhoneAuthService {
   @override
   Future<void> logout(String accessToken) async {
     logoutCalls += 1;
+    if (throwLogout) throw StateError('Core offline');
+    final pending = pendingLogout;
+    if (pending != null) await pending.future;
   }
 }
 
@@ -249,5 +256,127 @@ void main() {
     expect(service.logoutCalls, 1);
     expect(store.cleared, isTrue);
     expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+  });
+
+  testWidgets('revoked logout returns to login while push cleanup is pending', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'driver');
+    final cleanup = Completer<void>();
+    Future<bool>? result;
+    var ended = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'driver', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      onSessionEnded: () { ended++; return cleanup.future; },
+      authenticatedBuilder: (token, logout) => TextButton(
+        key: const Key('pending-logout'),
+        onPressed: () { result = logout(); }, child: const Text('Sair'),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pending-logout')));
+    await tester.pumpAndSettle();
+    expect(await result, true);
+    expect(ended, 1);
+    expect(store.cleared, true);
+    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    cleanup.completeError(StateError('late push failure'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('duplicate logout and resume do not restart a revoking session', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final pending = Completer<void>();
+    final service = _FakeAuthService(subjectType: 'driver')..pendingLogout = pending;
+    Future<bool>? first;
+    Future<bool>? second;
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'driver', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      authenticatedBuilder: (token, logout) => TextButton(
+        key: const Key('duplicate-logout'),
+        onPressed: () { if (taps++ == 0) { first = logout(); } else { second = logout(); } },
+        child: const Text('Sair'),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('duplicate-logout')));
+    await tester.tap(find.byKey(const Key('duplicate-logout')));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(await second, false);
+    expect(service.logoutCalls, 1);
+    expect(service.sessionChecks, 1);
+    expect(store.cleared, false);
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(await first, true);
+    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('failed Core logout preserves session and permits retry', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'driver')..throwLogout = true;
+    Future<bool>? result;
+    var ended = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'driver', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      onSessionEnded: () async { ended++; },
+      authenticatedBuilder: (token, logout) => TextButton(
+        key: const Key('retry-logout'),
+        onPressed: () { result = logout(); }, child: const Text('Sair'),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('retry-logout')));
+    await tester.pumpAndSettle();
+    expect(await result, false);
+    expect(store.cleared, false);
+    expect(ended, 0);
+    expect(find.byKey(const Key('retry-logout')), findsOneWidget);
+    service.throwLogout = false;
+    await tester.tap(find.byKey(const Key('retry-logout')));
+    await tester.pumpAndSettle();
+    expect(await result, true);
+    expect(service.logoutCalls, 2);
+    expect(ended, 1);
+    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+
+  testWidgets('synchronous optional push failures do not block login or logout', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'driver');
+    var ended = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'driver', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      onSessionReady: (_) => throw StateError('push registration failure'),
+      onSessionEnded: () { ended++; throw StateError('push cleanup failure'); },
+      authenticatedBuilder: (token, logout) => TextButton(
+        key: const Key('sync-failure-logout'),
+        onPressed: () async { await logout(); }, child: const Text('Sair'),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('sync-failure-logout')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sync-failure-logout')));
+    await tester.pumpAndSettle();
+    expect(ended, 1);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('auth-phone-field')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 }
