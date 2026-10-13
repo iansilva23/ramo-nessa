@@ -1,3 +1,6 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -148,6 +151,56 @@ class RamoNessaPassengerApp extends StatelessWidget {
       );
     }
 
+
+    Widget permissions(String? token, Widget content) {
+      const storage = FlutterSecureStorage();
+      const key = 'ramo_nessa_permissions_passenger_v1';
+
+      Future<bool> requestLocation() async {
+        try {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          return permission == LocationPermission.always ||
+              permission == LocationPermission.whileInUse;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      Future<bool> requestNotifications() async {
+        final normalized = token?.trim();
+        // Push Web será habilitado somente quando o Service Worker e
+        // cadastro de dispositivos forem homologados. Nunca fingir êxito.
+        if (kIsWeb || coreUri == null || normalized == null || normalized.length < 20) {
+          return false;
+        }
+        try {
+          await FirebasePushRegistrationService.instance.start(
+            baseUrl: coreUri,
+            accessToken: normalized,
+            requestPermission: true,
+          );
+          final settings = await FirebaseMessaging.instance.getNotificationSettings();
+          return settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      return RamoPermissionOnboardingGate(
+        role: 'passenger',
+        web: kIsWeb,
+        readCompleted: () async => (await storage.read(key: key)) == 'yes',
+        saveCompleted: () => storage.write(key: key, value: 'yes'),
+        requestLocation: requestLocation,
+        requestNotifications: requestNotifications,
+        child: content,
+      );
+    }
+
     final Widget homeWidget;
     if (RamoCoreConfig.previewMode) {
       homeWidget = MobileAuthGate(
@@ -159,7 +212,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Entre para testar o app. No Preview, o código é exibido na própria tela.',
-        authenticatedBuilder: (token, logout) => shell(token, logout),
+        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
@@ -175,7 +228,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
-        authenticatedBuilder: (token, logout) => shell(token, logout),
+        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
         onSessionReady: (token) =>
             FirebasePushRegistrationService.instance.start(
               baseUrl: coreUri,
