@@ -137,6 +137,10 @@ class RamoNessaDriverApp extends StatelessWidget {
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
+        saveNotificationPreference: (all) => storage.write(
+          key: 'ramo_nessa_notifications_${kind}_v1',
+          value: all ? 'all' : 'important',
+        ),
         child: content,
       );
     }
