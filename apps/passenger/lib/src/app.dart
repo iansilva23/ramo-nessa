@@ -198,7 +198,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         requestLocation: requestLocation,
         requestNotifications: requestNotifications,
         saveNotificationPreference: (all) => storage.write(
-          key: 'ramo_nessa_notifications_${kind}_v1',
+          key: 'ramo_nessa_notifications_passenger_v1',
           value: all ? 'all' : 'important',
         ),
         child: content,
