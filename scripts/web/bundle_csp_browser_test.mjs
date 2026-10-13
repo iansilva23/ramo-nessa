@@ -106,9 +106,10 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
     await page.getByLabel('Senha', { exact: true }).click(); await page.keyboard.insertText('fixture-password-only');
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   } else {
-    await page.getByLabel('Celular', { exact: true }).click(); await page.keyboard.insertText('88999991234');
+    await page.getByRole('textbox').first().click(); await page.keyboard.insertText('88999991234');
     await page.getByRole('button', { name: 'Continuar', exact: true }).click();
-    await page.getByLabel('Código', { exact: true }).click(); await page.keyboard.insertText('123456');
+    await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).waitFor();
+    await page.getByRole('textbox').first().click(); await page.keyboard.insertText('123456');
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
   await page.getByRole('button', { name: 'Continuar para o Ramo Nessa', exact: true }).waitFor({ timeout: 30000 });
