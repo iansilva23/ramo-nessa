@@ -491,3 +491,16 @@ homologação. Caminhos de PWAs e ADM não são fronteiras de origem.
 Referências primárias:
 - https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
 - https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API
+
+A recuperação explícita `GET /v1/auth/web/session` exige cabeçalho de papel,
+cookie válido e metadados da mesma origem, devolvendo somente o identificador
+público depois da autorização normal do Core. Não renova validade nem escreve
+cookies, evitando sobrescrita por resposta atrasada. O token store Web usa essa
+rota quando não há marcador local; o smoke limpa localStorage antes da recarga
+para provar restauração sem novo login. APIs protegidas continuam exigindo o
+identificador vinculado ao cookie; a exceção de bootstrap é somente leitura.
+
+A limpeza Web retira credenciais privadas legadas dos dois apps e da chave
+compartilhada antiga; identificadores públicos válidos do outro app são
+preservados. Entradas antigas ilegíveis são removidas quando o storage permite.
+Essa limpeza ocorre somente na Web, com testes para os dois sentidos.

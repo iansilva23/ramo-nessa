@@ -46,7 +46,7 @@ function requireSameOrigin(request: IncomingMessage): void {
 
 // Cookies alone never authorize an API call. The non-secret handle explicitly
 // selects a role and binds the request to the current cookie session.
-export function prepareBrowserSessionRequest(request: IncomingMessage): BrowserRole | null {
+export function prepareBrowserSessionRequest(request: IncomingMessage, options: { cookieBootstrap?: boolean } = {}): BrowserRole | null {
   const authorization = header(request, 'authorization');
   const match = authorization?.match(/^Bearer (ramo_web_(passenger|driver)_v1_[a-f0-9]{32})$/);
   const declared = header(request, 'x-ramo-web-role');
@@ -59,7 +59,8 @@ export function prepareBrowserSessionRequest(request: IncomingMessage): BrowserR
     throw new BrowserSessionTransportError('WEB_SESSION_ROLE_INVALID', 403);
   }
   requireSameOrigin(request);
-  if (!match) { contexts.set(request, { role, authenticated: false }); return null; }
+  const bootstrap = options.cookieBootstrap === true && request.method === 'GET';
+  if (!match && !bootstrap) { contexts.set(request, { role, authenticated: false }); return null; }
   const raw = header(request, 'cookie') ?? '';
   if (raw.length > 16384) throw new BrowserSessionTransportError('WEB_SESSION_COOKIE_INVALID');
   const values = raw.split(';').map(part => part.trim()).filter(part => part.startsWith(cookieName(role) + '='));
@@ -67,7 +68,7 @@ export function prepareBrowserSessionRequest(request: IncomingMessage): BrowserR
   const token = values[0]!.slice(cookieName(role).length + 1);
   if (!tokenPattern.test(token)) throw new BrowserSessionTransportError('WEB_SESSION_COOKIE_INVALID');
   const expected = browserSessionHandle(role, token);
-  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(match[1]!))) {
+  if (match && !timingSafeEqual(Buffer.from(expected), Buffer.from(match[1]!))) {
     // A stale tab must not clear or revoke the newer session's cookie.
     throw new BrowserSessionTransportError('WEB_SESSION_STALE');
   }
@@ -77,7 +78,7 @@ export function prepareBrowserSessionRequest(request: IncomingMessage): BrowserR
 }
 
 export function browserAuthResponse<T extends { accessToken: string; subjectType: AuthSubjectType; expiresAt: string }>(
-  request: IncomingMessage, response: ServerResponse, session: T,
+  request: IncomingMessage, response: ServerResponse, session: T, options: { setCookie?: boolean } = {},
 ): T {
   const context = contexts.get(request);
   if (!context) return session; // Native response is unchanged.
@@ -85,8 +86,10 @@ export function browserAuthResponse<T extends { accessToken: string; subjectType
       !Number.isFinite(Date.parse(session.expiresAt))) {
     throw new BrowserSessionTransportError('WEB_SESSION_ROLE_INVALID', 403);
   }
-  response.setHeader('set-cookie', cookieName(context.role) + '=' + session.accessToken +
-    '; Path=/; HttpOnly; Secure; SameSite=Strict; Expires=' + new Date(session.expiresAt).toUTCString());
+  if (options.setCookie !== false) {
+    response.setHeader('set-cookie', cookieName(context.role) + '=' + session.accessToken +
+      '; Path=/; HttpOnly; Secure; SameSite=Strict; Expires=' + new Date(session.expiresAt).toUTCString());
+  }
   return { ...session, accessToken: browserSessionHandle(context.role, session.accessToken) };
 }
 

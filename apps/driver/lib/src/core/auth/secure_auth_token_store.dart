@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'auth_token_store.dart';
+import 'browser_session_restore.dart';
 
 class SecureAuthTokenStore implements AuthTokenStore {
   SecureAuthTokenStore({FlutterSecureStorage? storage, bool? browserSession})
@@ -42,18 +43,40 @@ class SecureAuthTokenStore implements AuthTokenStore {
 
   @override
   Future<String?> readAccessToken() async {
-    if (_browserSession) {
-      await _storage.delete(key: 'ramo_nessa_access_token_v1');
-    }
+    if (_browserSession) await _purgeLegacyWebCredentials();
     final value = await _storage.read(key: _accessTokenKey);
     final normalized = value?.trim();
     if (_browserSession && normalized != null && !_isWebHandle(normalized)) {
       // Retire private credentials from older Web review builds. Native keys stay intact.
       await _storage.delete(key: _accessTokenKey);
-      return null;
+      return _restoreBrowserHandle();
     }
+    if (_browserSession && normalized == null) return _restoreBrowserHandle();
     if (normalized == null || !RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(normalized)) return null;
     return normalized;
+  }
+
+  Future<void> _purgeLegacyWebCredentials() async {
+    await _storage.delete(key: 'ramo_nessa_access_token_v1');
+    for (final role in ['passenger', 'driver']) {
+      final key = 'ramo_nessa_${role}_access_token_v1';
+      try {
+        final value = await _storage.read(key: key);
+        if (value != null && !RegExp('^ramo_web_${role}_v1_[a-f0-9]{32}\$').hasMatch(value.trim())) {
+          await _storage.delete(key: key);
+        }
+      } catch (_) {
+        // An unreadable legacy entry must not leave a private credential behind.
+        try { await _storage.delete(key: key); } catch (_) {}
+      }
+    }
+  }
+
+  Future<String?> _restoreBrowserHandle() async {
+    final handle = await restoreBrowserSession('driver');
+    if (handle == null) return null;
+    try { await _storage.write(key: _accessTokenKey, value: handle); } catch (_) {}
+    return handle;
   }
 
   @override

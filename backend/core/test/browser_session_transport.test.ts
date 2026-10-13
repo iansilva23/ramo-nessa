@@ -103,3 +103,15 @@ test('cookie transport continues to enforce Core expiry, revocation and account 
   await sessions.revoke(issued.session.id, now.toISOString());
   await assert.rejects(() => authenticateBearer({ ...input, now: new Date(now.getTime() + 30_000) }));
 });
+
+test('explicit same-origin bootstrap recovers public handle without rewriting cookie', () => {
+  const f = login('passenger');
+  const req = request('GET', { 'x-ramo-web-role': 'passenger', cookie: f.cookie });
+  assert.equal(prepareBrowserSessionRequest(req, { cookieBootstrap: true }), 'passenger');
+  const res = new ServerResponse(req);
+  const body = browserAuthResponse(req, res, { accessToken: secret, subjectType: 'passenger', expiresAt: '2027-01-01T00:00:00Z' }, { setCookie: false });
+  assert.equal(body.accessToken, f.body.accessToken); assert.equal(res.getHeader('set-cookie'), undefined);
+  const write = request('POST', { 'x-ramo-web-role': 'passenger', cookie: f.cookie });
+  assert.equal(prepareBrowserSessionRequest(write, { cookieBootstrap: true }), null);
+  assert.equal(write.headers.authorization, undefined);
+});

@@ -31,7 +31,7 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
     if (path.startsWith('/v1/')) {
       response.setHeader('content-type', 'application/json'); response.setHeader('cache-control', 'no-store');
       try {
-        const authenticatedRole = prepareBrowserSessionRequest(request);
+        const authenticatedRole = prepareBrowserSessionRequest(request, { cookieBootstrap: path === '/v1/auth/web/session' && request.method === 'GET' });
         if (path === '/v1/auth/otp/request') {
           response.writeHead(202); response.end(JSON.stringify({ challengeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
             expiresAt: new Date(Date.now() + 60000).toISOString(), retryAfterSeconds: 0 })); return;
@@ -47,6 +47,9 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
         }
         if (path === '/v1/auth/session' && request.method === 'DELETE') {
           session = null; clearBrowserSessionCookie(request, response); response.writeHead(204); response.end(); return;
+        }
+        if (path === '/v1/auth/web/session') {
+          response.end(JSON.stringify(browserAuthResponse(request, response, session, { setCookie: false }))); return;
         }
         if (path === '/v1/auth/me/check') {
           response.end(JSON.stringify({ subjectId: session.subjectId, subjectType: role, expiresAt: session.expiresAt })); return;
@@ -120,6 +123,7 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
   assert.ok(authCookie?.httpOnly && authCookie.secure && authCookie.sameSite === 'Strict');
   assert.equal(await page.evaluate(() => document.cookie), '');
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
+  await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByRole('button', { name: 'Continuar para o Ramo Nessa', exact: true }).waitFor({ timeout: 30000 });

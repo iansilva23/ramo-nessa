@@ -63,4 +63,16 @@ void main() {
     }
     expect(await store.readAccessToken(), isNull);
   });
+
+  test('Web cleanup retires other app private credential but preserves its public marker', () async {
+    const key = 'ramo_nessa_driver_access_token_v1';
+    const storage = FlutterSecureStorage();
+    FlutterSecureStorage.setMockInitialValues({key: 'old-other-private-credential-abcdefghijklmnopqrstuvwxyz'});
+    await SecureAuthTokenStore(browserSession: true).readAccessToken();
+    expect(await storage.read(key: key), isNull);
+    const publicHandle = 'ramo_web_driver_v1_0123456789abcdef0123456789abcdef';
+    FlutterSecureStorage.setMockInitialValues({key: publicHandle});
+    await SecureAuthTokenStore(browserSession: true).readAccessToken();
+    expect(await storage.read(key: key), publicHandle);
+  });
 }

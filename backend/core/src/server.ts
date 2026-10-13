@@ -1548,10 +1548,20 @@ const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     requestPath = requestUrl.pathname;
-    const browserRole = prepareBrowserSessionRequest(request);
-    if (browserRole != null) {
-      await authenticateBearer({ repository: authSessionRepository, identities: authOtpRepository,
-        headers: request.headers, requiredType: browserRole, allowDriverRegistration: true });
+    const cookieBootstrap = request.method === 'GET' && requestPath === '/v1/auth/web/session';
+    const browserRole = prepareBrowserSessionRequest(request, { cookieBootstrap });
+    const browserSession = browserRole == null ? null : await authenticateBearer({
+      repository: authSessionRepository, identities: authOtpRepository,
+      headers: request.headers, requiredType: browserRole, allowDriverRegistration: true,
+    });
+    if (cookieBootstrap) {
+      if (browserSession == null) throw new AuthenticationError('AUTH_REQUIRED', 'Sessão Web necessária.');
+      const token = String(request.headers.authorization).slice(7);
+      json(response, 200, browserAuthResponse(request, response, {
+        accessToken: token, subjectType: browserSession.subjectType,
+        subjectId: browserSession.subjectId, expiresAt: browserSession.expiresAt,
+      }, { setCookie: false }));
+      return;
     }
     if (
       request.method === 'GET' &&
