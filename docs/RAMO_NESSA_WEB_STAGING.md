@@ -346,8 +346,8 @@ suspender timers; o minuto é uma cadência de tentativa, não garantia de
 detecção em segundo plano. Android/iOS mantêm bootstrap/retomada, sem nova
 consulta periódica por padrão.
 
-Sete cenários por app verificam revogação em aba ativa sem novo registro de
+Oito cenários por app verificam revogação em aba ativa sem novo registro de
 push, rede indisponível seguida de revogação, suspensão/retomada, consulta
-pendente com dispose, preservação do tráfego nativo, expiração e papel incorreto. Execução pelo workflow
+pendente com dispose, preservação do tráfego nativo, expiração, papel incorreto e resposta de rede tardia durante logout. Execução pelo workflow
 do PR; homologação Safari/OTP real e auditoria de armazenamento continuam
 pendentes. Sem merge ou atualização da VPS.

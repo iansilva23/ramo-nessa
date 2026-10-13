@@ -610,4 +610,38 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+
+  testWidgets('late session failure cannot restore push during logout', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    var ready = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      sessionValidationInterval: const Duration(minutes: 1),
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      onSessionReady: (_) async { ready++; },
+      authenticatedBuilder: (_, logout) => TextButton(
+        key: const Key('late-validation-logout'),
+        onPressed: () async { await logout(); }, child: const Text('Sair'),
+      ),
+    )));
+    await tester.pumpAndSettle();
+    final session = Completer<AuthSessionInfo?>();
+    final revoke = Completer<void>();
+    service.pendingCurrentSession = session;
+    service.pendingLogout = revoke;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('late-validation-logout')));
+    session.completeError(StateError('late Core failure'));
+    await tester.pumpAndSettle();
+    expect(ready, 1);
+    revoke.complete();
+    await tester.pumpAndSettle();
+    expect(ready, 1);
+    expect(store.cleared, true);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

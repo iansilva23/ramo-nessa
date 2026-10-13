@@ -129,6 +129,12 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
       // As chamadas protegidas continuarão dependendo da validação do servidor.
     }
 
+    // A late network failure must not restart push during or after logout.
+    if (!mounted || _accessToken != token || _loggingOut) {
+      _refreshing = false;
+      return;
+    }
+
     final readyToken = _accessToken;
     if (notifyReady && readyToken != null && readyToken.length >= 20) {
       final callback = widget.onSessionReady;
