@@ -87,7 +87,7 @@ jobs:
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
           node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs
-          node --test scripts/web/push_worker_test.mjs
+          node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
 
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
@@ -181,9 +181,7 @@ jobs:
         env:
           RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
         shell: bash
-        run: |
-          KEY="${RAMO_GOOGLE_MAPS_WEB_API_KEY:-WEB_KEY_NOT_CONFIGURED_FOR_CI}"
-          sed -i "s|__RAMO_GOOGLE_MAPS_WEB_KEY__|${KEY}|g" apps/${{ matrix.app }}/web/index.html
+        run: node scripts/web/prepare_web_maps.mjs --role=${{ matrix.app }} --ci-review
       - name: Build browser/PWA application
         working-directory: apps/${{ matrix.app }}
         run: >

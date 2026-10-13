@@ -1,5 +1,6 @@
 import { readFile, lstat, readdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { validateMapsWebKey } from './maps_web_config.mjs';
 
 const root = process.argv.find((arg) => arg.startsWith('--dist='))?.slice(7);
 const role = process.argv.find((arg) => arg.startsWith('--role='))?.slice(7);
@@ -50,6 +51,8 @@ if (index.includes('__RAMO_GOOGLE_MAPS_WEB_KEY__')) {
 if (!allowReviewPlaceholder && index.includes('WEB_KEY_NOT_CONFIGURED_FOR_CI')) {
   throw new Error('Chave Maps Web real ausente: bundle apenas para revisão.');
 }
+const mapsKey = index.match(/https:\/\/maps\.googleapis\.com\/maps\/api\/js\?key=([^"\s<>]+)/)?.[1];
+validateMapsWebKey(mapsKey, { allowReviewPlaceholder });
 if (manifest.display !== 'standalone' || manifest.start_url !== '.' || manifest.scope !== '.') {
   throw new Error('PWA fora do escopo isolado.');
 }

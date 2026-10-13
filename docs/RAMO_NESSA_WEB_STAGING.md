@@ -370,3 +370,23 @@ no banco. Implementação só no PR; servidor ainda não atualizado.
 Armazenamento Web continua acessível ao JavaScript da origem e a CSP ainda
 precisa de homologação com Maps/Mercado Pago/Firebase reais. Esta correção
 não equivale à conclusão da auditoria de XSS/armazenamento.
+
+## Preparação da chave Maps Web — 13/10/2026
+
+`prepare_web_maps.mjs` substitui a edição por sed. Ele aceita somente formato
+de chave pública Google, exige um único ponto de inserção no index original e
+não inclui o valor recebido nos erros/logs. O verificador de bundle confere
+também o formato da chave entregue.
+
+```sh
+node scripts/web/prepare_web_maps.mjs --role=passenger
+node scripts/web/prepare_web_maps.mjs --role=driver
+```
+
+A variável `RAMO_GOOGLE_MAPS_WEB_API_KEY` deve conter a chave própria de
+navegador. Ausência ou formato malformado bloqueiam preparação normal;
+`--ci-review` permite o placeholder somente em GitHub Actions. Não usar
+bundles de revisão para publicar. O preparador não cria chave, não configura
+Google Cloud e não comprova que a chave está ativa/restrita: conferir
+HTTP referrers dos domínios autorizados e APIs habilitadas antes de homologar.
+Seis testes Node usam uma chave fictícia, sem chamadas ao Google.
