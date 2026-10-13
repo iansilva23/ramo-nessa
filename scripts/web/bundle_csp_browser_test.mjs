@@ -48,17 +48,22 @@ test(role + ': compiled Flutter bundle starts under the prepared CSP with local 
     globalThis.bundleViolations = [];
     addEventListener('securitypolicyviolation', event => bundleViolations.push({ directive: event.effectiveDirective, uri: event.blockedURI }));
   });
+  try {
   await page.goto(origin + prefix);
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
   const semantics = page.locator('flt-semantics-placeholder');
   await semantics.waitFor({ state: 'attached', timeout: 30000 });
-  await semantics.click({ force: true });
+  // Flutter's offscreen accessibility placeholder handles a DOM click.
+  // Activate semantics without requiring viewport geometry from the test runner.
+  await semantics.dispatchEvent('click');
   await page.getByRole('button', { name: role === 'passenger' ? 'Entrar' : 'Continuar', exact: true }).waitFor({ timeout: 30000 });
   const violations = await page.evaluate(() => bundleViolations);
   assert.deepEqual(violations.filter(item => /script-src|worker-src|connect-src/.test(item.directive)), []);
   assert.deepEqual(errors, []);
   // No SDK/engine leaves loopback; Maps is an intercepted stub, not a real map test.
   assert.deepEqual([...new Set(remote)], []);
-  const evidence = resolve('artifacts/web-csp'); await mkdir(evidence, { recursive: true });
-  await page.screenshot({ path: resolve(evidence, role + '-login.png') });
+  } finally {
+    const evidence = resolve('artifacts/web-csp'); await mkdir(evidence, { recursive: true });
+    await page.screenshot({ path: resolve(evidence, role + '-login.png') });
+  }
 });
