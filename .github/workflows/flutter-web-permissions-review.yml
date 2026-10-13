@@ -86,7 +86,7 @@ jobs:
       - name: Check card bridge and run browser contracts without real credentials
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
-          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs
+          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
 
   flutter-web:
@@ -185,7 +185,7 @@ jobs:
       - name: Build browser/PWA application
         working-directory: apps/${{ matrix.app }}
         run: >
-          flutter build web --release
+          flutter build web --release --no-web-resources-cdn
           --base-href=/${{ matrix.path }}/
           --dart-define=RAMO_CORE_BASE_URL=
           --dart-define=RAMO_PREVIEW_MODE=false
@@ -213,6 +213,20 @@ jobs:
             -e APP_DOMAIN -e ACME_EMAIL \
             -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
+      - name: Verify compiled app startup under CSP in Chromium (mock Maps, no login)
+        run: |
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          RAMO_CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium)" \
+            RAMO_WEB_TEST_ROLE=${{ matrix.app }} \
+            node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Store browser CSP login evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-csp-login-${{ matrix.app }}
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Store review-only static bundle
         uses: actions/upload-artifact@v4
         with:

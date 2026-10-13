@@ -28,14 +28,20 @@ for (const [path, directory] of [
     path + ': foreground GPS permission blocked');
   assert.ok(block.includes("'wasm-unsafe-eval'"),
     path + ': Flutter CanvasKit wasm CSP missing');
-  assert.ok(block.includes('https://*.gstatic.com'),
-    path + ': Flutter CanvasKit CDN CSP missing');
+  assert.ok(block.includes('https://www.gstatic.com/firebasejs/13.0.0/'),
+    path + ': pinned Firebase SDK source missing');
   assert.ok(block.includes("'self' wss://{$APP_DOMAIN}"),
     path + ': explicit same-host secure WebSocket source missing');
   assert.ok(block.includes("object-src 'none'"),
     path + ': unsafe object sources');
   assert.ok(block.includes("frame-ancestors 'none'"),
     path + ': iframe embedding should be denied');
+  const scripts = block.match(/script-src ([^;]+);/)?.[1];
+  assert.ok(scripts && !scripts.includes("'unsafe-inline'") && !scripts.includes("'unsafe-eval'"),
+    path + ': executable inline JavaScript must remain blocked');
+  assert.ok(!scripts.includes('https://*.gstatic.com'), path + ': broad script CDN trust');
+  assert.ok(block.includes("script-src-attr 'none'"));
+  assert.ok(block.includes("form-action 'self'"));
   assert.ok(block.includes('try_files {path} /index.html'),
     path + ': Flutter SPA fallback missing');
 }

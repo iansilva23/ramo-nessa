@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { webSecurityPolicy } from './web_security_policy.mjs';
 const moduleUrl = process.env.RAMO_BROWSER_TEST_MODULE ?? new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href;
 const { chromium } = await import(moduleUrl);
 const bridge = await readFile(new URL('../../packages/ramo_push/web/ramo_web_push.js', import.meta.url), 'utf8');
@@ -25,6 +26,7 @@ export function onMessage(messaging, callback){ fixture.onMessage = callback; re
 
 test.before(async () => {
   server = createServer(async (request, response) => {
+    response.setHeader('content-security-policy', webSecurityPolicy(request.url.startsWith('/motorista/') ? 'driver' : 'passenger', origin));
     if (request.url.endsWith('/ramo_web_push.js')) {
       response.writeHead(200, { 'content-type': 'text/javascript' }); response.end(bridge); return;
     }

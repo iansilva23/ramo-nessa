@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { webSecurityPolicy } from './web_security_policy.mjs';
 import test from 'node:test';
 
 const moduleUrl = process.env.RAMO_BROWSER_TEST_MODULE ?? new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href;
@@ -15,6 +16,10 @@ const requests = [];
 test.before(async () => {
   server = createServer((request, response) => {
     requests.push(request.url);
+    response.setHeader('content-security-policy', webSecurityPolicy('passenger', origin));
+    if (request.url === '/passageiro/ramo_card_fields.js') {
+      response.writeHead(200, { 'content-type': 'text/javascript' }); response.end(source); return;
+    }
     response.writeHead(200, { 'content-type': 'text/html' });
     response.end('<!doctype html><html><head><meta charset="UTF-8"></head><body><div id="ramo-card-test-1" style="width:400px;height:176px"></div><div id="ramo-card-test-2"></div></body></html>');
   });
@@ -35,7 +40,13 @@ test.after(async () => {
 
 async function pageFixture(t, config = {}) {
   const page = await browser.newPage({ viewport: { width: 430, height: 800 } });
-  await page.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.abort());
+  await page.route('**/*', route => {
+    if (route.request().url().startsWith(origin)) return route.continue();
+    if (route.request().url() === 'https://fields.mercadopago.com/fixture') {
+      return route.fulfill({ contentType: 'text/html', body: '<p>Campo seguro simulado</p>' });
+    }
+    return route.abort();
+  });
   await page.goto(origin);
   await page.evaluate(config => {
     window.config = config;
@@ -50,7 +61,7 @@ async function pageFixture(t, config = {}) {
       mount(id) {
         const frame = document.createElement('iframe');
         frame.title = this.type + ' - mock secure field';
-        frame.srcdoc = '<p>Campo seguro simulado para teste de contrato</p>';
+        frame.src = 'https://fields.mercadopago.com/fixture';
         document.getElementById(id).append(frame);
         this.frame = frame;
         if (!config.deferReady) queueMicrotask(() => this.emit('ready'));
@@ -88,7 +99,7 @@ async function pageFixture(t, config = {}) {
       async getInstallments() { return [{ payer_costs: [{ installments: config.noSingle ? 2 : 1 }] }]; }
     };
   }, config);
-  await page.addScriptTag({ type: 'module', content: source });
+  await page.addScriptTag({ type: 'module', url: origin + '/passageiro/ramo_card_fields.js' });
   await page.waitForFunction(() => window.ramoCardFields != null);
   t.after(() => page.close());
   return page;

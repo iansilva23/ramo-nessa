@@ -390,3 +390,41 @@ bundles de revisão para publicar. O preparador não cria chave, não configura
 Google Cloud e não comprova que a chave está ativa/restrita: conferir
 HTTP referrers dos domínios autorizados e APIs habilitadas antes de homologar.
 Seis testes Node usam uma chave fictícia, sem chamadas ao Google.
+
+## Auditoria de armazenamento e CSP — 13/10/2026
+
+Os tokens Web continuam no flutter_secure_storage da mesma origem. A criptografia
+local não impede leitura por JavaScript autorizado ou injetado naquela origem;
+esta etapa não implementa cookies HttpOnly. AppIds/chaves separados evitam colisão
+funcional entre PWAs, mas não constituem isolamento de segurança entre caminhos.
+Migração de sessão para cookies/BFF e revisão das dependências remotas continuam
+pendentes antes de concluir a auditoria de XSS.
+
+Correções preparadas:
+- Mensagens de token inválido não incluem o valor recebido. Armazenamento recusa
+  credenciais com espaços internos, quebras de linha ou tamanho excessivo;
+  tokens opacos válidos mantêm o fluxo de restauração/logout.
+- CSP das PWAs bloqueia scripts inline, handlers HTML e eval JavaScript; conserva
+  wasm-unsafe-eval somente para o engine Flutter, estilos inline e recursos dos
+  provedores já utilizados. Formulários externos são bloqueados.
+- CanvasKit passa a ser servido do próprio bundle (--no-web-resources-cdn),
+  permitindo limitar scripts gstatic ao diretório Firebase da versão usada.
+  A CSP do ADM permanece igual.
+- Testes Chromium de cartão/push recebem a política extraída do Caddyfile;
+  os SDKs continuam simulados, sem cobranças nem cadastro FCM real.
+- Testes de ataques verificam bloqueio de scripts/handlers/formulários externos,
+  eval e preservação de WebAssembly nas PWAs; o ADM continua sem WebAssembly.
+- Smoke dos bundles Flutter reais abre a tela de login com a CSP preparada,
+  Maps simulado, engine local e saída externa bloqueada. Não envia OTP/login.
+  Evidências de tela são anexadas ao workflow.
+
+Os cabeçalhos são extraídos da configuração e aplicados no servidor local de
+  teste; caddy validate verifica a sintaxe. Ainda falta confirmar cabeçalhos
+  recebidos e SDKs reais no domínio HTTPS/Safari após deploy autorizado.
+Nenhuma configuração foi aplicada na VPS, e a redução da CSP não certifica
+  proteção completa contra XSS ou comprometimento de fornecedor permitido.
+
+Referências primárias:
+- https://docs.flutter.dev/platform-integration/web/initialization
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src
+- https://www.w3.org/TR/CSP/

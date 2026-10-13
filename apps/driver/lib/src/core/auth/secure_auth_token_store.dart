@@ -41,15 +41,15 @@ class SecureAuthTokenStore implements AuthTokenStore {
   Future<String?> readAccessToken() async {
     final value = await _storage.read(key: _accessTokenKey);
     final normalized = value?.trim();
-    if (normalized == null || normalized.length < 20) return null;
+    if (normalized == null || !RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(normalized)) return null;
     return normalized;
   }
 
   @override
   Future<void> saveAccessToken(String token) async {
     final normalized = token.trim();
-    if (normalized.length < 20) {
-      throw ArgumentError.value(token, 'token', 'Bearer token inválido.');
+    if (!RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(normalized)) {
+      throw ArgumentError('Bearer token inválido.');
     }
     await _storage.write(key: _accessTokenKey, value: normalized);
   }
