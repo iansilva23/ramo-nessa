@@ -14,6 +14,7 @@ void main() {
         saveCompleted: () async { saved = true; },
         requestLocation: () async { locationCalls++; return true; },
         requestNotifications: () async => false,
+        saveNotificationPreference: (_) async {},
         child: const Scaffold(body: Text('Mapa aprovado')),
       ),
     ));
