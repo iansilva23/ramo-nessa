@@ -36,11 +36,14 @@ class _FakeAuthService implements PhoneAuthService {
   });
 
   final String subjectType;
-  final bool invalidCurrentSession;
-  final bool throwCurrentSession;
+  bool invalidCurrentSession;
+  bool throwCurrentSession;
   String? requestedPhone;
   int logoutCalls = 0;
   int sessionChecks = 0;
+  Completer<AuthSessionInfo?>? pendingCurrentSession;
+  DateTime? currentExpiresAt;
+  String? currentSubjectType;
   Completer<void>? pendingLogout;
   bool throwLogout = false;
 
@@ -135,14 +138,16 @@ class _FakeAuthService implements PhoneAuthService {
   @override
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
     sessionChecks += 1;
+    final pending = pendingCurrentSession;
+    if (pending != null) return pending.future;
     if (throwCurrentSession) {
       throw StateError('core offline');
     }
     if (invalidCurrentSession) return null;
     return AuthSessionInfo(
-      expiresAt: DateTime.now().add(const Duration(days: 1)),
+      expiresAt: currentExpiresAt ?? DateTime.now().add(const Duration(days: 1)),
       subjectId: 'subject-auth-test',
-      subjectType: subjectType,
+      subjectType: currentSubjectType ?? subjectType,
     );
   }
 
@@ -465,4 +470,144 @@ void main() {
     expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('foreground Web checks revoke session without registering push again', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    var ready = 0;
+    var ended = 0;
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      sessionValidationInterval: const Duration(minutes: 1),
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      onSessionReady: (_) async { ready++; },
+      onSessionEnded: () async { ended++; },
+      authenticatedBuilder: (_, logout) => const Text('WEB SESSION'),
+    )));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pumpAndSettle();
+    expect(service.sessionChecks, 2);
+    expect(ready, 1);
+    service.invalidCurrentSession = true;
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pumpAndSettle();
+    expect(store.cleared, true);
+    expect(ended, 1);
+    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    await tester.pump(const Duration(minutes: 2));
+    expect(service.sessionChecks, 3);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('temporary periodic failure keeps session and next check can revoke it', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      sessionValidationInterval: const Duration(minutes: 1),
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      authenticatedBuilder: (_, logout) => const Text('WEB OFFLINE'),
+    )));
+    await tester.pumpAndSettle();
+    service.throwCurrentSession = true;
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pumpAndSettle();
+    expect(store.cleared, false);
+    expect(find.text('WEB OFFLINE'), findsOneWidget);
+    service.throwCurrentSession = false;
+    service.invalidCurrentSession = true;
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('hidden Web stops periodic checks and resume validates immediately', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      sessionValidationInterval: const Duration(minutes: 1),
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      authenticatedBuilder: (_, logout) => const Text('WEB HIDDEN'),
+    )));
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(minutes: 3));
+    expect(service.sessionChecks, 1);
+    service.invalidCurrentSession = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(service.sessionChecks, 2);
+    expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('periodic checks do not overlap and dispose cancels timer', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      sessionValidationInterval: const Duration(minutes: 1),
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      authenticatedBuilder: (_, logout) => const Text('WEB PENDING'),
+    )));
+    await tester.pumpAndSettle();
+    final pending = Completer<AuthSessionInfo?>();
+    service.pendingCurrentSession = pending;
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pump(const Duration(minutes: 2));
+    expect(service.sessionChecks, 2);
+    await tester.pumpWidget(const SizedBox());
+    pending.complete(null);
+    await tester.pump(const Duration(minutes: 2));
+    expect(service.sessionChecks, 2);
+    expect(store.cleared, false);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('native default does not add periodic session traffic', (tester) async {
+    final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final service = _FakeAuthService(subjectType: 'passenger');
+    await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+      subjectType: 'passenger', service: service, tokenStore: store,
+      initialAccessToken: store.token, devBypass: false,
+      loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+      authenticatedBuilder: (_, logout) => const Text('NATIVE SESSION'),
+    )));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(minutes: 3));
+    expect(service.sessionChecks, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  for (final invalidReason in ['expired', 'wrong-role']) {
+    testWidgets('periodic validation rejects $invalidReason session', (tester) async {
+      final store = _MemoryTokenStore()..token = 'abcdefghijklmnopqrstuvwxyz123456';
+      final service = _FakeAuthService(subjectType: 'passenger');
+      await tester.pumpWidget(MaterialApp(home: MobileAuthGate(
+        subjectType: 'passenger', service: service, tokenStore: store,
+        initialAccessToken: store.token, devBypass: false,
+        sessionValidationInterval: const Duration(minutes: 1),
+        loginTitle: 'Entrar', loginSubtitle: 'WhatsApp',
+        authenticatedBuilder: (_, logout) => const Text('VALID SESSION'),
+      )));
+      await tester.pumpAndSettle();
+      if (invalidReason == 'expired') {
+        service.currentExpiresAt = DateTime.now().subtract(const Duration(seconds: 1));
+      } else {
+        service.currentSubjectType = 'driver';
+      }
+      await tester.pump(const Duration(seconds: 61));
+      await tester.pumpAndSettle();
+      expect(store.cleared, true);
+      expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 }

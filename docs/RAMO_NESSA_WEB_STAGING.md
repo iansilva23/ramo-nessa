@@ -331,3 +331,23 @@ Quatro cenários por app cobrem limpeza de push pendente, dois cliques com
 retomada durante revogação falha do Core seguida de nova tentativa e callbacks com falha síncrona.
 A validação será executada pelo workflow existente; não representa teste
 de OTP/provedor/Safari reais. PR DRAFT, sem deploy.
+
+## Validação de sessão enquanto a PWA permanece aberta — 13/10/2026
+
+A Web passa a consultar a sessão autenticada a cada minuto enquanto a página
+está ativa. Ao confirmar sessão inválida, expirada ou de outro papel, limpa
+o token local, encerra o push e retorna ao login. A consulta não renova a
+expiração nem reativa push a cada ciclo. Erro temporário preserva a sessão;
+toda chamada protegida continua dependendo da autorização do Core.
+
+Os ciclos não se sobrepõem, param ao ocultar a página, no logout e no dispose.
+Ao retomar, a validação imediata existente é preservada. O navegador pode
+suspender timers; o minuto é uma cadência de tentativa, não garantia de
+detecção em segundo plano. Android/iOS mantêm bootstrap/retomada, sem nova
+consulta periódica por padrão.
+
+Sete cenários por app verificam revogação em aba ativa sem novo registro de
+push, rede indisponível seguida de revogação, suspensão/retomada, consulta
+pendente com dispose, preservação do tráfego nativo, expiração e papel incorreto. Execução pelo workflow
+do PR; homologação Safari/OTP real e auditoria de armazenamento continuam
+pendentes. Sem merge ou atualização da VPS.
