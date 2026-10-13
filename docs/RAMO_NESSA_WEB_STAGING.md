@@ -428,3 +428,13 @@ Referências primárias:
 - https://docs.flutter.dev/platform-integration/web/initialization
 - https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src
 - https://www.w3.org/TR/CSP/
+
+### Correção do ambiente de smoke dos bundles
+
+O primeiro smoke encontrou o controle de acessibilidade fora do viewport;
+o teste agora dispara o evento DOM esperado pelo Flutter. Em seguida,
+a captura mostrou a tela de Core não configurado: a fixture estava em HTTP,
+mas o bundle release exige HTTPS por projeto. O servidor de teste usa agora
+TLS com certificado descartável de loopback, aceito somente pelo contexto
+Playwright. Nenhuma exceção TLS/HTTP foi adicionada ao aplicativo, gateway
+ou servidor real. Capturas são preservadas mesmo se o smoke falhar.

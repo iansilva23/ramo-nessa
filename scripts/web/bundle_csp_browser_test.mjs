@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { resolve, extname, sep } from 'node:path';
-import { createServer } from 'node:http';
+import { createServer } from 'node:https';
 import { once } from 'node:events';
 import { webSecurityPolicy } from './web_security_policy.mjs';
 const moduleUrl = process.env.RAMO_BROWSER_TEST_MODULE ?? new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href;
@@ -13,7 +15,14 @@ const root = resolve(new URL('../../apps/' + role + '/build/web/', import.meta.u
 const prefix = role === 'passenger' ? '/passageiro/' : '/motorista/';
 test(role + ': compiled Flutter bundle starts under the prepared CSP with local engine', { timeout: 90000 }, async t => {
   let origin;
-  const server = createServer(async (request, response) => {
+  const certificates = await mkdtemp(resolve(tmpdir(), 'ramo-csp-tls-'));
+  const keyFile = resolve(certificates, 'key.pem'), certFile = resolve(certificates, 'cert.pem');
+  // Disposable loopback certificate only. Production TLS verification is unchanged.
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+    '-keyout', keyFile, '-out', certFile, '-days', '1', '-subj', '/CN=127.0.0.1',
+    '-addext', 'subjectAltName=IP:127.0.0.1'], { stdio: 'ignore' });
+  t.after(() => rm(certificates, { recursive: true, force: true }));
+  const server = createServer({ key: await readFile(keyFile), cert: await readFile(certFile) }, async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
     if (!path.startsWith(prefix)) { response.writeHead(404); response.end(); return; }
     const file = resolve(root, decodeURIComponent(path.slice(prefix.length)) || 'index.html');
@@ -27,12 +36,12 @@ test(role + ': compiled Flutter bundle starts under the prepared CSP with local 
     } catch { response.writeHead(404); response.end(); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
-  origin = 'http://127.0.0.1:' + server.address().port;
+  origin = 'https://127.0.0.1:' + server.address().port;
   t.after(() => new Promise(resolve => server.close(resolve)));
   const browser = await chromium.launch({ headless: true, args: ['--disable-background-networking'],
     ...(process.env.RAMO_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.RAMO_CHROMIUM_EXECUTABLE_PATH } : {}) });
   t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 430, height: 900 } });
+  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
   const errors = [], remote = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', route => {
