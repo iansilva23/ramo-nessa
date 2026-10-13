@@ -37,6 +37,7 @@ import '../domain/driver_route_info.dart';
 import 'driver_cancellation_message.dart';
 import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
+import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
 
 enum _DriverActivityPeriod {
@@ -79,7 +80,8 @@ class DriverHomeScreen extends StatefulWidget {
   State<DriverHomeScreen> createState() => _DriverHomeScreenState();
 }
 
-class _DriverHomeScreenState extends State<DriverHomeScreen> {
+class _DriverHomeScreenState extends State<DriverHomeScreen>
+    with WidgetsBindingObserver {
   late final String _accessToken = widget.accessToken?.trim() ?? '';
   late final bool _authenticated =
       DriverCoreConfig.enabled &&
@@ -176,10 +178,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _locationSyncInFlight = false;
   bool _releaseDialogShown = false;
   bool _registryAccessBlocked = false;
+  bool _webBackgrounded = false;
+  bool _webWasBackgrounded = false;
+  bool _webSafetyInFlight = false;
+  bool _webSafetyRecheck = false;
 
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) WidgetsBinding.instance.addObserver(this);
     _load();
     unawaited(_loadSocialLinks());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -299,7 +306,72 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (!kIsWeb) return;
+    if (DriverWebAvailabilityPolicy.isBackgroundTransition(state)) {
+      if (_webBackgrounded) return;
+      _webBackgrounded = true;
+      _webWasBackgrounded = true;
+      // Best effort: Safari pode suspender rede/timers quando a página some.
+      // O Core ainda exclui GPS antigo da busca de motoristas.
+      unawaited(_ensureWebAvailabilitySafe());
+    } else if (state == AppLifecycleState.resumed && _webWasBackgrounded) {
+      _webBackgrounded = false;
+      // Na volta, repete a checagem caso a solicitação enviada ao ocultar
+      // a página tenha sido interrompida pelo navegador.
+      unawaited(_ensureWebAvailabilitySafe());
+    }
+  }
+
+  Future<void> _ensureWebAvailabilitySafe() async {
+    if (!kIsWeb || !mounted) return;
+    if (_webSafetyInFlight) {
+      _webSafetyRecheck = true;
+      return;
+    }
+
+    _webSafetyInFlight = true;
+    try {
+      final supply = _supply;
+      if (supply != null &&
+          DriverWebAvailabilityPolicy.shouldSetOffline(
+            isWeb: kIsWeb,
+            online: supply.online,
+            busy: supply.busy,
+            hasActiveRide: _activeRide != null,
+          ) &&
+          !_changingStatus) {
+        await _setOnline(false);
+      }
+
+      if (!mounted || _webBackgrounded || !_webWasBackgrounded) return;
+
+      setState(() {
+        if (_activeRide != null || _supply?.busy == true) {
+          _message = 'Você voltou ao Ramo Nessa Web. Confira a corrida ativa: '
+              'o Safari pode pausar GPS e atualizações com a tela bloqueada.';
+        } else if (_supply?.online == true) {
+          _message = 'Não foi possível confirmar sua saída do modo online. '
+              'Desative a disponibilidade antes de deixar o navegador.';
+        } else {
+          _message = 'Por segurança, sua disponibilidade Web foi pausada. '
+              'Para receber novas corridas, mantenha o app aberto e fique online novamente.';
+        }
+      });
+      _webWasBackgrounded = false;
+    } finally {
+      _webSafetyInFlight = false;
+      if (_webSafetyRecheck) {
+        _webSafetyRecheck = false;
+        unawaited(_ensureWebAvailabilitySafe());
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    if (kIsWeb) WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _ticker?.cancel();
     _nearbyTimer?.cancel();
