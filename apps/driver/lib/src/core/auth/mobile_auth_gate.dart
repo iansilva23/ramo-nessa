@@ -108,9 +108,10 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
       return;
     }
 
+    bool invalidated = false;
     try {
       final session = await widget.service.currentSession(token);
-      if (!mounted || _accessToken != token || _loggingOut) { _refreshing = false; return; }
+      if (!mounted || (!invalidated && _accessToken != token) || _loggingOut) { _refreshing = false; return; }
       if (
         session == null ||
         session.subjectType != widget.subjectType ||
@@ -121,6 +122,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
         } catch (_) {}
         if (!mounted || _accessToken != token) { _refreshing = false; return; }
         _accessToken = null;
+        invalidated = true;
         _stopSessionValidation();
         _notifySessionEnded();
       }
