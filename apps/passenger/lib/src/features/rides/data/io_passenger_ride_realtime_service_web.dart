@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../../../core/config/ramo_core_config.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_realtime_service.dart';
 
