@@ -34,4 +34,52 @@ void main() {
     expect(captured.headers['content-type'], 'application/json');
     expect(captured.body, isNot(contains('"email"')));
   });
+
+  test('Web session check uses passive endpoint and Bearer only in header', () async {
+    const token = 'abcdefghijklmnopqrstuvwxyz123456';
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/v1/auth/me/check');
+      expect(request.url.query, isEmpty);
+      expect(request.url.toString(), isNot(contains(token)));
+      expect(request.headers['authorization'], 'Bearer $token');
+      return http.Response(
+        '{"subjectId":"test-driver","subjectType":"driver",'
+        '"expiresAt":"2027-01-01T00:00:00.000Z"}', 200,
+      );
+    });
+    final service = HttpPhoneAuthService(
+      baseUrl: Uri.parse('https://core.example.test'), subjectType: 'driver',
+      readOnlySessionCheck: true, client: client,
+    );
+    final session = await service.currentSession(token);
+    expect(session?.subjectType, 'driver');
+    expect(session?.expiresAt.toUtc(), DateTime.utc(2027, 1, 1));
+  });
+
+  test('native default retains renewable session endpoint', () async {
+    final client = MockClient((request) async {
+      expect(request.url.path, '/v1/auth/me');
+      return http.Response(
+        '{"subjectId":"test-driver","subjectType":"driver",'
+        '"expiresAt":"2027-01-01T00:00:00.000Z"}', 200,
+      );
+    });
+    final service = HttpPhoneAuthService(
+      baseUrl: Uri.parse('https://core.example.test'), subjectType: 'driver',
+      client: client,
+    );
+    expect(await service.currentSession('abcdefghijklmnopqrstuvwxyz123456'), isNotNull);
+  });
+
+  for (final status in [401, 403]) {
+    test('passive session check treats HTTP $status as invalid session', () async {
+      final service = HttpPhoneAuthService(
+        baseUrl: Uri.parse('https://core.example.test'), subjectType: 'driver',
+        readOnlySessionCheck: true,
+        client: MockClient((_) async => http.Response('{}', status)),
+      );
+      expect(await service.currentSession('abcdefghijklmnopqrstuvwxyz123456'), isNull);
+    });
+  }
 }

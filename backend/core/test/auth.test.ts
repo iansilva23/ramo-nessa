@@ -278,3 +278,44 @@ test('nova sessão remove sessão expirada fora da retenção sem afetar sessão
     await repository.findByTokenHash(hashBearerToken(recent.token)),
   );
 });
+
+test('passive session checks retain original expiry across repeated requests', async () => {
+  const repository = new InMemoryAuthSessionRepository();
+  const now = new Date('2026-10-13T18:00:00.000Z');
+  const issued = await issueAuthSession({
+    repository, subjectId: 'passenger-passive-check', subjectType: 'passenger',
+    now, ttlMs: 120_000,
+  });
+  for (const seconds of [10, 40, 90]) {
+    const session = await authenticateBearer({
+      repository, headers: { authorization: `Bearer ${issued.token}` },
+      renewSession: false, now: new Date(now.getTime() + seconds * 1000),
+    });
+    assert.equal(session.expiresAt, issued.session.expiresAt);
+  }
+  const stored = await repository.findByTokenHash(hashBearerToken(issued.token));
+  assert.equal(stored?.expiresAt, issued.session.expiresAt);
+  await assert.rejects(() => authenticateBearer({
+    repository, headers: { authorization: `Bearer ${issued.token}` },
+    renewSession: false, now: new Date(now.getTime() + 120_000),
+  }), (error: unknown) => error instanceof AuthenticationError && error.code === 'AUTH_EXPIRED');
+});
+
+test('passive check cannot restore revoked session; native renewal remains available', async () => {
+  const repository = new InMemoryAuthSessionRepository();
+  const now = new Date('2026-10-13T18:00:00.000Z');
+  const issued = await issueAuthSession({
+    repository, subjectId: 'driver-passive-check', subjectType: 'driver',
+    now, ttlMs: 120_000,
+  });
+  const renewed = await authenticateBearer({
+    repository, headers: { authorization: `Bearer ${issued.token}` },
+    renewSession: true, now: new Date(now.getTime() + 10_000),
+  });
+  assert.ok(Date.parse(renewed.expiresAt) > Date.parse(issued.session.expiresAt));
+  await repository.revoke(issued.session.id, new Date(now.getTime() + 20_000).toISOString());
+  await assert.rejects(() => authenticateBearer({
+    repository, headers: { authorization: `Bearer ${issued.token}` },
+    renewSession: false, now: new Date(now.getTime() + 30_000),
+  }), (error: unknown) => error instanceof AuthenticationError && error.code === 'AUTH_INVALID');
+});

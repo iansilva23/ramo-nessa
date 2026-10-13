@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'phone_auth_service.dart';
@@ -26,6 +27,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
     required String subjectType,
     String? clientInstanceId,
     http.Client? client,
+    this.readOnlySessionCheck = kIsWeb,
   })  : _baseUrl = baseUrl,
         _subjectType = subjectType,
         _clientInstanceId = clientInstanceId?.trim(),
@@ -35,6 +37,8 @@ class HttpPhoneAuthService implements PhoneAuthService {
   final String _subjectType;
   final String? _clientInstanceId;
   final http.Client _client;
+  // Web checks are passive; native session renewal remains unchanged.
+  final bool readOnlySessionCheck;
 
   Map<String, String> get _otpHeaders {
     final clientInstanceId = _clientInstanceId;
@@ -221,7 +225,7 @@ class HttpPhoneAuthService implements PhoneAuthService {
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
     final response = await _client
         .get(
-          _baseUrl.resolve('/v1/auth/me'),
+          _baseUrl.resolve(readOnlySessionCheck ? '/v1/auth/me/check' : '/v1/auth/me'),
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));

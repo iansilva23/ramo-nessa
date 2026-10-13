@@ -351,3 +351,22 @@ push, rede indisponível seguida de revogação, suspensão/retomada, consulta
 pendente com dispose, preservação do tráfego nativo, expiração, papel incorreto e resposta de rede tardia durante logout. Execução pelo workflow
 do PR; homologação Safari/OTP real e auditoria de armazenamento continuam
 pendentes. Sem merge ou atualização da VPS.
+
+## Correção da consulta passiva de sessão — 13/10/2026
+
+A revisão do Core encontrou que `GET /v1/auth/me` renova a sessão ativa.
+Assim, a afirmação anterior de que o ciclo Web não renovava a validade ainda
+não era verdadeira no contrato HTTP. Foi preparada uma rota separada,
+`GET /v1/auth/me/check`, com a mesma autenticação, identidade e resposta,
+mas sem renovar a sessão. O serviço HTTP Flutter escolhe essa rota na Web;
+Android/iOS mantêm `/v1/auth/me` e sua renovação existente.
+
+Testes verificam leituras repetidas sem alterar expiresAt, expiração no
+limite, revogação e preservação de renovação explícita. Os dois apps conferem
+caminho passivo, Bearer somente no cabeçalho e respostas 401/403.
+Consultas passivas não impõem um novo prazo ao usuário e não mudam sessões
+no banco. Implementação só no PR; servidor ainda não atualizado.
+
+Armazenamento Web continua acessível ao JavaScript da origem e a CSP ainda
+precisa de homologação com Maps/Mercado Pago/Firebase reais. Esta correção
+não equivale à conclusão da auditoria de XSS/armazenamento.

@@ -2791,11 +2791,13 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
-      requestUrl.pathname === '/v1/auth/me'
+      (requestUrl.pathname === '/v1/auth/me' ||
+        requestUrl.pathname === '/v1/auth/me/check')
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        renewSession: true,
+        // Passive browser checks must not keep extending session lifetime.
+        renewSession: requestUrl.pathname === '/v1/auth/me',
         identities: authOtpRepository,
         headers: request.headers,
       });
