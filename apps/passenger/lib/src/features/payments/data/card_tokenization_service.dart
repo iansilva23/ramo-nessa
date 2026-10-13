@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'saved_card_service.dart';
 
 import 'package:flutter/services.dart';
@@ -72,7 +72,9 @@ class NativeCardTokenizationService
       );
     }
 
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
       throw const CardTokenizationException(
         'Cartão seguro ainda não está habilitado nesta plataforma.',
       );
