@@ -115,6 +115,10 @@ import {
   revokeBearerSession,
 } from './auth/auth-service.js';
 import {
+  BrowserSessionTransportError, prepareBrowserSessionRequest,
+  browserAuthResponse, clearBrowserSessionCookie,
+} from './auth/browser-session-transport.js';
+import {
   normalizeBrazilMobilePhone,
   PhoneOtpError,
   requestPhoneOtp,
@@ -1544,6 +1548,11 @@ const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     requestPath = requestUrl.pathname;
+    const browserRole = prepareBrowserSessionRequest(request);
+    if (browserRole != null) {
+      await authenticateBearer({ repository: authSessionRepository, identities: authOtpRepository,
+        headers: request.headers, requiredType: browserRole, allowDriverRegistration: true });
+    }
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/health'
@@ -2667,7 +2676,7 @@ const server = createServer(async (request, response) => {
         challengeId,
         code,
       });
-      json(response, 201, verified);
+      json(response, 201, browserAuthResponse(request, response, verified));
       return;
     }
 
@@ -2724,7 +2733,7 @@ const server = createServer(async (request, response) => {
           ? {}
           : { clientInstanceId }),
       });
-      json(response, 201, session);
+      json(response, 201, browserAuthResponse(request, response, session));
       return;
     }
 
@@ -3197,6 +3206,7 @@ const server = createServer(async (request, response) => {
         revoked.id,
         new Date().toISOString(),
       );
+      clearBrowserSessionCookie(request, response);
       response.writeHead(204, {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
@@ -9559,6 +9569,11 @@ const server = createServer(async (request, response) => {
         error: error.code,
         message: error.message,
       });
+      return;
+    }
+
+    if (error instanceof BrowserSessionTransportError) {
+      json(response, error.status, { error: error.code, message: error.message });
       return;
     }
 

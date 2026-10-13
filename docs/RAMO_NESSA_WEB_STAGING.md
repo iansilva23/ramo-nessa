@@ -438,3 +438,56 @@ mas o bundle release exige HTTPS por projeto. O servidor de teste usa agora
 TLS com certificado descartável de loopback, aceito somente pelo contexto
 Playwright. Nenhuma exceção TLS/HTTP foi adicionada ao aplicativo, gateway
 ou servidor real. Capturas são preservadas mesmo se o smoke falhar.
+
+## Sessão Web HttpOnly — continuação de 13/10/2026 (SEM DEPLOY)
+
+A etapa atual substitui a credencial Bearer persistida no JavaScript das PWAs
+por cookies separados `__Host-ramo_passenger` e `__Host-ramo_driver`, com Secure,
+HttpOnly, SameSite=Strict, Path=/, sem Domain e validade igual à sessão existente.
+Android/iOS mantêm respostas e Authorization Bearer originais.
+
+O JSON de login Web contém somente um identificador público por sessão/papel,
+derivado de hash parcial do token aleatório. Esse identificador NÃO autentica
+sem o cookie privado correspondente. Ele muda em outra sessão: uma aba antiga
+não pode usar nem limpar o cookie do novo login. Cookies sozinhos são ignorados
+nas APIs: é exigido o seletor explícito. O Core converte o transporte após validar
+HTTPS/origem, cookie/identificador e papel, e mantém suas verificações existentes
+sobre expiração, revogação, suspensão e aprovação de motorista.
+
+Requisições de escrita exigem Origin HTTPS idêntico ao Host preservado pelo
+Caddy. GET/HEAD aceitam Origin ou Referer/Fetch Metadata da mesma origem; origem
+externa, site diferente, cookie duplicado e dados malformados são recusados.
+Não há CORS novo. É necessário manter Core inacessível externamente e o Host
+original no proxy existente. Erros não apagam cookies: uma resposta atrasada
+não deve limpar uma sessão nova. Logout confirmado revoga a sessão existente e
+limpa somente seu cookie; login/logout usam Web Locks por app no cliente Flutter
+para serializar mutações entre abas. Browsers sem Web Locks precisam de avaliação
+antes de homologar; nenhuma degradação silenciosa foi adicionada.
+
+O token store Web aceita somente identificadores públicos do próprio app.
+Credenciais privadas de bundles Web anteriores e a chave Web antiga compartilhada
+são removidas na restauração; será necessário entrar novamente nessas revisões.
+Chaves e credenciais nativas permanecem iguais. Cliente Web novo recusa servidor
+antigo que ainda devolve Bearer privado. Core e bundles devem ser atualizados
+juntos somente na futura homologação autorizada. Nenhuma migration de banco é
+necessária: a sessão/hashes existentes continuam sendo a fonte de autorização.
+
+Web Push agora envia cookies somente à mesma origem; não acrescenta segredo ao
+worker, URL, localStorage ou payload. HTTP para emitir ticket WebSocket usa o
+seletor/cookie e os tickets de uso único existentes. Transporte nativo preservado.
+
+Testes: oito cenários de transporte do Core; novos testes Flutter de storage e
+resposta pública; Chromium com cookies reais em HTTPS de loopback; bundles
+Flutter release fazendo login simulado, recarga/restauração e retorno ao login
+após logout. O backend de browser usa o módulo real de transporte de cookies,
+com sessões/provedor simulados. Não representa OTP, Maps, Mercado Pago ou FCM
+reais, nem Safari. Sem envio de WhatsApp, cobrança, deploy ou alteração da VPS.
+
+HttpOnly impede leitura direta do cookie por scripts, mas scripts comprometidos
+na mesma origem ainda podem executar ações autorizadas e ler respostas. CSP,
+SDKs reais, isolamento de origens, CSRF e dispositivos continuam sujeitos à
+homologação. Caminhos de PWAs e ADM não são fronteiras de origem.
+
+Referências primárias:
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
+- https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API

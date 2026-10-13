@@ -35,4 +35,32 @@ void main() {
     });
     expect(await SecureAuthTokenStore().readAccessToken(), isNull);
   });
+
+  test('Web persists only its public handle and retires legacy private credentials', () async {
+    const key = 'ramo_nessa_driver_access_token_v1';
+    FlutterSecureStorage.setMockInitialValues({
+      key: 'fixture-private-credential-abcdefghijklmnopqrstuvwxyz',
+      'ramo_nessa_access_token_v1': 'old-shared-private-credential-abcdefghijklmnopqrstuvwxyz',
+    });
+    final store = SecureAuthTokenStore(browserSession: true);
+    expect(await store.readAccessToken(), isNull);
+    const storage = FlutterSecureStorage();
+    expect(await storage.read(key: key), isNull);
+    expect(await storage.read(key: 'ramo_nessa_access_token_v1'), isNull);
+    const handle = 'ramo_web_driver_v1_0123456789abcdef0123456789abcdef';
+    await store.saveAccessToken(handle);
+    expect(await store.readAccessToken(), handle);
+    expect(await storage.read(key: key), handle);
+    await store.clearAccessToken();
+    expect(await store.readAccessToken(), isNull);
+  });
+
+  test('Web rejects private token and another app handle without saving either', () async {
+    final store = SecureAuthTokenStore(browserSession: true);
+    for (final value in ['fixture-private-credential-abcdefghijklmnopqrstuvwxyz',
+      'ramo_web_passenger_v1_0123456789abcdef0123456789abcdef']) {
+      await expectLater(store.saveAccessToken(value), throwsArgumentError);
+    }
+    expect(await store.readAccessToken(), isNull);
+  });
 }

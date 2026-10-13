@@ -81,7 +81,7 @@ async function register(context, epoch) {
   const timer = setTimeout(() => abort.abort(), 10000);
   try {
     const response = await fetch(new URL('/v1/notifications/device', base), {
-      method: 'PUT', credentials: 'omit', redirect: 'error', cache: 'no-store',
+      method: 'PUT', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
       signal: abort.signal,
       headers: { authorization: 'Bearer ' + context.accessToken, 'content-type': 'application/json' },
       body: JSON.stringify({ platform: 'web', provider: 'fcm', token: context.pushToken,
@@ -170,7 +170,7 @@ function stop() {
     if (!ownsLease()) return;
     try {
       await fetch(new URL('/v1/notifications/device', base), {
-        method: 'DELETE', credentials: 'omit', redirect: 'error', cache: 'no-store',
+        method: 'DELETE', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
         headers: { authorization: 'Bearer ' + context.accessToken },
         signal: AbortSignal.timeout(10000),
       });

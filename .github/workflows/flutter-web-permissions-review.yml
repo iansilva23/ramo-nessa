@@ -83,10 +83,14 @@ jobs:
           RAMO_CHROMIUM_PATH="$(command -v google-chrome || command -v chromium)"
           test -x "$RAMO_CHROMIUM_PATH"
           echo "RAMO_CHROMIUM_EXECUTABLE_PATH=$RAMO_CHROMIUM_PATH" >> "$GITHUB_ENV"
+      - name: Build Core cookie transport for local browser contracts
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
       - name: Check card bridge and run browser contracts without real credentials
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
-          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs
+          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
 
   flutter-web:
@@ -216,6 +220,8 @@ jobs:
       - name: Verify compiled app startup under CSP in Chromium (mock Maps, no login)
         run: |
           npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
           RAMO_CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium)" \
             RAMO_WEB_TEST_ROLE=${{ matrix.app }} \
             node --test scripts/web/bundle_csp_browser_test.mjs
