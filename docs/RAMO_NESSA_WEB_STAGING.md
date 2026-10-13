@@ -74,9 +74,9 @@ não prova comportamento de login, pagamentos ou navegação.
 4. Validar motorista no Safari com tela ativa; ao bloquear/minimizar, a Web
    perde garantia de GPS/WebSocket/timers. Não liberar oferta real até validar
    expiração de localização no Core e reconexão.
-5. O navegador não pode definir Authorization no upgrade WebSocket. Nesta etapa
-   o app usa fallback HTTP autenticado. Planejar ticket efêmero e de uso único
-   na mesma origem para futura atualização em tempo real.
+5. Homologar transporte WebSocket por ticket efêmero e de uso único no Safari,
+   incluindo reconexão, troca de abas e logout. Polling HTTP segue como fallback;
+   detalhes e limites da implementação constam na continuação abaixo.
 6. Cartão requer MercadoPago.js sem colocar dados sensíveis no Core. Esta
    etapa mantém o canal nativo e **não** certifica cartão na Web.
 7. Web Push exige Service Worker, permissão e PWA instalada no iPhone. Botão
@@ -111,3 +111,67 @@ adicional necessário para o CanvasKit Flutter: script da CDN gstatic e
 `'wasm-unsafe-eval'`. O ADM continua com CSP restrita; o navegador não
 recebe segredos de backend e o GPS segue limitado às PWAs. O workflow
 verifica esses cabeçalhos e valida a sintaxe do Caddy sem instalar no VPS.
+
+## Continuação RAMONESSA-WEB-PR6-131026 — autenticação de tempo real
+
+Estado remoto conferido antes de editar: `2b33b6d6703656dec84c8304a48d2e9c8ab6bff6`,
+workflow `38424373415` verde. As etapas aprovadas de permissões, same-origin,
+mapas, bundles e segurança de disponibilidade foram preservadas.
+
+As PWAs agora usam um transporte compartilhado (`packages/ramo_realtime`):
+
+1. `POST /v1/realtime/ticket` via HTTPS na mesma origem, com Bearer no cabeçalho.
+2. Core valida sessão, papel, aprovação do motorista ou propriedade da corrida.
+3. Emite ticket aleatório válido por até 15 segundos, limitado à sessão,
+   origem, papel e corrida. Armazena só o hash e permite no máximo quatro
+   tickets pendentes por sessão e 5.000 no processo.
+4. Upgrade WebSocket oferece `ramo.realtime.v1` e `ticket.<ticket>` em
+   `Sec-WebSocket-Protocol`. O servidor retorna apenas `ramo.realtime.v1`.
+   Nem o Bearer nem o ticket aparecem na URL. Cabeçalhos de protocolo e
+   corpos de emissão não devem ser registrados em logs.
+5. Antes do upgrade, Core consome o ticket uma única vez e verifica novamente
+   revogação, expiração e suspensão. O cliente recebe bootstrap e os mesmos
+   eventos já usados pelos apps nativos, com polling HTTP preservado.
+6. Em perda de conexão, solicita outro ticket e reconecta com espera progressiva.
+   Cancelar a assinatura fecha o socket e os temporizadores. HTTP 401/403 ou
+   fechamento 4401 encerram a assinatura; o gate de sessão continua responsável
+   pelo login. Logout fecha imediatamente sockets Web da sessão. Revogações
+   externas/suspensões são verificadas no heartbeat de 30 segundos.
+
+Os sockets nativos continuam usando Authorization no upgrade. A CSP das
+PWAs permite explicitamente `wss://{$APP_DOMAIN}`; o ADM permanece restrito.
+São mudanças de código/configuração preparada, sem aplicação na VPS.
+
+As chaves de token e identificação de dispositivo no navegador agora incluem
+`passenger` ou `driver`, evitando que dois apps na mesma origem sobrescrevam
+as sessões. Chaves nativas permanecem iguais. A chave Web antiga, ambígua,
+não é migrada: uma sessão de revisão antiga precisará entrar novamente.
+`flutter_secure_storage` Web continua sendo armazenamento acessível ao
+JavaScript da origem, e não equivale a cookie HttpOnly ou proteção contra XSS.
+A sessão só é autorizada pelo Core; esta etapa não encerra a auditoria de
+armazenamento, dependências carregadas e endurecimento de CSP.
+
+Os tickets são locais ao processo do Core. Reiniciar não requer migração:
+clientes obtêm outro ticket. Antes de escalar para múltiplas réplicas, será
+necessário um armazenamento de tickets compartilhado com consumo atômico.
+
+### Evidências e limites
+
+- Testes novos cobrem tickets, origem, expiração, replay, revogação, isolamento
+  entre papéis/corridas, limite de payload, conexão HTTP/WebSocket real, eventos
+  privados, TTL original de oferta de 35s e compatibilidade do upgrade nativo.
+- Testes do transporte Dart cobrem mesma origem, falha de sessão, cancelamento
+  durante emissão, JSON inválido e reconexão com novo ticket.
+- O workflow Web passa a analisar/testar o pacote compartilhado e também
+  executar typecheck, regressões e build do Core. Bundles seguem para revisão.
+- Socket automatizado não representa Safari real, bloqueio de tela ou GPS.
+  Ainda faltam login WhatsApp real, Maps com chave autorizada, cartão Web,
+  Web Push, preferências reais de notificações e homologação iPhone/Android.
+- Nenhum teste nesta etapa solicita OTP real, realiza cobrança, muda preços,
+  aplica migrações na VPS ou publica as PWAs.
+
+Verificação local em 13/10/2026: typecheck e build do Core aprovados;
+705 testes descobertos, 657 aprovados, zero falhas e 48 ignorados por dependerem
+de PostgreSQL/configuração externa. Oito cenários novos de ticket e socket
+passaram, incluindo HTTP/WebSocket reais em loopback. As verificações Flutter
+ficam sob o workflow do PR; homologação real permanece pendente.

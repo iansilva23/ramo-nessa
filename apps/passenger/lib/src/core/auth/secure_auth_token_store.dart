@@ -1,15 +1,22 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'auth_token_store.dart';
 
 class SecureAuthTokenStore implements AuthTokenStore {
   SecureAuthTokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _accessTokenKey = 'ramo_nessa_access_token_v1';
-  static const _clientInstanceIdKey = 'ramo_nessa_client_instance_id_v1';
+  // PWAs share one origin; each app must retain its own login.
+  static String get _accessTokenKey => kIsWeb
+      ? 'ramo_nessa_passenger_access_token_v1'
+      : 'ramo_nessa_access_token_v1';
+  // PWAs share one origin; each app must retain its own login.
+  static String get _clientInstanceIdKey => kIsWeb
+      ? 'ramo_nessa_passenger_client_instance_id_v1'
+      : 'ramo_nessa_client_instance_id_v1';
 
   final FlutterSecureStorage _storage;
 
@@ -26,10 +33,7 @@ class SecureAuthTokenStore implements AuthTokenStore {
     final generated = bytes
         .map((value) => value.toRadixString(16).padLeft(2, '0'))
         .join();
-    await _storage.write(
-      key: _clientInstanceIdKey,
-      value: generated,
-    );
+    await _storage.write(key: _clientInstanceIdKey, value: generated);
     return generated;
   }
 
@@ -51,6 +55,5 @@ class SecureAuthTokenStore implements AuthTokenStore {
   }
 
   @override
-  Future<void> clearAccessToken() =>
-      _storage.delete(key: _accessTokenKey);
+  Future<void> clearAccessToken() => _storage.delete(key: _accessTokenKey);
 }

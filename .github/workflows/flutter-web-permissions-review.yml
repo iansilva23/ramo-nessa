@@ -13,6 +13,27 @@ permissions:
   contents: read
 
 jobs:
+  core-realtime:
+    name: Core browser authentication and realtime regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Install Core dependencies
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck, test and build Core (no deploy)
+        working-directory: backend/core
+        run: |
+          npm run typecheck
+          npm test
+          npm run build
+
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
     runs-on: ubuntu-24.04
@@ -32,6 +53,12 @@ jobs:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
+      - name: Test shared browser realtime transport
+        working-directory: packages/ramo_realtime
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
       - name: Test shared permission onboarding widgets
         working-directory: packages/design_system
         run: |
@@ -87,6 +114,14 @@ jobs:
             -e APP_DOMAIN -e ACME_EMAIL \
             -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
+      - name: Store resolved dependency locks for reproducibility
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-dependency-locks-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/pubspec.lock
+            packages/ramo_realtime/pubspec.lock
+          retention-days: 7
       - name: Store review-only static bundle
         uses: actions/upload-artifact@v4
         with:

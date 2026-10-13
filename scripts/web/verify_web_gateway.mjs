@@ -30,6 +30,8 @@ for (const [path, directory] of [
     path + ': Flutter CanvasKit wasm CSP missing');
   assert.ok(block.includes('https://*.gstatic.com'),
     path + ': Flutter CanvasKit CDN CSP missing');
+  assert.ok(block.includes("connect-src 'self' wss://{$APP_DOMAIN}"),
+    path + ': explicit same-host secure WebSocket source missing');
   assert.ok(block.includes("object-src 'none'"),
     path + ': unsafe object sources');
   assert.ok(block.includes("frame-ancestors 'none'"),

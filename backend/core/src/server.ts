@@ -449,6 +449,8 @@ import {
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
+import { BrowserRealtimeTicketStore } from './realtime/browser-realtime-ticket.js';
+import { issueBrowserRealtimeTicket } from './realtime/browser-realtime-ticket-route.js';
 import {
   assertGoogleMapsProductionConfig,
   assertMercadoPagoProductionConfig,
@@ -649,6 +651,7 @@ assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const driverPayoutProvider = createDriverPayoutProviderFromEnv();
 const realtimeHub = new RealtimeHub();
+const browserRealtimeTickets = new BrowserRealtimeTicketStore();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 const pushNotificationService = new PushNotificationService(
   pushDeviceRepository,
@@ -3104,6 +3107,15 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/realtime/ticket') {
+      const result = await issueBrowserRealtimeTicket({ request,
+        sessions: authSessionRepository, identities: authOtpRepository,
+        drivers: driverSupplyRepository, registry: driverRegistryRepository,
+        rides: rideRepository, tickets: browserRealtimeTickets });
+      json(response, result.status, result.body);
+      return;
+    }
+
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/auth/session'
@@ -3167,6 +3179,7 @@ const server = createServer(async (request, response) => {
         repository: authSessionRepository,
         headers: request.headers,
       });
+      realtimeServer.disconnectBrowserSession(revoked.id);
       await pushDeviceRepository.disableForSession(
         revoked.id,
         new Date().toISOString(),
@@ -9825,6 +9838,7 @@ server.maxHeadersCount = 64;
 
 const realtimeServer = attachRealtimeServer({
   server,
+  browserTickets: browserRealtimeTickets,
   hub: realtimeHub,
   rides: rideRepository,
   drivers: driverSupplyRepository,
