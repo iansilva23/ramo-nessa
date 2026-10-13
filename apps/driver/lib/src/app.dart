@@ -1,3 +1,6 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'features/registration/driver_registration_gate.dart';
 import 'features/registration/driver_registration_service.dart';
 import 'features/home/data/http_driver_api.dart';
@@ -88,6 +91,56 @@ class RamoNessaDriverApp extends StatelessWidget {
       );
     }
 
+
+    Widget permissions(String? token, Widget content) {
+      const storage = FlutterSecureStorage();
+      const key = 'ramo_nessa_permissions_driver_v1';
+
+      Future<bool> requestLocation() async {
+        try {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          return permission == LocationPermission.always ||
+              permission == LocationPermission.whileInUse;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      Future<bool> requestNotifications() async {
+        final normalized = token?.trim();
+        // Push Web será habilitado somente quando o Service Worker e
+        // cadastro de dispositivos forem homologados. Nunca fingir êxito.
+        if (kIsWeb || coreUri == null || normalized == null || normalized.length < 20) {
+          return false;
+        }
+        try {
+          await DriverFirebasePushRegistrationService.instance.start(
+            baseUrl: coreUri,
+            accessToken: normalized,
+            requestPermission: true,
+          );
+          final settings = await FirebaseMessaging.instance.getNotificationSettings();
+          return settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      return RamoPermissionOnboardingGate(
+        role: 'driver',
+        web: kIsWeb,
+        readCompleted: () async => (await storage.read(key: key)) == 'yes',
+        saveCompleted: () => storage.write(key: key, value: 'yes'),
+        requestLocation: requestLocation,
+        requestNotifications: requestNotifications,
+        child: content,
+      );
+    }
+
     final Widget homeWidget;
     if (DriverCoreConfig.previewMode) {
       homeWidget = MobileAuthGate(
@@ -99,7 +152,7 @@ class RamoNessaDriverApp extends StatelessWidget {
         loginTitle: 'Ramo Nessa Motorista',
         loginSubtitle:
             'Entre para testar o app. No Preview, o código é exibido na própria tela.',
-        authenticatedBuilder: (token, logout) => home(token, logout),
+        authenticatedBuilder: (token, logout) => permissions(token, home(token, logout)),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
@@ -119,13 +172,13 @@ class RamoNessaDriverApp extends StatelessWidget {
         loginTitle: 'Ramo Nessa Motorista',
         loginSubtitle:
             'Entre com seu WhatsApp ou cadastre-se para dirigir com a Ramo Nessa.',
-        authenticatedBuilder: (token, logout) => token == null ? home(token, logout) : DriverRegistrationGate(
+        authenticatedBuilder: (token, logout) => permissions(token, token == null ? home(token, logout) : DriverRegistrationGate(
           key: ValueKey(token),
           service: HttpDriverRegistrationService(baseUrl: coreUri, accessToken: token),
           api: HttpDriverApi(baseUrl: coreUri, accessToken: token),
           logout: logout,
           homeBuilder: () => home(token, logout),
-        ),
+        )),
         onSessionReady: (token) =>
             DriverFirebasePushRegistrationService.instance.start(
               baseUrl: coreUri,
