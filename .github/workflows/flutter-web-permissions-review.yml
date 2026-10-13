@@ -28,6 +28,11 @@ jobs:
           flutter-version: "3.47.5"
           channel: stable
           cache: true
+      - name: Test shared permission onboarding widgets
+        working-directory: packages/design_system
+        run: |
+          flutter pub get
+          flutter test test/ramo_permission_onboarding_test.dart
       - name: Resolve Flutter dependencies
         working-directory: apps/${{ matrix.app }}
         run: flutter pub get
