@@ -1549,6 +1549,7 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     requestPath = requestUrl.pathname;
     const cookieBootstrap = request.method === 'GET' && requestPath === '/v1/auth/web/session';
+    if (cookieBootstrap) response.setHeader('x-ramo-web-session', '1');
     const browserRole = prepareBrowserSessionRequest(request, { cookieBootstrap });
     const browserSession = browserRole == null ? null : await authenticateBearer({
       repository: authSessionRepository, identities: authOtpRepository,

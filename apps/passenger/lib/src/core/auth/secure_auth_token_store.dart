@@ -43,21 +43,29 @@ class SecureAuthTokenStore implements AuthTokenStore {
 
   @override
   Future<String?> readAccessToken() async {
-    if (_browserSession) await _purgeLegacyWebCredentials();
-    final value = await _storage.read(key: _accessTokenKey);
-    final normalized = value?.trim();
-    if (_browserSession && normalized != null && !_isWebHandle(normalized)) {
-      // Retire private credentials from older Web review builds. Native keys stay intact.
-      await _storage.delete(key: _accessTokenKey);
-      return _restoreBrowserHandle();
+    if (_browserSession) {
+      await _purgeLegacyWebCredentials();
+      String? cached;
+      try { cached = (await _storage.read(key: _accessTokenKey))?.trim(); } catch (_) {}
+      final restored = await restoreBrowserSession('passenger');
+      if (restored.checked) {
+        final handle = restored.handle;
+        try {
+          if (handle == null) { await _storage.delete(key: _accessTokenKey); }
+          else { await _storage.write(key: _accessTokenKey, value: handle); }
+        } catch (_) {}
+        return handle;
+      }
+      // Temporary network failure can preserve a previously validated public handle.
+      return cached != null && _isWebHandle(cached) ? cached : null;
     }
-    if (_browserSession && normalized == null) return _restoreBrowserHandle();
-    if (normalized == null || !RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(normalized)) return null;
-    return normalized;
+    final value = (await _storage.read(key: _accessTokenKey))?.trim();
+    if (value == null || !RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(value)) return null;
+    return value;
   }
 
   Future<void> _purgeLegacyWebCredentials() async {
-    await _storage.delete(key: 'ramo_nessa_access_token_v1');
+    try { await _storage.delete(key: 'ramo_nessa_access_token_v1'); } catch (_) {}
     for (final role in ['passenger', 'driver']) {
       final key = 'ramo_nessa_${role}_access_token_v1';
       try {
@@ -72,13 +80,6 @@ class SecureAuthTokenStore implements AuthTokenStore {
     }
   }
 
-  Future<String?> _restoreBrowserHandle() async {
-    final handle = await restoreBrowserSession('passenger');
-    if (handle == null) return null;
-    try { await _storage.write(key: _accessTokenKey, value: handle); } catch (_) {}
-    return handle;
-  }
-
   @override
   Future<void> saveAccessToken(String token) async {
     final normalized = token.trim();
@@ -86,7 +87,11 @@ class SecureAuthTokenStore implements AuthTokenStore {
         !RegExp(r'^[A-Za-z0-9_-]{20,4096}$').hasMatch(normalized)) {
       throw ArgumentError('Bearer token inválido.');
     }
-    await _storage.write(key: _accessTokenKey, value: normalized);
+    if (_browserSession) {
+      try { await _storage.write(key: _accessTokenKey, value: normalized); } catch (_) {}
+    } else {
+      await _storage.write(key: _accessTokenKey, value: normalized);
+    }
   }
 
   @override

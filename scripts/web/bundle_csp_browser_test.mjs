@@ -29,6 +29,7 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
   const server = createServer({ key: await readFile(keyFile), cert: await readFile(certFile) }, async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
     if (path.startsWith('/v1/')) {
+      if (path === '/v1/auth/web/session') response.setHeader('x-ramo-web-session', '1');
       response.setHeader('content-type', 'application/json'); response.setHeader('cache-control', 'no-store');
       try {
         const authenticatedRole = prepareBrowserSessionRequest(request, { cookieBootstrap: path === '/v1/auth/web/session' && request.method === 'GET' });

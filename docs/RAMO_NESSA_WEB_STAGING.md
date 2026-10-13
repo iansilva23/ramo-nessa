@@ -504,3 +504,17 @@ A limpeza Web retira credenciais privadas legadas dos dois apps e da chave
 compartilhada antiga; identificadores públicos válidos do outro app são
 preservados. Entradas antigas ilegíveis são removidas quando o storage permite.
 Essa limpeza ocorre somente na Web, com testes para os dois sentidos.
+
+Na restauração Web, a sessão é sempre conferida pelo cookie antes de usar o
+marcador local. Isso evita que um marcador antigo substitua a conta atual após
+uma troca de login. Resposta 401/403 remove o marcador; falha temporária preserva
+somente um identificador público anteriormente salvo. Gravação desse marcador
+é best-effort na Web: o cookie é a autoridade e permite recuperação mesmo sem
+persistência local. Persistência e erros do token privado nativo não mudam.
+
+Antes de POSTs de autenticação, o cliente Web exige a versão do transporte
+`x-ramo-web-session: 1` da consulta HTTPS de bootstrap (200 ou 401). Core antigo
+não recebe pedidos para emitir uma credencial privada no novo cliente Web.
+O header não é credencial e não renova a sessão. Provedores/rotas antigas não
+são usados como fallback de autenticação. É uma preparação de atualização
+coordenada, com mensagens genéricas para o usuário, sem publicação neste PR.
