@@ -40,6 +40,7 @@ void main() {
         saveCompleted: () async {},
         requestLocation: () async => false,
         requestNotifications: () async => false,
+        saveNotificationPreference: (_) async {},
         child: const Scaffold(body: Text('Perfil do motorista')),
       ),
     ));
