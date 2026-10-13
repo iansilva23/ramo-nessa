@@ -81,7 +81,7 @@ class _RamoPermissionOnboardingGateState
     setState(() => _notificationBusy = true);
     bool allowed = false;
     try {
-      allowed = await widget.requestNotifications();
+      allowed = await widget.requestNotifications().timeout(const Duration(seconds: 30));
     } catch (_) {}
     if (!mounted) return;
     setState(() {
@@ -93,13 +93,18 @@ class _RamoPermissionOnboardingGateState
   Future<void> _finish() async {
     if (_saving) return;
     setState(() => _saving = true);
+    bool preferenceConfirmed = true;
     try {
-      await widget.saveNotificationPreference(_allNotifications);
-      await widget.saveCompleted();
-    } catch (_) {
-      // Falha local de escrita não deve prender o usuário no onboarding.
+      await widget.saveNotificationPreference(_allNotifications).timeout(const Duration(seconds: 12));
+    } catch (_) { preferenceConfirmed = false; }
+    try { await widget.saveCompleted(); } catch (_) {}
+    if (!mounted) return;
+    setState(() { _saving = false; _completed = true; });
+    if (!preferenceConfirmed) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('A configuração dos avisos não foi confirmada. Confira Notificações no seu perfil.'),
+      ));
     }
-    if (mounted) setState(() { _saving = false; _completed = true; });
   }
 
   Widget _permissionCard({
@@ -110,6 +115,7 @@ class _RamoPermissionOnboardingGateState
     required VoidCallback onPressed,
     bool busy = false,
     bool? granted,
+    String failureHelp = 'Não autorizado. Você pode tentar novamente ou ajustar nas configurações do aparelho.',
   }) => Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -135,8 +141,8 @@ class _RamoPermissionOnboardingGateState
             Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFFA5A5A5), height: 1.4)),
             if (granted == false) ...[
               const SizedBox(height: 5),
-              const Text('Não autorizado. Você pode tentar novamente ou ajustar nas configurações do aparelho.',
-                style: TextStyle(fontSize: 11, color: Color(0xFFFFC46E))),
+              Text(failureHelp,
+                style: const TextStyle(fontSize: 11, color: Color(0xFFFFC46E))),
             ],
           ],
         )),
@@ -213,6 +219,7 @@ class _RamoPermissionOnboardingGateState
                   action: 'Ativar',
                   busy: _notificationBusy,
                   granted: _notificationAllowed,
+                  failureHelp: 'A ativação não foi confirmada. Confira as orientações acima e tente novamente.',
                   onPressed: _notifications,
                 ),
                 const SizedBox(height: 18),

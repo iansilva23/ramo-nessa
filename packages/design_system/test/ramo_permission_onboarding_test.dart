@@ -80,4 +80,24 @@ void main() {
     expect(find.text('Mapa'), findsOneWidget);
   });
 
+  testWidgets('falha na preferência não bloqueia o app e informa a pendência', (tester) async {
+    var completed = false;
+    await tester.pumpWidget(MaterialApp(home: RamoPermissionOnboardingGate(
+      role: 'driver', web: true,
+      readCompleted: () async => false,
+      saveCompleted: () async { completed = true; },
+      requestLocation: () async => false,
+      requestNotifications: () async => false,
+      saveNotificationPreference: (_) async => throw StateError('offline'),
+      child: const Scaffold(body: Text('Perfil disponível')),
+    )));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continuar para o Ramo Nessa'));
+    await tester.tap(find.text('Continuar para o Ramo Nessa'));
+    await tester.pumpAndSettle();
+    expect(completed, true);
+    expect(find.text('Perfil disponível'), findsOneWidget);
+    expect(find.textContaining('configuração dos avisos não foi confirmada'), findsOneWidget);
+  });
+
 }

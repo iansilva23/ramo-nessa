@@ -227,7 +227,10 @@ broadcasts `promotion`, `event` e `general`. Escolher `all` não substitui os
 consentimentos de privacidade que o Growth já verifica. Clientes/registrados
 anteriores preservam o comportamento quando não enviam a nova preferência.
 A tela Notificações dos dois apps permite alterar e sincronizar a escolha e
-mostra quando a sincronização está pendente. O onboarding aprovado mantém seu
+mostra quando a sincronização está pendente. O onboarding também informa
+pendências e mantém acesso ao app. Ativação e salvamento possuem prazos
+limitados na interface, para que uma resposta ausente do provedor não prenda
+o usuário. Uma falha de cadastro não é rotulada como permissão negada. O onboarding aprovado mantém seu
 layout; usuários que já o concluíram podem configurar push pelo perfil.
 
 `packages/ramo_push` contém o bridge Dart e o código JavaScript compartilhado.

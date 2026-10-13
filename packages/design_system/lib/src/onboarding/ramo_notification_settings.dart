@@ -48,7 +48,7 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
       _feedback = null;
     });
     try {
-      final synced = await widget.savePreference(all);
+      final synced = await widget.savePreference(all).timeout(const Duration(seconds: 12));
       if (!mounted) return;
       setState(() {
         _all = all;
@@ -58,7 +58,7 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
       });
     } catch (_) {
       if (mounted)
-        setState(() => _feedback = 'Não foi possível salvar. Tente novamente.');
+        setState(() => _feedback = 'Não foi possível confirmar o salvamento. Tente novamente.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -71,7 +71,7 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
     });
     bool ok = false;
     try {
-      ok = await widget.requestNotifications();
+      ok = await widget.requestNotifications().timeout(const Duration(seconds: 30));
     } catch (_) {}
     if (mounted)
       setState(() {

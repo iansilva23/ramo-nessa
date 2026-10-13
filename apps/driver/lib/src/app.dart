@@ -134,7 +134,8 @@ class RamoNessaDriverApp extends StatelessWidget {
         notificationHelp: DriverFirebasePushRegistrationService.instance.notificationHelp,
         readNotificationPreference: DriverFirebasePushRegistrationService.instance.readAllNotifications,
         saveNotificationPreference: (all) async {
-          await DriverFirebasePushRegistrationService.instance.setAllNotifications(all);
+          final synced = await DriverFirebasePushRegistrationService.instance.setAllNotifications(all);
+          if (!synced) throw StateError('Preferência dos avisos pendente.');
         },
         child: content,
       );

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -36,4 +38,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('sincronização dos avisos está pendente'), findsOneWidget);
   });
+  testWidgets('provedor sem resposta libera a tela para tentar de novo', (tester) async {
+    final pending = Completer<bool>();
+    await tester.pumpWidget(MaterialApp(home: RamoNotificationSettings(
+      readPreference: () async => false,
+      savePreference: (_) async => false,
+      requestNotifications: () => pending.future,
+      notificationHelp: () => 'Notificações',
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ativar ou verificar notificações'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('A ativação não foi confirmada'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNotNull);
+    pending.complete(false);
+    await tester.pumpAndSettle();
+  });
+
 }

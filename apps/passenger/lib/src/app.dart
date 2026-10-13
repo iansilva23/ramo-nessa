@@ -194,7 +194,8 @@ class RamoNessaPassengerApp extends StatelessWidget {
         notificationHelp: FirebasePushRegistrationService.instance.notificationHelp,
         readNotificationPreference: FirebasePushRegistrationService.instance.readAllNotifications,
         saveNotificationPreference: (all) async {
-          await FirebasePushRegistrationService.instance.setAllNotifications(all);
+          final synced = await FirebasePushRegistrationService.instance.setAllNotifications(all);
+          if (!synced) throw StateError('Preferência dos avisos pendente.');
         },
         child: content,
       );
