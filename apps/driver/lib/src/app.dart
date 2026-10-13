@@ -178,10 +178,9 @@ class RamoNessaDriverApp extends StatelessWidget {
           logout: logout,
           homeBuilder: () => home(token, logout),
         )),
-        onSessionReady: (token) async {
-          await DriverFirebasePushRegistrationService.instance.readAllNotifications();
-          await DriverFirebasePushRegistrationService.instance.start(baseUrl: coreUri, accessToken: token);
-        },
+        onSessionReady: (token) => DriverFirebasePushRegistrationService.instance.restore(
+          baseUrl: coreUri, accessToken: token,
+        ),
         onSessionEnded:
             DriverFirebasePushRegistrationService.instance.stop,
       );

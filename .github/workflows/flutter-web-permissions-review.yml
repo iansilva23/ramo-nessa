@@ -114,6 +114,11 @@ jobs:
           flutter pub get
           flutter analyze
           flutter test
+      - name: Analyze shared Web Push bridge
+        working-directory: packages/ramo_push
+        run: |
+          dart pub get
+          dart analyze lib
       - name: Test shared permission onboarding widgets
         working-directory: packages/design_system
         run: |

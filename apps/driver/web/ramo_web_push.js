@@ -2,7 +2,7 @@
 const sdkRoot = 'https://www.gstatic.com/firebasejs/13.0.0/';
 const base = new URL('./', import.meta.url);
 const leaseKey = 'ramo.push.owner:' + base.pathname;
-const owner = crypto.randomUUID();
+const owner = isSecureContext ? crypto.randomUUID() : 'insecure';
 let generation = 0;
 let active = null;
 let sdkPromise;
@@ -16,8 +16,14 @@ function configured() {
   return c && c.appId?.includes(':web:') && c.apiKey && c.projectId &&
     /^\d+$/.test(c.messagingSenderId) && /^[A-Za-z0-9_-]{87}$/.test(c.vapidKey);
 }
+function configurationConflict() {
+  const other = base.pathname === '/passageiro/' ? '/motorista/' : '/passageiro/';
+  try { return localStorage.getItem('ramo.push.appid:' + other) === globalThis.ramoPushConfig?.appId; }
+  catch { return false; }
+}
 function status() {
   if (!configured()) return 'unconfigured';
+  if (configurationConflict()) return 'configuration-conflict';
   if (!isSecureContext || base.origin !== location.origin) return 'insecure';
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -102,7 +108,7 @@ function start(args) {
   if (core.origin !== base.origin || core.username || core.password || accessToken.length < 20 ||
       !['important', 'all'].includes(args.preference)) return Promise.resolve(false);
   const currentStatus = status();
-  if (['unconfigured', 'insecure', 'install', 'unsupported', 'denied'].includes(currentStatus)) return Promise.resolve(false);
+  if (['unconfigured', 'configuration-conflict', 'insecure', 'install', 'unsupported', 'denied'].includes(currentStatus)) return Promise.resolve(false);
   // Este prompt acontece antes de qualquer await/import, no toque da tela Flutter.
   const permission = Notification.permission === 'granted'
     ? Promise.resolve('granted')
@@ -118,6 +124,7 @@ function start(args) {
       if (!valid(context, epoch)) return false;
       const api = await initialize();
       if (!valid(context, epoch)) return false;
+      if (configurationConflict()) return false;
       const previousOwner = localStorage.getItem(leaseKey);
       const rotate = (previousOwner && previousOwner !== owner) ||
         (previous && previous.accessToken !== accessToken);
@@ -177,4 +184,7 @@ function stop() {
 addEventListener('storage', event => {
   if (event.key === leaseKey && event.newValue !== owner) clearActive();
 });
+// Firebase Messaging usa appId como chave no IndexedDB. AppIds distintos são
+// obrigatórios para que um logout nunca invalide o token do outro aplicativo.
+try { if (configured()) localStorage.setItem('ramo.push.appid:' + base.pathname, globalThis.ramoPushConfig.appId); } catch {}
 globalThis.ramoWebPush = Object.freeze({ start, setPreference, stop, status });

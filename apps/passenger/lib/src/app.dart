@@ -228,10 +228,9 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
         authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
-        onSessionReady: (token) async {
-          await FirebasePushRegistrationService.instance.readAllNotifications();
-          await FirebasePushRegistrationService.instance.start(baseUrl: coreUri, accessToken: token);
-        },
+        onSessionReady: (token) => FirebasePushRegistrationService.instance.restore(
+          baseUrl: coreUri, accessToken: token,
+        ),
         onSessionEnded:
             FirebasePushRegistrationService.instance.stop,
       );

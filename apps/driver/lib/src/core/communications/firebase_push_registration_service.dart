@@ -28,14 +28,20 @@ class DriverFirebasePushRegistrationService {
 
   Future<bool> readAllNotifications() async {
     try {
-      _allNotifications = await const FlutterSecureStorage().read(key: _preferenceKey) == 'all';
-    } catch (_) { _allNotifications = false; }
+      _allNotifications =
+          await const FlutterSecureStorage().read(key: _preferenceKey) == 'all';
+    } catch (_) {
+      _allNotifications = false;
+    }
     return _allNotifications;
   }
 
   Future<bool> setAllNotifications(bool all) async {
     _allNotifications = all;
-    await const FlutterSecureStorage().write(key: _preferenceKey, value: all ? 'all' : 'important');
+    await const FlutterSecureStorage().write(
+      key: _preferenceKey,
+      value: all ? 'all' : 'important',
+    );
     if (kIsWeb) return setBrowserPushPreference(all ? 'all' : 'important');
     final platform = _platform;
     final token = _pushToken;
@@ -44,17 +50,25 @@ class DriverFirebasePushRegistrationService {
   }
 
   String notificationHelp() {
-    if (!kIsWeb) return _registered
-      ? 'Notificações ativadas neste aparelho.'
-      : 'Ative para receber avisos de corridas e pagamentos. Se negou a permissão, ajuste as notificações nas configurações do aparelho.';
+    if (!kIsWeb) {
+      return _registered
+          ? 'Notificações ativadas neste aparelho.'
+          : 'Ative para receber avisos de corridas e pagamentos. Se negou a permissão, ajuste as notificações nas configurações do aparelho.';
+    }
     return switch (browserPushStatus()) {
       'ready' => 'Notificações ativadas nesta PWA.',
-      'install' => 'No iPhone/iPad com iOS 16.4 ou posterior, adicione à Tela de Início e abra pelo ícone para ativar notificações.',
-      'denied' => 'Permissão negada. No iPhone, abra Ajustes → Notificações → Ramo Nessa. Em outros navegadores, ajuste as permissões deste site.',
-      'unconfigured' => 'Notificações Web ainda não foram configuradas neste ambiente. Os avisos continuam disponíveis no aplicativo aberto.',
-      'granted' => 'Permissão concedida. Toque em Ativar para confirmar o cadastro dos avisos.',
-      'prompt' => 'Ative para receber avisos de corridas e pagamentos. No iPhone, abra pela Tela de Início.',
-      _ => 'Notificações indisponíveis neste navegador. Use HTTPS e um navegador compatível; no iPhone, abra pela Tela de Início.',
+      'install' =>
+        'No iPhone/iPad com iOS 16.4 ou posterior, adicione à Tela de Início e abra pelo ícone para ativar notificações.',
+      'denied' =>
+        'Permissão negada. No iPhone, abra Ajustes → Notificações → Ramo Nessa. Em outros navegadores, ajuste as permissões deste site.',
+      'unconfigured' || 'configuration-conflict' =>
+        'Notificações Web ainda não foram configuradas neste ambiente. Os avisos continuam disponíveis no aplicativo aberto.',
+      'granted' =>
+        'Permissão concedida. Toque em Ativar para confirmar o cadastro dos avisos.',
+      'prompt' =>
+        'Ative para receber avisos de corridas e pagamentos. No iPhone, abra pela Tela de Início.',
+      _ =>
+        'Notificações indisponíveis neste navegador. Use HTTPS e um navegador compatível; no iPhone, abra pela Tela de Início.',
     };
   }
 
@@ -74,21 +88,34 @@ class DriverFirebasePushRegistrationService {
     };
   }
 
+  Future<void> restore({required Uri baseUrl, required String accessToken}) async {
+    final generation = ++_generation;
+    await readAllNotifications();
+    if (generation != _generation) return;
+    await start(baseUrl: baseUrl, accessToken: accessToken);
+  }
+
   Future<bool> start({
     required Uri baseUrl,
     required String accessToken,
     bool requestPermission = false,
   }) async {
+    final generation = ++_generation;
     if (kIsWeb) {
       _baseUrl = baseUrl;
       _accessToken = accessToken.trim();
-      return startBrowserPush(baseUrl: baseUrl, accessToken: accessToken,
-        preference: _allNotifications ? 'all' : 'important', requestPermission: requestPermission);
+      return startBrowserPush(
+        baseUrl: baseUrl,
+        accessToken: accessToken,
+        preference: _allNotifications ? 'all' : 'important',
+        requestPermission: requestPermission,
+      );
     }
-    final generation = ++_generation;
     _registered = false;
-    await _refreshSubscription?.cancel();
+    final previousSubscription = _refreshSubscription;
     _refreshSubscription = null;
+    await previousSubscription?.cancel();
+    if (generation != _generation) return false;
 
     final normalizedToken = accessToken.trim();
     _baseUrl = baseUrl;
@@ -96,11 +123,7 @@ class DriverFirebasePushRegistrationService {
 
     final platform = _platform;
     final options = DriverFirebasePushConfig.options;
-    if (
-      platform == null ||
-      options == null ||
-      normalizedToken.length < 20
-    ) {
+    if (platform == null || options == null || normalizedToken.length < 20) {
       return false;
     }
 
@@ -144,13 +167,11 @@ class DriverFirebasePushRegistrationService {
         (refreshedToken) {
           final activeToken = _accessToken;
           final activeBaseUrl = _baseUrl;
-          if (
-            generation != _generation ||
-            activeToken == null ||
-            activeToken.length < 20 ||
-            activeBaseUrl == null ||
-            refreshedToken.trim().length < 20
-          ) {
+          if (generation != _generation ||
+              activeToken == null ||
+              activeToken.length < 20 ||
+              activeBaseUrl == null ||
+              refreshedToken.trim().length < 20) {
             return;
           }
           _pushToken = refreshedToken.trim();
@@ -171,27 +192,24 @@ class DriverFirebasePushRegistrationService {
     _generation++;
     _registered = false;
     _pushToken = null;
+    _baseUrl = null;
+    _accessToken = null;
     if (kIsWeb) {
-      _baseUrl = null;
-      _accessToken = null;
       await stopBrowserPush();
       return;
     }
-    await _refreshSubscription?.cancel();
+    final previousSubscription = _refreshSubscription;
     _refreshSubscription = null;
-    _baseUrl = null;
-    _accessToken = null;
+    await previousSubscription?.cancel();
   }
 
   Future<bool> _register(String token, String platform, int generation) async {
     final baseUrl = _baseUrl;
     final accessToken = _accessToken;
-    if (
-      generation != _generation ||
-      baseUrl == null ||
-      accessToken == null ||
-      accessToken.length < 20
-    ) {
+    if (generation != _generation ||
+        baseUrl == null ||
+        accessToken == null ||
+        accessToken.length < 20) {
       return false;
     }
 

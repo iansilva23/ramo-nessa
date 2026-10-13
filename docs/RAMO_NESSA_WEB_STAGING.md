@@ -235,10 +235,12 @@ As cópias entregues nos dois diretórios `web/` são verificadas por teste.
 O bridge carrega Firebase JS 13.0.0 após consentimento, chama `getToken` com
 VAPID público e registro de worker explícito. Os workers de push usam
 `/passageiro/push-scope/` e `/motorista/push-scope/`, sem substituir o worker
-Flutter. O Bearer só existe em memória e no cabeçalho HTTP da mesma origem;
-nenhuma credencial Core é enviada ao worker, à URL ou ao armazenamento local.
-O armazenamento local guarda apenas um identificador aleatório de posse por
-app; Web Locks serializa mudanças entre abas. Trocar conta/aba rotaciona a
+Flutter. Neste bridge, o Bearer é mantido apenas em memória e no cabeçalho HTTP da
+mesma origem; ele não adiciona cópias ao worker, à URL ou ao armazenamento.
+O armazenamento/restauração de sessão Flutter original permanece em uso e
+continua sujeito à auditoria Web/XSS já descrita acima.
+O armazenamento local guarda um identificador aleatório de posse por app
+e seu appId Firebase público; Web Locks serializa mudanças entre abas. Trocar conta/aba rotaciona a
 assinatura anterior; logout em uma aba antiga não apaga o push da aba atual.
 A aba ativa mais recente é responsável pelo registro de avisos do mesmo app.
 
@@ -263,7 +265,9 @@ O comando lê apenas cinco configurações **públicas** do ambiente:
 `RAMO_FIREBASE_WEB_API_KEY`, `RAMO_FIREBASE_WEB_APP_ID` (appId Web, não Android/iOS),
 `RAMO_FIREBASE_WEB_PROJECT_ID`, `RAMO_FIREBASE_WEB_MESSAGING_SENDER_ID` e
 `RAMO_FIREBASE_WEB_VAPID_KEY`. Usar registros Firebase Web próprios para cada
-app e repetir o comando com a configuração correspondente. Não usar service
+app, com appIds distintos, e repetir o comando com a configuração correspondente.
+O preparador e o bridge bloqueiam a configuração repetida: o SDK Firebase usa
+appId como chave do token no IndexedDB, independentemente do nome do app. Não usar service
 account nem chave VAPID privada no browser. Sem esses valores, o bundle de
 revisão mantém `ramoPushConfig = null` e mostra push não configurado. A CI não
 usa credenciais reais de push nem cobra provedores.
@@ -276,6 +280,9 @@ Consultas PostgreSQL de envio agora excluem sessões revogadas/expiradas e
 validam o dono do dispositivo. `DELETE /v1/notifications/device` desativa somente
 os dispositivos da sessão autenticada, sem revogar a sessão ou outros aparelhos.
 O logout existente continua desativando dispositivos da sessão no Core.
+Quando o bootstrap confirma uma sessão inválida/expirada, também encerra o push
+local sem bloquear o login; falha temporária de rede preserva a sessão existente.
+A restauração de push descarta leituras atrasadas após logout ou outra ativação.
 
 O FCM Web envia data-only; worker/primeiro plano exibem uma notificação de texto,
 com ícone local e clique no próprio aplicativo. URLs/ações externas do payload
@@ -301,3 +308,5 @@ Referências primárias usadas:
 - https://firebase.google.com/docs/cloud-messaging/web/receive-messages
 - https://firebase.google.com/docs/cloud-messaging/web/get-started
 - https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
+
+- Código primário da chave de armazenamento FCM: https://github.com/firebase/firebase-js-sdk/blob/main/packages/messaging/src/internals/idb-manager.ts

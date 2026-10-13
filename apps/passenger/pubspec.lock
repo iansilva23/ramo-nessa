@@ -807,6 +807,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  ramo_push:
+    dependency: "direct main"
+    description:
+      path: "../../packages/ramo_push"
+      relative: true
+    source: path
+    version: "0.1.0"
   ramo_realtime:
     dependency: "direct main"
     description:

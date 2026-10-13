@@ -87,6 +87,11 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
         } catch (_) {}
         if (!mounted || _accessToken != token) { _refreshing = false; return; }
         _accessToken = null;
+        final ended = widget.onSessionEnded;
+        if (ended != null) {
+          // Remover push obsoleto sem atrasar o retorno ao login.
+          unawaited(ended().catchError((_) {}));
+        }
       }
     } catch (_) {
       // Falha de rede/Core não remove uma sessão que ainda pode ser válida.

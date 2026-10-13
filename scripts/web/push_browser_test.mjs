@@ -68,7 +68,7 @@ async function fixture(t, config = {}, context) {
   });
   await page.addInitScript(config => {
     window.fixture = { apps: [], tokens: [], deleted: [], workers: [], displayed: [], prompts: [], permission: config.permission ?? 'granted', blockToken: !!config.blockToken };
-    window.ramoPushConfig = config.disabled ? null : { apiKey: 'public-test-key', appId: '1:123456:web:fixture', projectId: 'fixture', messagingSenderId: '123456', vapidKey: 'B' + 'A'.repeat(86) };
+    window.ramoPushConfig = config.disabled ? null : { apiKey: 'public-test-key', appId: config.appId ?? ('1:123456:web:fixture-' + (config.role ?? 'passenger')), projectId: 'fixture', messagingSenderId: '123456', vapidKey: 'B' + 'A'.repeat(86) };
     Object.defineProperty(window, 'Notification', { value: {
       get permission() { return fixture.permission; },
       requestPermission() { fixture.prompts.push(navigator.userActivation.isActive); fixture.permission = config.grant ?? 'granted'; return Promise.resolve(fixture.permission); },
@@ -230,4 +230,14 @@ test('registro real de Service Worker mantém o worker Flutter e o worker push s
   assert.ok(scopes.includes(origin + '/passageiro/push-scope/'));
   await page.evaluate(() => ramoWebPush.stop());
   assert.ok((await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(r => r.scope))).includes(origin + '/passageiro/'));
+});
+
+test('appId Firebase repetido entre apps falha fechado antes de obter outro token', async t => {
+  const ctx = await browser.newContext(); t.after(() => ctx.close());
+  const passenger = await fixture(t, { appId: '1:123456:web:repeated' }, ctx); await start(passenger);
+  const driver = await fixture(t, { role: 'driver', appId: '1:123456:web:repeated' }, ctx);
+  assert.equal(await start(driver), false);
+  assert.equal(await driver.evaluate(() => ramoWebPush.status()), 'configuration-conflict');
+  assert.equal(await driver.evaluate(() => fixture.tokens.length), 0);
+  assert.equal(await passenger.evaluate(() => fixture.deleted.length), 0);
 });

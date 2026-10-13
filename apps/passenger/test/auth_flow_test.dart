@@ -232,6 +232,7 @@ void main() {
   });
 
   testWidgets('token inválido é apagado e volta à entrada da conta', (tester) async {
+    var ended = 0;
     final store = _MemoryTokenStore()
       ..token = 'abcdefghijklmnopqrstuvwxyz123456';
     final service = _FakeAuthService(
@@ -247,6 +248,7 @@ void main() {
           tokenStore: store,
           initialAccessToken: store.token,
           devBypass: false,
+          onSessionEnded: () async { ended++; throw StateError('push cleanup offline'); },
           loginTitle: 'Entrar',
           loginSubtitle: 'Use seu celular',
           authenticatedBuilder: (token, logout) =>
@@ -257,6 +259,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(store.cleared, isTrue);
+    expect(ended, 1);
     expect(find.byKey(const Key('auth-login-button')), findsOneWidget);
     expect(
       find.byKey(const Key('auth-create-account-button')),

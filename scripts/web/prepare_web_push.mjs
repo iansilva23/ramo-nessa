@@ -10,6 +10,13 @@ if (present && (present !== 5 || !config.appId.includes(':web:') ||
   !/^\d+$/.test(config.messagingSenderId) || !/^[A-Za-z0-9_-]{87}$/.test(config.vapidKey))) {
   throw new Error('Configuração Firebase Web incompleta/inválida; use appId Web e VAPID público.');
 }
+if (present) {
+  const other = role === 'passenger' ? 'driver' : 'passenger';
+  const source = await readFile(new URL('../../apps/' + other + '/web/ramo_push_config.js', import.meta.url), 'utf8');
+  const marker = 'self.ramoPushConfig = ';
+  const otherConfig = JSON.parse(source.slice(source.indexOf(marker) + marker.length).trim().replace(/;$/, ''));
+  if (otherConfig?.appId === config.appId) throw new Error('Passageiro e Motorista precisam de appIds Firebase Web distintos.');
+}
 // Copiar somente código compartilhado e cinco valores públicos. Nenhuma chave privada.
 for (const file of ['ramo_web_push.js', 'ramo_push_worker.js']) {
   await copyFile(new URL('../../packages/ramo_push/web/' + file, import.meta.url), directory + '/' + file);
