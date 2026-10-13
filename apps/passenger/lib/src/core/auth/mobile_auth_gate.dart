@@ -111,7 +111,7 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
     bool invalidated = false;
     try {
       final session = await widget.service.currentSession(token);
-      if (!mounted || (!invalidated && _accessToken != token) || _loggingOut) { _refreshing = false; return; }
+      if (!mounted || _accessToken != token || _loggingOut) { _refreshing = false; return; }
       if (
         session == null ||
         session.subjectType != widget.subjectType ||
@@ -131,8 +131,8 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
       // As chamadas protegidas continuarão dependendo da validação do servidor.
     }
 
-    // A late network failure must not restart push during or after logout.
-    if (!mounted || _accessToken != token || _loggingOut) {
+    // A late failure must not restore push; our own invalidation still renders login.
+    if (!mounted || (!invalidated && _accessToken != token) || _loggingOut) {
       _refreshing = false;
       return;
     }
