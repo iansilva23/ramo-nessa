@@ -9,13 +9,12 @@ import { once } from 'node:events';
 import { webSecurityPolicy } from './web_security_policy.mjs';
 import { prepareBrowserSessionRequest, browserAuthResponse, clearBrowserSessionCookie,
   BrowserSessionTransportError } from '../../backend/core/dist/src/auth/browser-session-transport.js';
-const moduleUrl = process.env.RAMO_BROWSER_TEST_MODULE ?? new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href;
-const { chromium } = await import(moduleUrl);
+import { browserName, launchTestBrowser } from './browser_test_runtime.mjs';
 const role = process.env.RAMO_WEB_TEST_ROLE;
 if (!['passenger', 'driver'].includes(role)) throw new Error('Specify RAMO_WEB_TEST_ROLE');
 const root = resolve(new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
 const prefix = role === 'passenger' ? '/passageiro/' : '/motorista/';
-test(role + ': release bundle logs in, restores cookie session and returns to login after logout', { timeout: 120000 }, async t => {
+test(browserName + '/' + role + ': release bundle logs in, restores cookie session and returns to login after logout', { timeout: 120000 }, async t => {
   let origin, session, publicHandle;
   let loginCalls = 0;
   const privateCredential = 'fixture-private-cookie-' + role + '-abcdefghijklmnopqrstuvwxyz';
@@ -76,8 +75,7 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   origin = 'https://127.0.0.1:' + server.address().port;
   t.after(() => new Promise(resolve => server.close(resolve)));
-  const browser = await chromium.launch({ headless: true, args: ['--disable-background-networking'],
-    ...(process.env.RAMO_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.RAMO_CHROMIUM_EXECUTABLE_PATH } : {}) });
+  const browser = await launchTestBrowser();
   t.after(() => browser.close());
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
   const errors = [], remote = [];
@@ -142,6 +140,7 @@ test(role + ': release bundle logs in, restores cookie session and returns to lo
   assert.deepEqual([...new Set(remote)], []);
   } finally {
     const evidence = resolve('artifacts/web-csp'); await mkdir(evidence, { recursive: true });
-    await page.screenshot({ path: resolve(evidence, role + '-login.png') });
+    await page.screenshot({ path: resolve(evidence, browserName + '-' + role + '-login.png') });
   }
 });
+

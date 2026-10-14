@@ -3,8 +3,7 @@ import test from 'node:test';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { webSecurityPolicy } from './web_security_policy.mjs';
-const moduleUrl = process.env.RAMO_BROWSER_TEST_MODULE ?? new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href;
-const { chromium } = await import(moduleUrl);
+import { launchTestBrowser } from './browser_test_runtime.mjs';
 let server, browser, origin;
 const script = `
 globalThis.securityFixture = { allowed: true, violations: [] };
@@ -29,8 +28,7 @@ test.before(async () => {
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   origin = 'http://127.0.0.1:' + server.address().port;
-  browser = await chromium.launch({ headless: true, args: ['--disable-background-networking'],
-    ...(process.env.RAMO_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.RAMO_CHROMIUM_EXECUTABLE_PATH } : {}) });
+  browser = await launchTestBrowser();
 });
 test.after(async () => { await browser?.close(); if (server) await new Promise(resolve => server.close(resolve)); });
 for (const role of ['passenger', 'driver', 'admin']) {
@@ -68,3 +66,4 @@ for (const role of ['passenger', 'driver', 'admin']) {
       page.evaluate(() => document.querySelector('#inside').submit())]);
   });
 }
+

@@ -66,7 +66,7 @@ jobs:
         run: node --import tsx --test test/postgres_web_push.test.ts
 
   web-card-contract:
-    name: Browser card and Web Push contracts (mock providers)
+    name: Browser contracts - Chromium and WebKit (mock providers)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -90,8 +90,14 @@ jobs:
       - name: Check card bridge and run browser contracts without real credentials
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
-          node --test scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
+          node --test scripts/web/browser_test_runtime_test.mjs scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
+      - name: Install pinned Playwright WebKit with system dependencies
+        run: node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+      - name: Verify cookies and CSP in WebKit (local fixtures, not iPhone homologation)
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+        run: node --test scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
 
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
@@ -217,7 +223,7 @@ jobs:
             -e APP_DOMAIN -e ACME_EMAIL \
             -v "$PWD/deploy/staging/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2 caddy validate --config /etc/caddy/Caddyfile
-      - name: Verify compiled app startup under CSP in Chromium (mock Maps, no login)
+      - name: Verify compiled login, cookie recovery and logout in Chromium (mock providers)
         run: |
           npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
           npm ci --prefix backend/core --no-audit --no-fund
@@ -225,6 +231,13 @@ jobs:
           RAMO_CHROMIUM_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium)" \
             RAMO_WEB_TEST_ROLE=${{ matrix.app }} \
             node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Install pinned Playwright WebKit with system dependencies
+        run: node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+      - name: Verify compiled login, cookie recovery and logout in WebKit (mock providers)
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+          RAMO_WEB_TEST_ROLE: ${{ matrix.app }}
+        run: node --test scripts/web/bundle_csp_browser_test.mjs
       - name: Store browser CSP login evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -239,3 +252,4 @@ jobs:
           name: ramo-nessa-web-${{ matrix.app }}-review
           path: apps/${{ matrix.app }}/build/web/
           retention-days: 7
+

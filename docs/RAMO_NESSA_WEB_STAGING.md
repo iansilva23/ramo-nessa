@@ -4,6 +4,10 @@ Branch: `feature/flutter-web-permissions-20261013` / PR #6 DRAFT.
 Os dois apps compartilham as telas Flutter com Android/iOS, mas são builds
 independentes que precisam de homologação no Safari do iPhone.
 
+As seções de continuação registram o histórico de implementação. As etapas
+mais recentes de sessão HttpOnly e recuperação pelo cookie substituem as
+descrições anteriores de persistência de Bearer privado na Web.
+
 ## URLs previstas (ainda NÃO ativas)
 
 - `https://<APP_DOMAIN>/passageiro/`
@@ -518,3 +522,24 @@ não recebe pedidos para emitir uma credencial privada no novo cliente Web.
 O header não é credencial e não renova a sessão. Provedores/rotas antigas não
 são usados como fallback de autenticação. É uma preparação de atualização
 coordenada, com mensagens genéricas para o usuário, sem publicação neste PR.
+
+## Validação adicional com WebKit — 14/10/2026 (SEM DEPLOY)
+
+O workflow executa os contratos de cookies HTTPS e CSP em Chromium e WebKit.
+Os bundles Flutter release dos dois apps também repetem o login simulado,
+limpeza de localStorage, recuperação pelo cookie e logout nos dois engines.
+As capturas incluem engine e papel no nome, sem substituir a outra evidência.
+
+WebKit é instalado pela CLI da versão Playwright já fixada no lockfile, com
+dependências em runners descartáveis. A seleção de engine é explícita;
+configuração inválida falha, e WebKit não recebe executável/flags de Chromium.
+Nenhuma dependência do produto, tela, regra financeira ou transporte nativo
+é alterado por esse harness. Resultado deve ser conferido no workflow do commit.
+
+WebKit do Playwright NÃO equivale ao Safari instalado no iPhone. Continuam
+pendentes HTTPS real, OTP/Maps/Mercado Pago/FCM reais, instalação/atualização
+PWA, GPS, suspensão/retomada e permissões em dispositivos. Não liberar ofertas
+de motorista Web nem publicar bundles de revisão com base somente nesses testes.
+
+Referência primária: https://playwright.dev/docs/browsers
+

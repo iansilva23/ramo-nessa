@@ -9,7 +9,7 @@ import { once } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { prepareBrowserSessionRequest, browserAuthResponse, clearBrowserSessionCookie,
   BrowserSessionTransportError } from '../../backend/core/dist/src/auth/browser-session-transport.js';
-const { chromium } = await import(new URL('./browser-tests/node_modules/playwright/index.mjs', import.meta.url).href);
+import { launchTestBrowser } from './browser_test_runtime.mjs';
 let browser, server, origin, directory;
 const sessions = new Map();
 test.before(async () => {
@@ -46,8 +46,7 @@ test.before(async () => {
     }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); origin = 'https://127.0.0.1:' + server.address().port;
-  browser = await chromium.launch({ headless: true, args: ['--disable-background-networking'],
-    ...(process.env.RAMO_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.RAMO_CHROMIUM_EXECUTABLE_PATH } : {}) });
+  browser = await launchTestBrowser();
 });
 test.after(async () => { await browser?.close(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); });
 async function fixture(t) {
@@ -95,3 +94,4 @@ test('public handle without cookie cannot authenticate and cookie alone is insuf
   assert.equal(await call(page, session.accessToken, '/me', 'GET', 'omit'), 401);
   assert.equal(await page.evaluate(async () => (await fetch('/me')).status), 401);
 });
+
