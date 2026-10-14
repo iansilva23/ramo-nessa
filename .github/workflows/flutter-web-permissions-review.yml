@@ -92,6 +92,7 @@ jobs:
           node --check apps/passenger/web/ramo_card_fields.js
           node --test scripts/web/browser_test_runtime_test.mjs scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
+          node --test scripts/web/verify_web_homologation_test.mjs
       - name: Install pinned Playwright WebKit with system dependencies
         run: node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
       - name: Verify cookies and CSP in WebKit (local fixtures, not iPhone homologation)

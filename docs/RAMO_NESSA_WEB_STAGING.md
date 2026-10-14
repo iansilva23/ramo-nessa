@@ -8,6 +8,10 @@ As seções de continuação registram o histórico de implementação. As etapa
 mais recentes de sessão HttpOnly e recuperação pelo cookie substituem as
 descrições anteriores de persistência de Bearer privado na Web.
 
+O [roteiro de atualização e retorno](RAMO_NESSA_WEB_ROLLOUT.md) reúne os gates
+de inventário da VPS, migrações, backup, bundles/configurações e aceite real.
+É preparação somente, sem autorizar ou executar a atualização.
+
 ## URLs previstas (ainda NÃO ativas)
 
 - `https://<APP_DOMAIN>/passageiro/`
