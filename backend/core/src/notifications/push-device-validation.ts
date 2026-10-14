@@ -1,5 +1,6 @@
 import type {
   PushPlatform,
+  PushNotificationPreference,
   PushTokenProvider,
 } from './push-device-repository.js';
 
@@ -14,6 +15,7 @@ export interface PushDeviceRegistrationRequest {
   platform: PushPlatform;
   provider: PushTokenProvider;
   token: string;
+  notificationPreference?: PushNotificationPreference;
   appVersion?: string;
   buildNumber?: number;
 }
@@ -28,10 +30,17 @@ export function parsePushDeviceRegistration(
   }
 
   const value = input as Record<string, unknown>;
-  if (value.platform !== 'android' && value.platform !== 'ios') {
+  if (value.platform !== 'android' && value.platform !== 'ios' && value.platform !== 'web') {
     throw new PushDeviceValidationError(
-      'Plataforma push deve ser android ou ios.',
+      'Plataforma push deve ser android, ios ou web.',
     );
+  }
+  if (value.platform === 'web' && value.provider !== 'fcm') {
+    throw new PushDeviceValidationError('Web Push requer provider fcm.');
+  }
+  if (value.notificationPreference != null &&
+      value.notificationPreference !== 'important' && value.notificationPreference !== 'all') {
+    throw new PushDeviceValidationError('Preferência deve ser important ou all.');
   }
   if (
     value.provider !== 'apns' &&
@@ -86,6 +95,8 @@ export function parsePushDeviceRegistration(
     platform: value.platform,
     provider: value.provider,
     token,
+    ...(value.notificationPreference == null
+      ? {} : { notificationPreference: value.notificationPreference as PushNotificationPreference }),
     ...(rawVersion ? { appVersion: rawVersion } : {}),
     ...(buildNumber == null ? {} : { buildNumber }),
   };

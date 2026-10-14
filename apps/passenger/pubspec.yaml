@@ -15,10 +15,15 @@ dependencies:
   cupertino_icons: ^1.0.8
   geolocator: ^14.0.3
   http: ^1.6.0
+  web: ^1.1.1
   url_launcher: ^6.3.2
   latlong2: ^0.10.1
   google_maps_flutter: ^2.18.1
   image_picker: ^1.2.3
+  ramo_push:
+    path: ../../packages/ramo_push
+  ramo_realtime:
+    path: ../../packages/ramo_realtime
   ramo_design_system:
     path: ../../packages/design_system
 

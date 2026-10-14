@@ -30,6 +30,22 @@ abstract final class DriverCoreConfig {
   static const offerPollingInterval = Duration(seconds: 10);
 
   static Uri? get baseUri {
+    if (kIsWeb) {
+      // O navegador usa exclusivamente a API sob a mesma origem do app.
+      // Isso evita CORS e impede envio de Bearer tokens a outros domínios.
+      final page = Uri.base;
+      if (!page.hasAuthority || page.host.isEmpty ||
+          (page.scheme != 'https' && (kReleaseMode || page.scheme != 'http'))) {
+        return null;
+      }
+      final configured = baseUrl.trim();
+      if (configured.isNotEmpty) {
+        final other = Uri.tryParse(configured);
+        if (other == null || other.origin != page.origin) return null;
+      }
+      return Uri.parse('${page.origin}/');
+    }
+
     final uri = Uri.tryParse(baseUrl.trim());
     if (
       uri == null ||

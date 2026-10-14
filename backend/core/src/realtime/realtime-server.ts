@@ -22,9 +22,17 @@ import type { RideMatchingRepository } from '../matching/ride-matching-repositor
 import type { RideRepository } from '../rides/ride-repository.js';
 import { passengerRideTracking } from '../rides/passenger-ride-tracking.js';
 import { RealtimeHub } from './realtime-hub.js';
+import {
+  BROWSER_REALTIME_PROTOCOL,
+  BrowserRealtimeTicketStore,
+  browserRealtimeOrigin,
+  validateBrowserRealtimeSession,
+  type BrowserRealtimeGrant,
+} from './browser-realtime-ticket.js';
 
 export interface RealtimeServerHandle {
   close(): void;
+  disconnectBrowserSession(sessionId: string): void;
 }
 
 interface AttachRealtimeServerInput {
@@ -36,6 +44,7 @@ interface AttachRealtimeServerInput {
   matching: RideMatchingRepository;
   sessions: AuthSessionRepository;
   identities: AuthOtpRepository;
+  browserTickets?: BrowserRealtimeTicketStore;
 }
 
 function rejectUpgrade(
@@ -73,19 +82,29 @@ export function attachRealtimeServer(
     noServer: true,
     maxPayload: 16 * 1024,
     perMessageDeflate: false,
+    handleProtocols: protocols => protocols.has(BROWSER_REALTIME_PROTOCOL)
+      ? BROWSER_REALTIME_PROTOCOL : (protocols.values().next().value ?? false),
   });
   const heartbeatState = new Map<WebSocket, boolean>();
+  const browserGrants = new Map<WebSocket, BrowserRealtimeGrant>();
   let closed = false;
 
   const registerHeartbeat = (ws: WebSocket) => {
     heartbeatState.set(ws, true);
     ws.on('pong', () => heartbeatState.set(ws, true));
-    const cleanupHeartbeat = () => heartbeatState.delete(ws);
+    const cleanupHeartbeat = () => {
+      heartbeatState.delete(ws);
+      browserGrants.delete(ws);
+    };
     ws.once('close', cleanupHeartbeat);
     ws.once('error', cleanupHeartbeat);
   };
 
   const heartbeatTimer = setInterval(() => {
+    for (const [ws, grant] of browserGrants) {
+      void validateBrowserRealtimeSession({ grant, sessions: input.sessions,
+        identities: input.identities }).catch(() => ws.close(4401, 'session_ended'));
+    }
     for (const ws of wss.clients) {
       if (heartbeatState.get(ws) === false) {
         ws.terminate();
@@ -105,6 +124,7 @@ export function attachRealtimeServer(
     closed = true;
     clearInterval(heartbeatTimer);
     heartbeatState.clear();
+    browserGrants.clear();
 
     for (const ws of wss.clients) {
       if (ws.readyState === ws.OPEN) {
@@ -124,14 +144,35 @@ export function attachRealtimeServer(
       return;
     }
 
-    const requestUrl = new URL(
-      request.url ?? '/',
-      'http://ramo-nossa.local',
-    );
-
     try {
+      const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
+      // Neither Bearer nor ticket appears in query strings; only the fixed protocol is reflected.
+      if ([...requestUrl.searchParams.keys()].some(key => key !== 'rideId')) {
+        rejectUpgrade(socket, 400, 'invalid_realtime_query');
+        return;
+      }
+      const protocols = (request.headers['sec-websocket-protocol'] ?? '')
+        .split(',').map(value => value.trim());
+      const browser = protocols.includes(BROWSER_REALTIME_PROTOCOL);
+      let browserGrant: BrowserRealtimeGrant | null = null;
+      if (request.headers.origin != null || browser) browserRealtimeOrigin(request);
+      if (browser) {
+        const ticketProtocols = protocols.filter(value => value.startsWith('ticket.'));
+        const role = requestUrl.pathname === '/v1/realtime/driver' ? 'driver' :
+          requestUrl.pathname === '/v1/realtime/passenger' ? 'passenger' : '';
+        if (input.browserTickets == null || ticketProtocols.length !== 1 || protocols.length !== 2) {
+          throw new Error('invalid_browser_protocol');
+        }
+        browserGrant = input.browserTickets.consume(ticketProtocols[0]!.slice(7),
+          browserRealtimeOrigin(request), role, requestUrl.searchParams.get('rideId')?.trim() ?? null);
+        await validateBrowserRealtimeSession({ grant: browserGrant,
+          sessions: input.sessions, identities: input.identities });
+      }
+      const registerBrowserGrant = (ws: WebSocket) => {
+        if (browserGrant != null) browserGrants.set(ws, browserGrant);
+      };
       if (requestUrl.pathname === '/v1/realtime/driver') {
-        const driverId = await resolveDriverId({
+        const driverId = browserGrant?.session.subjectId ?? await resolveDriverId({
           request,
           sessions: input.sessions,
           identities: input.identities,
@@ -144,6 +185,7 @@ export function attachRealtimeServer(
 
         wss.handleUpgrade(request, socket, head, (ws) => {
           registerHeartbeat(ws);
+          registerBrowserGrant(ws);
           const unsubscribe = input.hub.subscribeDriver(driverId, ws);
           const cleanup = () => unsubscribe();
           ws.once('close', cleanup);
@@ -186,7 +228,7 @@ export function attachRealtimeServer(
       }
 
       if (requestUrl.pathname === '/v1/realtime/passenger') {
-        const passengerId = await resolvePassengerId({
+        const passengerId = browserGrant?.session.subjectId ?? await resolvePassengerId({
           request,
           sessions: input.sessions,
           identities: input.identities,
@@ -205,6 +247,7 @@ export function attachRealtimeServer(
 
         wss.handleUpgrade(request, socket, head, (ws) => {
           registerHeartbeat(ws);
+          registerBrowserGrant(ws);
           const unsubscribe =
             input.hub.subscribePassengerRide(rideId, ws);
           const cleanup = () => unsubscribe();
@@ -242,5 +285,12 @@ export function attachRealtimeServer(
     }
   });
 
-  return { close: closeRealtime };
+  return {
+    close: closeRealtime,
+    disconnectBrowserSession(sessionId) {
+      for (const [ws, grant] of browserGrants) {
+        if (grant.session.id === sessionId) ws.close(4401, 'session_ended');
+      }
+    },
+  };
 }

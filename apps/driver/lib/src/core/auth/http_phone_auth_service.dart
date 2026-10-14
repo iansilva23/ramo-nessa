@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import 'phone_auth_service.dart';
+import 'session_http_client.dart';
 
 class AuthHttpException implements Exception {
   const AuthHttpException({
@@ -25,20 +27,26 @@ class HttpPhoneAuthService implements PhoneAuthService, DriverRegistrationAuthSe
     required String subjectType,
     String? clientInstanceId,
     http.Client? client,
+    this.readOnlySessionCheck = kIsWeb,
+    this.browserSession = kIsWeb,
   })  : _baseUrl = baseUrl,
         _subjectType = subjectType,
         _clientInstanceId = clientInstanceId?.trim(),
-        _client = client ?? http.Client();
+        _client = client ?? createSessionHttpClient(subjectType);
 
   final Uri _baseUrl;
   final String _subjectType;
   final String? _clientInstanceId;
   final http.Client _client;
+  // Web checks are passive; native session renewal remains unchanged.
+  final bool readOnlySessionCheck;
+  final bool browserSession;
 
   Map<String, String> get _otpHeaders {
     final clientInstanceId = _clientInstanceId;
     return {
       'content-type': 'application/json',
+      if (browserSession) 'x-ramo-web-role': _subjectType,
       if (clientInstanceId != null && clientInstanceId.isNotEmpty)
         'x-client-instance-id': clientInstanceId,
     };
@@ -115,6 +123,9 @@ class HttpPhoneAuthService implements PhoneAuthService, DriverRegistrationAuthSe
       throw const FormatException('Sessão autenticada inválida.');
     }
 
+    if (browserSession && (subjectType != _subjectType || !RegExp('^ramo_web_${_subjectType}_v1_[a-f0-9]{32}\$').hasMatch(token))) {
+      throw const FormatException('Sessão Web não configurada no servidor.');
+    }
     return AuthSession(
       accessToken: token,
       expiresAt: DateTime.parse(expiresAt),
@@ -127,7 +138,7 @@ class HttpPhoneAuthService implements PhoneAuthService, DriverRegistrationAuthSe
   Future<AuthSessionInfo?> currentSession(String accessToken) async {
     final response = await _client
         .get(
-          _baseUrl.resolve('/v1/auth/me'),
+          _baseUrl.resolve(readOnlySessionCheck ? '/v1/auth/me/check' : '/v1/auth/me'),
           headers: {'authorization': 'Bearer ${accessToken.trim()}'},
         )
         .timeout(const Duration(seconds: 10));

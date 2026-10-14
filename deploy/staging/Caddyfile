@@ -33,6 +33,32 @@
   redir / /admin/ 302
   redir /admin /admin/ 308
 
+
+  # Web apps usam a mesma origem HTTPS de /v1, sem CORS nem novo backend.
+  # Bundles estáticos devem ser homologados e montados em /srv/web.
+  redir /passageiro /passageiro/ 308
+  redir /motorista /motorista/ 308
+
+  handle_path /passageiro/* {
+    root * /srv/web/passenger
+    # Apenas este escopo necessita de GPS. O ADM mantém geolocation=().
+    header Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+    header Cache-Control "no-store"
+    header Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://http2.mlstatic.com 'wasm-unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.gstatic.com/firebasejs/13.0.0/; connect-src https://api.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com 'self' wss://{$APP_DOMAIN} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; frame-src https://*.mercadopago.com https://*.mercadopago.com.br; script-src-attr 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    try_files {path} /index.html
+    file_server
+  }
+
+  handle_path /motorista/* {
+    root * /srv/web/driver
+    header Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+    header Cache-Control "no-store"
+    header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.gstatic.com/firebasejs/13.0.0/; connect-src 'self' wss://{$APP_DOMAIN} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; script-src-attr 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    try_files {path} /index.html
+    file_server
+  }
+
+
   handle_path /admin/* {
     root * /srv/admin
     header Cache-Control "no-store"

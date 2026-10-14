@@ -1,0 +1,549 @@
+# Ramo Nessa Web/PWA — preparação de homologação (SEM DEPLOY)
+
+Branch: `feature/flutter-web-permissions-20261013` / PR #6 DRAFT.
+Os dois apps compartilham as telas Flutter com Android/iOS, mas são builds
+independentes que precisam de homologação no Safari do iPhone.
+
+As seções de continuação registram o histórico de implementação. As etapas
+mais recentes de sessão HttpOnly e recuperação pelo cookie substituem as
+descrições anteriores de persistência de Bearer privado na Web.
+
+O [roteiro de atualização e retorno](RAMO_NESSA_WEB_ROLLOUT.md) reúne os gates
+de inventário da VPS, migrações, backup, bundles/configurações e aceite real.
+É preparação somente, sem autorizar ou executar a atualização.
+
+## URLs previstas (ainda NÃO ativas)
+
+- `https://<APP_DOMAIN>/passageiro/`
+- `https://<APP_DOMAIN>/motorista/`
+- ADM existente: `https://<APP_DOMAIN>/admin/`
+- Core HTTPS/WebSocket: `https://<APP_DOMAIN>/v1/`
+
+O domínio é o mesmo para evitar CORS e impedir que tokens Bearer sejam enviados
+a domínios terceiros. `RamoCoreConfig` e `DriverCoreConfig` obrigam origem
+idêntica à da página quando `kIsWeb`. No Android/iOS o comportamento anterior
+não é alterado.
+
+## Isolamento da infraestrutura
+
+`deploy/staging/Caddyfile` reserva /passageiro e /motorista; o proxy /v1 e
+o ADM não mudam de endereço. A política de GPS é liberada APENAS nas rotas
+Web. Bundle estático em `deploy/staging/web-dist/{passenger,driver}` é montado
+somente leitura em `/srv/web`. Nenhum segredo, chave privada, volume PostgreSQL
+ou documento de motorista é exposto por essa montagem.
+
+Não aplique `docker compose up`, reinício ou atualização sem autorização,
+backup verificado e inspeção do commit/estado real do VPS.
+
+## Preparação dos builds no CI
+
+```bash
+python3 -m pip install Pillow==11.3.0
+python3 scripts/web/generate_pwa_icons.py
+# Exemplo: chave de navegador restringida por HTTP referrer e Maps JS API
+# no Google Cloud; jamais reutilizar chave do Core ou Android.
+# O CI deve obter a chave de RAMO_GOOGLE_MAPS_WEB_API_KEY (GitHub Secret).
+flutter build web --release --base-href=/passageiro/ \
+  --dart-define=RAMO_PREVIEW_MODE=false
+flutter build web --release --base-href=/motorista/ \
+  --dart-define=RAMO_PREVIEW_MODE=false
+```
+
+Cada comando acima deve ser executado no diretório do respectivo app
+(`apps/passenger` ou `apps/driver`) após injetar a chave Web no index.html.
+O workflow automatizado já realiza estes passos e publica artefatos de **revisão**.
+
+Se `RAMO_GOOGLE_MAPS_WEB_API_KEY` não estiver configurada no GitHub, o CI
+usa `WEB_KEY_NOT_CONFIGURED_FOR_CI` apenas para validar compilação. Tais
+artefatos NÃO são publicáveis. `scripts/web/verify_web_bundle.mjs` recusa
+esse marcador fora do modo `--ci-review`.
+
+### Verificação obrigatória, antes de qualquer publicação
+
+```bash
+node scripts/web/verify_web_bundle.mjs --role=passenger \
+  --dist=/caminho/seguro/para/build/passageiro
+node scripts/web/verify_web_bundle.mjs --role=driver \
+  --dist=/caminho/seguro/para/build/motorista
+```
+
+Esses checks conferem HTML, base href, JS Flutter, manifesto PWA, dimensões
+reais dos ícones 192/512 e chave Maps sem placeholder. A existência do bundle
+não prova comportamento de login, pagamentos ou navegação.
+
+## Pendências para homologação
+
+1. Validar Google Maps JavaScript API com chave pública restrita ao(s)
+   hostname(s) do ambiente e à API habilitada; bloquear preview fake key.
+2. Validar permissões de GPS, precisão, geolocator e mapa em Safari real.
+   Conferir que o header `Permissions-Policy` recebido permite GPS nas PWAs
+   e continua bloqueando no ADM.
+3. Validar primeira sessão/login, cancelamento e retomada, OTP real, perfil.
+4. Validar motorista no Safari com tela ativa; ao bloquear/minimizar, a Web
+   perde garantia de GPS/WebSocket/timers. Não liberar oferta real até validar
+   expiração de localização no Core e reconexão.
+5. Homologar transporte WebSocket por ticket efêmero e de uso único no Safari,
+   incluindo reconexão, troca de abas e logout. Polling HTTP segue como fallback;
+   detalhes e limites da implementação constam na continuação abaixo.
+6. Cartão requer MercadoPago.js sem colocar dados sensíveis no Core. Esta
+   etapa mantém o canal nativo e **não** certifica cartão na Web.
+7. Web Push exige Service Worker, permissão e PWA instalada no iPhone. Botão
+   aparece como "Em breve" enquanto a integração não está homologada.
+8. Validar políticas de CSP no Safari e Android; o gateway não substitui
+   testes reais. Validar cache, atualização de PWA e ícones.
+9. Rodar regressões nativas Android/iOS e testes ponta a ponta, incluir captura
+   de evidências. Fazer backup/rollback documentado antes de ativar URL.
+
+## Regras de segurança
+
+- Não `git reset --hard`, `docker compose down -v`, `docker volume rm`,
+  `pg_restore` ou merge em main.
+- Não publicar saída de `docker inspect`/`docker compose config` com segredos.
+- A mudança atual prepara arquivos somente, não registra domínio novo,
+  não altera o VPS e não ativa pagamentos ou ofertas de motorista na Web.
+
+## Segurança do Motorista Web e CanvasKit
+
+No navegador do iPhone, o GPS, a conexão e os temporizadores podem ser
+suspensos quando a página fica oculta. O Motorista Web tenta desativar sua
+disponibilidade ao ir para segundo plano e repete a verificação ao retornar.
+Ele nunca tenta desligar uma viagem já ativa por causa desse evento; nesse
+caso mostra um aviso para conferir a corrida. Não é garantia de envio de rede
+antes da suspensão; o Core já exclui localizações antigas depois do TTL
+operacional (120 segundos por padrão). Portanto, ainda NÃO há autorização
+para liberar motoristas Web em produção sem teste real de visibilidade,
+localização e reconexão no Safari.
+
+As rotas /passageiro/ e /motorista/ permitem exclusivamente o mínimo
+adicional necessário para o CanvasKit Flutter: script da CDN gstatic e
+`'wasm-unsafe-eval'`. O ADM continua com CSP restrita; o navegador não
+recebe segredos de backend e o GPS segue limitado às PWAs. O workflow
+verifica esses cabeçalhos e valida a sintaxe do Caddy sem instalar no VPS.
+
+## Continuação RAMONESSA-WEB-PR6-131026 — autenticação de tempo real
+
+Estado remoto conferido antes de editar: `2b33b6d6703656dec84c8304a48d2e9c8ab6bff6`,
+workflow `38424373415` verde. As etapas aprovadas de permissões, same-origin,
+mapas, bundles e segurança de disponibilidade foram preservadas.
+
+As PWAs agora usam um transporte compartilhado (`packages/ramo_realtime`):
+
+1. `POST /v1/realtime/ticket` via HTTPS na mesma origem, com Bearer no cabeçalho.
+2. Core valida sessão, papel, aprovação do motorista ou propriedade da corrida.
+3. Emite ticket aleatório válido por até 15 segundos, limitado à sessão,
+   origem, papel e corrida. Armazena só o hash e permite no máximo quatro
+   tickets pendentes por sessão e 5.000 no processo.
+4. Upgrade WebSocket oferece `ramo.realtime.v1` e `ticket.<ticket>` em
+   `Sec-WebSocket-Protocol`. O servidor retorna apenas `ramo.realtime.v1`.
+   Nem o Bearer nem o ticket aparecem na URL. Cabeçalhos de protocolo e
+   corpos de emissão não devem ser registrados em logs.
+5. Antes do upgrade, Core consome o ticket uma única vez e verifica novamente
+   revogação, expiração e suspensão. O cliente recebe bootstrap e os mesmos
+   eventos já usados pelos apps nativos, com polling HTTP preservado.
+6. Em perda de conexão, solicita outro ticket e reconecta com espera progressiva.
+   Cancelar a assinatura fecha o socket e os temporizadores. HTTP 401/403 ou
+   fechamento 4401 encerram a assinatura; o gate de sessão continua responsável
+   pelo login. Logout fecha imediatamente sockets Web da sessão. Revogações
+   externas/suspensões são verificadas no heartbeat de 30 segundos.
+
+Os sockets nativos continuam usando Authorization no upgrade. A CSP das
+PWAs permite explicitamente `wss://{$APP_DOMAIN}`; o ADM permanece restrito.
+São mudanças de código/configuração preparada, sem aplicação na VPS.
+
+As chaves de token e identificação de dispositivo no navegador agora incluem
+`passenger` ou `driver`, evitando que dois apps na mesma origem sobrescrevam
+as sessões. Chaves nativas permanecem iguais. A chave Web antiga, ambígua,
+não é migrada: uma sessão de revisão antiga precisará entrar novamente.
+`flutter_secure_storage` Web continua sendo armazenamento acessível ao
+JavaScript da origem, e não equivale a cookie HttpOnly ou proteção contra XSS.
+A sessão só é autorizada pelo Core; esta etapa não encerra a auditoria de
+armazenamento, dependências carregadas e endurecimento de CSP.
+
+Os tickets são locais ao processo do Core. Reiniciar não requer migração:
+clientes obtêm outro ticket. Antes de escalar para múltiplas réplicas, será
+necessário um armazenamento de tickets compartilhado com consumo atômico.
+
+### Evidências e limites
+
+- Testes novos cobrem tickets, origem, expiração, replay, revogação, isolamento
+  entre papéis/corridas, limite de payload, conexão HTTP/WebSocket real, eventos
+  privados, TTL original de oferta de 35s e compatibilidade do upgrade nativo.
+- Testes do transporte Dart cobrem mesma origem, falha de sessão, cancelamento
+  durante emissão, JSON inválido e reconexão com novo ticket.
+- O workflow Web passa a analisar/testar o pacote compartilhado e também
+  executar typecheck, regressões e build do Core. Bundles seguem para revisão.
+- Socket automatizado não representa Safari real, bloqueio de tela ou GPS.
+  Ainda faltam login WhatsApp real, Maps com chave autorizada, cartão Web,
+  Web Push, preferências reais de notificações e homologação iPhone/Android.
+- Nenhum teste nesta etapa solicita OTP real, realiza cobrança, muda preços,
+  aplica migrações na VPS ou publica as PWAs.
+
+Verificação local em 13/10/2026: typecheck e build do Core aprovados;
+705 testes descobertos, 657 aprovados, zero falhas e 48 ignorados por dependerem
+de PostgreSQL/configuração externa. Oito cenários novos de ticket e socket
+passaram, incluindo HTTP/WebSocket reais em loopback. As verificações Flutter
+ficam sob o workflow do PR; homologação real permanece pendente.
+
+
+## Cartão Web — continuação do PR #6
+
+Base remota conferida antes de editar: c9352583; workflow 38429760465 verde.
+O checkout Flutter existente continua separando adicionar/salvar cartão e
+confirmar pagamento. A nova fábrica escolhe o transportador Web somente no
+navegador, mantendo o MethodChannel Android/iOS.
+
+Na Web, uma tela Flutter no tema Ramo Nessa hospeda Secure Fields do
+MercadoPago.js. Número, validade e CVV ficam em iframes do provedor. A ponte
+não lê esses valores e retorna exclusivamente token, método/tipo, últimos
+quatro dígitos e um segundo token opcional, distinto, para salvar cartão.
+Nome/CPF do titular são enviados diretamente ao SDK, sem inclusão no pedido
+para o Core. Cartão salvo pede somente CVV e emite um token novo para cardId.
+
+A chave pública já disponibilizada na política de pagamentos é reutilizada;
+nenhuma chave financeira, modo, saldo ou regra foi alterada. O SDK remoto só
+é solicitado ao abrir a entrada de cartão. A ponte é entregue como arquivo
+local do Passageiro, e os bundles verificam sua presença. Motorista e ADM
+não carregam essa ponte nem recebem permissões CSP de pagamento.
+
+A tela e a ponte encerram os campos ao cancelar, navegar para trás ou expirar
+a reserva; respostas atrasadas não confirmam pagamento. Consulta de BIN usa
+controle de geração para não substituir o cartão atual com resposta antiga.
+A validação do provedor aceita somente suporte a pagamento à vista; o Core
+mantém installments=1, idempotência e confirmação reconciliada/webhook.
+O Core também recusa campos adicionais no pedido de cartão, incluindo PCI,
+sem incluir conteúdo sensível no erro. Nenhuma cobrança nasce na tokenização.
+
+Testes da ponte executam Chromium com SDK simulado e toda saída para serviços
+externos bloqueada. Eles verificam a fronteira dos dados, tokens separados,
+cartão salvo, cancelamento, falhas, validade e concorrência. Isso NÃO valida
+um cartão real no Mercado Pago, 3DS real ou Safari de iPhone. Homologação com
+credenciais de teste, CSP/antifraude reais, Pix/carteira/estornos e dispositivos
+continua pendente. Nenhum teste dispara uma transação ou OTP real.
+
+Referências primárias:
+- https://github.com/mercadopago/sdk-js/blob/main/docs/fields.md
+- https://github.com/mercadopago/sdk-js/blob/main/docs/core-methods.md
+- https://www.mercadopago.com.br/developers/pt/docs/sdks-library/overview
+
+## Web Push e preferência de avisos — continuação do PR #6
+
+O cadastro `/v1/notifications/device` agora aceita `platform: web` somente com
+FCM. Os novos clientes enviam `notificationPreference: important|all`, a partir
+da mesma escolha local já existente. `important` mantém avisos operacionais de
+corrida, pagamento, manutenção e atualização, mas bloqueia `marketing.*` e
+broadcasts `promotion`, `event` e `general`. Escolher `all` não substitui os
+consentimentos de privacidade que o Growth já verifica. Clientes/registrados
+anteriores preservam o comportamento quando não enviam a nova preferência.
+A tela Notificações dos dois apps permite alterar e sincronizar a escolha e
+mostra quando a sincronização está pendente. O onboarding também informa
+pendências e mantém acesso ao app. Ativação e salvamento possuem prazos
+limitados na interface, para que uma resposta ausente do provedor não prenda
+o usuário. Uma falha de cadastro não é rotulada como permissão negada. O onboarding aprovado mantém seu
+layout; usuários que já o concluíram podem configurar push pelo perfil.
+
+`packages/ramo_push` contém o bridge Dart e o código JavaScript compartilhado.
+As cópias entregues nos dois diretórios `web/` são verificadas por teste.
+O bridge carrega Firebase JS 13.0.0 após consentimento, chama `getToken` com
+VAPID público e registro de worker explícito. Os workers de push usam
+`/passageiro/push-scope/` e `/motorista/push-scope/`, sem substituir o worker
+Flutter. Neste bridge, o Bearer é mantido apenas em memória e no cabeçalho HTTP da
+mesma origem; ele não adiciona cópias ao worker, à URL ou ao armazenamento.
+O armazenamento/restauração de sessão Flutter original permanece em uso e
+continua sujeito à auditoria Web/XSS já descrita acima.
+O armazenamento local guarda um identificador aleatório de posse por app
+e seu appId Firebase público; Web Locks serializa mudanças entre abas. Trocar conta/aba rotaciona a
+assinatura anterior; logout em uma aba antiga não apaga o push da aba atual.
+A aba ativa mais recente é responsável pelo registro de avisos do mesmo app.
+
+O sucesso só é apresentado após permissão concedida e resposta válida do Core.
+Login/restauração nunca solicita permissão automaticamente. O prompt explícito
+é iniciado no toque do usuário, antes de imports/awaits. No iPhone/iPad, orientar
+instalação na Tela de Início e abertura pelo ícone; iOS/iPadOS 16.4 ou posterior
+é o requisito inicial. Bloqueio de permissão exige ajuste nas configurações.
+Web Push é opcional: falhas não bloqueiam login, perfil ou corrida.
+Isso não muda a limitação de GPS/suspensão em segundo plano do Motorista Web.
+
+### Preparação futura, sem publicar nem alterar a VPS neste PR
+
+Antes de um build para homologação real, preparar cada app:
+
+```sh
+node scripts/web/prepare_web_push.mjs --role=passenger
+node scripts/web/prepare_web_push.mjs --role=driver
+```
+
+O comando lê apenas cinco configurações **públicas** do ambiente:
+`RAMO_FIREBASE_WEB_API_KEY`, `RAMO_FIREBASE_WEB_APP_ID` (appId Web, não Android/iOS),
+`RAMO_FIREBASE_WEB_PROJECT_ID`, `RAMO_FIREBASE_WEB_MESSAGING_SENDER_ID` e
+`RAMO_FIREBASE_WEB_VAPID_KEY`. Usar registros Firebase Web próprios para cada
+app, com appIds distintos, e repetir o comando com a configuração correspondente.
+O preparador e o bridge bloqueiam a configuração repetida: o SDK Firebase usa
+appId como chave do token no IndexedDB, independentemente do nome do app. Não usar service
+account nem chave VAPID privada no browser. Sem esses valores, o bundle de
+revisão mantém `ramoPushConfig = null` e mostra push não configurado. A CI não
+usa credenciais reais de push nem cobra provedores.
+
+A migration `085_web_push_preferences.sql` está apenas preparada no repositório.
+Ela preserva registros anteriores, aceita Web/FCM e adiciona a preferência.
+É testada duas vezes em PostgreSQL descartável no Actions para verificar
+idempotência. Não aplicar em homologação/produção sem autorização específica.
+Consultas PostgreSQL de envio agora excluem sessões revogadas/expiradas e
+validam o dono do dispositivo. `DELETE /v1/notifications/device` desativa somente
+os dispositivos da sessão autenticada, sem revogar a sessão ou outros aparelhos.
+O logout existente continua desativando dispositivos da sessão no Core.
+Quando o bootstrap confirma uma sessão inválida/expirada, também encerra o push
+local sem bloquear o login; falha temporária de rede preserva a sessão existente.
+A restauração de push descarta leituras atrasadas após logout ou outra ativação.
+
+O FCM Web envia data-only; worker/primeiro plano exibem uma notificação de texto,
+com ícone local e clique no próprio aplicativo. URLs/ações externas do payload
+são ignoradas, sem aceite automático de corrida. Ofertas usam TTL de 35 segundos;
+outros avisos, 60. A validade real da oferta permanece determinada pelo Core,
+sem estender o prazo. Push é best-effort: mensagens já enfileiradas no provedor
+podem chegar durante uma mudança de sessão, e entrega/latência não são garantidas.
+A interface revalida sessão/estado da corrida; push não substitui WebSocket/polling.
+
+### Evidências e limites
+
+Testes automatizados cobrem consentimento por toque, falhas de configuração e
+Core, instruções do iPhone, preferências, logout durante tokenização, troca de
+conta/abas, isolamento dos apps/workers e clique seguro. Chromium usa SDK Firebase
+simulado; há também registro real de workers locais, sem assinatura FCM real.
+O teste PostgreSQL usa schema e banco descartáveis, sem acesso à VPS.
+Ainda falta configurar Firebase Web/VAPID no ambiente de homologação autorizado
+e verificar recebimento real em iPhone/Safari, Chrome/Android, tela bloqueada,
+permissão revogada, rede indisponível e logout. Regressões em aparelhos Android/iOS
+reais continuam pendentes; análise/testes Flutter não substituem essa homologação.
+
+Referências primárias usadas:
+- https://firebase.google.com/docs/cloud-messaging/web/receive-messages
+- https://firebase.google.com/docs/cloud-messaging/web/get-started
+- https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
+
+- Código primário da chave de armazenamento FCM: https://github.com/firebase/firebase-js-sdk/blob/main/packages/messaging/src/internals/idb-manager.ts
+
+## Revisão de logout e restauração — 13/10/2026
+
+O gate compartilhado em comportamento pelos dois apps aguardava a limpeza de
+push depois da revogação no Core. Um provedor sem resposta mantinha a área
+autenticada visível. Agora inicia a limpeza sem esperar sua conclusão e volta
+ao login após a confirmação do Core e tentativa de remoção do token local.
+Falhas tardias ou síncronas dos callbacks opcionais são contidas.
+
+Uma operação de logout por gate é permitida por vez; retomada do app não
+restaura push enquanto a revogação está em andamento. Se o Core não confirmar
+o logout, a sessão local é preservada e o usuário pode tentar novamente.
+Não há alteração de expiração, preços, permissões ou protocolo de login.
+
+Quatro cenários por app cobrem limpeza de push pendente, dois cliques com
+retomada durante revogação falha do Core seguida de nova tentativa e callbacks com falha síncrona.
+A validação será executada pelo workflow existente; não representa teste
+de OTP/provedor/Safari reais. PR DRAFT, sem deploy.
+
+## Validação de sessão enquanto a PWA permanece aberta — 13/10/2026
+
+A Web passa a consultar a sessão autenticada a cada minuto enquanto a página
+está ativa. Ao confirmar sessão inválida, expirada ou de outro papel, limpa
+o token local, encerra o push e retorna ao login. A consulta não renova a
+expiração nem reativa push a cada ciclo. Erro temporário preserva a sessão;
+toda chamada protegida continua dependendo da autorização do Core.
+
+Os ciclos não se sobrepõem, param ao ocultar a página, no logout e no dispose.
+Ao retomar, a validação imediata existente é preservada. O navegador pode
+suspender timers; o minuto é uma cadência de tentativa, não garantia de
+detecção em segundo plano. Android/iOS mantêm bootstrap/retomada, sem nova
+consulta periódica por padrão.
+
+Oito cenários por app verificam revogação em aba ativa sem novo registro de
+push, rede indisponível seguida de revogação, suspensão/retomada, consulta
+pendente com dispose, preservação do tráfego nativo, expiração, papel incorreto e resposta de rede tardia durante logout. Execução pelo workflow
+do PR; homologação Safari/OTP real e auditoria de armazenamento continuam
+pendentes. Sem merge ou atualização da VPS.
+
+## Correção da consulta passiva de sessão — 13/10/2026
+
+A revisão do Core encontrou que `GET /v1/auth/me` renova a sessão ativa.
+Assim, a afirmação anterior de que o ciclo Web não renovava a validade ainda
+não era verdadeira no contrato HTTP. Foi preparada uma rota separada,
+`GET /v1/auth/me/check`, com a mesma autenticação, identidade e resposta,
+mas sem renovar a sessão. O serviço HTTP Flutter escolhe essa rota na Web;
+Android/iOS mantêm `/v1/auth/me` e sua renovação existente.
+
+Testes verificam leituras repetidas sem alterar expiresAt, expiração no
+limite, revogação e preservação de renovação explícita. Os dois apps conferem
+caminho passivo, Bearer somente no cabeçalho e respostas 401/403.
+Consultas passivas não impõem um novo prazo ao usuário e não mudam sessões
+no banco. Implementação só no PR; servidor ainda não atualizado.
+
+Armazenamento Web continua acessível ao JavaScript da origem e a CSP ainda
+precisa de homologação com Maps/Mercado Pago/Firebase reais. Esta correção
+não equivale à conclusão da auditoria de XSS/armazenamento.
+
+## Preparação da chave Maps Web — 13/10/2026
+
+`prepare_web_maps.mjs` substitui a edição por sed. Ele aceita somente formato
+de chave pública Google, exige um único ponto de inserção no index original e
+não inclui o valor recebido nos erros/logs. O verificador de bundle confere
+também o formato da chave entregue.
+
+```sh
+node scripts/web/prepare_web_maps.mjs --role=passenger
+node scripts/web/prepare_web_maps.mjs --role=driver
+```
+
+A variável `RAMO_GOOGLE_MAPS_WEB_API_KEY` deve conter a chave própria de
+navegador. Ausência ou formato malformado bloqueiam preparação normal;
+`--ci-review` permite o placeholder somente em GitHub Actions. Não usar
+bundles de revisão para publicar. O preparador não cria chave, não configura
+Google Cloud e não comprova que a chave está ativa/restrita: conferir
+HTTP referrers dos domínios autorizados e APIs habilitadas antes de homologar.
+Seis testes Node usam uma chave fictícia, sem chamadas ao Google.
+
+## Auditoria de armazenamento e CSP — 13/10/2026
+
+Os tokens Web continuam no flutter_secure_storage da mesma origem. A criptografia
+local não impede leitura por JavaScript autorizado ou injetado naquela origem;
+esta etapa não implementa cookies HttpOnly. AppIds/chaves separados evitam colisão
+funcional entre PWAs, mas não constituem isolamento de segurança entre caminhos.
+Migração de sessão para cookies/BFF e revisão das dependências remotas continuam
+pendentes antes de concluir a auditoria de XSS.
+
+Correções preparadas:
+- Mensagens de token inválido não incluem o valor recebido. Armazenamento recusa
+  credenciais com espaços internos, quebras de linha ou tamanho excessivo;
+  tokens opacos válidos mantêm o fluxo de restauração/logout.
+- CSP das PWAs bloqueia scripts inline, handlers HTML e eval JavaScript; conserva
+  wasm-unsafe-eval somente para o engine Flutter, estilos inline e recursos dos
+  provedores já utilizados. Formulários externos são bloqueados.
+- CanvasKit passa a ser servido do próprio bundle (--no-web-resources-cdn),
+  permitindo limitar scripts gstatic ao diretório Firebase da versão usada.
+  A CSP do ADM permanece igual.
+- Testes Chromium de cartão/push recebem a política extraída do Caddyfile;
+  os SDKs continuam simulados, sem cobranças nem cadastro FCM real.
+- Testes de ataques verificam bloqueio de scripts/handlers/formulários externos,
+  eval e preservação de WebAssembly nas PWAs; o ADM continua sem WebAssembly.
+- Smoke dos bundles Flutter reais abre a tela de login com a CSP preparada,
+  Maps simulado, engine local e saída externa bloqueada. Não envia OTP/login.
+  Evidências de tela são anexadas ao workflow.
+
+Os cabeçalhos são extraídos da configuração e aplicados no servidor local de
+  teste; caddy validate verifica a sintaxe. Ainda falta confirmar cabeçalhos
+  recebidos e SDKs reais no domínio HTTPS/Safari após deploy autorizado.
+Nenhuma configuração foi aplicada na VPS, e a redução da CSP não certifica
+  proteção completa contra XSS ou comprometimento de fornecedor permitido.
+
+Referências primárias:
+- https://docs.flutter.dev/platform-integration/web/initialization
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/script-src
+- https://www.w3.org/TR/CSP/
+
+### Correção do ambiente de smoke dos bundles
+
+O primeiro smoke encontrou o controle de acessibilidade fora do viewport;
+o teste agora dispara o evento DOM esperado pelo Flutter. Em seguida,
+a captura mostrou a tela de Core não configurado: a fixture estava em HTTP,
+mas o bundle release exige HTTPS por projeto. O servidor de teste usa agora
+TLS com certificado descartável de loopback, aceito somente pelo contexto
+Playwright. Nenhuma exceção TLS/HTTP foi adicionada ao aplicativo, gateway
+ou servidor real. Capturas são preservadas mesmo se o smoke falhar.
+
+## Sessão Web HttpOnly — continuação de 13/10/2026 (SEM DEPLOY)
+
+A etapa atual substitui a credencial Bearer persistida no JavaScript das PWAs
+por cookies separados `__Host-ramo_passenger` e `__Host-ramo_driver`, com Secure,
+HttpOnly, SameSite=Strict, Path=/, sem Domain e validade igual à sessão existente.
+Android/iOS mantêm respostas e Authorization Bearer originais.
+
+O JSON de login Web contém somente um identificador público por sessão/papel,
+derivado de hash parcial do token aleatório. Esse identificador NÃO autentica
+sem o cookie privado correspondente. Ele muda em outra sessão: uma aba antiga
+não pode usar nem limpar o cookie do novo login. Cookies sozinhos são ignorados
+nas APIs: é exigido o seletor explícito. O Core converte o transporte após validar
+HTTPS/origem, cookie/identificador e papel, e mantém suas verificações existentes
+sobre expiração, revogação, suspensão e aprovação de motorista.
+
+Requisições de escrita exigem Origin HTTPS idêntico ao Host preservado pelo
+Caddy. GET/HEAD aceitam Origin ou Referer/Fetch Metadata da mesma origem; origem
+externa, site diferente, cookie duplicado e dados malformados são recusados.
+Não há CORS novo. É necessário manter Core inacessível externamente e o Host
+original no proxy existente. Erros não apagam cookies: uma resposta atrasada
+não deve limpar uma sessão nova. Logout confirmado revoga a sessão existente e
+limpa somente seu cookie; login/logout usam Web Locks por app no cliente Flutter
+para serializar mutações entre abas. Browsers sem Web Locks precisam de avaliação
+antes de homologar; nenhuma degradação silenciosa foi adicionada.
+
+O token store Web aceita somente identificadores públicos do próprio app.
+Credenciais privadas de bundles Web anteriores e a chave Web antiga compartilhada
+são removidas na restauração; será necessário entrar novamente nessas revisões.
+Chaves e credenciais nativas permanecem iguais. Cliente Web novo recusa servidor
+antigo que ainda devolve Bearer privado. Core e bundles devem ser atualizados
+juntos somente na futura homologação autorizada. Nenhuma migration de banco é
+necessária: a sessão/hashes existentes continuam sendo a fonte de autorização.
+
+Web Push agora envia cookies somente à mesma origem; não acrescenta segredo ao
+worker, URL, localStorage ou payload. HTTP para emitir ticket WebSocket usa o
+seletor/cookie e os tickets de uso único existentes. Transporte nativo preservado.
+
+Testes: oito cenários de transporte do Core; novos testes Flutter de storage e
+resposta pública; Chromium com cookies reais em HTTPS de loopback; bundles
+Flutter release fazendo login simulado, recarga/restauração e retorno ao login
+após logout. O backend de browser usa o módulo real de transporte de cookies,
+com sessões/provedor simulados. Não representa OTP, Maps, Mercado Pago ou FCM
+reais, nem Safari. Sem envio de WhatsApp, cobrança, deploy ou alteração da VPS.
+
+HttpOnly impede leitura direta do cookie por scripts, mas scripts comprometidos
+na mesma origem ainda podem executar ações autorizadas e ler respostas. CSP,
+SDKs reais, isolamento de origens, CSRF e dispositivos continuam sujeitos à
+homologação. Caminhos de PWAs e ADM não são fronteiras de origem.
+
+Referências primárias:
+- https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie
+- https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API
+
+A recuperação explícita `GET /v1/auth/web/session` exige cabeçalho de papel,
+cookie válido e metadados da mesma origem, devolvendo somente o identificador
+público depois da autorização normal do Core. Não renova validade nem escreve
+cookies, evitando sobrescrita por resposta atrasada. O token store Web usa essa
+rota quando não há marcador local; o smoke limpa localStorage antes da recarga
+para provar restauração sem novo login. APIs protegidas continuam exigindo o
+identificador vinculado ao cookie; a exceção de bootstrap é somente leitura.
+
+A limpeza Web retira credenciais privadas legadas dos dois apps e da chave
+compartilhada antiga; identificadores públicos válidos do outro app são
+preservados. Entradas antigas ilegíveis são removidas quando o storage permite.
+Essa limpeza ocorre somente na Web, com testes para os dois sentidos.
+
+Na restauração Web, a sessão é sempre conferida pelo cookie antes de usar o
+marcador local. Isso evita que um marcador antigo substitua a conta atual após
+uma troca de login. Resposta 401/403 remove o marcador; falha temporária preserva
+somente um identificador público anteriormente salvo. Gravação desse marcador
+é best-effort na Web: o cookie é a autoridade e permite recuperação mesmo sem
+persistência local. Persistência e erros do token privado nativo não mudam.
+
+Antes de POSTs de autenticação, o cliente Web exige a versão do transporte
+`x-ramo-web-session: 1` da consulta HTTPS de bootstrap (200 ou 401). Core antigo
+não recebe pedidos para emitir uma credencial privada no novo cliente Web.
+O header não é credencial e não renova a sessão. Provedores/rotas antigas não
+são usados como fallback de autenticação. É uma preparação de atualização
+coordenada, com mensagens genéricas para o usuário, sem publicação neste PR.
+
+## Validação adicional com WebKit — 14/10/2026 (SEM DEPLOY)
+
+O workflow executa os contratos de cookies HTTPS e CSP em Chromium e WebKit.
+Os bundles Flutter release dos dois apps também repetem o login simulado,
+limpeza de localStorage, recuperação pelo cookie e logout nos dois engines.
+As capturas incluem engine e papel no nome, sem substituir a outra evidência.
+
+WebKit é instalado pela CLI da versão Playwright já fixada no lockfile, com
+dependências em runners descartáveis. A seleção de engine é explícita;
+configuração inválida falha, e WebKit não recebe executável/flags de Chromium.
+Nenhuma dependência do produto, tela, regra financeira ou transporte nativo
+é alterado por esse harness. Resultado deve ser conferido no workflow do commit.
+
+WebKit do Playwright NÃO equivale ao Safari instalado no iPhone. Continuam
+pendentes HTTPS real, OTP/Maps/Mercado Pago/FCM reais, instalação/atualização
+PWA, GPS, suspensão/retomada e permissões em dispositivos. Não liberar ofertas
+de motorista Web nem publicar bundles de revisão com base somente nesses testes.
+
+Referência primária: https://playwright.dev/docs/browsers
+

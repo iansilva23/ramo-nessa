@@ -1,3 +1,5 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
@@ -148,6 +150,57 @@ class RamoNessaPassengerApp extends StatelessWidget {
       );
     }
 
+
+    Widget permissions(String? token, Widget content) {
+      const storage = FlutterSecureStorage();
+      const key = 'ramo_nessa_permissions_passenger_v1';
+
+      Future<bool> requestLocation() async {
+        try {
+          var permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          return permission == LocationPermission.always ||
+              permission == LocationPermission.whileInUse;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      Future<bool> requestNotifications() async {
+        final normalized = token?.trim();
+        if (coreUri == null || normalized == null || normalized.length < 20) {
+          return false;
+        }
+        try {
+          return await FirebasePushRegistrationService.instance.start(
+            baseUrl: coreUri,
+            accessToken: normalized,
+            requestPermission: true,
+          );
+        } catch (_) {
+          return false;
+        }
+      }
+
+      return RamoPermissionOnboardingGate(
+        role: 'passenger',
+        web: kIsWeb,
+        readCompleted: () async => (await storage.read(key: key)) == 'yes',
+        saveCompleted: () => storage.write(key: key, value: 'yes'),
+        requestLocation: requestLocation,
+        requestNotifications: requestNotifications,
+        notificationHelp: FirebasePushRegistrationService.instance.notificationHelp,
+        readNotificationPreference: FirebasePushRegistrationService.instance.readAllNotifications,
+        saveNotificationPreference: (all) async {
+          final synced = await FirebasePushRegistrationService.instance.setAllNotifications(all);
+          if (!synced) throw StateError('Preferência dos avisos pendente.');
+        },
+        child: content,
+      );
+    }
+
     final Widget homeWidget;
     if (RamoCoreConfig.previewMode) {
       homeWidget = MobileAuthGate(
@@ -159,7 +212,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Entre para testar o app. No Preview, o código é exibido na própria tela.',
-        authenticatedBuilder: (token, logout) => shell(token, logout),
+        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
       );
     } else if (coreUri == null && kReleaseMode) {
       homeWidget = const _CoreConfigurationError();
@@ -175,12 +228,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
         loginTitle: 'Entre no Ramo Nessa',
         loginSubtitle:
             'Informe seu celular. Vamos enviar um código pelo WhatsApp para confirmar sua conta.',
-        authenticatedBuilder: (token, logout) => shell(token, logout),
-        onSessionReady: (token) =>
-            FirebasePushRegistrationService.instance.start(
-              baseUrl: coreUri,
-              accessToken: token,
-            ),
+        authenticatedBuilder: (token, logout) => permissions(token, shell(token, logout)),
+        onSessionReady: (token) => FirebasePushRegistrationService.instance.restore(
+          baseUrl: coreUri, accessToken: token,
+        ),
         onSessionEnded:
             FirebasePushRegistrationService.instance.stop,
       );

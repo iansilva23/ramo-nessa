@@ -67,6 +67,15 @@ export function parseCreatePaymentRequest(input: unknown): CreatePaymentRequest 
   let installments: number | undefined;
 
   if (method === 'card') {
+    const allowedKeys = new Set([
+      'method', 'payerEmail', 'savedCardId', 'cardToken',
+      'paymentMethodId', 'paymentMethodType', 'installments',
+    ]);
+    if (Object.keys(record).some(key => !allowedKeys.has(key))) {
+      throw new InvalidPaymentRequestError(
+        'Envie apenas o token seguro e os dados permitidos do pagamento.',
+      );
+    }
     if (payerEmail == null) {
       throw new InvalidPaymentRequestError(
         'Informe um e-mail válido para continuar o pagamento.',

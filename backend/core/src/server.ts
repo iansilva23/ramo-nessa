@@ -115,6 +115,10 @@ import {
   revokeBearerSession,
 } from './auth/auth-service.js';
 import {
+  BrowserSessionTransportError, prepareBrowserSessionRequest,
+  browserAuthResponse, clearBrowserSessionCookie,
+} from './auth/browser-session-transport.js';
+import {
   normalizeBrazilMobilePhone,
   PhoneOtpError,
   requestPhoneOtp,
@@ -449,6 +453,8 @@ import {
 import { transitionRide } from './rides/ride-state.js';
 import { RealtimeHub } from './realtime/realtime-hub.js';
 import { attachRealtimeServer } from './realtime/realtime-server.js';
+import { BrowserRealtimeTicketStore } from './realtime/browser-realtime-ticket.js';
+import { issueBrowserRealtimeTicket } from './realtime/browser-realtime-ticket-route.js';
 import {
   assertGoogleMapsProductionConfig,
   assertMercadoPagoProductionConfig,
@@ -649,6 +655,7 @@ assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const driverPayoutProvider = createDriverPayoutProviderFromEnv();
 const realtimeHub = new RealtimeHub();
+const browserRealtimeTickets = new BrowserRealtimeTicketStore();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
 const pushNotificationService = new PushNotificationService(
   pushDeviceRepository,
@@ -1541,6 +1548,22 @@ const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     requestPath = requestUrl.pathname;
+    const cookieBootstrap = request.method === 'GET' && requestPath === '/v1/auth/web/session';
+    if (cookieBootstrap) response.setHeader('x-ramo-web-session', '1');
+    const browserRole = prepareBrowserSessionRequest(request, { cookieBootstrap });
+    const browserSession = browserRole == null ? null : await authenticateBearer({
+      repository: authSessionRepository, identities: authOtpRepository,
+      headers: request.headers, requiredType: browserRole, allowDriverRegistration: true,
+    });
+    if (cookieBootstrap) {
+      if (browserSession == null) throw new AuthenticationError('AUTH_REQUIRED', 'Sessão Web necessária.');
+      const token = String(request.headers.authorization).slice(7);
+      json(response, 200, browserAuthResponse(request, response, {
+        accessToken: token, subjectType: browserSession.subjectType,
+        subjectId: browserSession.subjectId, expiresAt: browserSession.expiresAt,
+      }, { setCookie: false }));
+      return;
+    }
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/health'
@@ -2664,7 +2687,7 @@ const server = createServer(async (request, response) => {
         challengeId,
         code,
       });
-      json(response, 201, verified);
+      json(response, 201, browserAuthResponse(request, response, verified));
       return;
     }
 
@@ -2721,7 +2744,7 @@ const server = createServer(async (request, response) => {
           ? {}
           : { clientInstanceId }),
       });
-      json(response, 201, session);
+      json(response, 201, browserAuthResponse(request, response, session));
       return;
     }
 
@@ -2788,11 +2811,13 @@ const server = createServer(async (request, response) => {
 
     if (
       request.method === 'GET' &&
-      requestUrl.pathname === '/v1/auth/me'
+      (requestUrl.pathname === '/v1/auth/me' ||
+        requestUrl.pathname === '/v1/auth/me/check')
     ) {
       const session = await authenticateBearer({
         repository: authSessionRepository,
-        renewSession: true,
+        // Passive browser checks must not keep extending session lifetime.
+        renewSession: requestUrl.pathname === '/v1/auth/me',
         identities: authOtpRepository,
         headers: request.headers,
       });
@@ -3104,6 +3129,26 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'DELETE' && requestUrl.pathname === '/v1/notifications/device') {
+      const session = await authenticateBearer({
+        repository: authSessionRepository, identities: authOtpRepository,
+        headers: request.headers,
+      });
+      await pushDeviceRepository.disableForSession(session.id, new Date().toISOString());
+      response.writeHead(204, { 'cache-control': 'no-store' });
+      response.end();
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/realtime/ticket') {
+      const result = await issueBrowserRealtimeTicket({ request,
+        sessions: authSessionRepository, identities: authOtpRepository,
+        drivers: driverSupplyRepository, registry: driverRegistryRepository,
+        rides: rideRepository, tickets: browserRealtimeTickets });
+      json(response, result.status, result.body);
+      return;
+    }
+
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/auth/session'
@@ -3167,10 +3212,12 @@ const server = createServer(async (request, response) => {
         repository: authSessionRepository,
         headers: request.headers,
       });
+      realtimeServer.disconnectBrowserSession(revoked.id);
       await pushDeviceRepository.disableForSession(
         revoked.id,
         new Date().toISOString(),
       );
+      clearBrowserSessionCookie(request, response);
       response.writeHead(204, {
         'cache-control': 'no-store',
         'x-content-type-options': 'nosniff',
@@ -9536,6 +9583,11 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof BrowserSessionTransportError) {
+      json(response, error.status, { error: error.code, message: error.message });
+      return;
+    }
+
     if (error instanceof AuthenticationError) {
       json(response, error.code === 'DRIVER_REGISTRATION_PENDING' ? 403 : 401, {
         error: error.code,
@@ -9825,6 +9877,7 @@ server.maxHeadersCount = 64;
 
 const realtimeServer = attachRealtimeServer({
   server,
+  browserTickets: browserRealtimeTickets,
   hub: realtimeHub,
   rides: rideRepository,
   drivers: driverSupplyRepository,

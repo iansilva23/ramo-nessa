@@ -265,6 +265,10 @@ export async function notifyRegisteredDeviceIfOutdated(input: {
   device: PushDeviceRecord;
   now?: Date;
 }) {
+  // As políticas de versão/loja continuam exclusivas dos aplicativos nativos.
+  if (input.device.platform === 'web') {
+    return { policy: null, notificationDelivered: false };
+  }
   const policy = await input.communications.getReleasePolicy(
     input.device.subjectType,
     input.device.platform,

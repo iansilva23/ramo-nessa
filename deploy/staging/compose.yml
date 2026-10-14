@@ -168,6 +168,8 @@ services:
         condition: service_healthy
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Apenas arquivos PWA homologados; banco e segredos não são montados aqui.
+      - ./web-dist:/srv/web:ro
       - caddy_data:/data
       - caddy_config:/config
     ports:

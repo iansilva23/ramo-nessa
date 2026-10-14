@@ -21,6 +21,7 @@ export function pushDevicePublicView(device: PushDeviceRecord) {
     platform: device.platform,
     provider: device.provider,
     enabled: device.enabled,
+    notificationPreference: device.notificationPreference ?? 'all',
     ...(device.appVersion == null
       ? {}
       : { appVersion: device.appVersion }),
@@ -47,6 +48,9 @@ export async function registerPushDevice(input: {
     provider: input.registration.provider,
     token: input.registration.token,
     tokenHash: hashPushToken(input.registration.token),
+    sessionExpiresAt: input.session.expiresAt,
+    ...(input.registration.notificationPreference == null ? {}
+      : { notificationPreference: input.registration.notificationPreference }),
     ...(input.registration.appVersion == null
       ? {}
       : { appVersion: input.registration.appVersion }),
@@ -86,7 +90,14 @@ export class PushNotificationService {
     message: PushMessage;
     now?: Date;
   }): Promise<PushNotificationStats & { deliveredDeviceIds: string[] }> {
-    const devices = input.devices;
+    const nowMs = (input.now ?? new Date()).getTime();
+    const promotional = input.message.type.startsWith('marketing.') ||
+      ['admin.broadcast.promotion', 'admin.broadcast.event', 'admin.broadcast.general']
+        .includes(input.message.type);
+    const devices = input.devices.filter(device =>
+      device.enabled &&
+      (device.sessionExpiresAt == null || Date.parse(device.sessionExpiresAt) > nowMs) &&
+      (!promotional || (device.notificationPreference ?? 'all') === 'all'));
     let delivered = 0;
     let invalidated = 0;
     const deliveredDeviceIds: string[] = [];

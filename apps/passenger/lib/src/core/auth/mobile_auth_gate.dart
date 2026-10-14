@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_token_store.dart';
@@ -19,6 +20,7 @@ class MobileAuthGate extends StatefulWidget {
     required this.authenticatedBuilder,
     this.onSessionReady,
     this.onSessionEnded,
+    this.sessionValidationInterval = kIsWeb ? const Duration(minutes: 1) : null,
   });
 
   final String subjectType;
@@ -34,6 +36,9 @@ class MobileAuthGate extends StatefulWidget {
   ) authenticatedBuilder;
   final Future<void> Function(String accessToken)? onSessionReady;
   final Future<void> Function()? onSessionEnded;
+  // Browser tabs may remain open without another lifecycle resume event.
+  // Null keeps the established native behavior (bootstrap and resume only).
+  final Duration? sessionValidationInterval;
 
   @override
   State<MobileAuthGate> createState() => _MobileAuthGateState();
@@ -41,8 +46,11 @@ class MobileAuthGate extends StatefulWidget {
 
 class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObserver {
   bool _refreshing = false;
+  bool _loggingOut = false;
   String? _accessToken;
   bool _checking = true;
+  bool _foreground = true;
+  Timer? _sessionValidationTimer;
 
   @override
   void initState() {
@@ -54,17 +62,43 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _stopSessionValidation();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_checking && !_refreshing) unawaited(_bootstrap());
+    _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) {
+      _stopSessionValidation();
+      return;
+    }
+    _startSessionValidation();
+    if (!_checking && !_refreshing) unawaited(_bootstrap());
   }
 
-  Future<void> _bootstrap() async {
-    if (_refreshing) return;
+  void _stopSessionValidation() {
+    _sessionValidationTimer?.cancel();
+    _sessionValidationTimer = null;
+  }
+
+  void _startSessionValidation() {
+    final interval = widget.sessionValidationInterval;
+    final token = _accessToken;
+    if (!mounted || !_foreground || _loggingOut || interval == null ||
+        interval <= Duration.zero || token == null || token.length < 20 ||
+        _sessionValidationTimer != null) {
+      return;
+    }
+    _sessionValidationTimer = Timer.periodic(interval, (_) {
+      // A periodic session check must not re-register push or extend session TTL.
+      unawaited(_bootstrap(notifyReady: false));
+    });
+  }
+
+  Future<void> _bootstrap({bool notifyReady = true}) async {
+    if (_refreshing || _loggingOut) return;
     _refreshing = true;
     final token = _accessToken;
     if (token == null || token.length < 20) {
@@ -74,36 +108,47 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
       return;
     }
 
+    bool invalidated = false;
     try {
       final session = await widget.service.currentSession(token);
-      if (!mounted || _accessToken != token) { _refreshing = false; return; }
+      if (!mounted || _accessToken != token || _loggingOut) { _refreshing = false; return; }
       if (
         session == null ||
         session.subjectType != widget.subjectType ||
-        session.expiresAt.isBefore(DateTime.now())
+        !session.expiresAt.isAfter(DateTime.now())
       ) {
         try {
           await widget.tokenStore.clearAccessToken();
         } catch (_) {}
         if (!mounted || _accessToken != token) { _refreshing = false; return; }
         _accessToken = null;
+        invalidated = true;
+        _stopSessionValidation();
+        _notifySessionEnded();
       }
     } catch (_) {
       // Falha de rede/Core não remove uma sessão que ainda pode ser válida.
       // As chamadas protegidas continuarão dependendo da validação do servidor.
     }
 
+    // A late failure must not restore push; our own invalidation still renders login.
+    if (!mounted || (!invalidated && _accessToken != token) || _loggingOut) {
+      _refreshing = false;
+      return;
+    }
+
     final readyToken = _accessToken;
-    if (readyToken != null && readyToken.length >= 20) {
+    if (notifyReady && readyToken != null && readyToken.length >= 20) {
       final callback = widget.onSessionReady;
       if (callback != null) {
-        unawaited(callback(readyToken));
+        unawaited(Future<void>.sync(() => callback(readyToken)).catchError((_) {}));
       }
     }
 
     _refreshing = false;
     if (!mounted) return;
     setState(() => _checking = false);
+    _startSessionValidation();
   }
 
   void _authenticated(String token) {
@@ -111,46 +156,53 @@ class _MobileAuthGateState extends State<MobileAuthGate> with WidgetsBindingObse
       _accessToken = token;
       _checking = false;
     });
+    _startSessionValidation();
     final callback = widget.onSessionReady;
     if (callback != null) {
-      unawaited(callback(token));
+      unawaited(Future<void>.sync(() => callback(token)).catchError((_) {}));
+    }
+  }
+
+  void _notifySessionEnded() {
+    final ended = widget.onSessionEnded;
+    if (ended != null) {
+      // Push cleanup is best-effort; a stalled provider must not retain the UI.
+      unawaited(Future<void>.sync(ended).catchError((_) {}));
     }
   }
 
   Future<bool> _logout() async {
     final token = _accessToken;
-    if (token == null || token.length < 20) {
-      return false;
-    }
+    if (_loggingOut || token == null || token.length < 20) return false;
+    _loggingOut = true;
+    _stopSessionValidation();
 
     try {
-      await widget.service.logout(token);
-    } catch (_) {
-      return false;
-    }
-
-    try {
-      await widget.tokenStore.clearAccessToken();
-    } catch (_) {
-      // A sessão já foi revogada no Core. Um token local residual será
-      // rejeitado no próximo bootstrap e não deve manter a UI autenticada.
-    }
-
-    final ended = widget.onSessionEnded;
-    if (ended != null) {
       try {
-        await ended();
+        await widget.service.logout(token);
       } catch (_) {
-        // Logout do Core já foi concluído; push é best-effort.
+        // Keep the local session when the Core has not confirmed revocation.
+        return false;
       }
-    }
 
-    if (!mounted) return true;
-    setState(() {
-      _accessToken = null;
-      _checking = false;
-    });
-    return true;
+      try {
+        await widget.tokenStore.clearAccessToken();
+      } catch (_) {
+        // A residual token is already revoked and rejected at next bootstrap.
+      }
+
+      // Begin cleanup before exposing login, without waiting on push providers.
+      _notifySessionEnded();
+      if (!mounted) return true;
+      setState(() {
+        _accessToken = null;
+        _checking = false;
+      });
+      return true;
+    } finally {
+      _loggingOut = false;
+      _startSessionValidation();
+    }
   }
 
   @override
