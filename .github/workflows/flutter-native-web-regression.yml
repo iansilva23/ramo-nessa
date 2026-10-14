@@ -1,0 +1,95 @@
+name: Native Compatibility - Web and Permissions
+
+on:
+  push:
+    branches: [feature/flutter-web-permissions-20261013]
+    paths:
+      - '.github/workflows/flutter-native-web-regression.yml'
+      - 'apps/passenger/**'
+      - 'apps/driver/**'
+      - 'packages/design_system/**'
+      - 'packages/ramo_push/**'
+      - 'packages/ramo_realtime/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-web-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-compile:
+    name: Compile ${{ matrix.app }} - ${{ matrix.platform }} (no deploy)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: passenger
+            platform: android
+            runner: ubuntu-24.04
+          - app: driver
+            platform: android
+            runner: ubuntu-24.04
+          - app: passenger
+            platform: ios-simulator
+            runner: macos-15
+          - app: driver
+            platform: ios-simulator
+            runner: macos-15
+    # Compile-only: no real Core/Maps/Firebase/Mercado Pago credentials.
+    # Do not install these debug/simulator outputs or publish them to stores.
+    env:
+      RAMO_PREVIEW_SIGNING: 'false'
+      RAMO_PRODUCTION_SIGNING: 'false'
+      RAMO_GOOGLE_MAPS_ANDROID_API_KEY: ''
+      RAMO_MERCADO_PAGO_PUBLIC_KEY: ''
+      SWIFT_VERSION: '5.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java for Android compilation
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve the committed dependency lock (no upgrades)
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and run app regression tests on native host
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+      - name: Compile Android debug without release signing or providers
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --debug --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify Android compilation output (not an installer deliverable)
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Compile iOS simulator without codesigning or providers
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build ios --simulator --debug --no-pub --no-codesign
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify simulator compilation output (not an IPA)
+        if: matrix.platform == 'ios-simulator'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Check that review did not change source or dependency lock
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
