@@ -33,7 +33,7 @@ test('atalhos de problemas passam pelo roteador e preservam a sessão', () => {
   for (const [source, view, path] of [['ride','rides','viagens'],['support','support','suporte'],['marketing','marketing','marketing']]) {
     const links = issueLinks(source);
     assert.equal(links.length, 1);
-    assert.equal(links[0].href, `/admin/${path}`);
+    assert.equal(links[0].href, `/administrodo/${path}`);
     const result = click(links[0], true);
     assert.equal(result.prevented, true, `${source} não pode recarregar o documento`);
     assert.deepEqual(result.destinations, [view]);

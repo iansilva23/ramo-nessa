@@ -2,7 +2,7 @@ name: Flutter Web and Permissions Review
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013]
+    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015]
   workflow_dispatch:
 
 concurrency:
@@ -254,3 +254,36 @@ jobs:
           path: apps/${{ matrix.app }}/build/web/
           retention-days: 7
 
+
+  site-admin-integration:
+    name: Website and ADM integration (temporary SQLite only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+      - name: Validate ADM and gateway integration
+        run: |
+          npm run check --prefix apps/admin
+          npm test --prefix apps/admin
+          node scripts/web/verify_web_gateway.mjs
+          node --test scripts/web/integration_routes_test.mjs
+      - name: Install website dependencies from the lockfile
+        working-directory: apps/institutional-site
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+      - name: Typecheck, test and build website
+        working-directory: apps/institutional-site
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          pnpm check
+          pnpm test
+          pnpm build
+          cp -a public .next/standalone/
+          cp -a .next/static .next/standalone/.next/
+          node test/production-http.mjs
+          node test/site-production-http.mjs

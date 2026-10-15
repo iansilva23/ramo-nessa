@@ -40,7 +40,7 @@ test('Admin usa shell + rotas próprias em vez de uma página monolítica', asyn
     assert.match(
       index,
       new RegExp(
-        `href=["']/admin/${path}["'][^>]*data-view=["']${view}["']`,
+        `href=["']/administrodo/${path}["'][^>]*data-view=["']${view}["']`,
       ),
     );
     assert.equal(
@@ -82,14 +82,14 @@ test('roteador preserva sessão em memória e navega sem recarregar a aplicaçã
   );
 
   assert.match(app, /const adminRoutes = Object\.freeze/);
-  assert.match(app, /\/admin\/frota/);
-  assert.match(app, /\/admin\/nova-localidade/);
-  assert.match(app, /\/admin\/operacao-tarifas/);
-  assert.match(app, /\/admin\/design-apps/);
-  assert.match(app, /routeByPath\.set\('\/admin\/precos', 'pricing'\)/);
-  assert.match(app, /\/admin\/passeios/);
+  assert.match(app, /\/administrodo\/frota/);
+  assert.match(app, /\/administrodo\/nova-localidade/);
+  assert.match(app, /\/administrodo\/operacao-tarifas/);
+  assert.match(app, /\/administrodo\/design-apps/);
+  assert.match(app, /routeByPath\.set\('\/administrodo\/precos', 'pricing'\)/);
+  assert.match(app, /\/administrodo\/passeios/);
   assert.match(app, /loadRouteMarkup/);
-  assert.match(app, /\/admin\/pages\/\$\{encodeURIComponent\(route\.page\)\}\.html/);
+  assert.match(app, /\/administrodo\/pages\/\$\{encodeURIComponent\(route\.page\)\}\.html/);
   assert.match(app, /window\.history\.pushState/);
   assert.match(app, /window\.history\.replaceState/);
   assert.match(app, /window\.addEventListener\('popstate'/);
@@ -107,7 +107,7 @@ test('build e gateway publicam as páginas e aceitam deep links do Admin', async
   ]);
 
   assert.match(dockerfile, /COPY pages \/srv\/admin\/pages/);
-  assert.match(caddy, /handle_path \/admin\/\*/);
+  assert.match(caddy, /handle_path \/administrodo\/\*/);
   assert.match(caddy, /try_files \{path\} \/index\.html/);
 });
 

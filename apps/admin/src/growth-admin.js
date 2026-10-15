@@ -331,19 +331,19 @@ export function createGrowthAdmin({
     card.append(list);
     if (i.source === 'ride' && hasScope('rides:read')) {
       const a = node('a', 'Consultar viagens', 'button button--ghost-dark');
-      a.href = '/admin/viagens';
+      a.href = '/administrodo/viagens';
       a.dataset.view = 'rides';
       card.append(a);
     }
     if (i.source === 'support' && hasScope('support:read')) {
       const a = node('a', 'Abrir suporte', 'button button--ghost-dark');
-      a.href = '/admin/suporte';
+      a.href = '/administrodo/suporte';
       a.dataset.view = 'support';
       card.append(a);
     }
     if (i.source === 'marketing' && hasScope('marketing:read')) {
       const a = node('a', 'Abrir marketing', 'button button--ghost-dark');
-      a.href = '/admin/marketing';
+      a.href = '/administrodo/marketing';
       a.dataset.view = 'marketing';
       card.append(a);
     }
