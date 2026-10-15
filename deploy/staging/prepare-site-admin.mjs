@@ -16,9 +16,9 @@ if(active.split('handle_path /administrodo/* {').length!==2||!active.includes('a
 const marker='  @api path /v1/* /health /ready';if(active.split(marker).length!==2)throw new Error('Rota da API diferente da esperada.');
 if(existsSync(backup)||existsSync(release))throw new Error('Esta preparação já existe. Envie o resultado.');
 const files=['apps/admin/index.html','apps/admin/styles.css','apps/admin/package.json','apps/admin/src/app.js','apps/admin/src/site-admin.js','apps/admin/pages/site.html'];
-for(const file of files){const path=join(repo,file);if(file.endsWith('/site-admin.js')||file.endsWith('/site.html')){if(existsSync(path))throw new Error('Módulo já existe.');}else{const expected=run('git',['-C',repo,'show','984bacc05523da7fb76ce91d16aee2f8a26528dd:'+file]);if(readFileSync(path,'utf8')!==expected)throw new Error('Arquivo local mudou: '+file);}}
+for(const file of files){const path=join(repo,file);if(file.endsWith('/site-admin.js')||file.endsWith('/site.html')){if(existsSync(path))throw new Error('Módulo já existe.');}else{const expected=run('sudo',['-u','ubuntu','git','-C',repo,'show','984bacc05523da7fb76ce91d16aee2f8a26528dd:'+file]);if(readFileSync(path,'utf8')!==expected)throw new Error('Arquivo local mudou: '+file);}}
 mkdirSync(backup,{recursive:true,mode:0o700});mkdirSync(release,{recursive:true,mode:0o755});
-const archive=run('git',['-C',repo,'archive',revision,'apps/admin','apps/institutional-site'],{encoding:null});run('tar',['-x','-C',release],{input:archive});
+const archive=run('sudo',['-u','ubuntu','git','-C',repo,'archive',revision,'apps/admin','apps/institutional-site'],{encoding:null});run('tar',['-x','-C',release],{input:archive});
 const candidate=active.replace(marker,'  handle /site-management/* {\n    reverse_proxy institutional-site:3000\n  }\n  handle /media/* {\n    reverse_proxy institutional-site:3000\n  }\n\n'+marker);
 writeFileSync(backup+'/Caddyfile.before',active,{mode:0o600});writeFileSync(backup+'/Caddyfile.candidate',candidate,{mode:0o600});
 const siteImage='ramo-nessa-site:admin-'+short,gatewayImage='ramo-nessa-admin-gateway:site-admin-'+short;
