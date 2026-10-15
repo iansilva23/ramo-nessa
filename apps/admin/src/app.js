@@ -1,3 +1,5 @@
+import { createSiteAdmin } from './site-admin.js';
+let siteAdmin = null;
 import { createGrowthAdmin } from './growth-admin.js';
 let growthAdmin = null;
 import { createCompanyCostsAdmin } from './company-costs-admin.js';
@@ -210,6 +212,11 @@ let currentView = null;
 let routeLoadSequence = 0;
 
 const adminRoutes = Object.freeze({
+  site: {
+    path: '/administrodo/site-aplicativos',
+    title: 'Site e aplicativos',
+    page: 'site',
+  },
   issues: {
     path: '/administrodo/problemas',
     title: 'Problemas & Recomendações',
@@ -405,6 +412,7 @@ function canManageStaff() {
 }
 
 const viewAccessScopes = Object.freeze({
+  site: ['communications:read','communications:write','drivers:profile:read','drivers:profile:write'],
   fleet: ['fleet:read'],
   rides: ['rides:read', 'rides:write'],
   drivers: [
@@ -539,6 +547,7 @@ function clearPassengerPhoto() {
 
 function clearSession(message = '') {
   stopSessionTimer();
+  if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
@@ -896,6 +905,7 @@ async function activateView(
     : 'overview';
   const targetPath = routePath(view);
 
+  if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
@@ -10540,6 +10550,7 @@ async function loadOverviewSecondaryMetrics() {
 }
 
 function initializeRouteView(view) {
+  if(view==='site'){siteAdmin=createSiteAdmin({root:routeOutlet,getToken:()=>state.token,hasScope,onError:handleAuthenticatedError});return;}
   if (view === 'geo') {
     geoAdmin = createGeoAdmin({
       root: routeOutlet, api, getToken: () => state.token, hasScope,
@@ -10800,6 +10811,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
   if (geoAdmin != null) { geoAdmin.destroy(); geoAdmin = null; }
@@ -10819,4 +10831,5 @@ routeLoading.hidden = true;
 routeOutlet.replaceChildren();
 setMessage(loginMessage);
 setMessage(globalMessage);
+
 

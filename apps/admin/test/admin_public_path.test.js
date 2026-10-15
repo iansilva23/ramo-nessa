@@ -39,7 +39,7 @@ function harness() {
     globalMessage: {}, state: { staff: {} },
   });
   vm.runInContext(`let routeLoadSequence = 0, currentView = null;
-    let growthAdmin = null, companyCostsAdmin = null, geoAdmin = null;
+    let siteAdmin = null, growthAdmin = null, companyCostsAdmin = null, geoAdmin = null;
     let promotionsAdmin = null, driverBenefitsAdmin = null;
     ${routing}\n${loader}\n${navigation}
     globalThis.router = { routes: adminRoutes, requestedViewFromLocation, routePath, loadRouteMarkup, activateView };`, context);

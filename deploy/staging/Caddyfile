@@ -21,6 +21,13 @@
     X-Robots-Tag "noindex, nofollow, noarchive"
   }
 
+  handle /site-management/* {
+    reverse_proxy institutional-site:3000
+  }
+  handle /media/* {
+    reverse_proxy institutional-site:3000
+  }
+
   @api path /v1/* /health /ready
   handle @api {
     reverse_proxy core:8080 {
