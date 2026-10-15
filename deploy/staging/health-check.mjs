@@ -50,7 +50,7 @@ const baseUrl = 'https://' + domain;
 const checks = [
   { path: '/health', expectedType: 'application/json' },
   { path: '/ready', expectedType: 'application/json' },
-  { path: '/admin/', expectedType: 'text/html' },
+  { path: '/administrodo/', expectedType: 'text/html' },
 ];
 
 let failed = false;

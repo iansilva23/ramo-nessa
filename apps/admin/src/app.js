@@ -211,112 +211,112 @@ let routeLoadSequence = 0;
 
 const adminRoutes = Object.freeze({
   issues: {
-    path: '/admin/problemas',
+    path: '/administrodo/problemas',
     title: 'Problemas & Recomendações',
     page: 'issues',
   },
   marketing: {
-    path: '/admin/marketing',
+    path: '/administrodo/marketing',
     title: 'Central de Marketing',
     page: 'marketing',
   },
   coupons: {
-    path: '/admin/cupons',
+    path: '/administrodo/cupons',
     title: 'Cupons',
     page: 'coupons',
   },
   overview: {
-    path: '/admin/visao-geral',
+    path: '/administrodo/visao-geral',
     title: 'Visão geral',
     page: 'overview',
   },
   fleet: {
-    path: '/admin/frota',
+    path: '/administrodo/frota',
     title: 'Frota',
     page: 'fleet',
   },
   rides: {
-    path: '/admin/viagens',
+    path: '/administrodo/viagens',
     title: 'Viagens',
     page: 'rides',
   },
   drivers: {
-    path: '/admin/motoristas',
+    path: '/administrodo/motoristas',
     title: 'Motoristas',
     page: 'drivers',
   },
   benefits: {
-    path: '/admin/ranking-beneficios',
+    path: '/administrodo/ranking-beneficios',
     title: 'Ranking & Benefícios',
     page: 'benefits',
   },
   passengers: {
-    path: '/admin/passageiros',
+    path: '/administrodo/passageiros',
     title: 'Passageiros',
     page: 'passengers',
   },
   localities: {
-    path: '/admin/nova-localidade',
+    path: '/administrodo/nova-localidade',
     title: 'Nova localidade',
     page: 'localities',
   },
   geo: {
-    path: '/admin/geoagent',
+    path: '/administrodo/geoagent',
     title: 'GeoAgent',
     page: 'geo',
   },
   pricing: {
-    path: '/admin/operacao-tarifas',
+    path: '/administrodo/operacao-tarifas',
     title: 'Operação e Tarifas',
     page: 'pricing',
   },
   costs: {
-    path: '/admin/custos-resultado',
+    path: '/administrodo/custos-resultado',
     title: 'Custos & Resultado',
     page: 'costs',
   },
   finance: {
-    path: '/admin/financeiro',
+    path: '/administrodo/financeiro',
     title: 'Financeiro',
     page: 'finance',
   },
   notifications: {
-    path: '/admin/notificacoes',
+    path: '/administrodo/notificacoes',
     title: 'Notificações',
     page: 'notifications',
   },
   design: {
-    path: '/admin/design-apps',
+    path: '/administrodo/design-apps',
     title: 'Design dos Apps',
     page: 'design',
   },
   support: {
-    path: '/admin/suporte',
+    path: '/administrodo/suporte',
     title: 'Suporte',
     page: 'support',
   },
   privacy: {
-    path: '/admin/privacidade',
+    path: '/administrodo/privacidade',
     title: 'Privacidade e LGPD',
     page: 'privacy',
   },
   agency: {
-    path: '/admin/passeios',
+    path: '/administrodo/passeios',
     title: 'Ramo Nessa Agência',
     page: 'agency',
   },
   integrations: {
-    path: '/admin/integracoes',
+    path: '/administrodo/integracoes',
     title: 'Integrações',
     page: 'integrations',
   },
   staff: {
-    path: '/admin/funcionarios',
+    path: '/administrodo/funcionarios',
     title: 'Funcionários',
     page: 'staff',
   },
   audit: {
-    path: '/admin/auditoria',
+    path: '/administrodo/auditoria',
     title: 'Auditoria',
     page: 'audit',
   },
@@ -328,10 +328,10 @@ const routeByPath = new Map(
     view,
   ]),
 );
-routeByPath.set('/admin/precos', 'pricing');
+routeByPath.set('/administrodo/precos', 'pricing');
 
 function requestedViewFromLocation() {
-  const path = window.location.pathname.replace(/\/$/, '') || '/admin';
+  const path = window.location.pathname.replace(/\/$/, '') || '/administrodo';
   return routeByPath.get(path) ?? 'overview';
 }
 
@@ -827,7 +827,7 @@ async function loadRouteMarkup(view) {
 
   try {
     const response = await fetch(
-      `/admin/pages/${encodeURIComponent(route.page)}.html`,
+      `/administrodo/pages/${encodeURIComponent(route.page)}.html`,
       {
         method: 'GET',
         headers: { accept: 'text/html' },

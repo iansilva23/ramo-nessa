@@ -141,9 +141,9 @@ test('ADM expõe Privacidade e LGPD com controles ligados e scopes próprios', (
 
   assert.match(
     index,
-    /href=["']\/admin\/privacidade["'][^>]*data-view=["']privacy["']/,
+    /href=["']\/administrodo\/privacidade["'][^>]*data-view=["']privacy["']/,
   );
-  assert.match(app, /path:\s*'\/admin\/privacidade'/);
+  assert.match(app, /path:\s*'\/administrodo\/privacidade'/);
   assert.match(app, /page:\s*'privacy'/);
   assert.match(app, /hasScope\('privacy:read'\)/);
   assert.match(app, /hasScope\('privacy:write'\)/);
