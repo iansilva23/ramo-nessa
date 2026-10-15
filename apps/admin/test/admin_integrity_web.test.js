@@ -100,7 +100,7 @@ test('rotas do menu correspondem às páginas registradas', async () => {
 
   const nav = [
     ...index.matchAll(
-      /href=["'](\/admin\/[^"']+)["'][^>]*data-view=["']([^"']+)["']/g,
+      /href=["'](\/administrodo\/[^"']+)["'][^>]*data-view=["']([^"']+)["']/g,
     ),
   ].map((match) => ({
     path: match[1],
