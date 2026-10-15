@@ -1,0 +1,288 @@
+<section id="view-passengers" class="view-panel" hidden>
+            <div class="page-heading page-heading--split">
+              <div>
+                <span class="eyebrow eyebrow--dark">PASSAGEIROS</span>
+                <h1>Diretório de passageiros</h1>
+                <p>Consulta de identidade, histórico e controle de acesso do app Passageiro.</p>
+              </div>
+              <span class="pill">Acesso controlado</span>
+            </div>
+
+            <article class="panel-card panel-card--directory">
+              <div class="panel-card__header directory-header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">DIRETÓRIO</span>
+                  <h2>Passageiros cadastrados</h2>
+                </div>
+                <span id="passenger-directory-summary" class="pill">0 passageiros</span>
+              </div>
+
+              <form id="passenger-directory-form" class="directory-toolbar">
+                <label class="field directory-search">
+                  <span>Buscar</span>
+                  <input
+                    id="passenger-directory-query"
+                    maxlength="80"
+                    placeholder="ID ou telefone"
+                  >
+                </label>
+                <label class="field directory-status">
+                  <span>Status</span>
+                  <select id="passenger-directory-status">
+                    <option value="">Todos</option>
+                    <option value="active">Ativos</option>
+                    <option value="suspended">Suspensos</option>
+                  </select>
+                </label>
+                <button class="button button--dark" type="submit">
+                  Filtrar
+                </button>
+              </form>
+
+              <div class="passenger-summary-grid" aria-label="Resumo de passageiros">
+                <div>
+                  <span>Total</span>
+                  <strong id="passengers-total">0</strong>
+                </div>
+                <div>
+                  <span>Ativos</span>
+                  <strong id="passengers-active">0</strong>
+                </div>
+                <div>
+                  <span>Suspensos</span>
+                  <strong id="passengers-suspended">0</strong>
+                </div>
+              </div>
+
+              <div class="table-wrap directory-table-wrap">
+                <table class="directory-table">
+                  <thead>
+                    <tr>
+                      <th>Passageiro</th>
+                      <th>Telefone</th>
+                      <th>Status</th>
+                      <th>Criado</th>
+                      <th>Atualizado</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="passenger-directory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="passenger-directory-empty" class="empty-state" hidden>
+                Nenhum passageiro corresponde aos filtros.
+              </div>
+
+              <div class="directory-footer">
+                <span id="passenger-directory-count">0 carregados</span>
+                <button
+                  id="passenger-directory-more"
+                  class="button button--ghost-dark"
+                  type="button"
+                  hidden
+                >
+                  Carregar mais
+                </button>
+              </div>
+            </article>
+            <article class="panel-card passenger-detail-card">
+              <div class="panel-card__header">
+                <div>
+                  <span class="eyebrow eyebrow--dark">FICHA</span>
+                  <h2>Passageiro</h2>
+                </div>
+                <span id="passenger-detail-status" class="pill pill--neutral">Nenhum</span>
+              </div>
+
+              <div id="passenger-detail-content" class="passenger-detail-content empty-state">
+                Abra um passageiro na tabela para ver identidade e histórico recente.
+              </div>
+
+              <form
+                id="passenger-profile-edit-form"
+                class="passenger-profile-edit-form"
+                hidden
+              >
+                <div class="form-section-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">DADOS DA CONTA</span>
+                    <h3>Editar passageiro</h3>
+                  </div>
+                  <small>
+                    Senha e credenciais de autenticação não ficam disponíveis no ADM.
+                  </small>
+                </div>
+
+                <div class="passenger-profile-edit-grid">
+                  <label class="field">
+                    <span>Nome completo</span>
+                    <input
+                      id="passenger-profile-full-name"
+                      type="text"
+                      minlength="3"
+                      maxlength="100"
+                      autocomplete="off"
+                    >
+                  </label>
+                  <label class="field">
+                    <span>E-mail</span>
+                    <input
+                      id="passenger-profile-email"
+                      type="email"
+                      maxlength="254"
+                      autocomplete="off"
+                    >
+                  </label>
+                </div>
+
+                <div class="passenger-profile-edit-actions">
+                  <button
+                    id="passenger-profile-save-button"
+                    class="button button--dark"
+                    type="submit"
+                  >
+                    Salvar dados
+                  </button>
+                  <small id="passenger-profile-edit-note">
+                    Alterações ficam registradas na auditoria.
+                  </small>
+                </div>
+              </form>
+
+              <div id="passenger-access-actions" class="passenger-access-actions" hidden>
+                <button
+                  id="passenger-access-button"
+                  class="button button--danger"
+                  type="button"
+                >
+                  Bloquear acesso
+                </button>
+                <small id="passenger-access-note">
+                  O bloqueio revoga imediatamente todas as sessões do passageiro.
+                </small>
+              </div>
+
+              <section id="passenger-operational-detail" class="passenger-operational-detail" hidden>
+                <div class="form-section-heading">
+                  <div>
+                    <span class="eyebrow eyebrow--dark">OPERAÇÃO</span>
+                    <h3>Carteira, locais e notificações</h3>
+                  </div>
+                  <small>Consulta somente leitura; credenciais e tokens nunca são exibidos.</small>
+                </div>
+
+                <div class="passenger-detail-summary passenger-operational-summary">
+                  <div>
+                    <span>Saldo da carteira</span>
+                    <strong id="passenger-wallet-balance">Sem permissão</strong>
+                  </div>
+                  <div>
+                    <span>Locais salvos</span>
+                    <strong id="passenger-saved-places-count">0</strong>
+                  </div>
+                  <div>
+                    <span>Dispositivos push ativos</span>
+                    <strong id="passenger-notification-devices-count">Sem permissão</strong>
+                  </div>
+                </div>
+
+                <div class="passenger-operational-columns">
+                  <div class="passenger-photo-panel">
+                    <h4>Foto do perfil</h4>
+                    <img
+                      id="passenger-photo-preview"
+                      alt="Foto do passageiro"
+                      hidden
+                    >
+                    <div id="passenger-photo-empty" class="empty-state">
+                      Nenhuma foto cadastrada.
+                    </div>
+                  </div>
+                  <div>
+                    <h4>Locais salvos</h4>
+                    <div class="table-wrap">
+                      <table class="passenger-saved-places-table">
+                        <thead>
+                          <tr>
+                            <th>Tipo</th>
+                            <th>Local</th>
+                            <th>Endereço</th>
+                            <th>Atualizado</th>
+                          </tr>
+                        </thead>
+                        <tbody id="passenger-saved-places-body"></tbody>
+                      </table>
+                    </div>
+                    <div id="passenger-saved-places-empty" class="empty-state">
+                      Nenhum local salvo.
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4>Dispositivos de notificação</h4>
+                    <div class="table-wrap">
+                      <table class="passenger-notification-devices-table">
+                        <thead>
+                          <tr>
+                            <th>Plataforma</th>
+                            <th>Provedor</th>
+                            <th>Versão</th>
+                            <th>Última atividade</th>
+                          </tr>
+                        </thead>
+                        <tbody id="passenger-notification-devices-body"></tbody>
+                      </table>
+                    </div>
+                    <div id="passenger-notification-devices-empty" class="empty-state">
+                      Sem permissão de comunicações ou nenhum dispositivo ativo.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <div id="passenger-detail-history" hidden>
+                <div class="passenger-detail-summary">
+                  <div>
+                    <span>Corridas</span>
+                    <strong id="passenger-detail-total-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Ativas</span>
+                    <strong id="passenger-detail-active-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Concluídas</span>
+                    <strong id="passenger-detail-completed-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Canceladas</span>
+                    <strong id="passenger-detail-cancelled-rides">0</strong>
+                  </div>
+                  <div>
+                    <span>Valor concluído</span>
+                    <strong id="passenger-detail-completed-amount">R$ 0,00</strong>
+                  </div>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="passenger-history-table">
+                    <thead>
+                      <tr>
+                        <th>Estado</th>
+                        <th>Rota</th>
+                        <th>Categoria</th>
+                        <th>Valor</th>
+                        <th>Atualizada</th>
+                      </tr>
+                    </thead>
+                    <tbody id="passenger-detail-rides-body"></tbody>
+                  </table>
+                </div>
+                <div id="passenger-detail-rides-empty" class="empty-state">
+                  Nenhuma corrida encontrada para este passageiro.
+                </div>
+              </div>
+            </article>
+
+          </section>
