@@ -94,4 +94,34 @@ void main() {
     expect(banner.bottom, lessThan(app.top));
     expect(tester.takeException(), isNull);
   });
+  testWidgets('appearance and dismissal preserve the app subtree state', (tester) async {
+    final pending = Completer<Map<String, Object?>>();
+    var starts = 0;
+    await tester.pumpWidget(MaterialApp(home: RamoWebSetup(
+      role: 'passenger', readCompleted: () async => false,
+      saveCompleted: () async {}, readSnapshot: () => pending.future,
+      requestLocation: () async => 'granted', requestNotifications: () async => true,
+      install: () async => 'manual', saveNotificationPreference: (_) async {},
+      child: _StatefulApp(onStart: () => starts++),
+    )));
+    await tester.pump(); expect(starts, 1);
+    pending.complete({'ios': true}); await tester.pumpAndSettle();
+    expect(starts, 1);
+    await tester.tap(find.byTooltip('Fechar aviso de instalação')); await tester.pumpAndSettle();
+    expect(starts, 1);
+  });
+
+}
+
+class _StatefulApp extends StatefulWidget {
+  const _StatefulApp({required this.onStart});
+  final VoidCallback onStart;
+  @override
+  State<_StatefulApp> createState() => _StatefulAppState();
+}
+class _StatefulAppState extends State<_StatefulApp> {
+  @override
+  void initState() { super.initState(); widget.onStart(); }
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Text('App state retained'));
 }

@@ -110,9 +110,10 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
   }
   @override
   Widget build(BuildContext context) {
-    if (_snapshot == null || _installed || _dismissed) return widget.child;
+    final visible = _snapshot != null && !_installed && !_dismissed;
+    // Keep the app subtree in the same slot while the banner appears/disappears.
     return Column(children: [
-      Material(color: const Color(0xFFFFCC00), child: SafeArea(bottom: false,
+      if (!visible) const SizedBox.shrink() else Material(color: const Color(0xFFFFCC00), child: SafeArea(bottom: false,
         child: Row(children: [
           Expanded(child: InkWell(
             onTap: _busy ? null : _install,
@@ -129,7 +130,7 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
             onPressed: () => setState(() => _dismissed = true), icon: const Icon(Icons.close, size: 20)),
         ]),
       )),
-      Expanded(child: MediaQuery.removePadding(context: context, removeTop: true, child: widget.child)),
+      Expanded(child: MediaQuery.removePadding(context: context, removeTop: visible, child: widget.child)),
     ]);
   }
 }
