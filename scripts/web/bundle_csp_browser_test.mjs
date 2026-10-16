@@ -114,7 +114,19 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     await page.getByRole('textbox').first().click(); await page.keyboard.insertText('123456');
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
-  await page.getByRole('button', { name: 'Continuar para o Ramo Nessa', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).waitFor({ timeout: 30000 });
+  const setupEvidence = resolve('artifacts/web-csp'); await mkdir(setupEvidence, { recursive: true });
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-install.png') });
+  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).click();
+  const skipLocation = role === 'driver' ? 'Configurar depois; acessar meu perfil' : 'Usar endereço manual por enquanto';
+  await page.getByRole('button', { name: skipLocation, exact: true }).waitFor();
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-location.png') });
+  await page.getByRole('button', { name: skipLocation, exact: true }).click();
+  await page.getByRole('button', { name: 'Continuar sem notificações por enquanto', exact: true }).waitFor();
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-notifications.png') });
+  await page.getByRole('button', { name: 'Continuar sem notificações por enquanto', exact: true }).click();
+  await page.getByRole('button', { name: 'Entrar no Ramo Nessa', exact: true }).waitFor();
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-summary.png') });
   assert.equal(loginCalls, 1);
   assert.match(publicHandle, new RegExp('^ramo_web_' + role + '_v1_[a-f0-9]{32}$'));
   const cookies = await page.context().cookies();
@@ -125,7 +137,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
-  await page.getByRole('button', { name: 'Continuar para o Ramo Nessa', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).waitFor({ timeout: 30000 });
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);

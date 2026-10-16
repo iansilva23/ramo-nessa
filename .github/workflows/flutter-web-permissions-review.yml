@@ -2,7 +2,7 @@ name: Flutter Web and Permissions Review
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015]
+    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015, feature/web-setup-ux-20261016]
   workflow_dispatch:
 
 concurrency:
@@ -90,7 +90,7 @@ jobs:
       - name: Check card bridge and run browser contracts without real credentials
         run: |
           node --check apps/passenger/web/ramo_card_fields.js
-          node --test scripts/web/browser_test_runtime_test.mjs scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
+          node --test scripts/web/browser_test_runtime_test.mjs scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/setup_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
           node --test scripts/web/verify_web_homologation_test.mjs scripts/web/public_web_configuration_test.mjs
       - name: Install pinned Playwright WebKit with system dependencies
@@ -98,7 +98,7 @@ jobs:
       - name: Verify cookies and CSP in WebKit (local fixtures, not iPhone homologation)
         env:
           RAMO_BROWSER_ENGINE: webkit
-        run: node --test scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
+        run: node --test scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs scripts/web/setup_browser_test.mjs
 
   flutter-web:
     name: Web build and regressions - ${{ matrix.app }}
@@ -134,7 +134,7 @@ jobs:
         working-directory: packages/design_system
         run: |
           flutter pub get
-          flutter test test/ramo_permission_onboarding_test.dart test/ramo_notification_settings_test.dart
+          flutter test test/ramo_permission_onboarding_test.dart test/ramo_notification_settings_test.dart test/ramo_web_setup_test.dart
       - name: Generate correctly-sized PWA icons
         run: |
           python3 -m pip install --quiet "Pillow==11.3.0"
@@ -290,7 +290,7 @@ jobs:
 
   configured-web-bundles:
     name: Configured Web bundles (no deploy or provider calls)
-    if: github.ref == 'refs/heads/feature/web-site-integration-20261015'
+    if: github.ref == 'refs/heads/feature/web-site-integration-20261015' || github.ref == 'refs/heads/feature/web-setup-ux-20261016'
     needs: [core-realtime, push-postgres-contract, web-card-contract, flutter-web, site-admin-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -354,5 +354,6 @@ jobs:
         with:
           name: ramo-web-configured-${{ github.sha }}
           path: artifacts/configured-web/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
