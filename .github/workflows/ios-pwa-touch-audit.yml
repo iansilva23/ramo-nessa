@@ -1,0 +1,50 @@
+name: iPhone PWA painted-coordinate audit
+on:
+  push:
+    branches: [ops/ios-pwa-touch-audit-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  coordinate-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [passenger, driver]
+        mode: [safari, standalone]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download already-reviewed bundle from exact successful run
+        uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-${{ matrix.role }}-review
+          run-id: 38842796543
+          github-token: ${{ github.token }}
+          path: apps/${{ matrix.role }}/build/web
+      - name: Prepare isolated fixture and browser
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+          python3 -m pip install --quiet Pillow==11.3.0
+      - name: Compare painted GPS button and physical touch coordinates (not physical iOS)
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+          RAMO_WEB_TEST_ROLE: ${{ matrix.role }}
+          RAMO_TOUCH_MODE: ${{ matrix.mode }}
+        run: node --test scripts/web/pwa_touch_browser_test.mjs
+      - name: Store safe geometry and screenshots from synthetic session
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: touch-audit-${{ matrix.role }}-${{ matrix.mode }}
+          path: artifacts/touch-audit/
+          if-no-files-found: ignore
+          retention-days: 7
