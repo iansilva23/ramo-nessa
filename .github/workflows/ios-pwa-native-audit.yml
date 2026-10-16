@@ -81,6 +81,9 @@ jobs:
       - name: Preserve only disposable audit evidence and clean up
         if: always()
         run: |
+          if [ -d artifacts/native-ios/NativeAudit.xcresult ]; then
+            xcrun xcresulttool export attachments --path artifacts/native-ios/NativeAudit.xcresult --output-path artifacts/native-ios/attachments || true
+          fi
           if [ -n "${RAMO_AUDIT_DEVICE:-}" ]; then
             xcrun simctl io "$RAMO_AUDIT_DEVICE" screenshot artifacts/native-ios/final-screen.png || true
             xcrun simctl listapps "$RAMO_AUDIT_DEVICE" > artifacts/native-ios/apps-after.plist || true

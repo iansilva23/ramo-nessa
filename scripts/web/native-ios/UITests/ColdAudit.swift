@@ -17,7 +17,8 @@ final class ColdAudit: XCTestCase {
     let a = XCTAttachment(string: app.debugDescription); a.name = name; a.lifetime = .keepAlways; add(a)
   }
   func paintedAvatar() throws -> CGPoint {
-    let image = XCUIScreen.main.screenshot().image.cgImage!
+    let screenshot = XCUIScreen.main.screenshot().image
+    let image = screenshot.cgImage!
     let width = image.width, height = image.height
     var pixels = [UInt8](repeating: 0, count: width * height * 4)
     let result = pixels.withUnsafeMutableBytes { raw -> CGPoint? in
@@ -26,7 +27,7 @@ final class ColdAudit: XCTestCase {
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
       context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
       let bytes = raw.bindMemory(to: UInt8.self)
-      let scale = CGFloat(width) / UIScreen.main.bounds.width
+      let scale = CGFloat(width) / screenshot.size.width
       var start: Int? = nil
       for y in Int(50 * scale)..<min(height, Int(260 * scale)) {
         var count = 0
@@ -37,7 +38,7 @@ final class ColdAudit: XCTestCase {
         if count >= Int(12 * scale) {
           if start == nil { start = y }
         } else if let begin = start {
-          if y - begin >= Int(28 * scale) {
+          if y - begin >= Int(28 * scale) && y - begin <= Int(60 * scale) {
             return CGPoint(x: 44, y: CGFloat(begin + y - 1) / 2 / scale)
           }
           start = nil
@@ -52,9 +53,20 @@ final class ColdAudit: XCTestCase {
     note(phase + "-before"); capture(phase + "-before-first-touch")
     let point = try paintedAvatar()
     let a = XCTAttachment(string: "Paint-derived target in screen points: \(point)"); a.lifetime = .keepAlways; add(a)
-    app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+    app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY)).tap()
     Thread.sleep(forTimeInterval: 1)
     note(phase + "-after"); capture(phase + "-after-first-touch")
+  }
+  func tapNativeCenter(_ element: XCUIElement, in app: XCUIApplication, name: String) throws {
+    let frame = element.frame
+    let a = XCTAttachment(string: "Native element \(name): \(frame), app frame \(app.frame), hittable \(element.isHittable)")
+    a.name = name + "-frame"; a.lifetime = .keepAlways; add(a)
+    guard frame.width > 0 && frame.height > 0 && frame.midX >= 0 && frame.midY >= 0 else {
+      dump(app, name + "-invalid-frame"); capture(name + "-invalid-frame")
+      throw NSError(domain: "Audit", code: 2, userInfo: [NSLocalizedDescriptionKey: "No valid native element frame; no guessed tap"])
+    }
+    app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX-app.frame.minX, dy: frame.midY-app.frame.minY)).tap()
+    Thread.sleep(forTimeInterval: 1)
   }
   func testActualHomeScreenLaunch() throws {
     let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
@@ -64,17 +76,19 @@ final class ColdAudit: XCTestCase {
       if b.exists && b.isHittable { b.tap(); Thread.sleep(forTimeInterval: 1) }
     }
     capture("safari-cold")
-    try tapPaintedAvatar(safari, "safari")
+    // Continue at the failed native installation step; do not repeat the Safari touch trial.
+    dump(safari, "safari-before-native-menu")
     let share = safari.buttons["Share"].firstMatch
     if !share.exists || !share.isHittable {
       let more = safari.buttons["More"].firstMatch
-      if more.waitForExistence(timeout: 3) { more.tap() }
+      if more.waitForExistence(timeout: 3) { try tapNativeCenter(more, in: safari, name: "more") }
       else {
         let menu = safari.buttons["Page Menu"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 3), "Native Safari menu not found")
-        menu.tap()
+        try tapNativeCenter(menu, in: safari, name: "page-menu")
       }
     }
+    capture("after-native-menu"); dump(safari, "after-native-menu-tree")
     XCTAssertTrue(share.waitForExistence(timeout: 5), "Share action not found")
     share.tap(); Thread.sleep(forTimeInterval: 1)
     var addHome = safari.buttons["Add to Home Screen"].firstMatch
