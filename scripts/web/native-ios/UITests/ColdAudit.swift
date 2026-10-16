@@ -68,6 +68,15 @@ final class ColdAudit: XCTestCase {
     app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX-app.frame.minX, dy: frame.midY-app.frame.minY)).tap()
     Thread.sleep(forTimeInterval: 1)
   }
+  func dismissSafariTip(_ safari: XCUIApplication) throws {
+    let tip = safari.staticTexts["View Bookmarks, Share Menu, and Open Tabs"].firstMatch
+    if tip.exists {
+      let close = safari.buttons["xmark.circle.fill"].firstMatch
+      XCTAssertTrue(close.exists, "Observed Safari first-use tip has no close control")
+      capture("safari-tip-before-dismiss")
+      try tapNativeCenter(close, in: safari, name: "safari-tip-close")
+    }
+  }
   func testActualHomeScreenLaunch() throws {
     let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
     safari.activate(); Thread.sleep(forTimeInterval: 8)
@@ -78,7 +87,8 @@ final class ColdAudit: XCTestCase {
     capture("safari-cold")
     // Continue at the failed native installation step; do not repeat the Safari touch trial.
     dump(safari, "safari-before-native-menu")
-    let share = safari.buttons["Share"].firstMatch
+    try dismissSafariTip(safari)
+    let share = safari.buttons.matching(NSPredicate(format: "label == %@ OR label == %@ OR label == %@", "Share", "Share…", "Share...")).firstMatch
     if !share.exists || !share.isHittable {
       let more = safari.buttons["More"].firstMatch
       if more.waitForExistence(timeout: 3) { try tapNativeCenter(more, in: safari, name: "more") }
@@ -87,6 +97,10 @@ final class ColdAudit: XCTestCase {
         XCTAssertTrue(menu.waitForExistence(timeout: 3), "Native Safari menu not found")
         try tapNativeCenter(menu, in: safari, name: "page-menu")
       }
+    }
+    if safari.staticTexts["View Bookmarks, Share Menu, and Open Tabs"].firstMatch.exists {
+      try dismissSafariTip(safari)
+      try tapNativeCenter(safari.buttons["More"].firstMatch, in: safari, name: "more-after-tip")
     }
     capture("after-native-menu"); dump(safari, "after-native-menu-tree")
     XCTAssertTrue(share.waitForExistence(timeout: 5), "Share action not found")
