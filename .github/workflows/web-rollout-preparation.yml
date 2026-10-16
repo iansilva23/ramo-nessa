@@ -1,0 +1,62 @@
+name: Web rollout preparation checks
+on:
+  push:
+    branches: [ops/web-staging-readiness-20261015]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit-and-backup-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check scripts without accessing any VPS or runtime data
+        run: |
+          node --check deploy/staging/inspect-web-readiness.mjs
+          node --check deploy/staging/prepare-web-backup.mjs
+          node --check deploy/staging/prepare-web-images.mjs
+          node --test deploy/staging/web-readiness-contract.test.mjs deploy/staging/web-backup-contract.test.mjs
+          node --test deploy/staging/web-image-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p 'stage_configured_web_test.py'
+          python3 -m unittest discover -s deploy/staging -p 'web_isolated_test.py'
+          python3 -m py_compile deploy/staging/test-web-isolated.py
+          node --check deploy/staging/probe-web-push-schema.mjs
+          node --check deploy/staging/activate-web-staging.mjs
+          node --test deploy/staging/web-activation-contract.test.mjs
+  isolated-schema-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build candidate and previous Core without production configuration
+        run: |
+          docker build -t ramo-isolated-new backend/core
+          mkdir /tmp/ramo-old-core
+          git fetch --depth=1 origin 7f6086763d78f64c65d4939151d728e46f51b6fb
+          git archive FETCH_HEAD backend/core | tar -x -C /tmp/ramo-old-core
+          docker build -t ramo-isolated-old /tmp/ramo-old-core/backend/core
+      - name: Verify migration and actual old/new repositories offline
+        run: |
+          set -euo pipefail
+          trap 'docker rm -fv ramo-isolated-ci >/dev/null 2>&1 || true' EXIT
+          docker run -d --name ramo-isolated-ci --network none -e POSTGRES_USER=ramo_isolated -e POSTGRES_DB=ramo_isolated -e POSTGRES_PASSWORD=ci-only-password postgres:16
+          for attempt in $(seq 1 60); do
+            if docker exec ramo-isolated-ci sh -c 'test "$(cat /proc/1/comm)" = postgres && pg_isready -U ramo_isolated -d ramo_isolated'; then break; fi
+            sleep 1
+          done
+          run_core() {
+            docker run --rm --network container:ramo-isolated-ci --read-only --cap-drop ALL --security-opt no-new-privileges -e DATABASE_URL=postgresql://ramo_isolated:ci-only-password@127.0.0.1:5432/ramo_isolated -e NODE_ENV=test --mount type=bind,src="$PWD/deploy/staging/probe-web-push-schema.mjs",dst=/probe.mjs,readonly --entrypoint node "$@"
+          }
+          run_core ramo-isolated-old dist/scripts/migrate.js
+          run_core ramo-isolated-new dist/scripts/migrate.js | tee /tmp/migration-first.log
+          test "$(grep '^applied ' /tmp/migration-first.log)" = 'applied 085_web_push_preferences.sql'
+          run_core ramo-isolated-new dist/scripts/migrate.js | tee /tmp/migration-second.log
+          if grep -q '^applied ' /tmp/migration-second.log; then exit 1; fi
+          run_core ramo-isolated-old /probe.mjs
+          run_core ramo-isolated-new /probe.mjs --modern
+          run_core ramo-isolated-old /probe.mjs
+          run_core ramo-isolated-old dist/scripts/migrate.js

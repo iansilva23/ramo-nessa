@@ -354,5 +354,6 @@ jobs:
         with:
           name: ramo-web-configured-${{ github.sha }}
           path: artifacts/configured-web/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
