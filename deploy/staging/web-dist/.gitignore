@@ -1,0 +1,5 @@
+# Bundles PWA de homologação são gerados, nunca versionados.
+*
+!*/
+!.gitignore
+!.gitkeep

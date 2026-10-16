@@ -1,0 +1,207 @@
+<section id="view-coupons" class="view-panel" hidden>
+  <div class="page-heading page-heading--split">
+    <div>
+      <span class="eyebrow eyebrow--dark">CAMPANHAS</span>
+      <h1>Cupons</h1>
+      <p>Crie campanhas e controle validade, categorias e limites de uso.</p>
+    </div>
+    <button
+      id="coupons-refresh"
+      class="button button--ghost-dark"
+      type="button"
+    >
+      Atualizar
+    </button>
+  </div>
+  <div
+    id="coupons-message"
+    class="global-message"
+    aria-live="polite"
+    hidden
+  ></div>
+  <article class="panel-card">
+    <h2>Nova campanha</h2>
+    <p>
+      Campanhas são criadas desativadas. Revise antes de ativar. Para corrigir
+      valores, desative a campanha e crie outro código; corridas já pagas
+      preservam os valores contratados.
+    </p>
+    <form id="coupon-form">
+      <div class="form-grid">
+        <label class="field"
+          ><span>Código</span
+          ><input
+            id="coupon-code"
+            type="text"
+            value=""
+            required
+            maxlength="32"
+            pattern="[A-Za-z0-9_-]{3,32}"
+        /></label>
+        <label class="field"
+          ><span>Nome da campanha</span
+          ><input
+            id="coupon-name"
+            type="text"
+            value=""
+            required
+            minlength="3"
+            maxlength="80"
+        /></label>
+        <label class="field"
+          ><span>Máximo de usos</span
+          ><input
+            id="coupon-maxRedemptions"
+            type="number"
+            value="100"
+            required
+            min="1"
+            max="1000000"
+        /></label>
+        <label class="field"
+          ><span>Usos por passageiro</span
+          ><input
+            id="coupon-perPassengerLimit"
+            type="number"
+            value="1"
+            required
+            min="1"
+            max="1000"
+        /></label>
+        <label class="field"
+          ><span>Usos por aparelho</span
+          ><input
+            id="coupon-perDeviceLimit"
+            type="number"
+            value="1"
+            required
+            min="1"
+            max="1000"
+        /></label>
+        <label class="field"
+          ><span>Início (horário local)</span
+          ><input id="coupon-startsAt" type="datetime-local" value=""
+        /></label>
+        <label class="field"
+          ><span>Fim (horário local)</span
+          ><input id="coupon-endsAt" type="datetime-local" value=""
+        /></label>
+        <label class="field"
+          ><span>Tipo de cupom</span
+          ><select id="coupon-kind">
+            <option value="wallet_credit">Crédito na carteira</option>
+            <option value="fixed_discount">Desconto em reais</option>
+            <option value="percent_discount">Desconto percentual</option>
+            <option value="free_ride">Corrida grátis</option>
+            <option value="fixed_driver_fare">Tarifa promocional fixa</option>
+          </select></label
+        >
+        <label id="coupon-value-field" class="field"
+          ><span>Valor (R$)</span
+          ><input
+            id="coupon-value"
+            type="text"
+            inputmode="decimal"
+            placeholder="7,00"
+        /></label>
+        <div id="coupon-percent-fields" hidden>
+          <label class="field"
+            ><span>Desconto (%)</span
+            ><input
+              id="coupon-percent"
+              type="text"
+              inputmode="decimal"
+              placeholder="20" /></label
+          ><label class="field"
+            ><span>Teto do desconto (R$, opcional)</span
+            ><input id="coupon-cap" type="text" inputmode="decimal"
+          /></label>
+        </div>
+      </div>
+      <fieldset>
+        <legend>
+          Categorias permitidas (nenhuma seleção = todas, exceto tarifa fixa)
+        </legend>
+        <label><input id="coupon-category-moto" type="checkbox" /> Moto</label>
+        <label><input id="coupon-category-car" type="checkbox" /> Carro</label>
+        <label
+          ><input id="coupon-category-delivery" type="checkbox" />
+          Entrega</label
+        >
+        <label
+          ><input id="coupon-category-comfort_black" type="checkbox" /> Comfort
+          / 4x4</label
+        >
+        <label
+          ><input id="coupon-category-buggy" type="checkbox" /> Buggy</label
+        >
+      </fieldset>
+      <fieldset id="coupon-fares" hidden>
+        <legend>Valor promocional por categoria (R$)</legend>
+        <p>
+          Passageiro paga este valor e motorista recebe exatamente este valor.
+          Comissão zero e sem subsídio da diferença.
+        </p>
+        <div class="form-grid">
+          <label class="field"
+            ><span>Moto</span
+            ><input
+              id="coupon-fare-moto"
+              type="text"
+              inputmode="decimal"
+              placeholder="50,00"
+              disabled
+          /></label>
+          <label class="field"
+            ><span>Carro</span
+            ><input
+              id="coupon-fare-car"
+              type="text"
+              inputmode="decimal"
+              placeholder="50,00"
+              disabled
+          /></label>
+          <label class="field"
+            ><span>Entrega</span
+            ><input
+              id="coupon-fare-delivery"
+              type="text"
+              inputmode="decimal"
+              placeholder="50,00"
+              disabled
+          /></label>
+          <label class="field"
+            ><span>Comfort / 4x4</span
+            ><input
+              id="coupon-fare-comfort_black"
+              type="text"
+              inputmode="decimal"
+              placeholder="50,00"
+              disabled
+          /></label>
+          <label class="field"
+            ><span>Buggy</span
+            ><input
+              id="coupon-fare-buggy"
+              type="text"
+              inputmode="decimal"
+              placeholder="50,00"
+              disabled
+          /></label>
+        </div>
+      </fieldset>
+      <p>
+        Desconto em reais, percentual e corrida grátis mantêm a remuneração
+        normal do motorista; o benefício é financiado pela empresa. Crédito na
+        carteira adiciona saldo sem remover o cupom de corrida salvo.
+      </p>
+      <button class="button button--primary" type="submit">
+        Criar campanha desativada
+      </button>
+    </form>
+  </article>
+  <article class="panel-card">
+    <h2>Campanhas cadastradas</h2>
+    <div id="coupon-list"><p>Carregando campanhas…</p></div>
+  </article>
+</section>

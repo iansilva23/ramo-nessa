@@ -1,0 +1,425 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+import { createAdminApi } from '../src/api.js';
+import {
+  registryStatusPresentation,
+  validateDriverRegistryStatus,
+} from '../src/security.js';
+
+function jsonResponse(status, payload) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get(name) {
+        return name.toLowerCase() === 'content-type'
+          ? 'application/json; charset=utf-8'
+          : null;
+      },
+    },
+    async json() {
+      return payload;
+    },
+  };
+}
+
+test('status cadastral aceita apenas pending, approved e suspended', () => {
+  assert.equal(validateDriverRegistryStatus('pending'), 'pending');
+  assert.equal(validateDriverRegistryStatus('approved'), 'approved');
+  assert.equal(validateDriverRegistryStatus('suspended'), 'suspended');
+  assert.throws(() => validateDriverRegistryStatus('active'));
+  assert.equal(registryStatusPresentation('approved').tone, 'success');
+  assert.equal(registryStatusPresentation('pending').tone, 'warning');
+  assert.equal(registryStatusPresentation('suspended').tone, 'danger');
+});
+
+test('cliente Admin consulta, salva e aprova cadastro sem vazar Bearer na URL', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      profile: {
+        driverId: 'driver-registry-web',
+        fullName: 'Motorista Web',
+        status: 'approved',
+      },
+      vehicle: {
+        driverId: 'driver-registry-web',
+        plateNormalized: 'ABC1D23',
+        make: 'Toyota',
+        model: 'Hilux',
+        modelYear: 2024,
+        color: 'Branca',
+        categories: ['car'],
+        fourByFour: true,
+        seatCapacity: 4,
+        status: 'approved',
+      },
+      registryApproved: true,
+    });
+  };
+
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_registry_web_secret';
+  const driverId = 'driver-registry-web';
+
+  await api.getDriverRegistry(token, driverId);
+  await api.upsertDriverRegistry(token, {
+    driverId,
+    fullName: 'Motorista Web',
+    preferredName: 'Motorista',
+    vehicle: {
+      plate: 'ABC1D23',
+      make: 'Toyota',
+      model: 'Hilux',
+      modelYear: 2024,
+      color: 'Branca',
+      categories: ['car'],
+      fourByFour: true,
+      seatCapacity: 4,
+    },
+  });
+  await api.setDriverRegistryStatus(token, {
+    driverId,
+    profileStatus: 'approved',
+    vehicleStatus: 'approved',
+  });
+
+  assert.equal(calls.length, 3);
+  assert.deepEqual(
+    calls.map((call) => [call.url, call.options.method]),
+    [
+      ['/v1/admin/drivers/driver-registry-web/registry', 'GET'],
+      ['/v1/admin/drivers/driver-registry-web/registry', 'PUT'],
+      [
+        '/v1/admin/drivers/driver-registry-web/registry/status',
+        'PATCH',
+      ],
+    ],
+  );
+
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+    assert.equal(call.options.credentials, 'omit');
+    assert.equal(call.options.cache, 'no-store');
+  }
+
+  assert.deepEqual(JSON.parse(calls[1].options.body), {
+    fullName: 'Motorista Web',
+    preferredName: 'Motorista',
+    vehicle: {
+      plate: 'ABC1D23',
+      make: 'Toyota',
+      model: 'Hilux',
+      modelYear: 2024,
+      color: 'Branca',
+      categories: ['car'],
+      fourByFour: true,
+      seatCapacity: 4,
+    },
+  });
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    profileStatus: 'approved',
+    vehicleStatus: 'approved',
+  });
+});
+
+test('cliente Admin consulta e altera limite cash individual sem vazar Bearer', async () => {
+  const calls = [];
+  const fakeFetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      cashEnabled: true,
+      defaultDebtLimitCents: 12000,
+      overrideDebtLimitCents: 20000,
+      effectiveDebtLimitCents: 20000,
+      currentDebtCents: 3000,
+      remainingDebtCapacityCents: 17000,
+      canAcceptCashRide: true,
+      updatedAt: '2026-09-24T03:30:00.000Z',
+    });
+  };
+
+  const api = createAdminApi(fakeFetch);
+  const token = 'rn_admin_session_driver_cash_secret';
+  const driverId = 'driver-registry-web';
+
+  await api.getDriverCashPolicy(token, driverId);
+  await api.setDriverCashPolicy(token, {
+    driverId,
+    debtLimitCents: 20000,
+  });
+  await api.setDriverCashPolicy(token, {
+    driverId,
+    debtLimitCents: null,
+  });
+
+  assert.equal(calls.length, 3);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/drivers/driver-registry-web/cash-policy',
+  );
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.equal(
+    calls[1].options.body,
+    JSON.stringify({ debtLimitCents: 20000 }),
+  );
+  assert.equal(
+    calls[2].options.body,
+    JSON.stringify({ debtLimitCents: null }),
+  );
+
+  for (const call of calls) {
+    assert.equal(call.url.includes(token), false);
+    assert.equal(
+      call.options.headers.authorization,
+      `Bearer ${token}`,
+    );
+    assert.equal(call.options.credentials, 'omit');
+    assert.equal(call.options.cache, 'no-store');
+  }
+});
+
+test('cliente Admin consulta extrato e Pix mascarado do motorista', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, {
+      generatedAt: '2026-09-27T08:00:00.000Z',
+      finance: {
+        availableBalanceCents: 13500,
+        payoutPendingCents: 0,
+        cashCommissionDebtCents: 0,
+      },
+      payoutDestination: {
+        configured: true,
+        pixKeyType: 'cpf',
+        pixKeyMasked: '••••1234',
+      },
+      items: [],
+    });
+  });
+
+  const token = 'rn_admin_session_driver_finance_secret';
+  const payload = await api.getDriverFinance(
+    token,
+    'driver-registry-web',
+  );
+
+  assert.equal(payload.finance.availableBalanceCents, 13500);
+  assert.equal(payload.payoutDestination.pixKeyMasked, '••••1234');
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    '/v1/admin/drivers/driver-registry-web/finance',
+  );
+  assert.equal(calls[0].url.includes(token), false);
+  assert.equal(
+    calls[0].options.headers.authorization,
+    `Bearer ${token}`,
+  );
+});
+
+test('HTML do Admin expõe cadastro e aprovação de perfil e veículo', () => {
+  const html = [
+    readFileSync(
+      new URL('../index.html', import.meta.url),
+      'utf8',
+    ),
+    readFileSync(
+      new URL('../pages/drivers.html', import.meta.url),
+      'utf8',
+    ),
+  ].join('\n');
+
+  for (const id of [
+    'driver-registry-result',
+    'driver-registry-overall',
+    'driver-registry-form',
+    'registry-full-name',
+    'registry-plate',
+    'registry-model-year',
+    'registry-seat-capacity',
+    'registry-four-by-four',
+    'registry-profile-status',
+    'registry-vehicle-status',
+    'registry-status-button',
+    'driver-cash-policy-status',
+    'driver-cash-policy-summary',
+    'driver-cash-policy-form',
+    'driver-cash-limit-reais',
+    'driver-cash-limit-save',
+    'driver-cash-limit-reset',
+    'driver-cash-policy-note',
+    'driver-finance-status',
+    'driver-finance-summary',
+    'driver-finance-statement',
+    'driver-finance-statement-body',
+    'driver-finance-statement-empty',
+  ]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`));
+  }
+
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+  const css = readFileSync(
+    new URL('../styles.css', import.meta.url),
+    'utf8',
+  );
+  assert.match(app, /loadDriverCashPolicy/);
+  assert.match(app, /hasScope\('finance:write'\)/);
+  assert.match(app, /currentDriverCashPolicy\.cashEnabled/);
+  assert.match(app, /api\.setDriverCashPolicy/);
+  assert.match(app, /api\.getDriverFinance/);
+  assert.match(app, /payoutDestination/);
+  assert.match(html, /Taxa de manutenção/);
+  assert.match(app, /driver-registry-photo/);
+  assert.match(app, /renderDriverFinanceUnavailable\('Carregando financeiro…'\)/);
+  assert.match(css, /\.driver-cash-policy-summary/);
+  assert.match(css, /\.driver-cash-policy-form/);
+  assert.match(css, /\.driver-finance-summary/);
+  assert.match(css, /\.driver-registry-photo/);
+
+  const cashInput = html.match(
+    /<input[^>]*id=["']driver-cash-limit-reais["'][^>]*>/,
+  )?.[0];
+  assert.ok(cashInput);
+  assert.match(cashInput, /step=["']0\.01["']/);
+  assert.equal(/min=["']120["']/.test(cashInput), false);
+  assert.equal(/placeholder=["']120["']/.test(cashInput), false);
+  assert.match(
+    app,
+    /policy\.defaultDebtLimitCents \/ 100\)\.toFixed\(2\)/,
+  );
+  assert.match(app, /Math\.abs\(reais \* 100 - cents\)/);
+  assert.match(app, /debtLimitCents: cents/);
+
+  for (const category of [
+    'moto',
+    'delivery',
+    'car',
+    'comfort_black',
+    'buggy',
+  ]) {
+    assert.match(
+      html,
+      new RegExp(
+        `name=["']registry-category["'][^>]+value=["']${category}["']`,
+      ),
+    );
+  }
+});
+
+test('ações sensíveis de acesso e cadastro do motorista exigem confirmação', () => {
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  const html = readFileSync(
+    new URL('../pages/drivers.html', import.meta.url),
+    'utf8',
+  );
+
+  const provisionCard = html.match(
+    /<article[^>]*id=["']driver-provision-card["'][^>]*>/,
+  )?.[0];
+  assert.ok(provisionCard, 'card de provisionamento deve existir');
+  assert.match(
+    provisionCard,
+    /\bhidden\b/,
+    'provisionamento deve nascer oculto até validar drivers:auth:write',
+  );
+  assert.match(
+    app,
+    /card\.hidden = !hasScope\('drivers:auth:write'\)/,
+  );
+  assert.match(
+    app,
+    /if \(!state\.token \|\| !hasScope\('drivers:auth:write'\)\) return;/,
+  );
+
+  assert.match(
+    app,
+    /Confirmar alteração de acesso do motorista/,
+  );
+  assert.match(
+    app,
+    /Confirmar alteração cadastral do motorista/,
+  );
+  assert.match(app, /window\.confirm/);
+});
+
+
+test('acesso OTP do motorista só é liberado depois do cadastro aprovado', () => {
+  const html = readFileSync(
+    new URL('../pages/drivers.html', import.meta.url),
+    'utf8',
+  );
+  const app = readFileSync(
+    new URL('../src/app.js', import.meta.url),
+    'utf8',
+  );
+
+  assert.equal(
+    /id=["']provision-status["']/.test(html),
+    false,
+    'provisionamento não pode oferecer criação já ativa',
+  );
+  const provisionAnchorIndex = Math.max(
+    html.indexOf('id="driver-provision-form"'),
+    html.indexOf("id='driver-provision-form'"),
+  );
+  assert.notEqual(
+    provisionAnchorIndex,
+    -1,
+    'formulário de provisionamento do motorista deve existir',
+  );
+  const provisionFormStart = html.lastIndexOf(
+    '<form',
+    provisionAnchorIndex,
+  );
+  const provisionFormEnd = html.indexOf(
+    '</form>',
+    provisionAnchorIndex,
+  );
+  assert.ok(
+    provisionFormStart >= 0 && provisionFormEnd > provisionFormStart,
+    'formulário de provisionamento precisa estar íntegro',
+  );
+  const provisionForm = html.slice(
+    provisionFormStart,
+    provisionFormEnd + '</form>'.length,
+  );
+  assert.equal(
+    /value=["']active["']/.test(provisionForm),
+    false,
+    'motorista novo não pode nascer com OTP liberado',
+  );
+  assert.match(html, /Criar acesso suspenso/);
+  assert.match(
+    html,
+    /perfil e\s+o veículo; depois libere o login OTP/i,
+  );
+
+  assert.match(app, /const status = 'suspended'/);
+  assert.match(app, /id = 'driver-auth-status-action'/);
+  assert.match(app, /Liberar acesso OTP/);
+  assert.match(
+    app,
+    /state\.currentDriverRegistry\?\.registryApproved === true/,
+  );
+  assert.match(app, /button\.disabled = !registryApproved/);
+  assert.match(
+    app,
+    /state\.currentDriverRegistry = null;\s*renderDriver\(driver\)/,
+  );
+});
