@@ -96,7 +96,7 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
               ? '1. Abra este endereço no Safari.\n\n2. Toque em Compartilhar.\n\n3. Escolha “Adicionar à Tela de Início” e confirme em “Adicionar”.'
               : 'Abra o menu do navegador e procure “Instalar app” ou “Adicionar à Tela de Início”. Se a opção não aparecer, continue usando pelo navegador.'),
             const SizedBox(height: 16),
-            const Text('Quando o app pedir sua localização, aceite para usar os recursos do mapa. Os avisos podem ser ativados em Perfil → Notificações.'),
+            const Text('Quando o app pedir sua localização, aceite para usar os recursos do mapa. Os avisos podem ser ativados na opção Notificações do Perfil.'),
             if (ios) const Padding(padding: EdgeInsets.only(top: 12),
               child: Text('No iPhone, abra pelo ícone da Tela de Início para ativar notificações.')),
             const SizedBox(height: 16),
