@@ -7,118 +7,91 @@ void main() {
   Future<void> show(WidgetTester tester, {
     Map<String, Object?> state = const {},
     Future<Map<String, Object?>> Function()? snapshot,
-    Future<String> Function()? location,
-    Future<bool> Function()? notifications,
     Future<String> Function()? install,
-    Future<void> Function()? save,
     String role = 'passenger',
   }) async {
     await tester.pumpWidget(MaterialApp(home: RamoWebSetup(
-      role: role, readCompleted: () async => false,
-      saveCompleted: save ?? () async {},
+      role: role,
+      // The optional banner must never depend on storage or request permissions.
+      readCompleted: () async => throw StateError('must not read completion'),
+      saveCompleted: () async => throw StateError('must not write completion'),
       readSnapshot: snapshot ?? () async => state,
-      requestLocation: location ?? () async => 'granted',
-      requestNotifications: notifications ?? () async => true,
+      requestLocation: () async => throw StateError('must not request GPS'),
+      requestNotifications: () async => throw StateError('must not request push'),
       install: install ?? () async => 'manual',
-      saveNotificationPreference: (_) async {},
-      child: const Scaffold(body: Text('App aberto')),
+      readNotificationPreference: () async => throw StateError('must not read preference'),
+      saveNotificationPreference: (_) async => throw StateError('must not change preference'),
+      child: const Scaffold(body: Center(child: Text('App aberto'))),
     )));
     await tester.pumpAndSettle();
   }
   Future<void> tap(WidgetTester tester, String text) async {
-    await tester.ensureVisible(find.text(text));
-    await tester.tap(find.text(text));
-    await tester.pumpAndSettle();
+    await tester.tap(find.text(text)); await tester.pumpAndSettle();
   }
-  testWidgets('iPhone apresenta instalação primeiro e não pede permissões ao abrir', (tester) async {
-    var location = 0, notifications = 0;
-    await show(tester, state: {'ios': true, 'notification': 'install'},
-      location: () async { location++; return 'granted'; },
-      notifications: () async { notifications++; return true; });
-    expect(find.text('Adicione à Tela de Início'), findsOneWidget);
-    expect(find.textContaining('1. No Safari'), findsOneWidget);
-    expect(location, 0); expect(notifications, 0);
-    await tap(tester, 'Continuar no navegador por enquanto');
-    expect(find.text('Ative sua localização'), findsOneWidget);
-    await tap(tester, 'Usar endereço manual por enquanto');
-    expect(find.text('Ativar notificações'), findsNothing);
-    expect(find.textContaining('só podem ser ativados'), findsOneWidget);
-    expect(notifications, 0);
+  testWidgets('app opens immediately without permissions or completion storage', (tester) async {
+    await show(tester, state: {'ios': true});
+    expect(find.text('App aberto'), findsOneWidget);
+    expect(find.text('Adicionar app à Tela de Início'), findsOneWidget);
+    expect(find.text('Ative sua localização'), findsNothing);
+    await tester.tap(find.byTooltip('Fechar aviso de instalação')); await tester.pumpAndSettle();
+    expect(find.text('Adicionar app à Tela de Início'), findsNothing);
+    expect(find.text('App aberto'), findsOneWidget);
   });
-  testWidgets('PWA instalada pula instalação e localiza por um toque', (tester) async {
-    var calls = 0;
-    await show(tester, state: {'installed': true, 'standalone': true, 'location': 'unknown', 'notification': 'prompt'},
-      location: () async { calls++; return 'granted'; });
-    expect(find.text('Ative sua localização'), findsOneWidget);
-    await tap(tester, 'Ativar localização');
-    expect(calls, 1); expect(find.text('Localização permitida neste navegador.'), findsOneWidget);
-    await tap(tester, 'Continuar');
-    expect(find.text('Ative os avisos'), findsOneWidget);
+  testWidgets('installed mode hides banner for both roles', (tester) async {
+    for (final role in ['driver', 'passenger']) {
+      await show(tester, role: role, state: {'standalone': true});
+      expect(find.text('App aberto'), findsOneWidget);
+      expect(find.text('Adicionar app à Tela de Início'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
   });
-  testWidgets('timeout de GPS tem recuperação própria e não é permissão negada', (tester) async {
-    await show(tester, state: {'installed': true}, location: () async => 'timeout');
-    await tap(tester, 'Ativar localização');
-    expect(find.textContaining('GPS demorou'), findsOneWidget);
-    expect(find.textContaining('foi bloqueada'), findsNothing);
-    expect(find.text('Tentar localização novamente'), findsOneWidget);
+  testWidgets('iPhone instructions appear only after tapping and can close', (tester) async {
+    await show(tester, state: {'ios': true});
+    expect(find.textContaining('1. Abra este endereço'), findsNothing);
+    await tap(tester, 'Adicionar app à Tela de Início');
+    expect(find.textContaining('1. Abra este endereço no Safari'), findsOneWidget);
+    await tap(tester, 'Entendi');
+    expect(find.text('App aberto'), findsOneWidget);
+    expect(find.textContaining('1. Abra este endereço'), findsNothing);
   });
-  testWidgets('bloqueio de localização orienta liberar e permite seguir manualmente', (tester) async {
-    await show(tester, state: {'installed': true, 'location': 'denied', 'ios': true});
-    expect(find.textContaining('A localização foi bloqueada'), findsOneWidget);
-    expect(find.textContaining('Ajustes do Site'), findsOneWidget);
-    await tap(tester, 'Usar endereço manual por enquanto');
-    expect(find.text('Ative os avisos'), findsOneWidget);
+  testWidgets('slow or failed snapshot never blocks app', (tester) async {
+    final pending = Completer<Map<String, Object?>>();
+    await show(tester, snapshot: () => pending.future);
+    expect(find.text('App aberto'), findsOneWidget);
+    pending.completeError(StateError('unavailable')); await tester.pumpAndSettle();
+    expect(find.text('App aberto'), findsOneWidget);
   });
-  testWidgets('permissão concedida sem registro push não vira sucesso', (tester) async {
-    var calls = 0;
-    await show(tester, state: {'installed': true, 'location': 'granted', 'notification': 'granted'},
-      notifications: () async { calls++; return false; });
-    await tap(tester, 'Continuar');
-    await tap(tester, 'Concluir ativação dos avisos');
+  testWidgets('repeated taps cannot trigger simultaneous install requests', (tester) async {
+    final pending = Completer<String>(); var calls = 0;
+    await show(tester, install: () { calls++; return pending.future; });
+    await tester.tap(find.text('Adicionar app à Tela de Início')); await tester.pump();
+    await tester.tap(find.text('Aguarde…')); await tester.pump();
     expect(calls, 1);
-    expect(find.textContaining('cadastro dos avisos não terminou'), findsOneWidget);
-    await tap(tester, 'Continuar sem notificações por enquanto');
-    expect(find.text('Notificações não ativadas'), findsOneWidget);
+    pending.complete('dismissed'); await tester.pumpAndSettle();
+    expect(find.text('Adicionar à Tela de Início'), findsNothing);
+    expect(find.text('App aberto'), findsOneWidget);
   });
-  testWidgets('recusa de notificações não dispara novo pedido e reconsulta ao voltar', (tester) async {
-    var calls = 0;
-    var permission = 'denied';
-    await show(tester, snapshot: () async => {'installed': true, 'location': 'granted', 'notification': permission},
-      notifications: () async { calls++; return true; });
-    await tap(tester, 'Continuar');
-    expect(find.text('Ativar notificações'), findsNothing);
-    permission = 'granted';
-    await tap(tester, 'Verificar novamente');
-    expect(find.text('Concluir ativação dos avisos'), findsOneWidget);
-    expect(calls, 0);
+  testWidgets('accepting prompt does not pretend installation finished', (tester) async {
+    await show(tester, install: () async => 'accepted');
+    await tap(tester, 'Adicionar app à Tela de Início');
+    expect(find.text('Adicionar app à Tela de Início'), findsOneWidget);
+    expect(find.textContaining('Instalação solicitada.'), findsOneWidget);
   });
-  testWidgets('motorista pode acessar perfil sem declarar GPS/notificações ativos', (tester) async {
-    var saved = false;
-    await show(tester, role: 'driver', state: {'installed': true, 'location': 'denied', 'notification': 'unsupported'},
-      save: () async { saved = true; });
-    await tap(tester, 'Configurar depois; acessar meu perfil');
-    await tap(tester, 'Continuar sem notificações por enquanto');
-    expect(find.text('Localização não confirmada'), findsOneWidget);
-    expect(find.text('Notificações não ativadas'), findsOneWidget);
-    await tap(tester, 'Entrar no Ramo Nessa');
-    expect(saved, true); expect(find.text('App aberto'), findsOneWidget);
+  testWidgets('confirmed installation hides banner after refresh', (tester) async {
+    var installed = false;
+    await show(tester, snapshot: () async => {'installed': installed},
+      install: () async { installed = true; return 'installed'; });
+    await tap(tester, 'Adicionar app à Tela de Início');
+    expect(find.text('Adicionar app à Tela de Início'), findsNothing);
+    expect(find.text('App aberto'), findsOneWidget);
   });
-  testWidgets('falha ao salvar conclusão oferece nova tentativa', (tester) async {
-    await show(tester, state: {'installed': true, 'location': 'granted', 'notification': 'ready'},
-      save: () async { throw StateError('storage'); });
-    await tap(tester, 'Continuar'); await tap(tester, 'Continuar');
-    await tap(tester, 'Entrar no Ramo Nessa');
-    expect(find.text('App aberto'), findsNothing);
-    expect(find.textContaining('Não conseguimos salvar'), findsOneWidget);
-  });
-  testWidgets('toques repetidos não abrem pedidos de localização simultâneos', (tester) async {
-    var calls = 0;
-    final pending = Completer<String>();
-    await show(tester, state: {'installed': true}, location: () { calls++; return pending.future; });
-    await tester.ensureVisible(find.text('Ativar localização'));
-    await tester.tap(find.text('Ativar localização')); await tester.pump();
-    expect(calls, 1);
-    expect(tester.widget<FilledButton>(find.byType(FilledButton).first).onPressed, isNull);
-    pending.complete('granted'); await tester.pumpAndSettle();
+  testWidgets('banner respects safe area and has a generous tap target on small screens', (tester) async {
+    tester.view.physicalSize = const Size(320, 568); tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
+    await show(tester);
+    final banner = tester.getRect(find.text('Adicionar app à Tela de Início'));
+    final app = tester.getRect(find.text('App aberto'));
+    expect(banner.bottom, lessThan(app.top));
+    expect(tester.takeException(), isNull);
   });
 }

@@ -2,7 +2,7 @@ name: Flutter Web and Permissions Review
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015, feature/web-setup-ux-20261016]
+    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015, feature/web-setup-ux-20261016, feature/web-install-banner-20261016]
   workflow_dispatch:
 
 concurrency:
@@ -290,7 +290,7 @@ jobs:
 
   configured-web-bundles:
     name: Configured Web bundles (no deploy or provider calls)
-    if: github.ref == 'refs/heads/feature/web-site-integration-20261015' || github.ref == 'refs/heads/feature/web-setup-ux-20261016'
+    if: github.ref == 'refs/heads/feature/web-site-integration-20261015' || github.ref == 'refs/heads/feature/web-setup-ux-20261016' || github.ref == 'refs/heads/feature/web-install-banner-20261016'
     needs: [core-realtime, push-postgres-contract, web-card-contract, flutter-web, site-admin-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
