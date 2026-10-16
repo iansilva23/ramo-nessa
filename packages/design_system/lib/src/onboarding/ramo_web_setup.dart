@@ -81,33 +81,81 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
     final embedded = _snapshot?['embedded'] == true;
     showModalBottomSheet<void>(
       context: context, isScrollControlled: true, useSafeArea: true,
-      builder: (context) => SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Adicionar à Tela de Início', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            if (embedded) const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: Text('Abra este link no navegador do celular para adicionar o app.'),
+      backgroundColor: const Color(0xFF17191D),
+      barrierColor: const Color(0xB3000000),
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (context) => Material(
+        key: const ValueKey('web-install-help-surface'),
+        color: const Color(0xFF17191D),
+        child: SafeArea(top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .85),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              child: DefaultTextStyle(
+                style: const TextStyle(color: Color(0xFFF7F7F8), fontSize: 15, height: 1.45),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Expanded(child: Text('TENHA O RAMO NESSA POR PERTO',
+                      style: TextStyle(color: Color(0xFFFFCC00), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7))),
+                    IconButton(tooltip: 'Fechar instruções', color: const Color(0xFFF7F7F8),
+                      onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+                  ]),
+                  const Text('Adicionar à Tela de Início', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, height: 1.2)),
+                  const SizedBox(height: 10),
+                  const Text('Abra pelo ícone do celular, sempre que precisar.', style: TextStyle(color: Color(0xFFBFC4CD))),
+                  const SizedBox(height: 24),
+                  if (embedded) const Padding(padding: EdgeInsets.only(bottom: 16),
+                    child: Text('Abra este link no navegador do celular para adicionar o app.')),
+                  if (ios) ...[
+                    _helpStep('1', 'Abra este endereço no Safari.', 'Use o navegador da Apple para seguir estas instruções.'),
+                    _helpStep('2', 'Toque em Compartilhar.', 'Procure o ícone de compartilhar no menu do navegador.'),
+                    _helpStep('3', 'Adicione à Tela de Início.', 'Escolha “Adicionar à Tela de Início” e confirme em “Adicionar”.'),
+                  ] else ...[
+                    _helpStep('1', 'Abra o menu do navegador.', 'Procure “Instalar app” ou “Adicionar à Tela de Início”.'),
+                    _helpStep('2', 'Confirme a instalação.', 'Se a opção não aparecer, você pode continuar no navegador.'),
+                  ],
+                  Container(
+                    width: double.infinity, padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: const Color(0xFF24272D), borderRadius: BorderRadius.circular(16)),
+                    child: Text(ios
+                      ? 'Para ativar notificações no iPhone, abra o Ramo Nessa pelo novo ícone. Os avisos ficam na opção Notificações do Perfil.'
+                      : 'Os avisos podem ser ativados na opção Notificações do Perfil. Aceite a localização quando o mapa solicitar.',
+                      style: const TextStyle(color: Color(0xFFD8DBE2), fontSize: 13)),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(width: double.infinity, child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFCC00), foregroundColor: const Color(0xFF101114),
+                      minimumSize: const Size(0, 52),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    onPressed: () => Navigator.pop(context), child: const Text('Entendi'),
+                  )),
+                ]),
+              ),
             ),
-            Text(ios
-              ? '1. Abra este endereço no Safari.\n\n2. Toque em Compartilhar.\n\n3. Escolha “Adicionar à Tela de Início” e confirme em “Adicionar”.'
-              : 'Abra o menu do navegador e procure “Instalar app” ou “Adicionar à Tela de Início”. Se a opção não aparecer, continue usando pelo navegador.'),
-            const SizedBox(height: 16),
-            const Text('Quando o app pedir sua localização, aceite para usar os recursos do mapa. Os avisos podem ser ativados na opção Notificações do Perfil.'),
-            if (ios) const Padding(padding: EdgeInsets.only(top: 12),
-              child: Text('No iPhone, abra pelo ícone da Tela de Início para ativar notificações.')),
-            const SizedBox(height: 16),
-            SizedBox(width: double.infinity, child: FilledButton(
-              onPressed: () => Navigator.pop(context), child: const Text('Entendi'),
-            )),
-          ]),
+          ),
         ),
       ),
     );
   }
+  Widget _helpStep(String number, String title, String description) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: 32, height: 32, alignment: Alignment.center,
+        decoration: BoxDecoration(color: const Color(0xFFFFCC00), borderRadius: BorderRadius.circular(10)),
+        child: Text(number, style: const TextStyle(color: Color(0xFF101114), fontWeight: FontWeight.w800))),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(description, style: const TextStyle(color: Color(0xFFBFC4CD), fontSize: 13)),
+      ])),
+    ]),
+  );
+
   @override
   Widget build(BuildContext context) {
     final visible = _snapshot != null && !_installed && !_dismissed;

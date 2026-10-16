@@ -26,6 +26,7 @@ void main() {
     await tester.pumpAndSettle();
   }
   Future<void> tap(WidgetTester tester, String text) async {
+    await tester.ensureVisible(find.text(text));
     await tester.tap(find.text(text)); await tester.pumpAndSettle();
   }
   testWidgets('app opens immediately without permissions or completion storage', (tester) async {
@@ -47,12 +48,30 @@ void main() {
   });
   testWidgets('iPhone instructions appear only after tapping and can close', (tester) async {
     await show(tester, state: {'ios': true});
-    expect(find.textContaining('1. Abra este endereço'), findsNothing);
+    expect(find.textContaining('Abra este endereço no Safari.'), findsNothing);
     await tap(tester, 'Adicionar app à Tela de Início');
-    expect(find.textContaining('1. Abra este endereço no Safari'), findsOneWidget);
+    expect(find.textContaining('Abra este endereço no Safari.'), findsOneWidget);
     await tap(tester, 'Entendi');
     expect(find.text('App aberto'), findsOneWidget);
-    expect(find.textContaining('1. Abra este endereço'), findsNothing);
+    expect(find.textContaining('Abra este endereço no Safari.'), findsNothing);
+  });
+  testWidgets('help stays opaque under the actual transparent dark sheet theme', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData.dark().copyWith(bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.transparent, modalBackgroundColor: Colors.transparent)),
+      home: RamoWebSetup(role: 'passenger', readCompleted: () async => false,
+        saveCompleted: () async {}, readSnapshot: () async => {'ios': true},
+        requestLocation: () async => 'granted', requestNotifications: () async => false,
+        install: () async => 'manual', saveNotificationPreference: (_) async {},
+        child: const Scaffold(backgroundColor: Colors.pink, body: Text('MAPA ATRÁS'))),
+    ));
+    await tester.pumpAndSettle(); await tap(tester, 'Adicionar app à Tela de Início');
+    final surface = tester.widget<Material>(find.byKey(const ValueKey('web-install-help-surface')));
+    expect(surface.color, const Color(0xFF17191D));
+    expect(tester.widget<BottomSheet>(find.byType(BottomSheet)).backgroundColor, const Color(0xFF17191D));
+    expect(find.text('Abra este endereço no Safari.'), findsOneWidget);
+    await tester.tap(find.byTooltip('Fechar instruções')); await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('web-install-help-surface')), findsNothing);
   });
   testWidgets('slow or failed snapshot never blocks app', (tester) async {
     final pending = Completer<Map<String, Object?>>();

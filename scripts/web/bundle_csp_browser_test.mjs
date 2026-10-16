@@ -78,6 +78,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
+  await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', route => {
@@ -121,6 +122,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-optional-install-banner.png') });
   await banner.click();
   await page.getByText('Adicionar à Tela de Início', { exact: true }).waitFor();
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-install-help-dark.png') });
   await page.getByRole('button', { name: 'Entendi', exact: true }).click();
   await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
   await banner.waitFor({ state: 'hidden' });
