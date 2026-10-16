@@ -16,7 +16,7 @@ final class ColdAudit: XCTestCase {
   func dump(_ app: XCUIApplication, _ name: String) {
     let a = XCTAttachment(string: app.debugDescription); a.name = name; a.lifetime = .keepAlways; add(a)
   }
-  func paintedAvatar(in app: XCUIApplication) throws -> CGPoint {
+  func paintedAvatar(in app: XCUIApplication) -> CGPoint? {
     let screenshot = XCUIScreen.main.screenshot().image
     let image = screenshot.cgImage!
     let width = image.width, height = image.height
@@ -46,13 +46,23 @@ final class ColdAudit: XCTestCase {
       }
       return nil
     }
-    guard let point = result else { capture("avatar-detection-failed"); throw NSError(domain: "Audit", code: 1, userInfo: [NSLocalizedDescriptionKey: "No painted avatar circle found; no guessed tap performed"]) }
-    return point
+    return result
   }
   func tapPaintedAvatar(_ app: XCUIApplication, _ phase: String) throws {
+    // Cold CanvasKit startup on a fresh simulator can exceed eight seconds.
+    // Wait using screenshots only: do not activate semantics or touch the web app.
+    var paintedPoint: CGPoint?
+    for _ in 0..<60 {
+      paintedPoint = paintedAvatar(in: app)
+      if paintedPoint != nil { break }
+      Thread.sleep(forTimeInterval: 1)
+    }
+    guard let point = paintedPoint else {
+      capture("avatar-detection-failed")
+      throw NSError(domain: "Audit", code: 1, userInfo: [NSLocalizedDescriptionKey: "No painted avatar circle appeared within 60 seconds; no guessed tap performed"])
+    }
     note(phase + "-before"); capture(phase + "-before-first-touch")
     let beforeImage = XCUIScreen.main.screenshot().image.pngData()!
-    let point = try paintedAvatar(in: app)
     let a = XCTAttachment(string: "Paint-derived target in screen points: \(point); appFrame=\(app.frame); screenshotSize=\(XCUIScreen.main.screenshot().image.size)"); a.lifetime = .keepAlways; add(a)
     app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY)).tap()
     Thread.sleep(forTimeInterval: 1)
@@ -156,7 +166,7 @@ final class ColdAudit: XCTestCase {
       return
     }
     icon.tap(); Thread.sleep(forTimeInterval: 8)
-    note("standalone-cold"); capture("standalone-cold-before-any-web-touch")
+    note("standalone-cold"); capture("standalone-host-launched-before-any-web-touch")
     let app = XCUIApplication(bundleIdentifier: "com.apple.webapp")
     if app.state == .runningForeground {
       try tapPaintedAvatar(app, "standalone")
