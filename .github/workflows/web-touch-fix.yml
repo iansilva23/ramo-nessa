@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '22'
       - id: release
-        run: node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('scripts/web/touch_fix_release.json'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'ready='+c.locksReady+'\\n')"
+        run: node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('scripts/web/touch_fix_release.json'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'ready='+c.locksReady+String.fromCharCode(10))"
   dependency-locks:
     needs: prepare
     if: needs.prepare.outputs.ready != 'true'
