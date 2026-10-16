@@ -16,7 +16,7 @@ final class ColdAudit: XCTestCase {
   func dump(_ app: XCUIApplication, _ name: String) {
     let a = XCTAttachment(string: app.debugDescription); a.name = name; a.lifetime = .keepAlways; add(a)
   }
-  func paintedAvatar() throws -> CGPoint {
+  func paintedAvatar(in app: XCUIApplication) throws -> CGPoint {
     let screenshot = XCUIScreen.main.screenshot().image
     let image = screenshot.cgImage!
     let width = image.width, height = image.height
@@ -27,7 +27,7 @@ final class ColdAudit: XCTestCase {
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
       context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
       let bytes = raw.bindMemory(to: UInt8.self)
-      let scale = CGFloat(width) / screenshot.size.width
+      let scale = CGFloat(width) / app.frame.width
       var start: Int? = nil
       for y in Int(50 * scale)..<min(height, Int(260 * scale)) {
         var count = 0
@@ -51,8 +51,8 @@ final class ColdAudit: XCTestCase {
   }
   func tapPaintedAvatar(_ app: XCUIApplication, _ phase: String) throws {
     note(phase + "-before"); capture(phase + "-before-first-touch")
-    let point = try paintedAvatar()
-    let a = XCTAttachment(string: "Paint-derived target in screen points: \(point)"); a.lifetime = .keepAlways; add(a)
+    let point = try paintedAvatar(in: app)
+    let a = XCTAttachment(string: "Paint-derived target in screen points: \(point); appFrame=\(app.frame); screenshotSize=\(XCUIScreen.main.screenshot().image.size)"); a.lifetime = .keepAlways; add(a)
     app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY)).tap()
     Thread.sleep(forTimeInterval: 1)
     note(phase + "-after"); capture(phase + "-after-first-touch")
