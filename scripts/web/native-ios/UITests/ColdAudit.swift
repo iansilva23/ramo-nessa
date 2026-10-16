@@ -105,15 +105,15 @@ final class ColdAudit: XCTestCase {
     capture("after-native-menu"); dump(safari, "after-native-menu-tree")
     XCTAssertTrue(share.waitForExistence(timeout: 5), "Share action not found")
     share.tap(); Thread.sleep(forTimeInterval: 1)
-    var addHome = safari.buttons["Add to Home Screen"].firstMatch
+    var addHome = safari.cells["Add to Home Screen"].firstMatch
     for _ in 0..<5 {
       if addHome.exists && addHome.isHittable { break }
       safari.swipeUp(); Thread.sleep(forTimeInterval: 0.5)
-      addHome = safari.buttons["Add to Home Screen"].firstMatch
+      addHome = safari.cells["Add to Home Screen"].firstMatch
     }
     dump(safari, "native-share-tree"); capture("native-share")
     XCTAssertTrue(addHome.exists && addHome.isHittable, "Add to Home Screen action not found")
-    addHome.tap(); Thread.sleep(forTimeInterval: 1)
+    try tapNativeCenter(addHome, in: safari, name: "add-home-cell"); Thread.sleep(forTimeInterval: 1)
     let field = safari.textFields.firstMatch
     if field.exists {
       field.tap()
