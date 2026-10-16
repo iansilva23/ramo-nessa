@@ -1,4 +1,74 @@
 // Compartilhado pelos dois apps. Sincronizar com prepare_web_push.mjs.
+// Passive checks never prompt. Requests below run directly inside the tap handler.
+let installPrompt = null;
+let installConfirmed = false;
+let locationResult = 'unknown';
+let locationPending = null;
+globalThis.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  installPrompt = event;
+});
+globalThis.addEventListener('appinstalled', () => {
+  installConfirmed = true;
+  installPrompt = null;
+});
+const isIosDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+async function setupSnapshot() {
+  let permission = 'unknown';
+  try {
+    if (navigator.permissions?.query) {
+      permission = await Promise.race([
+        navigator.permissions.query({ name: 'geolocation' }).then(value => value.state),
+        new Promise(resolve => setTimeout(() => resolve('unknown'), 1200)),
+      ]);
+    }
+  } catch { /* Safari may not expose this query; the request still works. */ }
+  return { ios: isIosDevice(), standalone: isStandalone(),
+    installed: isStandalone() || installConfirmed, installAvailable: !!installPrompt,
+    embedded: /FBAN|FBAV|Instagram|; wv\)/.test(navigator.userAgent),
+    location: !isSecureContext ? 'insecure' : !navigator.geolocation ? 'unsupported' :
+      permission === 'denied' ? 'denied' : permission === 'granted' ? 'granted' :
+      permission === 'prompt' && locationResult === 'granted' ? 'unknown' : locationResult,
+    notification: status(), online: navigator.onLine !== false };
+}
+function requestSetupLocation() {
+  if (!isSecureContext) return Promise.resolve('insecure');
+  if (!navigator.geolocation) return Promise.resolve('unsupported');
+  if (locationPending) return locationPending;
+  let resolveRequest;
+  locationPending = new Promise(resolve => { resolveRequest = resolve; });
+  const result = locationPending;
+  let finished = false;
+  const done = value => {
+    if (finished) return;
+    finished = true; clearTimeout(timer);
+    locationResult = value; locationPending = null; resolveRequest(value);
+  };
+  const timer = setTimeout(() => done('timeout'), 14000);
+  try {
+    navigator.geolocation.getCurrentPosition(() => done('granted'), error => {
+      done(error.code === 1 ? 'denied' : error.code === 2 ? 'unavailable' : error.code === 3 ? 'timeout' : 'error');
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  } catch { done('error'); }
+  return result;
+}
+function requestSetupInstall() {
+  if (isStandalone() || installConfirmed) return Promise.resolve('installed');
+  if (!installPrompt || isIosDevice()) return Promise.resolve('manual');
+  const event = installPrompt;
+  installPrompt = null;
+  try {
+    // Do not await a capability query before calling prompt().
+    const pending = event.prompt();
+    return Promise.resolve(pending).then(() => event.userChoice)
+      .then(choice => choice?.outcome === 'accepted' ? 'accepted' : 'dismissed')
+      .catch(() => 'manual');
+  } catch { return Promise.resolve('manual'); }
+}
+globalThis.ramoWebSetup = Object.freeze({ snapshot: setupSnapshot,
+  requestLocation: requestSetupLocation, install: requestSetupInstall });
 const sdkRoot = 'https://www.gstatic.com/firebasejs/13.0.0/';
 const base = new URL('./', import.meta.url);
 const leaseKey = 'ramo.push.owner:' + base.pathname;

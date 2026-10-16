@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
+import 'package:ramo_push/ramo_push.dart';
 
 import 'core/auth/http_phone_auth_service.dart';
 import 'core/auth/mobile_auth_gate.dart';
@@ -153,7 +154,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
 
     Widget permissions(String? token, Widget content) {
       const storage = FlutterSecureStorage();
-      const key = 'ramo_nessa_permissions_passenger_v1';
+      const key = kIsWeb ? 'ramo_nessa_permissions_passenger_web_v2' : 'ramo_nessa_permissions_passenger_v1';
 
       Future<bool> requestLocation() async {
         try {
@@ -187,6 +188,9 @@ class RamoNessaPassengerApp extends StatelessWidget {
       return RamoPermissionOnboardingGate(
         role: 'passenger',
         web: kIsWeb,
+        readWebSetup: kIsWeb ? browserSetupSnapshot : null,
+        requestWebLocation: kIsWeb ? requestBrowserSetupLocation : null,
+        installWebApp: kIsWeb ? installBrowserSetupApp : null,
         readCompleted: () async => (await storage.read(key: key)) == 'yes',
         saveCompleted: () => storage.write(key: key, value: 'yes'),
         requestLocation: requestLocation,

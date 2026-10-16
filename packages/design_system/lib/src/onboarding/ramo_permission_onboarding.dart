@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ramo_web_setup.dart';
 
 /// Onboarding compartilhado entre Android, iOS e Web, sem alterar os fluxos
 /// nativos de corrida. Permissões opcionais não bloqueiam o acesso ao perfil.
@@ -14,6 +15,9 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
     required this.saveNotificationPreference,
     this.notificationHelp,
     this.readNotificationPreference,
+    this.readWebSetup,
+    this.requestWebLocation,
+    this.installWebApp,
     required this.child,
   });
 
@@ -26,6 +30,9 @@ class RamoPermissionOnboardingGate extends StatefulWidget {
   final Future<void> Function(bool allNotifications) saveNotificationPreference;
   final String Function()? notificationHelp;
   final Future<bool> Function()? readNotificationPreference;
+  final Future<Map<String, Object?>> Function()? readWebSetup;
+  final Future<String> Function()? requestWebLocation;
+  final Future<String> Function()? installWebApp;
   final Widget child;
 
   @override
@@ -47,7 +54,7 @@ class _RamoPermissionOnboardingGateState
   @override
   void initState() {
     super.initState();
-    _load();
+    if (!(widget.web && widget.readWebSetup != null)) _load();
   }
 
   Future<void> _load() async {
@@ -162,6 +169,20 @@ class _RamoPermissionOnboardingGateState
 
   @override
   Widget build(BuildContext context) {
+    if (widget.web && widget.readWebSetup != null) {
+      return RamoWebSetup(
+        role: widget.role,
+        readCompleted: widget.readCompleted,
+        saveCompleted: widget.saveCompleted,
+        readSnapshot: widget.readWebSetup!,
+        requestLocation: widget.requestWebLocation ?? () async => 'unsupported',
+        requestNotifications: widget.requestNotifications,
+        install: widget.installWebApp ?? () async => 'manual',
+        saveNotificationPreference: widget.saveNotificationPreference,
+        readNotificationPreference: widget.readNotificationPreference,
+        child: widget.child,
+      );
+    }
     if (_completed == null) {
       return const Scaffold(backgroundColor: Color(0xFF101010),
         body: Center(child: CircularProgressIndicator(color: Color(0xFFFFCC00))));

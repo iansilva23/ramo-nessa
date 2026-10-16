@@ -1,5 +1,37 @@
 import 'dart:js_interop';
 
+@JS('ramoWebSetup.snapshot')
+external JSPromise<JSObject> _setupSnapshot();
+@JS('ramoWebSetup.requestLocation')
+external JSPromise<JSString> _setupLocation();
+@JS('ramoWebSetup.install')
+external JSPromise<JSString> _setupInstall();
+
+Future<Map<String, Object?>> browserSetupSnapshot() async {
+  try {
+    final value = (await _setupSnapshot().toDart).dartify();
+    return Map<String, Object?>.from(value as Map);
+  } catch (_) {
+    return {'location': 'unsupported', 'notification': 'unsupported'};
+  }
+}
+
+Future<String> requestBrowserSetupLocation() {
+  try {
+    return _setupLocation().toDart.then((value) => value.toDart).catchError((_) => 'error');
+  } catch (_) {
+    return Future.value('unsupported');
+  }
+}
+
+Future<String> installBrowserSetupApp() {
+  try {
+    return _setupInstall().toDart.then((value) => value.toDart).catchError((_) => 'manual');
+  } catch (_) {
+    return Future.value('manual');
+  }
+}
+
 @JS('ramoWebPush')
 external JSObject? get _bridge;
 @JS('ramoWebPush.start')
