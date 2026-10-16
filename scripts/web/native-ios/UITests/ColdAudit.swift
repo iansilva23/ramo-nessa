@@ -51,11 +51,14 @@ final class ColdAudit: XCTestCase {
   }
   func tapPaintedAvatar(_ app: XCUIApplication, _ phase: String) throws {
     note(phase + "-before"); capture(phase + "-before-first-touch")
+    let beforeImage = XCUIScreen.main.screenshot().image.pngData()!
     let point = try paintedAvatar(in: app)
     let a = XCTAttachment(string: "Paint-derived target in screen points: \(point); appFrame=\(app.frame); screenshotSize=\(XCUIScreen.main.screenshot().image.size)"); a.lifetime = .keepAlways; add(a)
     app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x - app.frame.minX, dy: point.y - app.frame.minY)).tap()
     Thread.sleep(forTimeInterval: 1)
     note(phase + "-after"); capture(phase + "-after-first-touch")
+    let afterImage = XCUIScreen.main.screenshot().image.pngData()!
+    XCTAssertNotEqual(beforeImage, afterImage, "First touch left the screen unchanged; inspect profile evidence")
   }
   func tapNativeCenter(_ element: XCUIElement, in app: XCUIApplication, name: String) throws {
     let ready = NSPredicate(format: "hittable == true")
