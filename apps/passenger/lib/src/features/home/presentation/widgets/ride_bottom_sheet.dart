@@ -43,7 +43,7 @@ class RideBottomSheet extends StatelessWidget {
       snap: true,
       snapSizes: hasTrip ? const [0.48, 0.76] : const [0.42, 0.70],
       builder: (context, scrollController) {
-        return DecoratedBox(
+        return RamoWebMapOverlay(child: DecoratedBox(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: const BorderRadius.vertical(
@@ -189,7 +189,7 @@ class RideBottomSheet extends StatelessWidget {
                 ),
             ],
           ),
-        );
+        ));
       },
     );
   }

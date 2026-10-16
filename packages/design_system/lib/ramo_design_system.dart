@@ -12,3 +12,5 @@ export 'src/theme/ramo_appearance.dart';
 
 export 'src/onboarding/ramo_permission_onboarding.dart';
 export 'src/onboarding/ramo_notification_settings.dart';
+
+export 'src/map/ramo_web_map_overlay.dart';
