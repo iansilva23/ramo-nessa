@@ -1122,7 +1122,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                         icon: const Icon(Icons.person_rounded),
                       ),
                       const Spacer(),
-                      DecoratedBox(
+                      RamoWebMapOverlay(child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(RamoRadius.pill),
@@ -1135,7 +1135,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                           ),
                           child: RamoBrandLockup(compact: true),
                         ),
-                      ),
+                      )),
                       const Spacer(),
                       _MapFloatingButton(
                         tooltip: 'Usar minha localização',
@@ -1153,7 +1153,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                   ),
                   if (_agencyPromotion?.enabled == true) ...[
                     const SizedBox(height: RamoSpacing.sm),
-                    Material(
+                    RamoWebMapOverlay(child: Material(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius:
                           BorderRadius.circular(RamoRadius.pill),
@@ -1189,7 +1189,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                           ),
                         ),
                       ),
-                    ),
+                    )),
                   ],
                 ],
               ),
@@ -1243,7 +1243,7 @@ class _MapFloatingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return RamoWebMapOverlay(child: Material(
       color: Theme.of(context).colorScheme.surface,
       elevation: 0,
       shadowColor: Colors.black12,
@@ -1271,7 +1271,7 @@ class _MapFloatingButton extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

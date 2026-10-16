@@ -2836,7 +2836,7 @@ class _MapCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return RamoWebMapOverlay(child: Material(
       color: Theme.of(context).colorScheme.surface,
       elevation: 0,
       shape: const CircleBorder(),
@@ -2853,7 +2853,7 @@ class _MapCircleButton extends StatelessWidget {
           icon: Icon(icon, size: 23),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -2865,7 +2865,7 @@ class _EarningsPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return RamoWebMapOverlay(child: Material(
       color: RamoColors.brandBlack,
       elevation: 0,
       borderRadius: BorderRadius.circular(RamoRadius.pill),
@@ -2891,7 +2891,7 @@ class _EarningsPill extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -2902,7 +2902,7 @@ class _CompactMapMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return RamoWebMapOverlay(child: Material(
       color: Theme.of(context).colorScheme.surface,
       elevation: 5,
       borderRadius: BorderRadius.circular(RamoRadius.md),
@@ -2921,7 +2921,7 @@ class _CompactMapMessage extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -2941,7 +2941,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return RamoWebMapOverlay(child: Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -2949,7 +2949,7 @@ class _MapAvailabilityPanel extends StatelessWidget {
         boxShadow: RamoElevation.floating(context),
       ),
       child: online ? _onlineContent(context) : _offlineContent(context),
-    );
+    ));
   }
 
   Widget _onlineContent(BuildContext context) {
@@ -3747,7 +3747,7 @@ class _OfferCard extends StatelessWidget {
             : '${offer.tripDistanceKm!.toStringAsFixed(1)} km');
     final tripDuration = tripRoute?.durationLabel;
 
-    return Container(
+    return RamoWebMapOverlay(child: Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -3884,7 +3884,7 @@ class _OfferCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 
@@ -4173,7 +4173,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
         maneuver?.instruction ?? 'Calculando a próxima instrução…';
     final distanceLabel = maneuver?.distanceLabel ?? 'Navegação ativa';
 
-    return Material(
+    return RamoWebMapOverlay(child: Material(
       color: RamoColors.brandBlack,
       elevation: 8,
       borderRadius: BorderRadius.circular(20),
@@ -4265,7 +4265,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -4298,7 +4298,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.bottomRight,
-      child: Material(
+      child: RamoWebMapOverlay(child: Material(
         color: RamoColors.brandBlack,
         elevation: 8,
         borderRadius: BorderRadius.circular(RamoRadius.pill),
@@ -4373,7 +4373,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
             ),
           ),
         ),
-      ),
+      )),
     );
   }
 }
@@ -4465,7 +4465,7 @@ class _ActiveRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return RamoWebMapOverlay(child: Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -4703,7 +4703,7 @@ class _ActiveRideCard extends StatelessWidget {
           ],
         ],
       ),
-    );
+    ));
   }
 }
 
