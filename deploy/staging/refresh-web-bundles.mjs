@@ -9,7 +9,7 @@ import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/g
 import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments,stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 const here=fileURLToPath(new URL('.',import.meta.url)),meta=JSON.parse(readFileSync(here+'/web-refresh-release.json','utf8'));
-const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='78750ebeebd9cff79725fe737f3df42216203987',previousRoot='/var/backups/ramo-nessa-web/refresh-78750ebeebd9',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
+const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='01e783f3f71d28af933aae8f060d21334e093c9a',previousRoot='/var/backups/ramo-nessa-web/refresh-01e783f3f71d',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');
 if(!/^[a-f0-9]{40}$/.test(meta.target)||!/^[a-f0-9]{64}$/.test(meta.archiveSha256)||!/^[a-f0-9]{64}$/.test(meta.manifestSha256))throw Error('Metadados de release inválidos.');
 const activate=process.argv.includes('--activate');

@@ -17,6 +17,10 @@ A faixa não pede GPS/push, não grava conclusão do assistente e não altera pr
 
 ## Publicação
 
-A preparação operacional exige a atualização anterior 78750ebeebd9 confirmada, o mount esperado e o Caddy exato do registro anterior. O novo atualizador preserva o Caddy byte por byte, inclusive a política de GPS já corrigida. Só o mount dos pacotes Web do gateway é trocado, mantendo a imagem do gateway; Core, banco, site e demais configurações não são atualizados.
+A preparação operacional exige a atualização anterior 01e783f3f71d confirmada, o mount esperado e o Caddy exato do registro anterior. O novo atualizador preserva o Caddy byte por byte, inclusive a política de GPS já corrigida. Só o mount dos pacotes Web do gateway é trocado, mantendo a imagem do gateway; Core, banco, site e demais configurações não são atualizados.
 
 O pacote configurado é verificado por SHA-256 do ZIP, manifesto e arquivos. O rollback operacional usa os pacotes anteriores sem restaurar banco e sem executar migrations.
+
+## Correção da ajuda em tema escuro
+
+O tema escuro compartilhado define painéis transparentes. Esta ajuda agora declara um fundo próprio opaco no modal e na superfície interna, com texto claro, etapas numeradas, botão amarelo e fechamento explícito. O tema compartilhado e os outros painéis não foram alterados. O teste de regressão aplica o tema de painel transparente e confere as superfícies opacas; as jornadas compiladas registram capturas da ajuda em tema escuro.
