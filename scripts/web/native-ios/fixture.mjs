@@ -45,7 +45,9 @@ const server=createServer({key:readFileSync('artifacts/native-ios/key.pem'),cert
    res.writeHead(404);res.end('{}');return;
   }catch{res.writeHead(401);res.end('{}');return;}
  }
- if(path==='/fixtures/maps.js'){res.setHeader('content-type','text/javascript');res.end(readFileSync('scripts/web/maps_test_stub.js'));return;}
+ if(path==='/fixtures/maps.js'){res.setHeader('content-type','text/javascript');let body=readFileSync('scripts/web/maps_test_stub.js','utf8');
+  if(process.env.RAMO_AUDIT_CAPTURE_MAP==='1')body+=`\n(() => { const Original=google.maps.Map; google.maps.Map=class extends Original { constructor(el,opts){ super(el,opts); for(const name of ['pointerdown','pointerup','pointermove','touchstart','touchend','click'])el.addEventListener(name,e=>e.stopPropagation(),{passive:true}); } }; })();`;
+  res.end(body);return;}
  if(path==='/fixtures/geometry.js'){res.setHeader('content-type','text/javascript');res.end(instrumentation);return;}
  if(!path.startsWith('/passageiro/')){res.writeHead(404);res.end();return;}
  const file=resolve(root,decodeURIComponent(path.slice('/passageiro/'.length))||'index.html');

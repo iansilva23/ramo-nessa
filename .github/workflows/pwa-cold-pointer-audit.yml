@@ -1,0 +1,62 @@
+name: Cold pointer audit with map capture control
+on:
+  push:
+    branches: [ops/ios-pwa-cold-pointer-audit-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  cold-pointer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        map: [passive, capturing]
+        semantics: [cold, enabled]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-passenger-review
+          run-id: 38940447498
+          github-token: ${{ github.token }}
+          path: apps/passenger/build/web
+      - name: Prepare offline browser fixture
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
+          python3 -m pip install --quiet Pillow==11.3.0
+          mkdir -p artifacts/native-ios
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout artifacts/native-ios/key.pem -out artifacts/native-ios/cert.pem -days 1 -subj /CN=localhost -addext subjectAltName=DNS:localhost
+      - name: Audit first tap without a semantic locator
+        env:
+          RAMO_BROWSER_ENGINE: webkit
+          RAMO_COLD_MODE: standalone
+          RAMO_AUDIT_CAPTURE_MAP: ${{ matrix.map == 'capturing' && '1' || '0' }}
+          RAMO_COLD_SEMANTICS: ${{ matrix.semantics }}
+        run: |
+          set -euo pipefail
+          node scripts/web/native-ios/fixture.mjs > artifacts/native-ios/fixture.log 2>&1 &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -ksSf https://localhost:9443/audit/health >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/web/cold_pointer_audit.mjs
+      - name: Remove disposable certificate key
+        if: always()
+        run: rm -f artifacts/native-ios/key.pem artifacts/native-ios/cert.pem
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cold-pointer-${{ matrix.map }}-${{ matrix.semantics }}
+          path: artifacts/native-ios/
+          retention-days: 7
