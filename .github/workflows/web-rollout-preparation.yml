@@ -1,7 +1,7 @@
 name: Web rollout preparation checks
 on:
   push:
-    branches: [ops/web-staging-readiness-20261015]
+    branches: [ops/web-staging-readiness-20261015, ops/web-setup-refresh-20261016]
   workflow_dispatch:
 permissions:
   contents: read
@@ -27,6 +27,12 @@ jobs:
           node --check deploy/staging/probe-web-push-schema.mjs
           node --check deploy/staging/activate-web-staging.mjs
           node --test deploy/staging/web-activation-contract.test.mjs
+          node --check deploy/staging/refresh-web-bundles.mjs
+          node --test deploy/staging/web-refresh-contract.test.mjs
+          python3 -m py_compile deploy/staging/stage-web-refresh.py
+          python3 -m unittest discover -s deploy/staging -p 'web_refresh_stage_test.py'
+      - name: Verify actual Caddy response headers without external traffic
+        run: node --test deploy/staging/web-policy-caddy.test.mjs
   isolated-schema-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
