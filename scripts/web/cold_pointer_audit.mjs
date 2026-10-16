@@ -45,7 +45,7 @@ try{
  await page.waitForTimeout(1000);
  const after=resolve(out,label+'-after.png');await page.screenshot({path:after,timeout:10000});
  const endpointsAfter=await readFile(resolve(out,'endpoints.jsonl'),'utf8').catch(()=>'');
- const report={sourceCommit:'5aa49f6099dc418a65236af90859bc6db2a17c04',mode,semanticsSetup:semantics,physicalIos:false,actualHomeScreen:false,
+ const report={sourceCommit:'5aa49f6099dc418a65236af90859bc6db2a17c04',mode,mapCapturesEvents:process.env.RAMO_AUDIT_CAPTURE_MAP==='1',semanticsSetup:semantics,physicalIos:false,actualHomeScreen:false,
    initial,painted:position,nativeDomHit:target,after:await geometry(),avatarFoundAfter:findAvatar(after),newEndpoints:endpointsAfter.slice(endpointsBefore.length).trim().split('\n').filter(Boolean).map(x=>JSON.parse(x)),remoteOrigins:[...new Set(remote)]};
  await writeFile(resolve(out,label+'.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  if(remote.length)throw Error('Unexpected external request was blocked.');

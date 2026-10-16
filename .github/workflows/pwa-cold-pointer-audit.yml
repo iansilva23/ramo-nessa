@@ -1,4 +1,4 @@
-name: Cold painted-coordinate PWA audit
+name: Cold pointer audit with map capture control
 on:
   push:
     branches: [ops/ios-pwa-cold-pointer-audit-20261016]
@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [safari, standalone]
+        map: [passive, capturing]
         semantics: [cold, enabled]
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,8 @@ jobs:
       - name: Audit first tap without a semantic locator
         env:
           RAMO_BROWSER_ENGINE: webkit
-          RAMO_COLD_MODE: ${{ matrix.mode }}
+          RAMO_COLD_MODE: standalone
+          RAMO_AUDIT_CAPTURE_MAP: ${{ matrix.map == 'capturing' && '1' || '0' }}
           RAMO_COLD_SEMANTICS: ${{ matrix.semantics }}
         run: |
           set -euo pipefail
@@ -56,6 +57,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cold-pointer-${{ matrix.mode }}-${{ matrix.semantics }}
+          name: cold-pointer-${{ matrix.map }}-${{ matrix.semantics }}
           path: artifacts/native-ios/
           retention-days: 7
