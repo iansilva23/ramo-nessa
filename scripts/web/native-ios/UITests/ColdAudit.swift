@@ -97,6 +97,17 @@ final class ColdAudit: XCTestCase {
       try tapNativeCenter(close, in: safari, name: "safari-tip-close")
     }
   }
+  func swipeEntryGate(_ app: XCUIApplication, phase: String, toRight: Bool) {
+    note(phase + "-gate-before"); capture(phase + "-gate-before")
+    let y = app.frame.height * (toRight ? 0.30 : 0.72)
+    let startX = app.frame.width * (toRight ? 0.25 : 0.75)
+    let endX = app.frame.width * (toRight ? 0.75 : 0.25)
+    let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: startX, dy: y))
+    let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: endX, dy: y))
+    start.press(forDuration: 0.08, thenDragTo: end)
+    Thread.sleep(forTimeInterval: 1)
+    note(phase + "-gate-after"); capture(phase + "-gate-after")
+  }
   func testActualHomeScreenLaunch() throws {
     let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
     safari.activate(); Thread.sleep(forTimeInterval: 8)
@@ -169,7 +180,17 @@ final class ColdAudit: XCTestCase {
     note("standalone-cold"); capture("standalone-host-launched-before-any-web-touch")
     let app = XCUIApplication(bundleIdentifier: "com.apple.webapp")
     if app.state == .runningForeground {
+      swipeEntryGate(app, phase: "launch", toRight: true)
       try tapPaintedAvatar(app, "standalone")
+      XCUIDevice.shared.press(.home)
+      board.activate(); Thread.sleep(forTimeInterval: 2)
+      for _ in 0..<5 {
+        if icon.isHittable { break }
+        board.swipeLeft(); Thread.sleep(forTimeInterval: 1)
+      }
+      XCTAssertTrue(icon.isHittable, "Installed icon must remain visible for the resume trial")
+      icon.tap(); Thread.sleep(forTimeInterval: 2)
+      swipeEntryGate(app, phase: "foreground", toRight: false)
     } else {
       dump(board, "standalone-host-identification")
       XCTFail("PWA launched; its foreground bundle must be identified before coordinate tapping")
