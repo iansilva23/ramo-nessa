@@ -71,6 +71,20 @@ test(browserName + ': installed entry gate, full-screen gestures and lifecycle',
       await visible(page);
       assert.equal(await page.locator('.ramo-gate-subtitle').innerText(), 'Seu próximo destino\nestá a um deslize.');
       const box = await page.locator('#ramo-entry-gate').boundingBox(); assert.deepEqual(box, { x: 0, y: 0, width: 430, height: 932 });
+      const colors = await page.evaluate(() => {
+        const gate = document.getElementById('ramo-entry-gate');
+        return { background: getComputedStyle(gate).backgroundColor,
+          text: ['.ramo-gate-brand', '.ramo-gate-subtitle', '.ramo-gate-hint', '.ramo-gate-anywhere'].map(s => getComputedStyle(gate.querySelector(s)).color) };
+      });
+      const rgba = s => { const v = s.match(/[\d.]+/g).map(Number); return [v[0], v[1], v[2], v[3] ?? 1]; };
+      const composite = (fg, bg) => fg.slice(0, 3).map((v, i) => v * fg[3] + bg[i] * (1 - fg[3]));
+      const luminance = rgb => rgb.map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
+      const background = rgba(colors.background); assert.ok(background[3] < .8, 'Background must remain translucent');
+      const brightest = composite(background, [255, 255, 255]);
+      for (const color of colors.text) {
+        const foreground = composite(rgba(color), brightest);
+        assert.ok((luminance(foreground) + .05) / (luminance(brightest) + .05) >= 4.5, 'Text must remain readable over white app cards');
+      }
       assert.equal(await page.locator('#app').evaluate(n => n.inert), true);
       await page.screenshot({ path: new URL(mode + '-locked.png', evidence).pathname });
       await page.mouse.click(42, 182); await drag(page, 200, 400, 15); await drag(page, 200, 350, 5, 130);
