@@ -14,13 +14,27 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       ready: ${{ steps.release.outputs.ready }}
+      reuse: ${{ steps.release.outputs.reuse }}
+      bundleRun: ${{ steps.release.outputs.bundleRun }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - id: release
-        run: node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('scripts/web/touch_fix_release.json'));fs.appendFileSync(process.env.GITHUB_OUTPUT,'ready='+c.locksReady+String.fromCharCode(10))"
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const c=JSON.parse(readFileSync('scripts/web/touch_fix_release.json'));
+          const allowed=new Set(['.github/workflows/web-touch-fix.yml','scripts/web/native-ios/UITests/ColdAudit.swift','scripts/web/touch_fix_release.json']);
+          const changed=execFileSync('git',['diff','--name-only',c.reviewCommit,'HEAD'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+          if(changed.some(p=>!allowed.has(p)))throw Error('Reviewed bundle source differs; compile and test it again.');
+          appendFileSync(process.env.GITHUB_OUTPUT,'ready='+c.locksReady+'\nreuse=true\nbundleRun='+c.reviewRun+'\n');
+          console.log('Application, dependency and fixture sources match the reviewed compiled bundles.');
+          NODE
   dependency-locks:
     needs: prepare
     if: needs.prepare.outputs.ready != 'true'
@@ -44,7 +58,7 @@ jobs:
           retention-days: 7
   flutter-web:
     needs: prepare
-    if: needs.prepare.outputs.ready == 'true'
+    if: needs.prepare.outputs.ready == 'true' && needs.prepare.outputs.reuse != 'true'
     name: Web build and regressions - ${{ matrix.app }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -200,7 +214,8 @@ jobs:
 
 
   cold-pointer:
-    needs: flutter-web
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
@@ -216,7 +231,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ramo-nessa-web-passenger-review
-          run-id: ${{ github.run_id }}
+          run-id: ${{ needs.prepare.outputs.bundleRun }}
           github-token: ${{ github.token }}
           path: apps/passenger/build/web
       - name: Prepare offline browser fixture
@@ -255,7 +270,8 @@ jobs:
           retention-days: 7
 
   native-cold-launch:
-    needs: flutter-web
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
     runs-on: macos-26
     timeout-minutes: 25
     env:
@@ -268,7 +284,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ramo-nessa-web-passenger-review
-          run-id: ${{ github.run_id }}
+          run-id: ${{ needs.prepare.outputs.bundleRun }}
           github-token: ${{ github.token }}
           path: apps/passenger/build/web
       - name: Inventory actual SDK and simulator runtimes
@@ -323,6 +339,16 @@ jobs:
             -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
             -resultBundlePath "$GITHUB_WORKSPACE/artifacts/native-ios/NativeAudit.xcresult" \
             CODE_SIGNING_ALLOWED=NO | tee "$GITHUB_WORKSPACE/artifacts/native-ios/xctest.log"
+      - name: Require aligned geometry on the actual installed first touch
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const events=readFileSync('artifacts/native-ios/geometry.jsonl','utf8').trim().split('\n').map(JSON.parse);
+          const e=events.find(e=>e.standalone && e.kind==='pointerdown');
+          if(!e || !e.displayStandalone || e.semanticsEnabled || e.viewport.scale!==1)throw Error('Missing native cold-touch evidence.');
+          if(Math.abs(e.viewport.scrollY)>1 || Math.abs(e.viewport.offsetTop)>1 || Math.abs(e.view.y)>1)throw Error('Installed page still has a coordinate offset.');
+          console.log(JSON.stringify({standalone:e.standalone,viewport:e.viewport,view:e.view,touch:e.touch}));
+          NODE
       - name: Preserve only disposable audit evidence and clean up
         if: always()
         run: |
@@ -347,8 +373,8 @@ jobs:
 
   configured-web-bundles:
     name: Configured Web bundles (no deploy or provider calls)
-    if: always() && needs.flutter-web.result == 'success' && needs.cold-pointer.result == 'success' && needs.native-cold-launch.result == 'success'
-    needs: [flutter-web, cold-pointer, native-cold-launch]
+    if: always() && needs.cold-pointer.result == 'success' && needs.native-cold-launch.result == 'success'
+    needs: [cold-pointer, native-cold-launch]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

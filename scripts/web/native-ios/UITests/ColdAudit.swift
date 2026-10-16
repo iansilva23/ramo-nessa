@@ -134,11 +134,28 @@ final class ColdAudit: XCTestCase {
     capture("native-install-confirmation")
     let add = safari.buttons["Add"].firstMatch
     XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
+    safari.terminate()
     XCUIDevice.shared.press(.home)
     let board = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-    let icon = board.icons["Ramo Audit"].firstMatch
-    XCTAssertTrue(icon.waitForExistence(timeout: 10), "Installed icon not found")
-    safari.terminate(); icon.tap(); Thread.sleep(forTimeInterval: 8)
+    board.activate()
+    Thread.sleep(forTimeInterval: 2)
+    var visibleIcon: XCUIElement?
+    for page in 0..<5 {
+      visibleIcon = board.icons.matching(identifier: "Ramo Audit").allElementsBoundByIndex.first {
+        $0.exists && $0.isHittable && $0.frame.width > 0 && $0.frame.height > 0
+      }
+      if visibleIcon != nil { break }
+      capture("home-page-" + String(page))
+      board.swipeLeft()
+      Thread.sleep(forTimeInterval: 1)
+    }
+    guard let icon = visibleIcon else {
+      capture("installed-icon-not-visible")
+      dump(board, "installed-icon-tree")
+      XCTFail("Installed icon has no visible tappable frame on inspected Home Screen pages")
+      return
+    }
+    icon.tap(); Thread.sleep(forTimeInterval: 8)
     note("standalone-cold"); capture("standalone-cold-before-any-web-touch")
     let app = XCUIApplication(bundleIdentifier: "com.apple.webapp")
     if app.state == .runningForeground {
