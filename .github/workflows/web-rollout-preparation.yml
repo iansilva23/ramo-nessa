@@ -25,6 +25,8 @@ jobs:
           python3 -m unittest discover -s deploy/staging -p 'web_isolated_test.py'
           python3 -m py_compile deploy/staging/test-web-isolated.py
           node --check deploy/staging/probe-web-push-schema.mjs
+          node --check deploy/staging/activate-web-staging.mjs
+          node --test deploy/staging/web-activation-contract.test.mjs
   isolated-schema-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
