@@ -21,3 +21,14 @@ export function assertGatewayOnly(baseline, preview, bundles) {
   }
   if (!sameConfiguration(previous, next)) throw Error('Gateway mudaria fora de imagem/mount Web.');
 }
+
+// Match the last confirmed rollout rather than the original pre-refresh state.
+export function assertPreviousRefresh(target, plan, completed, bundles, caddy) {
+  const expectedBundles = '/opt/ramo-nessa-web/releases/' + target.slice(0, 12) + '/bundles';
+  if (plan.target !== target || completed.target !== target ||
+      completed.publicBundleHashesMatched !== true || completed.coreUnchanged !== true ||
+      completed.databaseUnchangedByUpdater !== true || plan.newBundles !== expectedBundles ||
+      bundles !== expectedBundles || caddy !== plan.caddyNext) {
+    throw Error('Estado diferente da última atualização Web confirmada.');
+  }
+}

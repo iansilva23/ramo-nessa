@@ -1,15 +1,15 @@
 // Updates static Web bundles only. Never starts Core, migrations, database or website.
 import { spawnSync } from 'node:child_process';
-import { readFileSync,writeFileSync,mkdirSync,existsSync,lstatSync,readlinkSync,symlinkSync,renameSync,openSync,closeSync,chmodSync,ftruncateSync,fsyncSync } from 'node:fs';
+import { readFileSync,writeFileSync,mkdirSync,existsSync,lstatSync,readlinkSync,symlinkSync,renameSync,openSync,closeSync,chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { sameConfiguration } from './web-image-contract.mjs';
-import { assertGatewayOnly,fixWebPolicyHeader } from './web-refresh-contract.mjs';
+import { assertGatewayOnly,assertPreviousRefresh } from './web-refresh-contract.mjs';
 import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/google-maps.mjs';
 import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments,stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 const here=fileURLToPath(new URL('.',import.meta.url)),meta=JSON.parse(readFileSync(here+'/web-refresh-release.json','utf8'));
-const base='5247aabd587efa610c9b4cc36d74cbc348048b41',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
+const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='01e783f3f71d28af933aae8f060d21334e093c9a',previousRoot='/var/backups/ramo-nessa-web/refresh-01e783f3f71d',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');
 if(!/^[a-f0-9]{40}$/.test(meta.target)||!/^[a-f0-9]{64}$/.test(meta.archiveSha256)||!/^[a-f0-9]{64}$/.test(meta.manifestSha256))throw Error('Metadados de release inválidos.');
 const activate=process.argv.includes('--activate');
@@ -25,7 +25,7 @@ const docker=(...args)=>run('docker',args),inspect=name=>JSON.parse(docker('insp
 const git=(...args)=>run('sudo',['-u','ubuntu','git','-C',repo,...args]);
 function privateJson(path,value){writeFileSync(path,JSON.stringify(value,null,2)+'\n',{mode:0o600});chmodSync(path,0o600);}
 function pointWeb(destination){const temporary=web+'.refresh-'+process.pid;symlinkSync(destination,temporary);renameSync(temporary,web);}
-function writeCaddy(value){const fd=openSync(caddy,'r+');try{writeFileSync(fd,value);ftruncateSync(fd,Buffer.byteLength(value));fsyncSync(fd);}finally{closeSync(fd);}}
+
 let switched=false,plan,args,env;
 try{
   if(existsSync(root+'/started.json')||existsSync(root+'/completed.json'))throw Error('Atualização já registrada. Não repetir.');
@@ -33,7 +33,9 @@ try{
   if(previous.target!==base||previous.httpsChecks!==true)throw Error('Ativação anterior não confirmada.');
   git('diff','--quiet',base,meta.target,'--','backend/core','deploy/staging/Caddyfile','deploy/staging/compose.yml');
   if(sha(readFileSync(archive))!==meta.archiveSha256)throw Error('ZIP diferente do pacote aprovado.');
-  if(!lstatSync(web).isSymbolicLink()||readlinkSync(web)!=='/opt/ramo-nessa-web/releases/5247aabd587e/bundles')throw Error('Destino Web atual diferente do esperado.');
+  if(!lstatSync(web).isSymbolicLink())throw Error('Destino Web deve ser link simbólico.');
+  const previousRefresh=json(previousRoot+'/prepared.json'),previousCompleted=json(previousRoot+'/completed.json');
+  assertPreviousRefresh(previousWeb,previousRefresh,previousCompleted,readlinkSync(web),readFileSync(caddy,'utf8'));
   const names=['ramo-nessa-staging-core-1','ramo-nessa-staging-gateway-1','ramo-nessa-staging-postgres-1','ramo-nessa-site-institutional-site-1'];
   const containers=names.map(name=>{const c=inspect(name);if(c.State.Health?.Status!=='healthy')throw Error('Serviço não está saudável: '+name);return{name,id:c.Id,image:c.Image};});
   const core=containers[0],gateway=inspect(names[1]);
@@ -42,8 +44,7 @@ try{
   const mount=gateway.Mounts.find(item=>item.Destination==='/srv/web');
   if(!mount||mount.RW||mount.Type!=='bind'||mount.Source!==readlinkSync(web))throw Error('Mount Web anterior diferente do esperado.');
   const caddyPrevious=readFileSync(caddy,'utf8');
-  if(sha(caddyPrevious)!==images.candidateSha256)throw Error('Caddy mudou.');
-  const caddyNext=fixWebPolicyHeader(caddyPrevious);
+  const caddyNext=caddyPrevious; // GPS policy already fixed by the previous refresh; preserve byte-for-byte.
   const runtimeFiles=material.runtimeFiles.map(item=>({path:item.source,sha256:sha(readFileSync(item.source))}));
   const config=release+'/firebase.public.json';
   const originalConfig=git('show',base+':config/web/firebase.public.json');
@@ -67,11 +68,11 @@ try{
   assertGatewayOnly(baseline,preview,release+'/bundles');
   const rollback=root+'/compose.rollback.json';privateJson(rollback,{services:{gateway:{image:gateway.Image,volumes:[mount.Source+':/srv/web:ro']}}});
   plan={target:meta.target,archiveSha256:meta.archiveSha256,containers,runtimeFiles,oldBundles:mount.Source,newBundles:release+'/bundles',override,rollback,caddyPrevious,caddyNext};
-  if(!activate){privateJson(root+'/prepared.json',plan);console.log('ATUALIZAÇÃO WEB PREPARADA. Dois pacotes e correção da política de GPS no gateway.');console.log('Core, banco, site e ADM preservados. Nenhum serviço foi alterado.');}
+  if(!activate){privateJson(root+'/prepared.json',plan);console.log('ATUALIZAÇÃO WEB PREPARADA. Dois pacotes com faixa opcional de instalação.');console.log('Core, banco, site e ADM preservados. Nenhum serviço foi alterado.');}
   else{
     if(!sameConfiguration(json(root+'/prepared.json'),plan))throw Error('Plano mudou desde a preparação.');
     privateJson(root+'/started.json',{target:meta.target,startedAt:new Date().toISOString()});
-    console.log('Atualizando os dois apps web e corrigindo a política de GPS no gateway...');switched=true;writeCaddy(plan.caddyNext);pointWeb(plan.newBundles);
+    console.log('Atualizando somente os dois pacotes web no gateway...');switched=true;pointWeb(plan.newBundles);
     run('docker',[...args,'-f',override,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','90','gateway'],{env});
     for(const role of ['passenger','driver']){
       const path=role==='passenger'?'passageiro':'motorista';
@@ -85,7 +86,7 @@ try{
     for(const item of runtimeFiles)if(sha(readFileSync(item.path))!==(item.path===caddy?sha(caddyNext):item.sha256))throw Error('Configuração fora do escopo mudou.');
     privateJson(root+'/completed.json',{target:meta.target,completedAt:new Date().toISOString(),gatewayImage:inspect(names[1]).Image,coreUnchanged:true,databaseUnchangedByUpdater:true,publicBundleHashesMatched:true,realDeviceAcceptance:false});
     console.log('APPS WEB ATUALIZADOS. Arquivos públicos conferidos por hash. Core, banco, site e ADM preservados.');
-    console.log('Feche as abas antigas e reabra os apps para conferir o assistente.');
+    console.log('Feche as abas antigas e reabra os apps para conferir a faixa de instalação.');
   }
-}catch(error){console.error(error.message);if(switched&&plan){try{writeCaddy(plan.caddyPrevious);pointWeb(plan.oldBundles);run('docker',[...args,'-f',plan.rollback,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','90','gateway'],{env});console.error('Pacotes e Caddy anteriores restaurados. Não repetir a atualização; envie o resultado.');}catch{console.error('Retorno incompleto. Não repetir comandos. Log privado: '+logPath);}}process.exitCode=1;}
+}catch(error){console.error(error.message);if(switched&&plan){try{pointWeb(plan.oldBundles);run('docker',[...args,'-f',plan.rollback,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','90','gateway'],{env});console.error('Pacotes anteriores restaurados. Não repetir a atualização; envie o resultado.');}catch{console.error('Retorno incompleto. Não repetir comandos. Log privado: '+logPath);}}process.exitCode=1;}
 finally{closeSync(log);}
