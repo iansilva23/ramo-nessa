@@ -1,0 +1,21 @@
+name: Web rollout preparation checks
+on:
+  push:
+    branches: [ops/web-staging-readiness-20261015]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit-and-backup-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check scripts without accessing any VPS or runtime data
+        run: |
+          node --check deploy/staging/inspect-web-readiness.mjs
+          node --check deploy/staging/prepare-web-backup.mjs
+          node --test deploy/staging/web-readiness-contract.test.mjs deploy/staging/web-backup-contract.test.mjs
