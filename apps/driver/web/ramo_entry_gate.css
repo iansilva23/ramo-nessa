@@ -13,6 +13,8 @@
   padding: max(68px, env(safe-area-inset-top)) 24px max(48px, env(safe-area-inset-bottom));
   border: 0;
   border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
   background: rgba(18, 30, 33, .57);
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -41,7 +43,7 @@
   display: flex; align-items: center; gap: 9px;
   font-size: 13px; font-weight: 500; letter-spacing: 2px;
 }
-#ramo-entry-gate .ramo-gate-brand img { width: 25px; height: 25px; border-radius: 8px; }
+#ramo-entry-gate .ramo-gate-brand svg { width: 25px; height: 25px; color: #ffdf16; }
 #ramo-entry-gate .ramo-gate-welcome {
   display: flex; flex-direction: column; align-items: center; gap: 21px;
   margin: auto 0;

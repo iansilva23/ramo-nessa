@@ -20,20 +20,20 @@ for (const role of ['passenger', 'driver']) {
 test(browserName + ': installed entry gate, full-screen gestures and lifecycle', { timeout: 120000 }, async t => {
   const evidence = new URL('../../artifacts/pwa-entry-gate/' + browserName + '/', import.meta.url);
   await mkdir(evidence, { recursive: true });
-  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ramo_entry_gate.css"></head><body style="margin:0;background:#d7ded8;font-family:Arial"><main id="app"><button id="underlay" style="position:absolute;left:20px;top:160px;width:44px;height:44px">Perfil</button><h1 style="margin:0;padding:300px 30px">Escolha seu destino</h1></main><div id="pre-inert" inert>Estado anterior preservado</div><script src="ramo_entry_gate.js"></script></body></html>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ramo_entry_gate.css"></head><body style="margin:0;background:#d7ded8;font-family:Arial"><main id="app"><button id="underlay" style="position:absolute;left:20px;top:160px;width:44px;height:44px">Perfil</button><h1 style="margin:0;padding:300px 30px">Escolha seu destino</h1></main><div id="pre-inert" inert>Estado anterior preservado</div><script src="ramo_entry_gate.js"></script></body></html>`;
   const server = createServer(async (req, res) => {
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'");
-    if (req.url.endsWith('ramo_entry_gate.js')) { res.setHeader('Content-Type', 'text/javascript'); res.end(gateJs); }
-    else if (req.url.endsWith('ramo_entry_gate.css')) { res.setHeader('Content-Type', 'text/css'); res.end(gateCss); }
+    if (req.url.endsWith('ramo_entry_gate.js')) { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(gateJs); }
+    else if (req.url.endsWith('ramo_entry_gate.css')) { res.setHeader('Content-Type', 'text/css; charset=utf-8'); res.end(gateCss); }
     else if (req.url.endsWith('icons/Icon-192.png')) { res.setHeader('Content-Type', 'image/png'); res.end(await readFile(new URL('icons/Icon-192.png', web))); }
-    else { res.setHeader('Content-Type', 'text/html'); res.end(html); }
+    else { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(html); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = 'http://127.0.0.1:' + server.address().port;
   const browser = await launchTestBrowser(); t.after(() => browser.close());
-  async function open(installed, engineMode = 'navigator', role = 'passageiro') {
-    const context = await browser.newContext({ viewport: { width: 430, height: 932 }, reducedMotion: 'no-preference' });
+  async function open(installed, engineMode = 'navigator', role = 'passageiro', reducedMotion = 'no-preference') {
+    const context = await browser.newContext({ viewport: { width: 430, height: 932 }, reducedMotion });
     const requests = [], errors = [];
     await context.route('**/*', route => { const url = new URL(route.request().url()); if (url.origin !== origin) { requests.push(url.origin); return route.abort(); } return route.continue(); });
     if (installed) await context.addInitScript(mode => {
@@ -69,11 +69,20 @@ test(browserName + ': installed entry gate, full-screen gestures and lifecycle',
     await t.test('installed mode via ' + mode, async () => {
       const s = await open(true, mode), page = s.page;
       await visible(page);
+      assert.equal(await page.locator('.ramo-gate-subtitle').innerText(), 'Seu próximo destino\nestá a um deslize.');
       const box = await page.locator('#ramo-entry-gate').boundingBox(); assert.deepEqual(box, { x: 0, y: 0, width: 430, height: 932 });
       assert.equal(await page.locator('#app').evaluate(n => n.inert), true);
       await page.screenshot({ path: new URL(mode + '-locked.png', evidence).pathname });
       await page.mouse.click(42, 182); await drag(page, 200, 400, 15); await drag(page, 200, 350, 5, 130);
       await visible(page); assert.equal(await page.evaluate(() => underlayClicks), 0);
+      await page.mouse.move(100, 300); await page.mouse.down(); await page.mouse.move(260, 300);
+      await page.locator('#ramo-entry-gate').dispatchEvent('pointercancel', { pointerId: 1 }); await page.mouse.up();
+      await visible(page);
+      await page.mouse.move(100, 300); await page.mouse.down();
+      await page.locator('#ramo-entry-gate').dispatchEvent('pointerdown', { pointerId: 99, pointerType: 'touch', isPrimary: false });
+      await page.mouse.move(260, 300); await page.mouse.up(); await visible(page);
+      await page.mouse.move(100, 300); await page.mouse.down(); await page.mouse.move(260, 300);
+      await page.evaluate(() => dispatchEvent(new Event('resize'))); await page.mouse.up(); await visible(page);
       await page.evaluate(() => { const view = document.createElement('flutter-view'); view.id = 'late-flutter'; document.body.append(view); });
       assert.equal(await page.locator('#late-flutter').evaluate(n => n.inert), true);
       await drag(page, 110, 110, 160); await hidden(page);
@@ -104,4 +113,11 @@ test(browserName + ': installed entry gate, full-screen gestures and lifecycle',
       await s.context.close();
     });
   }
+  await t.test('reduced motion and accessible activation', async () => {
+    const s = await open(true, 'navigator', 'passageiro', 'reduce');
+    await visible(s.page);
+    assert.equal(await s.page.locator('#ramo-entry-gate').evaluate(n => getComputedStyle(n).transitionDuration), '0s');
+    await s.page.locator('#ramo-entry-gate').focus(); await s.page.keyboard.press('Enter'); await hidden(s.page);
+    assert.deepEqual(s.errors, []); await s.context.close();
+  });
 });
