@@ -74,19 +74,20 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   origin = 'https://127.0.0.1:' + server.address().port;
-  t.after(() => new Promise(resolve => server.close(resolve)));
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
+  page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/*', route => {
+  await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
-    // Login does not instantiate a map; prevent provider calls with CI placeholder.
+    // Mount a local map fixture for dark/light home screens; never call Google.
     if (url.origin === 'https://maps.googleapis.com' && url.pathname === '/maps/api/js') {
-      return route.fulfill({ contentType: 'text/javascript', body: 'globalThis.google = { maps: {} };' });
+      return route.fulfill({ contentType: 'text/javascript', body: await readFile(new URL('./maps_test_stub.js', import.meta.url), 'utf8') });
     }
     remote.push(url.origin); return route.abort();
   });
@@ -122,7 +123,9 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-optional-install-banner.png') });
   await banner.click();
   await page.getByText('Adicionar à Tela de Início', { exact: true }).waitFor();
-  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-install-help-dark.png') });
+  // Flutter canvas sheet animation is not a CSS animation; capture its settled frame.
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-install-help-dark.png'), timeout: 10000 });
   await page.getByRole('button', { name: 'Entendi', exact: true }).click();
   await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
   await banner.waitFor({ state: 'hidden' });
@@ -152,7 +155,8 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   assert.deepEqual([...new Set(remote)], []);
   } finally {
     const evidence = resolve('artifacts/web-csp'); await mkdir(evidence, { recursive: true });
-    await page.screenshot({ path: resolve(evidence, browserName + '-' + role + '-login.png') });
+    await page.screenshot({ path: resolve(evidence, browserName + '-' + role + '-login.png'), timeout: 10000 }).catch(() => {});
+    await browser.close();
   }
 });
 
