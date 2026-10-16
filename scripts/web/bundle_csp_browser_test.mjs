@@ -74,18 +74,22 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   origin = 'https://127.0.0.1:' + server.address().port;
-  t.after(() => new Promise(resolve => server.close(resolve)));
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
-  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
+  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 },
+    ...(browserName === 'webkit' ? { isMobile: true, hasTouch: true,
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) });
+  page.setDefaultTimeout(20000);
+  await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/*', route => {
+  await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
-    // Login does not instantiate a map; prevent provider calls with CI placeholder.
+    // Mount a local map fixture for dark/light home screens; never call Google.
     if (url.origin === 'https://maps.googleapis.com' && url.pathname === '/maps/api/js') {
-      return route.fulfill({ contentType: 'text/javascript', body: 'globalThis.google = { maps: {} };' });
+      return route.fulfill({ contentType: 'text/javascript', body: await readFile(new URL('./maps_test_stub.js', import.meta.url), 'utf8') });
     }
     remote.push(url.origin); return route.abort();
   });
@@ -114,19 +118,20 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     await page.getByRole('textbox').first().click(); await page.keyboard.insertText('123456');
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
-  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).waitFor({ timeout: 30000 });
+  const banner = page.getByText('Adicionar app à Tela de Início', { exact: true });
+  await banner.waitFor({ timeout: 30000 });
+  assert.equal(await page.getByText('Ative sua localização', { exact: true }).count(), 0);
   const setupEvidence = resolve('artifacts/web-csp'); await mkdir(setupEvidence, { recursive: true });
-  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-install.png') });
-  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).click();
-  const skipLocation = role === 'driver' ? 'Configurar depois; acessar meu perfil' : 'Usar endereço manual por enquanto';
-  await page.getByRole('button', { name: skipLocation, exact: true }).waitFor();
-  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-location.png') });
-  await page.getByRole('button', { name: skipLocation, exact: true }).click();
-  await page.getByRole('button', { name: 'Continuar sem notificações por enquanto', exact: true }).waitFor();
-  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-notifications.png') });
-  await page.getByRole('button', { name: 'Continuar sem notificações por enquanto', exact: true }).click();
-  await page.getByRole('button', { name: 'Entrar no Ramo Nessa', exact: true }).waitFor();
-  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-setup-summary.png') });
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-optional-install-banner.png') });
+  await banner.click();
+  await page.getByText('Adicionar à Tela de Início', { exact: true }).waitFor();
+  // Flutter canvas sheet animation is not a CSS animation; capture its settled frame.
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: resolve(setupEvidence, browserName + '-' + role + '-install-help-dark.png'), timeout: 10000 });
+  await page.getByRole('button', { name: 'Entendi', exact: true }).click();
+  await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
+  await banner.waitFor({ state: 'hidden' });
+  assert.equal(await banner.count(), 0, 'The installation banner can be dismissed without blocking the app');
   assert.equal(loginCalls, 1);
   assert.match(publicHandle, new RegExp('^ramo_web_' + role + '_v1_[a-f0-9]{32}$'));
   const cookies = await page.context().cookies();
@@ -137,7 +142,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
-  await page.getByRole('button', { name: 'Continuar no navegador por enquanto', exact: true }).waitFor({ timeout: 30000 });
+  await page.getByText('Adicionar app à Tela de Início', { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
@@ -152,7 +157,8 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   assert.deepEqual([...new Set(remote)], []);
   } finally {
     const evidence = resolve('artifacts/web-csp'); await mkdir(evidence, { recursive: true });
-    await page.screenshot({ path: resolve(evidence, browserName + '-' + role + '-login.png') });
+    await page.screenshot({ path: resolve(evidence, browserName + '-' + role + '-login.png'), timeout: 10000 }).catch(() => {});
+    await browser.close();
   }
 });
 
