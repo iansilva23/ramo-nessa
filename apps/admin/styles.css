@@ -5462,3 +5462,6 @@ td strong {
 .geo-storage-auto-label { display:flex;gap:10px;align-items:center;font-size:13px;margin-top:8px; }
 .geo-storage-auto-label input { width:18px;height:18px; }
 @media(max-width:760px) { .geo-storage-policy{grid-template-columns:1fr;} }
+
+
+.site-admin-tabs,.site-admin-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:18px 0}.site-admin-card{padding:24px;border:1px solid #dedede;border-radius:16px;background:#fff;margin:16px 0;display:grid;gap:14px}.site-admin-card h2,.site-admin-card p{margin:0}.site-admin-card input,.site-admin-card select,.site-admin-card textarea,.site-admin-toolbar select{max-width:100%;padding:12px;border:1px solid #bbb;border-radius:8px;background:#fff;color:#111}.site-admin-card textarea{min-height:90px;resize:vertical}.site-content-preview{background:#101010;color:#fff;white-space:pre-line}.site-content-preview img{max-width:100%;max-height:280px;object-fit:cover;border-radius:12px}.site-admin-card button{justify-self:start}.site-admin-tabs button{min-height:44px}@media(max-width:600px){.site-admin-card{padding:16px}.site-admin-toolbar{align-items:stretch;flex-direction:column}}

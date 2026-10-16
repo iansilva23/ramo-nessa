@@ -10,7 +10,7 @@ test('Admin expõe gestão de funcionários somente ao proprietário', async () 
     readFile(new URL('../pages/staff.html', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(index, /\/admin\/funcionarios/);
+  assert.match(index, /\/administrodo\/funcionarios/);
   assert.match(app, /capabilities\?\.manageStaff/);
   assert.match(app, /support:read/);
   assert.match(app, /support:write/);

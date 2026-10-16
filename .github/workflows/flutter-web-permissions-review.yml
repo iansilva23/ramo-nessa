@@ -2,7 +2,7 @@ name: Flutter Web and Permissions Review
 
 on:
   push:
-    branches: [feature/flutter-web-permissions-20261013]
+    branches: [feature/flutter-web-permissions-20261013, feature/web-site-integration-20261015]
   workflow_dispatch:
 
 concurrency:
@@ -92,7 +92,7 @@ jobs:
           node --check apps/passenger/web/ramo_card_fields.js
           node --test scripts/web/browser_test_runtime_test.mjs scripts/web/card_fields_browser_test.mjs scripts/web/push_browser_test.mjs scripts/web/security_browser_test.mjs scripts/web/session_cookie_browser_test.mjs
           node --test scripts/web/push_worker_test.mjs scripts/web/maps_web_config_test.mjs
-          node --test scripts/web/verify_web_homologation_test.mjs
+          node --test scripts/web/verify_web_homologation_test.mjs scripts/web/public_web_configuration_test.mjs
       - name: Install pinned Playwright WebKit with system dependencies
         run: node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps webkit
       - name: Verify cookies and CSP in WebKit (local fixtures, not iPhone homologation)
@@ -254,3 +254,105 @@ jobs:
           path: apps/${{ matrix.app }}/build/web/
           retention-days: 7
 
+
+  site-admin-integration:
+    name: Website and ADM integration (temporary SQLite only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+      - name: Validate ADM and gateway integration
+        run: |
+          npm run check --prefix apps/admin
+          npm test --prefix apps/admin
+          node scripts/web/verify_web_gateway.mjs
+          node --test scripts/web/integration_routes_test.mjs
+      - name: Install website dependencies from the lockfile
+        working-directory: apps/institutional-site
+        run: |
+          npm install --global pnpm@11.25.0
+          pnpm install --frozen-lockfile
+      - name: Typecheck, test and build website
+        working-directory: apps/institutional-site
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          pnpm check
+          pnpm test
+          pnpm build
+          cp -a public .next/standalone/
+          cp -a .next/static .next/standalone/.next/
+          node test/production-http.mjs
+          node test/site-production-http.mjs
+
+  configured-web-bundles:
+    name: Configured Web bundles (no deploy or provider calls)
+    if: github.ref == 'refs/heads/feature/web-site-integration-20261015'
+    needs: [core-realtime, push-postgres-contract, web-card-contract, flutter-web, site-admin-integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check public configuration and require real browser Maps key
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { loadPublicWebConfiguration } from './scripts/web/public_web_configuration.mjs';
+          import { validateMapsWebKey } from './scripts/web/maps_web_config.mjs';
+          await loadPublicWebConfiguration();
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          console.log('Configuração completa presente; sem chamadas a provedores.');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Generate correctly-sized PWA icons
+        run: |
+          python3 -m pip install --quiet "Pillow==11.3.0"
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Prepare and compile both roles from this exact commit
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            if [ "$role" = passenger ]; then app_path=passageiro; else app_path=motorista; fi
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn \
+                --base-href="/$app_path/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml' '*/pubspec.lock'
+      - name: Strict pair verification and bundle hashes
+        run: |
+          mkdir -p artifacts/configured-web
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit="${{ github.sha }}" \
+            --output=artifacts/configured-web/release.json
+          cp -a apps/passenger/build/web artifacts/configured-web/passenger
+          cp -a apps/driver/build/web artifacts/configured-web/driver
+      - name: Store configured pair for controlled homologation (not production acceptance)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-configured-${{ github.sha }}
+          path: artifacts/configured-web/
+          if-no-files-found: error
+          retention-days: 14

@@ -30,7 +30,7 @@ for (const [path, directory] of [
     path + ': Flutter CanvasKit wasm CSP missing');
   assert.ok(block.includes('https://www.gstatic.com/firebasejs/13.0.0/'),
     path + ': pinned Firebase SDK source missing');
-  assert.ok(block.includes("'self' wss://{$APP_DOMAIN}"),
+  assert.ok(block.includes("'self' wss://{host}"),
     path + ': explicit same-host secure WebSocket source missing');
   assert.ok(block.includes("object-src 'none'"),
     path + ': unsafe object sources');
@@ -50,7 +50,7 @@ assert.ok(passenger.includes('https://sdk.mercadopago.com'));
 assert.ok(passenger.includes('https://api.mercadopago.com'));
 assert.ok(passenger.includes('frame-src https://*.mercadopago.com'));
 assert.ok(!routeBody('motorista').includes('mercadopago'), 'Do not broaden driver payment sources');
-const admin = routeBody('admin');
+const admin = routeBody('administrodo');
 assert.ok(!admin.includes('mercadopago'), 'Do not broaden ADM payment sources');
 assert.ok(admin.includes("script-src 'self'"));
 assert.ok(!admin.includes('wasm-unsafe-eval'),
@@ -58,3 +58,14 @@ assert.ok(!admin.includes('wasm-unsafe-eval'),
 assert.ok(!admin.includes('geolocation=(self)'),
   'Do not grant geolocation permission to ADM');
 console.log('OK: Core /v1, isolated PWA GPS/CanvasKit and strict ADM headers.');
+
+assert.match(source, /\{\$APP_DOMAIN\}, app\.ramonessa\.com\.br \{/u);
+assert.doesNotMatch(source, /(?:handle_path|redir) \/admin(?:\/|\s)/u);
+assert.doesNotMatch(source, /redir \/\s/u);
+for (const path of ['site-management', 'media']) {
+  const escaped = path.replaceAll('/', '\\/');
+  assert.match(source, new RegExp('handle /' + escaped + '/\\* \\{\\s*reverse_proxy institutional-site:3000', 'u'));
+}
+assert.match(source, /ramonessa\.com\.br \{[\s\S]*?reverse_proxy institutional-site:3000/u);
+assert.match(source, /www\.ramonessa\.com\.br \{\s*redir https:\/\/ramonessa\.com\.br\{uri\} 308/u);
+console.log('OK: domínio app, administrodo, gerenciamento do site, mídia e domínio público preservados.');

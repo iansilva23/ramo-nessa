@@ -30,10 +30,10 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
 
   assert.match(
     index,
-    /href=["']\/admin\/nova-localidade["'][^>]*data-view=["']localities["']/,
+    /href=["']\/administrodo\/nova-localidade["'][^>]*data-view=["']localities["']/,
   );
   assert.match(index, /Nova localidade/);
-  assert.match(app, /path: '\/admin\/nova-localidade'/);
+  assert.match(app, /path: '\/administrodo\/nova-localidade'/);
   assert.match(app, /createLocalitiesAdmin/);
   assert.match(app, /destroyLocalitiesAdmin/);
 
@@ -136,7 +136,7 @@ test('Operação e Tarifas direciona cadastro geográfico para Nova localidade',
   assert.match(html, /Localidades agora têm uma área própria/);
   assert.match(
     html,
-    /href=["']\/admin\/nova-localidade["'][^>]*data-view=["']localities["']/,
+    /href=["']\/administrodo\/nova-localidade["'][^>]*data-view=["']localities["']/,
   );
 
   const select =

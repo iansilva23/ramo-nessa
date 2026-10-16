@@ -172,3 +172,59 @@ Registrar commit/imagens de retorno e resultados. Se as URLs Web antes não
 existiam, voltar ao estado não publicado; testar novamente ADM/apps nativos.
 Reabrir as PWAs de teste e conferir caches/workers, sem assumir que arquivos
 do servidor atualizam instantaneamente uma página já aberta.
+
+## Integração com domínio, ADM e site — 15/10/2026
+
+O operador confirmou a publicação do site institucional e da seção Site e aplicativos,
+revisão b3892104594e5f2d345f1e5c903a8908108c1232. Isso não publicou as PWAs.
+O candidato integrado preserva o endereço `/administrodo/`, a seção
+`/administrodo/site-aplicativos`, os proxies `/site-management/*` e `/media/*`,
+o host `app.ramonessa.com.br`, o site `ramonessa.com.br` e o redirecionamento www.
+Não restaurar `/admin/` nem substituir o Caddyfile vivo por um template antigo.
+A origem explícita de WebSocket usa o host da resposta (`wss://{host}`), para
+não depender do APP_DOMAIN legado ainda apontando ao hostname OVH. As regras
+estritas do ADM e o GPS liberado apenas nos dois escopos PWA são preservados.
+
+Antes de qualquer atualização Web, repetir inventário e capturar o Caddyfile completo,
+o Compose com os overlays, a origem da imagem do site e o volume SQLite existente.
+O git HEAD da VPS pode permanecer 7f608676 com alterações locais aplicadas;
+HEAD sozinho não representa o ADM/site em execução. Não descartar o worktree.
+O Core ainda precisa de atualização coordenada e a migration 085 continua pendente
+até confirmação e autorização próprias. Não executar novamente os ativadores
+históricos do ADM/site como atalho para implantar Web.
+
+Os botões do site devem continuar em breve até os dois bundles reais serem
+configurados, aprovados e homologados. Depois, publicar seus links pelo novo ADM:
+`https://app.ramonessa.com.br/passageiro/` e
+`https://app.ramonessa.com.br/motorista/`. Não alterar os links antes disso.
+
+Permanecem necessários a chave Maps JavaScript restrita ao navegador e os dois
+appIds Firebase Web distintos do projeto ramo-nessa, com VAPID público. A revisão
+não cria chaves, não revela a service account e não usa credenciais do servidor
+no navegador. O CI integrado continua produzindo revisão, sem deploy ou migrations.
+
+## Configuração pública recebida — 15/10/2026
+
+Foram informados pelo operador dois registros Firebase Web distintos do projeto
+ramo-nessa e uma chave VAPID pública. A configuração estrita está em
+config/web/firebase.public.json, contendo somente os cinco campos públicos por app.
+Não contém service account, chave privada VAPID ou credencial do Core.
+A chave Maps do navegador permanece no GitHub Secret
+RAMO_GOOGLE_MAPS_WEB_API_KEY; o operador informou ter salvo o valor após restringir
+a chave a Maps JavaScript API e ao site app.ramonessa.com.br. As restrições e a
+validade no provedor não foram inspecionadas nem certificadas por esta etapa.
+
+O job configured-web-bundles exige os seis grupos de regressão aprovados, a
+configuração completa e uma chave Maps de formato real, sem --ci-review.
+Constrói os dois apps a partir do mesmo SHA e lockfiles, valida a dupla pelo gate
+estrito, confere a configuração Firebase aprovada e gera release.json com SHA-256
+dos arquivos e de cada árvore. Os artefatos configurados ficam separados dos
+artefatos de revisão com push null. Um hash não substitui conferir workflow,
+revisão e proveniência antes de instalar.
+
+Gerar arquivos não aplica a migration 085 nem publica Core/bundles/Caddy. Ainda
+são necessários inventário fresco, backup/retorno e atualização coordenada; não
+substituir o Core sozinho nem divulgar URLs Web enquanto o servidor estiver na
+versão anterior. Não alterar pagamentos ou enviar OTP/push reais durante este CI.
+Homologação dos provedores, GPS, permissões, corridas, suspensão e Safari/iPhone
+real continua pendente após builds estruturais aprovados.

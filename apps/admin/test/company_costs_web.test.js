@@ -21,7 +21,7 @@ test('consulta e gravação de custos usam Bearer, revisão e idempotência sem 
 });
 test('nova página está no menu próprio e não dentro de financeiro; renderização segura e permissões próprias',()=>{
   const index=readFileSync(new URL('../index.html',import.meta.url),'utf8'),page=readFileSync(new URL('../pages/costs.html',import.meta.url),'utf8'),controller=readFileSync(new URL('../src/company-costs-admin.js',import.meta.url),'utf8');
-  assert.match(index,/href="\/admin\/custos-resultado" data-view="costs"/);assert.match(page,/view-costs/);assert.doesNotMatch(controller,/innerHTML|insertAdjacentHTML/);
+  assert.match(index,/href="\/administrodo\/custos-resultado" data-view="costs"/);assert.match(page,/view-costs/);assert.doesNotMatch(controller,/innerHTML|insertAdjacentHTML/);
   assert.match(controller,/costs:write/);assert.match(controller,/costs:read/);assert.match(controller,/expectedUpdatedAt/);
 });
 
