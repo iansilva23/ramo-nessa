@@ -18,4 +18,7 @@ jobs:
         run: |
           node --check deploy/staging/inspect-web-readiness.mjs
           node --check deploy/staging/prepare-web-backup.mjs
+          node --check deploy/staging/prepare-web-images.mjs
           node --test deploy/staging/web-readiness-contract.test.mjs deploy/staging/web-backup-contract.test.mjs
+          node --test deploy/staging/web-image-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p 'stage_configured_web_test.py'
