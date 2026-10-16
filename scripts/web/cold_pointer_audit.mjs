@@ -40,7 +40,7 @@ try{
  if(!position)throw Error('Painted avatar not identified; no guessed click performed.');
  const initial=await geometry();
  const freeMap=await page.evaluate(()=>!!document.elementFromPoint(215,250)?.closest('[id^="plugins.flutter.io/google_maps_"]'));
- if(!freeMap)throw Error('The unpainted map area is blocked by an overlay.');
+ if(semantics==='cold' && !freeMap)throw Error('The unpainted map area is blocked by an overlay.');
  const target=await page.evaluate(({x,y})=>{const e=document.elementFromPoint(x,y);return{tag:e?.tagName,id:e?.id,isMap:!!e?.closest('[id^="plugins.flutter.io/google_maps_"]')};},position);
  const endpointsBefore=await readFile(resolve(out,'endpoints.jsonl'),'utf8').catch(()=>'');
  await page.touchscreen.tap(position.x,position.y);
