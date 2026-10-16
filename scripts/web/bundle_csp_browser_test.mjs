@@ -77,7 +77,9 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
-  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 } });
+  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 },
+    ...(browserName === 'webkit' ? { isMobile: true, hasTouch: true,
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) });
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
