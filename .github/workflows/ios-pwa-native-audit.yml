@@ -1,0 +1,101 @@
+name: Native iOS PWA cold-start audit
+on:
+  push:
+    branches: [ops/ios-pwa-cold-start-audit-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ios-pwa-native-audit
+  cancel-in-progress: true
+jobs:
+  native-cold-launch:
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-passenger-review
+          run-id: 38940447498
+          github-token: ${{ github.token }}
+          path: apps/passenger/build/web
+      - name: Inventory actual SDK and simulator runtimes
+        run: |
+          mkdir -p artifacts/native-ios
+          xcodebuild -version | tee artifacts/native-ios/xcode.txt
+          xcrun simctl list -j > artifacts/native-ios/simulators.json
+          xcrun simctl list devicetypes > artifacts/native-ios/device-types.txt
+          brew install xcodegen
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Create disposable iPhone 15 Pro Max with iOS 26.5
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print(next(x["identifier"] for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and x["name"]=="iOS 26.5"))')
+          device=$(xcrun simctl create Ramo-PWA-Audit com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max "$runtime")
+          echo "RAMO_AUDIT_DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl ui "$device" appearance light
+      - name: Start local HTTPS fixture with passive measurements
+        run: |
+          set -euo pipefail
+          cat > artifacts/native-ios/openssl.cnf <<'CONF'
+          [req]
+          distinguished_name=dn
+          x509_extensions=ext
+          prompt=no
+          [dn]
+          CN=localhost
+          [ext]
+          subjectAltName=DNS:localhost,IP:127.0.0.1
+          basicConstraints=critical,CA:TRUE
+          keyUsage=critical,keyCertSign,digitalSignature,keyEncipherment
+          CONF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout artifacts/native-ios/key.pem -out artifacts/native-ios/cert.pem -config artifacts/native-ios/openssl.cnf
+          xcrun simctl keychain "$RAMO_AUDIT_DEVICE" add-root-cert artifacts/native-ios/cert.pem
+          node scripts/web/native-ios/fixture.mjs > artifacts/native-ios/fixture.log 2>&1 &
+          echo "RAMO_FIXTURE_PID=$!" >> "$GITHUB_ENV"
+          for attempt in $(seq 1 30); do
+            if curl -ksSf https://localhost:9443/audit/health > /dev/null; then break; fi
+            sleep 1
+          done
+          xcrun simctl openurl "$RAMO_AUDIT_DEVICE" https://localhost:9443/passageiro/
+      - name: Install by native Safari UI and probe first painted coordinates
+        run: |
+          set -euo pipefail
+          cd scripts/web/native-ios
+          xcodegen generate
+          xcodebuild test -project PwaColdAudit.xcodeproj -scheme Audit \
+            -destination "platform=iOS Simulator,id=$RAMO_AUDIT_DEVICE" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+            -resultBundlePath "$GITHUB_WORKSPACE/artifacts/native-ios/NativeAudit.xcresult" \
+            CODE_SIGNING_ALLOWED=NO | tee "$GITHUB_WORKSPACE/artifacts/native-ios/xctest.log"
+      - name: Preserve only disposable audit evidence and clean up
+        if: always()
+        run: |
+          if [ -d artifacts/native-ios/NativeAudit.xcresult ]; then
+            xcrun xcresulttool export attachments --path artifacts/native-ios/NativeAudit.xcresult --output-path artifacts/native-ios/attachments || true
+          fi
+          if [ -n "${RAMO_AUDIT_DEVICE:-}" ]; then
+            xcrun simctl io "$RAMO_AUDIT_DEVICE" screenshot artifacts/native-ios/final-screen.png || true
+            xcrun simctl listapps "$RAMO_AUDIT_DEVICE" > artifacts/native-ios/apps-after.plist || true
+            xcrun simctl shutdown "$RAMO_AUDIT_DEVICE" || true
+            xcrun simctl delete "$RAMO_AUDIT_DEVICE" || true
+          fi
+          rm -f artifacts/native-ios/key.pem artifacts/native-ios/cert.pem
+          if [ -n "${RAMO_FIXTURE_PID:-}" ]; then kill "$RAMO_FIXTURE_PID" || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-pwa-audit
+          path: artifacts/native-ios/
+          include-hidden-files: true
+          retention-days: 7
