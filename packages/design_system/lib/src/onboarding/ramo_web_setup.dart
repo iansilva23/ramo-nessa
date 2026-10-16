@@ -60,7 +60,7 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
       if (mounted && revision == _revision) setState(() => _notice = 'Não foi possível conferir agora. Tente novamente.');
     }
   }
-  void _next() { if (!_busy) setState(() { _step++; _help = false; _notice = null; }); }
+  void _next() { if (!_busy && _step < 3) setState(() { _step++; _help = false; _notice = null; }); }
   Future<void> _install() async {
     if (_busy) return;
     setState(() { _busy = true; _notice = null; });
@@ -236,7 +236,7 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
           const SizedBox(height: 20), ..._content(),
           if (_notice != null) Padding(padding: const EdgeInsets.only(top: 16), child: Text(_notice!, style: const TextStyle(color: Color(0xFFFFCC80), height: 1.5))),
           if (_busy) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator(color: Color(0xFFFFCC00)))),
-          if (_step > 0) _secondary('Voltar', () => setState(() { _step--; _help = false; _notice = null; })),
+          if (_step > 0) _secondary('Voltar', () { if (_step > 0) setState(() { _step--; _help = false; _notice = null; }); }),
         ]),
     )))));
   }
