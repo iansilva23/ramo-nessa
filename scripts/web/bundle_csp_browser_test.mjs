@@ -123,6 +123,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.getByText('Adicionar à Tela de Início', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Entendi', exact: true }).click();
   await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
+  await banner.waitFor({ state: 'hidden' });
   assert.equal(await banner.count(), 0, 'The installation banner can be dismissed without blocking the app');
   assert.equal(loginCalls, 1);
   assert.match(publicHandle, new RegExp('^ramo_web_' + role + '_v1_[a-f0-9]{32}$'));
