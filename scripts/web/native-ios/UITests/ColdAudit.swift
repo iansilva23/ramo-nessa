@@ -58,6 +58,13 @@ final class ColdAudit: XCTestCase {
     note(phase + "-after"); capture(phase + "-after-first-touch")
   }
   func tapNativeCenter(_ element: XCUIElement, in app: XCUIApplication, name: String) throws {
+    let ready = NSPredicate(format: "hittable == true")
+    let readiness = XCTNSPredicateExpectation(predicate: ready, object: element)
+    let readinessResult = XCTWaiter.wait(for: [readiness], timeout: 8)
+    if readinessResult != .completed && !name.hasPrefix("more-") {
+      capture(name + "-not-ready"); dump(app, name + "-not-ready-tree")
+      throw NSError(domain: "Audit", code: 3, userInfo: [NSLocalizedDescriptionKey: "Native control never became hittable; no blind tap"] )
+    }
     let frame = element.frame
     let a = XCTAttachment(string: "Native element \(name): \(frame), app frame \(app.frame), hittable \(element.isHittable)")
     a.name = name + "-frame"; a.lifetime = .keepAlways; add(a)
@@ -89,18 +96,18 @@ final class ColdAudit: XCTestCase {
     dump(safari, "safari-before-native-menu")
     try dismissSafariTip(safari)
     let share = safari.buttons.matching(NSPredicate(format: "label == %@ OR label == %@ OR label == %@", "Share", "Share…", "Share...")).firstMatch
-    if !share.exists || !share.isHittable {
+    for attempt in 0..<3 {
+      if share.exists && share.isHittable { break }
+      try dismissSafariTip(safari)
       let more = safari.buttons["More"].firstMatch
-      if more.waitForExistence(timeout: 3) { try tapNativeCenter(more, in: safari, name: "more") }
+      if more.waitForExistence(timeout: 3) { try tapNativeCenter(more, in: safari, name: "more-" + String(attempt)) }
       else {
         let menu = safari.buttons["Page Menu"].firstMatch
         XCTAssertTrue(menu.waitForExistence(timeout: 3), "Native Safari menu not found")
         try tapNativeCenter(menu, in: safari, name: "page-menu")
       }
-    }
-    if safari.staticTexts["View Bookmarks, Share Menu, and Open Tabs"].firstMatch.exists {
-      try dismissSafariTip(safari)
-      try tapNativeCenter(safari.buttons["More"].firstMatch, in: safari, name: "more-after-tip")
+      if share.waitForExistence(timeout: 5) { break }
+      capture("native-menu-retry-" + String(attempt))
     }
     capture("after-native-menu"); dump(safari, "after-native-menu-tree")
     XCTAssertTrue(share.waitForExistence(timeout: 5), "Share action not found")
