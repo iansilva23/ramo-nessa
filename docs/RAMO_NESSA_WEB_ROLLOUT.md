@@ -202,3 +202,29 @@ Permanecem necessários a chave Maps JavaScript restrita ao navegador e os dois
 appIds Firebase Web distintos do projeto ramo-nessa, com VAPID público. A revisão
 não cria chaves, não revela a service account e não usa credenciais do servidor
 no navegador. O CI integrado continua produzindo revisão, sem deploy ou migrations.
+
+## Configuração pública recebida — 15/10/2026
+
+Foram informados pelo operador dois registros Firebase Web distintos do projeto
+ramo-nessa e uma chave VAPID pública. A configuração estrita está em
+config/web/firebase.public.json, contendo somente os cinco campos públicos por app.
+Não contém service account, chave privada VAPID ou credencial do Core.
+A chave Maps do navegador permanece no GitHub Secret
+RAMO_GOOGLE_MAPS_WEB_API_KEY; o operador informou ter salvo o valor após restringir
+a chave a Maps JavaScript API e ao site app.ramonessa.com.br. As restrições e a
+validade no provedor não foram inspecionadas nem certificadas por esta etapa.
+
+O job configured-web-bundles exige os seis grupos de regressão aprovados, a
+configuração completa e uma chave Maps de formato real, sem --ci-review.
+Constrói os dois apps a partir do mesmo SHA e lockfiles, valida a dupla pelo gate
+estrito, confere a configuração Firebase aprovada e gera release.json com SHA-256
+dos arquivos e de cada árvore. Os artefatos configurados ficam separados dos
+artefatos de revisão com push null. Um hash não substitui conferir workflow,
+revisão e proveniência antes de instalar.
+
+Gerar arquivos não aplica a migration 085 nem publica Core/bundles/Caddy. Ainda
+são necessários inventário fresco, backup/retorno e atualização coordenada; não
+substituir o Core sozinho nem divulgar URLs Web enquanto o servidor estiver na
+versão anterior. Não alterar pagamentos ou enviar OTP/push reais durante este CI.
+Homologação dos provedores, GPS, permissões, corridas, suspensão e Safari/iPhone
+real continua pendente após builds estruturais aprovados.
