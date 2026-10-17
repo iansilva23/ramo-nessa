@@ -8,6 +8,7 @@ on:
       - 'backend/core/src/admin/repositories/postgres-admin-repository.ts'
       - 'backend/core/test/pricing_locality_postgres_atomicity.test.ts'
       - 'backend/core/test/pricing_locality_http_postgres.test.ts'
+      - 'scripts/web/admin_api_live_contract.mjs'
       - 'backend/core/migrations/**'
       - '.github/workflows/v5-locality-postgres.yml'
   workflow_dispatch:
