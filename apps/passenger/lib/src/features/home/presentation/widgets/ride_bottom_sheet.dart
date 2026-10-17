@@ -65,6 +65,49 @@ class RideBottomSheet extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Only the light theme shows the reference guidance card.
+                    // It disappears when a destination is selected.
+                    if (isLight && destination == null) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Material(
+                          key: const Key('destination-guidance-card'),
+                          color: Colors.white,
+                          elevation: 7,
+                          shadowColor: Colors.black.withValues(alpha: .20),
+                          borderRadius: BorderRadius.circular(25),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Escolha seu destino',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Escolha sua origem e o destino no mapa',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: RamoSpacing.sm),
+                    ],
                     Material(
                       key: const Key('floating-trip-card'),
                       color: isLight ? Colors.white : colors.surface,

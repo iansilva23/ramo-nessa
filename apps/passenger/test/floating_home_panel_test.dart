@@ -74,7 +74,14 @@ void main() {
     await tester.pumpWidget(screen());
     await tester.pumpAndSettle();
     expect(find.byType(DraggableScrollableSheet), findsNothing);
-    expect(find.text('Escolha seu destino'), findsNothing);
+    expect(find.text('Escolha seu destino'), findsOneWidget);
+    expect(find.text('Escolha sua origem e o destino no mapa'), findsOneWidget);
+    final guidanceCard = tester.widget<Material>(
+      find.byKey(const Key('destination-guidance-card')),
+    );
+    expect(guidanceCard.color, Colors.white);
+    expect(guidanceCard.elevation, 7);
+    expect(guidanceCard.shadowColor, Colors.black.withValues(alpha: .20));
     expect(find.byKey(const Key('floating-trip-card')), findsOneWidget);
     final lightCard = tester.widget<Material>(
       find.byKey(const Key('floating-trip-card')),
@@ -93,6 +100,8 @@ void main() {
 
     await tester.pumpWidget(screen(destination: 'Preá', route: '12,1 km · 29 min'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('destination-guidance-card')), findsNothing);
+    expect(find.text('Escolha seu destino'), findsNothing);
     expect(find.byKey(const Key('floating-route-summary')), findsOneWidget);
     expect(find.text('Confirmar destino'), findsOneWidget);
     // Keep the map's legally required attribution below the controls.
@@ -102,6 +111,12 @@ void main() {
     expect(mapTaps, 2);
     await tester.tap(find.byKey(const Key('confirm-destination-button')));
     expect(confirmations, 1);
+
+    // Clearing the destination restores the guidance card.
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('destination-guidance-card')), findsOneWidget);
+    expect(find.text('Escolha seu destino'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('the dark trip card keeps its original surface', (tester) async {
@@ -127,6 +142,7 @@ void main() {
     expect(darkCard.color, RamoColors.darkSurface);
     expect(darkCard.elevation, 3);
     expect(darkCard.shadowColor, Colors.black26);
+    expect(find.byKey(const Key('destination-guidance-card')), findsNothing);
   });
 
   testWidgets('map receives a layout-settled callback after the route panel expands', (tester) async {
