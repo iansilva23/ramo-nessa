@@ -51,6 +51,7 @@ void main() {
     expect(find.textContaining('Abra este endereço no Safari.'), findsNothing);
     await tap(tester, 'Adicionar app à Tela de Início');
     expect(find.textContaining('Abra este endereço no Safari.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('web-install-ios-animation')), findsOneWidget);
     await tap(tester, 'Entendi');
     expect(find.text('App aberto'), findsOneWidget);
     expect(find.textContaining('Abra este endereço no Safari.'), findsNothing);
@@ -70,8 +71,15 @@ void main() {
     expect(surface.color, const Color(0xFF17191D));
     expect(tester.widget<BottomSheet>(find.byType(BottomSheet)).backgroundColor, const Color(0xFF17191D));
     expect(find.text('Abra este endereço no Safari.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('web-install-ios-animation')), findsOneWidget);
     await tester.tap(find.byTooltip('Fechar instruções')); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('web-install-help-surface')), findsNothing);
+  });
+  testWidgets('Android browser instructions never display iOS animation', (tester) async {
+    await show(tester, state: {'ios': false});
+    await tap(tester, 'Adicionar app à Tela de Início');
+    expect(find.byKey(const ValueKey('web-install-ios-animation')), findsNothing);
+    expect(find.textContaining('Abra o menu do navegador.'), findsOneWidget);
   });
   testWidgets('slow or failed snapshot never blocks app', (tester) async {
     final pending = Completer<Map<String, Object?>>();

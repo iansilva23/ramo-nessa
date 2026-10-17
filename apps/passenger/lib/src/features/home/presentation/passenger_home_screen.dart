@@ -187,11 +187,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   String? _coverageMessage;
   String? _serviceAreaLabel;
   bool _mapReady = false;
-  double? _mapSheetExtent;
   bool _locating = false;
   bool _routeLoading = false;
   bool _preparingRide = false;
   int _routeRequestId = 0;
+  int? _pendingRouteFitId;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
   bool _releaseDialogShown = false;
@@ -844,9 +844,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
       });
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _fitRoute();
-      });
+      // Google Maps may receive new padding while the floating card is still
+      // resizing. Fit only after layout settles so Web Safari does not use
+      // stale viewport dimensions. The timeout covers no-size-change cases.
+      _pendingRouteFitId = requestId;
+      Future<void>.delayed(
+        ramoTripCardResizeDuration + const Duration(milliseconds: 80),
+        () => _fitRouteAfterLayout(expectedRequestId: requestId),
+      );
     } catch (_) {
       if (!mounted || requestId != _routeRequestId) {
         return;
@@ -858,6 +863,16 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       });
       _showMessage('Não conseguimos calcular essa rota agora.');
     }
+  }
+
+  void _fitRouteAfterLayout({int? expectedRequestId}) {
+    final pending = _pendingRouteFitId;
+    if (!mounted || pending == null || pending != _routeRequestId ||
+        (expectedRequestId != null && pending != expectedRequestId)) {
+      return;
+    }
+    _pendingRouteFitId = null;
+    _fitRoute();
   }
 
   void _fitRoute() {
@@ -1080,8 +1095,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
     return Scaffold(
-      body: Stack(
-        children: [
+      // The map lives above the navigation bar: use its rendered bounds, not
+      // the full screen size, when reserving room for cards and attribution.
+      body: LayoutBuilder(
+        builder: (context, constraints) => Stack(
+          children: [
           Positioned.fill(
             child: RamoLiveMap(
               controller: _mapController,
@@ -1090,10 +1108,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               routePoints: _route?.points ?? const [],
               networkTilesEnabled: widget.networkTilesEnabled,
               cameraPadding: ramoHomeMapPadding(
-                viewport: MediaQuery.sizeOf(context),
+                viewport: constraints.biggest,
                 safeTop: MediaQuery.paddingOf(context).top,
-                sheetExtent: _mapSheetExtent ??
-                    (_origin != null && _destination != null ? .48 : .42),
+                // Reserve only the floating controls rather than an old
+                // full-height sheet; route bounds remain above the card.
+                sheetExtent: _origin != null && _destination != null
+                    ? .37
+                    : .23,
                 hasAgencyBanner: _agencyPromotion?.enabled == true,
               ),
               onMapReady: () {
@@ -1195,35 +1216,24 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               ),
             ),
           ),
-          NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              if (!mounted) return false;
-              final extent = notification.extent;
-              if (_mapSheetExtent != extent) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || _mapSheetExtent == extent) return;
-                  setState(() => _mapSheetExtent = extent);
-                });
-              }
-              return false;
-            },
-            child: RideBottomSheet(
+          RideBottomSheet(
+            onLayoutSettled: _fitRouteAfterLayout,
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
             serviceAreaLabel: _serviceAreaLabel,
             coverageMessage: _coverageMessage,
             routeLoading: _routeLoading,
+            isPreparing: _preparingRide,
             onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
             onDestinationClear:
                 _destination == null ? null : _clearDestination,
-            onContinue: _preparingRide
-                ? () {}
-                : () => unawaited(_continueToVehicleSelection()),
+            onContinue: () =>
+                unawaited(_continueToVehicleSelection()),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1262,8 +1272,8 @@ class _MapFloatingButton extends StatelessWidget {
               boxShadow: RamoElevation.floating(context),
             ),
             child: IconTheme(
-              data: const IconThemeData(
-                color: RamoColors.brandBlack,
+              data: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurface,
                 size: 23,
               ),
               child: icon,

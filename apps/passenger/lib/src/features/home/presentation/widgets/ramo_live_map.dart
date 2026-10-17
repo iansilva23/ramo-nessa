@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
@@ -36,21 +37,25 @@ List<domain.LatLng> ramoVisibleRoutePoints(
 class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
+  int _cameraRequestId = 0;
 
   bool get ready => !_disposed && _nativeController != null;
 
   void attach(gm.GoogleMapController controller) {
     if (_disposed) return;
+    _cameraRequestId++;
     _nativeController = controller;
   }
 
   void detach() {
+    _cameraRequestId++;
     _nativeController = null;
   }
 
   Future<void> move(domain.LatLng point, double zoom) async {
     final controller = _nativeController;
     if (!ready || controller == null) return;
+    _cameraRequestId++;
 
     await controller.animateCamera(
       gm.CameraUpdate.newLatLngZoom(
@@ -73,6 +78,7 @@ class RamoMapController {
       return;
     }
 
+    final cameraRequestId = ++_cameraRequestId;
     var minLatitude = coordinates.first.latitude;
     var maxLatitude = coordinates.first.latitude;
     var minLongitude = coordinates.first.longitude;
@@ -91,21 +97,39 @@ class RamoMapController {
 
     // Screen overlays are handled by GoogleMap.padding per edge. Only a
     // small marker margin belongs in the symmetric bounds padding.
-    await controller.animateCamera(
-      gm.CameraUpdate.newLatLngBounds(
-        gm.LatLngBounds(
-          southwest: gm.LatLng(minLatitude, minLongitude),
-          northeast: gm.LatLng(maxLatitude, maxLongitude),
-        ),
-        edgePadding,
+    final boundsUpdate = gm.CameraUpdate.newLatLngBounds(
+      gm.LatLngBounds(
+        southwest: gm.LatLng(minLatitude, minLongitude),
+        northeast: gm.LatLng(maxLatitude, maxLongitude),
       ),
+      edgePadding,
     );
+    // On Safari/Web, changing map padding and animating through multiple
+    // zoom levels can race the map renderer's tile loading. Move directly to
+    // the final bounds there; retain the existing native camera animation.
+    if (kIsWeb) {
+      await controller.moveCamera(boundsUpdate);
+    } else {
+      await controller.animateCamera(boundsUpdate);
+    }
 
+    // A newer location/route may have replaced this camera movement.
+    if (!ready || controller != _nativeController ||
+        cameraRequestId != _cameraRequestId) {
+      return;
+    }
     final currentZoom = await controller.getZoomLevel();
+    if (!ready || controller != _nativeController ||
+        cameraRequestId != _cameraRequestId) {
+      return;
+    }
     if (currentZoom > maxZoom) {
-      await controller.animateCamera(
-        gm.CameraUpdate.zoomTo(maxZoom),
-      );
+      final zoomUpdate = gm.CameraUpdate.zoomTo(maxZoom);
+      if (kIsWeb) {
+        await controller.moveCamera(zoomUpdate);
+      } else {
+        await controller.animateCamera(zoomUpdate);
+      }
     }
   }
 
@@ -481,7 +505,9 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     }
 
     return gm.GoogleMap(
-      style: Theme.of(context).brightness == Brightness.dark ? ramoDarkMapStyle : null,
+      style: Theme.of(context).brightness == Brightness.dark
+          ? ramoDarkMapStyle
+          : ramoLightMapStyle,
       initialCameraPosition: gm.CameraPosition(
         target: gm.LatLng(
           widget.origin?.position.latitude ?? RamoMapConfig.fallbackCenter.latitude,
@@ -497,6 +523,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       polylines: _polylines,
       minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
       compassEnabled: false,
+      webCameraControlEnabled: false,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       myLocationEnabled: false,

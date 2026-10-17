@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+/// Wait for the floating panel to finish resizing before fitting map bounds.
+const ramoTripCardResizeDuration = Duration(milliseconds: 260);
+
+/// A floating, content-sized route panel. It leaves the rest of the map
+/// interactive and never stretches a pointer interceptor over the viewport.
 class RideBottomSheet extends StatelessWidget {
   const RideBottomSheet({
     super.key,
@@ -14,6 +19,8 @@ class RideBottomSheet extends StatelessWidget {
     this.serviceAreaLabel,
     this.coverageMessage,
     this.routeLoading = false,
+    this.isPreparing = false,
+    this.onLayoutSettled,
   });
 
   final VoidCallback onOriginTap;
@@ -26,81 +33,99 @@ class RideBottomSheet extends StatelessWidget {
   final String? serviceAreaLabel;
   final String? coverageMessage;
   final bool routeLoading;
+  /// Prevents multiple preparation requests while the existing ride flow runs.
+  final bool isPreparing;
+  final VoidCallback? onLayoutSettled;
 
   @override
   Widget build(BuildContext context) {
     final hasTrip = origin != null && destination != null;
-    final canContinue =
-        hasTrip &&
-        routeSummary != null &&
-        coverageMessage == null &&
-        !routeLoading;
+    final canContinue = hasTrip && routeSummary != null &&
+        coverageMessage == null && !routeLoading && !isPreparing;
+    final colors = Theme.of(context).colorScheme;
+    final isLight = colors.brightness == Brightness.light;
 
-    return DraggableScrollableSheet(
-      initialChildSize: hasTrip ? 0.48 : 0.42,
-      minChildSize: hasTrip ? 0.40 : 0.36,
-      maxChildSize: 0.76,
-      snap: true,
-      snapSizes: hasTrip ? const [0.48, 0.76] : const [0.42, 0.70],
-      builder: (context, scrollController) {
-        return RamoWebMapOverlay(child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(28),
-            ),
-            boxShadow: RamoElevation.floating(context),
-          ),
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(
-                    RamoSpacing.md,
-                    RamoSpacing.xs,
-                    RamoSpacing.md,
-                    RamoSpacing.md,
-                  ),
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          RamoSpacing.md, 0, RamoSpacing.md, RamoSpacing.xxl + RamoSpacing.sm,
+        ),
+        // On the Web, intercept the actual controls, not the whole map.
+        child: RamoWebMapOverlay(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 540),
+            child: SingleChildScrollView(
+              child: AnimatedSize(
+                duration: ramoTripCardResizeDuration,
+                onEnd: onLayoutSettled,
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        margin: const EdgeInsets.only(
-                          bottom: RamoSpacing.md,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).dividerColor,
-                          borderRadius:
-                              BorderRadius.circular(RamoRadius.pill),
+                    // The guidance card follows the active theme and
+                    // disappears as soon as a destination is selected.
+                    if (destination == null) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Material(
+                          key: const Key('destination-guidance-card'),
+                          color: isLight ? Colors.white : RamoColors.brandBlack,
+                          elevation: isLight ? 7 : 4,
+                          shadowColor: isLight
+                              ? Colors.black.withValues(alpha: .20)
+                              : Colors.black54,
+                          borderRadius: BorderRadius.circular(25),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Escolha seu destino',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: isLight ? colors.onSurface : Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Escolha sua origem e o destino no mapa',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: isLight ? colors.onSurface : Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      hasTrip ? 'Confira sua rota' : 'Escolha seu destino',
-                      style:
-                          Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.9,
-                              ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      hasTrip
-                          ? 'Primeiro escolha o local. O veículo e o pagamento vêm nas próximas etapas.'
-                          : 'Escolha sua origem e o destino no mapa.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: RamoSpacing.md),
-                    _TripCard(
-                      origin: origin ?? 'Escolher origem',
-                      destination: destination ?? 'Pra onde vamos?',
-                      onOriginTap: onOriginTap,
-                      onDestinationTap: onDestinationTap,
-                      onDestinationClear: onDestinationClear,
+                      const SizedBox(height: RamoSpacing.sm),
+                    ],
+                    Material(
+                      key: const Key('floating-trip-card'),
+                      color: isLight ? Colors.white : colors.surface,
+                      elevation: isLight ? 4 : 3,
+                      shadowColor: isLight
+                          ? Colors.black.withValues(alpha: .14)
+                          : Colors.black26,
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: BorderRadius.circular(26),
+                      child: _TripCard(
+                        origin: origin ?? 'Escolher origem',
+                        destination: destination ?? 'Pra onde vamos?',
+                        onOriginTap: onOriginTap,
+                        onDestinationTap: onDestinationTap,
+                        onDestinationClear: onDestinationClear,
+                      ),
                     ),
                     if (routeLoading) ...[
                       const SizedBox(height: RamoSpacing.sm),
@@ -115,82 +140,100 @@ class RideBottomSheet extends StatelessWidget {
                     ],
                     if (routeSummary != null && !routeLoading) ...[
                       const SizedBox(height: RamoSpacing.sm),
-                      Row(
-                        children: [
-                          const Icon(Icons.route_rounded, size: 17),
-                          const SizedBox(width: RamoSpacing.xs),
-                          Expanded(
-                            child: Text(
-                              serviceAreaLabel == null
-                                  ? routeSummary!
-                                  : '$routeSummary · $serviceAreaLabel',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          key: const Key('floating-route-summary'),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(RamoRadius.pill),
                           ),
-                        ],
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.route_rounded, color: colors.onSurface, size: 17),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                serviceAreaLabel == null
+                                    ? routeSummary!
+                                    : '$routeSummary · $serviceAreaLabel',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.onSurface,
+                                ),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ],
+                    if (hasTrip) ...[
+                      const SizedBox(height: RamoSpacing.md),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        child: SizedBox(
+                          height: 54,
+                          child: FilledButton(
+                            key: const Key('confirm-destination-button'),
+                            onPressed: canContinue ? onContinue : null,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: RamoColors.brandBlack,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: colors.surfaceContainerHighest,
+                              disabledForegroundColor: colors.onSurfaceVariant,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: isPreparing
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.max,
+                                    children: [
+                                      SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Expanded(
+                                        child: Text(
+                                          'Preparando corrida…',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    routeLoading
+                                        ? 'Calculando rota…'
+                                        : 'Confirmar destino',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-              if (hasTrip)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(
-                    RamoSpacing.md,
-                    RamoSpacing.sm,
-                    RamoSpacing.md,
-                    RamoSpacing.md,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border(
-                      top: BorderSide(
-                        color: Theme.of(context)
-                            .dividerColor
-                            .withValues(alpha: .35),
-                      ),
-                    ),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: FilledButton(
-                        key: const Key('confirm-destination-button'),
-                        onPressed: canContinue ? onContinue : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: RamoColors.brandBlack,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: Text(
-                          routeLoading
-                              ? 'Calculando rota…'
-                              : 'Confirmar destino',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ));
-      },
+        ),
+      ),
     );
   }
 }
@@ -214,7 +257,7 @@ class _TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(RamoRadius.lg),
       ),
       child: Column(

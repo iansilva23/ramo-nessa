@@ -12,7 +12,10 @@ import type {
   PricingCatalogVersionRecord,
   PricingCatalogVersionRepository,
 } from './pricing-catalog-version-repository.js';
-import type { PricingCatalogDraftPatch } from './pricing-catalog-version-validation.js';
+import type {
+  PricingCatalogAtomicPatch,
+  PricingCatalogDraftPatch,
+} from './pricing-catalog-version-validation.js';
 
 export class PricingCatalogVersionError extends Error {
   constructor(
@@ -181,35 +184,14 @@ export async function deletePricingCatalogDraft(input: {
   return deleted;
 }
 
-export async function updatePricingCatalogDraft(input: {
-  versions: PricingCatalogVersionRepository;
-  admin: AdminRepository;
-  actor: AdminActor;
-  versionId: string;
-  patch: PricingCatalogDraftPatch;
-  expectedUpdatedAt?: string;
-  now?: Date;
-}): Promise<PricingCatalogVersionRecord> {
-  const current = await input.versions.findById(input.versionId);
-  if (current == null) {
-    throw new PricingCatalogVersionError(
-      'PRICING_VERSION_NOT_FOUND',
-      'Versão de preços não encontrada.',
-    );
-  }
-  if (current.status !== 'draft') {
-    throw new PricingCatalogVersionError(
-      'PRICING_VERSION_NOT_DRAFT',
-      'Somente rascunhos podem ser alterados.',
-    );
-  }
-  assertExpectedPricingVersion(current, input.expectedUpdatedAt);
-
-  const snapshot = structuredClone(current.snapshot);
+// Apply a validated single patch to a working snapshot. A locality batch
+// uses one snapshot copy and one repository CAS write, so failed sub-patches
+// cannot leave a partially saved catalog.
+function applyPricingCatalogAtomicPatch(
+  snapshot: PricingCatalogSnapshot,
+  patch: PricingCatalogAtomicPatch,
+): Record<string, unknown> {
   let auditMetadata: Record<string, unknown>;
-
-  const patch = input.patch;
-
   if (patch.kind === 'commercial_policy') {
     if (snapshot.commercialPolicy == null) throw new PricingCatalogVersionError('PRICING_RULE_NOT_FOUND','Use a revisão comercial aprovada para editar estas regras.');
     snapshot.commercialPolicy = structuredClone(patch.policy);
@@ -501,6 +483,27 @@ export async function updatePricingCatalogDraft(input: {
       bands: snapshot.jeri.deliveryBands,
       aboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     };
+  } else if (patch.kind === 'locality_label') {
+    const localityExists =
+      patch.scope === 'prea'
+        ? snapshot.localities.prea[patch.localityId] != null
+        : patch.scope === 'jijoca'
+          ? snapshot.localities.jijoca[patch.localityId] != null
+          : snapshot.externalLocalities.includes(patch.localityId);
+    if (!localityExists) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'A localidade precisa existir antes de editar seu nome.',
+      );
+    }
+    snapshot.localityDisplayNames ??= { prea: {}, jijoca: {}, external: {} };
+    snapshot.localityDisplayNames[patch.scope][patch.localityId] = patch.label;
+    auditMetadata = {
+      kind: patch.kind,
+      scope: patch.scope,
+      localityId: patch.localityId,
+      label: patch.label,
+    };
   } else if (patch.kind === 'locality_geofence') {
     const localityExists =
       patch.zoneId === 'jericoacoara'
@@ -594,6 +597,10 @@ export async function updatePricingCatalogDraft(input: {
         'PRICING_STRUCTURE_CONFLICT',
         'A localidade central da zona não pode ser removida.',
       );
+    }
+
+    if (patch.operation === 'remove') {
+      delete snapshot.localityDisplayNames?.[patch.scope]?.[patch.localityId];
     }
 
     if (patch.scope === 'external') {
@@ -693,6 +700,50 @@ export async function updatePricingCatalogDraft(input: {
       localityId: patch.localityId,
     };
   }
+
+  return auditMetadata;
+}
+
+export async function updatePricingCatalogDraft(input: {
+  versions: PricingCatalogVersionRepository;
+  admin: AdminRepository;
+  actor: AdminActor;
+  versionId: string;
+  patch: PricingCatalogDraftPatch;
+  expectedUpdatedAt?: string;
+  now?: Date;
+}): Promise<PricingCatalogVersionRecord> {
+  const current = await input.versions.findById(input.versionId);
+  if (current == null) {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_FOUND',
+      'Versão de preços não encontrada.',
+    );
+  }
+  if (current.status !== 'draft') {
+    throw new PricingCatalogVersionError(
+      'PRICING_VERSION_NOT_DRAFT',
+      'Somente rascunhos podem ser alterados.',
+    );
+  }
+  assertExpectedPricingVersion(current, input.expectedUpdatedAt);
+
+  const snapshot = structuredClone(current.snapshot);
+  const auditMetadata: Record<string, unknown> =
+    input.patch.kind === 'batch'
+      ? {
+          kind: 'batch',
+          count: input.patch.patches.length,
+          locality: input.patch.patches[0] == null
+            ? null
+            : {
+                kind: input.patch.patches[0].kind,
+              },
+          patches: input.patch.patches.map((patch) =>
+            applyPricingCatalogAtomicPatch(snapshot, patch),
+          ),
+        }
+      : applyPricingCatalogAtomicPatch(snapshot, input.patch);
 
   const instant = nextPricingMutationInstant(
     current.updatedAt,

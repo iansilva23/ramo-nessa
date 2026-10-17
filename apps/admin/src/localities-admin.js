@@ -172,6 +172,16 @@ function deepClone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+// Use the text fields as the source of truth even when a map marker was
+// selected earlier. Invalid inputs must stop the save instead of silently
+// persisting stale coordinates.
+export function localitySelectionFromInputs(mapSelection, latitude, longitude) {
+  return {
+    ...mapSelection,
+    ...parseLocalityCoordinates(latitude, longitude),
+  };
+}
+
 export function createLocalitiesAdmin(input) {
   const api = input.api;
   let catalog = null;
@@ -186,6 +196,7 @@ export function createLocalitiesAdmin(input) {
   let initialForm = null;
   let lastDeleted = null;
   let mounted = true;
+  let saving = false;
 
   function token() {
     return input.getToken?.() ?? null;
@@ -227,7 +238,8 @@ export function createLocalitiesAdmin(input) {
         result.push({
           scope,
           localityId: item.localityId,
-          label: titleFromId(item.localityId),
+          label: catalog.localityDisplayNames?.[scope]?.[item.localityId] ??
+            titleFromId(item.localityId),
           prices: item.prices ?? {},
           policy: item.policy ?? {},
           distancePolicies: distancePolicies.filter(
@@ -248,7 +260,8 @@ export function createLocalitiesAdmin(input) {
       result.push({
         scope: 'external',
         localityId,
-        label: titleFromId(localityId),
+        label: catalog.localityDisplayNames?.external?.[localityId] ??
+          titleFromId(localityId),
         prices: {},
         distancePolicies: distancePolicies.filter(
           (rule) =>
@@ -372,7 +385,8 @@ export function createLocalitiesAdmin(input) {
       label.textContent = '—';
       return;
     }
-    label.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    // Match the six-decimal precision persisted by the pricing catalog.
+    label.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
     if (byId('locality-latitude')) byId('locality-latitude').value = String(lat);
     if (byId('locality-longitude')) byId('locality-longitude').value = String(lon);
   }
@@ -387,6 +401,7 @@ export function createLocalitiesAdmin(input) {
       overlay: byId('locality-wizard-map-overlay'),
       zoomIn: byId('locality-wizard-map-zoom-in'),
       zoomOut: byId('locality-wizard-map-zoom-out'),
+      canSelect: () => mode !== 'view',
       onChange(selection) {
         setMapCoordinate(selection);
       },
@@ -427,10 +442,14 @@ export function createLocalitiesAdmin(input) {
   }
 
   function captureForm() {
-    const selection = ensureWizardMap()?.getSelection() ?? {
-      ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
-      radiusKm: Number(byId('locality-radius')?.value || 2),
-    };
+    const selection = localitySelectionFromInputs(
+      ensureWizardMap()?.getSelection() ?? {
+        ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
+        radiusKm: Number(byId('locality-radius')?.value || 2),
+      },
+      byId('locality-latitude')?.value,
+      byId('locality-longitude')?.value,
+    );
     const prices = {};
     for (const category of PRICE_CATEGORIES) {
       prices[category] = {
@@ -464,7 +483,7 @@ export function createLocalitiesAdmin(input) {
       selection,
       categories: activeCategoriesFromForm(),
       prices,
-      nightPrices: deepClone(entry.prices?.after22 ?? {}),
+      nightPrices: deepClone(editing?.prices?.after22 ?? {}),
       distancePricing,
       nightSurcharge: byId('locality-night-surcharge')?.checked === true,
     };
@@ -675,7 +694,7 @@ export function createLocalitiesAdmin(input) {
     }
     byId('locality-wizard-back').hidden = step === 1;
     byId('locality-wizard-next').hidden = step === 6;
-    byId('locality-wizard-save').hidden = step !== 6;
+    byId('locality-wizard-save').hidden = step !== 6 || mode === 'view';
     if (step === 2) {
       requestAnimationFrame(() => ensureWizardMap()?.render());
     }
@@ -692,7 +711,9 @@ export function createLocalitiesAdmin(input) {
     const scope = byId('locality-scope')?.value ?? 'prea';
     if (current === 1) {
       const localityId = byId('locality-id')?.value.trim();
-      if (!localityId) throw new Error('Informe o nome da localidade.');
+      if (!localityId || !byId('locality-name')?.value.trim()) {
+        throw new Error('Informe o nome da localidade.');
+      }
       if (mode === 'create' && findEntry(scope, localityId) != null) {
         throw new Error('Já existe uma localidade com este identificador.');
       }
@@ -701,6 +722,15 @@ export function createLocalitiesAdmin(input) {
       const radius = Number(byId('locality-radius')?.value);
       if (!Number.isFinite(radius) || radius < 0.05 || radius > 100) {
         throw new Error('O raio deve ficar entre 0,05 km e 100 km.');
+      }
+      const coordinates = parseLocalityCoordinates(
+        byId('locality-latitude')?.value,
+        byId('locality-longitude')?.value,
+      );
+      const map = ensureWizardMap();
+      if (map != null) {
+        map.setSelection({ ...map.getSelection(), ...coordinates, radiusKm: radius });
+        setMapCoordinate(map.getSelection());
       }
     }
     if (current === 3 && LOCAL_SCOPES.has(scope)) {
@@ -774,19 +804,39 @@ export function createLocalitiesAdmin(input) {
   }
 
   function openWizard(nextMode, entry = null) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de abrir outra.', 'danger');
+      return;
+    }
+    if (nextMode !== 'view' && !hasScope('pricing:write')) return;
+    // Switching between new/edit or selecting a map location must not
+    // silently overwrite unsaved values in the currently open wizard.
+    if (
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
     mode = nextMode;
     editing = entry;
     setMessage();
     const wizard = byId('locality-wizard');
     if (wizard != null) wizard.hidden = false;
     byId('locality-wizard-title').textContent =
-      nextMode === 'edit' ? 'Editar localidade' : 'Nova localidade';
+      nextMode === 'view'
+        ? 'Visualizar localidade'
+        : nextMode === 'edit'
+          ? 'Editar localidade'
+          : 'Nova localidade';
     byId('locality-wizard-subtitle').textContent =
-      nextMode === 'edit'
-        ? 'Altere somente o necessário e salve no rascunho.'
-        : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
-    byId('locality-scope').disabled = nextMode === 'edit';
-    byId('locality-name').disabled = nextMode === 'edit';
+      nextMode === 'view'
+        ? 'Consulta somente de leitura. Para alterar valores, solicite permissão.'
+        : nextMode === 'edit'
+          ? 'Altere somente o necessário e salve no rascunho.'
+          : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
+    byId('locality-scope').disabled = nextMode !== 'create';
+    // The display name is editable for writers; stable price keys never change.
+    byId('locality-name').disabled = nextMode === 'view';
 
     const model =
       entry != null
@@ -803,12 +853,43 @@ export function createLocalitiesAdmin(input) {
             nightSurcharge: false,
           };
     applyForm(model);
+    const readOnly = nextMode === 'view';
+    for (const field of wizard?.querySelectorAll('.locality-wizard__body input, .locality-wizard__body select') ?? []) {
+      // Keep visible values readable, but never expose editable inputs
+      // to accounts that only have pricing:read.
+      field.disabled = readOnly || field.id === 'locality-scope' && nextMode === 'edit';
+    }
+    byId('locality-apply-coordinates').disabled = readOnly;
+    byId('locality-wizard-reset').hidden = readOnly;
     initialForm = deepClone(captureForm());
     showStep(1);
     wizard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function closeWizard() {
+  function hasUnsavedWizardChanges() {
+    if (byId('locality-wizard')?.hidden !== false || initialForm == null) {
+      return false;
+    }
+    try {
+      return JSON.stringify(captureForm()) !== JSON.stringify(initialForm);
+    } catch {
+      // A temporarily invalid field is still user input worth preserving.
+      return true;
+    }
+  }
+
+  function closeWizard(options = {}) {
+    if (saving && options?.force !== true) {
+      setMessage('Aguarde o salvamento da localidade antes de fechar.', 'danger');
+      return;
+    }
+    if (
+      options?.force !== true &&
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
     const wizard = byId('locality-wizard');
     if (wizard != null) wizard.hidden = true;
     editing = null;
@@ -820,7 +901,7 @@ export function createLocalitiesAdmin(input) {
   function openEdit(scope, localityId) {
     const entry = findEntry(scope, localityId);
     if (entry == null) return;
-    openWizard('edit', entry);
+    openWizard(hasScope('pricing:write') ? 'edit' : 'view', entry);
   }
 
   async function ensureDraft() {
@@ -903,7 +984,14 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function saveWizard() {
-    setMessage();
+    if (saving) return;
+    saving = true;
+    const wizard = byId('locality-wizard');
+    const controls = [...(wizard?.querySelectorAll('input, select, button') ?? [])];
+    const previousDisabled = controls.map((field) => field.disabled);
+    for (const field of controls) field.disabled = true;
+    setMessage('Salvando localidade no rascunho…');
+    try {
     if (!hasScope('pricing:write')) {
       throw new Error('Sua conta não pode editar localidades.');
     }
@@ -913,9 +1001,10 @@ export function createLocalitiesAdmin(input) {
     const model = captureForm();
     const localityId = model.localityId;
     const existing = findEntry(model.scope, localityId);
+    const patches = [];
 
     if (existing == null) {
-      await applyPatch({
+      patches.push({
         kind: 'locality_structure',
         operation: 'add',
         scope: model.scope,
@@ -923,7 +1012,16 @@ export function createLocalitiesAdmin(input) {
       });
     }
 
-    await applyPatch({
+    if (existing == null || existing.label !== model.name.trim()) {
+      patches.push({
+        kind: 'locality_label',
+        scope: model.scope,
+        localityId,
+        label: model.name.trim(),
+      });
+    }
+
+    patches.push({
       kind: 'locality_geofence',
       operation: 'upsert',
       zoneId: model.scope,
@@ -937,7 +1035,7 @@ export function createLocalitiesAdmin(input) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
         if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
-        await applyPatch(
+        patches.push(
           buildPricePatch(
             model.scope,
             localityId,
@@ -946,7 +1044,7 @@ export function createLocalitiesAdmin(input) {
           ),
         );
       }
-      await applyPatch({
+      patches.push({
         kind: 'locality_policy',
         hub: model.scope,
         localityId,
@@ -966,7 +1064,7 @@ export function createLocalitiesAdmin(input) {
         model.categories.includes(category) &&
         distance?.enabled === true
       ) {
-        await applyPatch(
+        patches.push(
           buildDistancePolicyPatch(
             model.scope,
             localityId,
@@ -975,7 +1073,7 @@ export function createLocalitiesAdmin(input) {
           ),
         );
       } else if (existingRule) {
-        await applyPatch(
+        patches.push(
           buildDistancePolicyPatch(
             model.scope,
             localityId,
@@ -987,18 +1085,46 @@ export function createLocalitiesAdmin(input) {
       }
     }
 
+    // One backend compare-and-swap persists the entire locality.
+    // Invalid patches and concurrent writers cannot persist fragments.
+    await applyPatch({ kind: 'batch', patches });
+
     const savedMode = mode;
     await refresh({ announce: false });
-    closeWizard();
+    closeWizard({ force: true });
     setMessage(
       savedMode === 'edit'
         ? 'Localidade atualizada no rascunho. Nada foi publicado ainda.'
         : 'Localidade adicionada ao rascunho. Nada foi publicado ainda.',
       'success',
     );
+    } catch (error) {
+      // A timeout may mean the atomic write succeeded without a response.
+      // Reload the draft before retrying; each batch is one CAS update, never
+      // a partially persisted locality. Keep field values in the wizard.
+      try {
+        await refresh({ announce: false });
+      } catch {
+        // Keep the original save error; reloading can be retried manually.
+      }
+      throw new Error(
+        'Não foi possível concluir o salvamento: ' + errorMessage(error) +
+        ' O lote é indivisível, mas o servidor pode ter concluído a gravação. ' +
+        'Confira o rascunho antes de tentar novamente ou publicar.',
+      );
+    } finally {
+      saving = false;
+      controls.forEach((field, index) => {
+        field.disabled = previousDisabled[index];
+      });
+    }
   }
 
   async function deleteEntry(entry) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de excluir.', 'danger');
+      return;
+    }
     if (!hasScope('pricing:write')) {
       throw new Error('Sua conta não pode excluir localidades.');
     }
@@ -1041,16 +1167,31 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function undoDelete() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de desfazer a exclusão.', 'danger');
+      return;
+    }
     if (lastDeleted == null) return;
     const model = lastDeleted;
-    await applyPatch({
+    if (!hasScope('pricing:write')) {
+      throw new Error('Sua conta não pode restaurar localidades.');
+    }
+    const patches = [];
+    patches.push({
       kind: 'locality_structure',
       operation: 'add',
       scope: model.scope,
       localityId: model.localityId,
     });
+    // Restore the user-facing name separately from the stable pricing ID.
+    patches.push({
+      kind: 'locality_label',
+      scope: model.scope,
+      localityId: model.localityId,
+      label: model.name,
+    });
     if (model.hadGeofence !== false) {
-      await applyPatch({
+      patches.push({
         kind: 'locality_geofence',
         operation: 'upsert',
         zoneId: model.scope,
@@ -1066,7 +1207,7 @@ export function createLocalitiesAdmin(input) {
         if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
         const price = model.prices?.[category];
         if (!price?.min) continue;
-        await applyPatch(
+        patches.push(
           buildPricePatch(
             model.scope,
             model.localityId,
@@ -1076,9 +1217,9 @@ export function createLocalitiesAdmin(input) {
         );
       }
       for (const [category,price] of Object.entries(model.nightPrices ?? {})) {
-        if (price != null) await applyPatch({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
+        if (price != null) patches.push({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
       }
-      await applyPatch({
+      patches.push({
         kind: 'locality_policy',
         hub: model.scope,
         localityId: model.localityId,
@@ -1090,7 +1231,7 @@ export function createLocalitiesAdmin(input) {
     for (const category of DISTANCE_CATEGORIES) {
       const distance = model.distancePricing?.[category];
       if (distance?.enabled !== true) continue;
-      await applyPatch(
+      patches.push(
         buildDistancePolicyPatch(
           model.scope,
           model.localityId,
@@ -1099,6 +1240,7 @@ export function createLocalitiesAdmin(input) {
         ),
       );
     }
+    await applyPatch({ kind: 'batch', patches });
     lastDeleted = null;
     await refresh({ announce: false });
     renderUndoDelete();
@@ -1170,7 +1312,11 @@ export function createLocalitiesAdmin(input) {
       }
 
       const actions = element('div', 'locality-directory-item__actions');
-      const edit = element('button', 'button button--table', 'Editar');
+      const edit = element(
+        'button',
+        'button button--table',
+        hasScope('pricing:write') ? 'Editar' : 'Visualizar',
+      );
       edit.type = 'button';
       edit.addEventListener('click', () => openEdit(entry.scope, entry.localityId));
       actions.append(edit);
@@ -1287,10 +1433,24 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function publishDraftNow() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de publicar.', 'danger');
+      return;
+    }
     if (
       draft?.status !== 'draft' ||
       !hasScope('pricing:write')
     ) {
+      return;
+    }
+
+    // Publishing updates the effective fare catalog, so never silently
+    // ignore a locality form that is still being edited on the screen.
+    if (hasUnsavedWizardChanges()) {
+      setMessage(
+        'Salve ou descarte as alterações da localidade antes de publicar o rascunho.',
+        'danger',
+      );
       return;
     }
 
@@ -1317,6 +1477,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function discardDraft() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de descartar o rascunho.', 'danger');
+      return;
+    }
     if (
       draft?.status !== 'draft' ||
       !hasScope('pricing:write')
@@ -1336,7 +1500,7 @@ export function createLocalitiesAdmin(input) {
         versionId: draft.id,
         expectedUpdatedAt: draft.updatedAt,
       });
-      closeWizard();
+      closeWizard({ force: true });
       lastDeleted = null;
       renderUndoDelete();
       await refresh({ announce: false });
@@ -1351,6 +1515,10 @@ export function createLocalitiesAdmin(input) {
 
   function bind() {
     byId('localities-refresh-button')?.addEventListener('click', () => {
+      if (saving) {
+        setMessage('Aguarde o salvamento antes de atualizar a lista.', 'danger');
+        return;
+      }
       void refresh().catch(handleError);
     });
     byId('localities-new-button')?.addEventListener('click', () => {
@@ -1389,6 +1557,9 @@ export function createLocalitiesAdmin(input) {
       }
     });
     byId('locality-wizard-save')?.addEventListener('click', () => {
+      // A synthetic or queued click must not unlock the button while the
+      // original operation is still writing versioned draft patches.
+      if (saving) return;
       const button = byId('locality-wizard-save');
       button.disabled = true;
       void saveWizard()

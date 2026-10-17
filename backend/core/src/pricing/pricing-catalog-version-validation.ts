@@ -6,7 +6,7 @@ export class InvalidPricingCatalogPatchError extends Error {
   }
 }
 
-export type PricingCatalogDraftPatch =
+export type PricingCatalogAtomicPatch =
   | { kind: 'commercial_policy'; policy: CommercialPolicy }
   | { kind: 'shared_transfers'; settings: SharedTransferSettings }
   | {
@@ -60,6 +60,12 @@ export type PricingCatalogDraftPatch =
       kind: 'zone_policy';
       zoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
       enabled: boolean;
+    }
+  | {
+      kind: 'locality_label';
+      scope: 'prea' | 'jijoca' | 'external';
+      localityId: string;
+      label: string;
     }
   | {
       kind: 'locality_structure';
@@ -119,6 +125,13 @@ export type PricingCatalogDraftPatch =
         amountCents: number;
       }>;
       aboveMaxCents: number;
+    };
+
+export type PricingCatalogDraftPatch =
+  | PricingCatalogAtomicPatch
+  | {
+      kind: 'batch';
+      patches: PricingCatalogAtomicPatch[];
     };
 
 function objectValue(
@@ -204,6 +217,30 @@ function nonNegativeCentsValue(
   return number;
 }
 
+// Coordinates require finer precision than fare distances or radii. A
+// three-decimal truncation could move a pin by tens of metres in Jeri/Preá.
+function coordinateValue(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  const coordinate = Number(value);
+  if (
+    value == null ||
+    typeof value === 'boolean' ||
+    (typeof value === 'string' && value.trim() === '') ||
+    !Number.isFinite(coordinate) ||
+    coordinate < min ||
+    coordinate > max
+  ) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ficar entre ${min} e ${max}.`,
+    );
+  }
+  return Math.round(coordinate * 1000000) / 1000000;
+}
+
 function integerValue(
   value: unknown,
   field: string,
@@ -254,6 +291,70 @@ export function parsePricingCatalogDraftPatch(
 ): PricingCatalogDraftPatch {
   const value = objectValue(input, 'body');
   const kind = textValue(value.kind, 'kind', 40);
+
+  if (kind === 'batch') {
+    if (!Array.isArray(value.patches) ||
+        value.patches.length < 1 ||
+        value.patches.length > 20) {
+      throw new InvalidPricingCatalogPatchError(
+        'Lote de localidade deve conter entre 1 e 20 alterações.',
+      );
+    }
+    const allowed = new Set([
+      'locality_structure',
+      'locality_label',
+      'locality_geofence',
+      'locality_price',
+      'locality_policy',
+      'distance_fare_policy',
+    ]);
+    let owner: string | null = null;
+    const patches: PricingCatalogAtomicPatch[] = value.patches.map(
+      (candidate, index) => {
+        const raw = objectValue(candidate, `patches[${index}]`);
+        if (raw.kind === 'batch') {
+          throw new InvalidPricingCatalogPatchError(
+            'Lotes de alterações não podem ser aninhados.',
+          );
+        }
+        const next = parsePricingCatalogDraftPatch(raw);
+        if (next.kind === 'batch' || !allowed.has(next.kind)) {
+          throw new InvalidPricingCatalogPatchError(
+            'O lote aceita somente alterações da mesma localidade.',
+          );
+        }
+        const patch = next as PricingCatalogAtomicPatch;
+        const scope = 'scope' in patch
+          ? patch.scope
+          : 'hub' in patch
+            ? patch.hub
+            : 'zoneId' in patch
+              ? patch.zoneId
+              : 'anchorZoneId' in patch
+                ? patch.anchorZoneId
+                : null;
+        const localityId = 'anchorLocalityId' in patch
+          ? patch.anchorLocalityId
+          : 'localityId' in patch
+            ? patch.localityId
+            : null;
+        if (scope == null || localityId == null) {
+          throw new InvalidPricingCatalogPatchError(
+            'Alteração sem localidade não é permitida neste lote.',
+          );
+        }
+        const key = `${scope}/${localityId}`;
+        if (owner != null && owner !== key) {
+          throw new InvalidPricingCatalogPatchError(
+            'Todas as alterações do lote devem pertencer à mesma localidade.',
+          );
+        }
+        owner = key;
+        return patch;
+      },
+    );
+    return { kind: 'batch', patches };
+  }
 
   if (kind === 'commercial_policy') {
     const policy = objectValue(value.policy, 'policy');
@@ -551,6 +652,19 @@ export function parsePricingCatalogDraftPatch(
     };
   }
 
+  if (kind === 'locality_label') {
+    const scope = textValue(value.scope, 'scope', 20);
+    if (scope !== 'prea' && scope !== 'jijoca' && scope !== 'external') {
+      throw new InvalidPricingCatalogPatchError('scope da localidade é inválido.');
+    }
+    return {
+      kind,
+      scope,
+      localityId: identifierValue(value.localityId, 'localityId'),
+      label: textValue(value.label, 'label', 80),
+    };
+  }
+
   if (kind === 'locality_structure') {
     const operation = textValue(value.operation, 'operation', 20);
     if (operation !== 'add' && operation !== 'remove') {
@@ -619,13 +733,13 @@ export function parsePricingCatalogDraftPatch(
       operation,
       zoneId,
       localityId,
-      centerLatitude: decimalValue(
+      centerLatitude: coordinateValue(
         value.centerLatitude,
         'centerLatitude',
         -90,
         90,
       ),
-      centerLongitude: decimalValue(
+      centerLongitude: coordinateValue(
         value.centerLongitude,
         'centerLongitude',
         -180,

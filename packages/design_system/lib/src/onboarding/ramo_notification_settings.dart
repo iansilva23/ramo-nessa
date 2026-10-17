@@ -35,11 +35,12 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
     try {
       all = await widget.readPreference();
     } catch (_) {}
-    if (mounted)
+    if (mounted) {
       setState(() {
         _all = all;
         _busy = false;
       });
+    }
   }
 
   Future<void> _save(bool all) async {
@@ -57,8 +58,9 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
             : 'Preferência salva neste aparelho. A sincronização dos avisos está pendente; tente novamente com internet.';
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _feedback = 'Não foi possível confirmar o salvamento. Tente novamente.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -73,13 +75,14 @@ class _RamoNotificationSettingsState extends State<RamoNotificationSettings> {
     try {
       ok = await widget.requestNotifications().timeout(const Duration(seconds: 30));
     } catch (_) {}
-    if (mounted)
+    if (mounted) {
       setState(() {
         _busy = false;
         _feedback = ok
             ? 'Notificações ativadas e cadastro confirmado.'
             : 'A ativação não foi confirmada. Confira as orientações e tente novamente.';
       });
+    }
   }
 
   @override

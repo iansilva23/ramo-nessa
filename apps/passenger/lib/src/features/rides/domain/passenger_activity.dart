@@ -44,6 +44,9 @@ class PassengerActivityRide {
         'DRIVER_ARRIVED' => 'Motorista chegou',
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Motorista a caminho',
         'SEARCHING_DRIVER' => 'Procurando motorista',
+        'REFUNDED' => 'Reembolsada',
+        'PAYMENT_FAILED' => 'Falha no pagamento',
+        'AWAITING_PAYMENT' => 'Aguardando pagamento',
         _ => state,
       };
 
