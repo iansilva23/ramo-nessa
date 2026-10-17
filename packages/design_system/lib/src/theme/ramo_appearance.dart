@@ -56,4 +56,134 @@ class RamoAppearanceTile extends StatelessWidget {
 }
 
 /// Used for Maps as well as the Flutter controls, without automatic inversion.
-const ramoDarkMapStyle = '[{"elementType":"geometry","stylers":[{"color":"#242a30"}]},{"elementType":"labels.text.fill","stylers":[{"color":"#cbd2da"}]},{"elementType":"labels.text.stroke","stylers":[{"color":"#242a30"}]},{"featureType":"water","elementType":"geometry","stylers":[{"color":"#132534"}]},{"featureType":"road","elementType":"geometry","stylers":[{"color":"#3b4148"}]},{"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#24392d"}]}]';
+/// Keep street names visible while hiding default commercial/tourist POIs.
+/// This affects map tiles only; Ramo Nessa's own markers and routes remain.
+const ramoLightMapStyle = '''[
+  {
+    "featureType": "poi",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text",
+    "stylers": [
+      {
+        "visibility": "on"
+      }
+    ]
+  }
+]''';
+
+/// Retains the current night palette with the same POI-free labels.
+const ramoDarkMapStyle = '''[
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#242a30"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#cbd2da"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#242a30"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#132534"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#3b4148"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#24392d"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative",
+    "elementType": "labels",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text",
+    "stylers": [
+      {
+        "visibility": "on"
+      }
+    ]
+  }
+]''';
