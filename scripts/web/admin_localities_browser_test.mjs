@@ -100,6 +100,13 @@ async function fixture(t) {
           throw new Error('Conflito de versão');
         }
         window.review.patches.push(structuredClone(patch));
+        if (patch.kind === 'locality_structure' && patch.operation === 'add') {
+          catalog.localities[patch.scope].push({
+            localityId: patch.localityId,
+            prices: {},
+            policy: { enabledCategories: [], applyNightSurcharge: false },
+          });
+        }
         if (patch.kind === 'locality_label') {
           catalog.localityDisplayNames[patch.scope][patch.localityId] = patch.label;
         }
@@ -202,4 +209,44 @@ test('draft publication is blocked when locality form contains unsaved changes',
   const message = await page.locator('#localities-message').textContent();
   assert.match(message, /Salve ou descarte as alterações/);
   assert.equal(await page.evaluate(() => review.publishes.length), 0);
+});
+
+
+test('creating a new locality saves name, coordinates and fare only in the draft', async (t) => {
+  const page = await fixture(t);
+  await page.locator('#localities-new-button').click();
+  await page.locator('#locality-name').fill('Lagoa Nova');
+  assert.equal(await page.locator('#locality-id').inputValue(), 'lagoa-nova');
+  await page.locator('#locality-wizard-next').click();
+
+  await page.locator('#locality-latitude').fill('-2,835123');
+  await page.locator('#locality-longitude').fill('-40,452345');
+  await page.locator('#locality-wizard-next').click();
+
+  await page.locator('#locality-category-moto').check();
+  await page.locator('#locality-wizard-next').click();
+  await page.locator('#locality-price-moto-min').fill('12,00');
+  await page.locator('#locality-wizard-next').click();
+  await page.locator('#locality-wizard-next').click();
+
+  assert.equal(await page.locator('#locality-wizard-save').isVisible(), true);
+  await page.locator('#locality-wizard-save').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#localities-message')?.textContent?.includes('adicionada ao rascunho'),
+  );
+  const state = await page.evaluate(() => ({
+    entry: review.catalog.localities.prea.find((item) => item.localityId === 'lagoa-nova'),
+    label: review.catalog.localityDisplayNames.prea['lagoa-nova'],
+    area: review.catalog.localityGeofences.find((item) => item.localityId === 'lagoa-nova'),
+    publishes: review.publishes.length,
+    errors: review.failures,
+  }));
+  assert.equal(state.label, 'Lagoa Nova');
+  assert.equal(state.entry.prices.moto.kind, 'exact');
+  assert.equal(state.entry.prices.moto.amountCents, 1200);
+  assert.equal(state.area.centerLatitude, -2.835123);
+  assert.equal(state.area.centerLongitude, -40.452345);
+  assert.deepEqual(state.entry.policy.enabledCategories, ['moto']);
+  assert.equal(state.publishes, 0);
+  assert.deepEqual(state.errors, []);
 });
