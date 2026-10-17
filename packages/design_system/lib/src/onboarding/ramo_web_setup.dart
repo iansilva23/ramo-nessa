@@ -7,7 +7,8 @@ class RamoWebSetup extends StatefulWidget {
     required this.saveCompleted, required this.readSnapshot,
     required this.requestLocation, required this.requestNotifications,
     required this.install, required this.saveNotificationPreference,
-    this.readNotificationPreference, required this.child});
+    this.readNotificationPreference, this.showInstallPrompt = true,
+    required this.child});
   final String role;
   final Future<bool> Function() readCompleted;
   final Future<void> Function() saveCompleted;
@@ -18,6 +19,8 @@ class RamoWebSetup extends StatefulWidget {
   final Future<void> Function(bool) saveNotificationPreference;
   final Future<bool> Function()? readNotificationPreference;
   final Widget child;
+  /// Hide installation invitations without disabling Web or PWA assets.
+  final bool showInstallPrompt;
   @override
   State<RamoWebSetup> createState() => _RamoWebSetupState();
 }
@@ -158,7 +161,8 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
-    final visible = _snapshot != null && !_installed && !_dismissed;
+    final visible = widget.showInstallPrompt &&
+        _snapshot != null && !_installed && !_dismissed;
     // Keep the app subtree in the same slot while the banner appears/disappears.
     return Column(children: [
       if (!visible) const SizedBox.shrink() else Material(color: const Color(0xFFFFCC00), child: SafeArea(bottom: false,

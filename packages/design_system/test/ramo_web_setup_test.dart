@@ -9,9 +9,11 @@ void main() {
     Future<Map<String, Object?>> Function()? snapshot,
     Future<String> Function()? install,
     String role = 'passenger',
+    bool showInstallPrompt = true,
   }) async {
     await tester.pumpWidget(MaterialApp(home: RamoWebSetup(
       role: role,
+      showInstallPrompt: showInstallPrompt,
       // The optional banner must never depend on storage or request permissions.
       readCompleted: () async => throw StateError('must not read completion'),
       saveCompleted: () async => throw StateError('must not write completion'),
@@ -37,6 +39,16 @@ void main() {
     await tester.tap(find.byTooltip('Fechar aviso de instalação')); await tester.pumpAndSettle();
     expect(find.text('Adicionar app à Tela de Início'), findsNothing);
     expect(find.text('App aberto'), findsOneWidget);
+  });
+  testWidgets('browser mode hides installation invitations for both roles while keeping the app', (tester) async {
+    for (final role in ['passenger', 'driver']) {
+      await show(tester, role: role, showInstallPrompt: false, state: {'ios': true});
+      expect(find.text('App aberto'), findsOneWidget);
+      expect(find.text('Adicionar app à Tela de Início'), findsNothing);
+      expect(find.byTooltip('Fechar aviso de instalação'), findsNothing);
+      expect(find.byKey(const ValueKey('web-install-help-surface')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
   });
   testWidgets('installed mode hides banner for both roles', (tester) async {
     for (final role in ['driver', 'passenger']) {

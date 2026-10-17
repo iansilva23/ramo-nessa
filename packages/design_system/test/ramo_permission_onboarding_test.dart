@@ -20,7 +20,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Tudo pronto para ir nessa?'), findsOneWidget);
-    expect(find.text('Adicionar à Tela de Início'), findsOneWidget);
+    expect(find.text('Adicionar à Tela de Início'), findsNothing);
     await tester.tap(find.text('Ativar').first);
     await tester.pumpAndSettle();
     expect(locationCalls, 1);
@@ -29,6 +29,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved, true);
     expect(find.text('Mapa aprovado'), findsOneWidget);
+  });
+
+  testWidgets('Web no navegador mantém o conteúdo e não pede instalação', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: RamoPermissionOnboardingGate(
+      role: 'passenger',
+      web: true,
+      readCompleted: () async => false,
+      saveCompleted: () async {},
+      readWebSetup: () async => {'ios': true, 'installed': false},
+      requestWebLocation: () async => 'granted',
+      installWebApp: () async => throw StateError('install must not be called'),
+      requestLocation: () async => true,
+      requestNotifications: () async => false,
+      saveNotificationPreference: (_) async {},
+      child: const Scaffold(body: Text('Mapa normal no navegador')),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Mapa normal no navegador'), findsOneWidget);
+    expect(find.text('Adicionar app à Tela de Início'), findsNothing);
+    expect(find.text('Adicionar à Tela de Início'), findsNothing);
   });
 
   testWidgets('driver pode entrar no perfil mesmo sem autorização opcional', (tester) async {
