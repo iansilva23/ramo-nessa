@@ -1374,6 +1374,16 @@ export function createLocalitiesAdmin(input) {
       return;
     }
 
+    // Publishing updates the effective fare catalog, so never silently
+    // ignore a locality form that is still being edited on the screen.
+    if (hasUnsavedWizardChanges()) {
+      setMessage(
+        'Salve ou descarte as alterações da localidade antes de publicar o rascunho.',
+        'danger',
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
       `Publicar agora o rascunho #${draft.versionNumber}? As localidades e tarifas deste rascunho passarão a valer no app.`,
     );

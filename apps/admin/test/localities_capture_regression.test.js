@@ -42,3 +42,13 @@ test('undo deletion restores the locality display name, not only its stable ID',
   assert.match(undo, /kind: 'locality_geofence'/);
   assert.match(undo, /buildPricePatch\(/);
 });
+
+test('pricing draft cannot be published while unsaved locality edits are visible', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const publish = source.match(/async function publishDraftNow\(\) \{[\s\S]*?\n  async function discardDraft\(/)?.[0];
+  assert.ok(publish, 'publishDraftNow must exist');
+  const unsavedCheck = publish.indexOf('hasUnsavedWizardChanges()');
+  const apiCall = publish.indexOf('api.publishPricingVersion(');
+  assert.ok(unsavedCheck >= 0 && unsavedCheck < apiCall);
+  assert.match(publish, /Salve ou descarte as alterações da localidade antes de publicar/);
+});
