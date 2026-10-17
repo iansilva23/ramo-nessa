@@ -1,0 +1,49 @@
+name: Ramo Nessa V5 - Floating Home Visual Review
+
+on:
+  push:
+    branches: [feature/v5-seven-fixes-20261016]
+    paths:
+      - 'apps/passenger/lib/src/features/home/**'
+      - 'apps/passenger/test/visual_home_review.dart'
+      - 'packages/design_system/**'
+      - '.github/workflows/v5-home-visual-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    name: Capture four floating card states for manual visual review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Install dependencies from lockfile
+        working-directory: apps/passenger
+        run: flutter pub get --enforce-lockfile
+      - name: Capture goldens on fake map without production services
+        working-directory: apps/passenger
+        run: flutter test --update-goldens test/visual_home_review.dart
+      - name: Require the four generated screenshots
+        working-directory: apps/passenger
+        run: |
+          for theme in light dark; do
+            for state in empty selected; do
+              test -s "test/goldens/v5-floating-${theme}-${state}.png"
+            done
+          done
+      - name: Upload isolated UI images for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-floating-home-visual-review
+          path: apps/passenger/test/goldens/v5-floating-*.png
+          retention-days: 7
+      - name: Confirm app source and pubspec were not modified
+        run: git diff --exit-code -- apps/passenger/lib/ apps/passenger/pubspec.yaml apps/passenger/pubspec.lock
