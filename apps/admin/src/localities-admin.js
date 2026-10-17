@@ -836,7 +836,26 @@ export function createLocalitiesAdmin(input) {
     wizard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function closeWizard() {
+  function hasUnsavedWizardChanges() {
+    if (byId('locality-wizard')?.hidden !== false || initialForm == null) {
+      return false;
+    }
+    try {
+      return JSON.stringify(captureForm()) !== JSON.stringify(initialForm);
+    } catch {
+      // A temporarily invalid field is still user input worth preserving.
+      return true;
+    }
+  }
+
+  function closeWizard(options = {}) {
+    if (
+      options?.force !== true &&
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
     const wizard = byId('locality-wizard');
     if (wizard != null) wizard.hidden = true;
     editing = null;
@@ -1027,7 +1046,7 @@ export function createLocalitiesAdmin(input) {
 
     const savedMode = mode;
     await refresh({ announce: false });
-    closeWizard();
+    closeWizard({ force: true });
     setMessage(
       savedMode === 'edit'
         ? 'Localidade atualizada no rascunho. Nada foi publicado ainda.'
@@ -1390,7 +1409,7 @@ export function createLocalitiesAdmin(input) {
         versionId: draft.id,
         expectedUpdatedAt: draft.updatedAt,
       });
-      closeWizard();
+      closeWizard({ force: true });
       lastDeleted = null;
       renderUndoDelete();
       await refresh({ announce: false });

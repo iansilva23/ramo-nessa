@@ -22,3 +22,11 @@ test('failed locality writes reload the draft and leave the edit wizard open for
   // Closing the form is success-only and is not permitted in the catch block.
   assert.doesNotMatch(save.split('} catch (error) {').pop(), /closeWizard\(/);
 });
+
+test('editing a locality protects unsaved form values on cancel/close', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(source, /function hasUnsavedWizardChanges\(\)/);
+  assert.match(source, /JSON\.stringify\(captureForm\(\)\) !== JSON\.stringify\(initialForm\)/);
+  assert.match(source, /Descartar as alterações não salvas desta localidade/);
+  assert.match(source, /closeWizard\(\{ force: true \}\)/);
+});
