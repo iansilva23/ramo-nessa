@@ -1,0 +1,92 @@
+name: Ramo Nessa V5 - Platform Compilation
+on:
+  push:
+    branches: [feature/v5-seven-fixes-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ramo-v5-platforms-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-web:
+    name: Compile ${{ matrix.app }} ${{ matrix.platform }} - no deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+        platform: [android, web]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java for Android
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Compile Android debug without production credentials
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build apk --debug --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify debug APK
+        if: matrix.platform == 'android'
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Compile browser Web
+        if: matrix.platform == 'web'
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build web --release --no-web-resources-cdn --no-pub
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify Web bundle
+        if: matrix.platform == 'web'
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          test -s build/web/index.html
+          test -s build/web/main.dart.js
+      - name: Confirm source and lockfile unchanged
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
+
+  ios-simulator:
+    name: Compile iOS simulator ${{ matrix.app }} - unsigned
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Locked dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Compile iOS without code signing or production credentials
+        working-directory: apps/${{ matrix.app }}
+        run: >
+          flutter build ios --simulator --debug --no-pub --no-codesign
+          --dart-define=RAMO_PREVIEW_MODE=false
+          --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Verify simulator binary
+        working-directory: apps/${{ matrix.app }}
+        run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Confirm source and lockfile unchanged
+        run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
