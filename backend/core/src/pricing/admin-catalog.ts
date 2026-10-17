@@ -78,6 +78,9 @@ export function adminPricingCatalogView(
       enabled: snapshot.zonePolicies[zoneId].enabled,
     })),
     externalLocalities: [...snapshot.externalLocalities].sort(),
+    localityDisplayNames: structuredClone(
+      snapshot.localityDisplayNames ?? { prea: {}, jijoca: {}, external: {} },
+    ),
     localityGeofences: snapshot.localityGeofences
       .map((geofence) => ({ ...geofence }))
       .sort((a, b) => {

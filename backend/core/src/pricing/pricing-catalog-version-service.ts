@@ -501,6 +501,27 @@ export async function updatePricingCatalogDraft(input: {
       bands: snapshot.jeri.deliveryBands,
       aboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     };
+  } else if (patch.kind === 'locality_label') {
+    const localityExists =
+      patch.scope === 'prea'
+        ? snapshot.localities.prea[patch.localityId] != null
+        : patch.scope === 'jijoca'
+          ? snapshot.localities.jijoca[patch.localityId] != null
+          : snapshot.externalLocalities.includes(patch.localityId);
+    if (!localityExists) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND',
+        'A localidade precisa existir antes de editar seu nome.',
+      );
+    }
+    snapshot.localityDisplayNames ??= { prea: {}, jijoca: {}, external: {} };
+    snapshot.localityDisplayNames[patch.scope][patch.localityId] = patch.label;
+    auditMetadata = {
+      kind: patch.kind,
+      scope: patch.scope,
+      localityId: patch.localityId,
+      label: patch.label,
+    };
   } else if (patch.kind === 'locality_geofence') {
     const localityExists =
       patch.zoneId === 'jericoacoara'
@@ -594,6 +615,10 @@ export async function updatePricingCatalogDraft(input: {
         'PRICING_STRUCTURE_CONFLICT',
         'A localidade central da zona não pode ser removida.',
       );
+    }
+
+    if (patch.operation === 'remove') {
+      delete snapshot.localityDisplayNames?.[patch.scope]?.[patch.localityId];
     }
 
     if (patch.scope === 'external') {

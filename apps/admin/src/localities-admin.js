@@ -237,7 +237,8 @@ export function createLocalitiesAdmin(input) {
         result.push({
           scope,
           localityId: item.localityId,
-          label: titleFromId(item.localityId),
+          label: catalog.localityDisplayNames?.[scope]?.[item.localityId] ??
+            titleFromId(item.localityId),
           prices: item.prices ?? {},
           policy: item.policy ?? {},
           distancePolicies: distancePolicies.filter(
@@ -258,7 +259,8 @@ export function createLocalitiesAdmin(input) {
       result.push({
         scope: 'external',
         localityId,
-        label: titleFromId(localityId),
+        label: catalog.localityDisplayNames?.external?.[localityId] ??
+          titleFromId(localityId),
         prices: {},
         distancePolicies: distancePolicies.filter(
           (rule) =>
@@ -706,7 +708,9 @@ export function createLocalitiesAdmin(input) {
     const scope = byId('locality-scope')?.value ?? 'prea';
     if (current === 1) {
       const localityId = byId('locality-id')?.value.trim();
-      if (!localityId) throw new Error('Informe o nome da localidade.');
+      if (!localityId || !byId('locality-name')?.value.trim()) {
+        throw new Error('Informe o nome da localidade.');
+      }
       if (mode === 'create' && findEntry(scope, localityId) != null) {
         throw new Error('Já existe uma localidade com este identificador.');
       }
@@ -809,7 +813,8 @@ export function createLocalitiesAdmin(input) {
         ? 'Altere somente o necessário e salve no rascunho.'
         : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
     byId('locality-scope').disabled = nextMode === 'edit';
-    byId('locality-name').disabled = nextMode === 'edit';
+    // The display name is editable, while the stable pricing key remains fixed.
+    byId('locality-name').disabled = false;
 
     const model =
       entry != null
@@ -943,6 +948,15 @@ export function createLocalitiesAdmin(input) {
         operation: 'add',
         scope: model.scope,
         localityId,
+      });
+    }
+
+    if (existing == null || existing.label !== model.name.trim()) {
+      await applyPatch({
+        kind: 'locality_label',
+        scope: model.scope,
+        localityId,
+        label: model.name.trim(),
       });
     }
 

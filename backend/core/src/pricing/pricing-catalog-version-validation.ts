@@ -62,6 +62,12 @@ export type PricingCatalogDraftPatch =
       enabled: boolean;
     }
   | {
+      kind: 'locality_label';
+      scope: 'prea' | 'jijoca' | 'external';
+      localityId: string;
+      label: string;
+    }
+  | {
       kind: 'locality_structure';
       operation: 'add' | 'remove';
       scope: 'prea' | 'jijoca' | 'external';
@@ -548,6 +554,19 @@ export function parsePricingCatalogDraftPatch(
       kind,
       zoneId,
       enabled: booleanValue(value.enabled, 'enabled'),
+    };
+  }
+
+  if (kind === 'locality_label') {
+    const scope = textValue(value.scope, 'scope', 20);
+    if (scope !== 'prea' && scope !== 'jijoca' && scope !== 'external') {
+      throw new InvalidPricingCatalogPatchError('scope da localidade é inválido.');
+    }
+    return {
+      kind,
+      scope,
+      localityId: identifierValue(value.localityId, 'localityId'),
+      label: textValue(value.label, 'label', 80),
     };
   }
 

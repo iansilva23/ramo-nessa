@@ -124,6 +124,8 @@ export interface PricingCatalogSnapshot {
   >;
   zonePolicies: Record<ZoneId, { enabled: boolean }>;
   externalLocalities: string[];
+  // Optional metadata: a display label never changes the stable pricing ID.
+  localityDisplayNames?: Record<'prea' | 'jijoca' | 'external', Record<string, string>>;
   localityGeofences: PricingLocalityGeofence[];
   localityPolicies: {
     prea: Record<string, PricingLocalityPolicy>;
