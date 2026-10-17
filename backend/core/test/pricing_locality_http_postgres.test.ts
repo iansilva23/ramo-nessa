@@ -194,6 +194,33 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
       final.body.catalog.localityDisplayNames.prea['ci-http-' + local],
       'CI API TESTE',
     );
+    const publishPath = path + '/publish';
+    const readerPublish = await request(
+      'POST', publishPath, reader.token,
+      { expectedUpdatedAt: updated.body.version.updatedAt },
+    );
+    assert.equal(readerPublish.status, 403);
+    const stillDraft = await request('GET', path, reader.token);
+    assert.equal(stillDraft.body.version.status, 'draft');
+
+    // Even an authorized operator must not publish with stale data.
+    const stalePublish = await request(
+      'POST', publishPath, writer.token,
+      { expectedUpdatedAt: initialUpdatedAt },
+    );
+    assert.equal(stalePublish.status, 409);
+
+    // Publication is distinct from saving a draft, and only an explicit
+    // authenticated request can make the version effective.
+    const published = await request(
+      'POST', publishPath, writer.token,
+      { expectedUpdatedAt: updated.body.version.updatedAt },
+    );
+    assert.equal(published.status, 200);
+    assert.equal(published.body.status, 'published');
+    const afterPublish = await request('GET', path, reader.token);
+    assert.equal(afterPublish.body.version.status, 'published');
+
     const audit = await pool.query<{ action: string; metadata: { kind?: string } }>(
       "SELECT action, metadata FROM admin_audit_log WHERE actor_key_id = $1 AND target_id = $2",
       [writer.key.id, draftId],
