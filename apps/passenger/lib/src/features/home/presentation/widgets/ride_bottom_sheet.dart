@@ -134,7 +134,7 @@ class RideBottomSheet extends StatelessWidget {
                               ),
                             ),
                             child: isPreparing
-                                ? const Row(
+                                ? Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       SizedBox(
@@ -145,8 +145,8 @@ class RideBottomSheet extends StatelessWidget {
                                           color: colors.onSurfaceVariant,
                                         ),
                                       ),
-                                      SizedBox(width: 10),
-                                      Text(
+                                      const SizedBox(width: 10),
+                                      const Text(
                                         'Preparando corrida…',
                                         style: TextStyle(
                                           fontWeight: FontWeight.w800,
