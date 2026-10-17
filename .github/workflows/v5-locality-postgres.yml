@@ -7,6 +7,7 @@ on:
       - 'backend/core/src/pricing/**'
       - 'backend/core/src/admin/repositories/postgres-admin-repository.ts'
       - 'backend/core/test/pricing_locality_postgres_atomicity.test.ts'
+      - 'backend/core/test/pricing_locality_http_postgres.test.ts'
       - 'backend/core/migrations/**'
       - '.github/workflows/v5-locality-postgres.yml'
   workflow_dispatch:
@@ -60,3 +61,6 @@ jobs:
         run: |
           npm run typecheck
           node --import tsx --test test/pricing_locality_postgres_atomicity.test.ts
+      - name: Run Core HTTP authorization and pricing on localhost only
+        working-directory: backend/core
+        run: node --import tsx --test test/pricing_locality_http_postgres.test.ts
