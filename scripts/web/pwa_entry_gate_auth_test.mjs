@@ -128,7 +128,8 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
     await page.getByRole('textbox').first().click(); await page.keyboard.insertText('123456');
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
-  await page.getByText('Perfil', { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.waitForLoadState('networkidle', { timeout: 10000 });
   assert.equal(await page.getByText('Adicionar app à Tela de Início', { exact: true }).count(), 0);
   assert.equal(await page.getByText('Ative sua localização', { exact: true }).count(), 0);
   const setupEvidence = resolve('artifacts/web-csp'); await mkdir(setupEvidence, { recursive: true });
@@ -141,11 +142,13 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   assert.equal(await page.evaluate(() => document.cookie), '');
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
   await page.evaluate(() => localStorage.clear());
+  await page.waitForLoadState('networkidle', { timeout: 10000 });
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
   await enterInstalledApp();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
-  await page.getByText('Perfil', { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
+  await page.waitForLoadState('networkidle', { timeout: 10000 });
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
