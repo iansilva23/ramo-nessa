@@ -378,6 +378,7 @@ test('concurrent navigation, publishing and double-saving cannot interrupt a loc
   await page.locator('#localities-discard-draft-button').click();
   // A synthetic click bypasses the browser's disabled-button behavior.
   await page.locator('#locality-wizard-save').dispatchEvent('click');
+  assert.equal(await page.locator('#locality-wizard-save').isDisabled(), true);
   assert.equal(await page.evaluate(() => review.publishes.length), 0);
   assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea),
     'Preá Travado Enquanto Salva');

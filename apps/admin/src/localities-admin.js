@@ -1548,6 +1548,9 @@ export function createLocalitiesAdmin(input) {
       }
     });
     byId('locality-wizard-save')?.addEventListener('click', () => {
+      // A synthetic or queued click must not unlock the button while the
+      // original operation is still writing versioned draft patches.
+      if (saving) return;
       const button = byId('locality-wizard-save');
       button.disabled = true;
       void saveWizard()
