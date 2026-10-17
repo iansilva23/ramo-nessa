@@ -106,6 +106,15 @@ async function fixture(t, options = {}) {
           window.review.failedOnce = true;
           throw new Error('Falha de rede simulada');
         }
+        if (
+          window.review.pauseOnceAtKind === patch.kind &&
+          !window.review.pausedOnce
+        ) {
+          window.review.pausedOnce = true;
+          await new Promise((resolve) => {
+            window.review.releasePausedPatch = resolve;
+          });
+        }
         window.review.patches.push(structuredClone(patch));
         if (patch.kind === 'locality_structure' && patch.operation === 'add') {
           catalog.localities[patch.scope].push({
@@ -345,4 +354,45 @@ test('read-only administrator cannot save, create, delete or publish fare change
     name: review.catalog.localityDisplayNames.prea.prea,
   }));
   assert.deepEqual(writes, { patches: 0, publishes: 0, name: 'Preá Centro' });
+});
+
+
+test('concurrent navigation, publishing and double-saving cannot interrupt a locality save', async (t) => {
+  const page = await fixture(t);
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await page.locator('#locality-name').fill('Preá Travado Enquanto Salva');
+  for (let i = 0; i < 5; i += 1) {
+    await page.locator('#locality-wizard-next').click();
+  }
+  await page.evaluate(() => {
+    review.pauseOnceAtKind = 'locality_geofence';
+    review.allowDiscard = true;
+  });
+  await page.locator('#locality-wizard-save').click();
+  await page.waitForFunction(() => typeof review.releasePausedPatch === 'function');
+  assert.equal(await page.locator('#locality-name').isDisabled(), true);
+  assert.equal(await page.locator('#locality-wizard-save').isDisabled(), true);
+  await page.locator('#localities-new-button').click();
+  assert.equal(await page.locator('#locality-wizard-title').textContent(), 'Editar localidade');
+  await page.locator('#localities-publish-draft-button').click();
+  await page.locator('#localities-discard-draft-button').click();
+  // A synthetic click bypasses the browser's disabled-button behavior.
+  await page.locator('#locality-wizard-save').dispatchEvent('click');
+  assert.equal(await page.evaluate(() => review.publishes.length), 0);
+  assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea),
+    'Preá Travado Enquanto Salva');
+  await page.evaluate(() => review.releasePausedPatch());
+  await page.waitForFunction(() =>
+    document.querySelector('#localities-message')?.textContent?.includes('atualizada no rascunho'),
+  );
+  const saved = await page.evaluate(() => ({
+    patches: review.patches.map((p) => p.kind),
+    draftStillPresent: review.version.status === 'draft',
+    publishes: review.publishes.length,
+  }));
+  assert.equal(saved.patches.filter((kind) => kind === 'locality_label').length, 1);
+  assert.equal(saved.patches.filter((kind) => kind === 'locality_geofence').length, 1);
+  assert.equal(saved.draftStillPresent, true);
+  assert.equal(saved.publishes, 0);
+  assert.equal(await page.locator('#locality-wizard').isVisible(), false);
 });

@@ -77,3 +77,17 @@ test('read-only locality mode does not show the wizard save action and does not 
   assert.match(code, /canSelect: \(\) => mode !== 'view'/);
   assert.match(map, /if \(moved \|\| !canSelect\(\)\) return/);
 });
+
+test('in-flight locality saves block duplicate requests and dangerous draft actions', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(source, /let saving = false/);
+  assert.match(source, /async function saveWizard\(\) \{\s*if \(saving\) return/);
+  assert.match(source, /const previousDisabled = controls\.map/);
+  assert.match(source, /saving = false;\s*controls\.forEach/);
+  const pub = source.match(/async function publishDraftNow\(\) \{[\s\S]*?\n  async function discardDraft/)?.[0];
+  assert.ok(pub);
+  assert.match(pub, /if \(saving\)/);
+  const discard = source.match(/async function discardDraft\(\) \{[\s\S]*?\n  function bind\(/)?.[0];
+  assert.ok(discard);
+  assert.match(discard, /if \(saving\)/);
+});

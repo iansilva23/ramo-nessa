@@ -196,6 +196,7 @@ export function createLocalitiesAdmin(input) {
   let initialForm = null;
   let lastDeleted = null;
   let mounted = true;
+  let saving = false;
 
   function token() {
     return input.getToken?.() ?? null;
@@ -803,6 +804,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   function openWizard(nextMode, entry = null) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de abrir outra.', 'danger');
+      return;
+    }
     if (nextMode !== 'view' && !hasScope('pricing:write')) return;
     // Switching between new/edit or selecting a map location must not
     // silently overwrite unsaved values in the currently open wizard.
@@ -874,6 +879,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   function closeWizard(options = {}) {
+    if (saving && options?.force !== true) {
+      setMessage('Aguarde o salvamento da localidade antes de fechar.', 'danger');
+      return;
+    }
     if (
       options?.force !== true &&
       hasUnsavedWizardChanges() &&
@@ -975,7 +984,13 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function saveWizard() {
-    setMessage();
+    if (saving) return;
+    saving = true;
+    const wizard = byId('locality-wizard');
+    const controls = [...(wizard?.querySelectorAll('input, select, button') ?? [])];
+    const previousDisabled = controls.map((field) => field.disabled);
+    for (const field of controls) field.disabled = true;
+    setMessage('Salvando localidade no rascunho…');
     try {
     if (!hasScope('pricing:write')) {
       throw new Error('Sua conta não pode editar localidades.');
@@ -1093,10 +1108,19 @@ export function createLocalitiesAdmin(input) {
         ' Algumas mudanças podem ter ficado no rascunho. ' +
         'Confira os dados e tente novamente antes de publicar.',
       );
+    } finally {
+      saving = false;
+      controls.forEach((field, index) => {
+        field.disabled = previousDisabled[index];
+      });
     }
   }
 
   async function deleteEntry(entry) {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de excluir.', 'danger');
+      return;
+    }
     if (!hasScope('pricing:write')) {
       throw new Error('Sua conta não pode excluir localidades.');
     }
@@ -1139,6 +1163,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function undoDelete() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de desfazer a exclusão.', 'danger');
+      return;
+    }
     if (lastDeleted == null) return;
     const model = lastDeleted;
     await applyPatch({
@@ -1396,6 +1424,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function publishDraftNow() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de publicar.', 'danger');
+      return;
+    }
     if (
       draft?.status !== 'draft' ||
       !hasScope('pricing:write')
@@ -1436,6 +1468,10 @@ export function createLocalitiesAdmin(input) {
   }
 
   async function discardDraft() {
+    if (saving) {
+      setMessage('Aguarde o salvamento da localidade antes de descartar o rascunho.', 'danger');
+      return;
+    }
     if (
       draft?.status !== 'draft' ||
       !hasScope('pricing:write')
@@ -1470,6 +1506,10 @@ export function createLocalitiesAdmin(input) {
 
   function bind() {
     byId('localities-refresh-button')?.addEventListener('click', () => {
+      if (saving) {
+        setMessage('Aguarde o salvamento antes de atualizar a lista.', 'danger');
+        return;
+      }
       void refresh().catch(handleError);
     });
     byId('localities-new-button')?.addEventListener('click', () => {
