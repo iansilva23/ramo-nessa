@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -167,6 +167,26 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
     assert.equal(fetched.body.catalog.localities.prea.find(
       (row: { localityId: string }) => row.localityId === 'ci-http-' + local,
     )?.prices.moto.amountCents, 1200);
+
+    // Exercise the exact browser/Admin API adapter over real localhost HTTP.
+    // The JavaScript client is imported by a separate Node process so the
+    // backend's strict TypeScript compilation stays independent of frontend JS.
+    const frontendResult = execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../../scripts/web/admin_api_live_contract.mjs', import.meta.url))],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        env: {
+          ...process.env,
+          RAMO_V5_LOCAL_CORE_URL: baseUrl,
+          RAMO_V5_READ_TOKEN: reader.token,
+          RAMO_V5_DRAFT_ID: draftId,
+          RAMO_V5_LOCALITY_ID: 'ci-http-' + local,
+        },
+      },
+    );
+    assert.match(frontendResult, /read allowed; write denied/);
 
     const stale = await request('PATCH', path, writer.token, {
       kind: 'batch', expectedUpdatedAt: initialUpdatedAt,
