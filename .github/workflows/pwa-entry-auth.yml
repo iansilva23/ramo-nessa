@@ -1,0 +1,62 @@
+name: Installed PWA entry login regression
+on:
+  push:
+    branches: [ops/pwa-entry-gate-login-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  login:
+    name: Installed login - ${{ matrix.role }} - ${{ matrix.engine }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [passenger, driver]
+        engine: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require exact installed entry and unchanged compiled Flutter source
+        run: |
+          git diff --exit-code aab0b0c36fe15cf78c24d7b2beab8b69c099294a HEAD -- apps packages backend/core config/web
+          git diff --exit-code a8a766a62fb637c687bc7d079ebb247b864f82dd HEAD -- apps/passenger/lib apps/driver/lib apps/passenger/assets apps/driver/assets packages backend/core apps/passenger/pubspec.yaml apps/driver/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.lock config/web
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-${{ matrix.role }}-review
+          run-id: 38957443510
+          github-token: ${{ github.token }}
+          path: apps/${{ matrix.role }}/build/web
+      - name: Stage exact new entry files over source-matched compiled app
+        env:
+          RAMO_WEB_TEST_ROLE: ${{ matrix.role }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync,writeFileSync,copyFileSync} from 'node:fs';
+          const role=process.env.RAMO_WEB_TEST_ROLE,root='apps/'+role+'/',path=role==='passenger'?'/passageiro/':'/motorista/';
+          writeFileSync(root+'build/web/index.html',readFileSync(root+'web/index.html','utf8').replace('$FLUTTER_BASE_HREF',path));
+          for(const name of ['ramo_entry_gate.js','ramo_entry_gate.css'])copyFileSync(root+'web/'+name,root+'build/web/'+name);
+          NODE
+      - name: Prepare isolated providers and browser
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps ${{ matrix.engine }}
+      - name: Enter, type credentials, recover cookie and log out
+        env:
+          RAMO_BROWSER_ENGINE: ${{ matrix.engine }}
+          RAMO_WEB_TEST_ROLE: ${{ matrix.role }}
+        run: node --test scripts/web/pwa_entry_gate_auth_test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pwa-entry-login-${{ matrix.role }}-${{ matrix.engine }}
+          path: artifacts/web-csp/
+          retention-days: 7

@@ -1,0 +1,82 @@
+#ramo-entry-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: max(68px, env(safe-area-inset-top)) 24px max(48px, env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(18, 30, 33, .70);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-align: center;
+  -webkit-backdrop-filter: blur(18px) saturate(70%);
+  backdrop-filter: blur(18px) saturate(70%);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity .36s ease, backdrop-filter .36s ease;
+}
+#ramo-entry-gate[hidden] { display: none; }
+#ramo-entry-gate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(155deg, #ffffff20, transparent 48%, #101d2240);
+  pointer-events: none;
+}
+#ramo-entry-gate > * { position: relative; pointer-events: none; }
+#ramo-entry-gate .ramo-gate-brand {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 500; letter-spacing: 2px;
+}
+#ramo-entry-gate .ramo-gate-brand svg { width: 25px; height: 25px; color: #ffdf16; }
+#ramo-entry-gate .ramo-gate-welcome {
+  display: flex; flex-direction: column; align-items: center; gap: 21px;
+  margin: auto 0;
+  transform: translateX(var(--ramo-gate-drag, 0px));
+  transition: transform .32s cubic-bezier(.2, .7, .2, 1);
+}
+#ramo-entry-gate .ramo-gate-glass {
+  display: grid; place-items: center; width: 76px; height: 76px;
+  border: 1px solid #ffffff57; border-radius: 26px;
+  background: linear-gradient(135deg, #ffffff3b, #ffffff10);
+  box-shadow: inset 0 1px #ffffff60, 0 10px 35px #00000016;
+}
+#ramo-entry-gate .ramo-gate-glass svg { width: 30px; height: 30px; }
+#ramo-entry-gate .ramo-gate-title { font-size: clamp(30px, 8vw, 38px); line-height: 1.1; font-weight: 500; letter-spacing: -1.3px; }
+#ramo-entry-gate .ramo-gate-subtitle { font-size: 15px; line-height: 1.6; color: #ffffffe6; font-weight: 400; }
+#ramo-entry-gate .ramo-gate-hint { display: flex; align-items: center; justify-content: center; gap: 18px; width: 100%; font-size: 15px; font-weight: 500; }
+#ramo-entry-gate .ramo-gate-hint svg { width: 20px; height: 20px; opacity: .85; }
+#ramo-entry-gate .ramo-gate-anywhere { display: block; margin-top: 13px; font-size: 12px; font-weight: 400; color: #ffffffd6; }
+#ramo-entry-gate.ramo-gate-dragging .ramo-gate-welcome { transition: none; }
+#ramo-entry-gate.ramo-gate-leaving { opacity: 0; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); }
+#ramo-entry-gate:focus-visible { outline: 3px solid #ffdf16; outline-offset: -5px; }
+@media (max-height: 450px) {
+  #ramo-entry-gate { padding: 18px 24px; }
+  #ramo-entry-gate .ramo-gate-welcome { flex-direction: row; gap: 14px; }
+  #ramo-entry-gate .ramo-gate-glass { width: 44px; height: 44px; border-radius: 15px; }
+  #ramo-entry-gate .ramo-gate-glass svg { width: 22px; height: 22px; }
+  #ramo-entry-gate .ramo-gate-title { font-size: 26px; }
+  #ramo-entry-gate .ramo-gate-subtitle { display: none; }
+  #ramo-entry-gate .ramo-gate-anywhere { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #ramo-entry-gate, #ramo-entry-gate .ramo-gate-welcome { transition: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #ramo-entry-gate { background: #273537ed; }
+}

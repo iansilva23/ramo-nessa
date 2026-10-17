@@ -12,10 +12,15 @@ const instrumentation=`
 (() => {
  const rect = e => { if(!e)return null; const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}; };
  const sample = (kind,e) => {
+  const gate=document.getElementById('ramo-entry-gate');
+  const hit=document.elementFromPoint(innerWidth*.5,innerHeight*.3);
+  const styles=n=>n?{tag:n.tagName,id:n.id,inert:n.inert,disabled:n.disabled,pointerEvents:getComputedStyle(n).pointerEvents,visibility:getComputedStyle(n).visibility,zIndex:getComputedStyle(n).zIndex}:null;
   const v=window.visualViewport;
   const data={kind,t:performance.now(),standalone:navigator.standalone===true,displayStandalone:matchMedia('(display-mode: standalone)').matches,
    viewport:{innerWidth,innerHeight,clientWidth:document.documentElement.clientWidth,clientHeight:document.documentElement.clientHeight,scale:v?.scale,offsetTop:v?.offsetTop,offsetLeft:v?.offsetLeft,width:v?.width,height:v?.height,scrollX,scrollY},
    view:rect(document.querySelector('flutter-view')),semantics:rect(document.querySelector('flt-semantics-host')),
+   entryGate:{present:!!document.getElementById('ramo-entry-gate'),locked:!!document.getElementById('ramo-entry-gate')&&!document.getElementById('ramo-entry-gate').hidden},
+   hitTest:{gate:styles(gate),hit:styles(hit),body:styles(document.body),html:styles(document.documentElement),gateParent:styles(gate?.parentElement),gateRect:rect(gate),bodyChildren:[...document.body.children].map(styles)},
    semanticsEnabled:document.querySelectorAll('flt-semantics-host flt-semantics').length>0,
    touch:e?{x:e.clientX,y:e.clientY,pageX:e.pageX,pageY:e.pageY,offsetX:e.offsetX,offsetY:e.offsetY,target:e.target?.tagName,hit:document.elementFromPoint(e.clientX,e.clientY)?.tagName}:null};
   fetch('/audit/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),keepalive:true}).catch(()=>{});
@@ -24,9 +29,11 @@ const instrumentation=`
  const query=navigator.permissions?.query?.bind(navigator.permissions);
  if(query)navigator.permissions.query = d => d.name==='geolocation'?Promise.resolve({state:'denied',addEventListener(){},removeEventListener(){}}):query(d);
  for(const name of ['pageshow','resize','orientationchange','focus','blur'])addEventListener(name,()=>sample(name),{passive:true});
- for(const name of ['pointerdown','pointerup','click'])addEventListener(name,e=>sample(name,e),{capture:true,passive:true});
+ for(const name of ['pointerdown','pointerup','pointercancel','touchstart','touchend','touchcancel','click'])addEventListener(name,e=>sample(name,e),{capture:true,passive:true});
  for(const name of ['resize','scroll'])visualViewport?.addEventListener(name,()=>sample('visual-'+name),{passive:true});
- for(const delay of [0,100,300,1000,3000,7000])setTimeout(()=>sample('startup-'+delay),delay);
+ addEventListener('ramo-entry-gate-change',e=>sample('entry-gate-'+e.detail.state),{passive:true});
+ document.addEventListener('visibilitychange',()=>sample('visibility-'+document.visibilityState),{passive:true});
+ for(const delay of [0,100,300,1000,3000,7000,15000,30000,60000,120000,180000])setTimeout(()=>sample('startup-'+delay),delay);
 })();`;
 let count=0;
 const server=createServer({key:readFileSync('artifacts/native-ios/key.pem'),cert:readFileSync('artifacts/native-ios/cert.pem')},(req,res)=>{
@@ -58,7 +65,7 @@ const server=createServer({key:readFileSync('artifacts/native-ios/key.pem'),cert
    body=Buffer.from(body.toString().replace(/<script src="https:\/\/maps\.googleapis\.com\/maps\/api\/js[^"\n]*"><\/script>/,'<script src="/fixtures/maps.js"></script><script src="/fixtures/geometry.js"></script>'));
    res.setHeader('set-cookie','__Host-ramo_passenger='+token+'; Path=/; HttpOnly; Secure; SameSite=Strict');
   }
-  res.writeHead(200,{'content-type':({'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.json':'application/json','.png':'image/png','.ttf':'font/ttf','.otf':'font/otf'})[extname(file)]??'application/octet-stream','cache-control':'no-store','content-security-policy':webSecurityPolicy('passenger',origin)});res.end(body);
+  res.writeHead(200,{'content-type':({'.html':'text/html','.css':'text/css','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.json':'application/json','.png':'image/png','.ttf':'font/ttf','.otf':'font/otf'})[extname(file)]??'application/octet-stream','cache-control':'no-store','content-security-policy':webSecurityPolicy('passenger',origin)});res.end(body);
  }catch{res.writeHead(404);res.end();}
 });
 server.listen(9443,'0.0.0.0',()=>console.log('Isolated native iOS fixture ready; no production credentials.'));

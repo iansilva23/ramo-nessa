@@ -9,7 +9,7 @@ import { stagingGoogleMapsConfiguration } from '/opt/ramo-nessa/deploy/staging/g
 import { stagingOtpConfiguration } from '/opt/ramo-nessa/deploy/staging/otp.mjs';
 import { stagingComposeArguments,stagingComposeEnvironment } from '/opt/ramo-nessa/deploy/staging/firebase.mjs';
 const here=fileURLToPath(new URL('.',import.meta.url)),meta=JSON.parse(readFileSync(here+'/web-refresh-release.json','utf8'));
-const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='5aa49f6099dc418a65236af90859bc6db2a17c04',previousRoot='/var/backups/ramo-nessa-web/refresh-5aa49f6099dc',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
+const base='5247aabd587efa610c9b4cc36d74cbc348048b41',previousWeb='a8a766a62fb637c687bc7d079ebb247b864f82dd',previousRoot='/var/backups/ramo-nessa-web/refresh-a8a766a62fb6',repo='/opt/ramo-nessa',oldRoot='/var/backups/ramo-nessa-web/5247aabd587e';
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');
 if(!/^[a-f0-9]{40}$/.test(meta.target)||!/^[a-f0-9]{64}$/.test(meta.archiveSha256)||!/^[a-f0-9]{64}$/.test(meta.manifestSha256))throw Error('Metadados de release inválidos.');
 const activate=process.argv.includes('--activate');
@@ -68,7 +68,7 @@ try{
   assertGatewayOnly(baseline,preview,release+'/bundles');
   const rollback=root+'/compose.rollback.json';privateJson(rollback,{services:{gateway:{image:gateway.Image,volumes:[mount.Source+':/srv/web:ro']}}});
   plan={target:meta.target,archiveSha256:meta.archiveSha256,containers,runtimeFiles,oldBundles:mount.Source,newBundles:release+'/bundles',override,rollback,caddyPrevious,caddyNext};
-  if(!activate){privateJson(root+'/prepared.json',plan);console.log('ATUALIZAÇÃO WEB PREPARADA. Dois pacotes com correções de toque da PWA e controles sobre o mapa.');console.log('Core, banco, site e ADM preservados. Nenhum serviço foi alterado.');}
+  if(!activate){privateJson(root+'/prepared.json',plan);console.log('ENTRADA POR DESLIZE PREPARADA. Dois pacotes com a tela exclusiva da PWA instalada.');console.log('Core, banco, site e ADM preservados. Nenhum serviço foi alterado.');}
   else{
     if(!sameConfiguration(json(root+'/prepared.json'),plan))throw Error('Plano mudou desde a preparação.');
     privateJson(root+'/started.json',{target:meta.target,startedAt:new Date().toISOString()});
@@ -76,7 +76,7 @@ try{
     run('docker',[...args,'-f',override,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','90','gateway'],{env});
     for(const role of ['passenger','driver']){
       const path=role==='passenger'?'passageiro':'motorista';
-      for(const name of ['index.html','main.dart.js','ramo_web_push.js']){
+      for(const name of ['index.html','main.dart.js','ramo_web_push.js','ramo_entry_gate.js','ramo_entry_gate.css']){
         const response=await fetch('https://app.ramonessa.com.br/'+path+'/'+(name==='index.html'?'':name),{signal:AbortSignal.timeout(20_000),cache:'no-store'});
         if(response.status!==200||!/geolocation=\(self\)/.test(response.headers.get('permissions-policy')??'')||sha(Buffer.from(await response.arrayBuffer()))!==sha(readFileSync(release+'/bundles/'+role+'/'+name)))throw Error('Arquivo ou política de GPS diferente do aprovado: '+path+'/'+name);
       }
