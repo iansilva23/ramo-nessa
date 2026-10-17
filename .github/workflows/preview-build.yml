@@ -3,6 +3,11 @@ name: Preview APKs
 
 on:
   workflow_dispatch:
+  # Test APKs only; the V5 branch never deploys to staging or production.
+  push:
+    branches: [feature/v5-seven-fixes-20261016]
+    paths:
+      - ".github/workflows/preview-build.yml"
   pull_request:
     branches: [main]
     paths:
