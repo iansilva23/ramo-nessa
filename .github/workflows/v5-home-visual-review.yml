@@ -28,6 +28,8 @@ jobs:
       - name: Install dependencies from lockfile
         working-directory: apps/passenger
         run: flutter pub get --enforce-lockfile
+      - name: Ensure review-only font exists on CI runner
+        run: test -s /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
       - name: Capture goldens on fake map without production services
         working-directory: apps/passenger
         run: flutter test --update-goldens test/visual_home_review.dart
@@ -45,5 +47,9 @@ jobs:
           name: v5-floating-home-visual-review
           path: apps/passenger/test/goldens/v5-floating-*.png
           retention-days: 7
-      - name: Confirm app source and pubspec were not modified
-        run: git diff --exit-code -- apps/passenger/lib/ apps/passenger/pubspec.yaml apps/passenger/pubspec.lock
+      - name: Confirm no runtime sources or dependency constraints were modified
+        run: |
+          git diff --exit-code -- apps/passenger/lib/ apps/passenger/pubspec.yaml
+          # Flutter pub get normalizes an extra empty line at EOF on this lockfile.
+          # Ignore blank-line-only differences, not actual dependency changes.
+          git diff --ignore-blank-lines --exit-code -- apps/passenger/pubspec.lock

@@ -1,4 +1,8 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ride_bottom_sheet.dart';
@@ -7,6 +11,18 @@ import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ride
 // generator; the regular Flutter tests do not require checked-in goldens.
 // The gray background is a map PLACEHOLDER, not a Google Maps screenshot.
 void main() {
+  setUpAll(() async {
+    // Flutter widget tests use the Ahem font by default, which draws blocks
+    // instead of readable text. A runner-provided test font is loaded under
+    // the Material font family exclusively for these review images.
+    final path = Platform.environment['RAMO_VISUAL_FONT_PATH'] ??
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+    final bytes = await File(path).readAsBytes();
+    final loader = FontLoader('Roboto')
+      ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+    await loader.load();
+  });
+
   for (final dark in [false, true]) {
     for (final destinationSelected in [false, true]) {
       final appearance = dark ? 'dark' : 'light';
@@ -75,7 +91,7 @@ void main() {
         ));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expectLater(
+        await expectLater(
           find.byKey(const Key('visual-review-screen')),
           matchesGoldenFile('goldens/v5-floating-$appearance-$stage.png'),
         );
