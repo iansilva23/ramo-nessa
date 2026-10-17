@@ -868,7 +868,9 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   void _fitRouteAfterLayout({int? expectedRequestId}) {
     final pending = _pendingRouteFitId;
     if (!mounted || pending == null || pending != _routeRequestId ||
-        (expectedRequestId != null && pending != expectedRequestId)) return;
+        (expectedRequestId != null && pending != expectedRequestId)) {
+      return;
+    }
     _pendingRouteFitId = null;
     _fitRoute();
   }
