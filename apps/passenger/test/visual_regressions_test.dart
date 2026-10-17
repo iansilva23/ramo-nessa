@@ -39,12 +39,20 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(find.byKey(const Key('benefits-birthday-input')), 170);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('benefits-birthday-input')),
+      170,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Aniversário (opcional)'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.scrollUntilVisible(find.text('Região de interesse (opcional)'), 110);
+    await tester.scrollUntilVisible(
+      find.byType(DropdownButtonFormField<String>).last,
+      110,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Seu perfil (opcional)'), findsOneWidget);
     expect(find.text('Região de interesse (opcional)'), findsOneWidget);

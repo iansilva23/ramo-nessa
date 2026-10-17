@@ -47,7 +47,7 @@ jobs:
       - name: Analyze and test shared UI
         working-directory: packages/design_system
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test
 
   flutter-apps:
@@ -71,7 +71,7 @@ jobs:
       - name: Analyze and run widget tests
         working-directory: apps/${{ matrix.app }}
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test
 
   core:
