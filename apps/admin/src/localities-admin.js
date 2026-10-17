@@ -1122,6 +1122,13 @@ export function createLocalitiesAdmin(input) {
       scope: model.scope,
       localityId: model.localityId,
     });
+    // Restore the user-facing name separately from the stable pricing ID.
+    await applyPatch({
+      kind: 'locality_label',
+      scope: model.scope,
+      localityId: model.localityId,
+      label: model.name,
+    });
     if (model.hadGeofence !== false) {
       await applyPatch({
         kind: 'locality_geofence',

@@ -30,3 +30,15 @@ test('editing a locality protects unsaved form values on cancel/close', () => {
   assert.match(source, /Descartar as alterações não salvas desta localidade/);
   assert.match(source, /closeWizard\(\{ force: true \}\)/);
 });
+
+test('undo deletion restores the locality display name, not only its stable ID', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const undo = source.match(/async function undoDelete\(\) \{[\s\S]*?\n  function renderDirectory\(/)?.[0];
+  assert.ok(undo, 'undoDelete must exist');
+  assert.match(
+    undo,
+    /kind: 'locality_structure'[\s\S]*?operation: 'add'[\s\S]*?kind: 'locality_label'[\s\S]*?label: model\.name/,
+  );
+  assert.match(undo, /kind: 'locality_geofence'/);
+  assert.match(undo, /buildPricePatch\(/);
+});
