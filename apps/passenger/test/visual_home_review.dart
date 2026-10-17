@@ -17,10 +17,30 @@ void main() {
     // the Material font family exclusively for these review images.
     final path = Platform.environment['RAMO_VISUAL_FONT_PATH'] ??
         '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-    final bytes = await File(path).readAsBytes();
-    final loader = FontLoader('Roboto')
-      ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
-    await loader.load();
+    final regularBytes = await File(path).readAsBytes();
+    final font = FontLoader('Roboto')
+      ..addFont(Future<ByteData>.value(ByteData.sublistView(regularBytes)));
+    final boldPath = path.replaceFirst('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf');
+    if (File(boldPath).existsSync()) {
+      final boldBytes = await File(boldPath).readAsBytes();
+      font.addFont(Future<ByteData>.value(ByteData.sublistView(boldBytes)));
+    }
+    await font.load();
+
+    // Unlike real APK builds, Flutter widget tests do not ship MaterialIcons.
+    // Load the SDK's icon font for recognizable controls in the screenshots.
+    final sdk = Platform.environment['FLUTTER_ROOT'];
+    if (sdk != null) {
+      final iconsFile = File(
+        '$sdk/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      );
+      if (iconsFile.existsSync()) {
+        final iconBytes = await iconsFile.readAsBytes();
+        final icons = FontLoader('MaterialIcons')
+          ..addFont(Future<ByteData>.value(ByteData.sublistView(iconBytes)));
+        await icons.load();
+      }
+    }
   });
 
   for (final dark in [false, true]) {
