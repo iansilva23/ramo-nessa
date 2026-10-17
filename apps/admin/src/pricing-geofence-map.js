@@ -65,6 +65,8 @@ export function createPricingGeofenceMap(input) {
   const zoomOut = input.zoomOut;
   const onChange =
     typeof input.onChange === 'function' ? input.onChange : () => {};
+  const canSelect =
+    typeof input.canSelect === 'function' ? input.canSelect : () => true;
 
   let zoom = 12;
   let center = { ...DEFAULT_CENTER };
@@ -249,7 +251,7 @@ export function createPricingGeofenceMap(input) {
       // Pointer may already have been released by the browser.
     }
 
-    if (moved) return;
+    if (moved || !canSelect()) return;
     const point = coordinateAt(event.clientX, event.clientY);
     selection.latitude = point.latitude;
     selection.longitude = point.longitude;

@@ -322,13 +322,21 @@ test('read-only administrator cannot save, create, delete or publish fare change
   assert.equal(await page.locator('#localities-discard-draft-button').isVisible(), false);
   assert.equal(await page.getByRole('button', { name: 'Excluir', exact: true }).count(), 0);
 
-  // Even if the details wizard can be opened by a reader, saving is forbidden.
-  await page.getByRole('button', { name: 'Editar', exact: true }).click();
-  await page.locator('#locality-name').fill('Não Autorizado');
+  // A reader can consult details without seeing editable controls.
+  assert.equal(await page.getByRole('button', { name: 'Editar', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Visualizar', exact: true }).click();
+  assert.equal(await page.locator('#locality-wizard-title').textContent(), 'Visualizar localidade');
+  assert.equal(await page.locator('#locality-name').inputValue(), 'Preá Centro');
+  assert.equal(await page.locator('#locality-name').isDisabled(), true);
+  assert.equal(await page.locator('#locality-latitude').isDisabled(), true);
+  assert.equal(await page.locator('#locality-category-moto').isDisabled(), true);
+  assert.equal(await page.locator('#locality-apply-coordinates').isDisabled(), true);
   for (let i = 0; i < 5; i += 1) {
     await page.locator('#locality-wizard-next').click();
   }
-  await page.locator('#locality-wizard-save').click();
+  assert.equal(await page.locator('#locality-wizard-save').isVisible(), false);
+  // Defense in depth: even a synthetic click cannot bypass permission checks.
+  await page.locator('#locality-wizard-save').evaluate((node) => node.click());
   await page.waitForFunction(() =>
     document.querySelector('#localities-message')?.textContent?.includes('não pode editar localidades'),
   );

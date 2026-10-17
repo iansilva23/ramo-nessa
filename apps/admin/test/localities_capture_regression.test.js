@@ -67,3 +67,13 @@ test('coordinate summary keeps six decimal places like the saved pricing geofenc
   const code = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
   assert.match(code, /lat\.toFixed\(6\).*lon\.toFixed\(6\)/);
 });
+
+test('read-only locality mode does not show the wizard save action and does not place map markers', () => {
+  const code = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const map = readFileSync(new URL('../src/pricing-geofence-map.js', import.meta.url), 'utf8');
+  assert.match(code, /step !== 6 \|\| mode === 'view'/);
+  assert.match(code, /hasScope\('pricing:write'\) \? 'edit' : 'view'/);
+  assert.match(code, /hasScope\('pricing:write'\) \? 'Editar' : 'Visualizar'/);
+  assert.match(code, /canSelect: \(\) => mode !== 'view'/);
+  assert.match(map, /if \(moved \|\| !canSelect\(\)\) return/);
+});

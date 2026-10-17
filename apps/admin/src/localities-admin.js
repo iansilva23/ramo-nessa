@@ -400,6 +400,7 @@ export function createLocalitiesAdmin(input) {
       overlay: byId('locality-wizard-map-overlay'),
       zoomIn: byId('locality-wizard-map-zoom-in'),
       zoomOut: byId('locality-wizard-map-zoom-out'),
+      canSelect: () => mode !== 'view',
       onChange(selection) {
         setMapCoordinate(selection);
       },
@@ -692,7 +693,7 @@ export function createLocalitiesAdmin(input) {
     }
     byId('locality-wizard-back').hidden = step === 1;
     byId('locality-wizard-next').hidden = step === 6;
-    byId('locality-wizard-save').hidden = step !== 6;
+    byId('locality-wizard-save').hidden = step !== 6 || mode === 'view';
     if (step === 2) {
       requestAnimationFrame(() => ensureWizardMap()?.render());
     }
@@ -802,6 +803,7 @@ export function createLocalitiesAdmin(input) {
   }
 
   function openWizard(nextMode, entry = null) {
+    if (nextMode !== 'view' && !hasScope('pricing:write')) return;
     // Switching between new/edit or selecting a map location must not
     // silently overwrite unsaved values in the currently open wizard.
     if (
@@ -816,14 +818,20 @@ export function createLocalitiesAdmin(input) {
     const wizard = byId('locality-wizard');
     if (wizard != null) wizard.hidden = false;
     byId('locality-wizard-title').textContent =
-      nextMode === 'edit' ? 'Editar localidade' : 'Nova localidade';
+      nextMode === 'view'
+        ? 'Visualizar localidade'
+        : nextMode === 'edit'
+          ? 'Editar localidade'
+          : 'Nova localidade';
     byId('locality-wizard-subtitle').textContent =
-      nextMode === 'edit'
-        ? 'Altere somente o necessário e salve no rascunho.'
-        : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
-    byId('locality-scope').disabled = nextMode === 'edit';
-    // The display name is editable, while the stable pricing key remains fixed.
-    byId('locality-name').disabled = false;
+      nextMode === 'view'
+        ? 'Consulta somente de leitura. Para alterar valores, solicite permissão.'
+        : nextMode === 'edit'
+          ? 'Altere somente o necessário e salve no rascunho.'
+          : 'Preencha uma etapa por vez. Nada é publicado automaticamente.';
+    byId('locality-scope').disabled = nextMode !== 'create';
+    // The display name is editable for writers; stable price keys never change.
+    byId('locality-name').disabled = nextMode === 'view';
 
     const model =
       entry != null
@@ -840,6 +848,14 @@ export function createLocalitiesAdmin(input) {
             nightSurcharge: false,
           };
     applyForm(model);
+    const readOnly = nextMode === 'view';
+    for (const field of wizard?.querySelectorAll('.locality-wizard__body input, .locality-wizard__body select') ?? []) {
+      // Keep visible values readable, but never expose editable inputs
+      // to accounts that only have pricing:read.
+      field.disabled = readOnly || field.id === 'locality-scope' && nextMode === 'edit';
+    }
+    byId('locality-apply-coordinates').disabled = readOnly;
+    byId('locality-wizard-reset').hidden = readOnly;
     initialForm = deepClone(captureForm());
     showStep(1);
     wizard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -876,7 +892,7 @@ export function createLocalitiesAdmin(input) {
   function openEdit(scope, localityId) {
     const entry = findEntry(scope, localityId);
     if (entry == null) return;
-    openWizard('edit', entry);
+    openWizard(hasScope('pricing:write') ? 'edit' : 'view', entry);
   }
 
   async function ensureDraft() {
@@ -1259,7 +1275,11 @@ export function createLocalitiesAdmin(input) {
       }
 
       const actions = element('div', 'locality-directory-item__actions');
-      const edit = element('button', 'button button--table', 'Editar');
+      const edit = element(
+        'button',
+        'button button--table',
+        hasScope('pricing:write') ? 'Editar' : 'Visualizar',
+      );
       edit.type = 'button';
       edit.addEventListener('click', () => openEdit(entry.scope, entry.localityId));
       actions.append(edit);
