@@ -16,6 +16,7 @@ class RideBottomSheet extends StatelessWidget {
     this.serviceAreaLabel,
     this.coverageMessage,
     this.routeLoading = false,
+    this.isPreparing = false,
   });
 
   final VoidCallback onOriginTap;
@@ -28,12 +29,14 @@ class RideBottomSheet extends StatelessWidget {
   final String? serviceAreaLabel;
   final String? coverageMessage;
   final bool routeLoading;
+  /// Prevents multiple preparation requests while the existing ride flow runs.
+  final bool isPreparing;
 
   @override
   Widget build(BuildContext context) {
     final hasTrip = origin != null && destination != null;
     final canContinue = hasTrip && routeSummary != null &&
-        coverageMessage == null && !routeLoading;
+        coverageMessage == null && !routeLoading && !isPreparing;
     final colors = Theme.of(context).colorScheme;
 
     return Align(
@@ -130,10 +133,37 @@ class RideBottomSheet extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            child: Text(
-                              routeLoading ? 'Calculando rota…' : 'Confirmar destino',
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                            ),
+                            child: isPreparing
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: colors.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        'Preparando corrida…',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    routeLoading
+                                        ? 'Calculando rota…'
+                                        : 'Confirmar destino',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                           ),
                         ),
                       ),

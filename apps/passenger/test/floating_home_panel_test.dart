@@ -12,7 +12,13 @@ void main() {
     var destinationTaps = 0;
     var confirmations = 0;
 
-    Widget screen({String? destination, String? route}) => MaterialApp(
+    Widget screen({
+      String? destination,
+      String? route,
+      bool preparing = false,
+      bool routeLoading = false,
+      String? coverageMessage,
+    }) => MaterialApp(
       theme: RamoTheme.light,
       home: Scaffold(
         bottomNavigationBar: const SizedBox(height: 68),
@@ -22,6 +28,9 @@ void main() {
             origin: 'Minha localização',
             destination: destination,
             routeSummary: route,
+            isPreparing: preparing,
+            routeLoading: routeLoading,
+            coverageMessage: coverageMessage,
             onOriginTap: () {},
             onDestinationTap: () => destinationTaps++,
             onContinue: () => confirmations++,
@@ -50,4 +59,72 @@ void main() {
     expect(confirmations, 1);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('confirm destination is disabled during preparation, route loading and coverage failure', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var confirmations = 0;
+
+    Future<void> render({
+      bool preparing = false,
+      bool routeLoading = false,
+      String? coverage,
+    }) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: RamoTheme.light,
+        home: Scaffold(
+          body: Stack(children: [
+            const Positioned.fill(child: ColoredBox(color: Colors.blueGrey)),
+            RideBottomSheet(
+              origin: 'Minha localização',
+              destination: 'Preá',
+              routeSummary: '12,1 km · 29 min',
+              isPreparing: preparing,
+              routeLoading: routeLoading,
+              coverageMessage: coverage,
+              onOriginTap: () {},
+              onDestinationTap: () {},
+              onContinue: () => confirmations++,
+            ),
+          ]),
+        ),
+      ));
+      // pumpAndSettle cannot settle an active indeterminate progress indicator.
+      await tester.pump(const Duration(milliseconds: 320));
+    }
+
+    await render(preparing: true);
+    expect(find.text('Preparando corrida…'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('confirm-destination-button')))
+          .onPressed,
+      isNull,
+    );
+    expect(confirmations, 0);
+
+    await render(routeLoading: true);
+    expect(find.text('Calculando rota…'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('confirm-destination-button')))
+          .onPressed,
+      isNull,
+    );
+
+    await render(coverage: 'Fora da área atendida.');
+    expect(find.text('Fora da área atendida.'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('confirm-destination-button')))
+          .onPressed,
+      isNull,
+    );
+
+    await render();
+    final button = tester.widget<FilledButton>(find.byKey(const Key('confirm-destination-button')));
+    expect(button.onPressed, isNotNull);
+    await tester.tap(find.byKey(const Key('confirm-destination-button')));
+    expect(confirmations, 1);
+    expect(tester.takeException(), isNull);
+  });
+
 }

@@ -1204,13 +1204,13 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             serviceAreaLabel: _serviceAreaLabel,
             coverageMessage: _coverageMessage,
             routeLoading: _routeLoading,
+            isPreparing: _preparingRide,
             onOriginTap: _chooseOrigin,
             onDestinationTap: _chooseDestination,
             onDestinationClear:
                 _destination == null ? null : _clearDestination,
-            onContinue: _preparingRide
-                ? () {}
-                : () => unawaited(_continueToVehicleSelection()),
+            onContinue: () =>
+                unawaited(_continueToVehicleSelection()),
             ),
         ],
       ),
