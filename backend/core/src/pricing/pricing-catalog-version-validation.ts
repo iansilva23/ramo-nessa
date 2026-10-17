@@ -210,6 +210,23 @@ function nonNegativeCentsValue(
   return number;
 }
 
+// Coordinates require finer precision than fare distances or radii. A
+// three-decimal truncation could move a pin by tens of metres in Jeri/Preá.
+function coordinateValue(
+  value: unknown,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  const coordinate = Number(value);
+  if (!Number.isFinite(coordinate) || coordinate < min || coordinate > max) {
+    throw new InvalidPricingCatalogPatchError(
+      `${field} deve ficar entre ${min} e ${max}.`,
+    );
+  }
+  return Math.round(coordinate * 1000000) / 1000000;
+}
+
 function integerValue(
   value: unknown,
   field: string,
@@ -638,13 +655,13 @@ export function parsePricingCatalogDraftPatch(
       operation,
       zoneId,
       localityId,
-      centerLatitude: decimalValue(
+      centerLatitude: coordinateValue(
         value.centerLatitude,
         'centerLatitude',
         -90,
         90,
       ),
-      centerLongitude: decimalValue(
+      centerLongitude: coordinateValue(
         value.centerLongitude,
         'centerLongitude',
         -180,
