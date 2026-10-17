@@ -99,7 +99,47 @@ final class ColdAudit: XCTestCase {
       try tapNativeCenter(close, in: safari, name: "safari-tip-close")
     }
   }
-  func swipeEntryGate(_ app: XCUIApplication, phase: String, toRight: Bool) {
+  func entryGatePainted() -> Bool {
+    let image = XCUIScreen.main.screenshot().image.cgImage!
+    let width = image.width, height = image.height
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    return pixels.withUnsafeMutableBytes { raw -> Bool in
+      guard let context = CGContext(data: raw.baseAddress, width: width, height: height,
+        bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      let bytes = raw.bindMemory(to: UInt8.self)
+      var yellow = 0, dark = 0, sampled = 0
+      // Recognize the painted yellow brand and dark glass, not the launch splash.
+      for y in Int(Double(height) * 0.08)..<Int(Double(height) * 0.22) {
+        for x in Int(Double(width) * 0.25)..<Int(Double(width) * 0.75) {
+          let i = (y * width + x) * 4
+          if bytes[i] > 190 && bytes[i+1] > 155 && bytes[i+2] < 100 { yellow += 1 }
+        }
+      }
+      for y in stride(from: Int(Double(height) * 0.25), to: Int(Double(height) * 0.4), by: 4) {
+        for x in stride(from: Int(Double(width) * 0.2), to: Int(Double(width) * 0.8), by: 4) {
+          let i = (y * width + x) * 4
+          sampled += 1
+          if bytes[i] < 180 && bytes[i+1] < 180 && bytes[i+2] < 180 { dark += 1 }
+        }
+      }
+      return yellow > 30 && dark * 100 > sampled * 80
+    }
+  }
+  func swipeEntryGate(_ app: XCUIApplication, phase: String, toRight: Bool) throws {
+    // A foreground process can still show the white launch snapshot. Wait for
+    // actual gate pixels before sending the first touch; never prime the page.
+    var painted = false
+    for _ in 0..<60 {
+      painted = entryGatePainted()
+      if painted { break }
+      Thread.sleep(forTimeInterval: 1)
+    }
+    guard painted else {
+      capture(phase + "-gate-not-painted")
+      throw NSError(domain: "Audit", code: 4, userInfo: [NSLocalizedDescriptionKey: "Entry gate never painted; no premature swipe"])
+    }
     note(phase + "-gate-before"); capture(phase + "-gate-before")
     let y = app.frame.height * (toRight ? 0.30 : 0.72)
     let startX = app.frame.width * (toRight ? 0.25 : 0.75)
@@ -182,7 +222,7 @@ final class ColdAudit: XCTestCase {
     note("standalone-cold"); capture("standalone-host-launched-before-any-web-touch")
     let app = XCUIApplication(bundleIdentifier: "com.apple.webapp")
     if app.state == .runningForeground {
-      swipeEntryGate(app, phase: "launch", toRight: true)
+      try swipeEntryGate(app, phase: "launch", toRight: true)
       try tapPaintedAvatar(app, "standalone")
       XCUIDevice.shared.press(.home)
       board.activate(); Thread.sleep(forTimeInterval: 2)
@@ -192,7 +232,7 @@ final class ColdAudit: XCTestCase {
       }
       XCTAssertTrue(icon.isHittable, "Installed icon must remain visible for the resume trial")
       icon.tap(); Thread.sleep(forTimeInterval: 2)
-      swipeEntryGate(app, phase: "foreground", toRight: false)
+      try swipeEntryGate(app, phase: "foreground", toRight: false)
     } else {
       dump(board, "standalone-host-identification")
       XCTFail("PWA launched; its foreground bundle must be identified before coordinate tapping")
