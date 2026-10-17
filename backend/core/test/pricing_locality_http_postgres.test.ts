@@ -69,6 +69,7 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
   });
   const local = randomUUID().slice(0, 8);
   let draftId = '';
+  let browserDraftId = '';
   const headers = (token: string) => ({
     authorization: 'Bearer ' + token,
     'content-type': 'application/json',
@@ -249,6 +250,30 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
     assert.equal(audit.rows.find(row =>
       row.action === 'pricing.catalog_version.updated',
     )?.metadata.kind, 'batch');
+
+    // New draft to verify the complete browser UI + real Admin API client,
+    // Core HTTP endpoint and PostgreSQL, without touching the published one.
+    const browserDraft = await request(
+      'POST', '/v1/admin/pricing/versions', writer.token, {},
+    );
+    assert.equal(browserDraft.status, 201);
+    browserDraftId = browserDraft.body.id as string;
+    const browserE2E = execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../../scripts/web/admin_localities_core_browser_e2e.mjs', import.meta.url))],
+      {
+        encoding: 'utf8',
+        timeout: 40_000,
+        env: {
+          ...process.env,
+          RAMO_V5_LOCAL_CORE_URL: baseUrl,
+          RAMO_V5_WRITE_TOKEN: writer.token,
+          RAMO_V5_READ_TOKEN: reader.token,
+          RAMO_V5_LOCALITY_ID: 'ci-browser-' + local,
+        },
+      },
+    );
+    assert.match(browserE2E, /created draft, read-only viewing confirmed/);
   } finally {
     server.kill('SIGTERM');
     await Promise.race([
@@ -256,9 +281,10 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
       new Promise(resolve => setTimeout(resolve, 3000)),
     ]);
     if (server.exitCode == null) server.kill('SIGKILL');
-    if (draftId) {
-      await pool.query('DELETE FROM admin_audit_log WHERE target_id = $1', [draftId]);
-      await pool.query('DELETE FROM pricing_catalog_versions WHERE id = $1', [draftId]);
+    for (const id of [browserDraftId, draftId]) {
+      if (!id) continue;
+      await pool.query('DELETE FROM admin_audit_log WHERE target_id = $1', [id]);
+      await pool.query('DELETE FROM pricing_catalog_versions WHERE id = $1', [id]);
     }
     await pool.query('DELETE FROM admin_audit_log WHERE actor_key_id = ANY($1::uuid[])',
       [[writer.key.id, reader.key.id]]);
