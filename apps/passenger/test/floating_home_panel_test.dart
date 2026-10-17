@@ -11,6 +11,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     var destinationTaps = 0;
     var confirmations = 0;
+    var mapTaps = 0;
 
     Widget screen({
       String? destination,
@@ -23,7 +24,17 @@ void main() {
       home: Scaffold(
         bottomNavigationBar: const SizedBox(height: 68),
         body: Stack(children: [
-          const Positioned.fill(child: ColoredBox(key: Key('map-background'), color: Colors.blueGrey)),
+          Positioned.fill(
+            child: GestureDetector(
+              key: const Key('map-interaction-layer'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => mapTaps++,
+              child: const ColoredBox(
+                key: Key('map-background'),
+                color: Colors.blueGrey,
+              ),
+            ),
+          ),
           RideBottomSheet(
             origin: 'Minha localização',
             destination: destination,
@@ -48,6 +59,9 @@ void main() {
     expect(find.byKey(const Key('confirm-destination-button')), findsNothing);
     expect(tester.getSize(find.byKey(const Key('floating-trip-card'))).height, lessThan(240));
     expect(tester.getRect(find.byKey(const Key('floating-trip-card'))).top, greaterThan(300));
+    // The card must not create a full-screen hit-test barrier on the map.
+    await tester.tapAt(const Offset(120, 150));
+    expect(mapTaps, 1);
     await tester.tap(find.text('Pra onde vamos?'));
     expect(destinationTaps, 1);
 
@@ -55,6 +69,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('floating-route-summary')), findsOneWidget);
     expect(find.text('Confirmar destino'), findsOneWidget);
+    await tester.tapAt(const Offset(120, 150));
+    expect(mapTaps, 2);
     await tester.tap(find.byKey(const Key('confirm-destination-button')));
     expect(confirmations, 1);
     expect(tester.takeException(), isNull);
