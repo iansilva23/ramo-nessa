@@ -65,16 +65,18 @@ class RideBottomSheet extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Only the light theme shows the reference guidance card.
-                    // It disappears when a destination is selected.
-                    if (isLight && destination == null) ...[
+                    // The guidance card follows the active theme and
+                    // disappears as soon as a destination is selected.
+                    if (destination == null) ...[
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Material(
                           key: const Key('destination-guidance-card'),
-                          color: Colors.white,
-                          elevation: 7,
-                          shadowColor: Colors.black.withValues(alpha: .20),
+                          color: isLight ? Colors.white : RamoColors.brandBlack,
+                          elevation: isLight ? 7 : 4,
+                          shadowColor: isLight
+                              ? Colors.black.withValues(alpha: .20)
+                              : Colors.black54,
                           borderRadius: BorderRadius.circular(25),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -90,7 +92,7 @@ class RideBottomSheet extends StatelessWidget {
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w800,
-                                    color: colors.onSurface,
+                                    color: isLight ? colors.onSurface : Colors.white,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -98,7 +100,7 @@ class RideBottomSheet extends StatelessWidget {
                                   'Escolha sua origem e o destino no mapa',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: colors.onSurface,
+                                    color: isLight ? colors.onSurface : Colors.white,
                                   ),
                                 ),
                               ],

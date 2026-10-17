@@ -142,6 +142,32 @@ void main() {
     expect(darkCard.color, RamoColors.darkSurface);
     expect(darkCard.elevation, 3);
     expect(darkCard.shadowColor, Colors.black26);
+    final darkGuidance = tester.widget<Material>(
+      find.byKey(const Key('destination-guidance-card')),
+    );
+    expect(darkGuidance.color, RamoColors.brandBlack);
+    expect(darkGuidance.elevation, 4);
+    expect(
+      tester.widget<Text>(find.text('Escolha seu destino')).style?.color,
+      Colors.white,
+    );
+    expect(
+      tester.widget<Text>(find.text('Escolha sua origem e o destino no mapa')).style?.color,
+      Colors.white,
+    );
+    await tester.pumpWidget(MaterialApp(
+      theme: RamoTheme.light,
+      darkTheme: RamoTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: Scaffold(body: RideBottomSheet(
+        origin: 'Minha localização',
+        destination: 'Preá',
+        onOriginTap: () {},
+        onDestinationTap: () {},
+        onContinue: () {},
+      )),
+    ));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('destination-guidance-card')), findsNothing);
   });
 
