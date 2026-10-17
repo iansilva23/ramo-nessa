@@ -16,8 +16,9 @@ test('failed locality writes reload the draft and leave the edit wizard open for
   const save = source.match(/async function saveWizard\(\) \{[\s\S]*?\n  async function deleteEntry\(/)?.[0];
   assert.ok(save, 'saveWizard must exist');
   assert.match(save, /await refresh\(\{ announce: false \}\)/);
-  assert.match(save, /Some|Algumas mudanças podem ter ficado no rascunho/);
-  assert.match(save, /Confira os dados e tente novamente antes de publicar/);
+  assert.match(save, /O lote é indivisível/);
+  assert.match(save, /Confira o rascunho antes de tentar novamente ou publicar/);
+  assert.match(save, /await applyPatch\(\{ kind: 'batch', patches \}\)/);
   assert.match(save, /catch \(error\)/);
   // Closing the form is success-only and is not permitted in the catch block.
   assert.doesNotMatch(save.split('} catch (error) {').pop(), /closeWizard\(/);
@@ -90,4 +91,16 @@ test('in-flight locality saves block duplicate requests and dangerous draft acti
   const discard = source.match(/async function discardDraft\(\) \{[\s\S]*?\n  function bind\(/)?.[0];
   assert.ok(discard);
   assert.match(discard, /if \(saving\)/);
+});
+
+test('locality save and undo each send only one atomic batch to the Core', () => {
+  const src = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const save = src.match(/async function saveWizard\(\) \{[\s\S]*?\n  async function deleteEntry\(/)?.[0];
+  const undo = src.match(/async function undoDelete\(\) \{[\s\S]*?\n  function renderDirectory\(/)?.[0];
+  assert.ok(save);
+  assert.ok(undo);
+  for (const operation of [save, undo]) {
+    assert.equal((operation.match(/await applyPatch\(/g) ?? []).length, 1);
+    assert.match(operation, /await applyPatch\(\{ kind: 'batch', patches \}\)/);
+  }
 });

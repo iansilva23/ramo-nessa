@@ -81,7 +81,7 @@ async function fixture(t, options = {}) {
     };
     let revision = 0;
     window.review = {
-      catalog, version, patches: [], publishes: [], discarded: false,
+      catalog, version, patches: [], requests: [], publishes: [], discarded: false,
       allowDiscard: false, failures: [],
     };
     window.confirm = () => window.review.allowDiscard;
@@ -99,15 +99,17 @@ async function fixture(t, options = {}) {
         if (expectedUpdatedAt !== version.updatedAt) {
           throw new Error('Conflito de versão');
         }
+        const members = patch.kind === 'batch' ? patch.patches : [patch];
+        window.review.requests.push(structuredClone(patch));
         if (
-          window.review.failPatchKind === patch.kind &&
+          members.some((item) => item.kind === window.review.failPatchKind) &&
           window.review.failedOnce !== true
         ) {
           window.review.failedOnce = true;
           throw new Error('Falha de rede simulada');
         }
         if (
-          window.review.pauseOnceAtKind === patch.kind &&
+          members.some((item) => item.kind === window.review.pauseOnceAtKind) &&
           !window.review.pausedOnce
         ) {
           window.review.pausedOnce = true;
@@ -115,43 +117,74 @@ async function fixture(t, options = {}) {
             window.review.releasePausedPatch = resolve;
           });
         }
-        window.review.patches.push(structuredClone(patch));
-        if (patch.kind === 'locality_structure' && patch.operation === 'add') {
-          catalog.localities[patch.scope].push({
-            localityId: patch.localityId,
-            prices: {},
-            policy: { enabledCategories: [], applyNightSurcharge: false },
-          });
+        // Mimic the Core's single compare-and-swap: apply every patch to a
+        // temporary copy and only swap it in once all validation succeeds.
+        const working = structuredClone(catalog);
+        for (const next of members) {
+          if (next.kind === 'locality_structure') {
+            const entries = next.scope === 'external'
+              ? working.externalLocalities
+              : working.localities[next.scope];
+            if (next.operation === 'add') {
+              if (next.scope === 'external') {
+                entries.push(next.localityId);
+              } else {
+                entries.push({
+                  localityId: next.localityId,
+                  prices: {},
+                  policy: { enabledCategories: [], applyNightSurcharge: false },
+                });
+              }
+            } else if (next.scope === 'external') {
+              working.externalLocalities = entries.filter(x => x !== next.localityId);
+            } else {
+              working.localities[next.scope] = entries.filter(
+                x => x.localityId !== next.localityId,
+              );
+              delete working.localityDisplayNames[next.scope][next.localityId];
+              working.localityGeofences = working.localityGeofences.filter(
+                x => !(x.zoneId === next.scope && x.localityId === next.localityId),
+              );
+            }
+          }
+          if (next.kind === 'locality_label') {
+            working.localityDisplayNames[next.scope][next.localityId] = next.label;
+          }
+          if (next.kind === 'locality_geofence') {
+            const match = (area) =>
+              area.zoneId === next.zoneId && area.localityId === next.localityId;
+            working.localityGeofences = working.localityGeofences.filter(
+              area => !match(area),
+            );
+            if (next.operation === 'upsert') {
+              working.localityGeofences.push({
+                zoneId: next.zoneId, localityId: next.localityId,
+                centerLatitude: next.centerLatitude,
+                centerLongitude: next.centerLongitude,
+                radiusKm: next.radiusKm,
+              });
+            }
+          }
+          if (next.kind === 'locality_price') {
+            const item = working.localities[next.hub].find(
+              (locality) => locality.localityId === next.localityId,
+            );
+            if (!item) throw new Error('Localidade ausente no lote');
+            item.prices[next.category] = next.price;
+          }
+          if (next.kind === 'locality_policy') {
+            const item = working.localities[next.hub].find(
+              (locality) => locality.localityId === next.localityId,
+            );
+            if (!item) throw new Error('Localidade ausente no lote');
+            item.policy = {
+              enabledCategories: next.enabledCategories,
+              applyNightSurcharge: next.applyNightSurcharge,
+            };
+          }
         }
-        if (patch.kind === 'locality_label') {
-          catalog.localityDisplayNames[patch.scope][patch.localityId] = patch.label;
-        }
-        if (patch.kind === 'locality_geofence') {
-          const match = (area) =>
-            area.zoneId === patch.zoneId && area.localityId === patch.localityId;
-          catalog.localityGeofences = catalog.localityGeofences.filter((area) => !match(area));
-          catalog.localityGeofences.push({
-            zoneId: patch.zoneId, localityId: patch.localityId,
-            centerLatitude: patch.centerLatitude,
-            centerLongitude: patch.centerLongitude,
-            radiusKm: patch.radiusKm,
-          });
-        }
-        if (patch.kind === 'locality_price') {
-          const item = catalog.localities[patch.hub].find(
-            (locality) => locality.localityId === patch.localityId,
-          );
-          if (item) item.prices[patch.category] = patch.price;
-        }
-        if (patch.kind === 'locality_policy') {
-          const item = catalog.localities[patch.hub].find(
-            (locality) => locality.localityId === patch.localityId,
-          );
-          if (item) item.policy = {
-            enabledCategories: patch.enabledCategories,
-            applyNightSurcharge: patch.applyNightSurcharge,
-          };
-        }
+        Object.assign(catalog, working);
+        window.review.patches.push(...structuredClone(members));
         revision += 1;
         version.updatedAt = new Date(Date.UTC(2026, 9, 16, 21, 0, revision)).toISOString();
         return { version: { ...version }, catalog: structuredClone(catalog) };
@@ -217,6 +250,8 @@ test('editing name and six-decimal coordinates persists into a draft, not into p
   assert.deepEqual(state.failures, []);
   assert.ok(state.changed.includes('locality_label'));
   assert.ok(state.changed.includes('locality_geofence'));
+  assert.equal(await page.evaluate(() => review.requests.length), 1);
+  assert.equal(await page.evaluate(() => review.requests[0].kind), 'batch');
 });
 
 test('draft publication is blocked when locality form contains unsaved changes', async (t) => {
@@ -281,15 +316,15 @@ test('a partial network failure preserves form data, reloads the draft and safel
   await page.evaluate(() => { review.failPatchKind = 'locality_geofence'; });
   await page.locator('#locality-wizard-save').click();
   await page.waitForFunction(() =>
-    document.querySelector('#localities-message')?.textContent?.includes('Algumas mudanças podem ter ficado no rascunho'),
+    document.querySelector('#localities-message')?.textContent?.includes('O lote é indivisível'),
   );
   assert.equal(await page.locator('#locality-wizard').isVisible(), true);
   assert.equal(await page.locator('#locality-name').inputValue(), 'Preá Recuperado');
-  assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea), 'Preá Recuperado');
+  assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea), 'Preá Centro');
   assert.equal(await page.evaluate(() => review.publishes.length), 0);
   assert.equal(
-    await page.evaluate(() => review.patches.filter((p) => p.kind === 'locality_label').length),
-    1,
+    await page.evaluate(() => review.patches.length),
+    0,
   );
 
   await page.locator('#locality-wizard-save').click();
@@ -381,7 +416,7 @@ test('concurrent navigation, publishing and double-saving cannot interrupt a loc
   assert.equal(await page.locator('#locality-wizard-save').isDisabled(), true);
   assert.equal(await page.evaluate(() => review.publishes.length), 0);
   assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea),
-    'Preá Travado Enquanto Salva');
+    'Preá Centro');
   await page.evaluate(() => review.releasePausedPatch());
   await page.waitForFunction(() =>
     document.querySelector('#localities-message')?.textContent?.includes('atualizada no rascunho'),
