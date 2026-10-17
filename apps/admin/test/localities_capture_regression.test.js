@@ -52,3 +52,13 @@ test('pricing draft cannot be published while unsaved locality edits are visible
   assert.ok(unsavedCheck >= 0 && unsavedCheck < apiCall);
   assert.match(publish, /Salve ou descarte as alterações da localidade antes de publicar/);
 });
+
+test('switching between localities cannot erase an unsaved wizard without confirmation', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const open = source.match(/function openWizard\(nextMode, entry = null\) \{[\s\S]*?\n  function hasUnsavedWizardChanges\(/)?.[0];
+  assert.ok(open, 'openWizard must exist');
+  const guard = open.indexOf('hasUnsavedWizardChanges()');
+  const confirm = open.indexOf("window.confirm('Descartar as alterações não salvas desta localidade?')");
+  const overwrite = open.indexOf('mode = nextMode;');
+  assert.ok(guard >= 0 && confirm > guard && overwrite > confirm);
+});

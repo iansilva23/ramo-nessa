@@ -2,6 +2,13 @@ name: Ramo Nessa V5 - Platform Compilation
 on:
   push:
     branches: [feature/v5-seven-fixes-20261016]
+    # ADM-only changes should not cancel or restart long Android/iOS builds.
+    paths:
+      - 'apps/passenger/**'
+      - 'apps/driver/**'
+      - 'packages/**'
+      - 'tooling/**'
+      - '.github/workflows/v5-platform-compile.yml'
   workflow_dispatch:
 permissions:
   contents: read

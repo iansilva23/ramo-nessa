@@ -801,6 +801,14 @@ export function createLocalitiesAdmin(input) {
   }
 
   function openWizard(nextMode, entry = null) {
+    // Switching between new/edit or selecting a map location must not
+    // silently overwrite unsaved values in the currently open wizard.
+    if (
+      hasUnsavedWizardChanges() &&
+      !window.confirm('Descartar as alterações não salvas desta localidade?')
+    ) {
+      return;
+    }
     mode = nextMode;
     editing = entry;
     setMessage();
