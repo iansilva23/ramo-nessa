@@ -1,0 +1,95 @@
+name: Ramo Nessa V5 - Review Gate
+
+on:
+  push:
+    branches:
+      - feature/v5-seven-fixes-20261016
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ramo-v5-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  admin:
+    name: ADM lint and regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check source syntax
+        working-directory: apps/admin
+        run: npm run check
+      - name: Run ADM regression tests
+        working-directory: apps/admin
+        run: npm test
+
+  shared-flutter:
+    name: Shared Flutter design system
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: packages/design_system
+        run: flutter pub get
+      - name: Analyze and test shared UI
+        working-directory: packages/design_system
+        run: |
+          flutter analyze
+          flutter test
+
+  flutter-apps:
+    name: Flutter ${{ matrix.app }} analyze and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: Resolve locked dependencies
+        working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze and run widget tests
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          flutter analyze
+          flutter test
+
+  core:
+    name: Backend Core typecheck and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Install without running providers or connecting to production
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck and test Core
+        working-directory: backend/core
+        run: |
+          npm run typecheck
+          npm test
