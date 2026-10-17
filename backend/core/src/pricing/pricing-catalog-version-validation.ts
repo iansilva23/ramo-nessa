@@ -6,7 +6,7 @@ export class InvalidPricingCatalogPatchError extends Error {
   }
 }
 
-export type PricingCatalogDraftPatch =
+export type PricingCatalogAtomicPatch =
   | { kind: 'commercial_policy'; policy: CommercialPolicy }
   | { kind: 'shared_transfers'; settings: SharedTransferSettings }
   | {
@@ -125,6 +125,13 @@ export type PricingCatalogDraftPatch =
         amountCents: number;
       }>;
       aboveMaxCents: number;
+    };
+
+export type PricingCatalogDraftPatch =
+  | PricingCatalogAtomicPatch
+  | {
+      kind: 'batch';
+      patches: PricingCatalogAtomicPatch[];
     };
 
 function objectValue(
@@ -284,6 +291,61 @@ export function parsePricingCatalogDraftPatch(
 ): PricingCatalogDraftPatch {
   const value = objectValue(input, 'body');
   const kind = textValue(value.kind, 'kind', 40);
+
+  if (kind === 'batch') {
+    if (!Array.isArray(value.patches) ||
+        value.patches.length < 1 ||
+        value.patches.length > 20) {
+      throw new InvalidPricingCatalogPatchError(
+        'Lote de localidade deve conter entre 1 e 20 alterações.',
+      );
+    }
+    const allowed = new Set([
+      'locality_structure',
+      'locality_label',
+      'locality_geofence',
+      'locality_price',
+      'locality_policy',
+      'distance_fare_policy',
+    ]);
+    let owner: string | null = null;
+    const patches: PricingCatalogAtomicPatch[] = value.patches.map(
+      (candidate, index) => {
+        const raw = objectValue(candidate, `patches[${index}]`);
+        if (raw.kind === 'batch') {
+          throw new InvalidPricingCatalogPatchError(
+            'Lotes de alterações não podem ser aninhados.',
+          );
+        }
+        const next = parsePricingCatalogDraftPatch(raw);
+        if (next.kind === 'batch' || !allowed.has(next.kind)) {
+          throw new InvalidPricingCatalogPatchError(
+            'O lote aceita somente alterações da mesma localidade.',
+          );
+        }
+        const patch = next as PricingCatalogAtomicPatch;
+        const scope = 'scope' in patch
+          ? patch.scope
+          : 'hub' in patch
+            ? patch.hub
+            : 'zoneId' in patch
+              ? patch.zoneId
+              : patch.anchorZoneId;
+        const localityId = 'anchorLocalityId' in patch
+          ? patch.anchorLocalityId
+          : patch.localityId;
+        const key = `${scope}/${localityId}`;
+        if (owner != null && owner !== key) {
+          throw new InvalidPricingCatalogPatchError(
+            'Todas as alterações do lote devem pertencer à mesma localidade.',
+          );
+        }
+        owner = key;
+        return patch;
+      },
+    );
+    return { kind: 'batch', patches };
+  }
 
   if (kind === 'commercial_policy') {
     const policy = objectValue(value.policy, 'policy');
