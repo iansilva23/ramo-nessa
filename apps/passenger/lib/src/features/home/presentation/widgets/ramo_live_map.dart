@@ -36,21 +36,25 @@ List<domain.LatLng> ramoVisibleRoutePoints(
 class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
+  int _cameraRequestId = 0;
 
   bool get ready => !_disposed && _nativeController != null;
 
   void attach(gm.GoogleMapController controller) {
     if (_disposed) return;
+    _cameraRequestId++;
     _nativeController = controller;
   }
 
   void detach() {
+    _cameraRequestId++;
     _nativeController = null;
   }
 
   Future<void> move(domain.LatLng point, double zoom) async {
     final controller = _nativeController;
     if (!ready || controller == null) return;
+    _cameraRequestId++;
 
     await controller.animateCamera(
       gm.CameraUpdate.newLatLngZoom(
@@ -73,6 +77,7 @@ class RamoMapController {
       return;
     }
 
+    final cameraRequestId = ++_cameraRequestId;
     var minLatitude = coordinates.first.latitude;
     var maxLatitude = coordinates.first.latitude;
     var minLongitude = coordinates.first.longitude;
@@ -101,7 +106,12 @@ class RamoMapController {
       ),
     );
 
+    // A newer location/route may have replaced this camera movement.
+    if (!ready || controller != _nativeController ||
+        cameraRequestId != _cameraRequestId) return;
     final currentZoom = await controller.getZoomLevel();
+    if (!ready || controller != _nativeController ||
+        cameraRequestId != _cameraRequestId) return;
     if (currentZoom > maxZoom) {
       await controller.animateCamera(
         gm.CameraUpdate.zoomTo(maxZoom),
@@ -499,6 +509,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       polylines: _polylines,
       minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
       compassEnabled: false,
+      webCameraControlEnabled: false,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       myLocationEnabled: false,

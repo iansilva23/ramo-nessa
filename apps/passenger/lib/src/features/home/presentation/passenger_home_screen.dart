@@ -1095,8 +1095,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         : '${_route!.distanceLabel} · ${_route!.durationLabel}';
 
     return Scaffold(
-      body: Stack(
-        children: [
+      // The map lives above the navigation bar: use its rendered bounds, not
+      // the full screen size, when reserving room for cards and attribution.
+      body: LayoutBuilder(
+        builder: (context, constraints) => Stack(
+          children: [
           Positioned.fill(
             child: RamoLiveMap(
               controller: _mapController,
@@ -1105,7 +1108,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               routePoints: _route?.points ?? const [],
               networkTilesEnabled: widget.networkTilesEnabled,
               cameraPadding: ramoHomeMapPadding(
-                viewport: MediaQuery.sizeOf(context),
+                viewport: constraints.biggest,
                 safeTop: MediaQuery.paddingOf(context).top,
                 // Reserve only the floating controls rather than an old
                 // full-height sheet; route bounds remain above the card.
@@ -1229,7 +1232,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             onContinue: () =>
                 unawaited(_continueToVehicleSelection()),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

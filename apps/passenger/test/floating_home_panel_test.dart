@@ -2,8 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ride_bottom_sheet.dart';
+import 'package:ramo_nessa_passenger/src/core/config/ramo_map_config.dart';
 
 void main() {
+  test('map safe-area reservation is based on the map viewport', () {
+    const mapViewport = Size(390, 720);
+    final withoutDestination = ramoHomeMapPadding(
+      viewport: mapViewport,
+      safeTop: 47,
+      sheetExtent: .23,
+    );
+    final withDestination = ramoHomeMapPadding(
+      viewport: mapViewport,
+      safeTop: 47,
+      sheetExtent: .37,
+    );
+    expect(withoutDestination.top, 123);
+    expect(withoutDestination.bottom, closeTo(177.6, .001));
+    expect(withDestination.bottom, closeTo(278.4, .001));
+    expect(withDestination.bottom, lessThan(mapViewport.height - withDestination.top));
+    expect(withDestination.bottom, greaterThan(withoutDestination.bottom));
+  });
+
   testWidgets('floating destination card leaves the map visible and interactive', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
