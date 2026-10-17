@@ -330,10 +330,19 @@ export function parsePricingCatalogDraftPatch(
             ? patch.hub
             : 'zoneId' in patch
               ? patch.zoneId
-              : patch.anchorZoneId;
+              : 'anchorZoneId' in patch
+                ? patch.anchorZoneId
+                : null;
         const localityId = 'anchorLocalityId' in patch
           ? patch.anchorLocalityId
-          : patch.localityId;
+          : 'localityId' in patch
+            ? patch.localityId
+            : null;
+        if (scope == null || localityId == null) {
+          throw new InvalidPricingCatalogPatchError(
+            'Alteração sem localidade não é permitida neste lote.',
+          );
+        }
         const key = `${scope}/${localityId}`;
         if (owner != null && owner !== key) {
           throw new InvalidPricingCatalogPatchError(
