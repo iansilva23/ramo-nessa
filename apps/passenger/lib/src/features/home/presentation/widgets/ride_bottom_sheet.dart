@@ -135,7 +135,7 @@ class RideBottomSheet extends StatelessWidget {
                             ),
                             child: isPreparing
                                 ? Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisSize: MainAxisSize.max,
                                     children: [
                                       SizedBox(
                                         width: 18,
@@ -146,11 +146,16 @@ class RideBottomSheet extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(width: 10),
-                                      const Text(
-                                        'Preparando corrida…',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
+                                      const Expanded(
+                                        child: Text(
+                                          'Preparando corrida…',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
                                         ),
                                       ),
                                     ],
