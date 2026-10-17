@@ -51,8 +51,6 @@ test('save, reload, and publish preserve 6-digit coordinates for locality marker
 
 test('coordinates beyond valid global bounds are rejected, and low-precision radius remains valid', () => {
   for (const [lat, lon] of [[91, -40.41467], [-2.82, -181], [null, -40.4], [1, 'NaN']]) {
-    // Latitude null is explicitly checked upstream in UI; request bodies also need strict numeric validation.
-    if (lat === null) continue;
     assert.throws(() => parsePricingCatalogDraftPatch({
       kind: 'locality_geofence', operation: 'upsert',
       zoneId: 'prea', localityId: 'prea',

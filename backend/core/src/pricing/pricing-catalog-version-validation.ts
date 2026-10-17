@@ -219,7 +219,14 @@ function coordinateValue(
   max: number,
 ): number {
   const coordinate = Number(value);
-  if (!Number.isFinite(coordinate) || coordinate < min || coordinate > max) {
+  if (
+    value == null ||
+    typeof value === 'boolean' ||
+    (typeof value === 'string' && value.trim() === '') ||
+    !Number.isFinite(coordinate) ||
+    coordinate < min ||
+    coordinate > max
+  ) {
     throw new InvalidPricingCatalogPatchError(
       `${field} deve ficar entre ${min} e ${max}.`,
     );

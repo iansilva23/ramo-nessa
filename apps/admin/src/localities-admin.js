@@ -932,6 +932,7 @@ export function createLocalitiesAdmin(input) {
 
   async function saveWizard() {
     setMessage();
+    try {
     if (!hasScope('pricing:write')) {
       throw new Error('Sua conta não pode editar localidades.');
     }
@@ -1033,6 +1034,22 @@ export function createLocalitiesAdmin(input) {
         : 'Localidade adicionada ao rascunho. Nada foi publicado ainda.',
       'success',
     );
+    } catch (error) {
+      // A save consists of several versioned writes. When one request fails,
+      // the server may already have accepted earlier writes (or a timed-out
+      // response). Reload the draft to make a retry idempotent, but leave the
+      // wizard open with the user's field values so nothing is silently lost.
+      try {
+        await refresh({ announce: false });
+      } catch {
+        // Keep the original save error; reloading can be retried manually.
+      }
+      throw new Error(
+        'Não foi possível concluir o salvamento: ' + errorMessage(error) +
+        ' Algumas mudanças podem ter ficado no rascunho. ' +
+        'Confira os dados e tente novamente antes de publicar.',
+      );
+    }
   }
 
   async function deleteEntry(entry) {

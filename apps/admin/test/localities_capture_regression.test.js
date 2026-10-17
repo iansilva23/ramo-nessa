@@ -10,3 +10,15 @@ test('saving a locality never reads an undefined entry variable', () => {
   assert.match(capture, /editing\?\.prices/);
   assert.match(capture, /localitySelectionFromInputs\(/);
 });
+
+test('failed locality writes reload the draft and leave the edit wizard open for safe retry', () => {
+  const source = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  const save = source.match(/async function saveWizard\(\) \{[\s\S]*?\n  async function deleteEntry\(/)?.[0];
+  assert.ok(save, 'saveWizard must exist');
+  assert.match(save, /await refresh\(\{ announce: false \}\)/);
+  assert.match(save, /Some|Algumas mudanças podem ter ficado no rascunho/);
+  assert.match(save, /Confira os dados e tente novamente antes de publicar/);
+  assert.match(save, /catch \(error\)/);
+  // Closing the form is success-only and is not permitted in the catch block.
+  assert.doesNotMatch(save.split('} catch (error) {').pop(), /closeWizard\(/);
+});
