@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 /// Optional web installation banner. Never blocks entry or requests permissions.
@@ -77,6 +78,8 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
     _showHelp();
   }
   void _showHelp() {
+    // This installation guide belongs to the browser, never the installed PWA.
+    if (_installed) return;
     final ios = _snapshot?['ios'] == true;
     final embedded = _snapshot?['embedded'] == true;
     showModalBottomSheet<void>(
@@ -112,17 +115,56 @@ class _RamoWebSetupState extends State<RamoWebSetup> with WidgetsBindingObserver
                     _helpStep('1', 'Abra este endereço no Safari.', 'Use o navegador da Apple para seguir estas instruções.'),
                     _helpStep('2', 'Toque em Compartilhar.', 'Procure o ícone de compartilhar no menu do navegador.'),
                     _helpStep('3', 'Adicione à Tela de Início.', 'Escolha “Adicionar à Tela de Início” e confirme em “Adicionar”.'),
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: SizedBox(
+                          key: const ValueKey('web-install-ios-animation'),
+                          width: 198,
+                          height: 198,
+                          child: kIsWeb
+                              ? Image.network(
+                                  Uri.base.resolve('ramo_install_tutorial_ios.gif').toString(),
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                  semanticLabel: 'Tutorial animado mostrando o menu do Safari, a opção Adicionar à Tela de Início e a confirmação.',
+                                  loadingBuilder: (context, image, progress) => progress == null
+                                      ? image
+                                      : const ColoredBox(
+                                          color: Color(0xFF24272D),
+                                          child: Center(child: CircularProgressIndicator(color: Color(0xFFFFCC00))),
+                                        ),
+                                  errorBuilder: (context, error, stackTrace) => const ColoredBox(
+                                    color: Color(0xFF24272D),
+                                    child: Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: Text('Siga os três passos acima para instalar.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(color: Color(0xFFF7F7F8), fontSize: 13)),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : const ColoredBox(
+                                  color: Color(0xFF24272D),
+                                  child: Center(child: Icon(Icons.add_to_home_screen_rounded,
+                                    color: Color(0xFFFFCC00), size: 44)),
+                                ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                   ] else ...[
                     _helpStep('1', 'Abra o menu do navegador.', 'Procure “Instalar app” ou “Adicionar à Tela de Início”.'),
                     _helpStep('2', 'Confirme a instalação.', 'Se a opção não aparecer, você pode continuar no navegador.'),
                   ],
-                  Container(
+                  if (!ios) Container(
                     width: double.infinity, padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(color: const Color(0xFF24272D), borderRadius: BorderRadius.circular(16)),
-                    child: Text(ios
-                      ? 'Para ativar notificações no iPhone, abra o Ramo Nessa pelo novo ícone. Os avisos ficam na opção Notificações do Perfil.'
-                      : 'Os avisos podem ser ativados na opção Notificações do Perfil. Aceite a localização quando o mapa solicitar.',
-                      style: const TextStyle(color: Color(0xFFD8DBE2), fontSize: 13)),
+                    child: const Text(
+                      'Os avisos podem ser ativados na opção Notificações do Perfil. Aceite a localização quando o mapa solicitar.',
+                      style: TextStyle(color: Color(0xFFD8DBE2), fontSize: 13)),
                   ),
                   const SizedBox(height: 24),
                   SizedBox(width: double.infinity, child: FilledButton(
