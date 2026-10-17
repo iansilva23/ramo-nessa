@@ -1,0 +1,224 @@
+name: Native installed PWA entry continuation
+on:
+  push:
+    branches: [ops/pwa-entry-gate-native-20261016]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native-cold-launch:
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: ramo-nessa-web-passenger-review
+          run-id: 38957443510
+          github-token: ${{ github.token }}
+          path: apps/passenger/build/web
+      - name: Require unchanged Flutter source and stage only new web entry assets
+        run: |
+          git diff --exit-code aab0b0c36fe15cf78c24d7b2beab8b69c099294a HEAD -- apps packages backend/core config/web
+          git diff --exit-code a8a766a62fb637c687bc7d079ebb247b864f82dd HEAD -- apps/passenger/lib apps/driver/lib apps/passenger/assets apps/driver/assets packages backend/core apps/passenger/pubspec.yaml apps/driver/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.lock config/web
+          node --input-type=module - <<'NODE'
+          import {readFileSync,writeFileSync,copyFileSync} from 'node:fs';
+          const root='apps/passenger/';
+          writeFileSync(root+'build/web/index.html',readFileSync(root+'web/index.html','utf8').replace('$FLUTTER_BASE_HREF','/passageiro/'));
+          for(const name of ['ramo_entry_gate.js','ramo_entry_gate.css'])copyFileSync(root+'web/'+name,root+'build/web/'+name);
+          NODE
+      - name: Inventory actual SDK and simulator runtimes
+        run: |
+          mkdir -p artifacts/native-ios
+          xcodebuild -version | tee artifacts/native-ios/xcode.txt
+          xcrun simctl list -j > artifacts/native-ios/simulators.json
+          xcrun simctl list devicetypes > artifacts/native-ios/device-types.txt
+          brew install xcodegen
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Create disposable iPhone 15 Pro Max with iOS 26.5
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print(next(x["identifier"] for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and x["name"]=="iOS 26.5"))')
+          device=$(xcrun simctl create Ramo-PWA-Audit com.apple.CoreSimulator.SimDeviceType.iPhone-15-Pro-Max "$runtime")
+          echo "RAMO_AUDIT_DEVICE=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl ui "$device" appearance light
+      - name: Start local HTTPS fixture with passive measurements
+        run: |
+          set -euo pipefail
+          cat > artifacts/native-ios/openssl.cnf <<'CONF'
+          [req]
+          distinguished_name=dn
+          x509_extensions=ext
+          prompt=no
+          [dn]
+          CN=localhost
+          [ext]
+          subjectAltName=DNS:localhost,IP:127.0.0.1
+          basicConstraints=critical,CA:TRUE
+          keyUsage=critical,keyCertSign,digitalSignature,keyEncipherment
+          CONF
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout artifacts/native-ios/key.pem -out artifacts/native-ios/cert.pem -config artifacts/native-ios/openssl.cnf
+          xcrun simctl keychain "$RAMO_AUDIT_DEVICE" add-root-cert artifacts/native-ios/cert.pem
+          node scripts/web/native-ios/fixture.mjs > artifacts/native-ios/fixture.log 2>&1 &
+          echo "RAMO_FIXTURE_PID=$!" >> "$GITHUB_ENV"
+          for attempt in $(seq 1 30); do
+            if curl -ksSf https://localhost:9443/audit/health > /dev/null; then break; fi
+            sleep 1
+          done
+          xcrun simctl openurl "$RAMO_AUDIT_DEVICE" https://localhost:9443/passageiro/
+      - name: Install by native Safari UI and probe first painted coordinates
+        run: |
+          set -euo pipefail
+          cd scripts/web/native-ios
+          xcodegen generate
+          xcodebuild test -project PwaColdAudit.xcodeproj -scheme Audit \
+            -destination "platform=iOS Simulator,id=$RAMO_AUDIT_DEVICE" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+            -resultBundlePath "$GITHUB_WORKSPACE/artifacts/native-ios/NativeAudit.xcresult" \
+            CODE_SIGNING_ALLOWED=NO | tee "$GITHUB_WORKSPACE/artifacts/native-ios/xctest.log"
+      - name: Require installed gate at launch and actual foreground return
+        run: |
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const events=readFileSync('artifacts/native-ios/geometry.jsonl','utf8').trim().split('\n').map(JSON.parse);
+          const installed=events.filter(e=>e.standalone && e.displayStandalone);
+          if(events.some(e=>!e.standalone && e.entryGate?.present))throw Error('Gate appeared in an ordinary Safari tab.');
+          if(installed.filter(e=>e.kind==='entry-gate-locked').length<2 || installed.filter(e=>e.kind==='entry-gate-unlocked').length<2)throw Error('Native launch/foreground swipe evidence missing.');
+          const e=installed.find(e=>e.kind==='pointerdown' && e.entryGate?.locked===false);
+          if(!e || e.semanticsEnabled || e.viewport.scale!==1)throw Error('Missing app control touch after gate.');
+          if(Math.abs(e.viewport.scrollY)>1 || Math.abs(e.viewport.offsetTop)>1 || Math.abs(e.view.y)>1)throw Error('Installed geometry regressed.');
+          console.log(JSON.stringify({installedGateCycles:installed.filter(e=>e.kind==='entry-gate-unlocked').length,appTouch:e.touch,viewport:e.viewport,view:e.view}));
+          NODE
+      - name: Preserve only disposable audit evidence and clean up
+        if: always()
+        run: |
+          if [ -d artifacts/native-ios/NativeAudit.xcresult ]; then
+            xcrun xcresulttool export attachments --path artifacts/native-ios/NativeAudit.xcresult --output-path artifacts/native-ios/attachments || true
+          fi
+          if [ -n "${RAMO_AUDIT_DEVICE:-}" ]; then
+            xcrun simctl io "$RAMO_AUDIT_DEVICE" screenshot artifacts/native-ios/final-screen.png || true
+            xcrun simctl listapps "$RAMO_AUDIT_DEVICE" > artifacts/native-ios/apps-after.plist || true
+            xcrun simctl shutdown "$RAMO_AUDIT_DEVICE" || true
+            xcrun simctl delete "$RAMO_AUDIT_DEVICE" || true
+          fi
+          rm -f artifacts/native-ios/key.pem artifacts/native-ios/cert.pem
+          if [ -n "${RAMO_FIXTURE_PID:-}" ]; then kill "$RAMO_FIXTURE_PID" || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-pwa-audit
+          path: artifacts/native-ios/
+          include-hidden-files: true
+          retention-days: 7
+
+  configured:
+    name: Configured pair after native entry and login acceptance
+    needs: native-cold-launch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: aab0b0c36fe15cf78c24d7b2beab8b69c099294a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require completed browser and installed Flutter login regressions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          if(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!=='aab0b0c36fe15cf78c24d7b2beab8b69c099294a')throw Error('Source differs.');
+          async function get(url){const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});if(!r.ok)throw Error('Evidence unavailable: '+r.status);return r.json();}
+          const evidence=[
+            [38983731711,'aad74b0ee758c3072494becd4e18b195d140b75d',['Browser gate - chromium','Browser gate - webkit']],
+            [38984307965,'0adb5c2691c18120ea683d41f87f9a080bd2d919',['Installed login - passenger - chromium','Installed login - passenger - webkit','Installed login - driver - chromium','Installed login - driver - webkit']]
+          ];
+          for(const [id,sha,names] of evidence){
+            const base='https://api.github.com/repos/'+process.env.GH_REPOSITORY+'/actions/runs/'+id;
+            const run=await get(base),{jobs}=await get(base+'/jobs?per_page=100');
+            if(run.head_sha!==sha)throw Error('Evidence source differs.');
+            for(const name of names)if(!jobs.some(j=>j.name===name&&j.conclusion==='success'))throw Error('Evidence not approved: '+name);
+          }
+          console.log('Six completed regression jobs confirmed; no repeated browser or login tests.');
+          NODE
+      - name: Check public configuration and require real browser Maps key
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          import {validateMapsWebKey} from './scripts/web/maps_web_config.mjs';
+          await loadPublicWebConfiguration();
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          console.log('Public configuration present; no provider calls.');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Generate correctly-sized PWA icons
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Compile both configured roles with enforced dependency locks
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            if [ "$role" = passenger ]; then app_path=passageiro; else app_path=motorista; fi
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn \
+                --base-href="/$app_path/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml'
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const normalize=value=>value.replace(/\n+$/,'\n');
+          for(const role of ['passenger','driver']){
+            const path='apps/'+role+'/pubspec.lock';
+            const committed=execFileSync('git',['show','HEAD:'+path],{encoding:'utf8'});
+            if(normalize(readFileSync(path,'utf8'))!==normalize(committed))throw Error('Dependency lock changed beyond terminal blank lines: '+path);
+          }
+          console.log('Dart/manifests unchanged; lock content identical except terminal blank lines.');
+          NODE
+      - name: Verify pair and write exact-source bundle hashes
+        run: |
+          mkdir -p artifacts/configured-web
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit=aab0b0c36fe15cf78c24d7b2beab8b69c099294a \
+            --output=artifacts/configured-web/release.json
+          cp -a apps/passenger/build/web artifacts/configured-web/passenger
+          cp -a apps/driver/build/web artifacts/configured-web/driver
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-web-configured-aab0b0c36fe15cf78c24d7b2beab8b69c099294a
+          path: artifacts/configured-web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

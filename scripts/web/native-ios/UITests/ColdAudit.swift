@@ -2,12 +2,14 @@ import XCTest
 import UIKit
 
 final class ColdAudit: XCTestCase {
-  let base = URL(string: "https://localhost:9443")!
   override func setUpWithError() throws { continueAfterFailure = false }
   func note(_ name: String) {
-    let done = expectation(description: "phase")
-    URLSession.shared.dataTask(with: base.appendingPathComponent("audit/phase/" + name)) { _,_,_ in done.fulfill() }.resume()
-    wait(for: [done], timeout: 10)
+    // Phase annotations are local evidence, not a second network dependency.
+    // Functional web requests and gate telemetry remain independently required.
+    let attachment = XCTAttachment(string: "\(Date().timeIntervalSince1970) \(name)")
+    attachment.name = "phase-" + name
+    attachment.lifetime = .keepAlways
+    add(attachment)
   }
   func capture(_ name: String) {
     let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
