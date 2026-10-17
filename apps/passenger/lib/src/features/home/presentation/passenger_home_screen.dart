@@ -187,7 +187,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   String? _coverageMessage;
   String? _serviceAreaLabel;
   bool _mapReady = false;
-  double? _mapSheetExtent;
   bool _locating = false;
   bool _routeLoading = false;
   bool _preparingRide = false;
@@ -1092,8 +1091,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               cameraPadding: ramoHomeMapPadding(
                 viewport: MediaQuery.sizeOf(context),
                 safeTop: MediaQuery.paddingOf(context).top,
-                sheetExtent: _mapSheetExtent ??
-                    (_origin != null && _destination != null ? .48 : .42),
+                // Reserve only the floating controls rather than an old
+                // full-height sheet; route bounds remain above the card.
+                sheetExtent: _origin != null && _destination != null
+                    ? .37
+                    : .23,
                 hasAgencyBanner: _agencyPromotion?.enabled == true,
               ),
               onMapReady: () {
@@ -1195,19 +1197,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               ),
             ),
           ),
-          NotificationListener<DraggableScrollableNotification>(
-            onNotification: (notification) {
-              if (!mounted) return false;
-              final extent = notification.extent;
-              if (_mapSheetExtent != extent) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || _mapSheetExtent == extent) return;
-                  setState(() => _mapSheetExtent = extent);
-                });
-              }
-              return false;
-            },
-            child: RideBottomSheet(
+          RideBottomSheet(
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,
@@ -1222,7 +1212,6 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
                 ? () {}
                 : () => unawaited(_continueToVehicleSelection()),
             ),
-          ),
         ],
       ),
     );
