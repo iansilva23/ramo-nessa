@@ -8,6 +8,12 @@ on:
     branches: [feature/v5-seven-fixes-20261016]
     paths:
       - ".github/workflows/preview-build.yml"
+      - "packages/design_system/**"
+      - "apps/passenger/lib/**"
+      - "apps/driver/lib/**"
+      - "apps/passenger/pubspec.lock"
+      - "apps/driver/pubspec.lock"
+      - "tooling/validate-google-maps-key.mjs"
   pull_request:
     branches: [main]
     paths:
