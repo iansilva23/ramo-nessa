@@ -48,6 +48,7 @@ class _RamoPermissionOnboardingGateState
   bool _notificationBusy = false;
   bool? _locationAllowed;
   bool? _notificationAllowed;
+  bool _installationHelp = false;
   bool _allNotifications = false;
 
   @override
@@ -177,7 +178,6 @@ class _RamoPermissionOnboardingGateState
         requestLocation: widget.requestWebLocation ?? () async => 'unsupported',
         requestNotifications: widget.requestNotifications,
         install: widget.installWebApp ?? () async => 'manual',
-        showInstallPrompt: false,
         saveNotificationPreference: widget.saveNotificationPreference,
         readNotificationPreference: widget.readNotificationPreference,
         child: widget.child,
@@ -235,7 +235,7 @@ class _RamoPermissionOnboardingGateState
                   icon: Icons.notifications_rounded,
                   title: 'Notificações',
                   subtitle: widget.notificationHelp?.call() ?? (widget.web
-                      ? 'A disponibilidade dos avisos depende das permissões do navegador.'
+                      ? 'No iPhone, instale na Tela de Início e abra pelo ícone para ativar os avisos.'
                       : 'Receba atualizações de corridas, mensagens e pagamentos.'),
                   action: 'Ativar',
                   busy: _notificationBusy,
@@ -252,6 +252,32 @@ class _RamoPermissionOnboardingGateState
                   activeTrackColor: const Color(0xFFFFCC00),
                   onChanged: (value) => setState(() => _allNotifications = value),
                 ),
+                if (widget.web) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1C1D1F),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Adicionar à Tela de Início',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 6),
+                      const Text('No iPhone, abra pelo Safari, toque em Compartilhar e escolha Adicionar à Tela de Início.',
+                        style: TextStyle(color: Color(0xFFA5A5A5), height: 1.4, fontSize: 13)),
+                      TextButton.icon(
+                        onPressed: () => setState(() => _installationHelp = !_installationHelp),
+                        icon: const Icon(Icons.add_to_home_screen_rounded),
+                        label: const Text('Como instalar'),
+                        style: TextButton.styleFrom(foregroundColor: const Color(0xFFFFCC00)),
+                      ),
+                      if (_installationHelp)
+                        const Text('Safari → botão Compartilhar → Adicionar à Tela de Início → Adicionar. Depois abra pelo novo ícone. Em outros navegadores, procure Instalar aplicativo no menu.',
+                          style: TextStyle(color: Colors.white, fontSize: 13, height: 1.5)),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 30),
                 FilledButton(
                   onPressed: _saving ? null : _finish,
