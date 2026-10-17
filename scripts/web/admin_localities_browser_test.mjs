@@ -50,14 +50,14 @@ test.after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-async function fixture(t) {
+async function fixture(t, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1024, height: 900 } });
   t.after(() => context.close());
   const page = await context.newPage();
   await page.route('https://tile.openstreetmap.org/**', (route) => route.abort());
 
   await page.goto(origin);
-  await page.evaluate(async () => {
+  await page.evaluate(async (options) => {
     const catalog = {
       localities: {
         prea: [{
@@ -154,10 +154,12 @@ async function fixture(t) {
     };
     const { createLocalitiesAdmin } = await import('/src/localities-admin.js');
     window.admin = createLocalitiesAdmin({
-      api, getToken: () => 'test-only-token', hasScope: () => true,
+      api, getToken: () => 'test-only-token',
+      hasScope: (scope) => scope === 'pricing:read' ||
+        (scope === 'pricing:write' && options.canWrite !== false),
       onError: (error) => window.review.failures.push(error.message),
     });
-  });
+  }, options);
   await page.waitForFunction(() => document.querySelector('#localities-total')?.textContent === '1');
   return page;
 }
@@ -310,4 +312,29 @@ test('invalid coordinates block navigation and never create a pricing draft patc
   assert.equal(await page.locator('#locality-step-2').isVisible(), true);
   assert.match(await page.locator('#localities-message').textContent(), /latitude entre/i);
   assert.equal(await page.evaluate(() => review.patches.length), 0);
+});
+
+
+test('read-only administrator cannot save, create, delete or publish fare changes', async (t) => {
+  const page = await fixture(t, { canWrite: false });
+  assert.equal(await page.locator('#localities-new-button').isVisible(), false);
+  assert.equal(await page.locator('#localities-publish-draft-button').isVisible(), false);
+  assert.equal(await page.locator('#localities-discard-draft-button').isVisible(), false);
+  assert.equal(await page.getByRole('button', { name: 'Excluir', exact: true }).count(), 0);
+
+  // Even if the details wizard can be opened by a reader, saving is forbidden.
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await page.locator('#locality-name').fill('Não Autorizado');
+  for (let i = 0; i < 5; i += 1) {
+    await page.locator('#locality-wizard-next').click();
+  }
+  await page.locator('#locality-wizard-save').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#localities-message')?.textContent?.includes('não pode editar localidades'),
+  );
+  const writes = await page.evaluate(() => ({
+    patches: review.patches.length, publishes: review.publishes.length,
+    name: review.catalog.localityDisplayNames.prea.prea,
+  }));
+  assert.deepEqual(writes, { patches: 0, publishes: 0, name: 'Preá Centro' });
 });

@@ -62,3 +62,8 @@ test('switching between localities cannot erase an unsaved wizard without confir
   const overwrite = open.indexOf('mode = nextMode;');
   assert.ok(guard >= 0 && confirm > guard && overwrite > confirm);
 });
+
+test('coordinate summary keeps six decimal places like the saved pricing geofence', () => {
+  const code = readFileSync(new URL('../src/localities-admin.js', import.meta.url), 'utf8');
+  assert.match(code, /lat\.toFixed\(6\).*lon\.toFixed\(6\)/);
+});

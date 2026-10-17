@@ -384,7 +384,8 @@ export function createLocalitiesAdmin(input) {
       label.textContent = '—';
       return;
     }
-    label.textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    // Match the six-decimal precision persisted by the pricing catalog.
+    label.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
     if (byId('locality-latitude')) byId('locality-latitude').value = String(lat);
     if (byId('locality-longitude')) byId('locality-longitude').value = String(lon);
   }
