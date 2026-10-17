@@ -150,7 +150,7 @@ async function fixture(t) {
 
 test('switching from edit to new does not discard unsaved locality data without confirmation', async (t) => {
   const page = await fixture(t);
-  await page.getByRole('button', { name: 'Editar' }).click();
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
   assert.equal(await page.locator('#locality-wizard-title').textContent(), 'Editar localidade');
   await page.locator('#locality-name').fill('Preá Nome em Edição');
   await page.locator('#localities-new-button').click();
@@ -164,7 +164,7 @@ test('switching from edit to new does not discard unsaved locality data without 
 
 test('editing name and six-decimal coordinates persists into a draft, not into published prices', async (t) => {
   const page = await fixture(t);
-  await page.getByRole('button', { name: 'Editar' }).click();
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
   await page.locator('#locality-name').fill('Preá Atualizado');
   await page.locator('#locality-wizard-next').click();
   await page.locator('#locality-latitude').fill('-2,820179');
@@ -196,7 +196,7 @@ test('editing name and six-decimal coordinates persists into a draft, not into p
 
 test('draft publication is blocked when locality form contains unsaved changes', async (t) => {
   const page = await fixture(t);
-  await page.getByRole('button', { name: 'Editar' }).click();
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
   await page.locator('#locality-name').fill('Ainda Não Salvo');
   await page.locator('#localities-publish-draft-button').click();
   const message = await page.locator('#localities-message').textContent();
