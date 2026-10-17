@@ -1001,9 +1001,10 @@ export function createLocalitiesAdmin(input) {
     const model = captureForm();
     const localityId = model.localityId;
     const existing = findEntry(model.scope, localityId);
+    const patches = [];
 
     if (existing == null) {
-      await applyPatch({
+      patches.push({
         kind: 'locality_structure',
         operation: 'add',
         scope: model.scope,
@@ -1012,7 +1013,7 @@ export function createLocalitiesAdmin(input) {
     }
 
     if (existing == null || existing.label !== model.name.trim()) {
-      await applyPatch({
+      patches.push({
         kind: 'locality_label',
         scope: model.scope,
         localityId,
@@ -1020,7 +1021,7 @@ export function createLocalitiesAdmin(input) {
       });
     }
 
-    await applyPatch({
+    patches.push({
       kind: 'locality_geofence',
       operation: 'upsert',
       zoneId: model.scope,
@@ -1034,7 +1035,7 @@ export function createLocalitiesAdmin(input) {
       for (const category of PRICE_CATEGORIES) {
         if (!model.categories.includes(category)) continue;
         if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
-        await applyPatch(
+        patches.push(
           buildPricePatch(
             model.scope,
             localityId,
@@ -1043,7 +1044,7 @@ export function createLocalitiesAdmin(input) {
           ),
         );
       }
-      await applyPatch({
+      patches.push({
         kind: 'locality_policy',
         hub: model.scope,
         localityId,
@@ -1063,7 +1064,7 @@ export function createLocalitiesAdmin(input) {
         model.categories.includes(category) &&
         distance?.enabled === true
       ) {
-        await applyPatch(
+        patches.push(
           buildDistancePolicyPatch(
             model.scope,
             localityId,
@@ -1072,7 +1073,7 @@ export function createLocalitiesAdmin(input) {
           ),
         );
       } else if (existingRule) {
-        await applyPatch(
+        patches.push(
           buildDistancePolicyPatch(
             model.scope,
             localityId,
@@ -1084,6 +1085,10 @@ export function createLocalitiesAdmin(input) {
       }
     }
 
+    // One backend compare-and-swap persists the entire locality.
+    // Invalid patches and concurrent writers cannot persist fragments.
+    await applyPatch({ kind: 'batch', patches });
+
     const savedMode = mode;
     await refresh({ announce: false });
     closeWizard({ force: true });
@@ -1094,10 +1099,9 @@ export function createLocalitiesAdmin(input) {
       'success',
     );
     } catch (error) {
-      // A save consists of several versioned writes. When one request fails,
-      // the server may already have accepted earlier writes (or a timed-out
-      // response). Reload the draft to make a retry idempotent, but leave the
-      // wizard open with the user's field values so nothing is silently lost.
+      // A timeout may mean the atomic write succeeded without a response.
+      // Reload the draft before retrying; each batch is one CAS update, never
+      // a partially persisted locality. Keep field values in the wizard.
       try {
         await refresh({ announce: false });
       } catch {
@@ -1105,8 +1109,8 @@ export function createLocalitiesAdmin(input) {
       }
       throw new Error(
         'Não foi possível concluir o salvamento: ' + errorMessage(error) +
-        ' Algumas mudanças podem ter ficado no rascunho. ' +
-        'Confira os dados e tente novamente antes de publicar.',
+        ' O lote é indivisível, mas o servidor pode ter concluído a gravação. ' +
+        'Confira o rascunho antes de tentar novamente ou publicar.',
       );
     } finally {
       saving = false;
@@ -1169,21 +1173,25 @@ export function createLocalitiesAdmin(input) {
     }
     if (lastDeleted == null) return;
     const model = lastDeleted;
-    await applyPatch({
+    if (!hasScope('pricing:write')) {
+      throw new Error('Sua conta não pode restaurar localidades.');
+    }
+    const patches = [];
+    patches.push({
       kind: 'locality_structure',
       operation: 'add',
       scope: model.scope,
       localityId: model.localityId,
     });
     // Restore the user-facing name separately from the stable pricing ID.
-    await applyPatch({
+    patches.push({
       kind: 'locality_label',
       scope: model.scope,
       localityId: model.localityId,
       label: model.name,
     });
     if (model.hadGeofence !== false) {
-      await applyPatch({
+      patches.push({
         kind: 'locality_geofence',
         operation: 'upsert',
         zoneId: model.scope,
@@ -1199,7 +1207,7 @@ export function createLocalitiesAdmin(input) {
         if (category === 'delivery' && catalog?.commercialPolicy != null) continue;
         const price = model.prices?.[category];
         if (!price?.min) continue;
-        await applyPatch(
+        patches.push(
           buildPricePatch(
             model.scope,
             model.localityId,
@@ -1209,9 +1217,9 @@ export function createLocalitiesAdmin(input) {
         );
       }
       for (const [category,price] of Object.entries(model.nightPrices ?? {})) {
-        if (price != null) await applyPatch({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
+        if (price != null) patches.push({kind:'locality_price',hub:model.scope,localityId:model.localityId,category,period:'after_22',price});
       }
-      await applyPatch({
+      patches.push({
         kind: 'locality_policy',
         hub: model.scope,
         localityId: model.localityId,
@@ -1223,7 +1231,7 @@ export function createLocalitiesAdmin(input) {
     for (const category of DISTANCE_CATEGORIES) {
       const distance = model.distancePricing?.[category];
       if (distance?.enabled !== true) continue;
-      await applyPatch(
+      patches.push(
         buildDistancePolicyPatch(
           model.scope,
           model.localityId,
@@ -1232,6 +1240,7 @@ export function createLocalitiesAdmin(input) {
         ),
       );
     }
+    await applyPatch({ kind: 'batch', patches });
     lastDeleted = null;
     await refresh({ announce: false });
     renderUndoDelete();
