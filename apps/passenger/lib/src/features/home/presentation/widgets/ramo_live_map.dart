@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
@@ -96,15 +97,21 @@ class RamoMapController {
 
     // Screen overlays are handled by GoogleMap.padding per edge. Only a
     // small marker margin belongs in the symmetric bounds padding.
-    await controller.animateCamera(
-      gm.CameraUpdate.newLatLngBounds(
-        gm.LatLngBounds(
-          southwest: gm.LatLng(minLatitude, minLongitude),
-          northeast: gm.LatLng(maxLatitude, maxLongitude),
-        ),
-        edgePadding,
+    final boundsUpdate = gm.CameraUpdate.newLatLngBounds(
+      gm.LatLngBounds(
+        southwest: gm.LatLng(minLatitude, minLongitude),
+        northeast: gm.LatLng(maxLatitude, maxLongitude),
       ),
+      edgePadding,
     );
+    // On Safari/Web, changing map padding and animating through multiple
+    // zoom levels can race the map renderer's tile loading. Move directly to
+    // the final bounds there; retain the existing native camera animation.
+    if (kIsWeb) {
+      await controller.moveCamera(boundsUpdate);
+    } else {
+      await controller.animateCamera(boundsUpdate);
+    }
 
     // A newer location/route may have replaced this camera movement.
     if (!ready || controller != _nativeController ||
@@ -113,9 +120,12 @@ class RamoMapController {
     if (!ready || controller != _nativeController ||
         cameraRequestId != _cameraRequestId) return;
     if (currentZoom > maxZoom) {
-      await controller.animateCamera(
-        gm.CameraUpdate.zoomTo(maxZoom),
-      );
+      final zoomUpdate = gm.CameraUpdate.zoomTo(maxZoom);
+      if (kIsWeb) {
+        await controller.moveCamera(zoomUpdate);
+      } else {
+        await controller.animateCamera(zoomUpdate);
+      }
     }
   }
 
