@@ -76,8 +76,12 @@ void main() {
     expect(find.byType(DraggableScrollableSheet), findsNothing);
     expect(find.text('Escolha seu destino'), findsNothing);
     expect(find.byKey(const Key('floating-trip-card')), findsOneWidget);
-    expect(tester.widget<Material>(find.byKey(const Key('floating-trip-card'))).color,
-        RamoColors.surfaceRaised);
+    final lightCard = tester.widget<Material>(
+      find.byKey(const Key('floating-trip-card')),
+    );
+    expect(lightCard.color, Colors.white);
+    expect(lightCard.elevation, 4);
+    expect(lightCard.shadowColor, Colors.black.withValues(alpha: .14));
     expect(find.byKey(const Key('confirm-destination-button')), findsNothing);
     expect(tester.getSize(find.byKey(const Key('floating-trip-card'))).height, lessThan(240));
     expect(tester.getRect(find.byKey(const Key('floating-trip-card'))).top, greaterThan(300));
@@ -117,8 +121,12 @@ void main() {
       )),
     ));
     await tester.pumpAndSettle();
-    expect(tester.widget<Material>(find.byKey(const Key('floating-trip-card'))).color,
-        RamoColors.darkSurface);
+    final darkCard = tester.widget<Material>(
+      find.byKey(const Key('floating-trip-card')),
+    );
+    expect(darkCard.color, RamoColors.darkSurface);
+    expect(darkCard.elevation, 3);
+    expect(darkCard.shadowColor, Colors.black26);
   });
 
   testWidgets('map receives a layout-settled callback after the route panel expands', (tester) async {

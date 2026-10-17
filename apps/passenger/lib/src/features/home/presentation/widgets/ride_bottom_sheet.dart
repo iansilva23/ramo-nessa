@@ -43,6 +43,7 @@ class RideBottomSheet extends StatelessWidget {
     final canContinue = hasTrip && routeSummary != null &&
         coverageMessage == null && !routeLoading && !isPreparing;
     final colors = Theme.of(context).colorScheme;
+    final isLight = colors.brightness == Brightness.light;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -66,11 +67,11 @@ class RideBottomSheet extends StatelessWidget {
                   children: [
                     Material(
                       key: const Key('floating-trip-card'),
-                      color: colors.brightness == Brightness.light
-                          ? RamoColors.surfaceRaised
-                          : colors.surface,
-                      elevation: 3,
-                      shadowColor: Colors.black26,
+                      color: isLight ? Colors.white : colors.surface,
+                      elevation: isLight ? 4 : 3,
+                      shadowColor: isLight
+                          ? Colors.black.withValues(alpha: .14)
+                          : Colors.black26,
                       clipBehavior: Clip.antiAlias,
                       borderRadius: BorderRadius.circular(26),
                       child: _TripCard(
