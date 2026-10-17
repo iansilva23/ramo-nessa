@@ -99,6 +99,13 @@ async function fixture(t) {
         if (expectedUpdatedAt !== version.updatedAt) {
           throw new Error('Conflito de versão');
         }
+        if (
+          window.review.failPatchKind === patch.kind &&
+          window.review.failedOnce !== true
+        ) {
+          window.review.failedOnce = true;
+          throw new Error('Falha de rede simulada');
+        }
         window.review.patches.push(structuredClone(patch));
         if (patch.kind === 'locality_structure' && patch.operation === 'add') {
           catalog.localities[patch.scope].push({
@@ -249,4 +256,58 @@ test('creating a new locality saves name, coordinates and fare only in the draft
   assert.deepEqual(state.entry.policy.enabledCategories, ['moto']);
   assert.equal(state.publishes, 0);
   assert.deepEqual(state.errors, []);
+});
+
+
+test('a partial network failure preserves form data, reloads the draft and safely retries without duplicate labels', async (t) => {
+  const page = await fixture(t);
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await page.locator('#locality-name').fill('Preá Recuperado');
+  for (let i = 0; i < 5; i += 1) {
+    await page.locator('#locality-wizard-next').click();
+  }
+  assert.equal(await page.locator('#locality-wizard-save').isVisible(), true);
+  await page.evaluate(() => { review.failPatchKind = 'locality_geofence'; });
+  await page.locator('#locality-wizard-save').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#localities-message')?.textContent?.includes('Algumas mudanças podem ter ficado no rascunho'),
+  );
+  assert.equal(await page.locator('#locality-wizard').isVisible(), true);
+  assert.equal(await page.locator('#locality-name').inputValue(), 'Preá Recuperado');
+  assert.equal(await page.evaluate(() => review.catalog.localityDisplayNames.prea.prea), 'Preá Recuperado');
+  assert.equal(await page.evaluate(() => review.publishes.length), 0);
+  assert.equal(
+    await page.evaluate(() => review.patches.filter((p) => p.kind === 'locality_label').length),
+    1,
+  );
+
+  await page.locator('#locality-wizard-save').click();
+  await page.waitForFunction(() =>
+    document.querySelector('#localities-message')?.textContent?.includes('atualizada no rascunho'),
+  );
+  const final = await page.evaluate(() => ({
+    label: review.catalog.localityDisplayNames.prea.prea,
+    labelWrites: review.patches.filter((p) => p.kind === 'locality_label').length,
+    geofenceWrites: review.patches.filter((p) => p.kind === 'locality_geofence').length,
+    publishCount: review.publishes.length,
+    failures: review.failures,
+  }));
+  assert.equal(final.label, 'Preá Recuperado');
+  assert.equal(final.labelWrites, 1);
+  assert.equal(final.geofenceWrites, 1);
+  assert.equal(final.publishCount, 0);
+  assert.equal(final.failures.length, 1);
+  assert.match(final.failures[0], /Falha de rede simulada/);
+  assert.equal(await page.locator('#locality-wizard').isVisible(), false);
+});
+
+test('invalid coordinates block navigation and never create a pricing draft patch', async (t) => {
+  const page = await fixture(t);
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await page.locator('#locality-wizard-next').click();
+  await page.locator('#locality-latitude').fill('-999');
+  await page.locator('#locality-wizard-next').click();
+  assert.equal(await page.locator('#locality-step-2').isVisible(), true);
+  assert.match(await page.locator('#localities-message').textContent(), /latitude entre/i);
+  assert.equal(await page.evaluate(() => review.patches.length), 0);
 });
