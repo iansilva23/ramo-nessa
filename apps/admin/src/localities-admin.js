@@ -172,6 +172,16 @@ function deepClone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+// Use the text fields as the source of truth even when a map marker was
+// selected earlier. Invalid inputs must stop the save instead of silently
+// persisting stale coordinates.
+export function localitySelectionFromInputs(mapSelection, latitude, longitude) {
+  return {
+    ...mapSelection,
+    ...parseLocalityCoordinates(latitude, longitude),
+  };
+}
+
 export function createLocalitiesAdmin(input) {
   const api = input.api;
   let catalog = null;
@@ -427,10 +437,14 @@ export function createLocalitiesAdmin(input) {
   }
 
   function captureForm() {
-    const selection = ensureWizardMap()?.getSelection() ?? {
-      ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
-      radiusKm: Number(byId('locality-radius')?.value || 2),
-    };
+    const selection = localitySelectionFromInputs(
+      ensureWizardMap()?.getSelection() ?? {
+        ...scopeDefault(byId('locality-scope')?.value ?? 'prea'),
+        radiusKm: Number(byId('locality-radius')?.value || 2),
+      },
+      byId('locality-latitude')?.value,
+      byId('locality-longitude')?.value,
+    );
     const prices = {};
     for (const category of PRICE_CATEGORIES) {
       prices[category] = {
@@ -464,7 +478,7 @@ export function createLocalitiesAdmin(input) {
       selection,
       categories: activeCategoriesFromForm(),
       prices,
-      nightPrices: deepClone(entry.prices?.after22 ?? {}),
+      nightPrices: deepClone(editing?.prices?.after22 ?? {}),
       distancePricing,
       nightSurcharge: byId('locality-night-surcharge')?.checked === true,
     };
@@ -701,6 +715,15 @@ export function createLocalitiesAdmin(input) {
       const radius = Number(byId('locality-radius')?.value);
       if (!Number.isFinite(radius) || radius < 0.05 || radius > 100) {
         throw new Error('O raio deve ficar entre 0,05 km e 100 km.');
+      }
+      const coordinates = parseLocalityCoordinates(
+        byId('locality-latitude')?.value,
+        byId('locality-longitude')?.value,
+      );
+      const map = ensureWizardMap();
+      if (map != null) {
+        map.setSelection({ ...map.getSelection(), ...coordinates, radiusKm: radius });
+        setMapCoordinate(map.getSelection());
       }
     }
     if (current === 3 && LOCAL_SCOPES.has(scope)) {
