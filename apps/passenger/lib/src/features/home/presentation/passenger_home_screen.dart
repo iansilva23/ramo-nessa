@@ -1262,8 +1262,8 @@ class _MapFloatingButton extends StatelessWidget {
               boxShadow: RamoElevation.floating(context),
             ),
             child: IconTheme(
-              data: const IconThemeData(
-                color: RamoColors.brandBlack,
+              data: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurface,
                 size: 23,
               ),
               child: icon,

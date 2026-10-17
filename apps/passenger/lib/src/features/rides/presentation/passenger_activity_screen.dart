@@ -213,8 +213,8 @@ class _RideActivityCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: RamoColors.brandBlack,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
               child: Icon(
                 ride.state == 'COMPLETED'
                     ? Icons.check_rounded
