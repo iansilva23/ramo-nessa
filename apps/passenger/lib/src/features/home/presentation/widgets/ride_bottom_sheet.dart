@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
+/// Wait for the floating panel to finish resizing before fitting map bounds.
+const ramoTripCardResizeDuration = Duration(milliseconds: 260);
+
 /// A floating, content-sized route panel. It leaves the rest of the map
 /// interactive and never stretches a pointer interceptor over the viewport.
 class RideBottomSheet extends StatelessWidget {
@@ -17,6 +20,7 @@ class RideBottomSheet extends StatelessWidget {
     this.coverageMessage,
     this.routeLoading = false,
     this.isPreparing = false,
+    this.onLayoutSettled,
   });
 
   final VoidCallback onOriginTap;
@@ -31,6 +35,7 @@ class RideBottomSheet extends StatelessWidget {
   final bool routeLoading;
   /// Prevents multiple preparation requests while the existing ride flow runs.
   final bool isPreparing;
+  final VoidCallback? onLayoutSettled;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +48,7 @@ class RideBottomSheet extends StatelessWidget {
       alignment: Alignment.bottomCenter,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          RamoSpacing.md, 0, RamoSpacing.md, RamoSpacing.sm,
+          RamoSpacing.md, 0, RamoSpacing.md, RamoSpacing.xxl + RamoSpacing.sm,
         ),
         // On the Web, intercept the actual controls, not the whole map.
         child: RamoWebMapOverlay(
@@ -51,7 +56,8 @@ class RideBottomSheet extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 540),
             child: SingleChildScrollView(
               child: AnimatedSize(
-                duration: const Duration(milliseconds: 260),
+                duration: ramoTripCardResizeDuration,
+                onEnd: onLayoutSettled,
                 curve: Curves.easeOutCubic,
                 alignment: Alignment.bottomCenter,
                 child: Column(
@@ -60,7 +66,9 @@ class RideBottomSheet extends StatelessWidget {
                   children: [
                     Material(
                       key: const Key('floating-trip-card'),
-                      color: colors.surface,
+                      color: colors.brightness == Brightness.light
+                          ? RamoColors.surfaceRaised
+                          : colors.surface,
                       elevation: 3,
                       shadowColor: Colors.black26,
                       clipBehavior: Clip.antiAlias,

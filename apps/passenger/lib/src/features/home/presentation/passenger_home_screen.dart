@@ -191,6 +191,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _routeLoading = false;
   bool _preparingRide = false;
   int _routeRequestId = 0;
+  int? _pendingRouteFitId;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
   bool _releaseDialogShown = false;
@@ -843,9 +844,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _routeLoading = false;
       });
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _fitRoute();
-      });
+      // Google Maps may receive new padding while the floating card is still
+      // resizing. Fit only after layout settles so Web Safari does not use
+      // stale viewport dimensions. The timeout covers no-size-change cases.
+      _pendingRouteFitId = requestId;
+      Future<void>.delayed(
+        ramoTripCardResizeDuration + const Duration(milliseconds: 80),
+        () => _fitRouteAfterLayout(expectedRequestId: requestId),
+      );
     } catch (_) {
       if (!mounted || requestId != _routeRequestId) {
         return;
@@ -857,6 +863,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       });
       _showMessage('Não conseguimos calcular essa rota agora.');
     }
+  }
+
+  void _fitRouteAfterLayout({int? expectedRequestId}) {
+    final pending = _pendingRouteFitId;
+    if (!mounted || pending == null || pending != _routeRequestId ||
+        (expectedRequestId != null && pending != expectedRequestId)) return;
+    _pendingRouteFitId = null;
+    _fitRoute();
   }
 
   void _fitRoute() {
@@ -1198,6 +1212,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
             ),
           ),
           RideBottomSheet(
+            onLayoutSettled: _fitRouteAfterLayout,
             origin: _origin?.displayName,
             destination: _destination?.displayName,
             routeSummary: routeSummary,

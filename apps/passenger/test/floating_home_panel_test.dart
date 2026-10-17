@@ -56,6 +56,8 @@ void main() {
     expect(find.byType(DraggableScrollableSheet), findsNothing);
     expect(find.text('Escolha seu destino'), findsNothing);
     expect(find.byKey(const Key('floating-trip-card')), findsOneWidget);
+    expect(tester.widget<Material>(find.byKey(const Key('floating-trip-card'))).color,
+        RamoColors.surfaceRaised);
     expect(find.byKey(const Key('confirm-destination-button')), findsNothing);
     expect(tester.getSize(find.byKey(const Key('floating-trip-card'))).height, lessThan(240));
     expect(tester.getRect(find.byKey(const Key('floating-trip-card'))).top, greaterThan(300));
@@ -69,12 +71,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('floating-route-summary')), findsOneWidget);
     expect(find.text('Confirmar destino'), findsOneWidget);
+    // Keep the map's legally required attribution below the controls.
+    expect(tester.getRect(find.byKey(const Key('confirm-destination-button'))).bottom,
+        lessThanOrEqualTo(844 - 68 - 32));
     await tester.tapAt(const Offset(120, 150));
     expect(mapTaps, 2);
     await tester.tap(find.byKey(const Key('confirm-destination-button')));
     expect(confirmations, 1);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('the dark trip card keeps its original surface', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(MaterialApp(
+      theme: RamoTheme.light,
+      darkTheme: RamoTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: Scaffold(body: RideBottomSheet(
+        origin: 'Minha localização',
+        onOriginTap: () {},
+        onDestinationTap: () {},
+        onContinue: () {},
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Material>(find.byKey(const Key('floating-trip-card'))).color,
+        RamoColors.darkSurface);
+  });
+
+  testWidgets('map receives a layout-settled callback after the route panel expands', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var settled = 0;
+    Widget screen({String? destination, String? route}) => MaterialApp(
+      theme: RamoTheme.light,
+      home: Scaffold(body: RideBottomSheet(
+        origin: 'Minha localização',
+        destination: destination,
+        routeSummary: route,
+        onLayoutSettled: () => settled++,
+        onOriginTap: () {},
+        onDestinationTap: () {},
+        onContinue: () {},
+      )),
+    );
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+    settled = 0;
+    await tester.pumpWidget(screen(destination: 'Preá', route: '12 km · 29 min'));
+    await tester.pumpAndSettle();
+    expect(settled, greaterThan(0));
+  });
+
   testWidgets('confirm destination is disabled during preparation, route loading and coverage failure', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
