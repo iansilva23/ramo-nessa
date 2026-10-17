@@ -10,7 +10,7 @@ void main() {
   }.entries) {
     test('${entry.key} map hides default points of interest, keeps street names', () {
       final rules = (jsonDecode(entry.value) as List).cast<Map<String, dynamic>>();
-      Map<String, dynamic> rule(String feature, String element) =>
+      Map<String, dynamic> rule(String feature, String? element) =>
           rules.firstWhere(
             (item) =>
                 item['featureType'] == feature &&
@@ -20,6 +20,8 @@ void main() {
           (style['stylers'] as List).any(
             (item) => (item as Map)['visibility'] == expected,
           );
+      // The whole POI feature must be hidden, not only its text labels.
+      expect(visibility(rule('poi', null), 'off'), isTrue);
       expect(visibility(rule('poi', 'labels'), 'off'), isTrue);
       expect(visibility(rule('transit', 'labels'), 'off'), isTrue);
       expect(visibility(rule('administrative', 'labels'), 'off'), isTrue);

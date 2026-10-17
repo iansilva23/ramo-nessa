@@ -56,9 +56,17 @@ class RamoAppearanceTile extends StatelessWidget {
 }
 
 /// Used for Maps as well as the Flutter controls, without automatic inversion.
-/// Keep street names visible while hiding default commercial/tourist POIs.
+/// Hide clickable base-map POIs entirely while preserving roads and map attribution.
 /// This affects map tiles only; Ramo Nessa's own markers and routes remain.
 const ramoLightMapStyle = '''[
+  {
+    "featureType": "poi",
+    "stylers": [
+      {
+        "visibility": "off"
+      }
+    ]
+  },
   {
     "featureType": "poi",
     "elementType": "labels",
@@ -97,7 +105,7 @@ const ramoLightMapStyle = '''[
   }
 ]''';
 
-/// Retains the current night palette with the same POI-free labels.
+/// Retains the current night palette with the same POI-free map treatment.
 const ramoDarkMapStyle = '''[
   {
     "elementType": "geometry",
@@ -147,6 +155,14 @@ const ramoDarkMapStyle = '''[
     "stylers": [
       {
         "color": "#24392d"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "stylers": [
+      {
+        "visibility": "off"
       }
     ]
   },
