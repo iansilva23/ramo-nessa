@@ -115,10 +115,14 @@ class RamoMapController {
 
     // A newer location/route may have replaced this camera movement.
     if (!ready || controller != _nativeController ||
-        cameraRequestId != _cameraRequestId) return;
+        cameraRequestId != _cameraRequestId) {
+      return;
+    }
     final currentZoom = await controller.getZoomLevel();
     if (!ready || controller != _nativeController ||
-        cameraRequestId != _cameraRequestId) return;
+        cameraRequestId != _cameraRequestId) {
+      return;
+    }
     if (currentZoom > maxZoom) {
       final zoomUpdate = gm.CameraUpdate.zoomTo(maxZoom);
       if (kIsWeb) {
