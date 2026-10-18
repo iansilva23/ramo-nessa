@@ -187,10 +187,25 @@ function quoteFixedRoute(
   const a = endpointId(request.origin);
   const b = endpointId(request.destination);
 
-  const rule = catalog.fixedRoutes.find(
+  // A zone-level transfer price must not disappear when the Maps catalog
+  // supplies a verified sublocality (e.g. prea/vila-prea). Match specific
+  // fixed routes first, then the approved inter-zone anchors. Never apply
+  // the zone fallback within a zone: locality fares must keep precedence.
+  const specificRule = catalog.fixedRoutes.find(
     (candidate) =>
       candidate.category === request.category &&
       matchesPair(candidate.a, candidate.b, a, b),
+  );
+  const anchorA = request.origin.zoneId === 'external'
+    ? a : request.origin.zoneId;
+  const anchorB = request.destination.zoneId === 'external'
+    ? b : request.destination.zoneId;
+  const rule = specificRule ?? (
+    request.origin.zoneId !== request.destination.zoneId
+      ? catalog.fixedRoutes.find((candidate) =>
+          candidate.category === request.category &&
+          matchesPair(candidate.a, candidate.b, anchorA, anchorB))
+      : undefined
   );
 
   if (rule == null) return null;

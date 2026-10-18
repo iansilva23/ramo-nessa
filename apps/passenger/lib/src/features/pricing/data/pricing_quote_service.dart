@@ -17,9 +17,10 @@ abstract interface class PricingQuoteService {
 }
 
 class PricingQuoteException implements Exception {
-  const PricingQuoteException(this.message);
+  const PricingQuoteException(this.message, {this.code});
 
   final String message;
+  final String? code;
 
   @override
   String toString() => message;

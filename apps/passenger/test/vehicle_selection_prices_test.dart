@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_selection_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
 
 PricingQuote price(int cents) => PricingQuote.fromJson({
       'kind': 'exact',
@@ -31,6 +32,50 @@ Widget screen({
     );
 
 void main() {
+  testWidgets('sem tarifa confirmada não permite iniciar uma corrida', (tester) async {
+    final pending = Completer<PricingQuote>();
+    var continued = 0;
+    await tester.pumpWidget(screen(
+      quote: (_) => pending.future,
+      services: const [ServiceType.car],
+      onContinue: (_) async { continued++; return null; },
+    ));
+    await tester.pump();
+    expect(tester.widget<FilledButton>(find.byKey(const Key('continue-vehicle-button'))).onPressed, isNull);
+    pending.complete(price(13000));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.byKey(const Key('continue-vehicle-button'))).onPressed, isNotNull);
+    expect(continued, 0);
+  });
+
+  testWidgets('oculta apenas categoria rejeitada pelo Core e permite a tarifada', (tester) async {
+    await tester.pumpWidget(screen(
+      services: const [ServiceType.car, ServiceType.moto],
+      quote: (selection) async {
+        if (selection.service == ServiceType.car) {
+          throw const PricingQuoteException('Sem tarifa', code: 'UNAVAILABLE_CATEGORY');
+        }
+        return price(6000);
+      },
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Carro normal'), findsNothing);
+    expect(find.text('Mototáxi'), findsOneWidget);
+    expect(find.text(r'R$ 60,00'), findsOneWidget);
+    expect(find.byKey(const Key('hidden-unpriced-categories')), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const Key('continue-vehicle-button'))).onPressed, isNotNull);
+  });
+
+  testWidgets('quando todas as categorias são rejeitadas, não há avanço', (tester) async {
+    await tester.pumpWidget(screen(
+      quote: (_) async => throw const PricingQuoteException(
+        'Rota sem tarifa', code: 'UNKNOWN_ROUTE'),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('no-priced-vehicle-message')), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const Key('continue-vehicle-button'))).onPressed, isNull);
+  });
+
   testWidgets('mostra preços de todas as categorias sem preparar corrida',
       (tester) async {
     final requests = <VehicleSelectionResult>[];

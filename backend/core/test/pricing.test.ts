@@ -68,6 +68,59 @@ test('Jijoca <-> Jeri fecha R$160 dia / R$200 após 22h', () => {
   }
 });
 
+test('transfer tarifado por zona reconhece localidades aprovadas sem trocar os valores comerciais', () => {
+  for (const [category, expected] of [
+    ['car', 13000],
+    ['comfort_black', 15000],
+    ['buggy', 11000],
+  ] as const) {
+    const result = quoteFare({
+      origin: zone('prea', 'vila-prea'),
+      destination: zone('jericoacoara', 'jericoacoara'),
+      category,
+      period: 'day',
+      passengers: 1,
+      tripDistanceKm: 12.1,
+    });
+    assert.equal(result.kind, 'exact');
+    if (result.kind === 'exact') assert.equal(result.totalAmountCents, expected);
+  }
+  const reversed = quoteFare({
+    origin: zone('jericoacoara', 'jericoacoara'),
+    destination: zone('prea', 'prea-beach-villas'),
+    category: 'car',
+    period: 'after_22',
+  });
+  assert.equal(reversed.kind, 'exact');
+  if (reversed.kind === 'exact') assert.equal(reversed.totalAmountCents, 15000);
+});
+
+test('rota local explícita mantém prioridade e localidade desconhecida não vira tarifa de zona', () => {
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.fixedRoutes.unshift({
+    id: 'prea-vila-specific', a: 'vila-prea', b: 'jericoacoara',
+    category: 'car', dayCents: 17000, after22Cents: 19000,
+  });
+  const quote = quoteFare({
+    origin: zone('prea', 'vila-prea'),
+    destination: zone('jericoacoara', 'jericoacoara'),
+    category: 'car', period: 'day',
+  }, snapshot);
+  assert.equal(quote.ruleId, 'prea-vila-specific');
+  assert.throws(() => quoteFare({
+    origin: zone('prea', 'unregistered-place'),
+    destination: zone('jericoacoara'),
+    category: 'car', period: 'day',
+  }, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNKNOWN_LOCALITY');
+  assert.throws(() => quoteFare({
+    origin: zone('prea', 'vila-prea'),
+    destination: zone('jericoacoara'),
+    category: 'delivery', period: 'day', tripDistanceKm: 12.1,
+  }, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNAVAILABLE_CATEGORY');
+});
+
 test('Preá <-> Jijoca oferece Carro e Comfort com adicional de R$30', () => {
   const car = quoteFare({
     origin: zone('prea'),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../pricing/domain/pricing_quote.dart';
+import '../../pricing/data/pricing_quote_service.dart';
 import '../../pricing/data/shared_transfer_option.dart';
 import 'widgets/shared_transfer_button.dart';
 import 'package:flutter/material.dart';
@@ -59,7 +60,14 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   String? _error;
 
   final Map<ServiceType, String> _priceLabels = {};
+  final Map<ServiceType, PricingQuote> _confirmedQuotes = {};
   final Set<ServiceType> _priceFailures = {};
+  final Set<ServiceType> _unavailableServices = {};
+  bool get _canContinue => !_submitting && _confirmedQuotes[_selected]?.isExact == true &&
+      !_unavailableServices.contains(_selected);
+  List<ServiceType> get _visibleServices => widget.availableServices
+      .where((service) => !_unavailableServices.contains(service))
+      .toList(growable: false);
   Timer? _quoteDebounce;
   int _quoteGeneration = 0;
 
@@ -93,8 +101,11 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     final generation = ++_quoteGeneration;
     final quote = widget.onQuote;
     _priceFailures.clear();
+    _unavailableServices.clear();
+    _confirmedQuotes.clear();
     for (final service in widget.availableServices) {
-      _priceLabels[service] = quote == null ? 'Preço indisponível' : 'Calculando…';
+      _priceLabels[service] = quote == null ? 'Falha na cotação' : 'Calculando…';
+      if (quote == null) _priceFailures.add(service);
     }
     if (quote == null) return;
     final selections = [
@@ -124,18 +135,37 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     try {
       final result = await quote(selection);
       if (!mounted || generation != _quoteGeneration) return;
-      setState(() => _priceLabels[selection.service] = result.formatted);
-    } catch (_) {
+      setState(() {
+        _confirmedQuotes[selection.service] = result;
+        _priceLabels[selection.service] = result.formatted;
+      });
+    } catch (error) {
       if (!mounted || generation != _quoteGeneration) return;
       setState(() {
-        _priceLabels[selection.service] = 'Preço indisponível';
-        _priceFailures.add(selection.service);
+        final code = error is PricingQuoteException ? error.code : null;
+        if (code == 'UNAVAILABLE_CATEGORY' || code == 'UNKNOWN_ROUTE') {
+          // Business rejection is authoritative, not a temporary offline error.
+          _unavailableServices.add(selection.service);
+          if (_selected == selection.service) {
+            final candidates = widget.availableServices
+                .where((service) => !_unavailableServices.contains(service));
+            if (candidates.isNotEmpty) {
+              _selected = candidates.first;
+              _passengerCount = _selected == ServiceType.buggy
+                  ? widget.buggyMinPassengers : 1;
+            }
+          }
+        } else {
+          _priceLabels[selection.service] = code == 'UNKNOWN_LOCALITY'
+              ? 'Local não reconhecido' : 'Falha na cotação';
+          _priceFailures.add(selection.service);
+        }
       });
     }
   }
 
   void _select(ServiceType service) {
-    if (_selected == service || _submitting) return;
+    if (_selected == service || _submitting || _unavailableServices.contains(service)) return;
     setState(() {
       _selected = service;
       _passengerCount =
@@ -162,7 +192,11 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   }
 
   Future<void> _continue() async {
-    if (_submitting) return;
+    if (!_canContinue) {
+      if (!mounted) return;
+      setState(() => _error = 'Aguarde uma tarifa confirmada antes de continuar.');
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -252,12 +286,39 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                   const SizedBox(height: RamoSpacing.xl),
                   if (widget.requiresFourByFour) const Padding(padding: EdgeInsets.only(bottom: 12), child: Text('Carro e Comfort/Black nesta rota exigem veículo 4x4 aprovado.')),
                   if (_submitting) const Column(children: [Center(child:RamoSearchPulse()), Text('Procurando motorista próximo…'), SizedBox(height:16)]),
-                  ServiceSelector(
-                    selected: _selected,
-                    services: widget.availableServices,
-                    onChanged: _select,
-                    priceLabels: _priceLabels,
-                  ),
+                  if (_visibleServices.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'Não há categorias com tarifa aprovada para esta rota. '
+                        'Atualize os preços ou escolha outro trajeto.',
+                        key: Key('no-priced-vehicle-message'),
+                      ),
+                    )
+                  else
+                    ServiceSelector(
+                      selected: _selected,
+                      services: _visibleServices,
+                      onChanged: _select,
+                      priceLabels: _priceLabels,
+                    ),
+                  if (_unavailableServices.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Categorias sem tarifa para esta rota foram ocultadas.',
+                        key: Key('hidden-unpriced-categories'),
+                      ),
+                    ),
+                  if (_priceFailures.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Não foi possível confirmar alguns preços. '
+                        'Confira a localidade ou tente atualizar.',
+                        key: Key('pricing-quote-error-message'),
+                      ),
+                    ),
                   if (_hasPassengerCounter) ...[
                     const SizedBox(height: RamoSpacing.md),
                     _PassengerCounter(
@@ -274,7 +335,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
-                  if (_priceFailures.isNotEmpty)
+                  if (_priceFailures.isNotEmpty || _unavailableServices.isNotEmpty)
                     TextButton.icon(
                       onPressed: _submitting
                           ? null
@@ -318,7 +379,7 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
                 height: 54,
                 child: FilledButton(
                   key: const Key('continue-vehicle-button'),
-                  onPressed: _submitting ? null : _continue,
+                  onPressed: _canContinue ? _continue : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: RamoColors.brandBlack,
                     foregroundColor: Colors.white,
