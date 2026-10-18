@@ -366,9 +366,16 @@
                 </small>
               </div>
 
+              <div class="finance-payout-actions">
+                <label for="finance-anticipation-minimum">Mínimo da antecipação (R$)</label>
+                <input id="finance-anticipation-minimum" type="text" inputmode="decimal" value="80,00" maxlength="12" disabled>
+                <label for="finance-anticipation-fee">Taxa da antecipação (R$)</label>
+                <input id="finance-anticipation-fee" type="text" inputmode="decimal" value="10,00" maxlength="12" disabled>
+                <small>Vale para novas solicitações. Repasses normais continuam sem mínimo e sem taxa de antecipação.</small>
+              </div>
               <div class="empty-state">
-                <strong>Integração Asaas — aguardando configuração</strong>
-                <p>Após a aprovação da conta, a integração da API será configurada e testada no servidor. As credenciais não devem ser coladas neste painel. Os modos semiautomático e automático só estarão disponíveis após essa configuração.</p>
+                <strong>Integração Asaas — repasses dos motoristas</strong>
+                <p id="finance-asaas-status">Carregando configuração da integração.</p>
               </div>
               <div id="finance-manual-payouts" hidden>
                 <div class="panel-card__header">

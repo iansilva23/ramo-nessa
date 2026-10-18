@@ -46,6 +46,8 @@ export interface DriverPayoutRecord {
 }
 
 export interface DriverPayoutSettings {
+  anticipationMinimumCents?: number;
+  anticipationFeeCents?: number;
   mode?: DriverPayoutMode;
   automaticEnabled: boolean;
   updatedAt: string;
@@ -86,10 +88,21 @@ export class PayoutDomainError extends Error {
       | 'PAYOUT_PROCESSOR_REQUIRED'
       | 'PAYOUT_MANUAL_ONLY'
       | 'PAYOUT_APPROVAL_REQUIRED'
-      | 'PAYOUT_ANTICIPATION_MINIMUM',
+      | 'PAYOUT_ANTICIPATION_MINIMUM'
+      | 'PAYOUT_POLICY_CHANGED',
     message: string,
   ) {
     super(message);
     this.name = 'PayoutDomainError';
   }
+}
+
+export function anticipationPolicy(settings: { anticipationMinimumCents?: number | undefined; anticipationFeeCents?: number | undefined }) {
+  const minimum = settings.anticipationMinimumCents ?? 8000;
+  const fee = settings.anticipationFeeCents ?? 1000;
+  if (!Number.isSafeInteger(minimum) || minimum < 1 || minimum > 100000000 ||
+      !Number.isSafeInteger(fee) || fee < 0 || fee >= minimum) {
+    throw new PayoutDomainError('INVALID_PAYOUT_AMOUNT', 'Informe mínimo de antecipação positivo e taxa menor que o mínimo, em centavos.');
+  }
+  return { anticipationMinimumCents: minimum, anticipationFeeCents: fee };
 }

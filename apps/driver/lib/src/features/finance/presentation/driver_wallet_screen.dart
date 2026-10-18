@@ -227,6 +227,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
   }
 
   Future<int?> _chooseAnticipationAmount(int availableCents) async {
+    final minimumCents = _finance?.anticipationMinimumCents ?? 8000;
+    final feeCents = _finance?.anticipationFeeCents ?? 1000;
     final controller = TextEditingController(
       text: (availableCents / 100)
           .toStringAsFixed(2)
@@ -243,10 +245,10 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Os repasses normais acontecem segunda, quarta e sexta '
                 'às 07:00, sem taxa. A antecipação precisa ser aprovada '
-                'pelo Ramo Nessa e tem taxa fixa de R\$ 10,00.',
+                'pelo Ramo Nessa e tem taxa de ${formatCents(feeCents)}.',
               ),
               const SizedBox(height: RamoSpacing.md),
               TextField(
@@ -259,7 +261,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                   labelText: 'Valor que deseja antecipar',
                   prefixText: 'R\$ ',
                   errorText: validationMessage,
-                  helperText: 'Mínimo: R\$ 80,00',
+                  helperText: 'Mínimo: ${formatCents(minimumCents)}',
                 ),
               ),
               const SizedBox(height: RamoSpacing.sm),
@@ -280,10 +282,10 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             FilledButton(
               onPressed: () {
                 final cents = _parseMoneyToCents(controller.text);
-                if (cents == null || cents < 8000) {
+                if (cents == null || cents < minimumCents) {
                   setDialogState(() {
                     validationMessage =
-                        'A antecipação mínima é de R\$ 80,00.';
+                        'A antecipação mínima é de ${formatCents(minimumCents)}.';
                   });
                   return;
                 }
@@ -317,7 +319,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
       return;
     }
     if (finance == null ||
-        finance.availableBalanceCents < 8000 ||
+        finance.availableBalanceCents < finance.anticipationMinimumCents ||
         _requestingPayout) {
       return;
     }
@@ -328,7 +330,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
     );
     if (amount == null || !mounted) return;
 
-    const feeCents = 1000;
+    final feeCents = finance.anticipationFeeCents;
     final netCents = amount - feeCents;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -385,6 +387,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
       final result = await widget.api.requestPayout(
         amountCents: amount,
         idempotencyKey: key,
+        expectedFeeCents: feeCents,
+        expectedMinimumCents: finance.anticipationMinimumCents,
       );
       if (!mounted) return;
       setState(() {
@@ -609,7 +613,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ],
             const SizedBox(height: RamoSpacing.xl),
             FilledButton.icon(
-              onPressed: available >= 8000 &&
+              onPressed: available >= (_finance?.anticipationMinimumCents ?? 8000) &&
                       !_requestingPayout &&
                       _payoutDestination?.configured == true
                   ? _requestPayout
@@ -624,9 +628,9 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
             ),
             const SizedBox(height: RamoSpacing.xs),
             Text(
-              available > 0 && available < 8000
-                  ? 'Antecipação disponível a partir de R\$ 80,00.'
-                  : 'Mínimo R\$ 80,00 · taxa fixa R\$ 10,00 · sujeito à aprovação.',
+              available > 0 && available < (_finance?.anticipationMinimumCents ?? 8000)
+                  ? 'Antecipação disponível a partir de ${formatCents(_finance?.anticipationMinimumCents ?? 8000)}.'
+                  : 'Mínimo ${formatCents(_finance?.anticipationMinimumCents ?? 8000)} · taxa ${formatCents(_finance?.anticipationFeeCents ?? 1000)} · sujeito à aprovação.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -668,11 +672,11 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
                   'Seu saldo disponível é enviado segunda, quarta e sexta '
                   'às 07:00, sem taxa de antecipação.',
             ),
-            const _WalletInfoTile(
+            _WalletInfoTile(
               icon: Icons.bolt_rounded,
               title: 'Antecipação',
               subtitle:
-                  'A partir de R\$ 80,00. Há taxa fixa de R\$ 10,00 e '
+                  'A partir de ${formatCents(_finance?.anticipationMinimumCents ?? 8000)}. Há taxa de ${formatCents(_finance?.anticipationFeeCents ?? 1000)} e '
                   'a solicitação precisa ser aprovada pelo Ramo Nessa.',
             ),
           ],

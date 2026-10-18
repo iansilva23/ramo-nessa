@@ -1,3 +1,5 @@
+import type { AsaasPayoutStore } from '../payments/asaas-payout-store.js';
+import { anticipationPolicy } from '../payments/payout.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -77,6 +79,7 @@ export function adminPayoutDetailView(payout: DriverPayoutRecord) {
 export async function getAdminPayoutDetail(input: {
   finance: FinanceRepository;
   payoutId: string;
+  asaasStore?: AsaasPayoutStore;
 }) {
   const payout = await input.finance.findDriverPayoutById(
     input.payoutId,
@@ -87,7 +90,9 @@ export async function getAdminPayoutDetail(input: {
       'Saque não encontrado.',
     );
   }
-  return adminPayoutDetailView(payout);
+  const attempt = payout.processor === 'asaas' ? await input.asaasStore?.get(payout.id) : null;
+  return { ...adminPayoutDetailView(payout),
+    ...(payout.processor !== 'asaas' ? {} : { asaasTransfer: { transferId: attempt?.transferId ?? null, awaitingReconciliation: !attempt?.transferId && !attempt?.rejected, environment: attempt?.environment ?? null } }) };
 }
 
 export async function completeAdminPayout(input: {
@@ -244,16 +249,23 @@ export async function updateAdminPayoutAutomaticMode(input: {
   admin: AdminRepository;
   actor: AdminActor;
   automaticEnabled: boolean;
+  anticipationMinimumCents?: number;
+  anticipationFeeCents?: number;
   mode?: import('../payments/payout.js').DriverPayoutMode;
   now?: Date;
 }) {
   const current = await input.finance.getDriverPayoutSettings();
+  const values = anticipationPolicy({ ...current,
+    anticipationMinimumCents: input.anticipationMinimumCents ?? current.anticipationMinimumCents,
+    anticipationFeeCents: input.anticipationFeeCents ?? current.anticipationFeeCents });
+  const previousValues = anticipationPolicy(current);
   const mode = input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual');
-  if (current.automaticEnabled === input.automaticEnabled && current.mode === mode) {
+  if (current.automaticEnabled === input.automaticEnabled && current.mode === mode && values.anticipationMinimumCents === previousValues.anticipationMinimumCents && values.anticipationFeeCents === previousValues.anticipationFeeCents) {
     return current;
   }
 
   const updated = await input.finance.setDriverPayoutAutomaticEnabled({
+    ...values,
     automaticEnabled: input.automaticEnabled,
     mode,
     ...(input.now == null ? {} : { updatedAt: input.now }),
@@ -266,6 +278,9 @@ export async function updateAdminPayoutAutomaticMode(input: {
     targetType: 'driver_payout_settings',
     targetId: 'default',
     metadata: {
+      ...values,
+      previousAnticipationMinimumCents: previousValues.anticipationMinimumCents,
+      previousAnticipationFeeCents: previousValues.anticipationFeeCents,
       previousAutomaticEnabled: current.automaticEnabled,
       previousMode: current.mode ?? 'manual',
       mode,

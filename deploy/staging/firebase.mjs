@@ -1,3 +1,4 @@
+import { stagingAsaasConfiguration } from './asaas.mjs';
 import { createPrivateKey } from 'node:crypto';
 import { lstat, readFile } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
@@ -62,12 +63,15 @@ export async function stagingComposeArguments(envFile) {
   if (maps.provider === 'google') args.push('-f', resolve(here, 'compose.google-maps.yml'));
   const otp = await stagingOtpConfiguration(envFile);
   if (otp.provider === 'entrar-whatsapp') args.push('-f', resolve(here, 'compose.otp.yml'));
+  const asaas = await stagingAsaasConfiguration(envFile);
+  if (asaas.enabled) args.push('-f', resolve(here, 'compose.asaas.yml'));
   return args;
 }
 
 // Docker interpolation must use the file we validated, not inherited shell values.
 export function stagingComposeEnvironment(maps = { provider: 'mock' }, otp = { provider: 'dev' }) {
   const env = { ...process.env };
+  for (const name of Object.keys(env)) if (name.startsWith('ASAAS_')) delete env[name];
   for (const key of ['PUSH_PROVIDER', 'FIREBASE_PROJECT_ID', 'FIREBASE_SERVICE_ACCOUNT_HOST_FILE']) delete env[key];
   for (const key of ['GOOGLE_MAPS_PROVIDER', 'GOOGLE_MAPS_SERVER_API_KEY_HOST_FILE',
     'GOOGLE_MAPS_SERVER_API_KEY', 'GOOGLE_ROUTES_BASE_URL', 'GOOGLE_PLACES_BASE_URL']) delete env[key];

@@ -1,3 +1,4 @@
+import { anticipationPolicy } from '../payments/payout.js';
 import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
 import type { FinanceRepository } from '../payments/finance-repository.js';
 
@@ -12,6 +13,8 @@ export async function adminFinanceView(input: {
   limit?: number;
   canManageCompanyPayouts?: boolean;
   payoutProviderConfigured?: boolean;
+  asaasIntegration?: { provider: 'asaas'; status: string; apiAvailable: boolean; environment: string | null };
+  companyPayoutProviderConfigured?: boolean;
 }) {
   const limit = safeLimit(input.limit);
   const [
@@ -50,13 +53,12 @@ export async function adminFinanceView(input: {
       automaticEnabled: payoutSettings.automaticEnabled,
       mode: payoutSettings.mode ?? (payoutSettings.automaticEnabled ? 'automatic' : 'manual'),
       apiAvailable: input.payoutProviderConfigured === true,
-      asaas: { provider: 'asaas', status: 'awaiting_configuration', apiAvailable: false },
+      asaas: input.asaasIntegration ?? { provider: 'asaas', status: 'awaiting_configuration', apiAvailable: false },
       updatedAt: payoutSettings.updatedAt,
       scheduleDays: ['monday', 'wednesday', 'friday'],
       scheduleHour: 7,
       timeZone: 'America/Fortaleza',
-      anticipationMinimumCents: 8000,
-      anticipationFeeCents: 1000,
+      ...anticipationPolicy(payoutSettings),
     },
     payoutCandidates: payoutCandidates.map((candidate) => ({
       driverId: candidate.driverId,
@@ -71,6 +73,7 @@ export async function adminFinanceView(input: {
     })),
     companyPayout: {
       canManage: input.canManageCompanyPayouts === true,
+      apiAvailable: input.companyPayoutProviderConfigured ?? input.payoutProviderConfigured ?? false,
       destinationConfigured: companyDestination != null,
       pixKeyType: companyDestination?.pixKeyType ?? null,
       pixKeyMasked:
