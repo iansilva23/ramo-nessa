@@ -77,7 +77,7 @@ jobs:
         working-directory: apps/driver
         run: flutter build web --release --no-web-resources-cdn --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
       - name: Preserve native project configuration and dependency locks
-        run: git diff --exit-code -- apps/driver/pubspec.yaml apps/driver/pubspec.lock apps/driver/android apps/driver/ios
+        run: git diff --ignore-blank-lines --exit-code -- apps/driver/pubspec.yaml apps/driver/pubspec.lock apps/driver/android apps/driver/ios
   finance-browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

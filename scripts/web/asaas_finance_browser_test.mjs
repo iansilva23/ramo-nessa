@@ -65,7 +65,8 @@ for(const width of [390,1280])test('Financeiro owner edits and persists configur
   assert.equal(requests.length,1);assert.deepEqual(errors,[]);
   const panel=page.locator('.panel-card').filter({has:page.getByRole('heading',{name:'Controle de repasses',exact:true})});
   await panel.scrollIntoViewIfNeeded();await panel.screenshot({path:`artifacts/asaas-finance/owner-${width}.png`});
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  const overflow=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,elements:[...document.querySelectorAll('main *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).slice(0,25).map(n=>({tag:n.tagName,id:n.id,class:n.className,right:n.getBoundingClientRect().right}))}));
+  assert.ok(overflow.scrollWidth<=width,JSON.stringify(overflow));
  }finally{await context.close();}
 });
 test('Financeiro reader cannot edit policy or arm payouts',async()=>{
