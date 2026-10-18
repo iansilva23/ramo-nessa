@@ -111,6 +111,9 @@ export class AsaasDriverPayoutProvider implements DriverPayoutProvider {
         "Repasse anterior à ativação Asaas ou de execução manual. Não será enviado.",
       );
     }
+    // Deterministic local validation happens before claiming the ledger state.
+    if (!uuid.test(payout.id) || !Number.isSafeInteger(payout.amountCents) || payout.amountCents < 1 || !Number.isFinite(Date.parse(payout.createdAt))) invalid();
+    pix(payout.pixKeyType, payout.pixKey);
     return this.reference(payout.id);
   }
   private reference(id: string) {

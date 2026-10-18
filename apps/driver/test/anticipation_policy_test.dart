@@ -29,10 +29,14 @@ void main() {
   expect(tester.widget<FilledButton>(button).onPressed,isNotNull);
   await tester.tap(button);await tester.pumpAndSettle();
   expect(find.text('Mínimo: R\$ 50,00'),findsOneWidget);
-  expect(find.textContaining('taxa de R\$ 5,00'),findsOneWidget);
+  expect(find.descendant(of:find.byType(AlertDialog),matching:find.textContaining('taxa de R\$ 5,00')),findsOneWidget);
   await tester.enterText(find.byType(TextField),'49,99');
   await tester.tap(find.text('Continuar'));await tester.pumpAndSettle();
   expect(find.text('A antecipação mínima é de R\$ 50,00.'),findsOneWidget);
+  await tester.enterText(find.byType(TextField),'60,00');
+  await tester.tap(find.text('Continuar'));await tester.pumpAndSettle();
+  expect(find.text('Taxa de antecipação: - R\$ 5,00'),findsOneWidget);
+  expect(find.text('Você receberá: R\$ 55,00'),findsOneWidget);
   expect(tester.takeException(),isNull);
  });
 }
