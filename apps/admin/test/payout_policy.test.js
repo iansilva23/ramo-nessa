@@ -1,3 +1,4 @@
+import { createAdminApi } from '../src/api.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -39,4 +40,17 @@ test("Asaas configuration status never represents a confirmed transfer", () => {
     /desativada/,
   );
   assert.match(asaasIntegrationMessage(), /aguardando/);
+});
+
+test('Financeiro client sends the quoted policy fields to the existing owner-only endpoint', async () => {
+ const calls=[];
+ const api=createAdminApi(async(url,init)=>{calls.push({url,init});return new Response(JSON.stringify({mode:'manual'}),{status:200,headers:{'content-type':'application/json'}});});
+ await api.updateFinancePayoutPolicy('fixture-admin-token',{mode:'manual',anticipationMinimumCents:5000,anticipationFeeCents:500});
+ assert.equal(calls[0].url,'/v1/admin/finance/payout-policy');
+ assert.equal(calls[0].init.method,'PATCH');
+ assert.deepEqual(JSON.parse(calls[0].init.body),{mode:'manual',anticipationMinimumCents:5000,anticipationFeeCents:500});
+ assert.equal(calls[0].init.headers.authorization,'Bearer fixture-admin-token');
+ assert.equal(calls[0].url.includes('fixture-admin-token'),false);
+ await api.updateFinancePayoutPolicy('fixture-admin-token',{automaticEnabled:false});
+ assert.deepEqual(JSON.parse(calls[1].init.body),{automaticEnabled:false});
 });

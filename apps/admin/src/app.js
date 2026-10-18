@@ -4116,11 +4116,13 @@ async function handleFinancePayoutModeToggle() {
   let amounts;
   try { amounts = parsePayoutPolicyAmounts(byId('finance-anticipation-minimum')?.value, byId('finance-anticipation-fee')?.value); }
   catch (error) { setMessage(globalMessage, error.message, 'error'); return; }
-  const confirmed = window.confirm(mode === 'manual'
+  const policySummary = `Antecipação: mínimo ${formatCurrencyCents(amounts.anticipationMinimumCents)}, taxa ${formatCurrencyCents(amounts.anticipationFeeCents)}. Vale apenas para novas solicitações.`;
+  const modeQuestion = mode === 'manual'
     ? 'Usar Pix manual pelo banco? Os ciclos automáticos ficarão desligados.'
     : mode === 'semi_automatic'
       ? 'Usar envio pela API somente após sua confirmação no ADM?'
-      : 'Ativar repasses automáticos de segunda, quarta e sexta às 07:00?');
+      : 'Ativar repasses automáticos de segunda, quarta e sexta às 07:00?';
+  const confirmed = window.confirm(`${modeQuestion}\n\n${policySummary}`);
   if (!confirmed) return;
 
   const button = byId('finance-payout-mode-toggle');
@@ -4133,9 +4135,9 @@ async function handleFinancePayoutModeToggle() {
     await loadFinance({ announce: false });
     setMessage(
       globalMessage,
-      enable
+      (enable
         ? 'Repasses automáticos reativados.'
-        : mode === 'semi_automatic' ? 'Modo semiautomático ativado.' : 'Modo manual ativado.',
+        : mode === 'semi_automatic' ? 'Modo semiautomático ativado.' : 'Modo manual ativado.') + ` ${policySummary}`,
       'success',
     );
     if (hasScope('audit:read')) {

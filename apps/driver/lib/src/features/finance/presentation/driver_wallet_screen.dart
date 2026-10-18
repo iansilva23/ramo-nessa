@@ -91,7 +91,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
     var keyType = _payoutDestination?.pixKeyType ?? 'cpf';
     final controller = TextEditingController();
 
-    final submitted = await showDialog<({String type, String key})>(
+    final route = DialogRoute<({String type, String key})>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
@@ -174,6 +174,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
       ),
     );
 
+    final submitted = await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
     controller.dispose();
     if (submitted == null || !mounted) return;
 
@@ -236,7 +238,7 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
     );
     String? validationMessage;
 
-    final amount = await showDialog<int>(
+    final route = DialogRoute<int>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
@@ -305,6 +307,8 @@ class _DriverWalletScreenState extends State<DriverWalletScreen> {
       ),
     );
 
+    final amount = await Navigator.of(context, rootNavigator: true).push(route);
+    await route.completed;
     controller.dispose();
     return amount;
   }
