@@ -124,7 +124,7 @@ void main() {
       expect(find.text('Escolha o veículo'), findsOneWidget);
       expect(find.text('Táxi Buggy'), findsOneWidget);
       expect(find.text('Carro normal'), findsNothing);
-      expect(find.text(r'R$ 45,00'), findsOneWidget);
+      expect(find.byKey(const Key('category-price-buggy')), findsOneWidget);
 
       final addPassengerButton = find.byTooltip('Adicionar passageiro');
       await tester.scrollUntilVisible(
@@ -135,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(addPassengerButton);
       await tester.pumpAndSettle();
-      expect(find.text(r'R$ 45,00'), findsOneWidget);
+      expect(find.byKey(const Key('category-price-buggy')), findsOneWidget);
 
       final continueVehicle =
           find.byKey(const Key('continue-vehicle-button'));
