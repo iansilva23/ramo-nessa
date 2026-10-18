@@ -58,15 +58,15 @@ for(const width of [390,1280])test('Financeiro owner edits and persists configur
   await page.locator('#finance-payout-mode-toggle').click();await page.waitForFunction(()=>document.getElementById('fixture-message').textContent.includes('125,00'));
   assert.deepEqual(requests,[{mode:'manual',anticipationMinimumCents:12500,anticipationFeeCents:1250}]);
   assert.equal(await page.locator('#finance-anticipation-minimum').inputValue(),'125,00');
-  assert.equal(await page.locator('#finance-payout-mode option[value="semi_automatic"]').isDisabled(),true);
-  assert.equal(await page.locator('#finance-payout-mode option[value="automatic"]').isDisabled(),true);
-  await page.locator('#finance-anticipation-fee').fill('125,00');await page.locator('#finance-payout-mode-toggle').click();
-  await page.waitForFunction(()=>document.getElementById('fixture-message').textContent.includes('taxa menor'));
-  assert.equal(requests.length,1);assert.deepEqual(errors,[]);
+  assert.equal(await page.locator('#finance-payout-mode option[value="semi_automatic"]').evaluate(option=>option.disabled),true);
+  assert.equal(await page.locator('#finance-payout-mode option[value="automatic"]').evaluate(option=>option.disabled),true);
   const panel=page.locator('.panel-card').filter({has:page.getByRole('heading',{name:'Controle de repasses',exact:true})});
   await panel.scrollIntoViewIfNeeded();await panel.screenshot({path:`artifacts/asaas-finance/owner-${width}.png`});
   const overflow=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,elements:[...document.querySelectorAll('main *')].filter(n=>n.getBoundingClientRect().right>innerWidth+1).slice(0,25).map(n=>({tag:n.tagName,id:n.id,class:n.className,right:n.getBoundingClientRect().right}))}));
   assert.ok(overflow.scrollWidth<=width,JSON.stringify(overflow));
+  await page.locator('#finance-anticipation-fee').fill('125,00');await page.locator('#finance-payout-mode-toggle').click();
+  await page.waitForFunction(()=>document.getElementById('fixture-message').textContent.includes('taxa menor'));
+  assert.equal(requests.length,1);assert.deepEqual(errors,[]);
  }finally{await context.close();}
 });
 test('Financeiro reader cannot edit policy or arm payouts',async()=>{
