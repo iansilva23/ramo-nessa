@@ -61,6 +61,8 @@ test('resumo separa saldo disponível de saque pendente', async () => {
       availableBalanceCents: 9000,
       payoutPendingCents: 0,
       cashCommissionDebtCents: 0,
+    anticipationMinimumCents: 8000,
+    anticipationFeeCents: 1000,
     },
   );
 
@@ -78,6 +80,8 @@ test('resumo separa saldo disponível de saque pendente', async () => {
     availableBalanceCents: 1000,
     payoutPendingCents: 8000,
     cashCommissionDebtCents: 0,
+    anticipationMinimumCents: 8000,
+    anticipationFeeCents: 1000,
   });
 });
 
@@ -161,6 +165,8 @@ test('solicitação idempotente não reserva saldo duas vezes', async () => {
     availableBalanceCents: 1000,
     payoutPendingCents: 8000,
     cashCommissionDebtCents: 0,
+    anticipationMinimumCents: 8000,
+    anticipationFeeCents: 1000,
   });
 });
 

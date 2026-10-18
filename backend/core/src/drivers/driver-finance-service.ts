@@ -1,6 +1,6 @@
 import type { FinanceRepository } from '../payments/finance-repository.js';
 import { requestDriverPayout } from '../payments/request-payout.js';
-import { PayoutDomainError } from '../payments/payout.js';
+import { anticipationPolicy, PayoutDomainError } from '../payments/payout.js';
 
 export const DRIVER_ANTICIPATION_MINIMUM_CENTS = 8_000;
 export const DRIVER_ANTICIPATION_FEE_CENTS = 1_000;
@@ -9,13 +9,17 @@ export interface DriverFinanceSummary {
   availableBalanceCents: number;
   payoutPendingCents: number;
   cashCommissionDebtCents: number;
+  anticipationMinimumCents: number;
+  anticipationFeeCents: number;
 }
 
 export async function driverFinanceSummary(
   repository: FinanceRepository,
   driverId: string,
 ): Promise<DriverFinanceSummary> {
+  const policy = anticipationPolicy(await repository.getDriverPayoutSettings());
   return {
+    ...policy,
     availableBalanceCents: await repository.getAccountBalanceCents(
       `driver:${driverId}:payable`,
     ),
@@ -97,21 +101,34 @@ export async function requestDriverPayoutFromApp(input: {
   driverId: string;
   amountCents: number;
   idempotencyKey: string;
+  expectedFeeCents?: number;
+  expectedMinimumCents?: number;
 }) {
-  if (input.amountCents < DRIVER_ANTICIPATION_MINIMUM_CENTS) {
+  const existing = await input.repository.findDriverPayoutByIdempotencyKey(input.idempotencyKey.trim());
+  if (existing) {
+    if (existing.driverId !== input.driverId || existing.payoutKind !== 'anticipation' || existing.requestedAmountCents !== input.amountCents) {
+      throw new PayoutDomainError('PAYOUT_IDEMPOTENCY_CONFLICT', 'A solicitação já existe com outros dados.');
+    }
+    return { payout: existing, duplicateRequest: true, finance: await driverFinanceSummary(input.repository, input.driverId) };
+  }
+  const policy = anticipationPolicy(await input.repository.getDriverPayoutSettings());
+  if ((input.expectedFeeCents ?? 1000) !== policy.anticipationFeeCents || (input.expectedMinimumCents ?? 8000) !== policy.anticipationMinimumCents) {
+    throw new PayoutDomainError('PAYOUT_POLICY_CHANGED', 'As condições da antecipação mudaram. Atualize a carteira e confirme os novos valores.');
+  }
+  if (input.amountCents < policy.anticipationMinimumCents) {
     throw new PayoutDomainError(
       'PAYOUT_ANTICIPATION_MINIMUM',
-      'A antecipação mínima é de R$ 80,00.',
+      `A antecipação mínima é de R$ ${(policy.anticipationMinimumCents / 100).toFixed(2).replace('.', ',')}.`,
     );
   }
 
   const netAmountCents =
-    input.amountCents - DRIVER_ANTICIPATION_FEE_CENTS;
+    input.amountCents - policy.anticipationFeeCents;
   const result = await requestDriverPayout(input.repository, {
     driverId: input.driverId,
     amountCents: netAmountCents,
     requestedAmountCents: input.amountCents,
-    feeCents: DRIVER_ANTICIPATION_FEE_CENTS,
+    feeCents: policy.anticipationFeeCents,
     payoutKind: 'anticipation',
     executionMode: 'manual',
     idempotencyKey: input.idempotencyKey,

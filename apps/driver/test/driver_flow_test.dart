@@ -1077,6 +1077,8 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi {
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
+    int? expectedFeeCents,
+    int? expectedMinimumCents,
   }) async {
     lastPayoutAmountCents = amountCents;
     payoutAttempts++;

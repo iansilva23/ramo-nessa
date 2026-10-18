@@ -1,3 +1,4 @@
+import { parsePayoutPolicyAmounts, asaasIntegrationMessage } from './payout-policy.js';
 import { createSiteAdmin } from './site-admin.js';
 let siteAdmin = null;
 import { createGrowthAdmin } from './growth-admin.js';
@@ -3478,6 +3479,7 @@ function renderCompanyPayoutControls() {
   const payoutReady =
     canManage &&
     company.destinationConfigured === true &&
+    company.apiAvailable !== false &&
     availableCents >= 100;
 
   if (amount != null) {
@@ -3496,6 +3498,8 @@ function renderCompanyPayoutControls() {
     actionNote.textContent =
       company.canManage !== true
         ? 'Somente o proprietário autorizado pode movimentar este saldo.'
+        : company.apiAvailable === false
+          ? 'A Asaas atende somente motoristas. Retirada da empresa requer um provedor próprio.'
         : company.destinationConfigured !== true
           ? 'Cadastre uma chave Pix para habilitar a retirada.'
           : availableCents < 100
@@ -3672,7 +3676,7 @@ function renderFinancePayoutPolicy() {
     modeSelect.value = mode;
     for (const option of modeSelect.options) option.disabled = option.value !== 'manual' && policy?.apiAvailable !== true;
   }
-  const canWrite = financeWritesAvailable();
+  const canWrite = financeWritesAvailable() && state.finance.payoutReconciliation?.canManage === true;
 
   status.className = automaticEnabled
     ? 'pill pill--success'
@@ -3685,7 +3689,12 @@ function renderFinancePayoutPolicy() {
       ? (mode === 'semi_automatic' ? 'Semiautomático' : 'Manual')
       : 'Indisponível';
 
-  toggle.textContent = 'Salvar modo de repasse';
+  toggle.textContent = 'Salvar controle de repasses';
+  const minimumInput = byId('finance-anticipation-minimum');
+  const feeInput = byId('finance-anticipation-fee');
+  if (minimumInput) { minimumInput.value = ((policy?.anticipationMinimumCents ?? 8000) / 100).toFixed(2).replace('.', ','); minimumInput.disabled = !loaded || !canWrite; }
+  if (feeInput) { feeInput.value = ((policy?.anticipationFeeCents ?? 1000) / 100).toFixed(2).replace('.', ','); feeInput.disabled = !loaded || !canWrite; }
+  if (byId('finance-asaas-status')) byId('finance-asaas-status').textContent = asaasIntegrationMessage(policy?.asaas);
   toggle.disabled = !loaded || !canWrite;
   if (modeSelect) modeSelect.disabled = !loaded || !canWrite;
   note.textContent = automaticEnabled
@@ -3843,11 +3852,13 @@ function renderFinancePayoutDetail(payout = null) {
   byId('finance-payout-detail-processor').textContent =
     payout.processor ?? 'Ainda não informado';
   byId('finance-payout-detail-reference').textContent =
-    payout.processorPayoutId ?? '—';
+    payout.asaasTransfer?.transferId ?? payout.processorPayoutId ?? '—';
 
   const detailCopy = byId('finance-payout-detail-copy');
   if (detailCopy != null) {
-    detailCopy.textContent = requiresApproval
+    detailCopy.textContent = payout.processor === 'asaas' && payout.status === 'processing' && !payout.asaasTransfer?.transferId
+      ? 'Envio Asaas aguardando conciliação. O saldo permanece reservado. Não refaça o Pix pelo banco: uma tentativa pode ter sido aceita sem devolver a resposta.'
+      : requiresApproval
       ? `O motorista solicitou ${formatCurrencyCents(grossCents)}. A taxa é ${formatCurrencyCents(feeCents)} e o Pix líquido será ${formatCurrencyCents(payout.amountCents)}. Após sua aprovação, faça o Pix pelo banco e registre o comprovante.`
       : payout.payoutKind === 'scheduled'
         ? 'Repasse normal criado pelo ciclo de segunda, quarta e sexta às 07:00.'
@@ -3888,7 +3899,7 @@ function renderFinancePayoutDetail(payout = null) {
       payout.approvedAt == null ||
       payout.payoutKind === 'legacy'
     );
-  cancelButton.disabled = !cancellationAllowed;
+  cancelButton.disabled = !cancellationAllowed || (payout.processor === 'asaas' && payout.status === 'processing');
   cancelButton.textContent = requiresApproval
     ? 'Recusar antecipação'
     : 'Cancelar solicitação';
@@ -4030,7 +4041,7 @@ async function handleFinancePayoutPaid(event) {
     button.disabled =
       !financeWritesAvailable() ||
       current == null ||
-      !['requested', 'processing'].includes(current.status);
+      !['requested', 'processing'].includes(current.status) || (current.processor === 'asaas' && current.status === 'processing');
   }
 }
 
@@ -4087,7 +4098,7 @@ async function handleFinancePayoutCancel() {
     button.disabled =
       !financeWritesAvailable() ||
       current == null ||
-      !['requested', 'processing'].includes(current.status);
+      !['requested', 'processing'].includes(current.status) || (current.processor === 'asaas' && current.status === 'processing');
   }
 }
 
@@ -4102,11 +4113,16 @@ async function handleFinancePayoutModeToggle() {
 
   const mode = byId('finance-payout-mode')?.value ?? 'manual';
   const enable = mode === 'automatic';
-  const confirmed = window.confirm(mode === 'manual'
+  let amounts;
+  try { amounts = parsePayoutPolicyAmounts(byId('finance-anticipation-minimum')?.value, byId('finance-anticipation-fee')?.value); }
+  catch (error) { setMessage(globalMessage, error.message, 'error'); return; }
+  const policySummary = `Antecipação: mínimo ${formatCurrencyCents(amounts.anticipationMinimumCents)}, taxa ${formatCurrencyCents(amounts.anticipationFeeCents)}. Vale apenas para novas solicitações.`;
+  const modeQuestion = mode === 'manual'
     ? 'Usar Pix manual pelo banco? Os ciclos automáticos ficarão desligados.'
     : mode === 'semi_automatic'
       ? 'Usar envio pela API somente após sua confirmação no ADM?'
-      : 'Ativar repasses automáticos de segunda, quarta e sexta às 07:00?');
+      : 'Ativar repasses automáticos de segunda, quarta e sexta às 07:00?';
+  const confirmed = window.confirm(`${modeQuestion}\n\n${policySummary}`);
   if (!confirmed) return;
 
   const button = byId('finance-payout-mode-toggle');
@@ -4114,13 +4130,14 @@ async function handleFinancePayoutModeToggle() {
   try {
     await api.updateFinancePayoutPolicy(state.token, {
       mode,
+      ...amounts,
     });
     await loadFinance({ announce: false });
     setMessage(
       globalMessage,
-      enable
+      (enable
         ? 'Repasses automáticos reativados.'
-        : mode === 'semi_automatic' ? 'Modo semiautomático ativado.' : 'Modo manual ativado.',
+        : mode === 'semi_automatic' ? 'Modo semiautomático ativado.' : 'Modo manual ativado.') + ` ${policySummary}`,
       'success',
     );
     if (hasScope('audit:read')) {

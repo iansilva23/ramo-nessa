@@ -1,3 +1,4 @@
+import { InMemoryAsaasPayoutStore, PostgresAsaasPayoutStore, type AsaasPayoutStore } from '../payments/asaas-payout-store.js';
 import { InMemoryGrowthRepository, PostgresGrowthRepository, type GrowthRepository } from '../growth/growth-repository.js';
 import { InMemoryCompanyCostRepository, PostgresCompanyCostRepository, type CompanyCostRepository } from '../costs/company-cost-repository.js';
 import { InMemorySavedCardRepository, PostgresSavedCardRepository, type SavedCardRepository } from '../payments/saved-card-repository.js';
@@ -73,6 +74,7 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  asaasPayoutStore: AsaasPayoutStore;
   authSessionRepository: AuthSessionRepository;
   authOtpRepository: AuthOtpRepository;
   adminRepository: AdminRepository;
@@ -116,6 +118,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      asaasPayoutStore: new PostgresAsaasPayoutStore(pool),
       authSessionRepository: new PostgresAuthSessionRepository(pool),
       authOtpRepository: new PostgresAuthOtpRepository(pool),
       adminRepository: new PostgresAdminRepository(pool),
@@ -178,6 +181,7 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    asaasPayoutStore: new InMemoryAsaasPayoutStore(),
     authSessionRepository: new InMemoryAuthSessionRepository(),
     authOtpRepository: new InMemoryAuthOtpRepository(),
     adminRepository,

@@ -308,6 +308,8 @@ class DriverFinanceSummary {
     required this.availableBalanceCents,
     required this.payoutPendingCents,
     this.cashCommissionDebtCents = 0,
+    this.anticipationMinimumCents = 8000,
+    this.anticipationFeeCents = 1000,
   });
 
   factory DriverFinanceSummary.fromJson(Map<String, dynamic> json) {
@@ -316,6 +318,8 @@ class DriverFinanceSummary {
           (json['availableBalanceCents'] as num).toInt(),
       payoutPendingCents:
           (json['payoutPendingCents'] as num).toInt(),
+      anticipationMinimumCents: (json['anticipationMinimumCents'] as num?)?.toInt() ?? 8000,
+      anticipationFeeCents: (json['anticipationFeeCents'] as num?)?.toInt() ?? 1000,
       cashCommissionDebtCents:
           (json['cashCommissionDebtCents'] as num?)?.toInt() ?? 0,
     );
@@ -324,6 +328,8 @@ class DriverFinanceSummary {
   final int availableBalanceCents;
   final int payoutPendingCents;
   final int cashCommissionDebtCents;
+  final int anticipationMinimumCents;
+  final int anticipationFeeCents;
 }
 
 class DriverStatementItem {

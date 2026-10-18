@@ -327,11 +327,14 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/finance/payouts/reconcile', { method: 'POST', token });
     },
 
-    updateFinancePayoutPolicy(token, { automaticEnabled, mode }) {
+    updateFinancePayoutPolicy(token, { automaticEnabled, mode, anticipationMinimumCents, anticipationFeeCents }) {
       return request('/v1/admin/finance/payout-policy', {
         method: 'PATCH',
         token,
-        body: mode == null ? { automaticEnabled } : { mode },
+        body: { ...(mode == null ? { automaticEnabled } : { mode }),
+          ...(anticipationMinimumCents === undefined ? {} : { anticipationMinimumCents }),
+          ...(anticipationFeeCents === undefined ? {} : { anticipationFeeCents }),
+        },
       });
     },
 

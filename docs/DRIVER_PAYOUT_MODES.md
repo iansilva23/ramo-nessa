@@ -10,9 +10,9 @@ Antecipações solicitadas pelo motorista continuam separadas: aprovação do pr
 
 A reserva guarda o canal de execução. Uma reserva manual nunca é enviada pelo worker de API, mesmo que a política seja alterada posteriormente. Repasses já enviados por API continuam sendo conciliados. A referência do comprovante é obrigatória para registrar pagamentos manuais.
 
-## Asaas pendente
+## Asaas
 
-A conta Asaas ainda aguarda aprovação. O ADM apresenta o espaço e o estado da integração, mas esta entrega **não inclui um adaptador Asaas nem envio real pela Asaas**. Depois da aprovação será necessário implementar/homologar o adaptador `DriverPayoutProvider`, configurar a credencial privada no servidor e validar criação, consulta, falhas e idempotência. Apenas inserir uma chave não conclui essa integração. Não há campo de segredo no navegador.
+A integração específica dos repasses está implementada, com ativação explícita, tentativas persistidas e webhook autenticado. A aprovação da conta não ativa envios. Ver configuração, proteções e limites em [ASAAS_DRIVER_PAYOUTS.md](ASAAS_DRIVER_PAYOUTS.md). Homologação com a API sandbox e implantação continuam sendo etapas separadas.
 
 O recebimento dos passageiros pelo Mercado Pago permanece no fluxo existente. Não há novos repasses reais nesta entrega.
 
