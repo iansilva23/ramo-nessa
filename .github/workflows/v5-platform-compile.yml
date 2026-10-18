@@ -1,7 +1,7 @@
 name: Ramo Nessa V5 - Platform Compilation
 on:
   push:
-    branches: [feature/v5-seven-fixes-20261016]
+    branches: [feature/v5-seven-fixes-20261016, fix/pricing-route-eligibility-20261018]
     # ADM-only changes should not cancel or restart long Android/iOS builds.
     paths:
       - 'apps/passenger/**'
