@@ -45,7 +45,13 @@ export interface DistanceFarePolicy {
   id: string;
   anchorZoneId: ZoneId;
   anchorLocalityId: string;
-  category: Exclude<ServiceCategory, 'buggy'>;
+  category: ServiceCategory;
+  // Existing anchor rules remain unchanged. Regional rules are opt-in only
+  // and cannot price an unlisted locality or any inter-zone route.
+  scope?: 'intra_zone';
+  coveredLocalityIds?: string[];
+  after22MinimumFareCents?: number;
+  after22PricePerKmCents?: number;
   minKm: number;
   maxKm: number;
   minimumFareCents: number;
