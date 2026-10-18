@@ -10,6 +10,8 @@ import 'package:ramo_nessa_passenger/src/features/map/data/route_service.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/map/domain/route_info.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/data/pricing_quote_service.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/card_ride_payment_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/cash_ride_authorization_result.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/domain/passenger_payment_policy.dart';
@@ -80,6 +82,7 @@ void main() {
           locationService: _FakeLocationService(),
           routeService: _FakeRouteService(),
           placeSearchService: search,
+          pricingQuoteService: _FakePricingQuoteService(),
           ridePreparationService: _FakeRidePreparationService(),
           paymentService: _FakePassengerPaymentService(),
           networkTilesEnabled: false,
@@ -117,11 +120,11 @@ void main() {
       await tester.tap(confirmDestination);
       await tester.pumpAndSettle();
 
-      // Etapa 2: categorias permitidas, ainda sem preço.
+      // Etapa 2: categorias permitidas com cotação de teste confirmada.
       expect(find.text('Escolha o veículo'), findsOneWidget);
       expect(find.text('Táxi Buggy'), findsOneWidget);
       expect(find.text('Carro normal'), findsNothing);
-      expect(find.textContaining(r'R$'), findsNothing);
+      expect(find.byKey(const Key('category-price-buggy')), findsOneWidget);
 
       final addPassengerButton = find.byTooltip('Adicionar passageiro');
       await tester.scrollUntilVisible(
@@ -132,7 +135,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(addPassengerButton);
       await tester.pumpAndSettle();
-      expect(find.textContaining(r'R$'), findsNothing);
+      expect(find.byKey(const Key('category-price-buggy')), findsOneWidget);
 
       final continueVehicle =
           find.byKey(const Key('continue-vehicle-button'));
@@ -302,6 +305,7 @@ void main() {
         locationService: _FakeLocationService(),
         routeService: _FakeRouteService(),
         placeSearchService: search,
+        pricingQuoteService: _FakePricingQuoteService(),
         ridePreparationService: _FakeRidePreparationService(),
         paymentService: _FakePassengerPaymentService(),
         rideTrackingService: _FakeRideTrackingService(),
@@ -523,6 +527,24 @@ class _FakePlaceSearchService implements PlaceSearchService {
   }
 }
 
+
+class _FakePricingQuoteService implements PricingQuoteService {
+  @override
+  Future<PricingQuote> quote({
+    required ServiceType service,
+    required RamoPlace origin,
+    required RamoPlace destination,
+    required String originZoneId,
+    required String destinationZoneId,
+    required RouteInfo route,
+    int passengers = 1,
+    DateTime? now,
+  }) async => PricingQuote.fromJson({
+    'kind': 'exact',
+    'ruleId': 'flow-test-quote',
+    'totalAmountCents': 4500,
+  });
+}
 
 class _FakeRidePreparationService implements RidePreparationService {
   @override

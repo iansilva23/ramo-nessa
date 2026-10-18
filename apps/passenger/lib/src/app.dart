@@ -20,6 +20,7 @@ import 'features/map/data/core_route_service.dart';
 import 'features/map/data/place_search_service.dart';
 import 'features/map/data/route_service.dart';
 import 'features/pricing/data/pricing_policy_service.dart';
+import 'features/pricing/data/pricing_quote_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
@@ -37,6 +38,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
     this.routeService,
     this.placeSearchService,
     this.pricingPolicyService,
+    this.pricingQuoteService,
     this.ridePreparationService,
     this.paymentService,
     this.rideTrackingService,
@@ -50,6 +52,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
   final PricingPolicyService? pricingPolicyService;
+  final PricingQuoteService? pricingQuoteService;
   final RidePreparationService? ridePreparationService;
   final PassengerPaymentService? paymentService;
   final PassengerRideTrackingService? rideTrackingService;
@@ -141,6 +144,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
           placeSearchService: resolvedPlaceSearchService,
           savedPlaceService: services.savedPlaces,
           pricingPolicyService: pricingPolicyService,
+          pricingQuoteService: pricingQuoteService,
           ridePreparationService:
               ridePreparationService ?? services.preparation,
           paymentService: services.payments,

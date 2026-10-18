@@ -187,10 +187,25 @@ function quoteFixedRoute(
   const a = endpointId(request.origin);
   const b = endpointId(request.destination);
 
-  const rule = catalog.fixedRoutes.find(
+  // A zone-level transfer price must not disappear when the Maps catalog
+  // supplies a verified sublocality (e.g. prea/vila-prea). Match specific
+  // fixed routes first, then the approved inter-zone anchors. Never apply
+  // the zone fallback within a zone: locality fares must keep precedence.
+  const specificRule = catalog.fixedRoutes.find(
     (candidate) =>
       candidate.category === request.category &&
       matchesPair(candidate.a, candidate.b, a, b),
+  );
+  const anchorA = request.origin.zoneId === 'external'
+    ? a : request.origin.zoneId;
+  const anchorB = request.destination.zoneId === 'external'
+    ? b : request.destination.zoneId;
+  const rule = specificRule ?? (
+    request.origin.zoneId !== request.destination.zoneId
+      ? catalog.fixedRoutes.find((candidate) =>
+          candidate.category === request.category &&
+          matchesPair(candidate.a, candidate.b, anchorA, anchorB))
+      : undefined
   );
 
   if (rule == null) return null;
@@ -448,11 +463,19 @@ function assertApprovedRoute(request: QuoteRequest, catalog: PricingCatalogSnaps
   const originJeri = request.origin.zoneId === 'jericoacoara';
   const destinationJeri = request.destination.zoneId === 'jericoacoara';
   if (!originJeri && !destinationJeri) return;
-  const other = endpointId(originJeri ? request.destination : request.origin);
+  const otherRef = originJeri ? request.destination : request.origin;
+  const other = endpointId(otherRef);
   const local = originJeri && destinationJeri;
+  // Approved transfers are configured by regional anchor; a verified
+  // sublocality inside Preá/Jijoca must not be rejected as another zone.
+  // External destinations remain explicit IDs, never a wildcard.
+  const transferAllowed = policy.jeriTransferDestinationIds.includes(other) ||
+    (otherRef.zoneId !== 'external' &&
+      policy.jeriTransferDestinationIds.includes(otherRef.zoneId));
+  const buggyToPrea = other === 'prea' || otherRef.zoneId === 'prea';
   const allowed = local ? ['buggy','delivery'].includes(request.category)
-    : (['car','comfort_black'].includes(request.category) && policy.jeriTransferDestinationIds.includes(other)) ||
-      (request.category === 'buggy' && other === 'prea');
+    : (['car','comfort_black'].includes(request.category) && transferAllowed) ||
+      (request.category === 'buggy' && buggyToPrea);
   if (!allowed) throw new PricingError('UNAVAILABLE_CATEGORY','Esta categoria não opera nesta rota de Jericoacoara.');
 }
 

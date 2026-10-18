@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/v5-seven-fixes-20261016
+      - fix/pricing-route-eligibility-20261018
   workflow_dispatch:
 
 permissions:

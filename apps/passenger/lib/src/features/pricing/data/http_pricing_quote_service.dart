@@ -76,6 +76,7 @@ class HttpPricingQuoteService implements PricingQuoteService {
         decoded,
         'Não conseguimos obter o preço dessa rota agora.',
       ),
+      code: decoded?['error'] is String ? decoded!['error'] as String : null,
     );
   }
 }
