@@ -136,7 +136,7 @@ void main() {
       return price(selection.service == ServiceType.car ? 2500 : 700);
     }));
     await tester.pumpAndSettle();
-    expect(find.text('Preço indisponível'), findsOneWidget);
+    expect(find.text('Falha na cotação'), findsOneWidget);
     expect(find.text(r'R$ 7,00'), findsOneWidget);
     fail = false;
     await tester.scrollUntilVisible(
@@ -147,7 +147,7 @@ void main() {
     await tester.tap(find.text('Atualizar preços'));
     await tester.pumpAndSettle();
     expect(find.text(r'R$ 25,00'), findsOneWidget);
-    expect(find.text('Preço indisponível'), findsNothing);
+    expect(find.text('Falha na cotação'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

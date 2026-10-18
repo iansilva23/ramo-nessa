@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/home/domain/service_type.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_selection_screen.dart';
+import 'package:ramo_nessa_passenger/src/features/pricing/domain/pricing_quote.dart';
 
 void main() {
   testWidgets(
@@ -17,6 +18,11 @@ void main() {
             initialService: ServiceType.buggy,
             buggyMinPassengers: 2,
             buggyMaxPassengers: 3,
+            onQuote: (_) async => PricingQuote.fromJson({
+              'kind': 'exact',
+              'ruleId': 'buggy-ui-test',
+              'totalAmountCents': 4500,
+            }),
             onContinue: (_) async => null,
           ),
         ),
@@ -24,7 +30,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Táxi Buggy'), findsOneWidget);
-      expect(find.textContaining(r'R$'), findsNothing);
+      expect(find.text(r'R$ 45,00'), findsOneWidget);
 
       final remove = find.widgetWithIcon(
         IconButton,
