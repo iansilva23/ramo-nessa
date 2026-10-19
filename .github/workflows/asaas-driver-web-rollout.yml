@@ -1,0 +1,22 @@
+name: Asaas driver Web rollout contracts
+on:
+  push:
+    branches: [ops/asaas-pricing-integration-20261019]
+    paths:
+      - deploy/staging/*asaas-driver-web*
+      - .github/workflows/asaas-driver-web-rollout.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check deploy/staging/prepare-asaas-driver-web.mjs
+      - run: node --test deploy/staging/asaas-driver-web-contract.test.mjs
+      - run: python3 -m unittest discover -s deploy/staging -p test_stage_asaas_driver_web.py -v
