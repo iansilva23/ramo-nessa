@@ -441,3 +441,26 @@ test('frontend só envia publicação após confirmação e com versão atualiza
   assert.match(handler, /button\.disabled = true/);
   assert.match(handler, /finally \{\s*button\.disabled = false/);
 });
+
+
+test('matriz de tarifas liga filtros e edições a rascunhos protegidos', () => {
+  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('function editPricingFromMatrix(');
+  const end=app.indexOf('function renderPricingCatalog(',start);
+  assert.ok(start>=0 && end>start);
+  const matrix=app.slice(start,end);
+  assert.match(matrix,/state\.selectedPricingVersion\?\.status !== 'draft'/);
+  assert.match(matrix,/hasScope\('pricing:write'\)/);
+  assert.match(matrix,/\['day','Dia'\],\['after_22','Noite'\]/);
+  assert.match(matrix,/pricing-rate-search/);
+  assert.match(matrix,/pricing-rate-region/);
+  assert.match(matrix,/pricing-rate-category/);
+  assert.match(matrix,/item\.enabled === false \? 'Categoria desativada'/);
+  assert.match(matrix,/isDistanceMinimum \? 'Mín\. ' : ''/);
+  assert.match(matrix,/body\.replaceChildren\(\)/);
+  assert.equal(matrix.includes('.innerHTML'),false);
+  const route=app.slice(app.indexOf('function bindRouteEvents('));
+  for(const id of ['pricing-rate-search','pricing-rate-region','pricing-rate-category']) {
+    assert.ok(route.includes(id),'Filtro não ligado: '+id);
+  }
+});
