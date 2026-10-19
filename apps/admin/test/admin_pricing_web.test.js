@@ -381,3 +381,44 @@ test('ADM não converte erro de permissão em publicação bem-sucedida', async 
   assert.equal(calls[0].options.method,'POST');
   assert.equal(calls[0].options.credentials,'omit');
 });
+
+
+test('ADM persiste edição de rascunho e relê a versão sem publicar tarifa', async () => {
+  const token = 'isolated_test_token';
+  const versionId = '11111111-1111-4111-8111-111111111111';
+  let version = null;
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push([url, options.method]);
+    if (url === '/v1/admin/pricing/versions' && options.method === 'POST') {
+      version = {id:versionId,status:'draft',updatedAt:'2026-10-19T12:00:00.000Z'};
+      return jsonResponse(201, version);
+    }
+    if (url === '/v1/admin/pricing/versions/' + versionId && options.method === 'PATCH') {
+      const payload = JSON.parse(options.body);
+      if (payload.expectedUpdatedAt !== version.updatedAt) {
+        return jsonResponse(409,{error:'VERSION_CONFLICT'});
+      }
+      version = {...version,updatedAt:'2026-10-19T12:01:00.000Z',
+        dayCents:payload.dayCents,after22Cents:payload.after22Cents};
+      return jsonResponse(200,version);
+    }
+    if (url === '/v1/admin/pricing/versions/' + versionId && options.method === 'GET') {
+      return jsonResponse(200,structuredClone(version));
+    }
+    throw new Error('Requisição inesperada: ' + options.method + ' ' + url);
+  });
+  const draft = await api.createPricingVersion(token);
+  assert.equal(draft.status, 'draft');
+  await api.updatePricingVersion(token,{
+    versionId,expectedUpdatedAt:draft.updatedAt,
+    patch:{kind:'fixed_route',routeId:'prea-jijoca-car',dayCents:13000,after22Cents:15000},
+  });
+  const reloaded = await api.getPricingVersion(token,versionId);
+  assert.equal(reloaded.status,'draft');
+  assert.equal(reloaded.dayCents,13000);
+  assert.equal(reloaded.after22Cents,15000);
+  assert.deepEqual(calls.map(([,method])=>method),['POST','PATCH','GET']);
+  assert.equal(calls.some(([url])=>url.endsWith('/publish')),false,
+    'Salvar um rascunho não pode publicá-lo automaticamente');
+});
