@@ -102,8 +102,10 @@ test('preço do transfer da sede não é aplicado a povoados ou destinos externo
     destination: zone('jericoacoara','jericoacoara'),
     category, period:'day' as const,
   });
-  const allowed = quoteFare(trip('prea','vila-prea'),catalog);
-  assert.equal(allowed.ruleId, 'jeri-prea-car');
+  for (const locality of ['vila-prea','prea-beach-villas','casa-de-praia-teto-branco']) {
+    const allowed = quoteFare(trip('prea',locality),catalog);
+    assert.equal(allowed.ruleId,'jeri-prea-car');
+  }
   const reversed = quoteFare({
     ...trip('prea','vila-prea'),
     origin: zone('jericoacoara','jericoacoara'),

@@ -9,6 +9,7 @@ import {
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
 import { categoryEnabled } from './category-eligibility.js';
+import { APPROVED_PREA_BEACH_LOCALITY_IDS } from './approved-commercial-revision.js';
 import { municipalityFor, isLocalServiceMunicipality } from './municipality-directory.js';
 import { assertCatalogLocationSupported } from './catalog-location-policy.js';
 import { splitCommission } from './commission.js';
@@ -204,7 +205,7 @@ function quoteFixedRoute(
   const canUseHubAnchor = (ref: LocationRef): boolean => {
     if (ref.zoneId === 'external') return ref.localityId != null;
     if (ref.localityId == null || ref.localityId === ref.zoneId) return true;
-    return ref.zoneId === 'prea' && ref.localityId === 'vila-prea';
+    return ref.zoneId === 'prea' && APPROVED_PREA_BEACH_LOCALITY_IDS.has(ref.localityId);
   };
   const anchorA = request.origin.zoneId === 'external'
     ? a : request.origin.zoneId;
