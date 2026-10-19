@@ -25,9 +25,9 @@ export async function testSandboxReceiver({dir,lab,sourceContainer,candidate,pos
   const token=readFileSync(join(lab,'webhook-token'),'utf8'),body={id:'evt-incoming-ci-'+session.id,event:'TRANSFER_DONE',transfer:{id:result.transferId}};
   assert.equal(send('invalid-token',body),401);assert.equal(send(token,body),200);assert.equal(send(token,body),200);
   assert.equal(run(['exec',db,'psql','-U',user,'-d','ramo_asaas_sandbox','-Atq','-c',"SELECT count(*) FROM ledger_transactions WHERE reference_key='driver-payout-paid:"+result.payoutId+"'"]).trim(),'1');
-  const receipts=readFileSync(join(lab,'webhook-receipts.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+  const receipts=JSON.parse(run(['exec',receiver,'node','--input-type=module','-e',"import {readFileSync} from 'node:fs';console.log(JSON.stringify(readFileSync('/audit/data/webhook-receipts.jsonl','utf8').trim().split('\\n').map(JSON.parse)))"]));
   assert.equal(receipts.length,2);assert.equal(receipts[0].localProbe,false);assert.equal(receipts[1].duplicate,true);
-  assert.equal(readFileSync(join(lab,'http-intents.jsonl'),'utf8').split('\n').filter(Boolean).map(JSON.parse).filter(x=>x.method==='POST').length,1);
+  assert.equal(Number(run(['exec',receiver,'node','--input-type=module','-e',"import {readFileSync} from 'node:fs';console.log(readFileSync('/audit/data/http-intents.jsonl','utf8').split('\\n').filter(Boolean).map(JSON.parse).filter(x=>x.method==='POST').length)"])),1);
   console.log('SANDBOX RECEIVER CI PASSED: HTTP authentication, canonical GET, duplicate delivery, durable one-entry ledger. Transport is a fixture; external Asaas delivery remains untested.');
  }finally{if(http)run(['rm','-f',receiver]);if(pg)run(['rm','-f','-v',db]);if(net)run(['network','rm',network]);}
 }
