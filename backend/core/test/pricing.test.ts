@@ -453,9 +453,8 @@ test('tarifas regionais só funcionam após configuração explícita, sem quebr
     ...ride, tripDistanceKm: 13,
   }, snapshot), (error: unknown) =>
     error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
-  assert.throws(() => quoteFare({
-    ...ride, tripDistanceKm: undefined,
-  }, snapshot), (error: unknown) =>
+  const { tripDistanceKm: _distance, ...withoutDistance } = ride;
+  assert.throws(() => quoteFare(withoutDistance, snapshot), (error: unknown) =>
     error instanceof PricingError && error.code === 'MISSING_DISTANCE');
 });
 
@@ -470,7 +469,7 @@ test('regional por quilômetro respeita categorias, lotação e localidade desat
   });
   // Both localities must explicitly have Buggy enabled.
   snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories =
-    [...new Set([...snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories, 'buggy'])];
+    [...new Set([...snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories, 'buggy' as const])];
   const trip = {
     origin: zone('prea', 'vila-prea'),
     destination: zone('prea', 'cavalo-bravo'),
