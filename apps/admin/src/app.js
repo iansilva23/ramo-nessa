@@ -16,6 +16,7 @@ import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
 import { createLocalitiesAdmin } from './localities-admin.js';
 import { createPricingGeofenceMap } from './pricing-geofence-map.js';
+import { buildPricingRateRows, formatPriceView, nightDifference } from './pricing-rate-matrix.js';
 import {
   actionLabel,
   actorLabel,
@@ -5138,6 +5139,123 @@ function openPricingLocalityPolicyEditor(hub, item) {
   });
 }
 
+function editPricingFromMatrix(item, period = 'day') {
+  if (item.kind === 'distance_fare_policy') {
+    setMessage(globalMessage,
+      'Regras por quilômetro são editadas em Nova localidade.', 'info');
+    return;
+  }
+  if (state.selectedPricingVersion?.status !== 'draft' || !hasScope('pricing:write')) {
+    byId('pricing-create-draft-button')?.scrollIntoView({behavior:'smooth',block:'center'});
+    setMessage(globalMessage,
+      'Clique em Começar alterações antes de editar. O catálogo em vigor está protegido.',
+      'warning');
+    return;
+  }
+  byId('pricing-edit-kind').value = item.kind;
+  syncPricingEditFields();
+  if (item.kind === 'fixed_route') {
+    byId('pricing-route-id').value = item.routeId;
+    byId('pricing-route-day').value = pricingCentsToReais(item.day?.amountCents);
+    byId('pricing-route-night').value = pricingCentsToReais(item.night?.amountCents);
+  } else if (item.kind === 'locality_price') {
+    byId('pricing-locality-hub').value = item.region;
+    byId('pricing-locality-id').value = item.localityId;
+    byId('pricing-locality-category').value = item.category;
+    byId('pricing-locality-period').value = period;
+    const price = period === 'after_22' ? item.night : item.day;
+    const cents = price?.kind === 'range' ? price.minCents : price?.amountCents;
+    byId('pricing-locality-price-kind').value = price?.kind ?? 'exact';
+    byId('pricing-locality-min').value = pricingCentsToReais(cents);
+    byId('pricing-locality-max').value = price?.kind === 'range'
+      ? pricingCentsToReais(price.maxCents) : '';
+    syncPricingLocalityPriceFields();
+    if (period === 'after_22' && item.mode !== 'manual') {
+      setMessage(globalMessage,
+        'Ao salvar esse valor você cria uma tarifa noturna específica, que deixa de acompanhar o adicional global.',
+        'info');
+    }
+  }
+  byId('pricing-section-editor')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderPricingCompleteMatrix() {
+  const body = byId('pricing-complete-body');
+  if (!body) return;
+  const query = (byId('pricing-rate-search')?.value ?? '').trim().toLowerCase();
+  const region = byId('pricing-rate-region')?.value ?? '';
+  const category = byId('pricing-rate-category')?.value ?? '';
+  const all = buildPricingRateRows(state.pricingCatalog);
+  const matching = all.filter(item =>
+    (!region || region === item.region) &&
+    (!category || category === item.category) &&
+    (!query || [item.label,item.categoryLabel,item.region,item.routeId,item.localityId]
+      .some(text => String(text ?? '').toLowerCase().includes(query))));
+  body.replaceChildren();
+  for (const item of matching) {
+    const tr = document.createElement('tr');
+    const cell = value => {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.append(td);
+      return td;
+    };
+    const where = item.region === 'prea' ? 'Preá' :
+      item.region === 'jijoca' ? 'Jijoca' :
+      item.region === 'transfer' ? 'Transfer' :
+      item.region === 'jericoacoara' ? 'Jericoacoara' : 'Regional';
+    cell(where + ' · ' + item.label);
+    cell(item.categoryLabel);
+    const isDistanceMinimum = item.kind === 'distance_fare_policy';
+    cell((isDistanceMinimum ? 'Mín. ' : '') + formatPriceView(item.day));
+    cell((isDistanceMinimum ? 'Mín. ' : '') + formatPriceView(item.night));
+    const delta = nightDifference(item.day,item.night);
+    cell(delta == null ? '—' : (
+      delta === 0 ? 'Sem adicional' :
+      (delta > 0 ? '+' : '−') + formatCurrencyCents(Math.abs(delta))
+    ));
+    const rule = item.enabled === false ? 'Categoria desativada' :
+      item.mode === 'manual' ? 'Noite específica' :
+      item.mode === 'automatico' ? 'Adicional automático' :
+      item.mode === 'por-km-noturno' ? 'Km por período' :
+      item.mode === 'por-km' ? 'Tarifa por km' :
+      item.mode === 'sem-adicional' ? 'Sem noturno' :
+      item.enabled === false ? 'Desativada' : 'Tarifa fixa';
+    cell(rule);
+    const actions = document.createElement('td');
+    if (item.kind === 'locality_price') {
+      for (const [period,label] of [['day','Dia'],['after_22','Noite']]) {
+        const button = document.createElement('button');
+        button.type='button';
+        button.className='button button--ghost-dark pricing-rate-edit';
+        button.textContent=label;
+        button.setAttribute('aria-label', 'Editar '+label.toLowerCase()+
+          ' de '+item.categoryLabel+' em '+item.label);
+        button.addEventListener('click',()=>editPricingFromMatrix(item,period));
+        actions.append(button);
+      }
+    } else if (item.kind === 'distance_fare_policy') {
+      const link = document.createElement('a');
+      link.href='/administrodo/nova-localidade';
+      link.dataset.view='localities';
+      link.className='button button--ghost-dark pricing-rate-edit';
+      link.textContent='Regras';
+      actions.append(link);
+    } else {
+      const button = document.createElement('button');
+      button.type='button';
+      button.className='button button--ghost-dark pricing-rate-edit';
+      button.textContent='Editar';
+      button.addEventListener('click',()=>editPricingFromMatrix(item));
+      actions.append(button);
+    }
+    tr.append(actions);
+    body.append(tr);
+  }
+  byId('pricing-complete-count').textContent = matching.length+' de '+all.length;
+  byId('pricing-complete-empty').hidden = matching.length > 0;
+}
+
 function renderPricingCatalog(payload = null) {
   state.pricingCatalog = payload;
 
@@ -5288,6 +5406,7 @@ function renderPricingCatalog(payload = null) {
   }
   byId('pricing-routes-empty').hidden =
     fixedRoutes.length !== 0;
+  renderPricingCompleteMatrix();
 }
 
 async function loadPricingCatalog({ announce = true } = {}) {
@@ -10222,6 +10341,22 @@ function bindRouteEvents(view) {
   }
 
   if (view === 'pricing') {
+    for (const id of ['pricing-rate-search','pricing-rate-region','pricing-rate-category']) {
+      bindRouteEvent(id, id === 'pricing-rate-search' ? 'input' : 'change', renderPricingCompleteMatrix);
+    }
+    bindRouteEvent('pricing-night-controls','click', event => {
+      const button = event.target.closest('button[data-pricing-rule]');
+      const rule = button?.dataset.pricingRule;
+      if (!rule) return;
+      if (state.selectedPricingVersion?.status !== 'draft' || !hasScope('pricing:write')) {
+        setMessage(globalMessage,'Clique em Começar alterações antes de editar adicionais noturnos.','warning');
+        byId('pricing-create-draft-button')?.scrollIntoView({behavior:'smooth',block:'center'});
+        return;
+      }
+      byId('pricing-edit-kind').value = rule;
+      syncPricingEditFields();
+      byId('pricing-section-editor')?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
     bindRouteEvent('refresh-pricing-button', 'click', () => {
       void Promise.all([
         loadPricingCatalog(),
