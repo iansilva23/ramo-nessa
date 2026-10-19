@@ -67,6 +67,14 @@ export type PricingCatalogAtomicPatch =
       enabled: boolean;
     }
   | {
+      kind: 'municipality_assignment';
+      scope: 'prea' | 'jijoca' | 'external';
+      localityId: string;
+      municipalityId: string | null;
+      status: 'confirmed' | 'pending_review';
+      sourceUrl: string | null;
+    }
+  | {
       kind: 'locality_label';
       scope: 'prea' | 'jijoca' | 'external';
       localityId: string;
@@ -673,6 +681,38 @@ export function parsePricingCatalogDraftPatch(
       kind,
       zoneId,
       enabled: booleanValue(value.enabled, 'enabled'),
+    };
+  }
+
+  if (kind === 'municipality_assignment') {
+    const scope = textValue(value.scope,'scope',20);
+    if (scope !== 'prea' && scope !== 'jijoca' && scope !== 'external') {
+      throw new InvalidPricingCatalogPatchError('Região administrativa inválida.');
+    }
+    const status = textValue(value.status,'status',30);
+    if (status !== 'confirmed' && status !== 'pending_review') {
+      throw new InvalidPricingCatalogPatchError('Situação municipal inválida.');
+    }
+    const municipalityId = value.municipalityId == null
+      ? null : identifierValue(value.municipalityId,'municipalityId');
+    const sourceUrl = value.sourceUrl == null ? null :
+      textValue(value.sourceUrl,'sourceUrl',500);
+    if (status === 'confirmed') {
+      if (!municipalityId ||
+          !sourceUrl ||
+          !/^https:\/\/[^\s]+$/i.test(sourceUrl)) {
+        throw new InvalidPricingCatalogPatchError(
+          'Confirmação municipal exige município e fonte pública https.',
+        );
+      }
+    } else if (municipalityId !== null) {
+      throw new InvalidPricingCatalogPatchError(
+        'Município sem confirmação deve permanecer pendente, sem atribuição automática.',
+      );
+    }
+    return {
+      kind, scope, localityId: identifierValue(value.localityId,'localityId'),
+      municipalityId, status, sourceUrl,
     };
   }
 

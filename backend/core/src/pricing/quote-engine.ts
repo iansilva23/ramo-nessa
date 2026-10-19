@@ -9,6 +9,7 @@ import {
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
 import { categoryEnabled } from './category-eligibility.js';
+import { municipalityFor, isLocalServiceMunicipality } from './municipality-directory.js';
 import { assertCatalogLocationSupported } from './catalog-location-policy.js';
 import { splitCommission } from './commission.js';
 import {
@@ -237,6 +238,14 @@ function quoteDistanceFallback(
     if (!request.origin.localityId || !request.destination.localityId ||
         !approved.includes(originId) || !approved.includes(destinationId)) return false;
     const policies = catalog.localityPolicies[hub];
+    const from = municipalityFor(catalog,hub,originId);
+    const to = municipalityFor(catalog,hub,destinationId);
+    // An optional regional/km tariff may only apply to confirmed local
+    // municipalities. Never extend it to Acaraú, Sobral, other towns or
+    // ambiguous points just because they were stored in a Preá price list.
+    if (!isLocalServiceMunicipality(from) ||
+        !isLocalServiceMunicipality(to) ||
+        from.municipalityId !== to.municipalityId) return false;
     return policies[originId]?.enabledCategories.includes(request.category) === true &&
       policies[destinationId]?.enabledCategories.includes(request.category) === true;
   };
