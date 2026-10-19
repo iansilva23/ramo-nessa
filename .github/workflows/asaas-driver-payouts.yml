@@ -17,7 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test deploy/staging/asaas-sandbox-webhook.test.mjs deploy/staging/asaas-webhook-exercise-contract.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-sandbox-close-contract.test.mjs deploy/staging/asaas-fresh-backup-contract.test.mjs deploy/staging/asaas-disabled-activation-contract.test.mjs
+      - run: node --test deploy/staging/asaas-sandbox-webhook.test.mjs deploy/staging/asaas-webhook-exercise-contract.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-sandbox-close-contract.test.mjs deploy/staging/asaas-fresh-backup-contract.test.mjs deploy/staging/asaas-disabled-activation-contract.test.mjs deploy/staging/asaas-production-receiver-contract.test.mjs
+      - run: node --check deploy/staging/prepare-asaas-production-receiver.mjs
+      - run: node --check deploy/staging/test-asaas-production-receiver-probe.mjs
       - run: node --check deploy/staging/activate-asaas-disabled.mjs
       - run: docker pull caddy:2.11.7-alpine
       - run: node deploy/staging/test-asaas-caddy-reload.mjs
@@ -162,3 +164,5 @@ jobs:
           docker pull postgres:16
       - name: Rehearse offline dump, restore, migration repetition and old/new repository reads
         run: node deploy/staging/test-asaas-offline-restore.mjs
+      - name: Rehearse receive-only production credentials with fake keys and stopped containers
+        run: node deploy/staging/test-asaas-production-receiver-probe.mjs
