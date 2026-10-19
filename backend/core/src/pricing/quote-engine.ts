@@ -639,6 +639,17 @@ export function quoteFare(
   request: QuoteRequest,
   catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
 ): FareQuote {
+  // A malformed Google Maps distance must fail closed; never return NaN,
+  // Infinity, a negative fare, or commission values that cannot be settled.
+  for (const [field, distance] of [
+    ['tripDistanceKm', request.tripDistanceKm],
+    ['driverPickupDistanceKm', request.driverPickupDistanceKm],
+  ] as const) {
+    if (distance != null && (!Number.isFinite(distance) || distance < 0)) {
+      throw new PricingError('MISSING_DISTANCE',
+        field + ' precisa ser uma distância válida, finita e não negativa.');
+    }
+  }
   assertCatalogLocationSupported({
     catalog,
     ref: request.origin,
