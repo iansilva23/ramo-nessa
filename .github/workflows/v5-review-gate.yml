@@ -98,3 +98,22 @@ jobs:
         run: |
           npm run typecheck
           npm test
+
+  admin-browser:
+    name: ADM Chromium isolated browser smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install disposable Playwright runner
+        working-directory: apps/admin
+        run: npm install --no-save --no-package-lock --ignore-scripts playwright@1.55.1
+      - name: Install Chromium in isolated CI runner
+        working-directory: apps/admin
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke with loopback-only API mocks
+        working-directory: apps/admin
+        run: node test/browser/pricing-admin-smoke.mjs
