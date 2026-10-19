@@ -241,7 +241,7 @@ try {
       assert.equal(await mobile.locator('#pricing-locality-period').inputValue(),'after_22');
       assert.equal(publishRequests,0,'Mobile interaction must not publish');
       assert.deepEqual(mobileErrors,[],'Mobile browser JS error at '+width+'px');
-      console.log('PASS mobile Chromium +width+'x'+height+
+      console.log('PASS mobile Chromium '+width+'x'+height+
         ': filters, horizontal containment, night editor, screenshot');
     } finally {
       await mobileContext.close();
