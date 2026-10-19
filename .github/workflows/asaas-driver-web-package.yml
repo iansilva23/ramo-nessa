@@ -1,0 +1,169 @@
+name: Configured Asaas driver Web package
+on:
+  push:
+    branches: [ops/asaas-pricing-integration-20261019]
+    paths: [.github/workflows/asaas-driver-web-package.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: asaas-driver-web-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 21ae1f3101440336559647d11799fe4cb02978ef
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require reviewed driver source and completed finance tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          const target='21ae1f3101440336559647d11799fe4cb02978ef';
+          if(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==target)throw Error('Source differs.');
+          const endpoint='https://api.github.com/repos/'+process.env.GH_REPOSITORY+'/actions/runs/39276882792';
+          const get=async path=>{const r=await fetch(endpoint+path,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});if(!r.ok)throw Error('Evidence unavailable.');return r.json();};
+          const run=await get(''),{jobs}=await get('/jobs?per_page=100');
+          if(run.head_sha!==target)throw Error('Evidence source differs.');
+          for(const name of ['driver','core-admin','postgres','finance-browser']){
+            if(!jobs.some(j=>j.name===name&&j.conclusion==='success'&&j.status==='completed'))throw Error('Required evidence missing: '+name);
+          }
+          execFileSync('git',['diff','--exit-code','2ee07808d819bc73eb7377c5d273124ecd19acb0',target,'--','apps/passenger','packages','backend/core/src/pricing/quote-engine.ts'],{stdio:'inherit'});
+          console.log('Exact driver source and completed checks confirmed; passenger/shared/pricing sources preserved.');
+          NODE
+      - name: Validate approved public browser configuration
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          import {validateMapsWebKey} from './scripts/web/maps_web_config.mjs';
+          const c=await loadPublicWebConfiguration();
+          if(c.expectedOrigin!=='https://app.ramonessa.com.br'||c.expectedProject!=='ramo-nessa')throw Error('Public configuration differs.');
+          validateMapsWebKey(process.env.RAMO_GOOGLE_MAPS_WEB_API_KEY);
+          console.log('Approved public origin/project and browser Maps key present.');
+          NODE
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Generate correctly sized application icons
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Compile only configured driver with enforced dependency lock
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          node scripts/web/prepare_configured_web.mjs --role=driver
+          cd apps/driver
+          flutter pub get --enforce-lockfile
+          flutter build web --release --no-web-resources-cdn --no-pub \
+            --base-href=/motorista/ \
+            --dart-define=RAMO_CORE_BASE_URL= \
+            --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Verify driver bundle and immutable application sources
+        run: |
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml'
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const path='apps/driver/pubspec.lock',normalize=x=>x.replace(/\n+$/,'\n');
+          if(normalize(readFileSync(path,'utf8'))!==normalize(execFileSync('git',['show','HEAD:'+path],{encoding:'utf8'})))throw Error('Dependency lock changed.');
+          const code=readFileSync('apps/driver/build/web/main.dart.js','utf8');
+          for(const field of ['anticipationMinimumCents','anticipationFeeCents','expectedMinimumCents','expectedFeeCents']){
+            if(!code.includes(field))throw Error('Compiled finance contract missing: '+field);
+          }
+          console.log('Compiled consumer includes dynamic/quoted anticipation terms; source/lock preserved.');
+          NODE
+      - name: Prepare isolated compiled-login browser tests
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Test configured compiled login, cookie recovery and logout in Chromium
+        env:
+          RAMO_WEB_TEST_ROLE: driver
+          RAMO_BROWSER_ENGINE: chromium
+        run: node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Test configured compiled login, cookie recovery and logout in WebKit
+        env:
+          RAMO_WEB_TEST_ROLE: driver
+          RAMO_BROWSER_ENGINE: webkit
+        run: node --test scripts/web/bundle_csp_browser_test.mjs
+      - name: Write driver-only release manifest
+        run: |
+          mkdir -p artifacts/driver-package
+          node --input-type=module - <<'NODE'
+          import {readFile,writeFile,readdir,lstat} from 'node:fs/promises';
+          import {join} from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          const root='apps/driver/build/web',config=await loadPublicWebConfiguration(),sha=x=>createHash('sha256').update(x).digest('hex');
+          const source=await readFile(join(root,'ramo_push_config.js'),'utf8'),match=source.match(/^\/\/[^\n]*\nself\.ramoPushConfig = ([\s\S]+);\s*$/);
+          if(!match)throw Error('Push configuration format differs.');
+          const actual=JSON.parse(match[1]);
+          if(Object.keys(config.apps.driver).some(k=>actual[k]!==config.apps.driver[k]))throw Error('Driver public configuration differs.');
+          const files=[];
+          async function walk(relative=''){
+            for(const n of (await readdir(join(root,relative))).sort()){
+              const path=relative?relative+'/'+n:n,full=join(root,path),s=await lstat(full);
+              if(s.isSymbolicLink())throw Error('Symlink in bundle.');
+              if(s.isDirectory())await walk(path);else if(s.isFile())files.push({path,bytes:s.size,sha256:sha(await readFile(full))});else throw Error('Unsupported bundle entry.');
+            }
+          }
+          await walk();
+          const manifest={schemaVersion:1,role:'driver',sourceCommit:'21ae1f3101440336559647d11799fe4cb02978ef',expectedOrigin:config.expectedOrigin,expectedProject:config.expectedProject,basePath:'/motorista/',publicConfigSha256:sha(JSON.stringify(config.apps.driver)),files,compiledFinanceTerms:true,browserLoginChromium:true,browserLoginWebKit:true,realProviderAcceptance:false};
+          await writeFile('artifacts/driver-package/release.driver.json',JSON.stringify(manifest,null,2)+'\n',{flag:'wx'});
+          console.log('Driver-only manifest created; real GPS/notifications and payout acceptance remain separate.');
+          NODE
+      - name: Create driver-only ZIP and checksum
+        run: |
+          python3 <<'PY'
+          import hashlib,json,zipfile
+          from pathlib import Path
+          base=Path('artifacts/driver-package')
+          manifest=json.loads((base/'release.driver.json').read_text())
+          destination=base/'RamoNessa-Motorista-Web-21ae1f310144.zip'
+          with zipfile.ZipFile(destination,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
+              archive.write(base/'release.driver.json','release.driver.json')
+              for entry in manifest['files']:
+                  source=Path('apps/driver/build/web')/entry['path']
+                  data=source.read_bytes()
+                  if len(data)!=entry['bytes'] or hashlib.sha256(data).hexdigest()!=entry['sha256']:
+                      raise SystemExit('Bundle changed after manifest creation.')
+                  archive.writestr('driver/'+entry['path'],data)
+          checksum=hashlib.sha256(destination.read_bytes()).hexdigest()
+          (base/(destination.name+'.sha256')).write_text(checksum+'  '+destination.name+'\n')
+          print('DRIVER_PACKAGE_SHA256='+checksum)
+          print('DRIVER_PACKAGE_BYTES='+str(destination.stat().st_size))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-driver-web-asaas-21ae1f310144
+          path: |
+            artifacts/driver-package/RamoNessa-Motorista-Web-21ae1f310144.zip
+            artifacts/driver-package/RamoNessa-Motorista-Web-21ae1f310144.zip.sha256
+            artifacts/driver-package/release.driver.json
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: asaas-driver-web-browser-evidence
+          path: artifacts/web-csp/
+          if-no-files-found: ignore
+          retention-days: 7
