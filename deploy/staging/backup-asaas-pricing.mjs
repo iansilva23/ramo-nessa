@@ -4,13 +4,17 @@ import {createHash,randomBytes} from 'node:crypto';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runtimeContract,activeCaddy,validateRuntime} from './asaas-runtime-contract.mjs';
+import {backupPaths,validateFreshBackup} from './asaas-fresh-backup-contract.mjs';
 const candidateRevision='5ffae79687965042765f40f53cd32e57510dfbfe';
 const root='/var/backups/ramo-nessa-asaas/'+candidateRevision.slice(0,12),here=dirname(fileURLToPath(import.meta.url));
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');
 process.umask(0o077);
+const mode=process.argv[2]===undefined?'initial':process.argv[2]==='--before-activation'?'before-activation':'invalid';
+const paths=backupPaths(root,mode);
+if(mode==='before-activation')validateFreshBackup({plan:JSON.parse(readFileSync(join(root,'activation-plan/plan.json'),'utf8')),closed:JSON.parse(readFileSync('/var/lib/ramo-nessa-asaas-sandbox/sandbox-closed.json','utf8')),previous:JSON.parse(readFileSync(join(root,'backup-verified.json'),'utf8')),revision:candidateRevision});
 const prepared=JSON.parse(readFileSync(join(root,'prepared.json'),'utf8'));
 if(prepared.revision!==candidateRevision||prepared.migrationApplied!==false||prepared.asaasActivated!==false)throw Error('Registro de preparação diferente.');
-if(existsSync(join(root,'backup-verified.json')))throw Error('Já existe backup verificado desta preparação. Envie o resultado, sem refazer.');
+if(existsSync(paths.verified))throw Error('Já existe backup verificado desta etapa. Envie o resultado, sem refazer.');
 function run(cmd,args,options={}){
  const r=spawnSync(cmd,args,{encoding:'utf8',maxBuffer:32*1024*1024,stdio:['pipe','pipe','pipe'],...options});
  if(r.error||r.status!==0)throw Error('Etapa não concluída: '+cmd+'. Dados privados não exibidos.');return r.stdout;
@@ -41,7 +45,7 @@ const imageBytes=imageIds.reduce((sum,id)=>sum+JSON.parse(run('docker',['image',
 const disk=statfsSync(root),needed=Math.max(3*1024**3,imageBytes*1.25+databaseBytes*4+documentBytes*2);
 if(!Number.isFinite(needed)||disk.bavail*disk.bsize<needed)throw Error('Espaço insuficiente para backup e restauração isolada.');
 const nonce=randomBytes(8).toString('hex'),stamp=new Date().toISOString().replaceAll(':','-').replaceAll('.','-');
-const destination=join(root,'checkpoint-'+stamp);mkdirSync(destination,{mode:0o700});
+const destination=join(paths.parent,'checkpoint-'+stamp);mkdirSync(destination,{mode:0o700});
 const save=(name,data)=>writeFileSync(join(destination,name),data,{mode:0o600,flag:'wx'});
 function outputFile(name,cmd,args){const fd=openSync(join(destination,name),'wx',0o600);try{run(cmd,args,{stdio:['ignore',fd,'pipe']});}finally{closeSync(fd);}}
 async function fileHash(path){const h=createHash('sha256');for await(const b of createReadStream(path))h.update(b);return h.digest('hex');}
@@ -99,8 +103,8 @@ try{
  const files=[];for(const name of ['database.dump','driver-documents.tar.gz','images-before.tar']){const path=join(destination,name);files.push({name,bytes:statSync(path).size,sha256:await fileHash(path)});}
  save('manifest.private.json',JSON.stringify({candidateRevision,createdAt:new Date().toISOString(),files,restored:true,migrationOnlyOnCopy:true,oldAndNewRepositoryRead:true,businessDataUnchanged:true},null,2));
  cleanup();containerCreated=dbCreated=docsCreated=false;
- writeFileSync(join(root,'backup-verified.json'),JSON.stringify({candidateRevision,directory:destination,createdAt:new Date().toISOString(),runtimeIds:Object.fromEntries(Object.entries(start).map(([k,v])=>[k,v.Id])),migrationAppliedToActive:false,asaasActivated:false},null,2),{mode:0o600,flag:'wx'});
- console.log('BACKUP E TESTE ISOLADO CONCLUÍDOS. Migration 086 e leitura dos dois Cores aprovadas na cópia.');
+ writeFileSync(paths.verified,JSON.stringify({candidateRevision,stage:mode,directory:destination,createdAt:new Date().toISOString(),runtimeIds:Object.fromEntries(Object.entries(start).map(([k,v])=>[k,v.Id])),migrationAppliedToActive:false,asaasActivated:false},null,2),{mode:0o600,flag:'wx'});
+ console.log(mode==='before-activation'?'BACKUP RECENTE PARA ATIVAÇÃO CONCLUÍDO. Restauração e compatibilidade verificadas na cópia.':'BACKUP E TESTE ISOLADO CONCLUÍDOS. Migration 086 e leitura dos dois Cores aprovadas na cópia.');
  console.log('Banco ativo continua na 085. Nenhum serviço ativo foi reiniciado. Asaas NÃO ativado.');
 }catch(error){console.error('Etapa interrompida. Arquivos privados preservados em '+destination);throw error;}
 finally{cleanup();}

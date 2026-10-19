@@ -224,3 +224,23 @@ the gateway, checks site/API/ADM/Web and route removal, removes only the labelle
 receiver and stops only the private database started by this test stage. The volume,
 keys, receipts and sessions are preserved. The closing audit record is private.
 No migration, active Core/ADM update or payout is performed by closing this lab.
+
+### Fresh backup immediately before activation
+
+After the operator confirms Sandbox closure, `backup-asaas-before-activation.mjs`
+requires the inactive prepared plan, accepted test, confirmed HTTP 200 and closed
+subscription/receiver record, plus unchanged source configuration and clean Caddy
+hash. It holds the lab operation lock while invoking the previously rehearsed
+backup/restore implementation with `--before-activation`. Signals are forwarded to
+the child so its disposable-resource cleanup can complete and the wrapper releases
+the lock on completion.
+
+The initial verified backup and its marker are not overwritten. This second,
+independent checkpoint is stored under the existing private activation-plan folder
+and publishes its own `activation-plan/backup-verified.json` only on success.
+Database/document data are backed up again to capture changes since the earlier
+snapshot. The implementation uses the same offline restore, schema repetition,
+old/new repository compatibility and fingerprint checks already rehearsed; no
+active migration or payout is executed. Existing online document snapshot limits
+still apply. A completed fresh backup cannot be silently replaced by repeating the
+command. The wrapper also verifies the initial backup marker stayed unchanged.
