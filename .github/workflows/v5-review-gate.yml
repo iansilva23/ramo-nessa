@@ -6,6 +6,9 @@ on:
       - feature/v5-seven-fixes-20261016
       - fix/pricing-route-eligibility-20261018
       - integration/pricing-v5-finance-safe-20261019
+  pull_request:
+    branches:
+      - ops/asaas-pricing-integration-20261019
   workflow_dispatch:
 
 permissions:
