@@ -5,6 +5,7 @@ on:
     branches:
       - feature/v5-seven-fixes-20261016
       - feature/regional-distance-fares-20261018
+      - feature/pricing-admin-complete-20261018
       - fix/pricing-route-eligibility-20261018
   workflow_dispatch:
 
