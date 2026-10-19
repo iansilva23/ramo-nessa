@@ -1219,3 +1219,70 @@ test('versiona fallback por distância e limpa regra ao remover a localidade-bas
     /maxKm/,
   );
 });
+
+test('publica rascunho regional apenas com localidades existentes, limites e parâmetros noturnos', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = { kind: 'user' as const, id: 'regional-tester', name: 'Regional Tester' };
+  const draft = await createPricingCatalogDraft({
+    versions, admin, actor, now: new Date('2026-10-17T00:00:00.000Z'),
+  });
+  const patch = {
+    kind: 'distance_fare_policy', operation: 'upsert',
+    scope: 'intra_zone', anchorZoneId: 'prea', anchorLocalityId: 'prea',
+    category: 'car', coveredLocalityIds: ['vila-prea', 'cavalo-bravo'],
+    minKm: 1, maxKm: 20, minimumFareCents: 2000,
+    pricePerKmCents: 300, after22MinimumFareCents: 2500,
+    after22PricePerKmCents: 400,
+  };
+  const updated = await updatePricingCatalogDraft({
+    versions, admin, actor, versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch(patch),
+    now: new Date('2026-10-17T00:02:00.000Z'),
+  });
+  assert.equal(updated.snapshot.distanceFarePolicies[0]?.scope, 'intra_zone');
+  assert.equal(updated.snapshot.distanceFarePolicies[0]?.id, 'regional-prea-car');
+  const withScope = {
+    ...patch, coveredLocalityIds: ['vila-prea', 'city-not-in-catalog'],
+  };
+  await assert.rejects(() => updatePricingCatalogDraft({
+    versions, admin, actor, versionId: draft.id,
+    patch: parsePricingCatalogDraftPatch(withScope),
+    now: new Date('2026-10-17T00:03:00.000Z'),
+  }), /Localidades regionais não cadastradas/);
+  assert.throws(() => parsePricingCatalogDraftPatch({
+    ...patch, anchorZoneId: 'external', anchorLocalityId: 'airport-jjd',
+  }), /Tarifa entre localidades/);
+  assert.throws(() => parsePricingCatalogDraftPatch({
+    ...patch, coveredLocalityIds: [],
+  }), /pelo menos duas localidades/);
+  assert.throws(() => parsePricingCatalogDraftPatch({
+    ...patch, after22PricePerKmCents: undefined,
+  }), /after22PricePerKmCents/);
+});
+
+test('admin pode sobrescrever Comfort diurno e noturno por localidade sem alterar Carro', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {kind:'user' as const,id:'comfort-editor',name:'Tarifas'};
+  const draft = await createPricingCatalogDraft({
+    versions,admin,actor,now:new Date('2026-10-18T00:00:00.000Z'),
+  });
+  const patch = (period:'day'|'after_22',amountCents:number) =>
+    parsePricingCatalogDraftPatch({
+      kind:'locality_price',hub:'prea',localityId:'cavalo-bravo',
+      category:'comfort_black',period,
+      price:{kind:'exact',amountCents},
+    });
+  const day = await updatePricingCatalogDraft({
+    versions,admin,actor,versionId:draft.id,patch:patch('day',5000),
+    now:new Date('2026-10-18T00:01:00.000Z'),
+  });
+  const night = await updatePricingCatalogDraft({
+    versions,admin,actor,versionId:draft.id,patch:patch('after_22',6000),
+    now:new Date('2026-10-18T00:02:00.000Z'),
+  });
+  assert.equal(day.snapshot.localities.prea['cavalo-bravo']?.comfort_black,5000);
+  assert.equal(night.snapshot.localities.prea['cavalo-bravo']?.after22?.comfort_black,6000);
+  assert.equal(night.snapshot.localities.prea['cavalo-bravo']?.car,day.snapshot.localities.prea['cavalo-bravo']?.car);
+});
