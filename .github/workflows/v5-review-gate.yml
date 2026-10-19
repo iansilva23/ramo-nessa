@@ -122,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pricing-admin-browser-evidence
-          path: apps/admin/.pricing-browser-artifacts/*.png
+          path: apps/admin/pricing-browser-artifacts/*.png
           if-no-files-found: ignore
           retention-days: 7
 
