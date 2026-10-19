@@ -5483,3 +5483,14 @@ td strong {
   .finance-policy-mode { flex-basis: auto; }
   .finance-policy-terms { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Ramo pricing console */
+.pricing-complete-card{margin-bottom:20px}
+.pricing-complete-filters{display:grid;grid-template-columns:minmax(190px,2fr) repeat(2,minmax(130px,1fr));gap:12px;margin:18px 0}
+.pricing-complete-table{min-width:860px}
+.pricing-complete-table td{vertical-align:middle}
+.pricing-complete-table td:last-child{white-space:nowrap}
+.pricing-rate-edit{font-size:.78rem;margin:2px 4px 2px 0;padding:7px 10px}
+.pricing-night-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0}
+.pricing-complete-card .pricing-policy-help{display:block;margin-top:14px;line-height:1.6}
+@media(max-width:780px){.pricing-complete-filters{grid-template-columns:1fr}.pricing-night-shortcuts .button{width:100%;justify-content:center}}
