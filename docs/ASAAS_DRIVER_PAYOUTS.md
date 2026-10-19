@@ -244,3 +244,52 @@ old/new repository compatibility and fingerprint checks already rehearsed; no
 active migration or payout is executed. Existing online document snapshot limits
 still apply. A completed fresh backup cannot be silently replaced by repeating the
 command. The wrapper also verifies the initial backup marker stayed unchanged.
+
+### Apply migration 086 and install Core/ADM with Asaas disabled
+
+`activate-asaas-disabled.mjs` requires the prepared inactive plan, closed Sandbox,
+and verified pre-activation checkpoint no older than one hour. Before any active
+write it hashes the dump/document/image archives, checks current container IDs,
+start times, environment, configuration sources and bind files, validates the
+candidate tags and private candidate/rollback models, re-resolves Compose, checks
+that precisely 086 is pending, validates the unchanged clean Caddyfile using the
+candidate gateway, and checks the public baseline. It fingerprints all Web bundle
+files and verifies the driver client update remains a separate pending acceptance.
+
+The migration runs the candidate runner with only the active database connection,
+sharing the old Core network namespace. No Asaas credential or document volume is
+mounted into that migration job. The runner already uses an advisory lock and SQL
+transactions; the controller verifies unchanged historical checksums plus exactly
+086, then manual mode and initial anticipation terms R$80/R$10.
+
+The state machine replaces only Core, checks readiness and the explicitly disabled
+Asaas endpoint, then replaces only gateway/ADM. It uses --no-deps, --no-build,
+--pull never, --force-recreate and --wait. No orphan removal/down command or image
+retag is issued. It verifies configured environment, mounts, ports, networks,
+security options, image IDs and health; public ADM assets must match candidate
+image hashes. Site/PostgreSQL identities and start times, Web bundles, Caddy and
+source configurations must remain unchanged. The finance endpoint must still
+require authentication. No financial transaction is invoked by these probes.
+
+On a switch or verification failure it attempts to restore only the previously
+prepared Core/gateway images, checks the previous public baseline and preserves
+all financial data. It never automatically restores a database or drops migration
+086; compatibility of the old reader with that schema was verified on the restored
+copy. It refuses rollback over an unrelated concurrent image deployment. An
+incomplete rollback leaves private evidence and a clear review-required result.
+Signals request cancellation at safe stage boundaries and allow rollback instead
+of immediately abandoning a partially completed switch. The private activation
+journal prevents blind re-execution after interruption.
+
+CI covers readiness/schema gates, ordered migration/Core/gateway switching,
+migration failure with no image changes, Core-only rollback, both-image rollback
+and continued gateway recovery if Core rollback fails. A running disposable Compose
+rehearsal checks a healthy upgrade, explicit Asaas=false, preserved literal-dollar
+configuration and volumes, an untouched unrelated container, and rollback of both
+images after a deliberately unhealthy gateway. Its migration callback is a fixture;
+the real 086/offline restore/repository compatibility tests run separately.
+
+Successful installation is **not** real-payout activation: Asaas remains disabled,
+without its account credentials in active Core, and manual mode stays selected.
+Driver clients and production credentials/account authorization need their separate
+acceptance before enabling actual payouts.
