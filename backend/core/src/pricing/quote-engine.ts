@@ -197,12 +197,23 @@ function quoteFixedRoute(
       candidate.category === request.category &&
       matchesPair(candidate.a, candidate.b, a, b),
   );
+  // A zone-level transfer is a price for the *base*, not every settlement
+  // accidentally stored under the same legacy pricing-zone ID. Keep the
+  // already approved Vila Preá synonym; all other specific localities require
+  // a specific approved fixed route or their own approved pricing rule.
+  const canUseHubAnchor = (ref: LocationRef): boolean => {
+    if (ref.zoneId === 'external') return ref.localityId != null;
+    if (ref.localityId == null || ref.localityId === ref.zoneId) return true;
+    return ref.zoneId === 'prea' && ref.localityId === 'vila-prea';
+  };
   const anchorA = request.origin.zoneId === 'external'
     ? a : request.origin.zoneId;
   const anchorB = request.destination.zoneId === 'external'
     ? b : request.destination.zoneId;
   const rule = specificRule ?? (
-    request.origin.zoneId !== request.destination.zoneId
+    request.origin.zoneId !== request.destination.zoneId &&
+    canUseHubAnchor(request.origin) &&
+    canUseHubAnchor(request.destination)
       ? catalog.fixedRoutes.find((candidate) =>
           candidate.category === request.category &&
           matchesPair(candidate.a, candidate.b, anchorA, anchorB))

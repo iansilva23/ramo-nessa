@@ -95,6 +95,41 @@ test('transfer tarifado por zona reconhece localidades aprovadas sem trocar os v
   if (reversed.kind === 'exact') assert.equal(reversed.totalAmountCents, 15000);
 });
 
+test('preço do transfer da sede não é aplicado a povoados ou destinos externos apenas pelo zoneId', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const trip = (zoneId: 'prea'|'jijoca', localityId: string, category: 'car'|'comfort_black'|'buggy' = 'car') => ({
+    origin: zone(zoneId, localityId),
+    destination: zone('jericoacoara','jericoacoara'),
+    category, period:'day' as const,
+  });
+  const allowed = quoteFare(trip('prea','vila-prea'),catalog);
+  assert.equal(allowed.ruleId, 'jeri-prea-car');
+  const reversed = quoteFare({
+    ...trip('prea','vila-prea'),
+    origin: zone('jericoacoara','jericoacoara'),
+    destination: zone('prea','vila-prea'),
+  },catalog);
+  assert.equal(reversed.ruleId,'jeri-prea-car');
+  for (const [hub,locality] of [
+    ['prea','cavalo-bravo'],
+    ['prea','acarau'],
+    ['prea','barrinha-de-baixo'],
+    ['jijoca','baixio'],
+  ] as const) {
+    assert.throws(() => quoteFare(trip(hub,locality),catalog),
+      (error: unknown) => error instanceof PricingError && error.code === 'UNKNOWN_ROUTE',
+      hub+'/'+locality+' should not inherit the hub transfer amount');
+  }
+  catalog.fixedRoutes.push({
+    id:'cavalo-bravo-jeri-custom',a:'cavalo-bravo',b:'jericoacoara',
+    category:'car',dayCents:18900,after22Cents:23900,
+  });
+  const specific = quoteFare(trip('prea','cavalo-bravo'),catalog);
+  assert.equal(specific.ruleId,'cavalo-bravo-jeri-custom');
+  assert.equal(specific.kind,'exact');
+  if (specific.kind==='exact') assert.equal(specific.baseAmountCents,18900);
+});
+
 test('rota local explícita mantém prioridade e localidade desconhecida não vira tarifa de zona', () => {
   const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
   snapshot.fixedRoutes.unshift({
