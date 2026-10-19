@@ -170,3 +170,37 @@ pass. The operator should also confirm HTTP 200 in the Asaas webhook delivery
 logs. CI rehearses two independent worker sessions and repeated execution against
 real PostgreSQL with fake transport, preserving one POST/ledger entry per session;
 this does not claim live external delivery.
+
+### Prepare the Core/ADM activation plan after Sandbox acceptance
+
+`prepare-asaas-activation-plan.mjs` prepares private candidate and rollback Compose
+files only. It requires the accepted second Sandbox exercise and the original
+prepared images/verified backup. It resolves the separate Core and gateway Compose
+file chains recorded on their live containers, using each active staging helper
+and environment file. It compares the resolved environment to the container plus
+image defaults, verifies mounts/networks, and refuses Compose source changes from
+the already captured configuration instead of overwriting work from another chat.
+Literal dollars are escaped before resolved configuration becomes a new Compose
+input, then checked through another Compose resolution. Sources, sensitive resolved
+models and rollback configurations remain in a root-only directory.
+
+The plan contains only the target service, with dependencies/build removed, pull
+policy never, explicit existing network aliases and external references to existing
+named networks/volumes. It preserves all configured provider/payment values except
+setting the driver payout provider to Asaas **disabled**. No Sandbox key/token is
+mounted into the active Core and no transfer is created. A running payout provider
+or already armed Asaas configuration causes preparation to stop for review.
+
+This command does not apply migration 086, replace/restart any container, edit the
+active Caddyfile, change Git files or close the temporary receiver. Its final plan
+records the current temporary Caddy hash and the expected post-cleanup original.
+Before activation, the Sandbox subscription/receiver must be closed and a fresh
+backup made. Migration 086 explicitly resets payout mode to manual. Updating the
+driver clients to consume dynamic payout terms remains necessary before exposing
+changed anticipation terms or enabling the integration for real use.
+
+CI checks contract scope, source/environment drift, unchanged Mercado Pago/provider
+settings, mount/network references and literal-dollar handling. A Docker Compose
+rehearsal creates only stopped disposable containers, checks candidate and rollback
+environments and verifies existing volumes/networks are retained. No production
+service or account credentials are used in this rehearsal.
