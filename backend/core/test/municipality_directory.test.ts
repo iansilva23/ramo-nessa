@@ -23,7 +23,8 @@ test('Cruz, Jijoca, Aeroporto e Barrinha de Baixo não dependem da zona legada',
   assert.equal(isKnownOutsideLocalArea(municipalityFor(c,'prea','barrinha-de-baixo')),true);
   assert.equal(isLocalServiceMunicipality(municipalityFor(c,'external','airport-jjd')),true);
   assert.equal(municipalityFor(c,'prea','beach-house').status,'pending_review');
-  assert.equal(municipalityFor(c,'prea','triangulo-do-marco').municipalityId,null);
+  assert.equal(municipalityFor(c,'prea','triangulo-do-marco').municipalityId,'marco');
+  assert.equal(municipalityFor(c,'prea','aranau').municipalityId,'acarau');
 });
 test('Tabela administrativa mantém ID e preço mas mostra município e pendências',()=>{
   const original=structuredClone(STATIC_PRICING_CATALOG_V1);

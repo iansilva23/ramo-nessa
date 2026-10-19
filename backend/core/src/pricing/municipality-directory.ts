@@ -22,6 +22,8 @@ const COMMUNITY = 'https://jijocadejericoacoara.ce.gov.br/conselhos.php?id=13&tp
 const PROJECTS = 'https://www.cidades.ce.gov.br/wp-content/uploads/sites/12/2026/03/Resultado-Preliminar-MI-001_2026-SITE.pdf';
 const AIRPORT = 'https://www.ce.gov.br/2026/03/10/aditivo-que-concede-gestao-do-aeroporto-de-jericoacoara-a-fraport-e-assinado-em-brasilia/';
 const BARRINHA = 'https://www.acarau.ce.gov.br/ambientalarq/439/2856/arq_24.11.190001_indeferidopelosetortecnico.pdf';
+const ARANAU = 'https://www.ibge.gov.br/biblioteca/visualizacao/dtb/ceara/acarau.pdf';
+const TRIANGULO = 'https://municipios-licitacoes.tce.ce.gov.br/index.php/licitacao/detalhes/proc/55322/licit/44447';
 const LAGOON = 'https://www.jijocadejericoacoara.ce.gov.br/informa/1973/atrativos-tur-sticos';
 
 const known = (municipalityId:string,sourceUrl:string): MunicipalityAssignment =>
@@ -40,6 +42,8 @@ export const BASE_MUNICIPALITIES: Record<ZoneId,Record<string,MunicipalityAssign
     ...cities,
     'airport-jjd':known('cruz',AIRPORT),
     'barrinha-de-baixo':known('acarau',BARRINHA),
+    'aranau':known('acarau',ARANAU),
+    'triangulo-do-marco':known('marco',TRIANGULO),
     'jijoca':jijoca,'jericoacoara':jijoca,
     'lagoa-do-paraiso':known('jijoca-de-jericoacoara',LAGOON),
   },
@@ -56,6 +60,7 @@ export const BASE_MUNICIPALITIES: Record<ZoneId,Record<string,MunicipalityAssign
   external:{
     ...cities,
     'airport-jjd':known('cruz',AIRPORT),
+    'triangulo-do-marco':known('marco',TRIANGULO),
   },
 };
 export const PENDING_MUNICIPALITY: MunicipalityAssignment =

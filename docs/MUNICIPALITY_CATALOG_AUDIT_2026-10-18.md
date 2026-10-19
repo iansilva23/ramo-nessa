@@ -24,12 +24,14 @@ A municipalidade administrativa **não** é equivalente à zona de preços `prea
 - `prea/jericoacoara`, `prea/jijoca`, `jericoacoara/jericoacoara`: Jijoca de Jericoacoara.
 - `prea/lagoa-do-paraiso`: Jijoca de Jericoacoara.
 - `prea/parazinha` e `external/parazinha`: **pendente** — Parazinho em Granja não prova a identificação da chave Parazinha.
+- `prea/aranau`: Acaraú (distrito Aranaú no IBGE; confirmar ponto de seleção no Maps para evitar confusão com a Rua Aranaú no Preá).
+- `prea/triangulo-do-marco` e `external/triangulo-do-marco`: Marco/CE, confirmado por licitação municipal.
 - `jijoca/baixio`, `jijoca/mangue-seco`, `jijoca/chapadinha`: Jijoca (documentos municipais).
 - `jijoca/carro-quebrado`, `jijoca/cruzeiro-do-brandao`, `jijoca/lagoa-das-pedras`, `jijoca/corrego-do-urubu`, `jijoca/corrego-do-mourao`, `jijoca/corrego-perdido`: Jijoca (documentação municipal/estadual).
 
 ## Localidades pendentes
 Não atribuir automaticamente municípios a nomes de hotéis, pousadas, projetos, pontos de turismo ou topônimos com homônimos:
-`prea/aranau`, `prea/beach-house`, `prea/cabana`, `prea/castelhano`, `prea/d3-luna`, `prea/lagamar`, `prea/triangulo-do-marco`, `prea/vida-ao-vento`, `prea/prea-beach-villas`, `prea/kite-lodge`, `jijoca/vila-sao-paulo`, `external/triangulo-do-marco`, e outros registros sem fonte suficiente.
+`prea/beach-house`, `prea/cabana`, `prea/castelhano`, `prea/d3-luna`, `prea/lagamar`, `prea/vida-ao-vento`, `prea/prea-beach-villas`, `prea/kite-lodge`, `jijoca/vila-sao-paulo`, e outros registros sem fonte suficiente.
 
 O Core marca estes casos como `pending_review`. O editor permite vincular o município **com prova pública e publicação versionada**; o mapeamento inicial não é uma migração de localização GPS.
 
@@ -40,3 +42,5 @@ O Core marca estes casos como `pending_review`. O editor permite vincular o muni
 - Este PR: município independente de zona, revisão por fonte, proteção contra ampliação das NOVAS regras por km para cidades externas e preservação dos trajetos já aprovados.
 
 **Não publicar automaticamente.** Auditar regras fixas de ida/volta, todas as 5 categorias, ausência de tarifa e 22h, catalogação GPS, overrides por categoria e rollback por versão. Não inferir disponibilidade a partir de geocercas genéricas nem de nomes de município. Conferir contratos, permissões e regulamentações aplicáveis ao serviço antes da operação real.
+
+Outras fontes: https://www.ibge.gov.br/biblioteca/visualizacao/dtb/ceara/acarau.pdf e https://municipios-licitacoes.tce.ce.gov.br/index.php/licitacao/detalhes/proc/55322/licit/44447
