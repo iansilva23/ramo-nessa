@@ -11,6 +11,8 @@ export interface LocalityPricing {
   moto?: PriceValue;
   delivery?: PriceValue;
   car?: PriceValue;
+  // Optional final Comfort fare, independent from the derived Car + premium.
+  comfort_black?: PriceValue;
   buggy?: PriceValue;
   after22?: Partial<Record<ServiceCategory, PriceValue>>;
 }
