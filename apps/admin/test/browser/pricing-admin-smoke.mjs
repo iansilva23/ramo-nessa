@@ -155,7 +155,7 @@ try {
   assert.equal(updateRequests,0,'Read-only state cannot send price changes');
 
   await page.locator('#pricing-create-draft-button').click();
-  await page.locator('#pricing-editor-status').getByText('Rascunho').waitFor({timeout:15000});
+  await page.waitForFunction(() => document.querySelector('#pricing-editor-status')?.textContent === 'Rascunho', {timeout:15000});
   await row.locator('button').filter({hasText:'Dia'}).click();
   assert.equal(await page.locator('#pricing-edit-kind').inputValue(),'locality_price');
   assert.equal(await page.locator('#pricing-locality-period').inputValue(),'day');
