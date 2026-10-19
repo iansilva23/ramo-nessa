@@ -5,7 +5,7 @@ A municipalidade administrativa **não** é equivalente à zona de preços `prea
 ## Operação autorizada nesta fase
 - **Cruz/CE**: Preá e localidades reconhecidas, incluindo sede/Preá e Cavalo Bravo.
 - **Jijoca de Jericoacoara/CE**: sede de Jijoca, seus povoados e Vila de Jericoacoara; a Vila tem regras especiais de acesso.
-- **Outros municípios**: permanecem identificados como destinos externos. Táxi e Mototáxi locais NÃO devem ter abertura genérica fora dos dois municípios. Transfer só pode permanecer quando explicitamente aprovado por tarifa fixa/rota autorizada.
+- **Outros municípios**: permanecem identificados como destinos externos. Não criar novas tarifas regionais automáticas para Táxi/Mototáxi fora dos dois municípios. Tarifas anteriores de longas distâncias permanecem preservadas; será necessária auditoria comercial individual para classificá-las como transfer antes de desativar quaisquer preços.
 
 ## Fontes públicas
 - Prefeitura Jijoca: https://www.jijocadejericoacoara.ce.gov.br/informa/1974/d-vidas-frequentes
@@ -37,6 +37,6 @@ O Core marca estes casos como `pending_review`. O editor permite vincular o muni
 - PR #29: corrigiu o match dos transfers e protegeu a seleção de veículo sem preço; já implantado na homologação.
 - PR #30: fallback regional opt-in apenas com tarifa, km máximo, lista fechada e dia/noite publicados.
 - PR #31: tabela completa de preços e adicionais noturnos editáveis no ADM, ainda isolado.
-- Este PR: município é campo independente de zona, revisão por fonte, segurança em corridas locais e proteção contra ampliação regional para cidades externas.
+- Este PR: município independente de zona, revisão por fonte, proteção contra ampliação das NOVAS regras por km para cidades externas e preservação dos trajetos já aprovados.
 
 **Não publicar automaticamente.** Auditar regras fixas de ida/volta, todas as 5 categorias, ausência de tarifa e 22h, catalogação GPS, overrides por categoria e rollback por versão. Não inferir disponibilidade a partir de geocercas genéricas nem de nomes de município. Conferir contratos, permissões e regulamentações aplicáveis ao serviço antes da operação real.

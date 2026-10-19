@@ -34,16 +34,14 @@ test('Tabela administrativa mantém ID e preço mas mostra município e pendênc
   assert.equal(view.municipalityAssignments.jericoacoara.municipalityId,'jijoca-de-jericoacoara');
   assert.deepEqual(original,STATIC_PRICING_CATALOG_V1);
 });
-test('corrida local de táxi e mototáxi não usa preços legados para município fora da operação',()=>{
+test('tarifas comerciais aprovadas não são apagadas quando destino pertence a outro município',()=>{
   const catalog=STATIC_PRICING_CATALOG_V1;
-  for(const category of ['moto','car','comfort_black'] as const) {
-    assert.throws(()=>quoteFare({
-      origin:{zoneId:'prea',localityId:'prea'},
-      destination:{zoneId:'prea',localityId:'barrinha-de-baixo'},
-      category,period:'day',
-    },catalog), (e:unknown)=> e instanceof PricingError && e.code==='UNKNOWN_ROUTE');
-  }
-  // Existing approved inter-zone fixed transfer remains unchanged.
+  const car=quoteFare({
+    origin:{zoneId:'prea',localityId:'prea'},
+    destination:{zoneId:'prea',localityId:'barrinha-de-baixo'},
+    category:'car',period:'day',
+  },catalog);
+  assert.equal(car.kind,'exact');
   const transfer=quoteFare({
     origin:{zoneId:'prea',localityId:'vila-prea'},
     destination:{zoneId:'jericoacoara'},category:'car',period:'day',
