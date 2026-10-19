@@ -11,12 +11,15 @@ permissions:
 jobs:
   contracts:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: node --check deploy/staging/prepare-asaas-driver-web.mjs
-      - run: node --test deploy/staging/asaas-driver-web-contract.test.mjs
+      - run: node --check deploy/staging/activate-asaas-driver-web.mjs
+      - run: node --test deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
       - run: python3 -m unittest discover -s deploy/staging -p test_stage_asaas_driver_web.py -v
+      - run: docker pull caddy:2.11.7-alpine
+      - run: node deploy/staging/test-asaas-driver-web-switch.mjs

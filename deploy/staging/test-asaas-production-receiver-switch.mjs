@@ -89,7 +89,18 @@ try{
   rollback:async()=>{up('rollback');},verifyRollback,
  });
  up('rollback');await verifyRollback();
- await assert.rejects(switchReceiverCore({up:async()=>{up('bad');},check:async()=>{},verify:async()=>{},rollback:async()=>{up('rollback');},verifyRollback}),e=>e.rollbackComplete===true);
+ // Compose --wait can briefly observe an inherited healthy state after recreation.
+ // Independently probe application readiness so this failure rehearsal does not
+ // depend on the runner's healthcheck scheduling.
+ await assert.rejects(switchReceiverCore({
+  up:async()=>{up('bad');},
+  check:async()=>{
+   assert.equal(inspect(core).Image,badImage.Id);
+   const status=Number(docker(['exec',core,'node','-e',"fetch('http://127.0.0.1:8080/ready').then(r=>console.log(r.status))"]).trim());
+   assert.equal(status,200,'Candidate application readiness must succeed independently of Docker health');
+  },
+  verify:async()=>{},rollback:async()=>{up('rollback');},verifyRollback,
+ }),e=>e.rollbackComplete===true);
  await verifyRollback();
  console.log('PRODUCTION RECEIVER SWITCH CI PASSED: actual compiled adapter gives 401/400 with sender null; healthy Core-only image switch preserves literal secrets and private read-only mounts; failed health restores old image/environment/mounts; unrelated container unchanged. Fake credentials, internal network, no real transfer.');
 }finally{
@@ -98,3 +109,4 @@ try{
  for(const tag of built)docker(['image','rm',tag]);
  run('sudo',['rm','-rf','--',dir]);
 }
+
