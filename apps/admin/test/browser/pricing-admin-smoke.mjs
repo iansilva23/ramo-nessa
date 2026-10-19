@@ -181,7 +181,7 @@ try {
     document.querySelector('#pricing-complete-body')?.textContent?.includes('47,00'));
   assert.equal(publishRequests,0);
   assert.deepEqual(errors,[],'Browser JavaScript errors');
-  const evidenceDir = resolve(root, '.pricing-browser-artifacts');
+  const evidenceDir = resolve(root, 'pricing-browser-artifacts');
   await mkdir(evidenceDir, {recursive:true});
   await page.screenshot({path:resolve(evidenceDir,'pricing-desktop-1280.png'), fullPage:true, animations:'disabled'});
   console.log('PASS Chromium localhost-only: login, price matrix, filters, draft gating, edit, reload, no publication');
