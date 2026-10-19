@@ -1170,6 +1170,55 @@ export function createLocalitiesAdmin(input) {
     holder.insertBefore(button, byId('localities-message')?.nextSibling ?? null);
   }
 
+  function selectedMunicipalityEntry() {
+    return allEntries().find(x => entryKey(x) === byId('municipality-entry')?.value) ?? null;
+  }
+  function showMunicipalitySelection() {
+    const entry = selectedMunicipalityEntry();
+    const value = entry?.municipality;
+    if (byId('municipality-id')) byId('municipality-id').value = value?.municipalityId ?? '';
+    if (byId('municipality-source')) byId('municipality-source').value = value?.sourceUrl ?? '';
+    const status = byId('municipality-status');
+    if (status) status.textContent = value?.status === 'confirmed'
+      ? 'Município confirmado. Tarifas e regiões operacionais permanecem separadas.'
+      : 'Município pendente: confirme a localização com fonte pública.';
+  }
+  function renderMunicipalityPanel(entries) {
+    const select = byId('municipality-entry');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren();
+    for (const entry of entries) {
+      const option = document.createElement('option');
+      option.value = entryKey(entry);
+      option.textContent = entry.label + ' · ' + scopeLabel(entry.scope);
+      select.append(option);
+    }
+    if (entries.some(entry => entryKey(entry) === previous)) select.value = previous;
+    showMunicipalitySelection();
+    if (byId('municipality-save')) byId('municipality-save').disabled = !hasScope('pricing:write');
+  }
+  async function saveMunicipalityAssignment() {
+    if (saving || !hasScope('pricing:write')) return;
+    const entry = selectedMunicipalityEntry();
+    if (!entry) throw new Error('Selecione uma localidade.');
+    if (hasUnsavedWizardChanges()) throw new Error(
+      'Salve ou descarte primeiro as alterações abertas da localidade.');
+    const municipalityId = byId('municipality-id')?.value || null;
+    const sourceUrl = byId('municipality-source')?.value.trim() || null;
+    if (municipalityId && (!sourceUrl || !sourceUrl.startsWith('https://'))) {
+      throw new Error('Confirme o município com uma fonte pública HTTPS.');
+    }
+    saving = true;
+    try {
+      await applyPatch({kind:'municipality_assignment',scope:entry.scope,
+        localityId:entry.localityId,municipalityId,
+        status:municipalityId ? 'confirmed' : 'pending_review',
+        sourceUrl:municipalityId ? sourceUrl : null});
+      await refresh({announce:false});
+      setMessage('Município salvo no rascunho. Nenhuma tarifa foi publicada.','success');
+    } finally {saving = false;}
+  }
   async function undoDelete() {
     if (saving) {
       setMessage('Aguarde o salvamento da localidade antes de desfazer a exclusão.', 'danger');
@@ -1251,55 +1300,6 @@ export function createLocalitiesAdmin(input) {
     setMessage('Exclusão desfeita no rascunho.', 'success');
   }
 
-  function selectedMunicipalityEntry() {
-    return allEntries().find(x => entryKey(x) === byId('municipality-entry')?.value) ?? null;
-  }
-  function showMunicipalitySelection() {
-    const entry = selectedMunicipalityEntry();
-    const value = entry?.municipality;
-    if (byId('municipality-id')) byId('municipality-id').value = value?.municipalityId ?? '';
-    if (byId('municipality-source')) byId('municipality-source').value = value?.sourceUrl ?? '';
-    const status = byId('municipality-status');
-    if (status) status.textContent = value?.status === 'confirmed'
-      ? 'Município confirmado. Tarifas e regiões operacionais permanecem separadas.'
-      : 'Município pendente: confirme a localização com fonte pública.';
-  }
-  function renderMunicipalityPanel(entries) {
-    const select = byId('municipality-entry');
-    if (!select) return;
-    const previous = select.value;
-    select.replaceChildren();
-    for (const entry of entries) {
-      const option = document.createElement('option');
-      option.value = entryKey(entry);
-      option.textContent = entry.label + ' · ' + scopeLabel(entry.scope);
-      select.append(option);
-    }
-    if (entries.some(entry => entryKey(entry) === previous)) select.value = previous;
-    showMunicipalitySelection();
-    if (byId('municipality-save')) byId('municipality-save').disabled = !hasScope('pricing:write');
-  }
-  async function saveMunicipalityAssignment() {
-    if (saving || !hasScope('pricing:write')) return;
-    const entry = selectedMunicipalityEntry();
-    if (!entry) throw new Error('Selecione uma localidade.');
-    if (hasUnsavedWizardChanges()) throw new Error(
-      'Salve ou descarte primeiro as alterações abertas da localidade.');
-    const municipalityId = byId('municipality-id')?.value || null;
-    const sourceUrl = byId('municipality-source')?.value.trim() || null;
-    if (municipalityId && (!sourceUrl || !sourceUrl.startsWith('https://'))) {
-      throw new Error('Confirme o município com uma fonte pública HTTPS.');
-    }
-    saving = true;
-    try {
-      await applyPatch({kind:'municipality_assignment',scope:entry.scope,
-        localityId:entry.localityId,municipalityId,
-        status:municipalityId ? 'confirmed' : 'pending_review',
-        sourceUrl:municipalityId ? sourceUrl : null});
-      await refresh({announce:false});
-      setMessage('Município salvo no rascunho. Nenhuma tarifa foi publicada.','success');
-    } finally {saving = false;}
-  }
   function renderDirectory() {
     const entries = allEntries();
     byId('localities-total').textContent = String(entries.length);
