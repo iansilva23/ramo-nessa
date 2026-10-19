@@ -1,10 +1,10 @@
 // CI-only rehearsal of the same offline dump/restore/migration/probe commands.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync,copyFileSync,chmodSync,openSync,closeSync,rmSync} from 'node:fs';
+import {mkdtempSync,copyFileSync,chmodSync,openSync,closeSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,randomUUID} from 'node:crypto';
 if(process.env.GITHUB_ACTIONS!=='true')throw Error('Somente CI descartável.');
 const dir=mkdtempSync(join(tmpdir(),'asaas-offline-ci-')),name='asaas-offline-ci-'+randomBytes(8).toString('hex');
 const pw=randomBytes(32).toString('base64url'),user='ramo_restore',database='ramo_asaas_restore';
@@ -30,6 +30,20 @@ try{
  assert.equal(core(name+'-target',candidate,['/audit/probe.mjs','fingerprint']),before);
  for(const suffix of ['-source','-target']){const result=JSON.parse(run(['inspect',name+suffix]))[0];assert.equal(result.HostConfig.NetworkMode,'none');assert.equal(Object.keys(result.HostConfig.PortBindings??{}).length,0);}
  console.log('OFFLINE RESTORE CI PASSED: dump restored, migration 086 repeated, custom policy preserved, old/new repositories readable and business data unchanged.');
+ run(['exec',name+'-target','psql','-v','ON_ERROR_STOP=1','-U',user,'-d',database,'-c','CREATE DATABASE ramo_asaas_sandbox']);
+ const labUrl='postgresql://'+user+':'+pw+'@127.0.0.1:5432/ramo_asaas_sandbox';
+ run(['run','--rm','--network','container:'+name+'-target','--env','DATABASE_URL='+labUrl,'--env','DB_SSL=false',candidate,'node','dist/scripts/migrate.js']);
+ const lab=join(dir,'lab');mkdirSync(lab);chmodSync(lab,0o777);
+ const id=randomUUID(),session={id,rideId:randomUUID(),paymentId:randomUUID(),captureEventId:randomUUID(),driverId:'asaas-sandbox-ci-'+id,createdAt:new Date().toISOString()};
+ writeFileSync(join(lab,'session.json'),JSON.stringify(session),{mode:0o644});writeFileSync(join(lab,'webhook-token'),'ci-sandbox-webhook-fixture-only-12345678901234567890',{mode:0o644});
+ writeFileSync(join(dir,'key-fixture'),'ci-sandbox-api-key-fixture-only-12345678901234567890',{mode:0o644});
+ for(const [source,target] of [['asaas-sandbox-worker.mjs','worker.mjs'],['asaas-sandbox-worker-fixture.mjs','fixture.mjs']]){copyFileSync(resolve('deploy/staging/'+source),join(dir,target));chmodSync(join(dir,target),0o644);}
+ const labRun=()=>JSON.parse(run(['run','--rm','--network','container:'+name+'-target','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--env','DATABASE_URL='+labUrl,'--env','DB_SSL=false','--env','GITHUB_ACTIONS=true','--mount','type=bind,src='+lab+',dst=/audit/data','--mount','type=bind,src='+join(dir,'worker.mjs')+',dst=/audit/worker.mjs,readonly','--mount','type=bind,src='+join(dir,'fixture.mjs')+',dst=/audit/fixture.mjs,readonly','--mount','type=bind,src='+join(dir,'key-fixture')+',dst=/run/secrets/asaas-sandbox-api-key,readonly',candidate,'node','/audit/fixture.mjs']));
+ const firstRun=labRun(),restart=labRun();
+ for(const result of [firstRun,restart]){assert.equal(result.transport,'ci-fixture');assert.equal(result.result,'passed');assert.equal(result.postAttempts,1);assert.equal(result.ledgerPaidEntries,1);assert.equal(result.externalWebhookDeliveryVerified,false);}
+ assert.equal(restart.transferId,firstRun.transferId);assert.equal(restart.payoutId,firstRun.payoutId);
+ console.log('SANDBOX WORKER CI PASSED: concurrent requests, lost response and worker restart preserve one POST and one paid ledger entry. External API and webhook delivery are not exercised in CI.');
+
 }finally{
  if(target)run(['rm','-f','-v',name+'-target']);if(source)run(['rm','-f','-v',name+'-source']);rmSync(dir,{recursive:true,force:true});
 }

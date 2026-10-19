@@ -80,3 +80,13 @@ O probe aplica 086 somente na cópia, valida os padrões, grava uma política cu
 O backup de documentos ocorre com o sistema online. O tar deve concluir sem avisos de alteração; seu conteúdo é extraído e relido em volume isolado. Não é um snapshot atômico conjunto do banco e filesystem. Não substitui uma janela controlada de escrita quando o volume estiver recebendo alterações simultâneas. O site e sua SQLite não são atualizados por esta implantação; esta etapa não cria novo backup do SQLite do site.
 
 O workflow inclui um ensaio real de dump/restauração em PostgreSQL offline, migração e probes com imagens Docker dos dois Cores. A execução completa do preparador/backup depende dos fingerprints reais da VPS e só é comprovada após o operador executá-los. Não existe ativação automática depois do backup.
+
+### Exercício com a API Sandbox e dados separados
+
+`run-asaas-sandbox.mjs` usa exclusivamente a chave privada em `/opt/ramo-nessa-private/asaas-sandbox/api-key`. Cria um banco novo `ramo_asaas_sandbox` em volume e rede próprios, sem portas publicadas e sem montar dados/configurações de produção. O worker usa a imagem candidata já preparada e os repositórios/adapter compilados, cria uma corrida/carteira fictícias e solicita exatamente R$5 para `cliente-a00001@pix.bcb.gov.br`, chave de homologação publicada em https://docs.asaas.com/docs/testing-transfers.md. O fluxo consulta primeiro o saldo virtual.
+
+O adapter fixa o host Sandbox; o wrapper restringe os pedidos ao mesmo host e grava uma intenção antes do único POST permitido na sessão. A sessão persistida e o volume são reutilizados em novas execuções. Respostas inconclusivas não autorizam novo envio. Não apagar a sessão ou o volume para tentar de novo: consultar e reconciliar o registro existente. O PostgreSQL privado é parado ao final para poupar memória; os dados ficam preservados. Não há limpeza automática de registros remotos.
+
+O exercício verifica envio, conciliação canônica e baixa única no ledger. O replay autenticado local não equivale a receber um webhook pela internet: o resultado mantém `externalWebhookDeliveryVerified=false`. A entrega externa do webhook segue como aceite separado obrigatório antes de ativar repasses reais. Nenhum endpoint público ou Caddy é alterado nesta etapa.
+
+O ensaio CI usa transporte simulado, banco PostgreSQL real e rede sem acesso externo, incluindo resposta perdida, concorrência e reinício do worker. Não utiliza a conta ou chave do proprietário. O resultado contra a API real Sandbox só será conhecido após execução na VPS.
