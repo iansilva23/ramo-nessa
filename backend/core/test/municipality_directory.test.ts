@@ -75,3 +75,35 @@ test('classificação municipal exige fonte HTTPS e rascunho isolado',async()=>{
     municipalityId:'acarau',status:'pending_review',sourceUrl:null,
   }),InvalidPricingCatalogPatchError);
 });
+
+
+test('inventário municipal: 83 registros por escopo, sem presumir município dos pendentes', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const grouped = {
+    prea: Object.keys(catalog.localities.prea),
+    jijoca: Object.keys(catalog.localities.jijoca),
+    external: catalog.externalLocalities,
+    jericoacoara: ['jericoacoara'],
+  } as const;
+  assert.deepEqual(Object.fromEntries(
+    Object.entries(grouped).map(([scope, ids]) => [scope, ids.length]),
+  ), {prea:50,jijoca:16,external:16,jericoacoara:1});
+  let confirmed=0, pending=0;
+  for (const [scope,ids] of Object.entries(grouped)) {
+    for (const id of ids) {
+      const assignment=municipalityFor(catalog,scope as keyof typeof grouped,id);
+      if (assignment.status === 'confirmed') {
+        assert.ok(assignment.municipalityId, scope + '/' + id);
+        assert.match(assignment.sourceUrl ?? '',/^https:\/\//);
+        confirmed++;
+      } else {
+        assert.equal(assignment.status,'pending_review');
+        assert.equal(assignment.municipalityId,null);
+        pending++;
+      }
+    }
+  }
+  assert.equal(confirmed+pending,83);
+  assert.equal(confirmed,57);
+  assert.equal(pending,26);
+});
