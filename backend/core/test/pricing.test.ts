@@ -494,7 +494,8 @@ test('preço Comfort configurado na localidade substitui o adicional derivado se
     period: 'day' as const,
   };
   const old = quoteFare(request, catalog);
-  assert.equal(old.baseAmountCents, 6700);
+  assert.equal(old.kind, 'exact');
+  if (old.kind === 'exact') assert.equal(old.baseAmountCents, 6700);
   catalog.localities.prea['buraco-azul']!.comfort_black = 9500;
   catalog.localities.prea['buraco-azul']!.after22 ??= {};
   catalog.localities.prea['buraco-azul']!.after22!.comfort_black = 11200;
@@ -502,9 +503,11 @@ test('preço Comfort configurado na localidade substitui o adicional derivado se
   const night = quoteFare({...request, period: 'after_22'}, catalog);
   const car = quoteFare({...request, category: 'car'}, catalog);
   assert.equal(day.kind, 'exact');
-  assert.equal(day.baseAmountCents, 9500);
-  assert.equal(night.baseAmountCents, 11200);
-  assert.equal(car.baseAmountCents, 4200);
+  if (day.kind === 'exact') assert.equal(day.baseAmountCents, 9500);
+  assert.equal(night.kind, 'exact');
+  if (night.kind === 'exact') assert.equal(night.baseAmountCents, 11200);
+  assert.equal(car.kind, 'exact');
+  if (car.kind === 'exact') assert.equal(car.baseAmountCents, 4200);
 });
 
 test('preço específico continua tendo prioridade sobre fallback por distância', () => {
