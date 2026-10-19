@@ -42,5 +42,22 @@ Status: PLANEJAMENTO E AUDITORIA — NÃO HOMOLOGADO. Não publicar, mesclar ou 
 - Estas versões podem mudar: inspecionar novamente quando houver futura autorização de rollout.
 - Nenhuma evidência de que #30–#34 estejam instalados na VPS; não inferir somente por nomes de imagens.
 
-## Estado deste PR
-Este commit apenas registra a base e os gates para a integração. NÃO transporta o código de preços e NÃO comprova testes. Próximo trabalho: efetuar cherry-picks seletivos com resolução de sobreposições, realizar testes e anexar evidências.
+## Estado verificado em 19/10/2026 — PR #35
+
+- PR #35 já incorpora os arquivos de Core, catálogo, diretório municipal, matriz do ADM, `app.js`, CSS e testes de preços dos PRs anteriores sobre a base financeira.
+- O arquivo de workflow financeiro adicionado à branch #33 foi preservado por cópia sem alteração de conteúdo.
+- Integração automatizada: workflow `39299754230`, commit `6c5209e8ea58948fef7f51ca23b5f1e5ef99cf72`, cinco jobs com conclusão `success`: Core, ADM, Passageiro, Motorista e Design System.
+- Atenção: esta evidência é de testes unitários/estáticos, **não** é aceite visual, geoespacial, integração do banco ou corrida real.
+- O teste de matriz utiliza distâncias sintéticas de 7,25 km para todas as combinações; não valida distância roteada Google Maps nem comprova tarifas comercialmente autorizadas em cada rota.
+- Na linha-base estática, `distanceFarePolicies.length === 0`. Tarifas regionais por km permanecem dependentes de regras comerciais específicas explicitamente aprovadas/publicadas.
+- Os 26 registros municipais pendentes continuam sujeitos a verificação individual; não atribuir município por suposição.
+
+### Gates faltantes antes de qualquer deploy
+
+1. Teste funcional no navegador do ADM: tabela, filtros, categorias desativadas, atalhos, edição dia/noite, rascunho, reload, conflitos de versões, perfis de acesso e publicação somente em ambiente descartável autorizado.
+2. Teste do fluxo real GPS/Maps: correspondência de localidade, município e geocercas, trajetos ida/volta, transfer externo, rota indisponível e distância inválida.
+3. Conferência ponta a ponta do preço mostrado, assinado, cobrado e contabilizado, sem executar pagamentos ou repasses reais.
+4. Revisão visual em navegador e dispositivos Android/iOS; os cinco jobs do workflow não substituem esse aceite.
+5. Reconferir HEAD do financeiro e estado da VPS antes da futura integração; garantir backup testado e rollback. Não modificar checkout compartilhado nem reiniciar serviços durante o preparo.
+
+**Estado final: revisão automatizada aprovada; homologação funcional e publicação pendentes. PR permanece DRAFT, sem merge ou deploy.**
