@@ -369,6 +369,22 @@ function quotePrea(
       return null;
     }
     const entry = catalog.localities.prea[localityId];
+    // A directly configured Comfort fare is the final amount. When there is
+    // no override, preserve the approved Car + Comfort commercial calculation.
+    const explicitComfort = request.period === 'after_22'
+      ? entry?.after22?.comfort_black ?? entry?.comfort_black
+      : entry?.comfort_black;
+    if (explicitComfort != null) {
+      const value = request.period === 'after_22' &&
+        entry?.after22?.comfort_black == null &&
+        localityNightSurchargeEnabled(catalog, localityId) &&
+        typeof explicitComfort === 'number'
+          ? explicitComfort + catalog.surcharges.preaLocalCarAfter22Cents
+          : explicitComfort;
+      return isBand(value)
+        ? rangeQuote(`prea-${localityId}-comfort`, value, request, catalog)
+        : exactQuote(`prea-${localityId}-comfort`, value, request, catalog);
+    }
     const explicitNight = request.period === 'after_22' ? entry?.after22?.car : undefined;
     const car = explicitNight ?? localityPrice(catalog.localities.prea, localityId, 'car');
     if (car == null) return null;
@@ -452,6 +468,24 @@ function quoteJijoca(request: QuoteRequest, catalog: PricingCatalogSnapshot): Fa
   const category = request.category === 'comfort_black' ? 'car' : request.category;
   if (request.category === 'comfort_black' && catalog.commercialPolicy == null) return null;
   const entry = catalog.localities.jijoca[localityId];
+  const comfortOverride = request.category === 'comfort_black'
+    ? request.period === 'after_22'
+      ? entry?.after22?.comfort_black ?? entry?.comfort_black
+      : entry?.comfort_black
+    : undefined;
+  if (comfortOverride != null) {
+    const nightFactor = request.period === 'after_22' &&
+      entry?.after22?.comfort_black == null &&
+      catalog.localityPolicies.jijoca[localityId]?.applyNightSurcharge === true
+        ? 1 + (catalog.commercialPolicy?.jijocaNightBps ?? 0) / 10000 : 1;
+    if (isBand(comfortOverride)) return rangeQuote(
+      `jijoca-${localityId}-comfort_black`,
+      { minCents: Math.round(comfortOverride.minCents * nightFactor),
+        maxCents: Math.round(comfortOverride.maxCents * nightFactor) },
+      request, catalog);
+    return exactQuote(`jijoca-${localityId}-comfort_black`,
+      Math.round(comfortOverride * nightFactor), request, catalog);
+  }
   const explicitNight = request.period === 'after_22' ? entry?.after22?.[category] : undefined;
   const value = explicitNight ?? localityPrice(catalog.localities.jijoca, localityId, category);
   if (value == null) return null;

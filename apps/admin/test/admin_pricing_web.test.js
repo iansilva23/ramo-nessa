@@ -173,6 +173,12 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-localities',
     'pricing-fixed-routes',
     'pricing-routes-body',
+    'pricing-all-rates',
+    'pricing-complete-body',
+    'pricing-rate-search',
+    'pricing-rate-region',
+    'pricing-rate-category',
+    'pricing-night-controls',
     'pricing-category-count',
     'pricing-category-policies-body',
     'pricing-category-policy-fields',
@@ -263,6 +269,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
   assert.match(html, /Aplicar adicional noturno da região/i);
+  assert.match(app, /buildPricingRateRows/);
+  assert.match(app, /editPricingFromMatrix/);
+  assert.match(app, /renderPricingCompleteMatrix/);
+  assert.match(app, /pricing-night-controls/);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);

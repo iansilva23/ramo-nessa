@@ -5465,3 +5465,14 @@ td strong {
 
 
 .site-admin-tabs,.site-admin-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:18px 0}.site-admin-card{padding:24px;border:1px solid #dedede;border-radius:16px;background:#fff;margin:16px 0;display:grid;gap:14px}.site-admin-card h2,.site-admin-card p{margin:0}.site-admin-card input,.site-admin-card select,.site-admin-card textarea,.site-admin-toolbar select{max-width:100%;padding:12px;border:1px solid #bbb;border-radius:8px;background:#fff;color:#111}.site-admin-card textarea{min-height:90px;resize:vertical}.site-content-preview{background:#101010;color:#fff;white-space:pre-line}.site-content-preview img{max-width:100%;max-height:280px;object-fit:cover;border-radius:12px}.site-admin-card button{justify-self:start}.site-admin-tabs button{min-height:44px}@media(max-width:600px){.site-admin-card{padding:16px}.site-admin-toolbar{align-items:stretch;flex-direction:column}}
+
+/* Ramo pricing console */
+.pricing-complete-card{margin-bottom:20px}
+.pricing-complete-filters{display:grid;grid-template-columns:minmax(190px,2fr) repeat(2,minmax(130px,1fr));gap:12px;margin:18px 0}
+.pricing-complete-table{min-width:860px}
+.pricing-complete-table td{vertical-align:middle}
+.pricing-complete-table td:last-child{white-space:nowrap}
+.pricing-rate-edit{font-size:.78rem;margin:2px 4px 2px 0;padding:7px 10px}
+.pricing-night-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0}
+.pricing-complete-card .pricing-policy-help{display:block;margin-top:14px;line-height:1.6}
+@media(max-width:780px){.pricing-complete-filters{grid-template-columns:1fr}.pricing-night-shortcuts .button{width:100%;justify-content:center}}

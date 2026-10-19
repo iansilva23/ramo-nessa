@@ -20,7 +20,7 @@ export type PricingCatalogAtomicPatch =
       kind: 'locality_price';
       hub: 'prea' | 'jijoca';
       localityId: string;
-      category: 'moto' | 'delivery' | 'car' | 'buggy';
+      category: 'moto' | 'delivery' | 'car' | 'buggy' | 'comfort_black';
       period?: 'day' | 'after_22';
       price:
         | { kind: 'exact'; amountCents: number }
@@ -419,10 +419,11 @@ export function parsePricingCatalogDraftPatch(
     if (
       category !== 'moto' &&
       category !== 'delivery' &&
-      category !== 'car' && category !== 'buggy'
+      category !== 'car' && category !== 'buggy' &&
+      category !== 'comfort_black'
     ) {
       throw new InvalidPricingCatalogPatchError(
-        'category deve ser moto, delivery ou car.',
+        'category deve ser moto, delivery, car, buggy ou comfort_black.',
       );
     }
 
