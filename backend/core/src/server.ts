@@ -1,3 +1,5 @@
+import { AsaasDriverPayoutProvider, AsaasWebhookError } from './payments/asaas-driver-payout-provider.js';
+import { applyConfirmedDriverPayoutResult } from './payments/driver-payout-processing-service.js';
 import { GrowthService } from './growth/growth-service.js';
 import { createGrowthChannels } from './growth/growth-channels.js';
 import { handleGrowthRoutes } from './growth/growth-routes.js';
@@ -44,6 +46,7 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from './payments/mercado-pago-orders.js';
 import {
+  createAsaasWebhookReceiverFromEnv,
   createDriverPayoutProviderFromEnv,
   DriverPayoutProviderError,
 } from './payments/driver-payout-provider.js';
@@ -525,6 +528,7 @@ import {
 
 const port = resolveCorePort();
 const {
+  asaasPayoutStore,
   authSessionRepository,
   authOtpRepository,
   adminRepository,
@@ -653,7 +657,12 @@ const placeProofTtlSeconds = resolvePlaceProofTtlSeconds();
 assertGoogleMapsProductionConfig();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
-const driverPayoutProvider = createDriverPayoutProviderFromEnv();
+const driverPayoutProvider = createDriverPayoutProviderFromEnv(process.env, { store: asaasPayoutStore, financeLookup: id => financeRepository.findDriverPayoutById(id) });
+const asaasWebhookReceiver = driverPayoutProvider instanceof AsaasDriverPayoutProvider
+  ? driverPayoutProvider
+  : createAsaasWebhookReceiverFromEnv(process.env, { store: asaasPayoutStore, financeLookup: id => financeRepository.findDriverPayoutById(id) });
+// Asaas is exclusively for drivers. Never pass it to company-profit operations.
+const companyPayoutProvider = driverPayoutProvider?.name === 'asaas' ? null : driverPayoutProvider;
 const realtimeHub = new RealtimeHub();
 const browserRealtimeTickets = new BrowserRealtimeTicketStore();
 const otpDeliveryProvider = resolveOtpDeliveryProviderFromEnv();
@@ -1400,9 +1409,9 @@ async function runPayoutReconciliation(): Promise<void> {
       logInfo('driver.payout.reconciliation.completed', result);
     }
 
-    const companyResult = await reconcileCompanyPayouts({
+    const companyResult = companyPayoutProvider == null ? { processed: 0, errors: 0 } : await reconcileCompanyPayouts({
       finance: financeRepository,
-      provider: driverPayoutProvider,
+      provider: companyPayoutProvider,
       limit: 100,
     });
     if (companyResult.processed > 0 || companyResult.errors > 0) {
@@ -1607,6 +1616,19 @@ const server = createServer(async (request, response) => {
         });
       }
       return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/v1/webhooks/asaas/transfers') {
+      if (!(asaasWebhookReceiver instanceof AsaasDriverPayoutProvider)) {
+        json(response, 503, { error: 'ASAAS_NOT_CONFIGURED' }); return;
+      }
+      const body = await readJson(request);
+      const result = await asaasWebhookReceiver.receiveWebhook(headerValue(request, 'asaas-access-token') ?? '', body);
+      if (result.payoutId && result.result) {
+        await applyConfirmedDriverPayoutResult({ finance: financeRepository, provider: asaasWebhookReceiver, payoutId: result.payoutId, result: result.result });
+        await asaasWebhookReceiver.completeWebhook((body as { id: string }).id);
+      }
+      json(response, 200, { received: true, duplicate: result.duplicate }); return;
     }
 
     if (
@@ -4192,6 +4214,8 @@ const server = createServer(async (request, response) => {
         limit: Number.isFinite(rawLimit) ? rawLimit : 25,
         canManageCompanyPayouts: isAdminPayoutOwner(actor),
         payoutProviderConfigured: driverPayoutProvider != null,
+        companyPayoutProviderConfigured: companyPayoutProvider != null,
+        asaasIntegration: { provider: 'asaas', status: driverPayoutProvider instanceof AsaasDriverPayoutProvider ? 'configured' : process.env.DRIVER_PAYOUT_PROVIDER_NAME === 'asaas' ? 'disabled' : 'awaiting_configuration', apiAvailable: driverPayoutProvider instanceof AsaasDriverPayoutProvider, environment: driverPayoutProvider instanceof AsaasDriverPayoutProvider ? driverPayoutProvider.environment : null },
       });
       json(response, 200, finance);
       return;
@@ -4237,7 +4261,7 @@ const server = createServer(async (request, response) => {
         requiredScope: 'finance:write',
       });
       assertAdminPayoutOwner(actor);
-      if (driverPayoutProvider == null) {
+      if (companyPayoutProvider == null) {
         json(response, 503, {
           error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
           message: 'Provedor de repasse Pix não configurado.',
@@ -4277,7 +4301,7 @@ const server = createServer(async (request, response) => {
       try {
         const processed = await processCompanyPayout({
           finance: financeRepository,
-          provider: driverPayoutProvider,
+          provider: companyPayoutProvider,
           payoutId: requested.payout.id,
         });
         if (processed.payout != null) {
@@ -4367,9 +4391,9 @@ const server = createServer(async (request, response) => {
         provider: driverPayoutProvider,
         limit: 100,
       });
-      const companyReconciliation = await reconcileCompanyPayouts({
+      const companyReconciliation = companyPayoutProvider == null ? { processed: 0, errors: 0 } : await reconcileCompanyPayouts({
         finance: financeRepository,
-        provider: driverPayoutProvider,
+        provider: companyPayoutProvider,
         limit: 100,
       });
       const reconciliation = {
@@ -4401,9 +4425,14 @@ const server = createServer(async (request, response) => {
       });
       assertAdminPayoutOwner(actor);
       const body = await readJson(request);
-      const payload = body as { mode?: unknown; automaticEnabled?: unknown } | null;
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new InvalidAdminRequestError('Política de repasses inválida.');
+      const payload = body as { mode?: unknown; automaticEnabled?: unknown; anticipationMinimumCents?: unknown; anticipationFeeCents?: unknown };
+      const currentPolicy = await financeRepository.getDriverPayoutSettings();
+      for (const value of [payload?.anticipationMinimumCents, payload?.anticipationFeeCents]) {
+        if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value))) throw new InvalidAdminRequestError('Mínimo e taxa devem ser valores inteiros em centavos.');
+      }
       const mode = payload?.mode ?? (typeof payload?.automaticEnabled === 'boolean'
-        ? (payload.automaticEnabled ? 'automatic' : 'manual') : undefined);
+        ? (payload.automaticEnabled ? 'automatic' : 'manual') : (currentPolicy.mode ?? 'manual'));
       if (mode !== 'manual' && mode !== 'semi_automatic' && mode !== 'automatic') {
         throw new InvalidAdminRequestError('Modo de repasse inválido.');
       }
@@ -4422,6 +4451,8 @@ const server = createServer(async (request, response) => {
           actor,
           automaticEnabled,
           mode,
+          ...(payload?.anticipationMinimumCents === undefined ? {} : { anticipationMinimumCents: payload.anticipationMinimumCents as number }),
+          ...(payload?.anticipationFeeCents === undefined ? {} : { anticipationFeeCents: payload.anticipationFeeCents as number }),
         }),
       );
       return;
@@ -4496,11 +4527,12 @@ const server = createServer(async (request, response) => {
             driverId: payout.driverId,
             ...errorFields(error),
           });
+          const current = await financeRepository.findDriverPayoutById(payout.id);
           created.push({
             payoutId: payout.id,
             driverId: payout.driverId,
-            status: 'requested',
-            providerRetryPending: true,
+            status: current?.status ?? 'requested',
+            providerRetryPending: current?.status === 'requested' || current?.status === 'processing',
           });
         }
       }
@@ -4530,6 +4562,7 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await getAdminPayoutDetail({
+          asaasStore: asaasPayoutStore,
           finance: financeRepository,
           payoutId: adminPayoutMatch[1]!,
         }),
@@ -7078,7 +7111,7 @@ const server = createServer(async (request, response) => {
       const result = await requestDriverPayoutFromApp({
         repository: financeRepository,
         driverId,
-        amountCents: body.amountCents,
+        ...body,
         idempotencyKey: readIdempotencyKey(request.headers),
       });
 
@@ -9653,6 +9686,10 @@ const server = createServer(async (request, response) => {
         message: error.message,
       });
       return;
+    }
+
+    if (error instanceof AsaasWebhookError) {
+      json(response, error.status, { error: 'INVALID_ASAAS_WEBHOOK', message: error.message }); return;
     }
 
     if (error instanceof DriverPayoutProviderError) {

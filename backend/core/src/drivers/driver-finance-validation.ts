@@ -9,6 +9,8 @@ export class InvalidDriverFinanceRequestError extends Error {
 
 export function parseDriverPayoutRequest(input: unknown): {
   amountCents: number;
+  expectedFeeCents?: number;
+  expectedMinimumCents?: number;
 } {
   if (input == null || typeof input !== 'object' || Array.isArray(input)) {
     throw new InvalidDriverFinanceRequestError(
@@ -27,7 +29,16 @@ export function parseDriverPayoutRequest(input: unknown): {
     );
   }
 
-  return { amountCents };
+  const value = input as Record<string, unknown>;
+  for (const field of ['expectedFeeCents', 'expectedMinimumCents']) {
+    if (value[field] !== undefined && (typeof value[field] !== 'number' || !Number.isSafeInteger(value[field]) || Number(value[field]) < 0)) {
+      throw new InvalidDriverFinanceRequestError('Condições de antecipação inválidas.');
+    }
+  }
+  return { amountCents,
+    ...(value.expectedFeeCents === undefined ? {} : { expectedFeeCents: value.expectedFeeCents as number }),
+    ...(value.expectedMinimumCents === undefined ? {} : { expectedMinimumCents: value.expectedMinimumCents as number }),
+  };
 }
 
 function onlyDigits(value: string): string {

@@ -294,6 +294,8 @@ class _NoOfferDriverApi implements DriverApi {
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
+    int? expectedFeeCents,
+    int? expectedMinimumCents,
   }) =>
       throw UnimplementedError();
 }

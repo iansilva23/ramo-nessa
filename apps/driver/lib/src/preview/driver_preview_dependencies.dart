@@ -432,6 +432,8 @@ final class _PreviewDriverApi implements DriverApi {
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
+    int? expectedFeeCents,
+    int? expectedMinimumCents,
   }) async {
     final amount = amountCents.clamp(0, _finance.availableBalanceCents).toInt();
     _finance = DriverFinanceSummary(

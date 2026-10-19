@@ -1,3 +1,4 @@
+import { anticipationPolicy } from '../payout.js';
 import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
@@ -2457,6 +2458,11 @@ export class PostgresFinanceRepository implements FinanceRepository {
     }
   }
 
+  async findDriverPayoutByIdempotencyKey(key: string): Promise<DriverPayoutRecord | null> {
+    const result = await this.pool.query<DriverPayoutRow>(`SELECT ${PAYOUT_COLUMNS} FROM driver_payouts WHERE idempotency_key = $1`, [key]);
+    return result.rows[0] ? mapPayout(result.rows[0]) : null;
+  }
+
   async findDriverPayoutById(
     id: string,
   ): Promise<DriverPayoutRecord | null> {
@@ -2968,6 +2974,10 @@ export class PostgresFinanceRepository implements FinanceRepository {
           ledgerTransaction: existing,
           duplicateCancellation: true,
         };
+      }
+
+      if (payout.processor === 'asaas' && payout.status === 'processing') {
+        throw new PayoutDomainError('INVALID_PAYOUT_TRANSITION', 'Repasse Asaas em processamento exige conciliação; não pode ser devolvido manualmente.');
       }
 
       if (
@@ -3653,11 +3663,13 @@ export class PostgresFinanceRepository implements FinanceRepository {
 
   async getDriverPayoutSettings(): Promise<DriverPayoutSettings> {
     const result = await this.pool.query<{
+      anticipation_minimum_cents: number;
+      anticipation_fee_cents: number;
       automatic_enabled: boolean;
       mode: import('../payout.js').DriverPayoutMode;
       updated_at: Date;
     }>(
-      `SELECT automatic_enabled, mode, updated_at
+      `SELECT automatic_enabled, mode, updated_at, anticipation_minimum_cents, anticipation_fee_cents
        FROM driver_payout_settings
        WHERE id = 1
        LIMIT 1`,
@@ -3667,6 +3679,8 @@ export class PostgresFinanceRepository implements FinanceRepository {
       throw new Error('Configuração de repasses não foi inicializada.');
     }
     return {
+      anticipationMinimumCents: row.anticipation_minimum_cents,
+      anticipationFeeCents: row.anticipation_fee_cents,
       automaticEnabled: row.automatic_enabled,
       mode: row.mode,
       updatedAt: row.updated_at.toISOString(),
@@ -3676,23 +3690,29 @@ export class PostgresFinanceRepository implements FinanceRepository {
   async setDriverPayoutAutomaticEnabled(
     input: SetDriverPayoutAutomaticEnabledInput,
   ): Promise<DriverPayoutSettings> {
+    const values = anticipationPolicy({ ...(await this.getDriverPayoutSettings()), ...input });
     const updatedAt = (input.updatedAt ?? new Date()).toISOString();
     const result = await this.pool.query<{
+      anticipation_minimum_cents: number;
+      anticipation_fee_cents: number;
       automatic_enabled: boolean;
       mode: import('../payout.js').DriverPayoutMode;
       updated_at: Date;
     }>(
       `UPDATE driver_payout_settings
-       SET automatic_enabled = $1, updated_at = $2, mode = $3
+       SET automatic_enabled = $1, updated_at = $2, mode = $3,
+           anticipation_minimum_cents = $4, anticipation_fee_cents = $5
        WHERE id = 1
-       RETURNING automatic_enabled, mode, updated_at`,
-      [input.automaticEnabled, updatedAt, input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual')],
+       RETURNING automatic_enabled, mode, updated_at, anticipation_minimum_cents, anticipation_fee_cents`,
+      [input.automaticEnabled, updatedAt, input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual'), values.anticipationMinimumCents, values.anticipationFeeCents],
     );
     const row = result.rows[0];
     if (row == null) {
       throw new Error('Configuração de repasses não foi encontrada.');
     }
     return {
+      anticipationMinimumCents: row.anticipation_minimum_cents,
+      anticipationFeeCents: row.anticipation_fee_cents,
       automaticEnabled: row.automatic_enabled,
       mode: row.mode,
       updatedAt: row.updated_at.toISOString(),

@@ -483,6 +483,8 @@ class HttpDriverApi implements DriverApi, DriverRideCancellationApi, DriverBenef
   Future<DriverPayoutReservation> requestPayout({
     required int amountCents,
     required String idempotencyKey,
+    int? expectedFeeCents,
+    int? expectedMinimumCents,
   }) async {
     final response = await _client
         .post(
@@ -491,7 +493,7 @@ class HttpDriverApi implements DriverApi, DriverRideCancellationApi, DriverBenef
             ..._headers,
             'idempotency-key': idempotencyKey,
           },
-          body: jsonEncode({'amountCents': amountCents}),
+          body: jsonEncode({'amountCents': amountCents, if (expectedFeeCents != null) 'expectedFeeCents': expectedFeeCents, if (expectedMinimumCents != null) 'expectedMinimumCents': expectedMinimumCents}),
         )
         .timeout(DriverCoreConfig.requestTimeout);
 
