@@ -205,3 +205,22 @@ settings, mount/network references and literal-dollar handling. A Docker Compose
 rehearsal creates only stopped disposable containers, checks candidate and rollback
 environments and verifies existing volumes/networks are retained. No production
 service or account credentials are used in this rehearsal.
+
+### Close the temporary Sandbox receiver after acceptance
+
+`close-asaas-sandbox.mjs` requires the prepared private activation plan, accepted
+Sandbox exercise and unchanged active container identities/Caddy hash. It selects
+only the single subscription with the exact temporary URL and validates the
+registered token/events/settings. Its only allowed remote write is
+`PUT /v3/webhooks/{owned-id}` with `{ "enabled": false }`. It preserves the
+subscription for review instead of deleting it and verifies disabled state with a
+fresh read. Lost update responses are resolved by reading the state; if disabled
+state is not confirmed, the receiver/route remain available and cleanup stops.
+Other subscriptions and all transfers remain unchanged.
+
+After confirmation it invokes the already rehearsed guarded `--remove` controller.
+The controller restores the prior Caddyfile in place, reloads without restarting
+the gateway, checks site/API/ADM/Web and route removal, removes only the labelled
+receiver and stops only the private database started by this test stage. The volume,
+keys, receipts and sessions are preserved. The closing audit record is private.
+No migration, active Core/ADM update or payout is performed by closing this lab.

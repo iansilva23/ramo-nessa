@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test deploy/staging/asaas-sandbox-webhook.test.mjs deploy/staging/asaas-webhook-exercise-contract.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs
+      - run: node --test deploy/staging/asaas-sandbox-webhook.test.mjs deploy/staging/asaas-webhook-exercise-contract.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-sandbox-close-contract.test.mjs
       - run: docker pull caddy:2.11.7-alpine
       - run: node deploy/staging/test-asaas-caddy-reload.mjs
       - run: node deploy/staging/test-asaas-activation-compose.mjs
