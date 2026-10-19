@@ -1,11 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {environmentMap,assertEnvironmentMatches,servicePlan,escapeCompose,changesForAsaas,activationProject} from './asaas-activation-plan-contract.mjs';
+import {environmentMap,assertEnvironmentMatches,servicePlan,escapeCompose,changesForAsaas,activationProject,composeEnvironmentToRuntime} from './asaas-activation-plan-contract.mjs';
 function fixture(){
- const environment={NODE_ENV:'staging',MERCADO_PAGO_MODE:'test',GOOGLE_MAPS_SERVER_API_KEY:'fixture-key-with-$dollars',OTP_PROVIDER:'entrar-whatsapp',DRIVER_PAYOUT_PROVIDER_NAME:''};
+ const environment={NODE_ENV:'staging',MERCADO_PAGO_MODE:'test',GOOGLE_MAPS_SERVER_API_KEY:'fixture-key-with-$$dollars',OTP_PROVIDER:'entrar-whatsapp',DRIVER_PAYOUT_PROVIDER_NAME:''};
  const resolved={name:activationProject,services:{core:{image:'current:tag',build:{context:'/old'},depends_on:{postgres:{condition:'service_healthy'}},environment,volumes:[{type:'volume',source:'documents',target:'/var/lib/ramo-nessa'},{type:'bind',source:'/private/firebase.json',target:'/run/secrets/firebase',read_only:true}],networks:{default:null},restart:'unless-stopped',cap_drop:['ALL'],security_opt:['no-new-privileges:true']}},networks:{default:{name:'ramo-nessa-staging_default'}},volumes:{documents:{name:'ramo-nessa-staging_driver_documents'}}};
  const image={Config:{Env:['PATH=/usr/bin','NODE_VERSION=22']}};
- const container={Name:'/ramo-nessa-staging-core-1',Config:{Labels:{'com.docker.compose.project':activationProject,'com.docker.compose.service':'core'},Env:[...image.Config.Env,...Object.entries(environment).map(([k,v])=>k+'='+v)]},NetworkSettings:{Networks:{'ramo-nessa-staging_default':{Aliases:['core','ramo-nessa-staging-core-1']}}},Mounts:[{Type:'volume',Name:'ramo-nessa-staging_driver_documents',Destination:'/var/lib/ramo-nessa',RW:true},{Type:'bind',Source:'/private/firebase.json',Destination:'/run/secrets/firebase',RW:false}]};
+ const container={Name:'/ramo-nessa-staging-core-1',Config:{Labels:{'com.docker.compose.project':activationProject,'com.docker.compose.service':'core'},Env:[...image.Config.Env,...Object.entries(composeEnvironmentToRuntime(environment)).map(([k,v])=>k+'='+v)]},NetworkSettings:{Networks:{'ramo-nessa-staging_default':{Aliases:['core','ramo-nessa-staging-core-1']}}},Mounts:[{Type:'volume',Name:'ramo-nessa-staging_driver_documents',Destination:'/var/lib/ramo-nessa',RW:true},{Type:'bind',Source:'/private/firebase.json',Destination:'/run/secrets/firebase',RW:false}]};
  return{resolved,container,image};
 }
 test('candidate changes only image and explicitly disabled Asaas configuration; preserves providers and mounts',()=>{
@@ -33,4 +33,9 @@ test('all literal dollars are escaped when resolved config becomes another Compo
  const input={services:{core:{environment:{PASSWORD:'$token-${SECRET}-$1-$$'},command:['sh','-c','echo "$RUNTIME"']}}};
  assert.equal(escapeCompose(input).services.core.environment.PASSWORD,'$$token-$${SECRET}-$$1-$$$$');
  assert.equal(escapeCompose(input).services.core.command[2],'echo "$$RUNTIME"');assert.equal(input.services.core.environment.PASSWORD,'$token-${SECRET}-$1-$$');
+});
+
+test('serialized Compose environment is decoded only for comparison with the actual container',()=>{
+ const raw={SECRET:'$abc-${VALUE}-$1-$$'},serialized=escapeCompose(raw);
+ assert.deepEqual(composeEnvironmentToRuntime(serialized),raw);
 });

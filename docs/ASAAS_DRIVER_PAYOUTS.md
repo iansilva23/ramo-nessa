@@ -180,8 +180,9 @@ file chains recorded on their live containers, using each active staging helper
 and environment file. It compares the resolved environment to the container plus
 image defaults, verifies mounts/networks, and refuses Compose source changes from
 the already captured configuration instead of overwriting work from another chat.
-Literal dollars are escaped before resolved configuration becomes a new Compose
-input, then checked through another Compose resolution. Sources, sensitive resolved
+Compose already escapes literal dollars in its serialized output. That output is
+kept ready for re-input, decoded only for comparison against actual container
+environment values, then checked through another Compose resolution. Sources, sensitive resolved
 models and rollback configurations remain in a root-only directory.
 
 The plan contains only the target service, with dependencies/build removed, pull

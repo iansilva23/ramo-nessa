@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,mkdirSync,lstatSync,existsSync,openSync,close
 import {join,dirname,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {runtimeContract,validateRuntime,activeCaddy,activeWeb} from './asaas-runtime-contract.mjs';
-import {activationProject,sha256,assertEnvironmentMatches,servicePlan,escapeCompose,changesForAsaas} from './asaas-activation-plan-contract.mjs';
+import {activationProject,sha256,assertEnvironmentMatches,servicePlan,changesForAsaas} from './asaas-activation-plan-contract.mjs';
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');process.umask(0o077);
 const backup='/var/backups/ramo-nessa-asaas/5ffae7968796',lab='/var/lib/ramo-nessa-asaas-sandbox',destination=join(backup,'activation-plan');
 const privateDir=path=>{const x=lstatSync(path);if(!x.isDirectory()||x.isSymbolicLink()||x.uid!==0||(x.mode&0o077))throw Error('Diretório privado divergente.');};
@@ -53,7 +53,7 @@ try{
   if(name==='core')changesForAsaas(resolved.services.core.environment,candidate.services.core.environment);
   save(name+'-resolved-before.private.json',resolved);
   for(const [suffix,model] of [['candidate',candidate],['rollback',rollback]]){
-   const file=join(destination,name+'-'+suffix+'.compose.private.json');save(name+'-'+suffix+'.compose.private.json',escapeCompose(model));
+   const file=join(destination,name+'-'+suffix+'.compose.private.json');save(name+'-'+suffix+'.compose.private.json',model);
    const roundTrip=JSON.parse(run('docker',['compose','--project-name',activationProject,'-f',file,'config','--format','json'],{env:{PATH:process.env.PATH},cwd:destination}));
    const expected=model.services[name].environment,actual=roundTrip.services[name].environment;
    for(const key of new Set([...Object.keys(expected),...Object.keys(actual)]))if(expected[key]!==actual[key])throw Error('Releitura Compose alterou ambiente: '+key);

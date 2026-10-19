@@ -5,7 +5,7 @@ import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {randomBytes} from 'node:crypto';
-import {activationProject,servicePlan,escapeCompose,assertEnvironmentMatches,environmentMap} from './asaas-activation-plan-contract.mjs';
+import {activationProject,servicePlan,escapeCompose,assertEnvironmentMatches,environmentMap,composeEnvironmentToRuntime} from './asaas-activation-plan-contract.mjs';
 if(process.env.GITHUB_ACTIONS!=='true')throw Error('CI only.');
 const dir=mkdtempSync(join(tmpdir(),'asaas-plan-ci-')),prefix='asaas-plan-ci-'+randomBytes(8).toString('hex'),network=prefix+'-net',volumes=[prefix+'-data',prefix+'-config'];
 const image='caddy:2.11.7-alpine',container='ramo-nessa-staging-core-1';
@@ -23,11 +23,11 @@ try{
  const candidate=servicePlan(resolved,'core',before,image,{disabledAsaas:true}),rollback=servicePlan(resolved,'core',before,image);
  const sourceMounts=before.Mounts.map(x=>[x.Type,x.Source,x.Destination,x.RW]).sort();
  for(const [name,model] of [['candidate',candidate],['rollback',rollback]]){
-  const file=join(dir,name+'.json');writeFileSync(file,JSON.stringify(escapeCompose(model)));
+  const file=join(dir,name+'.json');writeFileSync(file,JSON.stringify(model));
   const parsed=JSON.parse(run([...compose(file),'config','--format','json']));assert.deepEqual(parsed.services.core.environment,model.services.core.environment);
   run([...compose(file),'create','--force-recreate','--no-build','--pull','never','core']);
   const actual=JSON.parse(run(['inspect',container]))[0],env=environmentMap(actual.Config.Env);
-  for(const [k,v] of Object.entries(model.services.core.environment))assert.equal(env[k],v);
+  for(const [k,v] of Object.entries(composeEnvironmentToRuntime(model.services.core.environment)))assert.equal(env[k],v);
   assert.deepEqual(actual.Mounts.map(x=>[x.Type,x.Source,x.Destination,x.RW]).sort(),sourceMounts);
   assert.equal(actual.State.Running,false);assert.equal(actual.Image,before.Image);
  }

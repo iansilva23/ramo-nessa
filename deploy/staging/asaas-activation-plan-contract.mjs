@@ -5,8 +5,10 @@ export const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
 export function environmentMap(lines){
  const result={};for(const line of lines??[]){const i=line.indexOf('=');if(i<1)throw Error('Ambiente inválido.');const key=line.slice(0,i);if(Object.hasOwn(result,key))throw Error('Ambiente duplicado: '+key);result[key]=line.slice(i+1);}return result;
 }
+// `compose config` serializes environment values with literal dollars doubled for re-input.
+export function composeEnvironmentToRuntime(environment={}){return Object.fromEntries(Object.entries(environment).map(([k,v])=>[k,typeof v==='string'?v.replaceAll('$$',()=> '$'):v]));}
 export function assertEnvironmentMatches(resolved,container,image){
- const actual=environmentMap(container.Config.Env),expected={...environmentMap(image.Config.Env),...resolved.environment};
+ const actual=environmentMap(container.Config.Env),expected={...environmentMap(image.Config.Env),...composeEnvironmentToRuntime(resolved.environment)};
  for(const key of new Set([...Object.keys(actual),...Object.keys(expected)]))if(actual[key]!==expected[key])throw Error('Compose resolvido difere do ambiente ativo: '+key+'. Valores privados não exibidos.');
 }
 const unsupported=['network_mode','volumes_from','secrets','configs','devices','privileged','extends','external_links'];
@@ -43,7 +45,7 @@ export function servicePlan(resolved,name,container,candidateImage,{disabledAsaa
  if((container.Mounts??[]).some(x=>!configuredMounts.includes(x.Destination)))throw Error('Há mounts ativos ausentes no Compose resolvido.');
  return plan;
 }
-// Config output must be escaped before becoming another Compose input. Secrets may contain '$'.
+// Newly authored raw configuration needs escaping; serialized config output is already escaped. Secrets may contain '$'.
 export function escapeCompose(value){
  if(typeof value==='string')return value.replaceAll('$',()=> '$$');
  if(Array.isArray(value))return value.map(escapeCompose);
