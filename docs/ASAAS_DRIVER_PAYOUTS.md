@@ -142,3 +142,31 @@ retry on failure, actual compiled provider/repositories against a disposable
 PostgreSQL with fake canonical transport, and activation/rollback using Caddy
 2.11.7 with a read-only bind mount and unchanged container start time. These tests
 do not claim external Asaas delivery or real-account authorization acceptance.
+
+### Second Sandbox exercise for provider-originated delivery
+
+`run-asaas-webhook-exercise.mjs` is intended only after the operator registers the
+public Sandbox webhook. Its preflight reads the Sandbox webhook configuration,
+requiring the exact URL, enabled/uninterrupted queue, v3, sequential delivery,
+exactly the seven supported transfer events and a matching token when returned
+by the API. It requires the private receiver and lab PostgreSQL to remain running
+with their original image/session/network identity and the guarded Caddyfile.
+It does not update registrations, services, migrations or gateway configuration.
+
+The additional R$5 fictitious transfer uses a new persistent session under
+`/var/lib/ramo-nessa-asaas-sandbox/webhook-exercise/data`, new ride/payment/driver
+and payout identifiers, but the same lab database and registered receiver token.
+It mounts that directory into the already tested worker at `/audit/data`.
+The first session's files and transfer stay unchanged. Repeating this controller
+uses the same second session and durable POST-intention journal; it does not
+request another transfer, restart the receiver or stop its database. Authorization
+requested by the Sandbox dashboard remains an operator action.
+
+Acceptance requires an authenticated nonlocal `TRANSFER_DONE` receipt matching
+this second transfer, the canonical local payout state `paid`, exactly one paid
+ledger entry and one POST intention in this session. Empty logs, a local replay,
+a different transfer, an unfinished payout or duplicate ledger entries cannot
+pass. The operator should also confirm HTTP 200 in the Asaas webhook delivery
+logs. CI rehearses two independent worker sessions and repeated execution against
+real PostgreSQL with fake transport, preserving one POST/ledger entry per session;
+this does not claim live external delivery.

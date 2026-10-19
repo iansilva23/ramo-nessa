@@ -1,6 +1,7 @@
 // CI-only rehearsal of the same offline dump/restore/migration/probe commands.
 import assert from 'node:assert/strict';
 import {testSandboxReceiver} from './test-asaas-sandbox-receiver.mjs';
+import {newWebhookExercise,validateExercise} from './asaas-webhook-exercise-contract.mjs';
 import {spawnSync} from 'node:child_process';
 import {mkdtempSync,copyFileSync,chmodSync,openSync,closeSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -39,11 +40,21 @@ try{
  writeFileSync(join(lab,'session.json'),JSON.stringify(session),{mode:0o644});writeFileSync(join(lab,'webhook-token'),'ci-sandbox-webhook-fixture-only-12345678901234567890',{mode:0o644});
  writeFileSync(join(dir,'key-fixture'),'ci-sandbox-api-key-fixture-only-12345678901234567890',{mode:0o644});
  for(const [source,target] of [['asaas-sandbox-worker.mjs','worker.mjs'],['asaas-sandbox-worker-fixture.mjs','fixture.mjs']]){copyFileSync(resolve('deploy/staging/'+source),join(dir,target));chmodSync(join(dir,target),0o644);}
- const labRun=()=>JSON.parse(run(['run','--rm','--network','container:'+name+'-target','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--env','DATABASE_URL='+labUrl,'--env','DB_SSL=false','--env','GITHUB_ACTIONS=true','--mount','type=bind,src='+lab+',dst=/audit/data','--mount','type=bind,src='+join(dir,'worker.mjs')+',dst=/audit/worker.mjs,readonly','--mount','type=bind,src='+join(dir,'fixture.mjs')+',dst=/audit/fixture.mjs,readonly','--mount','type=bind,src='+join(dir,'key-fixture')+',dst=/run/secrets/asaas-sandbox-api-key,readonly',candidate,'node','/audit/fixture.mjs']));
+ const labRun=(labPath=lab)=>JSON.parse(run(['run','--rm','--network','container:'+name+'-target','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--env','DATABASE_URL='+labUrl,'--env','DB_SSL=false','--env','GITHUB_ACTIONS=true','--mount','type=bind,src='+labPath+',dst=/audit/data','--mount','type=bind,src='+join(dir,'worker.mjs')+',dst=/audit/worker.mjs,readonly','--mount','type=bind,src='+join(dir,'fixture.mjs')+',dst=/audit/fixture.mjs,readonly','--mount','type=bind,src='+join(dir,'key-fixture')+',dst=/run/secrets/asaas-sandbox-api-key,readonly',candidate,'node','/audit/fixture.mjs']));
  const firstRun=labRun(),restart=labRun();
  for(const result of [firstRun,restart]){assert.equal(result.transport,'ci-fixture');assert.equal(result.result,'passed');assert.equal(result.postAttempts,1);assert.equal(result.ledgerPaidEntries,1);assert.equal(result.externalWebhookDeliveryVerified,false);}
  assert.equal(restart.transferId,firstRun.transferId);assert.equal(restart.payoutId,firstRun.payoutId);
  console.log('SANDBOX WORKER CI PASSED: concurrent requests, lost response and worker restart preserve one POST and one paid ledger entry. External API and webhook delivery are not exercised in CI.');
+ const secondLab=join(dir,'webhook-exercise');mkdirSync(secondLab);chmodSync(secondLab,0o777);
+ const secondSession=newWebhookExercise(session.id);validateExercise(secondSession,session.id);
+ writeFileSync(join(secondLab,'session.json'),JSON.stringify(secondSession),{mode:0o644});
+ writeFileSync(join(secondLab,'webhook-token'),'ci-sandbox-webhook-fixture-only-12345678901234567890',{mode:0o644});
+ const secondRun=labRun(secondLab),secondRestart=labRun(secondLab),originalAgain=labRun();
+ for(const r of [secondRun,secondRestart]){assert.equal(r.result,'passed');assert.equal(r.postAttempts,1);assert.equal(r.ledgerPaidEntries,1);}
+ assert.equal(secondRun.payoutId,secondRestart.payoutId);assert.equal(secondRun.transferId,secondRestart.transferId);
+ assert.notEqual(secondRun.payoutId,firstRun.payoutId);assert.notEqual(secondRun.transferId,firstRun.transferId);
+ assert.equal(originalAgain.payoutId,firstRun.payoutId);assert.equal(originalAgain.transferId,firstRun.transferId);assert.equal(originalAgain.postAttempts,1);assert.equal(originalAgain.ledgerPaidEntries,1);
+ console.log('SECOND SANDBOX SESSION CI PASSED: independent transfer and ledger; restarting either session preserves one POST per session and the original payout.');
  await testSandboxReceiver({dir,lab,sourceContainer:name+'-target',candidate,postgres,user,password:pw,session,result:restart});
 
 }finally{
