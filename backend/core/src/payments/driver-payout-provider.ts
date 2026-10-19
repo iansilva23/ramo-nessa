@@ -516,15 +516,7 @@ export function createDriverPayoutProviderFromEnv(
 
   if (configuredName === 'asaas') {
     if (env.ASAAS_PAYOUTS_ENABLED !== 'true') return null;
-    if (!asaas?.store.durable || !['sandbox', 'production'].includes(env.ASAAS_PAYOUT_MODE ?? '') ||
-        !env.ASAAS_PAYOUT_START_AFTER || !Number.isFinite(Date.parse(env.ASAAS_PAYOUT_START_AFTER))) {
-      throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Asaas exige PostgreSQL, ambiente explícito e data de início dos novos repasses.');
-    }
-    return new AsaasDriverPayoutProvider({
-      environment: env.ASAAS_PAYOUT_MODE as 'sandbox' | 'production',
-      apiKey: asaasSecret(env, 'ASAAS_API_KEY'), webhookToken: asaasSecret(env, 'ASAAS_WEBHOOK_TOKEN'),
-      startAfter: env.ASAAS_PAYOUT_START_AFTER, ...asaas,
-    });
+    return asaasProviderFromEnv(env, asaas, true);
   }
 
   if (configuredName === 'mercado-pago-payouts') {
@@ -592,4 +584,35 @@ export function createDriverPayoutProviderFromEnv(
   }
 
   return new HttpDriverPayoutProvider(name, url, token);
+}
+
+/** A separate receive-only adapter never becomes the active payout sender. */
+export function createAsaasWebhookReceiverFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  asaas?: { store: AsaasPayoutStore; financeLookup(id: string): Promise<DriverPayoutRecord | null> },
+): AsaasDriverPayoutProvider | null {
+  if (env.ASAAS_WEBHOOK_ENABLED !== 'true') return null;
+  if (env.DRIVER_PAYOUT_PROVIDER_NAME !== 'asaas') {
+    throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Receptor Asaas exige provedor explícito.');
+  }
+  return asaasProviderFromEnv(env, asaas, false);
+}
+
+function asaasProviderFromEnv(
+  env: NodeJS.ProcessEnv,
+  asaas: { store: AsaasPayoutStore; financeLookup(id: string): Promise<DriverPayoutRecord | null> } | undefined,
+  submissionsEnabled: boolean,
+): AsaasDriverPayoutProvider {
+  if (!asaas?.store.durable || !['sandbox', 'production'].includes(env.ASAAS_PAYOUT_MODE ?? '') ||
+      !env.ASAAS_PAYOUT_START_AFTER || !Number.isFinite(Date.parse(env.ASAAS_PAYOUT_START_AFTER))) {
+    throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Asaas exige PostgreSQL, ambiente explícito e data de início dos novos repasses.');
+  }
+  return new AsaasDriverPayoutProvider({
+    environment: env.ASAAS_PAYOUT_MODE as 'sandbox' | 'production',
+    apiKey: asaasSecret(env, 'ASAAS_API_KEY'),
+    webhookToken: asaasSecret(env, 'ASAAS_WEBHOOK_TOKEN'),
+    startAfter: env.ASAAS_PAYOUT_START_AFTER,
+    ...asaas,
+    submissionsEnabled,
+  });
 }

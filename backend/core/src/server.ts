@@ -46,6 +46,7 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from './payments/mercado-pago-orders.js';
 import {
+  createAsaasWebhookReceiverFromEnv,
   createDriverPayoutProviderFromEnv,
   DriverPayoutProviderError,
 } from './payments/driver-payout-provider.js';
@@ -657,6 +658,9 @@ assertGoogleMapsProductionConfig();
 assertMercadoPagoProductionConfig();
 const mercadoPagoOrdersClient = mercadoPagoOrdersClientFromEnv();
 const driverPayoutProvider = createDriverPayoutProviderFromEnv(process.env, { store: asaasPayoutStore, financeLookup: id => financeRepository.findDriverPayoutById(id) });
+const asaasWebhookReceiver = driverPayoutProvider instanceof AsaasDriverPayoutProvider
+  ? driverPayoutProvider
+  : createAsaasWebhookReceiverFromEnv(process.env, { store: asaasPayoutStore, financeLookup: id => financeRepository.findDriverPayoutById(id) });
 // Asaas is exclusively for drivers. Never pass it to company-profit operations.
 const companyPayoutProvider = driverPayoutProvider?.name === 'asaas' ? null : driverPayoutProvider;
 const realtimeHub = new RealtimeHub();
@@ -1615,14 +1619,14 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && requestUrl.pathname === '/v1/webhooks/asaas/transfers') {
-      if (!(driverPayoutProvider instanceof AsaasDriverPayoutProvider)) {
+      if (!(asaasWebhookReceiver instanceof AsaasDriverPayoutProvider)) {
         json(response, 503, { error: 'ASAAS_NOT_CONFIGURED' }); return;
       }
       const body = await readJson(request);
-      const result = await driverPayoutProvider.receiveWebhook(headerValue(request, 'asaas-access-token') ?? '', body);
+      const result = await asaasWebhookReceiver.receiveWebhook(headerValue(request, 'asaas-access-token') ?? '', body);
       if (result.payoutId && result.result) {
-        await applyConfirmedDriverPayoutResult({ finance: financeRepository, provider: driverPayoutProvider, payoutId: result.payoutId, result: result.result });
-        await driverPayoutProvider.completeWebhook((body as { id: string }).id);
+        await applyConfirmedDriverPayoutResult({ finance: financeRepository, provider: asaasWebhookReceiver, payoutId: result.payoutId, result: result.result });
+        await asaasWebhookReceiver.completeWebhook((body as { id: string }).id);
       }
       json(response, 200, { received: true, duplicate: result.duplicate }); return;
     }

@@ -80,6 +80,7 @@ export class AsaasDriverPayoutProvider implements DriverPayoutProvider {
       store: AsaasPayoutStore;
       financeLookup(id: string): Promise<DriverPayoutRecord | null>;
       fetcher?: Fetcher;
+      submissionsEnabled?: boolean;
     },
   ) {
     this.environment = options.environment;
@@ -100,7 +101,13 @@ export class AsaasDriverPayoutProvider implements DriverPayoutProvider {
       );
     }
   }
+  private assertSubmissionsEnabled() {
+    if (this.options.submissionsEnabled === false) {
+      throw new DriverPayoutProviderError("PAYOUT_PROVIDER_CONFIG_INVALID", "Envios Asaas bloqueados: receptor somente para notificações.");
+    }
+  }
   submissionReference(payout: DriverPayoutRecord) {
+    this.assertSubmissionsEnabled();
     if (
       payout.executionMode !== "api" ||
       payout.payoutKind === "anticipation" ||
@@ -126,6 +133,7 @@ export class AsaasDriverPayoutProvider implements DriverPayoutProvider {
     return id;
   }
   private async request(path: string, init: RequestInit = {}) {
+    if (this.options.submissionsEnabled === false && (init.method ?? "GET").toUpperCase() !== "GET") this.assertSubmissionsEnabled();
     try {
       return await (this.options.fetcher ?? fetch)(this.origin + path, {
         ...init,
@@ -215,6 +223,7 @@ export class AsaasDriverPayoutProvider implements DriverPayoutProvider {
     } as DriverPayoutProviderResult;
   }
   async createPixPayout(input: Input): Promise<DriverPayoutProviderResult> {
+    this.assertSubmissionsEnabled();
     if (
       !uuid.test(input.payoutId) ||
       !Number.isSafeInteger(input.amountCents) ||
