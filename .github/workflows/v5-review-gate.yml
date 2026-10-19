@@ -126,3 +126,51 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+
+  pricing-postgres:
+    name: Pricing V5 PostgreSQL 16 disposable lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ramo_v5_ci
+          POSTGRES_USER: ramo_ci
+          POSTGRES_PASSWORD: ramo_ci_ephemeral_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ramo_ci -d ramo_v5_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_ATOMIC_PG_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_EPHEMERAL_PG: 'true'
+      DB_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Install Core packages without provider calls
+        working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - name: Refuse non-disposable database
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTIONS" = "true"
+          test "$RAMO_V5_EPHEMERAL_PG" = "true"
+          test "$DATABASE_URL" = "postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci"
+      - name: Apply real historical migrations to ephemeral PostgreSQL only
+        working-directory: backend/core
+        run: npm run db:migrate
+      - name: Test pricing persistence, CAS and future effective versions
+        working-directory: backend/core
+        run: |
+          npm run typecheck
+          node --import tsx --test test/postgres_pricing_v5_finance_safe.test.ts test/pricing_locality_postgres_atomicity.test.ts
