@@ -339,3 +339,45 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     assert.equal(css.includes(selector), true);
   }
 });
+
+
+test('ADM propaga conflitos de edição sem reenviar mutações nem perder controle de versão', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({url, options});
+    return jsonResponse(409, {error:'VERSION_CONFLICT', message:'O rascunho foi alterado por outra pessoa.'});
+  });
+  const versionId = '11111111-1111-4111-8111-111111111111';
+  const expectedUpdatedAt = '2026-10-19T12:00:00.000Z';
+  await assert.rejects(
+    api.updatePricingVersion('secret', {
+      versionId,
+      expectedUpdatedAt,
+      patch:{kind:'fixed_route',routeId:'prea-jijoca-car',dayCents:13000,after22Cents:15000},
+    }),
+    error => error.status === 409 && error.code === 'VERSION_CONFLICT',
+  );
+  assert.equal(calls.length, 1, 'Conflito não pode provocar nova tentativa automática');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(JSON.parse(calls[0].options.body).expectedUpdatedAt, expectedUpdatedAt);
+  assert.equal(calls[0].url.includes('secret'), false);
+});
+
+test('ADM não converte erro de permissão em publicação bem-sucedida', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({url, options});
+    return jsonResponse(403, {error:'FORBIDDEN',message:'Permissão insuficiente.'});
+  });
+  await assert.rejects(
+    api.publishPricingVersion('restricted', {
+      versionId:'11111111-1111-4111-8111-111111111111',
+      effectiveFrom:'2026-10-20T03:00:00.000Z',
+      expectedUpdatedAt:'2026-10-19T12:00:00.000Z',
+    }),
+    error => error.status === 403 && error.code === 'FORBIDDEN',
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method,'POST');
+  assert.equal(calls[0].options.credentials,'omit');
+});
