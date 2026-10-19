@@ -241,6 +241,8 @@ export function createLocalitiesAdmin(input) {
           label: catalog.localityDisplayNames?.[scope]?.[item.localityId] ??
             titleFromId(item.localityId),
           prices: item.prices ?? {},
+          municipality: item.municipality ?? null,
+          municipalityLabel: item.municipalityLabel ?? 'Município a confirmar',
           policy: item.policy ?? {},
           distancePolicies: distancePolicies.filter(
             (rule) =>
@@ -263,6 +265,8 @@ export function createLocalitiesAdmin(input) {
         label: catalog.localityDisplayNames?.external?.[localityId] ??
           titleFromId(localityId),
         prices: {},
+        municipality: catalog.municipalityAssignments?.external?.[localityId] ?? null,
+        municipalityLabel: null,
         distancePolicies: distancePolicies.filter(
           (rule) =>
             rule.anchorZoneId === 'external' &&
@@ -1247,6 +1251,55 @@ export function createLocalitiesAdmin(input) {
     setMessage('Exclusão desfeita no rascunho.', 'success');
   }
 
+  function selectedMunicipalityEntry() {
+    return allEntries().find(x => entryKey(x) === byId('municipality-entry')?.value) ?? null;
+  }
+  function showMunicipalitySelection() {
+    const entry = selectedMunicipalityEntry();
+    const value = entry?.municipality;
+    if (byId('municipality-id')) byId('municipality-id').value = value?.municipalityId ?? '';
+    if (byId('municipality-source')) byId('municipality-source').value = value?.sourceUrl ?? '';
+    const status = byId('municipality-status');
+    if (status) status.textContent = value?.status === 'confirmed'
+      ? 'Município confirmado. Tarifas e regiões operacionais permanecem separadas.'
+      : 'Município pendente: confirme a localização com fonte pública.';
+  }
+  function renderMunicipalityPanel(entries) {
+    const select = byId('municipality-entry');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren();
+    for (const entry of entries) {
+      const option = document.createElement('option');
+      option.value = entryKey(entry);
+      option.textContent = entry.label + ' · ' + scopeLabel(entry.scope);
+      select.append(option);
+    }
+    if (entries.some(entry => entryKey(entry) === previous)) select.value = previous;
+    showMunicipalitySelection();
+    if (byId('municipality-save')) byId('municipality-save').disabled = !hasScope('pricing:write');
+  }
+  async function saveMunicipalityAssignment() {
+    if (saving || !hasScope('pricing:write')) return;
+    const entry = selectedMunicipalityEntry();
+    if (!entry) throw new Error('Selecione uma localidade.');
+    if (hasUnsavedWizardChanges()) throw new Error(
+      'Salve ou descarte primeiro as alterações abertas da localidade.');
+    const municipalityId = byId('municipality-id')?.value || null;
+    const sourceUrl = byId('municipality-source')?.value.trim() || null;
+    if (municipalityId && (!sourceUrl || !sourceUrl.startsWith('https://'))) {
+      throw new Error('Confirme o município com uma fonte pública HTTPS.');
+    }
+    saving = true;
+    try {
+      await applyPatch({kind:'municipality_assignment',scope:entry.scope,
+        localityId:entry.localityId,municipalityId,
+        status:municipalityId ? 'confirmed' : 'pending_review',
+        sourceUrl:municipalityId ? sourceUrl : null});
+      await refresh({announce:false});
+      setMessage('Município salvo no rascunho. Nenhuma tarifa foi publicada.','success');
+    } finally {saving = false;}
+  }
   function renderDirectory() {
     const entries = allEntries();
     byId('localities-total').textContent = String(entries.length);
@@ -1262,6 +1315,7 @@ export function createLocalitiesAdmin(input) {
     byId('localities-list-count').textContent =
       `${entries.length} cadastrada(s)`;
 
+    renderMunicipalityPanel(entries);
     const list = byId('localities-list');
     list.replaceChildren();
 
@@ -1615,6 +1669,8 @@ export function createLocalitiesAdmin(input) {
   }
 
   function bind() {
+    byId('municipality-entry')?.addEventListener('change',showMunicipalitySelection);
+    byId('municipality-save')?.addEventListener('click',()=>void saveMunicipalityAssignment().catch(handleError));
     for (const id of ['regional-fare-zone', 'regional-fare-category']) {
       byId(id)?.addEventListener('change', renderRegionalPricing);
     }

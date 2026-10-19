@@ -85,6 +85,30 @@
     </article>
   </div>
 
+  <article id="municipality-panel" class="panel-card">
+    <div class="panel-card__header"><div>
+      <span class="eyebrow eyebrow--dark">GEOGRAFIA MUNICIPAL</span>
+      <h2>Município de cada localidade</h2>
+      <p>Classifique com fonte pública. O município não substitui a região operacional nem altera preços automaticamente.</p>
+    </div></div>
+    <div class="locality-form-grid">
+      <label class="field"><span>Localidade</span><select id="municipality-entry"></select></label>
+      <label class="field"><span>Município verificado</span><select id="municipality-id">
+        <option value="">A confirmar</option>
+        <option value="cruz">Cruz/CE</option><option value="jijoca-de-jericoacoara">Jijoca de Jericoacoara/CE</option>
+        <option value="acarau">Acaraú/CE</option><option value="amontada">Amontada/CE</option>
+        <option value="bela-cruz">Bela Cruz/CE</option><option value="camocim">Camocim/CE</option>
+        <option value="granja">Granja/CE</option><option value="itapipoca">Itapipoca/CE</option>
+        <option value="itarema">Itarema/CE</option><option value="marco">Marco/CE</option>
+        <option value="morrinhos">Morrinhos/CE</option><option value="santana-do-acarau">Santana do Acaraú/CE</option>
+        <option value="sobral">Sobral/CE</option>
+      </select></label>
+      <label class="field"><span>Comprovação pública (link HTTPS)</span>
+        <input id="municipality-source" type="url" placeholder="https://..." maxlength="500"></label>
+    </div>
+    <p id="municipality-status" class="pricing-policy-help" aria-live="polite">Carregando cadastro.</p>
+    <div class="localities-publish-actions"><button id="municipality-save" class="button button--primary" type="button">Salvar município no rascunho</button></div>
+  </article>
   <div class="localities-overview-grid">
     <article class="panel-card localities-map-card">
       <div class="panel-card__header">
