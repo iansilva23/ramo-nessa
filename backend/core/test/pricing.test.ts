@@ -445,10 +445,10 @@ test('tarifas regionais só funcionam após configuração explícita, sem quebr
     ...ride, destination: zone('prea', 'acarau'),
   }, snapshot), (error: unknown) =>
     error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
-  assert.throws(() => quoteFare({
+  const interZone = quoteFare({
     ...ride, destination: zone('jijoca', 'jijoca'),
-  }, snapshot), (error: unknown) =>
-    error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
+  }, snapshot);
+  assert.equal(interZone.ruleId, 'prea-jijoca-car');
   assert.throws(() => quoteFare({
     ...ride, tripDistanceKm: 13,
   }, snapshot), (error: unknown) =>
