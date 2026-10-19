@@ -1330,7 +1330,7 @@ export function createLocalitiesAdmin(input) {
         element(
           'small',
           null,
-          `${scopeLabel(entry.scope)} · ${entry.localityId}`,
+          `${scopeLabel(entry.scope)} · ${entry.localityId} · ${entry.municipalityLabel ?? entry.municipality?.municipalityId ?? "Município a confirmar"}`,
         ),
       );
       const radius = element(

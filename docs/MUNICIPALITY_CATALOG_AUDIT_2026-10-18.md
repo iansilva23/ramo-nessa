@@ -23,7 +23,7 @@ A municipalidade administrativa **não** é equivalente à zona de preços `prea
 - `prea/airport-jjd` e `external/airport-jjd`: Cruz.
 - `prea/jericoacoara`, `prea/jijoca`, `jericoacoara/jericoacoara`: Jijoca de Jericoacoara.
 - `prea/lagoa-do-paraiso`: Jijoca de Jericoacoara.
-- `prea/parazinha` e `external/parazinha`: Granja (distrito Parazinho, confirmar correspondência exata da chave 'parazinha' antes da aplicação operacional).
+- `prea/parazinha` e `external/parazinha`: **pendente** — Parazinho em Granja não prova a identificação da chave Parazinha.
 - `jijoca/baixio`, `jijoca/mangue-seco`, `jijoca/chapadinha`: Jijoca (documentos municipais).
 - `jijoca/carro-quebrado`, `jijoca/cruzeiro-do-brandao`, `jijoca/lagoa-das-pedras`, `jijoca/corrego-do-urubu`, `jijoca/corrego-do-mourao`, `jijoca/corrego-perdido`: Jijoca (documentação municipal/estadual).
 
