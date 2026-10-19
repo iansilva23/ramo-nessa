@@ -2,7 +2,7 @@
 // No production database, providers, credentials, or payouts are contacted.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -181,8 +181,72 @@ try {
     document.querySelector('#pricing-complete-body')?.textContent?.includes('47,00'));
   assert.equal(publishRequests,0);
   assert.deepEqual(errors,[],'Browser JavaScript errors');
+  const evidenceDir = resolve(root, '.pricing-browser-artifacts');
+  await mkdir(evidenceDir, {recursive:true});
+  await page.screenshot({path:resolve(evidenceDir,'pricing-desktop-1280.png'), fullPage:true, animations:'disabled'});
   console.log('PASS Chromium localhost-only: login, price matrix, filters, draft gating, edit, reload, no publication');
   await context.close();
+
+  // Independent browser sessions: mobile web is responsive, not a separate Flutter build.
+  // Screenshots show synthetic data only and are saved exclusively in CI artifacts.
+  for (const [width,height] of [[390,844],[320,720],[768,1024]]) {
+    const mobileContext = await browser.newContext({
+      viewport:{width,height}, isMobile:true, hasTouch:true, deviceScaleFactor:1,
+    });
+    try {
+      await mobileContext.route('**/*', route => {
+        if (route.request().url().startsWith(base + '/')) return route.continue();
+        return route.abort('blockedbyclient');
+      });
+      const mobile = await mobileContext.newPage();
+      const mobileErrors = [];
+      mobile.on('pageerror',error => mobileErrors.push(error.message));
+      await mobile.goto(base+'/administrodo/operacao-tarifas',{waitUntil:'domcontentloaded'});
+      await mobile.locator('#login-email').fill('auditoria@example.test');
+      await mobile.locator('#login-password').fill('fictitious-password-123');
+      await mobile.locator('#login-totp').fill('123456');
+      await mobile.locator('#login-form button[type="submit"]').click();
+      await mobile.locator('#pricing-complete-body tr').first().waitFor({timeout:15000});
+      await mobile.locator('#pricing-rate-search').fill('Cavalo');
+      await mobile.locator('#pricing-rate-region').selectOption('prea');
+      await mobile.locator('#pricing-rate-category').selectOption('car');
+      await mobile.waitForFunction(() => document.querySelectorAll('#pricing-complete-body tr').length === 1);
+      assert.match(await mobile.locator('#pricing-complete-body tr').first().innerText(),/47,00/);
+      const sizes = await mobile.evaluate(() => {
+        const wrap = document.querySelector('#pricing-all-rates .table-wrap');
+        const filters = [...document.querySelectorAll('.pricing-complete-filters > .field')];
+        const doc = document.documentElement;
+        return {
+          viewport:doc.clientWidth, content:doc.scrollWidth,
+          wrapWidth:wrap?.clientWidth ?? 0, tableWidth:wrap?.scrollWidth ?? 0,
+          filters:filters.map(el=>({
+            left:el.getBoundingClientRect().left,
+            right:el.getBoundingClientRect().right,
+          })),
+        };
+      });
+      assert.ok(sizes.content <= sizes.viewport + 3,
+        'Horizontal page overflow at ' + width + 'px: ' + JSON.stringify(sizes));
+      assert.ok(sizes.tableWidth > sizes.wrapWidth,
+        'Price table should scroll inside its container at ' + width + 'px');
+      for (const rect of sizes.filters) {
+        assert.ok(rect.left >= -1 && rect.right <= sizes.viewport + 1,
+          'Pricing filter clipped at ' + width + 'px: ' + JSON.stringify(rect));
+      }
+      await mobile.locator('#pricing-complete-body tr').first().locator('button').filter({hasText:'Noite'}).click();
+      assert.equal(await mobile.locator('#pricing-locality-period').inputValue(),'after_22');
+      assert.equal(publishRequests,0,'Mobile interaction must not publish');
+      assert.deepEqual(mobileErrors,[],'Mobile browser JS error at '+width+'px');
+      await mobile.screenshot({
+        path:resolve(evidenceDir,'pricing-mobile-'+width+'.png'),
+        fullPage:true,animations:'disabled',
+      });
+      console.log('PASS mobile Chromium '+width+'x'+height+
+        ': filters, horizontal containment, night editor, screenshot');
+    } finally {
+      await mobileContext.close();
+    }
+  }
 } finally {
   if (browser) await browser.close();
   await new Promise(resolveClose => server.close(resolveClose));
