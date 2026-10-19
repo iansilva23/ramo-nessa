@@ -128,3 +128,23 @@ jobs:
         working-directory: apps/driver
       - run: flutter build ios --simulator --debug --no-codesign --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
         working-directory: apps/driver
+  backup-offline-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build current and candidate Core without account credentials
+        run: |
+          old_source=$(mktemp -d)
+          trap 'rm -rf -- "$old_source"' EXIT
+          git archive 2ee07808d819bc73eb7377c5d273124ecd19acb0 backend/core | tar -x -C "$old_source"
+          docker build -t ramo-asaas-ci-old:local "$old_source/backend/core"
+          docker build -t ramo-asaas-ci-new:local backend/core
+          docker pull postgres:16
+      - name: Rehearse offline dump, restore, migration repetition and old/new repository reads
+        run: node deploy/staging/test-asaas-offline-restore.mjs
