@@ -20,7 +20,7 @@ export type PricingCatalogAtomicPatch =
       kind: 'locality_price';
       hub: 'prea' | 'jijoca';
       localityId: string;
-      category: 'moto' | 'delivery' | 'car' | 'buggy';
+      category: 'moto' | 'delivery' | 'car' | 'buggy' | 'comfort_black';
       period?: 'day' | 'after_22';
       price:
         | { kind: 'exact'; amountCents: number }
