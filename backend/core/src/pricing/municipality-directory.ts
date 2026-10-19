@@ -11,7 +11,7 @@ export const LOCAL_SERVICE_MUNICIPALITIES = ['cruz', 'jijoca-de-jericoacoara'] a
 export const MUNICIPALITY_LABELS: Record<string,string> = {
   cruz:'Cruz/CE', 'jijoca-de-jericoacoara':'Jijoca de Jericoacoara/CE',
   acarau:'Acaraú/CE', amontada:'Amontada/CE', 'bela-cruz':'Bela Cruz/CE',
-  camocim:'Camocim/CE', granja:'Granja/CE', itapipoca:'Itapipoca/CE',
+  camocim:'Camocim/CE', fortaleza:'Fortaleza/CE', granja:'Granja/CE', itapipoca:'Itapipoca/CE',
   itarema:'Itarema/CE', marco:'Marco/CE', morrinhos:'Morrinhos/CE',
   'santana-do-acarau':'Santana do Acaraú/CE', sobral:'Sobral/CE',
 };
@@ -28,7 +28,7 @@ const LAGOON = 'https://www.jijocadejericoacoara.ce.gov.br/informa/1973/atrativo
 
 const known = (municipalityId:string,sourceUrl:string): MunicipalityAssignment =>
   ({municipalityId,status:'confirmed',sourceUrl});
-const names = ['acarau','amontada','bela-cruz','camocim','cruz','granja',
+const names = ['acarau','amontada','bela-cruz','camocim','cruz','fortaleza','granja',
   'itapipoca','itarema','marco','morrinhos','santana-do-acarau','sobral'];
 const cities = Object.fromEntries(names.map(id=>[id,known(id,IBGE)]));
 const cruz = known('cruz',CRUZ);

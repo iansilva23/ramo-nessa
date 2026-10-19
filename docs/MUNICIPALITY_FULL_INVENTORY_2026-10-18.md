@@ -4,7 +4,7 @@ Atualização documental de 18/10/2026. Fonte das **chaves**: catálogo estátic
 
 Esta classificação é um metadado administrativo; **não troca nem remove** a chave do catálogo, a zona de preços, as geocercas ou as tarifas. Um nome comercial sem geolocalização confirmada fica pendente. A lista publicada no PostgreSQL pode conter acréscimos posteriores; confrontar em homologação antes de publicar.
 
-**Total de registros por escopo: 82** (Preá 50, Jijoca 16, externos 15, Vila Jeri 1). Chaves repetidas em escopos diferentes representam dois registros técnicos e não duas localidades distintas.
+**Total de registros por escopo: 83** (Preá 50, Jijoca 16, externos 16, Vila Jeri 1). Chaves repetidas em escopos diferentes representam dois registros técnicos e não duas localidades distintas.
 
 | Escopo atual | ID preservado | Município documental | Situação |
 |---|---|---|---|
@@ -89,9 +89,10 @@ Esta classificação é um metadado administrativo; **não troca nem remove** a 
 | `external` | `sobral` | Sobral | Confirmado |
 | `external` | `marco` | Marco | Confirmado |
 | `external` | `cruz` | Cruz | Confirmado |
+| `external` | `fortaleza` | Fortaleza | Confirmado |
 | `jericoacoara` | `jericoacoara` | Jijoca de Jericoacoara | Confirmado |
 
-**Resumo:** 56 classificações respaldadas por fonte, 26 pendentes; das classificadas, 30 pertencem a Cruz/Jijoca e 26 a outros municípios. Status documental não significa autorização de categoria ou serviço.
+**Resumo:** 57 classificações respaldadas por fonte, 26 pendentes; das classificadas, 30 pertencem a Cruz/Jijoca e 27 a outros municípios. Status documental não significa autorização de categoria ou serviço.
 
 **Atenção:** nomes ambíguos como `ius` não são associados automaticamente: a Defensoria Pública do Ceará relata que Córrego dos Iús se estende por Acaraú, Jijoca e Cruz. Fonte: https://www.defensoria.ce.def.br/noticia/em-nova-etapa-programa-amar-defensoria-atende-a-primeira-comunidade-quilombola-do-ceara/
 

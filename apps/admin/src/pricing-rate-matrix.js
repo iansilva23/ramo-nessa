@@ -100,7 +100,7 @@ export function buildPricingRateRows(catalog) {
   }
   if (catalog.jeri?.buggy) {
     out.push({key:'jeri-buggy',kind:'buggy_policy',region:'jericoacoara',
-      label:'Jericoacoara · base até 4 passageiros',category:'buggy',
+      label:'Jericoacoara · valor base + adicional por passageiro',category:'buggy',
       categoryLabel:'Buggy',day:exact(catalog.jeri.buggy.dayBaseCents),
       night:exact(catalog.jeri.buggy.after22BaseCents),mode:'definido'});
   }

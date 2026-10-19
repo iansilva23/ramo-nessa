@@ -7,6 +7,7 @@ on:
       - feature/regional-distance-fares-20261018
       - feature/pricing-admin-complete-20261018
       - feature/municipality-operating-boundary-20261018
+      - fix/pricing-final-integration-audit-20261018
       - fix/pricing-route-eligibility-20261018
   workflow_dispatch:
 

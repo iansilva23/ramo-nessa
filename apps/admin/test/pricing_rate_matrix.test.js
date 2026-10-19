@@ -32,3 +32,22 @@ test('matriz expõe rotas, categorias e tarifa noturna editável sem alterar dad
   assert.equal(row('regional-delivery').mode,'sem-adicional');
   assert.equal(JSON.stringify(catalog),before);
 });
+
+
+test('matriz não apresenta mínimo por km como tarifa final ou Buggy com preço para todos os passageiros', () => {
+  const catalog={
+    fixedRoutes:[],localities:{prea:[],jijoca:[]},
+    distanceFarePolicies:[{
+      id:'regional-prea-car',scope:'intra_zone',anchorZoneId:'prea',
+      anchorLocalityId:'prea',category:'car',minimumFareCents:2000,
+      after22MinimumFareCents:2500,pricePerKmCents:400,
+      after22PricePerKmCents:500,minKm:0,maxKm:30,
+      coveredLocalityIds:['vila-prea','cavalo-bravo'],
+    }],
+    jeri:{buggy:{dayBaseCents:3500,after22BaseCents:5000},deliveryBands:[]},
+  };
+  const rates=buildPricingRateRows(catalog);
+  assert.equal(rates.find(x=>x.key==='distance:regional-prea-car').day.amountCents,2000);
+  assert.equal(rates.find(x=>x.key==='distance:regional-prea-car').mode,'por-km-noturno');
+  assert.match(rates.find(x=>x.key==='jeri-buggy').label,/adicional por passageiro/);
+});

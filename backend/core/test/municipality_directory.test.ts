@@ -18,6 +18,7 @@ test('Cruz, Jijoca, Aeroporto e Barrinha de Baixo não dependem da zona legada',
   assert.equal(municipalityFor(c,'prea','jericoacoara').municipalityId,'jijoca-de-jericoacoara');
   assert.equal(municipalityFor(c,'jericoacoara','jericoacoara').municipalityId,'jijoca-de-jericoacoara');
   assert.equal(municipalityFor(c,'external','airport-jjd').municipalityId,'cruz');
+  assert.equal(municipalityFor(c,'external','fortaleza').municipalityId,'fortaleza');
   assert.equal(municipalityFor(c,'jijoca','baixio').municipalityId,'jijoca-de-jericoacoara');
   assert.equal(municipalityFor(c,'jijoca','lagoa-das-pedras').municipalityId,'jijoca-de-jericoacoara');
   assert.equal(isKnownOutsideLocalArea(municipalityFor(c,'prea','barrinha-de-baixo')),true);

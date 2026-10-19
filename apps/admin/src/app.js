@@ -5190,14 +5190,16 @@ function renderPricingCompleteMatrix() {
       item.region === 'jericoacoara' ? 'Jericoacoara' : 'Regional';
     cell(where + ' · ' + item.label);
     cell(item.categoryLabel);
-    cell(formatPriceView(item.day));
-    cell(formatPriceView(item.night));
+    const isDistanceMinimum = item.kind === 'distance_fare_policy';
+    cell((isDistanceMinimum ? 'Mín. ' : '') + formatPriceView(item.day));
+    cell((isDistanceMinimum ? 'Mín. ' : '') + formatPriceView(item.night));
     const delta = nightDifference(item.day,item.night);
     cell(delta == null ? '—' : (
       delta === 0 ? 'Sem adicional' :
       (delta > 0 ? '+' : '−') + formatCurrencyCents(Math.abs(delta))
     ));
-    const rule = item.mode === 'manual' ? 'Noite específica' :
+    const rule = item.enabled === false ? 'Categoria desativada' :
+      item.mode === 'manual' ? 'Noite específica' :
       item.mode === 'automatico' ? 'Adicional automático' :
       item.mode === 'por-km-noturno' ? 'Km por período' :
       item.mode === 'por-km' ? 'Tarifa por km' :

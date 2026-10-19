@@ -9,6 +9,7 @@ import {
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
 import { categoryEnabled } from './category-eligibility.js';
+import { APPROVED_PREA_BEACH_LOCALITY_IDS } from './approved-commercial-revision.js';
 import { municipalityFor, isLocalServiceMunicipality } from './municipality-directory.js';
 import { assertCatalogLocationSupported } from './catalog-location-policy.js';
 import { splitCommission } from './commission.js';
@@ -197,12 +198,23 @@ function quoteFixedRoute(
       candidate.category === request.category &&
       matchesPair(candidate.a, candidate.b, a, b),
   );
+  // A zone-level transfer is a price for the *base*, not every settlement
+  // accidentally stored under the same legacy pricing-zone ID. Keep the
+  // already approved Vila Preá synonym; all other specific localities require
+  // a specific approved fixed route or their own approved pricing rule.
+  const canUseHubAnchor = (ref: LocationRef): boolean => {
+    if (ref.zoneId === 'external') return ref.localityId != null;
+    if (ref.localityId == null || ref.localityId === ref.zoneId) return true;
+    return ref.zoneId === 'prea' && APPROVED_PREA_BEACH_LOCALITY_IDS.has(ref.localityId);
+  };
   const anchorA = request.origin.zoneId === 'external'
     ? a : request.origin.zoneId;
   const anchorB = request.destination.zoneId === 'external'
     ? b : request.destination.zoneId;
   const rule = specificRule ?? (
-    request.origin.zoneId !== request.destination.zoneId
+    request.origin.zoneId !== request.destination.zoneId &&
+    canUseHubAnchor(request.origin) &&
+    canUseHubAnchor(request.destination)
       ? catalog.fixedRoutes.find((candidate) =>
           candidate.category === request.category &&
           matchesPair(candidate.a, candidate.b, anchorA, anchorB))
@@ -358,12 +370,18 @@ function quotePrea(
     const entry = catalog.localities.prea[localityId];
     const explicitNight = request.period === 'after_22' ? entry?.after22?.buggy : undefined;
     const price = explicitNight ?? entry?.buggy;
-    if (typeof price !== 'number') return null;
+    if (price == null) return null;
     const passengers = request.passengers ?? 1;
-    return exactQuote(`prea-${localityId}-buggy`, price +
-      (request.period === 'after_22' && explicitNight == null ? catalog.commercialPolicy.preaBuggyAfter22Cents : 0) +
-      (passengers - 1) * catalog.commercialPolicy.buggyPerAdditionalPassengerCents,
-      request, catalog);
+    const extra = (request.period === 'after_22' && explicitNight == null
+      ? catalog.commercialPolicy.preaBuggyAfter22Cents : 0) +
+      (passengers - 1) * catalog.commercialPolicy.buggyPerAdditionalPassengerCents;
+    if (isBand(price)) {
+      return rangeQuote(`prea-${localityId}-buggy`, {
+        minCents: price.minCents + extra,
+        maxCents: price.maxCents + extra,
+      }, request, catalog);
+    }
+    return exactQuote(`prea-${localityId}-buggy`, price + extra, request, catalog);
   }
 
   if (request.category === 'comfort_black') {
@@ -384,12 +402,14 @@ function quotePrea(
       ? entry?.after22?.comfort_black ?? entry?.comfort_black
       : entry?.comfort_black;
     if (explicitComfort != null) {
-      const value = request.period === 'after_22' &&
+      const extraNight = request.period === 'after_22' &&
         entry?.after22?.comfort_black == null &&
-        localityNightSurchargeEnabled(catalog, localityId) &&
-        typeof explicitComfort === 'number'
-          ? explicitComfort + catalog.surcharges.preaLocalCarAfter22Cents
-          : explicitComfort;
+        localityNightSurchargeEnabled(catalog, localityId)
+          ? catalog.surcharges.preaLocalCarAfter22Cents : 0;
+      const value = isBand(explicitComfort)
+        ? { minCents: explicitComfort.minCents + extraNight,
+            maxCents: explicitComfort.maxCents + extraNight }
+        : explicitComfort + extraNight;
       return isBand(value)
         ? rangeQuote(`prea-${localityId}-comfort`, value, request, catalog)
         : exactQuote(`prea-${localityId}-comfort`, value, request, catalog);
@@ -397,23 +417,20 @@ function quotePrea(
     const explicitNight = request.period === 'after_22' ? entry?.after22?.car : undefined;
     const car = explicitNight ?? localityPrice(catalog.localities.prea, localityId, 'car');
     if (car == null) return null;
+    const night = request.period === 'after_22' && explicitNight == null &&
+      localityNightSurchargeEnabled(catalog, localityId)
+        ? catalog.surcharges.preaLocalCarAfter22Cents : 0;
     if (isBand(car)) {
       return rangeQuote(
         `prea-${localityId}-comfort`,
         {
-          minCents: car.minCents + catalog.surcharges.preaComfortCents,
-          maxCents: car.maxCents + catalog.surcharges.preaComfortCents,
+          minCents: car.minCents + catalog.surcharges.preaComfortCents + night,
+          maxCents: car.maxCents + catalog.surcharges.preaComfortCents + night,
         },
         request,
         catalog,
       );
     }
-
-    const night =
-      request.period === 'after_22' && explicitNight == null &&
-      localityNightSurchargeEnabled(catalog, localityId)
-        ? catalog.surcharges.preaLocalCarAfter22Cents
-        : 0;
 
     return exactQuote(
       `prea-${localityId}-comfort`,
@@ -445,22 +462,21 @@ function quotePrea(
   const value = (request.period === 'after_22' ? entry?.after22?.[request.category] : undefined) ?? localityPrice(catalog.localities.prea, localityId, request.category);
   if (value == null) return null;
 
-  if (isBand(value)) {
-    return rangeQuote(
-      `prea-${localityId}-${request.category}`,
-      value,
-      request,
-      catalog,
-    );
-  }
-
-  const localCarNight =
-    request.category === 'car' &&
+  const localCarNight = request.category === 'car' &&
     entry?.after22?.car == null &&
     request.period === 'after_22' &&
     localityNightSurchargeEnabled(catalog, localityId)
-      ? catalog.surcharges.preaLocalCarAfter22Cents
-      : 0;
+      ? catalog.surcharges.preaLocalCarAfter22Cents : 0;
+  if (isBand(value)) {
+    return rangeQuote(
+      `prea-${localityId}-${request.category}`,
+      {
+        minCents: value.minCents + localCarNight,
+        maxCents: value.maxCents + localCarNight,
+      },
+      request, catalog,
+    );
+  }
 
   return exactQuote(
     `prea-${localityId}-${request.category}`,
@@ -498,12 +514,16 @@ function quoteJijoca(request: QuoteRequest, catalog: PricingCatalogSnapshot): Fa
   const explicitNight = request.period === 'after_22' ? entry?.after22?.[category] : undefined;
   const value = explicitNight ?? localityPrice(catalog.localities.jijoca, localityId, category);
   if (value == null) return null;
-  if (isBand(value)) return rangeQuote(`jijoca-${localityId}-${request.category}`,value,request,catalog);
   const nightFactor = request.period === 'after_22' && explicitNight == null &&
     catalog.localityPolicies.jijoca[localityId]?.applyNightSurcharge === true
     ? 1 + (catalog.commercialPolicy?.jijocaNightBps ?? 0) / 10000 : 1;
   const comfort = request.category === 'comfort_black' ? catalog.commercialPolicy!.jijocaComfortCents : 0;
-  return exactQuote(`jijoca-${localityId}-${request.category}`, Math.round(value * nightFactor) + comfort,request,catalog);
+  if (isBand(value)) return rangeQuote(`jijoca-${localityId}-${request.category}`, {
+    minCents: Math.round(value.minCents * nightFactor) + comfort,
+    maxCents: Math.round(value.maxCents * nightFactor) + comfort,
+  },request,catalog);
+  return exactQuote(`jijoca-${localityId}-${request.category}`,
+    Math.round(value * nightFactor) + comfort,request,catalog);
 }
 
 function assertApprovedRoute(request: QuoteRequest, catalog: PricingCatalogSnapshot): void {
@@ -627,6 +647,17 @@ export function quoteFare(
   request: QuoteRequest,
   catalog: PricingCatalogSnapshot = STATIC_PRICING_CATALOG_V1,
 ): FareQuote {
+  // A malformed Google Maps distance must fail closed; never return NaN,
+  // Infinity, a negative fare, or commission values that cannot be settled.
+  for (const [field, distance] of [
+    ['tripDistanceKm', request.tripDistanceKm],
+    ['driverPickupDistanceKm', request.driverPickupDistanceKm],
+  ] as const) {
+    if (distance != null && (!Number.isFinite(distance) || distance < 0)) {
+      throw new PricingError('MISSING_DISTANCE',
+        field + ' precisa ser uma distância válida, finita e não negativa.');
+    }
+  }
   assertCatalogLocationSupported({
     catalog,
     ref: request.origin,
