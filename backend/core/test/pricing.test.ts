@@ -95,6 +95,43 @@ test('transfer tarifado por zona reconhece localidades aprovadas sem trocar os v
   if (reversed.kind === 'exact') assert.equal(reversed.totalAmountCents, 15000);
 });
 
+test('preço do transfer da sede não é aplicado a povoados ou destinos externos apenas pelo zoneId', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const trip = (zoneId: 'prea'|'jijoca', localityId: string, category: 'car'|'comfort_black'|'buggy' = 'car') => ({
+    origin: zone(zoneId, localityId),
+    destination: zone('jericoacoara','jericoacoara'),
+    category, period:'day' as const,
+  });
+  for (const locality of ['vila-prea','prea-beach-villas','casa-de-praia-teto-branco']) {
+    const allowed = quoteFare(trip('prea',locality),catalog);
+    assert.equal(allowed.ruleId,'jeri-prea-car');
+  }
+  const reversed = quoteFare({
+    ...trip('prea','vila-prea'),
+    origin: zone('jericoacoara','jericoacoara'),
+    destination: zone('prea','vila-prea'),
+  },catalog);
+  assert.equal(reversed.ruleId,'jeri-prea-car');
+  for (const [hub,locality] of [
+    ['prea','cavalo-bravo'],
+    ['prea','acarau'],
+    ['prea','barrinha-de-baixo'],
+    ['jijoca','baixio'],
+  ] as const) {
+    assert.throws(() => quoteFare(trip(hub,locality),catalog),
+      (error: unknown) => error instanceof PricingError && error.code === 'UNKNOWN_ROUTE',
+      hub+'/'+locality+' should not inherit the hub transfer amount');
+  }
+  catalog.fixedRoutes.push({
+    id:'cavalo-bravo-jeri-custom',a:'cavalo-bravo',b:'jericoacoara',
+    category:'car',dayCents:18900,after22Cents:23900,
+  });
+  const specific = quoteFare(trip('prea','cavalo-bravo'),catalog);
+  assert.equal(specific.ruleId,'cavalo-bravo-jeri-custom');
+  assert.equal(specific.kind,'exact');
+  if (specific.kind==='exact') assert.equal(specific.baseAmountCents,18900);
+});
+
 test('rota local explícita mantém prioridade e localidade desconhecida não vira tarifa de zona', () => {
   const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
   snapshot.fixedRoutes.unshift({
@@ -410,6 +447,157 @@ test('regra local controla adicional noturno do Preá', () => {
   }
 });
 
+
+
+test('tarifas regionais só funcionam após configuração explícita, sem quebrar preço fixo', () => {
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const ride = {
+    origin: zone('prea', 'vila-prea'),
+    destination: zone('prea', 'cavalo-bravo'),
+    category: 'car' as const,
+    period: 'day' as const,
+    tripDistanceKm: 6.7,
+  };
+  assert.throws(() => quoteFare(ride, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
+  snapshot.distanceFarePolicies.push({
+    id: 'regional-prea-car', scope: 'intra_zone',
+    anchorZoneId: 'prea', anchorLocalityId: 'prea', category: 'car',
+    coveredLocalityIds: ['vila-prea', 'cavalo-bravo', 'prea'],
+    minKm: 2, maxKm: 12, minimumFareCents: 1800, pricePerKmCents: 300,
+    after22MinimumFareCents: 2200, after22PricePerKmCents: 400,
+  });
+  const day = quoteFare(ride, snapshot);
+  assert.equal(day.kind, 'exact');
+  assert.equal(day.ruleId, 'regional-prea-car');
+  if (day.kind === 'exact') assert.equal(day.baseAmountCents, 2010);
+  const night = quoteFare({ ...ride, period: 'after_22' }, snapshot);
+  assert.equal(night.kind, 'exact');
+  if (night.kind === 'exact') assert.equal(night.baseAmountCents, 2680);
+  const fixed = quoteFare({
+    ...ride, origin: zone('prea', 'prea'), tripDistanceKm: 6.7,
+  }, snapshot);
+  assert.equal(fixed.ruleId, 'prea-cavalo-bravo-car');
+  assert.throws(() => quoteFare({
+    ...ride, destination: zone('prea', 'acarau'),
+  }, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
+  const interZone = quoteFare({
+    ...ride, destination: zone('jijoca', 'jijoca'),
+  }, snapshot);
+  assert.equal(interZone.ruleId, 'prea-jijoca-car');
+  assert.throws(() => quoteFare({
+    ...ride, tripDistanceKm: 13,
+  }, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
+  const { tripDistanceKm: _distance, ...withoutDistance } = ride;
+  assert.throws(() => quoteFare(withoutDistance, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'MISSING_DISTANCE');
+});
+
+test('regional por quilômetro respeita categorias, lotação e localidade desativada', () => {
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.distanceFarePolicies.push({
+    id: 'regional-prea-buggy', scope: 'intra_zone',
+    anchorZoneId: 'prea', anchorLocalityId: 'prea', category: 'buggy',
+    coveredLocalityIds: ['vila-prea', 'cavalo-bravo'],
+    minKm: 0, maxKm: 20, minimumFareCents: 2500, pricePerKmCents: 300,
+    after22MinimumFareCents: 3000, after22PricePerKmCents: 400,
+  });
+  // Both localities must explicitly have Buggy enabled.
+  snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories =
+    [...new Set([...snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories, 'buggy' as const])];
+  const trip = {
+    origin: zone('prea', 'vila-prea'),
+    destination: zone('prea', 'cavalo-bravo'),
+    category: 'buggy' as const, period: 'after_22' as const,
+    tripDistanceKm: 5, passengers: 3,
+  };
+  const quoted = quoteFare(trip, snapshot);
+  assert.equal(quoted.kind, 'exact');
+  if (quoted.kind === 'exact') assert.equal(quoted.baseAmountCents, 3400);
+  snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories =
+    snapshot.localityPolicies.prea['cavalo-bravo']!.enabledCategories.filter(x=>x!=='buggy');
+  assert.throws(() => quoteFare(trip, snapshot), (error: unknown) =>
+    error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
+});
+
+test('preço Comfort configurado na localidade substitui o adicional derivado sem alterar Carro', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const request = {
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'comfort_black' as const,
+    period: 'day' as const,
+  };
+  const old = quoteFare(request, catalog);
+  assert.equal(old.kind, 'exact');
+  if (old.kind === 'exact') assert.equal(old.baseAmountCents, 6700);
+  catalog.localities.prea['buraco-azul']!.comfort_black = 9500;
+  catalog.localities.prea['buraco-azul']!.after22 ??= {};
+  catalog.localities.prea['buraco-azul']!.after22!.comfort_black = 11200;
+  const day = quoteFare(request, catalog);
+  const night = quoteFare({...request, period: 'after_22'}, catalog);
+  const car = quoteFare({...request, category: 'car'}, catalog);
+  assert.equal(day.kind, 'exact');
+  if (day.kind === 'exact') assert.equal(day.baseAmountCents, 9500);
+  assert.equal(night.kind, 'exact');
+  if (night.kind === 'exact') assert.equal(night.baseAmountCents, 11200);
+  assert.equal(car.kind, 'exact');
+  if (car.kind === 'exact') assert.equal(car.baseAmountCents, 4200);
+});
+
+test('preços em faixa usam adicionais noturnos idênticos aos anunciados no ADM', () => {
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.localities.prea['cavalo-bravo']!.car =
+    {minCents:2500,maxCents:3000};
+  snapshot.localities.prea['cavalo-bravo']!.comfort_black =
+    {minCents:5300,maxCents:5800};
+  snapshot.localities.prea['cavalo-bravo']!.buggy =
+    {minCents:2000,maxCents:3000};
+
+  const localityTrip = {
+    origin:zone('prea','prea'),destination:zone('prea','cavalo-bravo'),
+    period:'after_22' as const,category:'car' as const,
+  };
+  const car = quoteFare(localityTrip,snapshot);
+  assert.equal(car.kind,'range');
+  if (car.kind === 'range') {
+    assert.equal(car.minBaseAmountCents,3000);
+    assert.equal(car.maxBaseAmountCents,3500);
+  }
+  const comfort = quoteFare({...localityTrip,category:'comfort_black'},snapshot);
+  assert.equal(comfort.kind,'range');
+  if (comfort.kind === 'range') {
+    assert.equal(comfort.minBaseAmountCents,5800);
+    assert.equal(comfort.maxBaseAmountCents,6300);
+  }
+  const buggy = quoteFare({...localityTrip,category:'buggy',passengers:3},snapshot);
+  assert.equal(buggy.kind,'range');
+  if (buggy.kind === 'range') {
+    assert.equal(buggy.minBaseAmountCents,2900);
+    assert.equal(buggy.maxBaseAmountCents,3900);
+  }
+
+  snapshot.localities.jijoca.baixio!.car =
+    {minCents:4500,maxCents:5500};
+  const jijocaTrip = {
+    origin:zone('jijoca','jijoca'),destination:zone('jijoca','baixio'),
+    period:'after_22' as const,category:'car' as const,
+  };
+  const nightCar = quoteFare(jijocaTrip,snapshot);
+  assert.equal(nightCar.kind,'range');
+  if (nightCar.kind === 'range') {
+    assert.equal(nightCar.minBaseAmountCents,5850);
+    assert.equal(nightCar.maxBaseAmountCents,7150);
+  }
+  const nightComfort = quoteFare({...jijocaTrip,category:'comfort_black'},snapshot);
+  assert.equal(nightComfort.kind,'range');
+  if (nightComfort.kind === 'range') {
+    assert.equal(nightComfort.minBaseAmountCents,7550);
+    assert.equal(nightComfort.maxBaseAmountCents,8850);
+  }
+});
 
 test('preço específico continua tendo prioridade sobre fallback por distância', () => {
   const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
