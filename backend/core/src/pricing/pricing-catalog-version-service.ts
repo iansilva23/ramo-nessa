@@ -515,6 +515,29 @@ function applyPricingCatalogAtomicPatch(
       bands: snapshot.jeri.deliveryBands,
       aboveMaxCents: snapshot.jeri.deliveryAboveMaxCents,
     };
+  } else if (patch.kind === 'municipality_assignment') {
+    const exists = patch.scope === 'prea'
+      ? snapshot.localities.prea[patch.localityId] != null
+      : patch.scope === 'jijoca'
+        ? snapshot.localities.jijoca[patch.localityId] != null
+        : snapshot.externalLocalities.includes(patch.localityId);
+    if (!exists) {
+      throw new PricingCatalogVersionError(
+        'PRICING_RULE_NOT_FOUND','Localidade não encontrada para classificar município.',
+      );
+    }
+    snapshot.municipalityOverrides ??= {};
+    snapshot.municipalityOverrides[patch.scope] ??= {};
+    snapshot.municipalityOverrides[patch.scope]![patch.localityId] = {
+      municipalityId: patch.municipalityId,
+      status: patch.status,
+      sourceUrl: patch.sourceUrl,
+    };
+    auditMetadata = {
+      kind: patch.kind,scope:patch.scope,localityId:patch.localityId,
+      municipalityId:patch.municipalityId,status:patch.status,
+      sourceUrl:patch.sourceUrl,
+    };
   } else if (patch.kind === 'locality_label') {
     const localityExists =
       patch.scope === 'prea'
@@ -633,6 +656,7 @@ function applyPricingCatalogAtomicPatch(
 
     if (patch.operation === 'remove') {
       delete snapshot.localityDisplayNames?.[patch.scope]?.[patch.localityId];
+      delete snapshot.municipalityOverrides?.[patch.scope]?.[patch.localityId];
     }
 
     if (patch.scope === 'external') {

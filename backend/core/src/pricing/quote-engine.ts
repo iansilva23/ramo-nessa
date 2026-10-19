@@ -9,6 +9,7 @@ import {
   type PricingCatalogSnapshot,
 } from './catalog-snapshot.js';
 import { categoryEnabled } from './category-eligibility.js';
+import { municipalityFor, isKnownOutsideLocalArea, isLocalServiceMunicipality } from './municipality-directory.js';
 import { assertCatalogLocationSupported } from './catalog-location-policy.js';
 import { splitCommission } from './commission.js';
 import {
@@ -237,6 +238,14 @@ function quoteDistanceFallback(
     if (!request.origin.localityId || !request.destination.localityId ||
         !approved.includes(originId) || !approved.includes(destinationId)) return false;
     const policies = catalog.localityPolicies[hub];
+    const from = municipalityFor(catalog,hub,originId);
+    const to = municipalityFor(catalog,hub,destinationId);
+    // An optional regional/km tariff may only apply to confirmed local
+    // municipalities. Never extend it to Acaraú, Sobral, other towns or
+    // ambiguous points just because they were stored in a Preá price list.
+    if (!isLocalServiceMunicipality(from) ||
+        !isLocalServiceMunicipality(to) ||
+        from.municipalityId !== to.municipalityId) return false;
     return policies[originId]?.enabledCategories.includes(request.category) === true &&
       policies[destinationId]?.enabledCategories.includes(request.category) === true;
   };
@@ -343,6 +352,10 @@ function quotePrea(
 ): FareQuote | null {
   const localityId = resolveHubLocality(request.origin, request.destination, 'prea');
   if (localityId == null) return null;
+  // Only explicit fixed transfers (already resolved before this function)
+  // can quote a passenger taxi/mototaxi to another confirmed municipality.
+  if (['moto','car','comfort_black'].includes(request.category) &&
+      isKnownOutsideLocalArea(municipalityFor(catalog,'prea',localityId))) return null;
 
   if (request.category === 'buggy' && catalog.commercialPolicy != null) {
     if (!localityCategoryEnabled(catalog, 'prea', localityId, 'buggy')) return null;
