@@ -1,3 +1,4 @@
+import { anticipationPolicy } from '../payout.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -1349,6 +1350,11 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     };
   }
 
+  async findDriverPayoutByIdempotencyKey(key: string): Promise<DriverPayoutRecord | null> {
+    const id = this.payoutIdempotencyIndex.get(key);
+    return id ? this.findDriverPayoutById(id) : null;
+  }
+
   async findDriverPayoutById(
     id: string,
   ): Promise<DriverPayoutRecord | null> {
@@ -1678,6 +1684,9 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     }
 
     const referenceKey = `driver-payout-cancelled:${payout.id}`;
+    if (payout.processor === 'asaas' && payout.status === 'processing') {
+      throw new PayoutDomainError('INVALID_PAYOUT_TRANSITION', 'Repasse Asaas em processamento exige conciliação; não pode ser devolvido manualmente.');
+    }
     if (payout.status === 'cancelled') {
       const existing = this.ledgerByReference.get(referenceKey);
       if (existing == null) {
@@ -2101,6 +2110,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     input: SetDriverPayoutAutomaticEnabledInput,
   ): Promise<DriverPayoutSettings> {
     this.payoutSettings = {
+      ...anticipationPolicy({ ...this.payoutSettings, ...input }),
       automaticEnabled: input.automaticEnabled,
       mode: input.mode ?? (input.automaticEnabled ? 'automatic' : 'manual'),
       updatedAt: (input.updatedAt ?? new Date()).toISOString(),

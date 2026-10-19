@@ -321,7 +321,7 @@
               <span><strong id="finance-payments-refunded">0</strong> estornados</span>
             </div>
 
-            <article class="panel-card">
+            <article class="panel-card finance-policy-card">
               <div class="panel-card__header">
                 <div>
                   <span class="eyebrow eyebrow--dark">REPASSES DOS MOTORISTAS</span>
@@ -338,12 +338,14 @@
               </div>
 
               <div class="finance-payout-actions">
-                <label for="finance-payout-mode">Modo de repasse</label>
+                <label class="field finance-policy-mode" for="finance-payout-mode">
+                  <span>Modo de repasse</span>
                 <select id="finance-payout-mode">
                   <option value="manual">Manual — Pix pelo banco</option>
                   <option value="semi_automatic" disabled>Semiautomático — pagar pelo ADM via API</option>
                   <option value="automatic" disabled>Automático — segunda, quarta e sexta às 07:00</option>
                 </select>
+                </label>
                 <button
                   id="finance-payout-mode-toggle"
                   class="button button--dark"
@@ -366,9 +368,20 @@
                 </small>
               </div>
 
+              <div class="finance-policy-terms">
+                <label class="field" for="finance-anticipation-minimum">
+                  <span>Mínimo da antecipação (R$)</span>
+                  <input id="finance-anticipation-minimum" type="text" inputmode="decimal" value="80,00" maxlength="12" disabled>
+                </label>
+                <label class="field" for="finance-anticipation-fee">
+                  <span>Taxa da antecipação (R$)</span>
+                  <input id="finance-anticipation-fee" type="text" inputmode="decimal" value="10,00" maxlength="12" disabled>
+                </label>
+                <small>Vale para novas solicitações. Repasses normais continuam sem mínimo e sem taxa de antecipação.</small>
+              </div>
               <div class="empty-state">
-                <strong>Integração Asaas — aguardando configuração</strong>
-                <p>Após a aprovação da conta, a integração da API será configurada e testada no servidor. As credenciais não devem ser coladas neste painel. Os modos semiautomático e automático só estarão disponíveis após essa configuração.</p>
+                <strong>Integração Asaas — repasses dos motoristas</strong>
+                <p id="finance-asaas-status">Carregando configuração da integração.</p>
               </div>
               <div id="finance-manual-payouts" hidden>
                 <div class="panel-card__header">

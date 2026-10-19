@@ -136,6 +136,21 @@ export async function processDriverPayout(input: {
     });
   }
 
+  // Asaas has no documented create idempotency header. Commit a processing
+  // claim before any external POST; only the winner may submit once.
+  if (input.provider.submissionReference) {
+    const reference = input.provider.submissionReference(payout);
+    const started = await input.finance.startDriverPayout({
+      payoutId: payout.id, processor: input.provider.name, processorPayoutId: reference,
+      ...(input.now == null ? {} : { startedAt: input.now }),
+    });
+    if (started.duplicateStart) {
+      const result = await input.provider.getPayoutStatus(reference);
+      if (result.providerPayoutId !== reference) throw Error('Referência de conciliação inválida.');
+      return applyProviderResult({ ...input, payout: started.payout, result });
+    }
+  }
+
   const result = await input.provider.createPixPayout({
     payoutId: payout.id,
     amountCents: payout.amountCents,
@@ -199,4 +214,16 @@ export async function reconcileDriverPayouts(input: {
     failed,
     errors,
   };
+}
+
+// Used only after the Asaas adapter fetched and verified the canonical transfer.
+export async function applyConfirmedDriverPayoutResult(input: {
+  finance: FinanceRepository; provider: DriverPayoutProvider; payoutId: string; result: DriverPayoutProviderResult;
+}): Promise<DriverPayoutProcessingOutcome> {
+  const payout = await input.finance.findDriverPayoutById(input.payoutId);
+  if (!payout || payout.executionMode !== 'api' || payout.processor !== input.provider.name ||
+      payout.processorPayoutId !== input.result.providerPayoutId) throw Error('Repasse não corresponde à notificação conciliada.');
+  if (payout.status === 'paid' || payout.status === 'failed' || payout.status === 'cancelled') return { kind: 'terminal', payout };
+  if (payout.status !== 'processing') throw Error('Repasse ainda não foi enviado.');
+  return applyProviderResult({ ...input, payout });
 }

@@ -153,6 +153,8 @@ export interface DriverPayoutCandidate {
 }
 
 export interface SetDriverPayoutAutomaticEnabledInput {
+  anticipationMinimumCents?: number;
+  anticipationFeeCents?: number;
   mode?: import('./payout.js').DriverPayoutMode;
   automaticEnabled: boolean;
   updatedAt?: Date;
@@ -413,6 +415,7 @@ export interface FinanceRepository {
   reserveDriverPayout(
     payout: DriverPayoutRecord,
   ): Promise<ReserveDriverPayoutResult>;
+  findDriverPayoutByIdempotencyKey(key: string): Promise<DriverPayoutRecord | null>;
   findDriverPayoutById(id: string): Promise<DriverPayoutRecord | null>;
   approveDriverPayout(
     input: ApproveDriverPayoutInput,

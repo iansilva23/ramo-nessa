@@ -1,0 +1,130 @@
+name: Asaas driver payouts - isolated acceptance
+on:
+  push:
+    branches: [feature/asaas-driver-payouts-20261018, ops/asaas-pricing-integration-20261019]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: asaas-driver-payouts-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core-admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck --prefix backend/core
+      - run: npm test --prefix backend/core
+      - run: npm run check --prefix apps/admin
+      - run: npm test --prefix apps/admin
+      - run: node --test deploy/staging/asaas.test.mjs deploy/staging/asaas-runtime-contract.test.mjs
+      - name: Preserve Mercado Pago and passenger sources exactly
+        run: git diff --exit-code 2ee07808d819bc73eb7377c5d273124ecd19acb0 HEAD -- backend/core/src/pricing/quote-engine.ts apps/passenger packages backend/core/src/payments/mercado-pago-orders.ts backend/core/src/payments/mercado-pago-webhook-diagnostic.ts
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ramo_asaas_ci
+          POSTGRES_USER: ramo_ci
+          POSTGRES_PASSWORD: ramo_ci_ephemeral_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ramo_ci -d ramo_asaas_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_asaas_ci
+      RAMO_ASAAS_TEST_PG_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_asaas_ci
+      RAMO_ASAAS_EPHEMERAL_PG: 'true'
+      DB_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run db:migrate --prefix backend/core
+      - run: npm run db:migrate --prefix backend/core
+      - run: node --import tsx --test test/asaas_postgres.test.ts
+        working-directory: backend/core
+  driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - name: Driver analyzer and all regression/widget tests
+        working-directory: apps/driver
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Compile browser consumer of dynamic payout terms
+        working-directory: apps/driver
+        run: flutter build web --release --no-web-resources-cdn --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Preserve native project configuration and dependency locks
+        run: git diff --ignore-blank-lines --exit-code -- apps/driver/pubspec.yaml apps/driver/pubspec.lock apps/driver/android apps/driver/ios
+  finance-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+        working-directory: scripts/web/browser-tests
+      - run: node --test scripts/web/asaas_finance_browser_test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: asaas-finance-browser
+          path: artifacts/asaas-finance/
+          retention-days: 7
+  android-driver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - run: flutter build apk --debug --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+        working-directory: apps/driver
+  ios-driver:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/driver
+      - run: flutter build ios --simulator --debug --no-codesign --no-pub --dart-define=RAMO_PREVIEW_MODE=false --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+        working-directory: apps/driver

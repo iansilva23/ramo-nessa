@@ -1,3 +1,7 @@
+import { lstatSync, readFileSync } from 'node:fs';
+import { AsaasDriverPayoutProvider } from './asaas-driver-payout-provider.js';
+import type { AsaasPayoutStore } from './asaas-payout-store.js';
+import type { DriverPayoutRecord } from './payout.js';
 import {
   createPrivateKey,
   sign as signPayload,
@@ -15,6 +19,7 @@ export interface DriverPayoutProviderResult {
 
 export interface DriverPayoutProvider {
   readonly name: string;
+  submissionReference?(payout: DriverPayoutRecord): string;
   createPixPayout(input: {
     payoutId: string;
     amountCents: number;
@@ -490,11 +495,37 @@ function payoutPrivateKeyFromEnv(
   }
 }
 
+function asaasSecret(env: NodeJS.ProcessEnv, name: string): string {
+  const value = env[name]?.trim() ?? '';
+  const file = env[name + '_FILE']?.trim() ?? '';
+  if (value && file) throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Informe apenas arquivo ou variável para cada segredo Asaas.');
+  if (!file) return value;
+  try {
+    const info = lstatSync(file);
+    if (!info.isFile() || (info.mode & 0o077) !== 0 || info.size > 4096) throw Error();
+    return readFileSync(file, 'utf8').trim();
+  } catch { throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Arquivo privado Asaas ausente, ilegível ou com permissões abertas.'); }
+}
+
 export function createDriverPayoutProviderFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  asaas?: { store: AsaasPayoutStore; financeLookup(id: string): Promise<DriverPayoutRecord | null> },
 ): DriverPayoutProvider | null {
   const configuredName =
     env.DRIVER_PAYOUT_PROVIDER_NAME?.trim() ?? '';
+
+  if (configuredName === 'asaas') {
+    if (env.ASAAS_PAYOUTS_ENABLED !== 'true') return null;
+    if (!asaas?.store.durable || !['sandbox', 'production'].includes(env.ASAAS_PAYOUT_MODE ?? '') ||
+        !env.ASAAS_PAYOUT_START_AFTER || !Number.isFinite(Date.parse(env.ASAAS_PAYOUT_START_AFTER))) {
+      throw new DriverPayoutProviderError('PAYOUT_PROVIDER_CONFIG_INVALID', 'Asaas exige PostgreSQL, ambiente explícito e data de início dos novos repasses.');
+    }
+    return new AsaasDriverPayoutProvider({
+      environment: env.ASAAS_PAYOUT_MODE as 'sandbox' | 'production',
+      apiKey: asaasSecret(env, 'ASAAS_API_KEY'), webhookToken: asaasSecret(env, 'ASAAS_WEBHOOK_TOKEN'),
+      startAfter: env.ASAAS_PAYOUT_START_AFTER, ...asaas,
+    });
+  }
 
   if (configuredName === 'mercado-pago-payouts') {
     const rawMode =

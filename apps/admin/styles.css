@@ -5465,3 +5465,21 @@ td strong {
 
 
 .site-admin-tabs,.site-admin-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:18px 0}.site-admin-card{padding:24px;border:1px solid #dedede;border-radius:16px;background:#fff;margin:16px 0;display:grid;gap:14px}.site-admin-card h2,.site-admin-card p{margin:0}.site-admin-card input,.site-admin-card select,.site-admin-card textarea,.site-admin-toolbar select{max-width:100%;padding:12px;border:1px solid #bbb;border-radius:8px;background:#fff;color:#111}.site-admin-card textarea{min-height:90px;resize:vertical}.site-content-preview{background:#101010;color:#fff;white-space:pre-line}.site-content-preview img{max-width:100%;max-height:280px;object-fit:cover;border-radius:12px}.site-admin-card button{justify-self:start}.site-admin-tabs button{min-height:44px}@media(max-width:600px){.site-admin-card{padding:16px}.site-admin-toolbar{align-items:stretch;flex-direction:column}}
+
+/* Repasse policy controls keep their intrinsic select width inside mobile cards. */
+.finance-policy-card { min-width: 0; }
+.finance-policy-card > .finance-payout-actions { margin-top: 16px; }
+.finance-policy-card .field { min-width: 0; }
+.finance-policy-card .field input,
+.finance-policy-card .field select { width: 100%; min-width: 0; max-width: 100%; }
+.finance-policy-mode { flex: 1 1 300px; }
+.finance-policy-card .finance-payout-actions > span,
+.finance-policy-card .finance-payout-actions > small {
+  flex-basis: 100%; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.finance-policy-terms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
+.finance-policy-terms > small { grid-column: 1 / -1; color: var(--muted); font-size: 12px; line-height: 1.5; }
+@media (max-width: 760px) {
+  .finance-policy-mode { flex-basis: auto; }
+  .finance-policy-terms { grid-template-columns: minmax(0, 1fr); }
+}
