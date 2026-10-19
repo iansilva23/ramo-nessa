@@ -32,6 +32,7 @@ try{
  if(s.revision!==candidateRevision||!/^[a-f0-9-]{36}$/.test(s.id)||!/^[-_A-Za-z0-9]{40,60}$/.test(s.password))throw Error('Registro da sessão diferente do esperado.');
  const suffix=s.id.replaceAll('-',''),prefix='ramo-asaas-sandbox-'+suffix;
  db=prefix+'-db';const network=prefix+'-net',volume=prefix+'-data',label='br.com.ramonessa.asaas-sandbox';
+ if(tryInspect('container',prefix+'-receiver')?.State.Running)throw Error('Receptor público Sandbox ativo. Use a conferência do webhook; não pare seu banco.');
  for(const [kind,name] of [['network',network],['volume',volume]]){
   const existing=tryInspect(kind,name);
   if(existing){if(existing.Labels?.[label]!==s.id)throw Error('Recurso de teste sem identificação esperada.');}

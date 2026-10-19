@@ -1,5 +1,6 @@
 // CI-only rehearsal of the same offline dump/restore/migration/probe commands.
 import assert from 'node:assert/strict';
+import {testSandboxReceiver} from './test-asaas-sandbox-receiver.mjs';
 import {spawnSync} from 'node:child_process';
 import {mkdtempSync,copyFileSync,chmodSync,openSync,closeSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -43,6 +44,7 @@ try{
  for(const result of [firstRun,restart]){assert.equal(result.transport,'ci-fixture');assert.equal(result.result,'passed');assert.equal(result.postAttempts,1);assert.equal(result.ledgerPaidEntries,1);assert.equal(result.externalWebhookDeliveryVerified,false);}
  assert.equal(restart.transferId,firstRun.transferId);assert.equal(restart.payoutId,firstRun.payoutId);
  console.log('SANDBOX WORKER CI PASSED: concurrent requests, lost response and worker restart preserve one POST and one paid ledger entry. External API and webhook delivery are not exercised in CI.');
+ await testSandboxReceiver({dir,lab,sourceContainer:name+'-target',candidate,postgres,user,password:pw,session,result:restart});
 
 }finally{
  if(target)run(['rm','-f','-v',name+'-target']);if(source)run(['rm','-f','-v',name+'-source']);rmSync(dir,{recursive:true,force:true});

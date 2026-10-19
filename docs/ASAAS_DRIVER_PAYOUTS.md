@@ -90,3 +90,55 @@ O adapter fixa o host Sandbox; o wrapper restringe os pedidos ao mesmo host e gr
 O exercício verifica envio, conciliação canônica e baixa única no ledger. O replay autenticado local não equivale a receber um webhook pela internet: o resultado mantém `externalWebhookDeliveryVerified=false`. A entrega externa do webhook segue como aceite separado obrigatório antes de ativar repasses reais. Nenhum endpoint público ou Caddy é alterado nesta etapa.
 
 O ensaio CI usa transporte simulado, banco PostgreSQL real e rede sem acesso externo, incluindo resposta perdida, concorrência e reinício do worker. Não utiliza a conta ou chave do proprietário. O resultado contra a API real Sandbox só será conhecido após execução na VPS.
+
+### Temporary public Sandbox receiver (before app activation)
+
+`prepare-asaas-sandbox-webhook.mjs --prepare` uses the existing private lab
+session and its already completed R$5 transfer. It does **not** create any new
+transfer or register a webhook at Asaas. The active Core, database, pricing,
+Mercado Pago and application bundles are not replaced. The Asaas feature remains
+disabled in the app.
+
+The script starts the stopped lab PostgreSQL and a small receiver from the
+prepared candidate image, with no published host port. Only the receiver joins
+the gateway network; the lab PostgreSQL stays on its private network. The
+receiver uses the Sandbox token and key from private mounts, accepts one exact
+POST path, limits the body to 64 KiB, and authenticates before reading it. Its
+Asaas transport permits only canonical GET requests for a transfer UUID; it has
+no payout creation route, job or POST transport. HTTP 200 follows durable event
+processing; API/database failures return a retryable status. No raw payload,
+key, token or customer information is written to its receipt journal.
+
+A hash-guarded insertion adds `handle /__asaas_sandbox/transfers` immediately
+before the existing API marker in the actual mounted Caddyfile. All existing
+bytes remain unchanged. It validates the candidate, preserves the bind-mounted
+inode, and sends `SIGUSR1` to the verified `caddy run --config` process with
+`admin off`. It never recreates or restarts the gateway. Current site, API,
+admin and both Web routes are checked before/after, as are active container IDs
+and start times. An authenticated local probe reuses the already paid Sandbox
+transfer and verifies a single ledger entry. This probe is explicitly marked
+local and **does not count as Asaas webhook delivery acceptance**.
+
+Private journal, original/candidate Caddyfiles and receiver scripts are kept at
+`/var/lib/ramo-nessa-asaas-sandbox/public-webhook`. A failed activation attempts
+to restore the original configuration using the same reload, preserving evidence
+and refusing to overwrite concurrent changes. `--remove` restores the guarded
+original configuration, checks the service routes, removes only the labelled
+receiver and stops the lab database only if this stage had started it. It keeps
+the test data and receipts. If another deployment has edited the gateway, it
+stops for review instead of reverting that deployment.
+
+The lab database and receiver remain running while awaiting external acceptance;
+no restart policy or host port is added. Do not rerun an older Sandbox worker
+controller during this phase, because it stops the lab database at completion.
+The updated worker controller explicitly refuses to run while the receiver is
+active. Registration in the **Asaas Sandbox** dashboard and an authenticated
+provider-originated event remain separate pending steps. An already finished
+transfer must not be assumed to emit historical events to a newly registered
+subscription. Clean up the temporary route and subscription after acceptance.
+
+CI covers HTTP authentication, bounded/invalid bodies, duplicate deliveries,
+retry on failure, actual compiled provider/repositories against a disposable
+PostgreSQL with fake canonical transport, and activation/rollback using Caddy
+2.11.7 with a read-only bind mount and unchanged container start time. These tests
+do not claim external Asaas delivery or real-account authorization acceptance.
