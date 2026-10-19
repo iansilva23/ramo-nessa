@@ -30,6 +30,7 @@ function localityView(
       moto: priceValueView(pricing.moto),
       delivery: priceValueView(pricing.delivery),
       car: priceValueView(pricing.car),
+      comfort_black: priceValueView(pricing.comfort_black),
       buggy: priceValueView(pricing.buggy),
       after22: Object.fromEntries(Object.entries(pricing.after22 ?? {}).map(([category,value])=>[category,priceValueView(value)])),
     },

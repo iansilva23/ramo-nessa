@@ -485,6 +485,28 @@ test('regional por quilômetro respeita categorias, lotação e localidade desat
     error instanceof PricingError && error.code === 'UNKNOWN_ROUTE');
 });
 
+test('preço Comfort configurado na localidade substitui o adicional derivado sem alterar Carro', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const request = {
+    origin: zone('prea', 'prea'),
+    destination: zone('prea', 'buraco-azul'),
+    category: 'comfort_black' as const,
+    period: 'day' as const,
+  };
+  const old = quoteFare(request, catalog);
+  assert.equal(old.baseAmountCents, 6700);
+  catalog.localities.prea['buraco-azul']!.comfort_black = 9500;
+  catalog.localities.prea['buraco-azul']!.after22 ??= {};
+  catalog.localities.prea['buraco-azul']!.after22!.comfort_black = 11200;
+  const day = quoteFare(request, catalog);
+  const night = quoteFare({...request, period: 'after_22'}, catalog);
+  const car = quoteFare({...request, category: 'car'}, catalog);
+  assert.equal(day.kind, 'exact');
+  assert.equal(day.baseAmountCents, 9500);
+  assert.equal(night.baseAmountCents, 11200);
+  assert.equal(car.baseAmountCents, 4200);
+});
+
 test('preço específico continua tendo prioridade sobre fallback por distância', () => {
   const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
   catalog.distanceFarePolicies.push({

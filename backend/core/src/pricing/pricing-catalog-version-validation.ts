@@ -419,10 +419,11 @@ export function parsePricingCatalogDraftPatch(
     if (
       category !== 'moto' &&
       category !== 'delivery' &&
-      category !== 'car' && category !== 'buggy'
+      category !== 'car' && category !== 'buggy' &&
+      category !== 'comfort_black'
     ) {
       throw new InvalidPricingCatalogPatchError(
-        'category deve ser moto, delivery ou car.',
+        'category deve ser moto, delivery, car, buggy ou comfort_black.',
       );
     }
 
