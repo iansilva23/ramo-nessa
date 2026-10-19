@@ -1296,7 +1296,7 @@ test('homologação isolada: rascunho editado recarrega no repositório sem muda
     versions,admin,actor,now:new Date('2026-10-19T15:00:00.000Z'),
   });
   const originalCar = draft.snapshot.localities.prea['cavalo-bravo']?.car;
-  const candidate = (originalCar ?? 0) + 100;
+  const candidate = 4200; // centavos, apenas no repositório em memória
   const updated = await updatePricingCatalogDraft({
     versions,admin,actor,versionId:draft.id,
     expectedUpdatedAt:draft.updatedAt,
