@@ -2,6 +2,7 @@ import type {
   LocalityPricing,
   PriceValue,
 } from './catalog.v1.js';
+import { municipalityFor, municipalityLabel, isLocalServiceMunicipality } from './municipality-directory.js';
 import {
   STATIC_PRICING_CATALOG_V1,
   type PricingCatalogSnapshot,
@@ -20,16 +21,23 @@ function priceValueView(value: PriceValue | undefined) {
 }
 
 function localityView(
+  scope: 'prea' | 'jijoca',
+  catalog: PricingCatalogSnapshot,
   localityId: string,
   pricing: LocalityPricing,
   policy: PricingCatalogSnapshot['localityPolicies']['prea'][string] | undefined,
 ) {
+  const municipality = municipalityFor(catalog,scope,localityId);
   return {
     localityId,
+    municipality,
+    municipalityLabel: municipalityLabel(municipality),
+    localServiceMunicipality: isLocalServiceMunicipality(municipality),
     prices: {
       moto: priceValueView(pricing.moto),
       delivery: priceValueView(pricing.delivery),
       car: priceValueView(pricing.car),
+      comfort_black: priceValueView(pricing.comfort_black),
       buggy: priceValueView(pricing.buggy),
       after22: Object.fromEntries(Object.entries(pricing.after22 ?? {}).map(([category,value])=>[category,priceValueView(value)])),
     },
@@ -108,6 +116,7 @@ export function adminPricingCatalogView(
       prea: Object.entries(snapshot.localities.prea)
         .map(([localityId, pricing]) =>
           localityView(
+            'prea', snapshot,
             localityId,
             pricing,
             snapshot.localityPolicies.prea[localityId],
@@ -119,6 +128,7 @@ export function adminPricingCatalogView(
       jijoca: Object.entries(snapshot.localities.jijoca)
         .map(([localityId, pricing]) =>
           localityView(
+            'jijoca', snapshot,
             localityId,
             pricing,
             snapshot.localityPolicies.jijoca[localityId],
@@ -138,6 +148,13 @@ export function adminPricingCatalogView(
           ? anchor
           : a.category.localeCompare(b.category);
       }),
+    localServiceMunicipalities: ['cruz','jijoca-de-jericoacoara'],
+    municipalityAssignments: {
+      external: Object.fromEntries(snapshot.externalLocalities.map(id => [
+        id, municipalityFor(snapshot,'external',id),
+      ])),
+      jericoacoara: municipalityFor(snapshot,'jericoacoara','jericoacoara'),
+    },
     fixedRoutes: snapshot.fixedRoutes.map((route) => ({
       ...route,
     })),
