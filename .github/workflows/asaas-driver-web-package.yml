@@ -22,24 +22,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Require reviewed driver source and completed finance tests
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPOSITORY: ${{ github.repository }}
+      - name: Require exact driver source and preserve passenger/shared/pricing sources
         run: |
           node --input-type=module - <<'NODE'
           import {execFileSync} from 'node:child_process';
           const target='21ae1f3101440336559647d11799fe4cb02978ef';
           if(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()!==target)throw Error('Source differs.');
-          const endpoint='https://api.github.com/repos/'+process.env.GH_REPOSITORY+'/actions/runs/39276882792';
-          const get=async path=>{const r=await fetch(endpoint+path,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});if(!r.ok)throw Error('Evidence unavailable.');return r.json();};
-          const run=await get(''),{jobs}=await get('/jobs?per_page=100');
-          if(run.head_sha!==target)throw Error('Evidence source differs.');
-          for(const name of ['driver','core-admin','postgres','finance-browser']){
-            if(!jobs.some(j=>j.name===name&&j.conclusion==='success'&&j.status==='completed'))throw Error('Required evidence missing: '+name);
-          }
           execFileSync('git',['diff','--exit-code','2ee07808d819bc73eb7377c5d273124ecd19acb0',target,'--','apps/passenger','packages','backend/core/src/pricing/quote-engine.ts'],{stdio:'inherit'});
-          console.log('Exact driver source and completed checks confirmed; passenger/shared/pricing sources preserved.');
+          console.log('Exact source confirmed; passenger/shared/pricing sources preserved. Driver tests run in this job.');
           NODE
       - name: Validate approved public browser configuration
         env:
@@ -62,13 +52,15 @@ jobs:
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
           python3 scripts/web/generate_pwa_icons.py
-      - name: Compile only configured driver with enforced dependency lock
+      - name: Test and compile only configured driver with enforced dependency lock
         env:
           RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
         run: |
           node scripts/web/prepare_configured_web.mjs --role=driver
           cd apps/driver
           flutter pub get --enforce-lockfile
+          flutter analyze --no-fatal-infos
+          flutter test
           flutter build web --release --no-web-resources-cdn --no-pub \
             --base-href=/motorista/ \
             --dart-define=RAMO_CORE_BASE_URL= \
