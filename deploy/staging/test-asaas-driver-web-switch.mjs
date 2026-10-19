@@ -12,7 +12,7 @@ if(process.env.GITHUB_ACTIONS!=='true')throw Error('CI only.');
 const dir=mkdtempSync(join(tmpdir(),'driver-web-ci-')),prefix='driver-web-ci-'+randomBytes(5).toString('hex'),gateway=prefix+'-gateway',sentinel=prefix+'-unrelated',net=prefix+'-net';
 const volumes=[prefix+'-data',prefix+'-config'];
 let created=false,other=false,network=false;const madeVolumes=[];
-function docker(args){const r=spawnSync('docker',args,{encoding:'utf8',maxBuffer:8*1024*1024});if(r.error||r.status!==0)throw Error('Disposable Web CI: '+r.stderr);return r.stdout;}
+function docker(args){const r=spawnSync('docker',args,{encoding:'utf8',maxBuffer:8*1024*1024});if(r.error||r.status!==0){const logs=spawnSync('docker',['logs',gateway],{encoding:'utf8'});throw Error('Disposable Web CI: '+r.stderr+'\nGateway logs: '+logs.stdout+logs.stderr);}return r.stdout;}
 const inspect=n=>JSON.parse(docker(['inspect',n]))[0];
 const compose=p=>['compose','--project-name',activationProject,'-f',p];
 try{
@@ -27,7 +27,7 @@ try{
  const initial={name:activationProject,services:{gateway:{image:image.Id,container_name:gateway,environment:{LITERAL_SECRET:'fixture-$abc-${UNKNOWN}-$$'},
   healthcheck:{test:['CMD','wget','-q','-O','/dev/null','http://127.0.0.1:8080/healthz'],interval:'1s',timeout:'2s',retries:3},
   networks:{default:null},volumes:[{type:'bind',source:join(dir,'old'),target:'/srv/web',read_only:true},{type:'bind',source:join(dir,'Caddyfile'),target:'/etc/caddy/Caddyfile',read_only:true},{type:'volume',source:'data',target:'/data'},{type:'volume',source:'config',target:'/config'}],
-  cap_drop:['ALL'],security_opt:['no-new-privileges:true'],read_only:true,
+  cap_drop:['ALL'],cap_add:['NET_BIND_SERVICE'],security_opt:['no-new-privileges:true'],read_only:true,
  }},networks:{default:{name:net,external:true}},volumes:{data:{name:volumes[0],external:true},config:{name:volumes[1],external:true}}};
  const path=join(dir,'initial.json');writeFileSync(path,JSON.stringify(escapeCompose(initial)));
  created=true;docker([...compose(path),'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','20','gateway']);
