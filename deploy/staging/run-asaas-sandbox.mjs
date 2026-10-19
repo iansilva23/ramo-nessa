@@ -3,7 +3,7 @@ import {readFileSync,writeFileSync,mkdirSync,existsSync,chmodSync,chownSync,open
 import {randomBytes,randomUUID} from 'node:crypto';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {runtimeContract,validateRuntime} from './asaas-runtime-contract.mjs';
+import {runtimeContract,validateRuntime,ensureSandboxDataDirectory} from './asaas-runtime-contract.mjs';
 if(process.getuid?.()!==0)throw Error('Execute com sudo.');process.umask(0o077);
 const candidateRevision='5ffae79687965042765f40f53cd32e57510dfbfe',backup='/var/backups/ramo-nessa-asaas/'+candidateRevision.slice(0,12);
 const prepared=JSON.parse(readFileSync(join(backup,'prepared.json'),'utf8'));
@@ -37,7 +37,7 @@ try{
   if(existing){if(existing.Labels?.[label]!==s.id)throw Error('Recurso de teste sem identificação esperada.');}
   else run([kind,'create','--label',label+'='+s.id,...(kind==='network'?['--driver','bridge']:[]),name]);
  }
- const data=join(root,'data');mkdirSync(data,{mode:0o700});chmodSync(data,0o700);chownSync(data,1000,1000);
+ const data=join(root,'data');ensureSandboxDataDirectory(data);
  const save=(name,value)=>{const path=join(data,name);writeFileSync(path,value,{mode:0o600});chownSync(path,1000,1000);};
  const publicState={id:s.id,rideId:s.rideId,paymentId:s.paymentId,captureEventId:s.captureEventId,driverId:s.driverId,createdAt:s.createdAt};
  const stateFile=join(data,'session.json');if(existsSync(stateFile)){if(JSON.stringify(JSON.parse(readFileSync(stateFile,'utf8')))!==JSON.stringify(publicState))throw Error('Dados da sessão divergentes.');}else save('session.json',JSON.stringify(publicState));

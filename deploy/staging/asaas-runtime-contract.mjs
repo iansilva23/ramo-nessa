@@ -1,3 +1,4 @@
+import {mkdirSync,lstatSync,chownSync} from 'node:fs';
 // This preparation is deliberately tied to the runtime Ian inspected on 2026-10-18.
 export const pricingRevision = '2ee07808d819bc73eb7377c5d273124ecd19acb0';
 export const runtimeContract = {
@@ -29,4 +30,16 @@ export function validateMigrations(applied,candidate) {
   const pending=Object.keys(candidate).filter(n=>!seen.has(n)).sort();
   if(pending.length!==1||pending[0]!=='086_asaas_driver_payouts.sql')throw Error('Migrations pendentes diferentes da 086.');
   return pending;
+}
+
+// Reuse the worker-owned directory without replacing or rewriting session files.
+export function ensureSandboxDataDirectory(path, owner = 1000) {
+  let created = false;
+  try { mkdirSync(path, {mode: 0o700}); created = true; }
+  catch (error) { if (error.code !== 'EEXIST') throw error; }
+  const info = lstatSync(path);
+  if (!info.isDirectory() || info.isSymbolicLink() || (info.mode & 0o077) !== 0)
+    throw Error('Diretório de dados da sessão diferente do esperado.');
+  if (created && info.uid !== owner) chownSync(path, owner, owner);
+  else if (info.uid !== owner) throw Error('Proprietário dos dados da sessão diferente do esperado.');
 }
