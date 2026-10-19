@@ -107,3 +107,33 @@ test('inventário municipal: 83 registros por escopo, sem presumir município do
   assert.equal(confirmed,57);
   assert.equal(pending,26);
 });
+
+
+test('cadastro municipal não autoriza automaticamente táxi ou mototáxi em cidades externas', () => {
+  const catalog=STATIC_PRICING_CATALOG_V1;
+  for (const [scope,id] of [
+    ['prea','barrinha-de-baixo'],
+    ['prea','acarau'],
+    ['prea','triangulo-do-marco'],
+    ['external','fortaleza'],
+  ] as const) {
+    const assignment=municipalityFor(catalog,scope,id);
+    assert.equal(assignment.status,'confirmed',scope+'/'+id);
+    assert.equal(isLocalServiceMunicipality(assignment),false,scope+'/'+id);
+    assert.equal(isKnownOutsideLocalArea(assignment),true,scope+'/'+id);
+  }
+  for (const [scope,id] of [
+    ['prea','prea'],
+    ['prea','cavalo-bravo'],
+    ['jijoca','baixio'],
+    ['jericoacoara','jericoacoara'],
+  ] as const) {
+    assert.equal(isLocalServiceMunicipality(municipalityFor(catalog,scope,id)),true,
+      scope+'/'+id);
+  }
+  const pending=municipalityFor(catalog,'prea','beach-house');
+  assert.equal(pending.status,'pending_review');
+  assert.equal(isLocalServiceMunicipality(pending),false);
+  assert.equal(isKnownOutsideLocalArea(pending),false);
+  assert.equal(catalog.distanceFarePolicies.length,0);
+});
