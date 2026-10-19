@@ -1286,3 +1286,30 @@ test('admin pode sobrescrever Comfort diurno e noturno por localidade sem altera
   assert.equal(night.snapshot.localities.prea['cavalo-bravo']?.after22?.comfort_black,6000);
   assert.equal(night.snapshot.localities.prea['cavalo-bravo']?.car,day.snapshot.localities.prea['cavalo-bravo']?.car);
 });
+
+
+test('homologação isolada: rascunho editado recarrega no repositório sem mudar o catálogo efetivo', async () => {
+  const versions = new InMemoryPricingCatalogVersionRepository();
+  const admin = new InMemoryAdminRepository();
+  const actor = {kind:'user' as const,id:'pricing-safe-homolog',name:'Pricing Safe Homolog'};
+  const draft = await createPricingCatalogDraft({
+    versions,admin,actor,now:new Date('2026-10-19T15:00:00.000Z'),
+  });
+  const originalCar = draft.snapshot.localities.prea['cavalo-bravo']?.car;
+  const candidate = (originalCar ?? 0) + 100;
+  const updated = await updatePricingCatalogDraft({
+    versions,admin,actor,versionId:draft.id,
+    expectedUpdatedAt:draft.updatedAt,
+    patch:parsePricingCatalogDraftPatch({
+      kind:'locality_price',hub:'prea',localityId:'cavalo-bravo',
+      category:'car',period:'day',price:{kind:'exact',amountCents:candidate},
+    }),
+    now:new Date('2026-10-19T15:01:00.000Z'),
+  });
+  const reloaded = await versions.findById(draft.id);
+  assert.equal(reloaded?.status,'draft');
+  assert.equal(reloaded?.snapshot.localities.prea['cavalo-bravo']?.car,candidate);
+  assert.equal(updated.snapshot.localities.prea['cavalo-bravo']?.car,candidate);
+  assert.equal(await versions.findEffective('2026-10-19T15:02:00.000Z'),null);
+  assert.equal(STATIC_PRICING_CATALOG_V1.localities.prea['cavalo-bravo']?.car,originalCar);
+});
