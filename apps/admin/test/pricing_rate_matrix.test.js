@@ -51,3 +51,50 @@ test('matriz não apresenta mínimo por km como tarifa final ou Buggy com preço
   assert.equal(rates.find(x=>x.key==='distance:regional-prea-car').mode,'por-km-noturno');
   assert.match(rates.find(x=>x.key==='jeri-buggy').label,/adicional por passageiro/);
 });
+
+
+test('matriz sinaliza categoria desativada sem liberar elegibilidade ou alterar catálogo', () => {
+  const catalog = {
+    fixedRoutes: [],
+    localities: {
+      prea: [{
+        localityId: 'cavalo-bravo',
+        prices: { car: {kind:'exact',amountCents: 4200}, moto: {kind:'range',minCents:800,maxCents:1400} },
+        policy: {enabledCategories:['moto'],applyNightSurcharge:true},
+      }],
+      jijoca: [],
+    },
+    surcharges: {preaLocalCarAfter22Cents:500},
+    commercialPolicy: {jijocaNightBps:0,preaBuggyAfter22Cents:0},
+    distanceFarePolicies: [],
+  };
+  const snapshot = JSON.stringify(catalog);
+  const rows = buildPricingRateRows(catalog);
+  const car = rows.find(row => row.key === 'prea:cavalo-bravo:car');
+  const moto = rows.find(row => row.key === 'prea:cavalo-bravo:moto');
+  assert.equal(car.enabled, false, 'Previsualizar preço não autoriza categoria bloqueada');
+  assert.equal(car.day.amountCents, 4200);
+  assert.equal(car.night.amountCents, 4700);
+  assert.equal(moto.enabled, true);
+  assert.deepEqual(moto.day, {kind:'range',minCents:800,maxCents:1400});
+  assert.deepEqual(moto.night, {kind:'range',minCents:800,maxCents:1400});
+  assert.equal(nightDifference(moto.day, moto.night), null);
+  assert.match(formatPriceView(moto.day), /8,00/);
+  assert.equal(JSON.stringify(catalog), snapshot);
+});
+
+test('matriz não cria tarifas para categorias ausentes nem habilita tarifas regionais por km', () => {
+  const catalog = {
+    fixedRoutes: [],
+    localities: {
+      prea:[{localityId:'local-sem-tarifa',prices:{},policy:{enabledCategories:[]}}],
+      jijoca:[],
+    },
+    distanceFarePolicies: [],
+  };
+  const rows = buildPricingRateRows(catalog);
+  assert.equal(rows.some(row => row.kind === 'distance_fare_policy'), false);
+  assert.equal(rows.some(row => row.kind === 'locality_price'), false);
+  assert.deepEqual(buildPricingRateRows(null), []);
+  assert.equal(formatPriceView(null), '—');
+});
