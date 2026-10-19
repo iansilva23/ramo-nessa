@@ -547,6 +547,58 @@ test('preço Comfort configurado na localidade substitui o adicional derivado se
   if (car.kind === 'exact') assert.equal(car.baseAmountCents, 4200);
 });
 
+test('preços em faixa usam adicionais noturnos idênticos aos anunciados no ADM', () => {
+  const snapshot = structuredClone(STATIC_PRICING_CATALOG_V1);
+  snapshot.localities.prea['cavalo-bravo']!.car =
+    {minCents:2500,maxCents:3000};
+  snapshot.localities.prea['cavalo-bravo']!.comfort_black =
+    {minCents:5300,maxCents:5800};
+  snapshot.localities.prea['cavalo-bravo']!.buggy =
+    {minCents:2000,maxCents:3000};
+
+  const localityTrip = {
+    origin:zone('prea','prea'),destination:zone('prea','cavalo-bravo'),
+    period:'after_22' as const,category:'car' as const,
+  };
+  const car = quoteFare(localityTrip,snapshot);
+  assert.equal(car.kind,'range');
+  if (car.kind === 'range') {
+    assert.equal(car.minBaseAmountCents,3000);
+    assert.equal(car.maxBaseAmountCents,3500);
+  }
+  const comfort = quoteFare({...localityTrip,category:'comfort_black'},snapshot);
+  assert.equal(comfort.kind,'range');
+  if (comfort.kind === 'range') {
+    assert.equal(comfort.minBaseAmountCents,5800);
+    assert.equal(comfort.maxBaseAmountCents,6300);
+  }
+  const buggy = quoteFare({...localityTrip,category:'buggy',passengers:3},snapshot);
+  assert.equal(buggy.kind,'range');
+  if (buggy.kind === 'range') {
+    assert.equal(buggy.minBaseAmountCents,2900);
+    assert.equal(buggy.maxBaseAmountCents,3900);
+  }
+
+  snapshot.localities.jijoca.baixio!.car =
+    {minCents:4500,maxCents:5500};
+  const jijocaTrip = {
+    origin:zone('jijoca','jijoca'),destination:zone('jijoca','baixio'),
+    period:'after_22' as const,category:'car' as const,
+  };
+  const nightCar = quoteFare(jijocaTrip,snapshot);
+  assert.equal(nightCar.kind,'range');
+  if (nightCar.kind === 'range') {
+    assert.equal(nightCar.minBaseAmountCents,5850);
+    assert.equal(nightCar.maxBaseAmountCents,7150);
+  }
+  const nightComfort = quoteFare({...jijocaTrip,category:'comfort_black'},snapshot);
+  assert.equal(nightComfort.kind,'range');
+  if (nightComfort.kind === 'range') {
+    assert.equal(nightComfort.minBaseAmountCents,7550);
+    assert.equal(nightComfort.maxBaseAmountCents,8850);
+  }
+});
+
 test('preço específico continua tendo prioridade sobre fallback por distância', () => {
   const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
   catalog.distanceFarePolicies.push({
