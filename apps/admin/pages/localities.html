@@ -133,6 +133,37 @@
     </article>
   </div>
 
+
+  <article id="regional-fares-panel" class="panel-card" aria-labelledby="regional-fares-heading">
+    <div class="panel-card__header"><div>
+      <span class="eyebrow eyebrow--dark">REGRA OPCIONAL — SEM ALTERAR TABELAS FIXAS</span>
+      <h2 id="regional-fares-heading">Preços entre localidades</h2>
+      <p>Configure tarifas por km para viagens sem tarifa fixa, entre localidades autorizadas do Preá ou Jijoca. Cada categoria exige valores diurnos e noturnos e um limite de distância. Tudo fica no rascunho até publicar.</p>
+    </div></div>
+    <div class="locality-form-grid">
+      <label class="field"><span>Região</span><select id="regional-fare-zone"><option value="prea">Preá</option><option value="jijoca">Jijoca</option></select></label>
+      <label class="field"><span>Categoria</span><select id="regional-fare-category">
+        <option value="moto">Mototáxi</option><option value="car">Carro</option><option value="comfort_black">Comfort/Black</option><option value="buggy">Buggy</option>
+      </select></label>
+      <label class="field"><span>Corrida mínima — dia (R$)</span><input id="regional-fare-day-min" inputmode="decimal"></label>
+      <label class="field"><span>Valor por km — dia (R$)</span><input id="regional-fare-day-km" inputmode="decimal"></label>
+      <label class="field"><span>Corrida mínima — noite (R$)</span><input id="regional-fare-night-min" inputmode="decimal"></label>
+      <label class="field"><span>Valor por km — noite (R$)</span><input id="regional-fare-night-km" inputmode="decimal"></label>
+      <label class="field"><span>Km mínimo cobrado</span><input id="regional-fare-min-km" type="number" min="0" step="0.1" value="0"></label>
+      <label class="field"><span>Distância máxima da viagem (km)</span><input id="regional-fare-max-km" type="number" min="0.1" step="0.1"></label>
+    </div>
+    <fieldset class="locality-distance-section">
+      <legend><strong>Quais localidades podem usar esta regra?</strong></legend>
+      <p>Selecione pelo menos duas. Destinos distantes não entram automaticamente. Cada localidade precisa estar reconhecida e ter a categoria habilitada.</p>
+      <div id="regional-fare-localities" style="max-height:260px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px;padding:10px;"></div>
+    </fieldset>
+    <p id="regional-fare-status" class="panel-card__copy" aria-live="polite">Carregando...</p>
+    <div class="localities-publish-actions">
+      <button id="regional-fare-remove" class="button button--ghost-dark" type="button" hidden>Desativar regra no rascunho</button>
+      <button id="regional-fare-save" class="button button--primary" type="button">Salvar regra no rascunho</button>
+    </div>
+  </article>
+
   <article id="locality-wizard" class="panel-card locality-wizard" hidden>
     <div class="locality-wizard__header">
       <div>

@@ -319,12 +319,25 @@ function applyPricingCatalogAtomicPatch(
       );
     }
 
+    if (patch.scope === 'intra_zone' && patch.operation === 'upsert') {
+      const hub = patch.anchorZoneId as 'prea' | 'jijoca';
+      const invalid = (patch.coveredLocalityIds ?? []).filter(
+        (localityId) => snapshot.localities[hub][localityId] == null,
+      );
+      if (invalid.length > 0) {
+        throw new PricingCatalogVersionError(
+          'PRICING_RULE_NOT_FOUND',
+          'Localidades regionais não cadastradas no catálogo: ' + invalid.join(', '),
+        );
+      }
+    }
     const sameRule = (
       candidate: typeof snapshot.distanceFarePolicies[number],
     ) =>
       candidate.anchorZoneId === patch.anchorZoneId &&
       candidate.anchorLocalityId === patch.anchorLocalityId &&
-      candidate.category === patch.category;
+      candidate.category === patch.category &&
+      (candidate.scope ?? 'anchor') === (patch.scope ?? 'anchor');
 
     const exists = snapshot.distanceFarePolicies.some(sameRule);
 
@@ -341,7 +354,17 @@ function applyPricingCatalogAtomicPatch(
         );
     } else {
       const next = {
-        id: `distance-${patch.anchorZoneId}-${patch.anchorLocalityId}-${patch.category}`,
+        id: patch.scope === 'intra_zone'
+          ? `regional-${patch.anchorZoneId}-${patch.category}`
+          : `distance-${patch.anchorZoneId}-${patch.anchorLocalityId}-${patch.category}`,
+        ...(patch.scope === 'intra_zone'
+          ? {
+              scope: patch.scope,
+              coveredLocalityIds: patch.coveredLocalityIds!,
+              after22MinimumFareCents: patch.after22MinimumFareCents!,
+              after22PricePerKmCents: patch.after22PricePerKmCents!,
+            }
+          : {}),
         anchorZoneId: patch.anchorZoneId,
         anchorLocalityId: patch.anchorLocalityId,
         category: patch.category,
@@ -372,12 +395,21 @@ function applyPricingCatalogAtomicPatch(
       anchorZoneId: patch.anchorZoneId,
       anchorLocalityId: patch.anchorLocalityId,
       category: patch.category,
+      ...(patch.scope === 'intra_zone'
+        ? { scope: patch.scope, coveredLocalityIds: patch.coveredLocalityIds }
+        : {}),
       ...(patch.operation === 'upsert'
         ? {
             minKm: patch.minKm,
             maxKm: patch.maxKm,
             minimumFareCents: patch.minimumFareCents,
             pricePerKmCents: patch.pricePerKmCents,
+            ...(patch.scope === 'intra_zone'
+              ? {
+                  after22MinimumFareCents: patch.after22MinimumFareCents,
+                  after22PricePerKmCents: patch.after22PricePerKmCents,
+                }
+              : {}),
           }
         : {}),
     };

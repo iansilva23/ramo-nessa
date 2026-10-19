@@ -1393,6 +1393,105 @@ export function createLocalitiesAdmin(input) {
     if (create != null) create.hidden = !canWrite;
   }
 
+
+  function renderRegionalPricing() {
+    const zone = byId('regional-fare-zone')?.value ?? 'prea';
+    const category = byId('regional-fare-category')?.value ?? 'moto';
+    const published = (catalog?.distanceFarePolicies ?? []).find((rule) =>
+      rule.scope === 'intra_zone' &&
+      rule.anchorZoneId === zone && rule.category === category);
+    const field = (id, value) => {
+      const element = byId(id);
+      if (element != null) element.value = value == null ? '' : String(value);
+    };
+    field('regional-fare-day-min', published && centsToInput(published.minimumFareCents));
+    field('regional-fare-day-km', published && centsToInput(published.pricePerKmCents));
+    field('regional-fare-night-min', published && centsToInput(published.after22MinimumFareCents));
+    field('regional-fare-night-km', published && centsToInput(published.after22PricePerKmCents));
+    field('regional-fare-min-km', published?.minKm ?? 0);
+    field('regional-fare-max-km', published?.maxKm);
+    const choices = byId('regional-fare-localities');
+    choices?.replaceChildren();
+    const allow = new Set(published?.coveredLocalityIds ?? []);
+    const places = Array.isArray(catalog?.localities?.[zone])
+      ? catalog.localities[zone] : [];
+    for (const place of places) {
+      const label = element('label', 'locality-distance-choice');
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.value = place.localityId;
+      check.checked = allow.has(place.localityId);
+      label.append(check, document.createTextNode(' ' +
+        (catalog?.localityDisplayNames?.[zone]?.[place.localityId] ??
+          titleFromId(place.localityId))));
+      choices?.append(label);
+    }
+    const status = byId('regional-fare-status');
+    if (status != null) status.textContent = published
+      ? 'Regra configurada nesta versão do catálogo. Confira os valores e o rascunho antes de publicar.'
+      : 'Desativada: sem regra cadastrada para esta região e categoria.';
+    const editable = hasScope('pricing:write');
+    if (byId('regional-fare-save')) byId('regional-fare-save').disabled = !editable;
+    if (byId('regional-fare-remove')) {
+      byId('regional-fare-remove').hidden = published == null;
+      byId('regional-fare-remove').disabled = !editable;
+    }
+  }
+
+  function currentRegionalPatch(operation) {
+    const zone = byId('regional-fare-zone')?.value ?? 'prea';
+    const category = byId('regional-fare-category')?.value ?? 'moto';
+    const base = {
+      kind: 'distance_fare_policy', operation,
+      scope: 'intra_zone', anchorZoneId: zone,
+      anchorLocalityId: zone, category,
+    };
+    if (operation === 'remove') return base;
+    const chosen = [...(byId('regional-fare-localities')
+      ?.querySelectorAll('input[type="checkbox"]:checked') ?? [])]
+      .map(input => input.value);
+    if (chosen.length < 2) throw new Error(
+      'Escolha pelo menos duas localidades antes de salvar a regra regional.');
+    const decimal = (id, label, min, max) => {
+      const raw = byId(id)?.value.trim();
+      if (!raw) throw new Error('Informe ' + label + '.');
+      const number = Number(raw);
+      if (!Number.isFinite(number) || number < min || number > max) {
+        throw new Error('Valor inválido: ' + label + '.');
+      }
+      return number;
+    };
+    const minKm = decimal('regional-fare-min-km', 'km mínimo', 0, 1000);
+    const maxKm = decimal('regional-fare-max-km', 'km máximo', 0.05, 2000);
+    if (maxKm <= minKm) throw new Error('O km máximo deve ser maior que o mínimo.');
+    return {
+      ...base, coveredLocalityIds: chosen,
+      minKm, maxKm,
+      minimumFareCents: moneyToCents(byId('regional-fare-day-min').value, 'Mínimo diurno'),
+      pricePerKmCents: moneyToCents(byId('regional-fare-day-km').value, 'Km diurno'),
+      after22MinimumFareCents: moneyToCents(byId('regional-fare-night-min').value, 'Mínimo noturno'),
+      after22PricePerKmCents: moneyToCents(byId('regional-fare-night-km').value, 'Km noturno'),
+    };
+  }
+
+  async function saveRegionalPricing(operation = 'upsert') {
+    if (saving || !hasScope('pricing:write')) return;
+    if (hasUnsavedWizardChanges()) throw new Error(
+      'Salve ou descarte as alterações da localidade antes de editar regras regionais.');
+    const patch = currentRegionalPatch(operation);
+    saving = true;
+    try {
+      await applyPatch(patch);
+      await refresh({announce: false});
+      setMessage(
+        operation === 'remove'
+          ? 'Regra regional desativada no rascunho. Nenhum preço publicado foi alterado.'
+          : 'Regra regional salva no rascunho. Confira todas as localidades antes de publicar.',
+        'success',
+      );
+    } finally { saving = false; }
+  }
+
   async function refresh({ announce = true } = {}) {
     const currentToken = token();
     if (!currentToken || !hasScope('pricing:read')) {
@@ -1402,6 +1501,7 @@ export function createLocalitiesAdmin(input) {
       effectiveVersionId = null;
       renderDirectory();
       renderDraftStatus();
+      renderRegionalPricing();
       return;
     }
     const versionsPayload = await api.pricingVersions(currentToken);
@@ -1429,6 +1529,7 @@ export function createLocalitiesAdmin(input) {
     if (!mounted) return;
     renderDirectory();
     renderDraftStatus();
+    renderRegionalPricing();
     if (announce) setMessage('Localidades atualizadas.', 'success');
   }
 
@@ -1514,6 +1615,15 @@ export function createLocalitiesAdmin(input) {
   }
 
   function bind() {
+    for (const id of ['regional-fare-zone', 'regional-fare-category']) {
+      byId(id)?.addEventListener('change', renderRegionalPricing);
+    }
+    byId('regional-fare-save')?.addEventListener('click', () =>
+      void saveRegionalPricing().catch(handleError));
+    byId('regional-fare-remove')?.addEventListener('click', () => {
+      if (!window.confirm('Desativar esta regra apenas no rascunho?')) return;
+      void saveRegionalPricing('remove').catch(handleError);
+    });
     byId('localities-refresh-button')?.addEventListener('click', () => {
       if (saving) {
         setMessage('Aguarde o salvamento antes de atualizar a lista.', 'danger');

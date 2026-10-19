@@ -1,4 +1,5 @@
 import type { CommercialPolicy, SharedTransferSettings } from './catalog-snapshot.js';
+import type { ServiceCategory } from './types.js';
 export class InvalidPricingCatalogPatchError extends Error {
   constructor(message: string) {
     super(message);
@@ -39,7 +40,11 @@ export type PricingCatalogAtomicPatch =
       operation: 'upsert' | 'remove';
       anchorZoneId: 'jericoacoara' | 'jijoca' | 'prea' | 'external';
       anchorLocalityId: string;
-      category: 'moto' | 'delivery' | 'car' | 'comfort_black';
+      category: ServiceCategory;
+      scope?: 'intra_zone';
+      coveredLocalityIds?: string[];
+      after22MinimumFareCents?: number;
+      after22PricePerKmCents?: number;
       minKm?: number;
       maxKm?: number;
       minimumFareCents?: number;
@@ -559,31 +564,35 @@ export function parsePricingCatalogDraftPatch(
     }
 
     const category = textValue(value.category, 'category', 30);
-    if (
-      category !== 'moto' &&
-      category !== 'delivery' &&
-      category !== 'car' &&
-      category !== 'comfort_black'
-    ) {
+    const scope = value.scope == null ? 'anchor' : textValue(value.scope, 'scope', 20);
+    if (scope !== 'anchor' && scope !== 'intra_zone') {
+      throw new InvalidPricingCatalogPatchError('scope de distância inválido.');
+    }
+    if (!['moto', 'delivery', 'car', 'comfort_black'].includes(category) &&
+        !(scope === 'intra_zone' && category === 'buggy')) {
+      throw new InvalidPricingCatalogPatchError('category de cobrança por distância é inválida.');
+    }
+    const anchorLocalityId = identifierValue(value.anchorLocalityId, 'anchorLocalityId');
+    if (scope === 'intra_zone' &&
+        (!['prea', 'jijoca'].includes(anchorZoneId) ||
+          anchorLocalityId !== anchorZoneId || category === 'delivery')) {
       throw new InvalidPricingCatalogPatchError(
-        'category de cobrança por distância é inválida.',
+        'Tarifa entre localidades é permitida apenas nas bases Preá/Jijoca e em transporte de passageiros.',
       );
     }
-
+    const regional = scope === 'intra_zone'
+      ? { scope: 'intra_zone' as const }
+      : {};
     const base = {
       kind,
       operation,
       anchorZoneId,
-      anchorLocalityId: identifierValue(
-        value.anchorLocalityId,
-        'anchorLocalityId',
-      ),
-      category,
+      anchorLocalityId,
+      category: category as ServiceCategory,
+      ...regional,
     } as const;
 
-    if (operation === 'remove') {
-      return base;
-    }
+    if (operation === 'remove') return base;
 
     const minKm = decimalValue(value.minKm, 'minKm', 0, 1000);
     const maxKm = decimalValue(value.maxKm, 'maxKm', 0.05, 2000);
@@ -593,18 +602,32 @@ export function parsePricingCatalogDraftPatch(
       );
     }
 
+    const regionalDetails = scope === 'intra_zone'
+      ? {
+          coveredLocalityIds: identifierListValue(
+            value.coveredLocalityIds, 'coveredLocalityIds',
+          ),
+          after22MinimumFareCents: centsValue(
+            value.after22MinimumFareCents, 'after22MinimumFareCents',
+          ),
+          after22PricePerKmCents: centsValue(
+            value.after22PricePerKmCents, 'after22PricePerKmCents',
+          ),
+        }
+      : {};
+    if (scope === 'intra_zone' &&
+        (regionalDetails as {coveredLocalityIds: string[]}).coveredLocalityIds.length < 2) {
+      throw new InvalidPricingCatalogPatchError(
+        'Escolha pelo menos duas localidades aprovadas para a tarifa regional.',
+      );
+    }
     return {
       ...base,
       minKm,
       maxKm,
-      minimumFareCents: centsValue(
-        value.minimumFareCents,
-        'minimumFareCents',
-      ),
-      pricePerKmCents: centsValue(
-        value.pricePerKmCents,
-        'pricePerKmCents',
-      ),
+      minimumFareCents: centsValue(value.minimumFareCents, 'minimumFareCents'),
+      pricePerKmCents: centsValue(value.pricePerKmCents, 'pricePerKmCents'),
+      ...regionalDetails,
     };
   }
 

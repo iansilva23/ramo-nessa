@@ -85,6 +85,10 @@ O cálculo usa a distância roteada autoritativa do Core, nunca a quilometragem 
 
 Exemplo de precedência: se Preá ↔ Sobral possuir um valor específico, esse valor continua valendo. Um ponto sem preço cadastrado no caminho pode usar o fallback da base Preá e, por ter menos quilômetros reais de rota, resultar em valor menor.
 
+### Tarifas entre localidades sem sede (opt-in)
+
+Uma regra regional por distância só entra em vigor após configuração e publicação explícitas no ADM. Cada categoria tem corrida mínima, valor por km, limite de km, tarifa mínima e km noturno, além da lista fechada de localidades cobertas. A regra vale apenas quando ambas as localidades pertencem à mesma região Preá ou Jijoca, estão aprovadas no catálogo e habilitam a categoria. Transfers, preços fixos e tarifas locais específicas têm prioridade. Destinos externos e localidades não selecionadas não entram automaticamente. Buggy mantém apenas o adicional aprovado por passageiro. Entrega conserva sua política independente.
+
 ## Elegibilidade
 
 Preço não equivale a autorização operacional.

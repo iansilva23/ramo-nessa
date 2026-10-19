@@ -224,17 +224,34 @@ function quoteDistanceFallback(
 ): FareQuote | null {
   const originId = endpointId(request.origin);
   const destinationId = endpointId(request.destination);
+  const isRegionalEligible = (
+    rule: PricingCatalogSnapshot['distanceFarePolicies'][number],
+  ): boolean => {
+    if (rule.scope !== 'intra_zone') return false;
+    const hub = rule.anchorZoneId;
+    if (hub !== 'prea' && hub !== 'jijoca') return false;
+    if (request.origin.zoneId !== hub || request.destination.zoneId !== hub) return false;
+    // This opt-in list is the commercial boundary. Do not implicitly include
+    // far-away towns which may have legacy IDs in the Preá price table.
+    const approved = rule.coveredLocalityIds ?? [];
+    if (!request.origin.localityId || !request.destination.localityId ||
+        !approved.includes(originId) || !approved.includes(destinationId)) return false;
+    const policies = catalog.localityPolicies[hub];
+    return policies[originId]?.enabledCategories.includes(request.category) === true &&
+      policies[destinationId]?.enabledCategories.includes(request.category) === true;
+  };
 
   const candidates = catalog.distanceFarePolicies
-    .filter(
-      (rule) =>
-        rule.category === request.category &&
-        ((rule.anchorZoneId === request.origin.zoneId &&
-          rule.anchorLocalityId === originId) ||
-          (rule.anchorZoneId === request.destination.zoneId &&
-            rule.anchorLocalityId === destinationId)),
-    )
+    .filter((rule) => rule.category === request.category &&
+      (rule.scope === 'intra_zone'
+        ? isRegionalEligible(rule)
+        : (rule.anchorZoneId === request.origin.zoneId && rule.anchorLocalityId === originId) ||
+          (rule.anchorZoneId === request.destination.zoneId && rule.anchorLocalityId === destinationId)))
     .sort((a, b) => {
+      // Specific anchor wins over a broadly configured regional fallback.
+      if ((a.scope === 'intra_zone') !== (b.scope === 'intra_zone')) {
+        return a.scope === 'intra_zone' ? 1 : -1;
+      }
       const aOrigin = a.anchorLocalityId === originId ? 0 : 1;
       const bOrigin = b.anchorLocalityId === originId ? 0 : 1;
       if (aOrigin !== bOrigin) return aOrigin - bOrigin;
@@ -242,35 +259,30 @@ function quoteDistanceFallback(
     });
 
   if (candidates.length === 0) return null;
-
   const distance = request.tripDistanceKm;
-  if (distance == null) {
+  if (distance == null || !Number.isFinite(distance) || distance < 0) {
     throw new PricingError(
       'MISSING_DISTANCE',
-      'A distância roteada da viagem é obrigatória para esta tarifa.',
+      'Distância roteada válida da viagem é obrigatória para esta tarifa.',
     );
   }
-
-  const rule = candidates.find(
-    (candidate) => distance <= candidate.maxKm,
-  );
+  const rule = candidates.find((candidate) => distance <= candidate.maxKm);
   if (rule == null) return null;
 
   const billableKm = Math.max(distance, rule.minKm);
-  const distanceAmountCents = Math.ceil(
-    billableKm * rule.pricePerKmCents,
-  );
-  const baseAmountCents = Math.max(
-    rule.minimumFareCents,
-    distanceAmountCents,
-  );
-
-  return exactQuote(
-    rule.id,
-    baseAmountCents,
-    request,
-    catalog,
-  );
+  const night = request.period === 'after_22' && rule.scope === 'intra_zone';
+  const minimum = night ? rule.after22MinimumFareCents! : rule.minimumFareCents;
+  const perKm = night ? rule.after22PricePerKmCents! : rule.pricePerKmCents;
+  let baseAmountCents = Math.max(minimum, Math.ceil(billableKm * perKm));
+  if (request.category === 'buggy' && rule.scope === 'intra_zone') {
+    const passengers = request.passengers ?? 1;
+    if (!Number.isInteger(passengers) || passengers < 1 || passengers > 4) {
+      throw new PricingError('INVALID_PASSENGER_COUNT', 'Buggy aceita de 1 a 4 passageiros.');
+    }
+    baseAmountCents += Math.max(0, passengers - 1) *
+      (catalog.commercialPolicy?.buggyPerAdditionalPassengerCents ?? catalog.jeri.buggy.perPassengerCents);
+  }
+  return exactQuote(rule.id, baseAmountCents, request, catalog);
 }
 
 function resolveHubLocality(
