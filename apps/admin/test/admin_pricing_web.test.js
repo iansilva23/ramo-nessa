@@ -422,3 +422,22 @@ test('ADM persiste edição de rascunho e relê a versão sem publicar tarifa', 
   assert.equal(calls.some(([url])=>url.endsWith('/publish')),false,
     'Salvar um rascunho não pode publicá-lo automaticamente');
 });
+
+
+test('frontend só envia publicação após confirmação e com versão atualizada', () => {
+  const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const start = app.indexOf('async function handlePricingPublish()');
+  const end = app.indexOf('\nfunction renderDriverSummary(', start);
+  assert.ok(start >= 0 && end > start, 'Fluxo de publicação do ADM não localizado');
+  const handler = app.slice(start, end);
+  assert.match(handler, /hasScope\('pricing:write'\)/);
+  assert.match(handler, /version\?\.status !== 'draft'/);
+  assert.match(handler, /window\.confirm\(/);
+  assert.match(handler, /if \(!confirmed\) return;/);
+  assert.ok(handler.indexOf('if (!confirmed) return;') <
+    handler.indexOf('await api.publishPricingVersion('),
+    'Confirmação precisa ocorrer antes da chamada de publicação');
+  assert.match(handler, /expectedUpdatedAt: version\.updatedAt/);
+  assert.match(handler, /button\.disabled = true/);
+  assert.match(handler, /finally \{\s*button\.disabled = false/);
+});
