@@ -5,7 +5,7 @@ A gestão nova substitui a navegação fragmentada por uma única área com quat
 Precedência: tarifa fixa válida → regra por quilômetro válida → indisponível.
 Não há valores comerciais previamente carregados no catálogo preparado. Valores encontrados em testes e capturas são exclusivamente sintéticos.
 
-Os workflows desta branch não publicam serviços. As ferramentas operacionais de ativação exigem execução explícita na homologação, plano conferido e autorização do proprietário. Até o último retorno do operador, não houve reset ativo, migração de dados comerciais, repasse ou cobrança nesta entrega.
+Os workflows desta branch não publicam serviços. As ferramentas operacionais de ativação exigem execução explícita na homologação, plano conferido e autorização do proprietário. Em 20/10/2026, o operador confirmou a ativação e o reset do catálogo na homologação, conforme registro final deste documento. Não houve execução de migrations, repasse ou cobrança nesta entrega.
 
 ## Preparação do catálogo
 O script backend/core/scripts/prepare-regions-catalog.ts é uma ferramenta operacional separada das migrations.
@@ -46,7 +46,7 @@ A execução do workflow Regions and Pricing - Web Review verifica:
 As capturas usam dados sintéticos e tiles substituídos. Não comprovam Google Maps, GPS ou provedores reais. Bundles de revisão apontam para example.invalid e não são pacotes conectados à VPS.
 
 ## Limites de implantação e aceite real
-- Os dois relatórios reais do operador foram recebidos. O Core corresponde à referência financeira anterior e os cinco arquivos do ADM à base V5. O catálogo ainda é legado. Backup/restauração e ativação continuam separados do diagnóstico.
+- O diagnóstico anterior à ativação identificou Core na referência financeira anterior, ADM na base V5 e catálogo legado. Esse estado foi substituído na homologação pela ativação registrada ao final; o diagnóstico não deve ser usado como descrição do runtime atual.
 - Android/iOS não foram compilados, atualizados ou testados em aparelhos. Os diretórios nativos e o comportamento legado permanecem preservados nesta branch.
 - Clientes nativos já instalados não foram homologados com managedOperations. Esse modo exige coordenadas e sessão na cotação. Não ativar em backend de produção compartilhado sem definir e validar a compatibilidade dos clientes existentes após o aceite Web.
 - A navegação/login completos do ADM não fazem parte do harness de navegador: ele monta o controlador real no shell existente com sessões sintéticas. Rotas e aliases são verificados também pela suíte de navegação do ADM.
@@ -195,4 +195,19 @@ O modo de injeção de falha usado no ensaio só é disponibilizado pela funçã
 
 [Backup revisto](https://github.com/iansilva23/ramo-nessa/actions/runs/39509214504), mesma implementação operacional da ativação final, aprovado. [Regressão PostgreSQL completa](https://github.com/iansilva23/ramo-nessa/actions/runs/39508266642): 826 aprovados, zero falhas, dois ignorados; cinco testes de inspeção aprovados. As mudanças posteriores são somente ferramentas operacionais/CI, sem alteração do Core, dos apps ou das migrations.
 
-O resultado real de ativação ainda deve ser recebido do operador. A entrega só é declarada publicada na homologação após esse retorno, e o aceite funcional conectado/real permanece separado.
+## Ativação real confirmada pelo operador — 20/10/2026
+O operador executou a ferramenta de ativação da revisão `feef79eabea176e9f0e7cb8e4089ef082391feaf` e forneceu o retorno `REGIOES_E_PRECOS_ATIVADOS`. A revisão da candidata ativada é `e24a5ecb93e22b8054b599c4f377809fc63dcffb`.
+
+| Item | Resultado informado pela ferramenta |
+| --- | --- |
+| Catálogo operacional | Jericoacoara, Jijoca (sede) e Preá; três regiões |
+| Tarifas comerciais | Zero; reset aplicado |
+| Categorias | Preservadas |
+| ADM, Passageiro Web e Motorista Web | Atualizados |
+| Configurações dos provedores | Preservadas |
+| Aplicativos nativos | Não atualizados |
+| Aceite em aparelhos reais | Pendente |
+
+Entrada do ADM: https://app.ramonessa.com.br/administrodo/. Usar as credenciais e MFA existentes. Conferir Regiões e preços, as três localidades, categorias preservadas e ausência de tarifas; em seguida cadastrar somente valores comerciais definidos pelo proprietário. Opções sem tarifa válida permanecem indisponíveis.
+
+Este registro se baseia no retorno do operador e nas verificações concluídas pela ferramenta; não representa acesso SSH direto pelo agente. A ativação não substitui a homologação conectada de login, Google Maps/GPS, cotação, corrida e provedores, nem o aceite em aparelhos reais. O PR #36 permanece DRAFT, sem merge na main. Não repetir o reset para iniciar a homologação.
