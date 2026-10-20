@@ -202,20 +202,28 @@ export function createPricingPublicationsAdmin({
       }
       review.append(list);
     }
+    // Never offer publication when the preview has not found a change.
+    // A separate Core permission and version check remain authoritative.
+    const hasChanges = differences.length > 0 || priceChanges.length > 0;
     // UI permission is only an aid; Core enforces pricing:write as authority.
     const allowed = hasScope('pricing:write');
     checkbox.disabled = !allowed;
     byId('publication-publish').disabled = !allowed || writing;
     byId('publication-discard').disabled = !allowed || writing;
-    byId('publication-permission').textContent = allowed
-      ? 'Publicar modifica apenas o catálogo desta instalação. Exige confirmação e autorização comercial.'
-      : 'Somente leitura: sua conta não pode publicar ou excluir rascunhos.';
+    byId('publication-permission').textContent = !allowed
+      ? 'Somente leitura: sua conta não pode publicar ou excluir rascunhos.'
+      : !hasChanges
+        ? 'Nenhuma alteração detectada: não é possível publicar um rascunho sem diferenças.'
+        : 'Publicar modifica apenas o catálogo desta instalação. Exige confirmação e autorização comercial.';
     syncActions();
   }
   function syncActions() {
-    const allowed = hasScope('pricing:write') && !!selected && !writing;
+    const allowed = hasScope('pricing:write') && !!selected && !writing && !loading;
+    const hasChanges = !!selected && (
+      pricingPublicationSummary(activeCatalog, selected.catalog).length > 0 ||
+      pricingPublicationPriceChanges(activeCatalog, selected.catalog).length > 0);
     byId('publication-publish').disabled =
-      !allowed || !byId('publication-confirm-review').checked;
+      !allowed || !hasChanges || !byId('publication-confirm-review').checked;
     byId('publication-discard').disabled = !allowed;
   }
   function handleError(error) {
