@@ -1,3 +1,5 @@
+import {buildPricingRateRows, formatPriceView} from './pricing-rate-matrix.js';
+
 // Independent UX for draft review/publication. Reuses the existing versioned
 // Core API, its permissions, optimistic locking and audit. Never stores tokens.
 function formatDate(value) {
@@ -35,6 +37,35 @@ export function pricingPublicationSummary(effective, proposed) {
         JSON.stringify(proposed?.[key] ?? null)) results.push(label);
   }
   return results;
+}
+
+export function pricingPublicationPriceChanges(effective, proposed) {
+  const oldRows = new Map(buildPricingRateRows(effective).map(row => [row.key, row]));
+  const newRows = new Map(buildPricingRateRows(proposed).map(row => [row.key, row]));
+  const keys = [...new Set([...oldRows.keys(), ...newRows.keys()])].sort();
+  return keys.flatMap(key => {
+    const before = oldRows.get(key);
+    const after = newRows.get(key);
+    const prev = {
+      day: formatPriceView(before?.day),
+      night: formatPriceView(before?.night),
+      enabled: before?.enabled,
+    };
+    const next = {
+      day: formatPriceView(after?.day),
+      night: formatPriceView(after?.night),
+      enabled: after?.enabled,
+    };
+    if (JSON.stringify(prev) === JSON.stringify(next)) return [];
+    return [{
+      key,
+      label: after?.label ?? before?.label ?? key,
+      category: after?.categoryLabel ?? before?.categoryLabel ?? '',
+      before: prev.day + ' dia · ' + prev.night + ' noite',
+      after: next.day + ' dia · ' + next.night + ' noite',
+      availabilityChanged: prev.enabled !== next.enabled,
+    }];
+  });
 }
 
 export function createPricingPublicationsAdmin({
@@ -132,6 +163,29 @@ export function createPricingPublicationsAdmin({
     byId('publication-selected-meta').textContent =
       'Última alteração: ' + formatDate(selected.version.updatedAt);
     const differences = pricingPublicationSummary(activeCatalog, selected.catalog);
+    const priceChanges = pricingPublicationPriceChanges(activeCatalog, selected.catalog);
+    if (priceChanges.length) {
+      const heading = el('strong', 'publication-diff-heading',
+        'Preços alterados (' + priceChanges.length + ')');
+      review.append(heading);
+      const list = el('div', 'publication-price-changes');
+      for (const change of priceChanges.slice(0, 30)) {
+        const item = el('div', 'publication-price-change');
+        item.append(el('strong', '', change.label + ' · ' + change.category));
+        item.append(el('span', '', 'Antes: ' + change.before));
+        item.append(el('span', '', 'Rascunho: ' + change.after));
+        if (change.availabilityChanged) {
+          item.append(el('small', '', 'A disponibilidade desta categoria também mudou'));
+        }
+        list.append(item);
+      }
+      review.append(list);
+      if (priceChanges.length > 30) {
+        review.append(el('p', 'pricing-policy-help',
+          'Há mais ' + (priceChanges.length - 30) +
+          ' alterações. Confira a tabela integral em Operação e Tarifas antes de publicar.'));
+      }
+    }
     if (differences.length === 0) {
       review.append(el('p', 'pricing-policy-help',
         'Nenhuma mudança identificada no resumo. Confira o catálogo completo antes de publicar.'));
