@@ -9,6 +9,8 @@ import {
   selectDriverForDispatch,
 } from '../src/matching/select-driver.js';
 import type { RideRecord } from '../src/rides/ride.js';
+import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
+import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 
 const now = new Date('2026-09-23T12:00:00.000Z');
 
@@ -218,4 +220,41 @@ test('matching respeita a política 4x4 congelada na corrida', () => {
     ranked.map((item) => item.supply.driverId),
     ['comfort-common-frozen', 'comfort-4x4-frozen'],
   );
+});
+
+test('política publicada de corredor 4x4 chega ao matching via snapshot da corrida', () => {
+  const origin = {zoneId:'prea' as const,localityId:'prea'};
+  const destination = {zoneId:'jericoacoara' as const,localityId:'jericoacoara'};
+  const required = requiresFourByFourForTrip({
+    catalog:STATIC_PRICING_CATALOG_V1,origin,destination,category:'car',
+  });
+  assert.equal(required,true);
+  const currentRide = ride({
+    origin,destination,category:'car',requiresFourByFour:required,
+  });
+  const ranked = rankEligibleDrivers({
+    ride:currentRide,pickup:{latitude:-2.82017,longitude:-40.41467},
+    candidates:[
+      supply('near-ordinary',{fourByFour:false}),
+      supply('far-4x4',{fourByFour:true,latitude:-2.84}),
+    ],now,
+  });
+  assert.deepEqual(ranked.map(row=>row.supply.driverId),['far-4x4']);
+  assert.equal(rideRequiresFourByFour(currentRide),true);
+  assert.throws(()=>selectDriverForDispatch({
+    ride:currentRide,pickup:{latitude:-2.82017,longitude:-40.41467},
+    candidates:[supply('ordinary-only',{fourByFour:false})],now,
+  }),/Nenhum motorista elegível/);
+  const returning = ride({
+    origin:destination,destination:origin,category:'car',
+    requiresFourByFour:requiresFourByFourForTrip({
+      catalog:STATIC_PRICING_CATALOG_V1,
+      origin:destination,destination:origin,category:'car',
+    }),
+  });
+  assert.deepEqual(rankEligibleDrivers({
+    ride:returning,pickup:{latitude:-2.80023,longitude:-40.51638},
+    candidates:[supply('return-ordinary',{fourByFour:false}),
+      supply('return-4x4',{fourByFour:true})],now,
+  }).map(row=>row.supply.driverId),['return-4x4']);
 });
