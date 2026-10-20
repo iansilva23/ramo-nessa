@@ -1,3 +1,4 @@
+import { managedPlacesBounds } from './places/managed-places-coverage.js';
 import { pricingManagementRoutes } from './pricing/management-routes.js';
 import { authoritativeManagedQuote } from './pricing/authoritative-quote.js';
 import { ManagementError } from './pricing/managed-operations.js';
@@ -2126,6 +2127,7 @@ const server = createServer(async (request, response) => {
           }
         }
         geoLookupStats.googleFallbacks += 1;
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const suggestions = await googlePlacesService.autocomplete({
           query,
           sessionToken:
@@ -2133,6 +2135,10 @@ const server = createServer(async (request, response) => {
               ? value.sessionToken
               : '',
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
         const safeSuggestions = localOnly
           ? suggestions
@@ -2319,6 +2325,7 @@ const server = createServer(async (request, response) => {
           json(response, 200, { provider: 'ramo-geo', place: approvedPlace });
           return;
         }
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const place = await googlePlacesService.placeDetails({
           placeId:
             typeof value.placeId === 'string' ? value.placeId : '',
@@ -2327,6 +2334,10 @@ const server = createServer(async (request, response) => {
               ? value.sessionToken
               : '',
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
 
         if (
@@ -2500,9 +2511,14 @@ const server = createServer(async (request, response) => {
           }
         }
         geoLookupStats.googleFallbacks += 1;
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const places = await googlePlacesService.searchText({
           query,
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
         const safePlaces = localOnly
           ? places

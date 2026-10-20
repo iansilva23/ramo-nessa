@@ -106,18 +106,21 @@ export class GooglePlacesError extends Error {
   }
 }
 
-const LOCAL_BOUNDS = {
+export interface LocalPlacesBounds {
+  minLatitude:number;maxLatitude:number;minLongitude:number;maxLongitude:number;
+}
+const LOCAL_BOUNDS:LocalPlacesBounds = {
   minLatitude: -2.98,
   maxLatitude: -2.73,
   minLongitude: -40.61,
   maxLongitude: -40.34,
 };
 
-function insideLocalBounds(latitude: number, longitude: number): boolean {
-  return latitude >= LOCAL_BOUNDS.minLatitude &&
-    latitude <= LOCAL_BOUNDS.maxLatitude &&
-    longitude >= LOCAL_BOUNDS.minLongitude &&
-    longitude <= LOCAL_BOUNDS.maxLongitude;
+function insideLocalBounds(latitude: number, longitude: number, bounds:LocalPlacesBounds=LOCAL_BOUNDS): boolean {
+  return latitude >= bounds.minLatitude &&
+    latitude <= bounds.maxLatitude &&
+    longitude >= bounds.minLongitude &&
+    longitude <= bounds.maxLongitude;
 }
 
 function normalizedBaseUrl(raw: string): URL {
@@ -191,7 +194,9 @@ export class GooglePlacesService {
     query: string;
     sessionToken: string;
     localOnly: boolean;
+    bounds?: LocalPlacesBounds;
   }): Promise<GooglePlacePrediction[]> {
+    const bounds=input.bounds??LOCAL_BOUNDS;
     const query = input.query.trim();
     if (query.length < 1 || query.length > 160) {
       throw new GooglePlacesError(
@@ -230,12 +235,12 @@ export class GooglePlacesService {
                 locationRestriction: {
                   rectangle: {
                     low: {
-                      latitude: LOCAL_BOUNDS.minLatitude,
-                      longitude: LOCAL_BOUNDS.minLongitude,
+                      latitude: bounds.minLatitude,
+                      longitude: bounds.minLongitude,
                     },
                     high: {
-                      latitude: LOCAL_BOUNDS.maxLatitude,
-                      longitude: LOCAL_BOUNDS.maxLongitude,
+                      latitude: bounds.maxLatitude,
+                      longitude: bounds.maxLongitude,
                     },
                   },
                 },
@@ -316,7 +321,9 @@ export class GooglePlacesService {
     placeId: string;
     sessionToken: string;
     localOnly: boolean;
+    bounds?: LocalPlacesBounds;
   }): Promise<GooglePlaceDetailsResult> {
+    const bounds=input.bounds??LOCAL_BOUNDS;
     const placeId = validatePlaceId(input.placeId);
     const sessionToken = validateSessionToken(input.sessionToken);
     const url = new URL(
@@ -392,7 +399,7 @@ export class GooglePlacesService {
       );
     }
 
-    if (input.localOnly && !insideLocalBounds(latitude, longitude)) {
+    if (input.localOnly && !insideLocalBounds(latitude, longitude,bounds)) {
       throw new GooglePlacesError(
         'OUTSIDE_LOCAL_AREA',
         'Esse lugar está fora da área local de busca.',
@@ -419,7 +426,9 @@ export class GooglePlacesService {
   async searchText(input: {
     query: string;
     localOnly: boolean;
+    bounds?: LocalPlacesBounds;
   }): Promise<GooglePlaceResult[]> {
+    const bounds=input.bounds??LOCAL_BOUNDS;
     const query = input.query.trim();
     if (query.length < 3 || query.length > 160) {
       throw new GooglePlacesError(
@@ -456,12 +465,12 @@ export class GooglePlacesService {
                 locationBias: {
                   rectangle: {
                     low: {
-                      latitude: LOCAL_BOUNDS.minLatitude,
-                      longitude: LOCAL_BOUNDS.minLongitude,
+                      latitude: bounds.minLatitude,
+                      longitude: bounds.minLongitude,
                     },
                     high: {
-                      latitude: LOCAL_BOUNDS.maxLatitude,
-                      longitude: LOCAL_BOUNDS.maxLongitude,
+                      latitude: bounds.maxLatitude,
+                      longitude: bounds.maxLongitude,
                     },
                   },
                 },
@@ -531,7 +540,7 @@ export class GooglePlacesService {
 
         if (
           input.localOnly &&
-          !insideLocalBounds(latitude, longitude)
+          !insideLocalBounds(latitude, longitude,bounds)
         ) {
           return null;
         }

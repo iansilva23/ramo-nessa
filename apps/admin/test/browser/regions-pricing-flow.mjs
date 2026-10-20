@@ -18,7 +18,7 @@ import {InMemoryAdminHumanAuthRepository} from '../../../../backend/core/src/adm
 import {createAdminHumanUser,hashAdminHumanSessionToken,AdminHumanAuthenticationError} from '../../../../backend/core/src/admin/admin-human-auth-service.ts';
 import {totpCodeAt} from '../../../../backend/core/src/admin/admin-human-crypto.ts';
 
-const adminRoot=fileURLToPath(new URL('../../',import.meta.url));
+const adminRoot=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const out=resolve(adminRoot,'regions-browser-artifacts');
 await mkdir(out,{recursive:true});
 const key=Buffer.alloc(32,17),rateLimitSecret='synthetic-browser-pricing-reauthentication-limit';
@@ -188,7 +188,7 @@ async function run(engine){
     assert.equal(denied.status,403);
     assert.deepEqual(errors,[]);
     console.log('PASS '+engine+': real management HTTP/auth/MFA; region wizard; tariff save/edit/archive/restore; fixed simulation; missing night; map drag/keyboard; readonly; desktop/tablet/mobile overflow.');
-  }catch(error){await page.screenshot({path:resolve(out,engine+'-failure.png'),fullPage:true}).catch(()=>{});throw error;}
+  }catch(error){console.log('BROWSER_DIAGNOSTIC '+JSON.stringify({engine,errors,message:await page.locator('[data-rp="message"]').textContent().catch(()=>null)}));await page.screenshot({path:resolve(out,engine+'-failure.png'),fullPage:true}).catch(()=>{});throw error;}
   finally{await context.close();await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
 for(const engine of ['chromium','webkit'])await run(engine);

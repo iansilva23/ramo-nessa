@@ -34,8 +34,11 @@ abstract final class ManagedPricingCatalog {
     _presentation = Map.unmodifiable(entries);
   }
 
-  static String? presentation(String category, String key) =>
-      enabled ? _presentation[category]?[key] : null;
+  static String? presentation(String category, String key) {
+    if (!enabled) return null;
+    final categoryPresentation = _presentation[category];
+    return categoryPresentation == null ? null : categoryPresentation[key];
+  }
 
   static ServiceZone? zoneFor(LatLng point) {
     if (!enabled) return null;
