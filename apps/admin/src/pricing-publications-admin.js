@@ -299,7 +299,11 @@ export function createPricingPublicationsAdmin({
   async function mutate(action) {
     if (!mounted || loading || writing || !hasScope('pricing:write') || !selected) return;
     const checked = byId('publication-confirm-review').checked;
-    if (action === 'publish' && !checked) return;
+    // Never rely on the disabled button alone for the no-op publication gate.
+    // Recheck the draft directly in the action handler.
+    if (action === 'publish' && (!checked ||
+        (pricingPublicationSummary(activeCatalog, selected.catalog).length === 0 &&
+         pricingPublicationPriceChanges(activeCatalog, selected.catalog).length === 0))) return;
     const original = selected.version;
     const versionId = original.id;
     writing = true;
