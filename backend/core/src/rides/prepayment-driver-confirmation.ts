@@ -12,7 +12,8 @@ export async function createPrepaymentDriverOffer(input: {
   ride: RideRecord; matching: RideMatchingRepository; now?: Date;
 }) {
   const now = input.now ?? new Date();
-  if (!input.ride.driverConsentRequired || input.ride.reservedDriverId == null) {
+  if (input.ride.state !== 'AWAITING_PAYMENT' ||
+      !input.ride.driverConsentRequired || input.ride.reservedDriverId == null) {
     throw new Error('A solicitação precisa de uma reserva antes da oferta.');
   }
   const holdExpiryMs = Date.parse(input.ride.driverHoldExpiresAt ?? '');
@@ -63,6 +64,8 @@ export async function prepaymentDriverConfirmation(input: {
   ]);
   if (profile?.status !== 'approved' || vehicle?.status !== 'approved' || supply == null ||
       !supply.online || supply.busy || supply.reservedRideId !== ride.id ||
+      !Number.isFinite(supply.latitude) || supply.latitude < -90 || supply.latitude > 90 ||
+      !Number.isFinite(supply.longitude) || supply.longitude < -180 || supply.longitude > 180 ||
       ride.reservedDriverId !== offer.driverId ||
       supply.vehicleId !== vehicle.id ||
       !supply.categories.includes(ride.category) ||
