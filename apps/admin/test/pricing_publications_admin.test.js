@@ -61,6 +61,8 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   assert.match(code, /loading && !internalRefresh/);
   assert.match(code, /selected\?\.version\?\.id === button\.dataset\.versionId/);
   assert.match(code, /writing && !internalWrite/);
+  assert.match(code, /setAttribute\('aria-busy', 'true'\)/);
+  assert.match(code, /removeAttribute\('aria-busy'\)/);
   assert.match(code, /await refresh\(\{internalWrite: true\}\)/);
   assert.match(code, /pendingVersionId = pendingVersionId \|\| selected\?\.version\.id \|\| null;/);
   assert.match(code, /if \(!mounted \|\| loading \|\| writing \|\| !hasScope\('pricing:write'\)/);
