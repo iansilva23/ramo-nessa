@@ -28,6 +28,11 @@ test('resumo compara alterações relevantes sem mutar o catálogo efetivo', () 
     row.key === 'prea:cavalo-bravo:car' && row.after.includes('47,00')));
   assert.deepEqual(current, original);
   assert.deepEqual(pricingPublicationSummary(current, current), []);
+  assert.deepEqual(pricingPublicationPriceChanges(current, current), [],
+    'Catálogos idênticos não podem produzir mudanças publicáveis');
+  const reordered = structuredClone(current);
+  assert.deepEqual(pricingPublicationPriceChanges(current, reordered), [],
+    'Uma cópia idêntica não pode simular alteração de preço');
 
 });
 
