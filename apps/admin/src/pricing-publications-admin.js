@@ -277,10 +277,19 @@ export function createPricingPublicationsAdmin({
     syncActions();
     try {
       // Protect against concurrent ADM editors and stale review previews.
-      const fresh = await api.getPricingVersion(getToken(), versionId);
+      const [fresh, freshActive] = await Promise.all([
+        api.getPricingVersion(getToken(), versionId),
+        api.pricingCatalog(getToken()),
+      ]);
       if (fresh?.version?.status !== 'draft' ||
           fresh.version.updatedAt !== original.updatedAt) {
         throw new Error('O rascunho mudou desde sua revisão. Recarregue e confira antes de prosseguir.');
+      }
+      // A second operator may publish another version while this screen is
+      // open. Stop and recompare instead of approving an obsolete baseline.
+      if (freshActive?.versionId !== activeCatalog?.versionId ||
+          freshActive?.versionNumber !== activeCatalog?.versionNumber) {
+        throw new Error('A versão em vigor mudou durante a revisão. Atualize e confira os preços antes de publicar.');
       }
       const confirmed = window.confirm(action === 'publish'
         ? 'PUBLICAR a versão #' + original.versionNumber +
