@@ -9,7 +9,7 @@ import {
   selectDriverForDispatch,
 } from '../src/matching/select-driver.js';
 import type { RideRecord } from '../src/rides/ride.js';
-import { transitionRide, markRidePaid, RideStateError } from '../src/rides/ride-state.js';
+import { transitionRide, markRidePaid, RideStateError, type RideState } from '../src/rides/ride-state.js';
 import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 
@@ -365,7 +365,7 @@ test('ciclo isolado pagamento confirmado → despacho 4x4 → conclusão', () =>
   });
   assert.equal(dispatch.nextRideState,'SEARCHING_DRIVER');
   assert.equal(dispatch.driver.supply.driverId,'approved-4x4');
-  let state=dispatch.nextRideState;
+  let state:RideState=dispatch.nextRideState;
   for (const next of ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED',
     'IN_PROGRESS','COMPLETED'] as const) {
     state=transitionRide(state,next);
