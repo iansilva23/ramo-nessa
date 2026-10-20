@@ -61,3 +61,19 @@ Status: PLANEJAMENTO E AUDITORIA — NÃO HOMOLOGADO. Não publicar, mesclar ou 
 5. Reconferir HEAD do financeiro e estado da VPS antes da futura integração; garantir backup testado e rollback. Não modificar checkout compartilhado nem reiniciar serviços durante o preparo.
 
 **Estado final: revisão automatizada aprovada; homologação funcional e publicação pendentes. PR permanece DRAFT, sem merge ou deploy.**
+
+## Atualização do gate de homologação — 20/10/2026 (PR #35)
+
+- HEAD verificado: `607faa7317d277c49a123dd770d12a51184da65d`.
+- CI verificado: [workflow 39431377658](https://github.com/iansilva23/ramo-nessa/actions/runs/39431377658), **7/7 jobs aprovados**: Core, ADM, Chromium isolado, PostgreSQL 16 descartável, Flutter Passageiro, Flutter Motorista e Design System.
+- A central `Rascunhos e publicações` está integrada ao ADM e o Chromium testa revisão de diferenças, confirmação/cancelamento, conflito de edição, publicação apenas no mock isolado e atualização do histórico.
+- A interface foi testada automaticamente em dimensões móveis com captura de evidência e verificação de overflow. Isso não equivale a teste manual em aparelhos reais.
+- A publicação e o descarte usam a API de versões existente com verificação de permissões, revisão explícita e trava otimista. Nenhuma operação de escrita real foi realizada nesta auditoria.
+
+### Fechamento objetivo, sem acrescentar melhorias cosméticas
+
+**Concluído sob evidência automatizada:** integração das três áreas do ADM, comparação, rascunhos, histórico, controles de publicação, regressões Core/ADM/Flutter e fluxo fictício no navegador.
+
+**Não concluído / não autoriza deploy:** aceite visual manual, cotação GPS real e dispatch municipal, 26 municípios/localidades sem comprovação, valores comerciais e parâmetros por km sem aprovação, integração preço exibido/assinado/cobrado/contabilizado, auditoria de backup e rollback na implantação futura.
+
+**Decisão de engenharia:** suspender mudanças cosméticas menores na central já aprovada e tratar as pendências acima como gates separados. Não bloquear a conclusão técnica da reorganização da interface por aprovações comerciais externas, mas nunca chamá-la de sistema integralmente pronto para produção.
