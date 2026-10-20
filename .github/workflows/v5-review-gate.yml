@@ -25,6 +25,22 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+      - name: Protect approved passenger “Escolha seu destino” card
+        if: github.ref == 'refs/heads/integration/pricing-v5-finance-safe-20261019' || github.head_ref == 'integration/pricing-v5-finance-safe-20261019'
+        shell: bash
+        run: |
+          set -euo pipefail
+          card=apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart
+          # Exact Git blob of the already-approved component in the PR #35 base.
+          # Any intentional redesign requires the owner's explicit approval
+          # and a separately reviewed update to this baseline.
+          approved_blob=989b87d931937f45b8217f8a63191e4b7c7c57b8
+          current_blob=$(git hash-object -- "$card")
+          if [[ "$current_blob" != "$approved_blob" ]]; then
+            echo "::error file=$card::Card Escolha seu destino mudou sem autorização explícita."
+            exit 1
+          fi
+          echo "Card Escolha seu destino preservado: $current_blob" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
