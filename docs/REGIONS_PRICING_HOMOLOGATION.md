@@ -34,6 +34,7 @@ O plano de catálogo não substitui backup integral do PostgreSQL e material de 
 Os cinco adapters operacionais existentes são preservados. Nome/descrição/ícone das categorias suportadas são consumidos pela versão Web.
 Novos IDs podem ser cadastrados desativados. O servidor rejeita sua ativação enquanto não houver adapter de operação e suporte real dos aplicativos/veículos/motoristas. Não se afirma suporte irrestrito a tipos novos.
 O requisito 4x4 para carros em Jericoacoara é preservado e validado no servidor.
+Tarifas são associadas a regiões circulares; um ponto específico pode ser representado por uma cobertura pequena, com raio mínimo de 50 metros.
 
 ## Evidências
 A execução do workflow Regions and Pricing - Web Review verifica:
@@ -43,3 +44,29 @@ A execução do workflow Regions and Pricing - Web Review verifica:
 - Web Passageiro/Motorista: análise, testes e compilação; teste específico do catálogo em Chrome.
 - Chromium/WebKit: controlador real, API HTTP, autenticação/senha/MFA, assistente, tarifa, simulação, arquivamento/recuperação e overflow em 1440/860/390 px.
 As capturas usam dados sintéticos e tiles substituídos. Não comprovam Google Maps, GPS ou provedores reais. Bundles de revisão apontam para example.invalid e não são pacotes conectados à VPS.
+
+## Limites de implantação e aceite real
+- A revisão efetivamente ativa no Gateway/VPS e o inventário do banco real não foram verificados nesta sessão. Conferir imagens, revisão, catálogo efetivo e dependências antes de aplicar o plano.
+- Android/iOS não foram compilados, atualizados ou testados em aparelhos. Os diretórios nativos e o comportamento legado permanecem preservados nesta branch.
+- Clientes nativos já instalados não foram homologados com managedOperations. Esse modo exige coordenadas e sessão na cotação. Não ativar em backend de produção compartilhado sem definir e validar a compatibilidade dos clientes existentes após o aceite Web.
+- A navegação/login completos do ADM não fazem parte do harness de navegador: ele monta o controlador real no shell existente com sessões sintéticas. Rotas e aliases são verificados também pela suíte de navegação do ADM.
+- O teste financeiro compara o valor da cotação, da reserva e do registro de pagamento no serviço real com repositórios isolados. Não comprova autorização, liquidação, webhook, cancelamento ou reembolso de um provedor externo.
+- Nenhuma categoria nova arbitrária está liberada para uso: novos IDs ficam desativados até implementação e homologação de seu adapter e requisitos de operação.
+
+## Resultado registrado — 20/10/2026
+Código verificado: `2b845898351aa4ca88a941098a724fcf7e5640b2`.
+Execução: [GitHub Actions 39480460591](https://github.com/iansilva23/ramo-nessa/actions/runs/39480460591).
+
+| Verificação | Resultado |
+| --- | --- |
+| Core: tipagem, build e suíte | 774 passaram, 0 falharam, 51 ignorados por guardas de ambiente |
+| ADM: sintaxe e suíte | 163 passaram, 0 falharam |
+| PostgreSQL 16: duas integrações isoladas | 2 passaram, 0 falharam, 0 ignorados |
+| Web Passageiro | Análise, 184 testes, 2 testes em Chrome e build aprovados |
+| Web Motorista | Análise, 108 testes e build aprovados |
+| Chromium e WebKit | Fluxos descritos acima aprovados nos dois navegadores |
+| Revisão visual | Capturas examinadas em 1200, 860 e 390 px; screenshots adicionais em 1440 px |
+| Integridade | Providers financeiros, ledger, migrations, projetos nativos e ride_bottom_sheet preservados contra a base #35 |
+
+Os 51 testes ignorados na suíte geral não são aprovação: permanecem dependentes de seus ambientes próprios. O job PostgreSQL executa especificamente a integração transacional nova e a regressão V5 financeira existente, não todos os testes PostgreSQL do repositório.
+Os artefatos da execução incluem as capturas `regions-pricing-browser-evidence` e os dois bundles Web, sujeitos à retenção do GitHub Actions.
