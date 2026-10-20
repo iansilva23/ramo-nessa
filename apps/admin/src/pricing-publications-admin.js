@@ -215,8 +215,8 @@ export function createPricingPublicationsAdmin({
     message(text, 'danger');
     onError(error);
   }
-  async function refresh({announce = false} = {}) {
-    if (loading || !mounted) return;
+  async function refresh({announce = false, internalWrite = false} = {}) {
+    if (loading || !mounted || (writing && !internalWrite)) return;
     loading = true;
     const current = ++sequence;
     // Do not permit publishing a previously reviewed snapshot while a fresh
@@ -316,7 +316,7 @@ export function createPricingPublicationsAdmin({
       }
       pendingVersionId = null;
       selected = null;
-      await refresh();
+      await refresh({internalWrite: true});
       message(action === 'publish'
         ? 'Versão publicada. Novas cotações usarão a tarifa vigente.'
         : 'Rascunho excluído. A tabela vigente permaneceu intacta.');
@@ -324,7 +324,7 @@ export function createPricingPublicationsAdmin({
       // Do not retry an ambiguous write after a timeout. Refresh from Core.
       selected = null;
       pendingVersionId = null;
-      await refresh().catch(() => {});
+      await refresh({internalWrite: true}).catch(() => {});
       throw error;
     } finally {
       writing = false;
