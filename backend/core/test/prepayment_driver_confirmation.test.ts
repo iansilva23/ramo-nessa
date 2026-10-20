@@ -290,3 +290,22 @@ test('confirmação não exibe READY_TO_PAY quando GPS persistido do motorista e
     assert.equal(result?.driver,null);
   }
 });
+
+test('despacho após pagamento não aceita prazo de reserva ausente ou inválido', async () => {
+  for (const invalidExpiry of [undefined,'prazo-invalido','2026-10-03T11:59:59Z']) {
+    const ctx=await setup();
+    const ride=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const {driverHoldExpiresAt: _previous, ...withoutExpiry}=accepted.ride;
+    const paid=await ctx.rides.save({
+      ...withoutExpiry,state:'PAID',paymentStatus:'paid',paymentMethod:'pix',
+      ...(invalidExpiry===undefined?{}:{driverHoldExpiresAt:invalidExpiry}),
+    });
+    const result=await dispatchRideAfterPayment({ride:paid,...ctx,now});
+    assert.equal(result.kind,'NOT_PREPARED');
+    assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.busy,false);
+  }
+});
