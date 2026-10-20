@@ -164,11 +164,17 @@ async function run(engine){
     await expectText(page.locator('.rp-rate-card'),'Desativada');
     await page.getByRole('tab',{name:'Regiões',exact:true}).click();
     const prea=page.locator('.rp-region-card').filter({has:page.getByRole('heading',{name:'Preá',exact:true})});
+    for(let interaction=0;interaction<3;interaction++){
     await prea.getByRole('button',{name:'Editar',exact:true}).click();
     wizard=page.getByRole('dialog',{name:'Editar região',exact:true});
     const coords=await wizard.locator('.rp-hint').filter({hasText:'Ponto selecionado:'}).textContent();
     const pin=wizard.locator('.pricing-geofence-map__pin');
-    await pin.waitFor({state:'visible'});await pin.scrollIntoViewIfNeeded();
+    // The wizard schedules map repaint on the next animation frame. Scroll
+    // the stable map container, then let that paint finish before measuring
+    // the newly rendered pin; WebKit can otherwise detach the initial pin.
+    await wizard.locator('.rp-editor-map').scrollIntoViewIfNeeded();
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await pin.waitFor({state:'visible'});
     const box=await pin.boundingBox();assert.ok(box);
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
     await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+5,{steps:5});await page.mouse.up();
@@ -177,6 +183,7 @@ async function run(engine){
     await wizard.locator('.rp-radius-handle').focus();await page.keyboard.press('ArrowRight');
     assert.ok(Number(await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).inputValue())>radiusBefore);
     await wizard.getByRole('button',{name:'Fechar',exact:true}).click();
+    }
     for(const width of [1440,860,390]){
       await page.evaluate(()=>{document.querySelectorAll('*').forEach(el=>{if(el.scrollTop)el.scrollTop=0;});window.scrollTo(0,0);});
       await page.setViewportSize({width,height:width===390?844:1000});
