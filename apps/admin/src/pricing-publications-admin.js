@@ -131,7 +131,10 @@ export function createPricingPublicationsAdmin({
     }
     const history = byId('publication-history');
     history.replaceChildren();
-    const published = items.filter(v => v.status === 'published');
+    // The API may return versions in arbitrary order; present the newest
+    // published entries first rather than relying on backend ordering.
+    const published = items.filter(v => v.status === 'published')
+      .sort((a, b) => Number(b.versionNumber) - Number(a.versionNumber));
     if (!published.length) {
       history.append(el('p', 'pricing-policy-help',
         'Ainda não há versões publicadas; o catálogo padrão está em vigor.'));
