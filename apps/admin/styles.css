@@ -5755,3 +5755,8 @@ td strong {
 .rp-editor-map .pricing-geofence-map__pin,.rp-editor-map .pricing-geofence-map__radius,.rp-radius-handle{pointer-events:auto}
 .rp-editor-map .pricing-geofence-map__radius{border-color:#c0a51c;background:#ebcd2b20}
 .rp-editor-map .pricing-geofence-map__pin{background:#181818;border:3px solid white}
+
+/* Light workspace actions must not inherit the dark sidebar ghost treatment. */
+.regions-workspace .button--ghost,.rp-dialog .button--ghost{color:#24231f;border-color:#d5d0c5;background:#fff}
+.regions-workspace .button--ghost:hover:not(:disabled),.rp-dialog .button--ghost:hover:not(:disabled){background:#f5f2e8;border-color:#b4a45c}
+.regions-workspace .button--ghost.rp-delete,.rp-dialog .button--ghost.rp-delete{color:#963c2b}

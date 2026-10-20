@@ -22,7 +22,7 @@ const adminRoot=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const out=resolve(adminRoot,'regions-browser-artifacts');
 await mkdir(out,{recursive:true});
 const key=Buffer.alloc(32,17),rateLimitSecret='synthetic-browser-pricing-reauthentication-limit';
-const tile=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+const tile=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#eeece4"/><path d="M0 58L256 180M60 0L180 256M0 190L256 65" stroke="#fff" stroke-width="8"/><path d="M0 58L256 180M60 0L180 256M0 190L256 65" stroke="#d9d5c9" stroke-width="1"/><text x="12" y="242" fill="#777064" font-size="9">MAPA SINTÉTICO · TESTE</text></svg>');
 const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'};
 async function run(engine){
   const versions=new InMemoryPricingCatalogVersionRepository(),admin=new InMemoryAdminRepository(),humans=new InMemoryAdminHumanAuthRepository();
@@ -51,7 +51,7 @@ async function run(engine){
           "import {createRegionsPricingAdmin} from '/src/regions-pricing-admin.js';",
           "import {createAdminApi} from '/src/api.js';",
           "document.getElementById('auth-view').hidden=true;document.getElementById('admin-view').hidden=false;",
-          "document.getElementById('page-title').textContent='Regiões e preços';",
+          "document.getElementById('page-title').textContent='Regiões e preços';document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('is-active',n.dataset.view==='pricing'));",
           "globalThis.__rp=createRegionsPricingAdmin({root:document.getElementById('route-outlet'),api:createAdminApi(),getToken:()=>"+JSON.stringify(readonly?readerToken:writerToken)+",hasScope:scope=>"+(readonly?"scope==='pricing:read'":"['pricing:read','pricing:write'].includes(scope)")+"});",
         ].join('\n');
         response.writeHead(200,{'content-type':'text/javascript'});response.end(script);return;
@@ -78,7 +78,7 @@ async function run(engine){
   const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
   await context.route('**/*',route=>{
     const url=route.request().url();
-    if(url.startsWith('https://tile.openstreetmap.org/'))return route.fulfill({status:200,contentType:'image/png',body:tile});
+    if(url.startsWith('https://tile.openstreetmap.org/'))return route.fulfill({status:200,contentType:'image/svg+xml',body:tile});
     if(!url.startsWith(base))return route.abort();return route.continue();
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -88,6 +88,12 @@ async function run(engine){
     await page.getByRole('heading',{name:'Suas regiões',exact:true}).waitFor();
     await page.locator('.rp-region-card').filter({hasText:'Preá'}).waitFor();
     assert.equal(await page.locator('.rp-region-card').count(),3);
+    const contrast=await page.locator('.rp-region-card .button--ghost').first().evaluate(el=>{
+      const style=getComputedStyle(el),rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number);
+      const luminance=value=>rgb(value).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+      const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+    });
+    assert.ok(contrast>=4.5,'Action text must meet WCAG AA contrast');
     await page.getByRole('button',{name:/Adicionar região/}).click();
     let wizard=page.getByRole('dialog',{name:'Adicionar região',exact:true});
     await wizard.getByLabel('Nome da região',{exact:true}).fill('Cobertura de teste');
@@ -170,6 +176,7 @@ async function run(engine){
     assert.ok(Number(await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).inputValue())>radiusBefore);
     await wizard.getByRole('button',{name:'Fechar',exact:true}).click();
     for(const width of [1440,860,390]){
+      await page.evaluate(()=>{document.querySelectorAll('*').forEach(el=>{if(el.scrollTop)el.scrollTop=0;});window.scrollTo(0,0);});
       await page.setViewportSize({width,height:width===390?844:1000});
       await page.screenshot({path:resolve(out,engine+'-regions-'+width+'.png'),fullPage:true});
       const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);
@@ -177,6 +184,7 @@ async function run(engine){
     }
     if(engine==='chromium'){
       await page.setViewportSize({width:1200,height:900});
+      await page.evaluate(()=>window.scrollTo(0,0));
       const preview=await page.screenshot({type:'jpeg',quality:48});
       await writeFile(resolve(out,'preview.jpg'),preview);
       console.log('RP_PREVIEW_BASE64:'+preview.toString('base64'));
