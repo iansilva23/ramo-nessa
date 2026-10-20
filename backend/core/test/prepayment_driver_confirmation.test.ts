@@ -222,3 +222,27 @@ test('aceite aos 30s mantém confirmação pronta após 35s durante hold de paga
   assert.equal(confirmed?.status,'READY_TO_PAY');
   assert.equal(confirmed?.driver?.id,offer.driverId);
 });
+
+test('reserva de pagamento expirada deixa de apresentar motorista como pronto', async () => {
+  const ctx=await setup();
+  const prepared=await ctx.prepare();
+  const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+  const accepted=await ctx.matching.acceptOffer({
+    offerId:offer.id,driverId:offer.driverId,
+    acceptedAt:new Date(now.getTime()+30_000).toISOString(),
+    paymentHoldSeconds:90,
+  });
+  const expiresAt=Date.parse(accepted.ride.driverHoldExpiresAt!);
+  const confirmed=await prepaymentDriverConfirmation({
+    rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,
+    registry:{} as never,routing:null,
+    rideId:accepted.ride.id,passengerId:accepted.ride.passengerId,
+    now:new Date(expiresAt),
+  });
+  assert.equal(confirmed?.status,'EXPIRED');
+  assert.equal(confirmed?.driver,null);
+  await assert.rejects(createPaymentForRide(ctx.finance,{
+    ride:accepted.ride,method:'pix',processor:'test',
+    idempotencyKey:'expired-hold-payment',now:new Date(expiresAt),
+  }),{code:'RIDE_NOT_PREPARED'});
+});
