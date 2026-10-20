@@ -234,7 +234,7 @@ export function createPricingPublicationsAdmin({
       selected = null;
       renderVersions(versions);
       const next = drafts.find(v => v.id === previousId) || drafts[0];
-      if (next) await selectDraft(next.id, {notify: false});
+      if (next) await selectDraft(next.id, {notify: false, internalRefresh: true});
       else renderSelection();
       if (announce) message('Versões atualizadas.');
     } finally {
@@ -242,8 +242,8 @@ export function createPricingPublicationsAdmin({
       if (mounted) byId('publication-refresh').disabled = false;
     }
   }
-  async function selectDraft(id, {notify = true} = {}) {
-    if (!mounted || writing) return;
+  async function selectDraft(id, {notify = true, internalRefresh = false} = {}) {
+    if (!mounted || (writing && !internalRefresh)) return;
     const match = drafts.find(version => version.id === id);
     if (!match) return;
     const requestSequence = ++sequence;
