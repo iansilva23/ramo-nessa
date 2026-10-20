@@ -42,8 +42,9 @@ export async function dispatchRideAfterPayment(input: {
     const now = input.now ?? new Date();
     const offer = (await input.matching.listOffersForRide(input.ride.id)).find(
       (entry) => entry.status === 'ACCEPTED' && entry.driverId === input.ride.driverId);
+    const holdExpiresAtMs = Date.parse(input.ride.driverHoldExpiresAt ?? '');
     if (offer == null || input.ride.reservedDriverId !== offer.driverId ||
-        Date.parse(input.ride.driverHoldExpiresAt ?? '') <= now.getTime()) {
+        !Number.isFinite(holdExpiresAtMs) || holdExpiresAtMs <= now.getTime()) {
       // Never silently replace the driver the passenger confirmed.
       return { kind: 'NOT_PREPARED' };
     }
