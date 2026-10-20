@@ -1,5 +1,8 @@
 name: V5 review-only Web artifacts (never deploy)
 on:
+  push:
+    branches: [integration/pricing-v5-finance-safe-20261019]
+    paths: [.github/workflows/v5-review-artifact-package.yml]
   workflow_dispatch:
 permissions:
   contents: read
