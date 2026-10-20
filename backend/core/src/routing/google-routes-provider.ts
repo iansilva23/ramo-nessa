@@ -178,6 +178,28 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
   return points;
 }
 
+// A decoded polyline cannot travel farther in straight-line segments than
+// the distance represented by the road route. Reject extreme inconsistencies
+// that would zoom the map out to unrelated cities or states.
+function polylineMinimumTravelMeters(points: GeoPoint[]): number {
+  const earthRadiusMeters = 6_371_000;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1]!;
+    const current = points[index]!;
+    const lat1 = radians(previous.latitude);
+    const lat2 = radians(current.latitude);
+    const dLat = radians(current.latitude - previous.latitude);
+    const dLon = radians(current.longitude - previous.longitude);
+    const h = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    total += 2 * earthRadiusMeters *
+      Math.atan2(Math.sqrt(Math.min(1, h)), Math.sqrt(Math.max(0, 1 - h)));
+  }
+  return total;
+}
+
 function nearestRoutePointIndex(
   routePoints: GeoPoint[],
   target: GeoPoint,
@@ -372,6 +394,15 @@ export class GoogleRoutesProvider
       throw new RoutingRouteError(
         'INVALID_PROVIDER_RESPONSE',
         'Google Routes retornou poucos pontos para desenhar a rota.',
+      );
+    }
+    // Allow generous tolerance for sparse Google route geometry, while
+    // refusing impossible jumps to unrelated parts of the map.
+    const maximumPlausibleMeters = route.distanceMeters * 1.25 + 1000;
+    if (polylineMinimumTravelMeters(points) > maximumPlausibleMeters) {
+      throw new RoutingRouteError(
+        'INVALID_PROVIDER_RESPONSE',
+        'Google Routes retornou um traçado incompatível com a distância da viagem.',
       );
     }
 
