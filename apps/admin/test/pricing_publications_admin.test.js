@@ -19,9 +19,12 @@ test('resumo compara alterações relevantes sem mutar o catálogo efetivo', () 
   const priceChanges = pricingPublicationPriceChanges(current, draft);
   assert.equal(priceChanges.length, 2);
   assert.ok(priceChanges.some(row =>
-    row.key === 'route:prea-jijoca-car' &&
-    row.before.includes('R
+    row.key === 'route:prea-jijoca-car' && row.after.includes('140,00')));
+  assert.ok(priceChanges.some(row =>
+    row.key === 'prea:cavalo-bravo:car' && row.after.includes('47,00')));
+  assert.deepEqual(current, original);
   assert.deepEqual(pricingPublicationSummary(current, current), []);
+
 });
 
 test('nova central publica só por ação explícita, com permissão e revisão', () => {
