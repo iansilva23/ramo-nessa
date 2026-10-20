@@ -15,6 +15,13 @@ abstract final class DriverMapConfig {
     return math.min(72, math.max(32, viewportWidth * .16));
   }
 
+  // GPS updates should not steal the camera from an active route preview.
+  // Follow the driver when idle or explicitly navigating.
+  static bool shouldAutoFollow({
+    required bool hasActiveRide,
+    required bool navigationMode,
+  }) => !hasActiveRide || navigationMode;
+
   static double recenterZoom(double currentZoom) {
     if (!currentZoom.isFinite) return recenterMinimumZoom;
     return math.max(currentZoom, recenterMinimumZoom);
