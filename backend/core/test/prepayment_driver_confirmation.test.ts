@@ -244,5 +244,5 @@ test('reserva de pagamento expirada deixa de apresentar motorista como pronto', 
   await assert.rejects(createPaymentForRide(ctx.finance,{
     ride:accepted.ride,method:'pix',processor:'test',
     idempotencyKey:'expired-hold-payment',now:new Date(expiresAt),
-  }),{code:'RIDE_NOT_PREPARED'});
+  }),{code:'DRIVER_HOLD_EXPIRED'});
 });
