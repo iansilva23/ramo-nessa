@@ -19,6 +19,18 @@ void main() {
     expect(DriverMapConfig.routeEdgePadding(768), 72);
   });
 
+  test('GPS não rouba o enquadramento de rota ativa fora da navegação', () {
+    expect(DriverMapConfig.shouldAutoFollow(
+      hasActiveRide: false, navigationMode: false,
+    ), isTrue);
+    expect(DriverMapConfig.shouldAutoFollow(
+      hasActiveRide: true, navigationMode: false,
+    ), isFalse);
+    expect(DriverMapConfig.shouldAutoFollow(
+      hasActiveRide: true, navigationMode: true,
+    ), isTrue);
+  });
+
   test('valores de janela ou zoom inválidos têm fallback seguro', () {
     expect(DriverMapConfig.routeEdgePadding(double.nan), 48);
     expect(DriverMapConfig.routeEdgePadding(-1), 48);
