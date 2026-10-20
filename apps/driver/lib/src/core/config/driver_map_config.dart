@@ -12,7 +12,7 @@ abstract final class DriverMapConfig {
   /// Avoids reserving 110 px on each side of a narrow 320 px screen.
   static double routeEdgePadding(double viewportWidth) {
     if (!viewportWidth.isFinite || viewportWidth <= 0) return 48;
-    return math.min(72, math.max(32, viewportWidth * .16));
+    return math.min(72.0, math.max(32.0, viewportWidth * .16));
   }
 
   // GPS updates should not steal the camera from an active route preview.
