@@ -150,6 +150,13 @@ export function createPricingPublicationsAdmin({
     const checkbox = byId('publication-confirm-review');
     checkbox.checked = false;
     actions.hidden = selected == null;
+    // Keep the selected state in sync even if a draft fetch fails or a
+    // background refresh invalidates the old selection.
+    for (const button of byId('publication-drafts')
+      .querySelectorAll('button[data-version-id]')) {
+      button.setAttribute('aria-pressed', String(
+        selected?.version?.id === button.dataset.versionId));
+    }
     if (!selected) {
       byId('publication-selected-title').textContent = 'Selecione um rascunho';
       byId('publication-selected-meta').textContent =
