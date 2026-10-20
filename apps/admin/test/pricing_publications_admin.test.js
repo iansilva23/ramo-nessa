@@ -17,7 +17,11 @@ test('resumo compara alterações relevantes sem mutar o catálogo efetivo', () 
   const summary = pricingPublicationSummary(current, draft);
   assert.deepEqual(summary, ['Rotas fixas','Tarifas de localidades']);
   const priceChanges = pricingPublicationPriceChanges(current, draft);
-  assert.equal(priceChanges.length, 2);
+  // Comfort/Black inherits the Car price unless explicitly overridden:
+  // publication review must also show this indirect commercial effect.
+  assert.equal(priceChanges.length, 3);
+  assert.ok(priceChanges.some(row =>
+    row.key === 'prea:cavalo-bravo:comfort_black'));
   assert.ok(priceChanges.some(row =>
     row.key === 'route:prea-jijoca-car' && row.after.includes('140,00')));
   assert.ok(priceChanges.some(row =>
