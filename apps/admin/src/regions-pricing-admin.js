@@ -2,6 +2,7 @@ import {createPricingCoverageMap,createPricingGeofenceMap} from './pricing-geofe
 import {icons,formatMoney,inputMoney,moneyInputCents,overlappingRegions,formatRate,nextTabIndex} from './regions-pricing-model.js';
 import {createPricingHelp,pricingHelpButton} from './regions-pricing-help.js';
 import {helpTopicForLabel,helpTopicForCheck} from './help/regions-pricing-guide.js';
+import {parseLocalityCoordinates} from './locality-coordinates.js';
 
 const CATEGORY_LABELS={moto:'Mototáxi',car:'Táxi',buggy:'Buggy',delivery:'Entregas',comfort_black:'4x4 Comfort/Black'};
 function node(tag,text,className){
@@ -305,6 +306,14 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
     panels[0].append(municipalityChoices);
     const searchRow=node('div',null,'rp-search-row'),searchButton=button('Buscar',()=>void findPlaces()),results=node('div',null,'rp-search-results');
     searchRow.append(search.wrap,searchButton);panels[0].append(name.wrap,searchRow,results);
+    const latitude=field('Latitude','text',fresh?'':String(initial.latitude),{required:true,inputMode:'decimal',maxLength:40,autocomplete:'off',placeholder:'Ex.: -2,82017'}),
+      longitude=field('Longitude','text',fresh?'':String(initial.longitude),{required:true,inputMode:'decimal',maxLength:40,autocomplete:'off',placeholder:'Ex.: -40,41467'});
+    const coordinateGrid=node('div',null,'rp-form-grid');coordinateGrid.append(latitude.wrap,longitude.wrap);
+    const positionButton=button('Posicionar no mapa',()=>applyCoordinates());
+    const coordinateHint=node('p','Use graus decimais, com ponto ou vírgula. Posicionar no mapa aplica o ponto; Continuar também confere o que foi digitado.','rp-hint');
+    coordinateHint.id=id('coordinate-hint');
+    for(const control of [latitude.input,longitude.input])control.setAttribute('aria-describedby',coordinateHint.id);
+    panels[0].append(coordinateGrid,positionButton,coordinateHint);
     const grid=node('div',null,'rp-form-grid');grid.append(municipality.wrap,state.wrap,radius.wrap);panels[0].append(grid);
     const mapRoot=node('div',null,'pricing-geofence-map rp-editor-map'),tiles=node('div',null,'pricing-geofence-map__tiles'),overlay=node('div',null,'pricing-geofence-map__overlay'),
       zoom=node('div',null,'pricing-geofence-map__controls'),plus=button('+',()=>{}),minus=button('−',()=>{});
@@ -313,16 +322,29 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
     mapRoot.append(tiles,overlay,zoom,attr);mapRoot.tabIndex=0;mapRoot.setAttribute('role','region');mapRoot.setAttribute('aria-label','Posicionar região no mapa');
     const coords=node('p',fresh?'Clique no mapa ou selecione um resultado da busca.':'','rp-hint'),overlaps=node('p',null,'rp-overlap-note');
     panels[0].append(mapRoot,coords,overlaps,node('p','Arraste o alfinete para mover a região. Arraste a borda para ajustar o raio.','rp-hint'));
-    let positioned=!fresh,selection={latitude:initial.latitude??-2.84,longitude:initial.longitude??-40.44,radiusKm:initial.radiusKm??0.05};
-    function reportSelection(next){
-      selection=next;positioned=true;radius.input.value=Number(next.radiusKm.toFixed(2));coords.textContent='Ponto selecionado: '+next.latitude.toFixed(5)+', '+next.longitude.toFixed(5);
+    let positioned=!fresh,coordinateDraft=false,selection={latitude:initial.latitude??-2.84,longitude:initial.longitude??-40.44,radiusKm:initial.radiusKm??0.05};
+    function reportSelection(next,{preserveCoordinateInputs=false,preserveRadiusInput=false}={}){
+      selection=next;positioned=true;
+      if(!preserveRadiusInput)radius.input.value=Number(next.radiusKm.toFixed(2));
+      if(!preserveCoordinateInputs){latitude.input.value=String(next.latitude);longitude.input.value=String(next.longitude);coordinateDraft=false;}
+      coords.textContent='Ponto selecionado: '+next.latitude.toFixed(5)+', '+next.longitude.toFixed(5);
       const shared=overlappingRegions({...selection,id:stableId},ops.regions);
       overlaps.textContent=shared.length?'Sobreposição com '+shared.map(r=>r.name).join(', ')+'. A menor área de cobertura define a região do ponto.':'';
     }
     const map=createPricingGeofenceMap({root:mapRoot,tiles,overlay,zoomIn:plus,zoomOut:minus,onChange:reportSelection,canSelect:()=>true});
     map.setSelection(selection);map.setOtherAreas?.(ops.regions.filter(r=>r.enabled&&!r.archived&&r.id!==stableId).map(regionArea));
     if(positioned)reportSelection(selection);
-    radius.input.addEventListener('input',()=>{const value=Number(radius.input.value);if(value>=0.05&&value<=100){map.setRadiusKm(value);selection={...map.getSelection()};if(positioned)reportSelection(selection);}});
+    radius.input.addEventListener('input',()=>{const value=Number(radius.input.value);if(value>=0.05&&value<=100){map.setRadiusKm(value);selection={...map.getSelection()};if(positioned)reportSelection(selection,{preserveCoordinateInputs:true});}});
+    function applyCoordinates(){
+      try{
+        const point=parseLocalityCoordinates(latitude.input.value,longitude.input.value);
+        map.setSelection({...selection,...point});reportSelection(map.getSelection(),{preserveRadiusInput:true});m.feedback.hidden=true;return true;
+      }catch(err){m.showError(err);return false;}
+    }
+    for(const control of [latitude.input,longitude.input]){
+      control.addEventListener('input',()=>{coordinateDraft=true;});
+      control.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();applyCoordinates();}});
+    }
     let searchSequence=0;
     async function findPlaces(){
       const seq=++searchSequence,query=search.input.value.trim();if(query.length<3){m.showError('Digite pelo menos três caracteres.');return;}
@@ -355,6 +377,7 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
     function readRegion(){return {id:stableId,zoneId:initial.zoneId??'external',name:name.input.value.trim(),municipality:municipality.input.value.trim(),state:state.input.value,
       ...selection,radiusKm:Number(radius.input.value),categoryIds:choices.filter(c=>c.input.checked).map(c=>c.id),enabled:enabled.input.checked,archived:false};}
     function validStep(){
+      if(step===0&&coordinateDraft&&!applyCoordinates())return false;
       for(const input of panels[step].querySelectorAll('input,select'))if(!input.disabled&&!input.checkValidity()){input.reportValidity();return false;}
       if(step===0&&!positioned){m.showError('Selecione o ponto da região no mapa.');return false;}
       return true;

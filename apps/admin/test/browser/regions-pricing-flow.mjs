@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve,extname,sep} from 'node:path';
 import {chromium,webkit} from 'playwright';
 import {testPricingHelp,testEditorHelp} from './regions-pricing-help-flow.mjs';
+import {testCoordinateEntry} from './regions-pricing-coordinates-flow.mjs';
 import {STATIC_PRICING_CATALOG_V1} from '../../../../backend/core/src/pricing/catalog-snapshot.ts';
 import {prepareThreeRegionCatalog} from '../../../../backend/core/src/pricing/management-service.ts';
 import {pricingManagementRoutes} from '../../../../backend/core/src/pricing/management-routes.ts';
@@ -101,10 +102,16 @@ async function run(engine){
     await wizard.getByLabel('Nome da região',{exact:true}).fill('Cobertura de teste');
     await wizard.getByLabel('Município',{exact:true}).fill('Cruz');
     await testEditorHelp(page,wizard,'Raio de cobertura (km)',/Mapa, alfinete e raio de cobertura/);
+    await testCoordinateEntry(page,wizard,out,engine);
     await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).fill('0.8');
     await wizard.getByLabel('Pesquisar no mapa',{exact:true}).fill('Cobertura de teste');
     await wizard.getByRole('button',{name:'Buscar',exact:true}).click();
     await wizard.getByRole('button',{name:/Cobertura de teste · Cruz/}).click();
+    assert.equal(await wizard.getByLabel('Latitude',{exact:true}).inputValue(),'-2.82');
+    assert.equal(await wizard.getByLabel('Longitude',{exact:true}).inputValue(),'-40.4');
+    // Continue applies a valid typed pair even if the position button was not used.
+    await wizard.getByLabel('Latitude',{exact:true}).fill('-2,820000123456');
+    await wizard.getByLabel('Longitude',{exact:true}).fill('-40,400000987654');
     await wizard.getByRole('button',{name:'Continuar',exact:true}).click();
     await wizard.getByLabel('Mototáxi',{exact:true}).check();
     await wizard.getByRole('button',{name:'Continuar',exact:true}).click();
@@ -112,6 +119,14 @@ async function run(engine){
     await wizard.getByRole('button',{name:'Salvar região',exact:true}).click();
     await wizard.waitFor({state:'detached'});
     assert.equal(await page.locator('.rp-region-card').count(),4);
+    const created=(await versions.list(1))[0].snapshot.managedOperations.regions.find(r=>r.name==='Cobertura de teste');
+    assert.equal(created.latitude,-2.820000123456);assert.equal(created.longitude,-40.400000987654);assert.equal(created.radiusKm,0.8);
+    await page.locator('.rp-region-card').filter({hasText:'Cobertura de teste'}).getByRole('button',{name:'Editar',exact:true}).click();
+    wizard=page.getByRole('dialog',{name:'Editar região',exact:true});
+    assert.equal(await wizard.getByLabel('Latitude',{exact:true}).inputValue(),String(created.latitude));
+    assert.equal(await wizard.getByLabel('Longitude',{exact:true}).inputValue(),String(created.longitude));
+    await testEditorHelp(page,wizard,'Latitude',/Digitar Latitude e Longitude/);
+    await wizard.getByRole('button',{name:'Fechar',exact:true}).click();
     await page.getByRole('tab',{name:'Tarifas e rotas',exact:true}).click();
     await page.getByRole('button',{name:/Adicionar tarifa/}).click();
     let editor=page.getByRole('dialog',{name:'Adicionar tarifa',exact:true});
@@ -172,6 +187,7 @@ async function run(engine){
     await prea.getByRole('button',{name:'Editar',exact:true}).click();
     wizard=page.getByRole('dialog',{name:'Editar região',exact:true});
     const coords=await wizard.locator('.rp-hint').filter({hasText:'Ponto selecionado:'}).textContent();
+    const longitudeBefore=await wizard.getByLabel('Longitude',{exact:true}).inputValue();
     const pin=wizard.locator('.pricing-geofence-map__pin');
     // The wizard schedules map repaint on the next animation frame. Scroll
     // the stable map container, then let that paint finish before measuring
@@ -183,6 +199,7 @@ async function run(engine){
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
     await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+5,{steps:5});await page.mouse.up();
     assert.notEqual(await wizard.locator('.rp-hint').filter({hasText:'Ponto selecionado:'}).textContent(),coords);
+    assert.notEqual(await wizard.getByLabel('Longitude',{exact:true}).inputValue(),longitudeBefore);
     const radiusBefore=Number(await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).inputValue());
     await wizard.locator('.rp-radius-handle').focus();await page.keyboard.press('ArrowRight');
     assert.ok(Number(await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).inputValue())>radiusBefore);

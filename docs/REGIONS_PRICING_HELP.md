@@ -37,3 +37,12 @@ Código: `d104d1f925e60aad1d0b7525a7c64152077cc61e`.
 - Tipagem/testes/build do Core, integrações PostgreSQL existentes e análise/testes/build dos dois aplicativos Web aprovados. A guarda de preservação financeira/nativa passou.
 
 O ensaio utiliza autenticação/serviços reais da aplicação com repositórios em memória e provedores sintéticos no navegador. Não representa aceite no login conectado da VPS, em aparelhos reais ou em provedores externos. A ajuda segue pendente de instalação no ADM da homologação; nenhum serviço ativo foi atualizado por esta alteração.
+
+## Complemento: coordenadas no assistente de região
+Latitude e Longitude ficam imediatamente abaixo de Pesquisar no mapa, tanto em Adicionar quanto em Editar região. Campos de texto com teclado decimal reaproveitam `parseLocalityCoordinates`, já usado pelo editor anterior: sinal, zero, ponto/vírgula decimal e precisão numérica preservados; latitude limitada ao mapa Web Mercator e longitude a ±180.
+
+Posicionar no mapa e Enter nesses campos validam o par inteiro antes de alterar o centro. Continuar também valida/aplica um par que ainda esteja em digitação. Inválidos não movem o mapa nem autorizam avanço; um raio inválido não é corrigido silenciosamente ao aplicar coordenadas. O raio numérico preserva a digitação pendente dos campos. Pesquisa ou seleção no mapa substituem o par pelo novo ponto selecionado.
+
+O ensaio de navegador cobre entrada inválida, zero, vírgula, precisão, raio, Enter, Continuar sem aplicação anterior, sincronização da pesquisa/arraste, persistência real pelo endpoint de gestão e reabertura da região. Inclui capturas do assistente em 1440/860/390 px. A ajuda dos dois campos leva ao capítulo do mapa, ampliado com instruções completas.
+
+Não altera o contrato de região no servidor ou os dados já cadastrados. Esta inclusão acompanha a atualização pendente do ADM; não requer reset ou atualização dos aplicativos Passageiro/Motorista.

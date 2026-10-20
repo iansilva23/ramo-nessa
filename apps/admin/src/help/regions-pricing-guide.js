@@ -41,10 +41,11 @@ export const pricingGuide = [
       section('Passo 1 — Localização', [], [
         ['Nome da região', 'Obrigatório, até 100 caracteres após retirar espaços nas pontas. Use um nome reconhecível, como o nome da localidade. Não é uma tarifa.'],
         ['Pesquisar no mapa', 'Busca opcional de 3 a 160 caracteres. Informe localidade, município e estado para reduzir ambiguidades. Clique em Buscar e depois no resultado correto.'],
+        ['Latitude e Longitude', 'Abaixo da pesquisa, permitem posicionar o centro por coordenadas em graus decimais. Aceitam sinal negativo, zero, ponto ou vírgula decimal. Use Posicionar no mapa ou Continuar para conferir o par digitado.'],
         ['Município', 'Obrigatório, até 100 caracteres. As sugestões ajudam a digitar; não substituem sua conferência. Selecionar um resultado no mapa não preenche automaticamente município e estado.'],
         ['Estado', 'Selecione a UF correta. A seleção inicial é CE; confira antes de salvar.'],
         ['Raio de cobertura (km)', 'Obrigatório, de 0,05 a 100 km. O campo usa incrementos de 0,05 km. 0,05 km equivale a 50 metros.'],
-        ['Ponto no mapa', 'Em uma região nova, clique no mapa ou escolha um resultado para confirmar o centro. O ponto inicial de visualização do mapa não conta como sua seleção.']
+        ['Ponto no mapa', 'Em uma região nova, clique no mapa, escolha um resultado ou aplique Latitude e Longitude para confirmar o centro. O ponto inicial de visualização do mapa não conta como sua seleção.']
       ]),
       section('Passo 2 — Operação', [
         'Marque as categorias permitidas nessa região. Selecionar aqui não ativa uma categoria desativada e não implementa suporte para um tipo novo. Região ativa permite seu uso em novas operações quando os demais requisitos estiverem válidos.',
@@ -72,6 +73,15 @@ export const pricingGuide = [
         ['Botões + e −', 'Aproximam ou afastam a visualização. Zoom não muda o raio nem o preço.'],
         ['Fundo do mapa', 'Arrastar o fundo desloca a visualização. Clicar para selecionar um ponto altera o centro; confira o alfinete antes de continuar.'],
         ['Teclado', 'Com o alfinete em foco, as setas movem o centro. No controle de raio, direita/cima aumentam e esquerda/baixo diminuem em 0,05 km. Tab permite alcançar os controles.']
+      ]),
+      section('Digitar Latitude e Longitude', [
+        'Os dois campos ficam logo abaixo de Pesquisar no mapa. Latitude é a posição norte/sul; longitude é leste/oeste. Use graus decimais e mantenha a ordem dos campos. Para posições da região de Jeri/Preá, os dois números normalmente têm sinal negativo.',
+        'Cole ou digite somente o número em cada campo. Aceita ponto ou vírgula decimal e espaços nas pontas. Não aceita coordenadas em graus/minutos/segundos, texto, par completo no mesmo campo, notação científica, NaN ou infinito. Latitude precisa ficar entre −85,05112878 e 85,05112878 e longitude entre −180 e 180.',
+        'Posicionar no mapa valida o par inteiro, centraliza o mapa e move alfinete/círculo juntos. Enter dentro de um desses campos faz a mesma conferência, sem enviar o cadastro. Enquanto você digita, o mapa não se move a cada tecla. Continuar também aplica um par digitado válido antes de avançar.',
+        'Se um valor estiver vazio ou inválido, aparece um erro e o mapa permanece no último ponto válido. Continuar não aceita avançar com coordenadas digitadas inválidas. Corrija o par ou selecione novamente um ponto no mapa.',
+        'Escolher um resultado de busca, clicar no mapa ou mover o alfinete atualiza os dois campos. Ajustar apenas o raio pelo campo numérico mantém as coordenadas ainda em digitação. Selecionar um novo ponto pelo mapa ou pesquisa substitui o par que estava digitado.',
+        'Os campos guardam a precisão numérica aceita pelo sistema, sem arredondar o valor para a quantidade de casas do resumo visual. Ao editar uma região, mostram as coordenadas já salvas. Posicionar o ponto não salva a região: confira município, estado, raio e categorias e conclua Salvar região.',
+        'O botão de posicionar não preenche o município/estado e não calcula preço. Coordenada válida pode estar longe da sua área de operação; confira visualmente o ponto antes de salvar. O raio deve ser preenchido dentro dos limites; aplicar coordenadas não corrige silenciosamente um raio inválido.'
       ]),
       section('O que o círculo significa', [
         'Raio é a distância do centro até a borda; diâmetro é a largura inteira, equivalente a duas vezes o raio. Um raio de 1 km forma um círculo de 2 km de diâmetro. Esse exemplo é geográfico e não define preço.',
@@ -399,7 +409,8 @@ export const pricingGuide = [
     'erro inválido falha problema ajuda indisponibilidade autorização acesso duplicado conflito rota autenticação busca',
     ['backend/core/src/pricing/managed-operations.ts', 'backend/core/src/pricing/management-service.ts', 'backend/core/src/pricing/management-routes.ts'], [
       section('Validações de cadastro', [], [
-        ['Selecione o ponto da região no mapa', 'Confirme o centro clicando no mapa ou escolhendo um resultado. Apenas digitar nome/município não posiciona uma região nova.'],
+        ['Selecione o ponto da região no mapa', 'Confirme o centro clicando no mapa, escolhendo um resultado ou aplicando Latitude e Longitude. Apenas digitar nome/município não posiciona uma região nova.'],
+        ['Informe latitude entre… e longitude entre…', 'Preencha os dois campos com graus decimais válidos. Ponto ou vírgula são aceitos; mantenha o sinal negativo quando fizer parte da coordenada. O ponto anterior não foi substituído pela tentativa inválida.'],
         ['Digite pelo menos três caracteres / Busca indisponível', 'Use de 3 a 160 caracteres. Se o serviço de pesquisa estiver indisponível, selecione manualmente no mapa e confira os campos administrativos.'],
         ['Ative a categoria nas duas regiões antes de ativar a tarifa', 'Confira região e categoria ativas, não arquivadas, e a seleção no passo Operação de ambas as regiões.'],
         ['Já existe uma tarifa deste tipo para esta rota, categoria e período', 'Edite a existente ou retire a duplicação de direção/período. Ida e volta marcadas também cobrem o sentido inverso.'],
@@ -427,7 +438,7 @@ export const pricingGuide = [
 ];
 
 export const helpTopicForLabel = Object.freeze({
-  'Nome da região':'region', 'Pesquisar no mapa':'map', 'Município':'region', 'Estado':'region', 'Raio de cobertura (km)':'map',
+  'Nome da região':'region', 'Pesquisar no mapa':'map', 'Latitude':'map', 'Longitude':'map', 'Município':'region', 'Estado':'region', 'Raio de cobertura (km)':'map',
   'Nome':'category', 'Descrição curta':'category', 'Ícone':'category', 'Quantidade máxima de passageiros':'category',
   'Nome da tarifa':'rate', 'Forma de cobrança':'fixed', 'Categoria':'category', 'Origem':'rate', 'Destino':'rate',
   'Preço (R$)':'rate', 'Valor mínimo (R$)':'distance', 'Passageiros incluídos':'extras', 'Adicional por passageiro extra (R$)':'extras',

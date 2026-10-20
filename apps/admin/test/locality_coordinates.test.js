@@ -12,6 +12,13 @@ test('empty, malformed or unrepresentable coordinates never reposition the map',
   }
 });
 
+test('coordinate boundaries and full accepted precision are preserved',()=>{
+  assert.deepEqual(parseLocalityCoordinates('-85,05112878','180'),{latitude:-85.05112878,longitude:180});
+  assert.deepEqual(parseLocalityCoordinates('85.05112878','-180'),{latitude:85.05112878,longitude:-180});
+  assert.deepEqual(parseLocalityCoordinates('-2.820000123456','-40,400000987654'),{latitude:-2.820000123456,longitude:-40.400000987654});
+  for(const pair of [['85.05112879','0'],['0','-180.0000001'],['Infinity','0'],['0','-Infinity'],['-2°49\'','-40'],['-2,8,-40,4','0']])assert.throws(()=>parseLocalityCoordinates(...pair));
+});
+
 test('coordenadas digitadas substituem o ponto anterior sem perder o raio do mapa', () => {
   assert.deepEqual(
     localitySelectionFromInputs(
@@ -26,3 +33,4 @@ test('coordenadas digitadas substituem o ponto anterior sem perder o raio do map
     /latitude/i,
   );
 });
+
