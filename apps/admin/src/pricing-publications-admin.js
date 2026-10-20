@@ -101,7 +101,8 @@ export function createPricingPublicationsAdmin({
   }
   function renderVersions(payload) {
     const items = Array.isArray(payload?.items) ? payload.items : [];
-    drafts = items.filter(version => version.status === 'draft');
+    drafts = items.filter(version => version.status === 'draft')
+      .sort((a, b) => Number(b.versionNumber) - Number(a.versionNumber));
     const effective = items.find(version =>
       version.id === payload?.effectiveVersionId);
     byId('publication-active').textContent = effective
