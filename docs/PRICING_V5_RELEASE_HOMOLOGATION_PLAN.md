@@ -54,3 +54,25 @@ A proteção de publicação sem diferenças foi reforçada tanto na disponibili
 **Critérios ainda não encerrados:** validação visual manual em aparelhos reais; aceite comercial de tarifas; inventário das 26 atribuições municipais pendentes; limites de operação no dispatch real; integração de produção e rollback controlado. Um CI verde não aprova automaticamente estes critérios. Nenhuma dessas aprovações pode ser inferida dos testes automatizados.
 
 **Restrições:** manter o PR #35 em DRAFT; não publicar, não mesclar e não alterar VPS, financeiro, credenciais, tarifas reais ou o card protegido do Passageiro.
+
+## Fechamento de evidências automatizadas — 20/10/2026, PR #35
+
+**HEAD verificado:** `6f77b9883f75f1f3d6611af5d0f6f3e8b0265d19`.
+**CI verificado:** [39443879723](https://github.com/iansilva23/ramo-nessa/actions/runs/39443879723), 7/7 jobs com sucesso (Core, PostgreSQL 16 descartável, ADM regressão, Chromium, Flutter passageiro, motorista e design system).
+
+### Casos cobertos por testes do Core (simulação, sem tráfego real)
+- Classificação de GPS e validação de geocerca, coordenadas e identificadores inválidos.
+- Matriz de 160 combinações de 4 referências geográficas × 4 destinos × 5 categorias × 2 períodos, com distância sintética; não reproduz uma rota real.
+- Elegibilidade 4x4 no corredor da Vila e aplicação do snapshot da corrida na seleção de motoristas.
+- Bloqueio de motorista offline/ocupado/com reserva de outra corrida/GPS desatualizado/capacidade ou categoria incompatíveis.
+- Despacho apenas quando estado da corrida e status do pagamento permitem; estados simulados de aceite, busca, cancelamento, nova tentativa, reembolso e conclusão.
+- **Não foram executados** pagamentos, reembolsos ou despachos de produção.
+
+### Fronteira de aceite — o que falta comprovar fora dos testes
+1. **Fluxo end-to-end real em ambiente de homologação isolada:** Apps Passageiro/Motorista ↔ Gateway ↔ Core ↔ banco, cotação exibida/assinada/paga, confirmação e oferta com reserva de 35s, cancelamentos e atualização de estado. Testes unitários de máquina de estados não substituem isso.
+2. **Geografia/Google Maps:** GPS em aparelho, distância de rota em ida e volta, precisão e geocercas, roteamento indisponível e consistência da zona tarifária. Não disparar chamadas pagas sem autorização.
+3. **Comercial/municípios:** reconciliar diferenças de preços fixos, parâmetros/km ainda não aprovados e 26 atribuições de localidade municipais pendentes. Não publicar tarifa nem habilitar município por inferência.
+4. **Segurança/financeiro:** assinatura/versão do preço, idempotência e conciliação de pagamentos e reembolsos com fornecedores em sandbox próprio quando permitido; não alterar integrações existentes.
+5. **Aceite visual e operação:** verificações manuais Android/iOS/Web/ADM, papéis administrativos e evidências de backup/rollback antes de qualquer proposta de deploy.
+
+**Decisão:** concluir a fase de regressão automatizada atual como aprovada para o HEAD informado, sem reabrir o ADM por cosmética. A fase de homologação operacional **NÃO está encerrada**. Manter PR #35 DRAFT, sem merge, VPS ou publicação.
