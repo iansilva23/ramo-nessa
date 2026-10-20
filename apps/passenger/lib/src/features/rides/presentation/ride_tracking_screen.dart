@@ -491,7 +491,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _dropoff(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.dropoffLatitude;
     final longitude = snapshot?.dropoffLongitude;
-    if (!TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+    if (latitude == null || longitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
       return null;
     }
 
