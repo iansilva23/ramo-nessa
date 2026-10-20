@@ -51,6 +51,14 @@ test('política pública expõe somente disponibilidade operacional necessária 
     catalogVersionNumber: 7,
   });
 
+  // Shared transfer/geofence metadata is global; never duplicate it for
+  // every locality (the app only needs localityId + enabledCategories).
+  for (const localities of [view.localityPolicies.prea, view.localityPolicies.jijoca]) {
+    for (const locality of localities) {
+      assert.deepEqual(Object.keys(locality).sort(), ['enabledCategories','localityId']);
+    }
+  }
+  assert.ok(Array.isArray(view.localityGeofences));
   assert.equal('commissionBps' in view, false);
   assert.equal('localities' in view, false);
   assert.equal('surcharges' in view, false);
