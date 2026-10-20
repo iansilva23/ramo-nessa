@@ -54,6 +54,52 @@ void main() {
     await realtime.close();
   });
 
+  testWidgets('fluxo real da tela anima busca até viagem em celular 320px',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final realtime = _FakeRealtimeService();
+
+    await tester.pumpWidget(MaterialApp(
+      home: RideTrackingScreen(
+        rideId: 'ride-1',
+        remainingWalletCents: null,
+        trackingService: _FakeTrackingService(),
+        realtimeService: realtime,
+        networkTilesEnabled: false,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Procurando motorista'), findsOneWidget);
+
+    for (final step in <(String, String)>[
+      ('DRIVER_ASSIGNED', 'Seu motorista está a caminho'),
+      ('DRIVER_ARRIVED', 'Seu motorista chegou'),
+      ('IN_PROGRESS', 'Corrida em andamento'),
+      ('COMPLETED', 'Corrida finalizada'),
+    ]) {
+      realtime.add(PassengerRideTrackingSnapshot(
+        rideId: 'ride-1',
+        state: step.$1,
+        category: 'car',
+        pickupLatitude: -2.82,
+        pickupLongitude: -40.41,
+        dropoffLatitude: -2.8986,
+        dropoffLongitude: -40.4506,
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(step.$2), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await realtime.close();
+  });
+
   testWidgets('passageiro avalia motorista após corrida concluída',
       (tester) async {
     final service = _RatingTrackingService();
