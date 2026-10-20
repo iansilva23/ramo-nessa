@@ -78,3 +78,41 @@ test('identidade de GPS falsa não transforma ponto remoto em localidade tarifá
   },catalog),(error:unknown)=>error instanceof PricingError &&
     error.code==='UNKNOWN_LOCALITY');
 });
+
+test('coordenadas inválidas não podem validar referências tarifárias', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const reference = fixtures[0]!;
+  const invalidPoints = [
+    {latitude:Number.NaN,longitude:reference.point.longitude},
+    {latitude:Number.POSITIVE_INFINITY,longitude:reference.point.longitude},
+    {latitude:reference.point.latitude,longitude:Number.NEGATIVE_INFINITY},
+    {latitude:91,longitude:reference.point.longitude},
+    {latitude:-91,longitude:reference.point.longitude},
+    {latitude:reference.point.latitude,longitude:181},
+    {latitude:reference.point.latitude,longitude:-181},
+  ];
+  for (const point of invalidPoints) {
+    for (const field of ['origin','destination'] as const) {
+      assert.throws(() => assertPricingLocationMatchesPoint({
+        catalog,ref:reference.ref,point,field,
+      }), PricingLocationMismatchError);
+    }
+  }
+});
+
+test('coordenada local não pode ser declarada destino externo sem prova', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const prea = fixtures[0]!;
+  assert.throws(() => assertPricingLocationMatchesPoint({
+    catalog,
+    ref:{zoneId:'external',localityId:'airport-jjd'},
+    point:prea.point,
+    field:'destination',
+  }), PricingLocationMismatchError);
+  assert.throws(() => assertPricingLocationMatchesPoint({
+    catalog,
+    ref:{zoneId:'external'},
+    point:prea.point,
+    field:'destination',
+  }), PricingLocationMismatchError);
+});
