@@ -14,6 +14,8 @@ import {
   updatePricingCatalogDraft,
 } from '../src/pricing/pricing-catalog-version-service.js';
 import { parsePricingCatalogDraftPatch } from '../src/pricing/pricing-catalog-version-validation.js';
+import { resolvePricingCatalogContext } from '../src/pricing/effective-catalog.js';
+import { quoteFare } from '../src/pricing/quote-engine.js';
 
 // Intentionally runs only on the GitHub Actions PostgreSQL 16 disposable
 // container; never against a configured VPS, staging or production database.
@@ -88,6 +90,25 @@ test('Pricing V5: PostgreSQL descartável conserva rascunhos, revisões, vigênc
     assert.equal(await reload.findEffective('2026-10-20T18:00:00.000Z'), null,
       'Salvar rascunho não é publicar tarifa');
 
+    // Quotes for NEW rides use the effective catalog, never an unpublished
+    // draft, and keep the previously published amounts until the effective date.
+    const testRide = {
+      origin: { zoneId: 'prea' as const, localityId: 'prea' },
+      destination: { zoneId: 'prea' as const, localityId: 'cavalo-bravo' },
+      category: 'car' as const,
+      driverPickupDistanceKm: 0,
+    };
+    const beforePublication = await resolvePricingCatalogContext({
+      versions: reload, at: at('2026-10-20T18:00:00.000Z'),
+    });
+    assert.equal(beforePublication.version, null);
+    const quoteBeforeDay = quoteFare({ ...testRide, period: 'day' }, beforePublication.snapshot);
+    const quoteBeforeNight = quoteFare({ ...testRide, period: 'after_22' }, beforePublication.snapshot);
+    assert.equal(quoteBeforeDay.kind, 'exact');
+    assert.equal(quoteBeforeNight.kind, 'exact');
+    assert.notEqual(quoteBeforeDay.baseAmountCents, 4700);
+    assert.notEqual(quoteBeforeNight.baseAmountCents, 5300);
+
     await assert.rejects(
       () => updatePricingCatalogDraft({
         versions, admin, actor, versionId: draft.id,
@@ -127,6 +148,24 @@ test('Pricing V5: PostgreSQL descartável conserva rascunhos, revisões, vigênc
     assert.equal(effective?.id, draft.id);
     assert.equal(effective?.snapshot.localities.prea['cavalo-bravo']?.car, 4700);
     assert.equal(effective?.snapshot.localities.prea['cavalo-bravo']?.after22?.car, 5300);
+
+    const nowPublished = await resolvePricingCatalogContext({
+      versions: reload, at: at(future),
+    });
+    assert.equal(nowPublished.reference.catalogVersionId, draft.id);
+    assert.equal(nowPublished.reference.catalogVersionNumber, published.versionNumber);
+    for (const [period, expected] of [
+      ['day', 4700], ['after_22', 5300],
+    ] as const) {
+      const quote = quoteFare({ ...testRide, period }, nowPublished.snapshot);
+      assert.equal(quote.kind, 'exact');
+      assert.equal(quote.baseAmountCents, expected,
+        'O preço editado e publicado no ADM precisa chegar à nova cotação do Core');
+      assert.equal(quote.totalAmountCents, expected,
+        'Sem deslocamento de coleta adicional neste teste');
+    }
+    assert.deepEqual(STATIC_PRICING_CATALOG_V1, baseline,
+      'Publicar nova versão não pode reescrever preços no código dos aplicativos');
     await assert.rejects(
       () => updatePricingCatalogDraft({
         versions, admin, actor, versionId: draft.id,
