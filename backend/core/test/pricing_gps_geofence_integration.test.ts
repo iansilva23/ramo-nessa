@@ -229,3 +229,33 @@ test('matriz GPS → localidade → cotação percorre categorias e horários se
   assert.equal(catalog.distanceFarePolicies.length,0,
     'Não habilitar fallback regional por km durante os testes');
 });
+
+test('fronteira da Vila exige sinalização 4x4 nos dois sentidos sem impor regra dentro da zona', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const jeri = fixtures[2]!.ref;
+  const prea = fixtures[0]!.ref;
+  const jijoca = fixtures[1]!.ref;
+  const categories = ['moto','car','comfort_black','buggy','delivery'] as const;
+  for (const category of categories) {
+    for (const other of [prea,jijoca]) {
+      const departing = requiresFourByFourForTrip({
+        catalog,origin:jeri,destination:other,category,
+      });
+      const returning = requiresFourByFourForTrip({
+        catalog,origin:other,destination:jeri,category,
+      });
+      assert.equal(departing,returning,'A fronteira deve ser simétrica');
+      assert.equal(departing,
+        catalog.categoryPolicies[category].requiresFourByFourOnJeriBoundary);
+    }
+    assert.equal(requiresFourByFourForTrip({
+      catalog,origin:jeri,destination:jeri,category,
+    }),false);
+    assert.equal(requiresFourByFourForTrip({
+      catalog,origin:prea,destination:jijoca,category,
+    }),false);
+  }
+  assert.equal(requiresFourByFourForTrip({
+    catalog,origin:prea,destination:jeri,category:'car',
+  }),true,'A categoria carro deve sinalizar restrição 4x4 ao cruzar para a Vila');
+});
