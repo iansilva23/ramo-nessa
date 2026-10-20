@@ -68,3 +68,10 @@ jobs:
           assert.equal(p.offlineResetVerified,true); assert.equal(p.resetApplied,false); assert.equal(p.servicesRestarted,false);
           console.log('Candidate builds, migration parity, Caddy validation, offline reset/idempotency/restore and business preservation passed.');
           VERIFY
+      - name: Synthetic fixture diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          if test -d /opt/ramo-nessa-regions/releases; then
+            sudo find /opt/ramo-nessa-regions/releases -type f \( -name prepare-last.private.log -o -name last-cli-error.private.log \) -exec tail -c 8000 {} \;
+          fi

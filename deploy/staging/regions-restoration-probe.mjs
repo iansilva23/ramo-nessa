@@ -1,7 +1,7 @@
 // Runs exclusively against the offline restored database. No HTTP server/workers/providers.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createPostgresPool } from '/app/dist/src/db/postgres.js';
 import { resolvePricingCatalogContext } from '/app/dist/src/pricing/effective-catalog.js';
@@ -25,6 +25,7 @@ async function fingerprint() {
 }
 function cli(args) {
   const r = spawnSync('node', ['dist/scripts/prepare-regions-catalog.js', ...args], {encoding:'utf8', env:process.env});
+  if(r.status!==0)writeFileSync('/audit/data/last-cli-error.private.log',String(r.stdout??'')+String(r.stderr??''),{mode:0o600});
   assert.equal(r.status, 0, 'CLI de catálogo falhou na cópia isolada; saída privada omitida.');
   return JSON.parse(r.stdout.trim());
 }
@@ -42,6 +43,10 @@ try {
   const prepared = await resolvePricingCatalogContext({versions});
   const ops = prepared.snapshot.managedOperations;
   assert.ok(ops); assert.equal(ops.regions.length,3); assert.equal(ops.rates.length,0);
+  assert.equal(prepared.snapshot.localityGeofences.length,3);
+  assert.deepEqual(prepared.snapshot.externalLocalities,[]);
+  assert.deepEqual(prepared.snapshot.fixedRoutes,[]);
+  assert.deepEqual(prepared.snapshot.distanceFarePolicies,[]);
   assert.deepEqual(ops.categories.map(c=>c.id).sort(), [...original.categories].sort());
   assert.equal(cli(args).result,'ALREADY_APPLIED_NO_CHANGE');
   assert.deepEqual(await fingerprint(),before);

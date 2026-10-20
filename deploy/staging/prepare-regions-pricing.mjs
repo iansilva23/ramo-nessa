@@ -24,14 +24,15 @@ export async function prepare(argv) {
   if(hash(manifestBytes)!==manifestHash)throw Error('Manifesto de backup divergente.');
   const manifest=JSON.parse(manifestBytes);
   if(manifest.databaseRestoredInIsolation!==true||manifest.resetApplied!==false||manifest.servicesRestarted!==false)throw Error('Backup não aprovado para preparação.');
-  function run(cmd,args,extra={}) {const r=spawnSync(cmd,args,{encoding:'utf8',maxBuffer:64*1024**2,stdio:['ignore','pipe','pipe'],...extra});if(r.status!==0||r.error)throw Error('Etapa '+cmd+' falhou; saída privada omitida.');return r.stdout;}
+  let failureDirectory;
+  function run(cmd,args,extra={}) {const r=spawnSync(cmd,args,{encoding:'utf8',maxBuffer:64*1024**2,stdio:['pipe','pipe','pipe'],...extra});if(r.status!==0||r.error){if(failureDirectory)writeFileSync(join(failureDirectory,'prepare-last.private.log'),String(r.stdout??'')+String(r.stderr??''),{mode:0o600});throw Error('Etapa '+cmd+' falhou; saída privada omitida.');}return r.stdout;}
   async function fileHash(path){const h=createHash('sha256');for await(const b of createReadStream(path))h.update(b);return h.digest('hex');}
   console.log('Conferindo integridade do backup e identidade dos serviços atuais...');
   for(const f of manifest.files){if(!/^[a-zA-Z0-9.-]+$/.test(f.name))throw Error('Nome de arquivo de backup inválido.');const p=join(backup,f.name),s=lstatSync(p);if(!s.isFile()||s.isSymbolicLink()||s.uid!==0||(s.mode&0o077)||s.size!==f.bytes||await fileHash(p)!==f.sha256)throw Error('Arquivo do backup não confere: '+f.name);}
   const saved=JSON.parse(readFileSync(join(backup,'runtime.private.json')));
   const inspect=()=>Object.fromEntries(Object.entries(roles).map(([role,name])=>[role,JSON.parse(run('docker',['inspect',name]))[0]]));
   const before=inspect(),expected={'core-image':saved.core.Image,'gateway-image':saved.gateway.Image}; validate(before,expected);
-  const stable=c=>JSON.stringify([c.Id,c.Image,c.State.StartedAt,c.Config,c.Mounts]);
+  const stable=c=>JSON.stringify([c.Id,c.Image,c.State.StartedAt,c.Config,c.HostConfig,c.Mounts,c.NetworkSettings.Networks]);
   for(const role of Object.keys(roles))if(before[role].Id!==manifest.runtimeIds[role]||stable(before[role])!==stable(saved[role]))throw Error('Runtime mudou desde o backup: '+role);
   const sql=q=>run('docker',['exec',roles.postgres,'sh','-lc','exec env PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -c "$1"','regions-prepare-read-only',"BEGIN READ ONLY; SET LOCAL statement_timeout='10s'; "+q+'; COMMIT;']);
   const migrationSQL='SELECT json_agg(t ORDER BY filename) FROM (SELECT filename,checksum FROM schema_migrations) t';
@@ -42,6 +43,7 @@ export async function prepare(argv) {
   if(existsSync(release))throw Error('Preparação já existe. Não foi sobrescrita; envie o resultado anterior.');
   const disk=statfsSync(root);if(disk.bavail*disk.bsize<3*1024**3)throw Error('Reserve pelo menos 3 GiB livres para imagens e banco isolado.');
   mkdirSync(release,{mode:0o700});
+  failureDirectory=release;
   const save=(name,data)=>writeFileSync(join(release,name),data,{mode:0o600,flag:'wx'});
   const git=(...args)=>run('git',['-c','safe.directory=/opt/ramo-nessa','-C','/opt/ramo-nessa',...args]);
   const archive=run('git',['-c','safe.directory=/opt/ramo-nessa','-C','/opt/ramo-nessa','archive',revision,'backend/core','apps/admin'],{encoding:null});
