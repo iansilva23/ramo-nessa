@@ -46,7 +46,7 @@ A execução do workflow Regions and Pricing - Web Review verifica:
 As capturas usam dados sintéticos e tiles substituídos. Não comprovam Google Maps, GPS ou provedores reais. Bundles de revisão apontam para example.invalid e não são pacotes conectados à VPS.
 
 ## Limites de implantação e aceite real
-- A revisão efetivamente ativa no Gateway/VPS e o inventário do banco real não foram verificados nesta sessão. Conferir imagens, revisão, catálogo efetivo e dependências antes de aplicar o plano.
+- Os dois relatórios reais do operador foram recebidos. O Core corresponde à referência financeira anterior e os cinco arquivos do ADM à base V5. O catálogo ainda é legado. Backup/restauração e ativação continuam separados do diagnóstico.
 - Android/iOS não foram compilados, atualizados ou testados em aparelhos. Os diretórios nativos e o comportamento legado permanecem preservados nesta branch.
 - Clientes nativos já instalados não foram homologados com managedOperations. Esse modo exige coordenadas e sessão na cotação. Não ativar em backend de produção compartilhado sem definir e validar a compatibilidade dos clientes existentes após o aceite Web.
 - A navegação/login completos do ADM não fazem parte do harness de navegador: ele monta o controlador real no shell existente com sessões sintéticas. Rotas e aliases são verificados também pela suíte de navegação do ADM.
@@ -79,7 +79,7 @@ Os artefatos da execução incluem as capturas `regions-pricing-browser-evidence
 - Se houver vários containers PostgreSQL, não escolhe um automaticamente. A opção --postgres-container exige um PostgreSQL Ramo Nessa já em execução.
 - Não gera backup, não aplica plano, não altera arquivos/configuração, não cria imagens e não reinicia serviços. O inventário não substitui o backup nem a revisão das dependências.
 
-Nesta sessão não houve acesso SSH direto. A tentativa de consultar health/ready pela navegação disponível também não permitiu verificar o host. Por isso, a conferência real continua pendente; não se concluiu que o ambiente estava acessível ou indisponível.
+Nesta sessão não houve acesso SSH direto. A tentativa de consultar health/ready pela navegação disponível também não permitiu verificar o host. Os relatórios executados pelo operador posteriormente permitiram conferir o runtime; isso não fornece acesso SSH direto ao agente.
 
 Execução no terminal já existente da VPS, sem checkout/merge:
 ```bash
@@ -104,7 +104,7 @@ Código verificado: `6472c875b974d0c6cae6b8785374e1cfafecb996`.
 
 Os dois testes ainda ignorados na suíte PostgreSQL completa tratam de entrega de OTP persistida e de uma migração/preferência com sessão, sob guardas próprias. Não são declarados aprovados. O resultado anterior de 51 ignorados era da suíte sem banco; esta execução ampliada valida as integrações então não exercitadas, exceto esses dois casos.
 
-Continuam pendentes o diagnóstico real da VPS/banco, provedores externos, aparelhos reais e aceite do proprietário. Nenhum teste conectou-se a Google, Asaas, Mercado Pago, VPS ou banco reais.
+Continuam pendentes provedores externos, aparelhos reais e aceite do proprietário. O diagnóstico real da VPS/banco foi recebido posteriormente do operador. Nenhum teste conectou-se a Google, Asaas, Mercado Pago, VPS ou banco reais.
 
 ## Preparação para o ambiente instalado — 20/10/2026
 O primeiro inventário do operador confirmou que checkout, imagens e catálogo podem ter revisões diferentes. Um label ausente não prova a origem da imagem; por isso o comando de leitura ganhou a opção `--runtime-files`.
@@ -113,7 +113,7 @@ Essa opção calcula assinaturas do JavaScript compilado do Core, por área, do 
 
 [Quatro referências compiladas](https://github.com/iansilva23/ramo-nessa/actions/runs/39500465201) permitem comparar o runtime com a integração financeira, a referência indicada pela tag V5, a base #35 e a candidata de Regiões e preços. O grupo de pagamentos tem a mesma assinatura nas quatro referências:
 `b2ae90d9dc642bc696f8cd9f9838bf53ee72ec912532789a655102112316630d`.
-Essa paridade é evidência entre fontes auditadas, não confirmação automática da imagem da VPS. A assinatura real ainda precisa ser recebida e comparada.
+O segundo relatório do operador confirmou a assinatura integral compilada do Core na referência financeira e os cinco hashes do ADM na base V5. A área de pagamentos corresponde também à candidata. As origens instaladas de Core e ADM são diferentes; essa evidência não explica, sozinha, todos os problemas funcionais.
 
 [Pacotes Web configurados, sem deploy](https://github.com/iansilva23/ramo-nessa/actions/runs/39500699215), na revisão `fa5ad133c06721b5d9e48468a5e61a7fbd384c95`: Passageiro e Motorista compilados com base-href dos caminhos existentes, Core na mesma origem e configuração pública Firebase/Maps já existente. Artefato `ramo-v5-configured-web-homologation`, ID `12299797049`, digest `sha256:ea823ef57c06ce1026565e0dbde74a0a72bb1125988761793900eea7b67445cb`, retenção do GitHub Actions até 03/11/2026. Diferem dos bundles example.invalid da suíte de revisão. Sua compilação não comprova mapas, sessão ou pagamentos no ambiente conectado.
 
@@ -132,3 +132,15 @@ CONFERIR_ARQUIVOS
 A conferência é somente leitura. Backup verificado, preparação do catálogo e ativação são etapas posteriores. Não executar os scripts antigos de Asaas/GeoAgent para esta atualização: eles têm contratos e imagens de outras etapas.
 
 [Revisão Web final desta etapa](https://github.com/iansilva23/ramo-nessa/actions/runs/39501498518), código `41229ad0a9ea5c7e7770eec1324685c33769d051`: seis jobs aprovados, incluindo Chromium/WebKit com três reaberturas consecutivas do editor, arraste e teclado. A automação aguarda a pintura do mapa antes de medir o alfinete. O diff desde o build configurado contém somente um teste do ADM e o CLI/teste do plano; nenhum código dos aplicativos mudou após a compilação configurada.
+
+## Backup específico desta atualização
+`deploy/staging/backup-regions-pricing.mjs` aceita somente as duas imagens exatas previamente auditadas. Não usa o checkout antigo para resolver Compose ou configurações. Exige serviços atuais saudáveis, documentos e mounts Web/Caddy esperados, além de espaço para cópia e restauração.
+
+- Preserva o dump lógico do banco, todos os mounts de Core/Gateway (incluindo documentos, Web e Caddy), imagens dos cinco serviços e arquivos Compose identificados pelo runtime.
+- O inventário Docker completo, incluindo o ambiente efetivo, é guardado somente em pasta root 0700/arquivos 0600 na VPS. **O backup contém segredos e dados pessoais: não anexar seus arquivos ao PR nem colar seu conteúdo no chat.**
+- Restaura o dump em PostgreSQL descartável com `--network none`, sem expor portas, executar Core ou usar credenciais dos provedores. Confere migrations e lê todas as tabelas públicas restauradas. Arquivos tar são listados e têm SHA-256 registrado; documentos não são declarados restaurados apenas por isso.
+- Reconfere runtime/configurações/migrations antes de emitir `BACKUP_VERIFICADO`. Falhas mantêm pasta `.incomplete`; só recursos descartáveis criados pela execução são removidos. Nenhum serviço ativo é reiniciado e nenhum reset/migration é aplicado.
+- A verificação não é uma cópia do disco inteiro nem sincronização transacional dos uploads com o dump. Atividade concorrente legítima pode ocorrer; os valores restaurados são registrados privadamente, sem exigir igualdade com contagens vivas posteriores.
+- Não restaura banco ativo automaticamente. O retorno de código/configuração e a restauração de catálogo como nova versão são etapas distintas; restaurar um banco antigo pode perder transações posteriores.
+
+A suíte `Regions and Pricing - Backup Review` testa guardas e executa backup/restauração reais em Docker com dados exclusivamente sintéticos no runner. O resultado real da VPS ainda deve ser recebido antes de declarar o backup concluído.
