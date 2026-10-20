@@ -9,6 +9,7 @@ import {
   selectDriverForDispatch,
 } from '../src/matching/select-driver.js';
 import type { RideRecord } from '../src/rides/ride.js';
+import { transitionRide, RideStateError } from '../src/rides/ride-state.js';
 import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 
@@ -320,4 +321,23 @@ test('indisponibilidade do motorista impede despacho mesmo com pagamento confirm
   assert.deepEqual(rankEligibleDrivers({ride:currentRide,pickup,candidates,now}),[]);
   assert.throws(()=>selectDriverForDispatch({ride:currentRide,pickup,candidates,now}),
     (error:unknown)=>error instanceof Error && error.message.includes('Nenhum motorista elegível'));
+});
+
+test('aceite, recusa e cancelamento respeitam os estados autorizados da corrida', () => {
+  assert.equal(transitionRide('SEARCHING_DRIVER','DRIVER_ASSIGNED'),'DRIVER_ASSIGNED');
+  assert.equal(transitionRide('SEARCHING_DRIVER','NO_DRIVER_FOUND'),'NO_DRIVER_FOUND');
+  assert.equal(transitionRide('NO_DRIVER_FOUND','SEARCHING_DRIVER'),'SEARCHING_DRIVER');
+  assert.equal(transitionRide('DRIVER_ASSIGNED','CANCELLED_BY_DRIVER'),'CANCELLED_BY_DRIVER');
+  assert.equal(transitionRide('CANCELLED_BY_DRIVER','SEARCHING_DRIVER'),'SEARCHING_DRIVER');
+  assert.equal(transitionRide('CANCELLED_BY_DRIVER','REFUND_PENDING'),'REFUND_PENDING');
+  assert.equal(transitionRide('REFUND_PENDING','REFUNDED'),'REFUNDED');
+  for (const [from,to] of [
+    ['AWAITING_PAYMENT','DRIVER_ASSIGNED'],
+    ['SEARCHING_DRIVER','IN_PROGRESS'],
+    ['NO_DRIVER_FOUND','DRIVER_ASSIGNED'],
+    ['REFUNDED','SEARCHING_DRIVER'],
+    ['COMPLETED','REFUND_PENDING'],
+  ] as const) {
+    assert.throws(()=>transitionRide(from,to),RideStateError);
+  }
 });
