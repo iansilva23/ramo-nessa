@@ -41,7 +41,7 @@ function canonical(value,key='') {
   if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k],k)]));
   return value;
 }
-export const runtimeIdentity = item => JSON.stringify(canonical([item.Id,item.Image,item.State.StartedAt,item.Config,item.HostConfig,item.Mounts,item.NetworkSettings.Networks]));
+export const runtimeIdentity = item => JSON.stringify(canonical({Id:item.Id,Image:item.Image,StartedAt:item.State.StartedAt,Config:item.Config,HostConfig:item.HostConfig,Mounts:item.Mounts,Networks:item.NetworkSettings.Networks}));
 const stable=runtimeIdentity;
 export async function backup(argv) {
   const expected = options(argv);
