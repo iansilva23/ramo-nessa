@@ -283,3 +283,26 @@ test('busca não seleciona motorista reservado por outra corrida', () => {
   });
   assert.deepEqual(ranked.map(item=>item.supply.driverId),['free-driver']);
 });
+
+test('reserva vencida libera motorista e reserva da mesma corrida não bloqueia', () => {
+  const currentRide = ride();
+  const ranked = rankEligibleDrivers({
+    ride: currentRide,
+    pickup: {latitude:-2.82017,longitude:-40.41467},
+    candidates: [
+      supply('held-other-active',{
+        reservedRideId:'other-ride',reservedUntil:'2026-09-23T12:01:00.000Z',
+      }),
+      supply('held-other-expired',{
+        reservedRideId:'other-ride',reservedUntil:'2026-09-23T11:59:59.000Z',
+        latitude:-2.822,
+      }),
+      supply('held-same-ride',{
+        reservedRideId:currentRide.id,reservedUntil:'2026-09-23T12:01:00.000Z',
+        latitude:-2.823,
+      }),
+    ],now,
+  });
+  assert.deepEqual(ranked.map(item=>item.supply.driverId),
+    ['held-other-expired','held-same-ride']);
+});
