@@ -74,6 +74,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Procurando motorista'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'estado inicial de busca em 320px');
 
     for (final step in <(String, String)>[
       ('DRIVER_ASSIGNED', 'Seu motorista está a caminho'),
@@ -93,7 +94,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text(step.$2), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNull,
+          reason: 'estado ${step.$1} em tela de 320px');
     }
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
