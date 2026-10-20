@@ -56,8 +56,28 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
 
+        // Material buttons use a standalone text style which does not
+        // necessarily inherit the font loaded for regular Text widgets.
+        // Override it in this screenshot harness ONLY; runtime themes stay
+        // exactly as they were. Otherwise Flutter Test paints Ahem blocks
+        // instead of the CTA text in the captured images.
+        final baseTheme = dark ? RamoTheme.dark : RamoTheme.light;
+        final captureTheme = baseTheme.copyWith(
+          filledButtonTheme: FilledButtonThemeData(
+            style: baseTheme.filledButtonTheme.style?.copyWith(
+              textStyle: const WidgetStatePropertyAll<TextStyle>(
+                TextStyle(
+                  fontFamily: 'Roboto',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ),
+          ),
+        );
         await tester.pumpWidget(MaterialApp(
-          theme: dark ? RamoTheme.dark : RamoTheme.light,
+          theme: captureTheme,
           home: RepaintBoundary(
             key: const Key('visual-review-screen'),
             child: Scaffold(
