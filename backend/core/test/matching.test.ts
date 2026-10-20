@@ -258,3 +258,28 @@ test('política publicada de corredor 4x4 chega ao matching via snapshot da corr
       supply('return-4x4',{fourByFour:true})],now,
   }).map(row=>row.supply.driverId),['return-4x4']);
 });
+
+test('estado PAID sem pagamento confirmado não libera busca de motorista', () => {
+  for (const paymentStatus of ['pending','failed'] as const) {
+    assert.throws(() => selectDriverForDispatch({
+      ride:ride({state:'PAID',paymentStatus}),
+      pickup:{latitude:-2.82017,longitude:-40.41467},
+      candidates:[supply('driver-paid-state-only')],
+      now,
+    }));
+  }
+});
+
+test('busca não seleciona motorista reservado por outra corrida', () => {
+  const ranked = rankEligibleDrivers({
+    ride:ride(),
+    pickup:{latitude:-2.82017,longitude:-40.41467},
+    candidates:[
+      supply('reserved-other',{reservedRideId:'another-ride',
+        reservedUntil:'2026-09-23T12:01:00.000Z'}),
+      supply('free-driver',{latitude:-2.83}),
+    ],
+    now,
+  });
+  assert.deepEqual(ranked.map(item=>item.supply.driverId),['free-driver']);
+});
