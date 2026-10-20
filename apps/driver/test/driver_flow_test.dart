@@ -226,7 +226,18 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('Cheguei'), findsOneWidget);
-    expect(tester.takeException(), isNull, reason: 'coleta 320 px');
+    final coletaError = tester.takeException();
+    if (coletaError != null) {
+      final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
+      for (var index = 0; index < lines.length; index++) {
+        if (lines[index].contains('OVERFLOWING')) {
+          final start = index - 4 < 0 ? 0 : index - 4;
+          final end = index + 7 < lines.length ? index + 7 : lines.length;
+          debugPrint('RENDER_OVERFLOW_COLETA: ${lines.sublist(start, end).join('\n')}');
+        }
+      }
+    }
+    expect(coletaError, isNull, reason: 'coleta 320 px');
 
     await tester.ensureVisible(find.text('Cheguei'));
     await tester.tap(find.text('Cheguei'));
