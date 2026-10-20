@@ -73,6 +73,7 @@ test('originais ficam protegidos: não muda motor e mantém rotas prévias', () 
   const index = readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.match(index, /data-view="pricing"/);
   assert.match(index, /data-view="localities"/);
+  assert.match(index, /data-view="localities">\\s*<span class="nav-icon">[^<]+<\\/span>\\s*Localidades/);
   assert.match(index, /data-view="pricing-publications"/);
   const code = readFileSync(new URL('../src/pricing-publications-admin.js',import.meta.url),'utf8');
   assert.ok(!code.includes('fetch('), 'Todas as operações devem usar o cliente API com MFA');
