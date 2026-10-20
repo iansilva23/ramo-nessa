@@ -125,7 +125,7 @@ void main() {
         '{"provider":"google","distanceMeters":4200,'
         '"durationSeconds":600,"points":['
         '{"latitude":-2.7956,"longitude":-40.5142},'
-        '{"latitude":-2.81,"longitude":-40.45}],'
+        '{"latitude":-2.81,"longitude":-40.488}],'
         '"maneuvers":[]}',
         200,
         headers: {'content-type': 'application/json'},
@@ -139,7 +139,7 @@ void main() {
     );
     final route = await service.route(
       origin: const LatLng(-2.7956, -40.5142),
-      destination: const LatLng(-2.8100, -40.4500),
+      destination: const LatLng(-2.8100, -40.4880),
     );
 
     expect(captured.method, 'POST');
