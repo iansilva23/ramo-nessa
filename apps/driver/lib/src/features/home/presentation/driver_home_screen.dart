@@ -151,6 +151,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
+  int _activeRouteRequestId = 0;
   bool _navigationMode = false;
   bool _ridePanelExpanded = false;
   int _selectedTab = 0;
@@ -1814,13 +1815,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
     if (latitude == null || longitude == null) return;
 
+    final routeRequestId = ++_activeRouteRequestId;
     _lastRouteRefreshAt = now;
     try {
       final route = await service.route(
         origin: currentPosition,
         destination: LatLng(latitude, longitude),
       );
-      if (!mounted) return;
+      if (!mounted || !DriverRouteRefreshPolicy.isCurrentRouteResponse(
+        requestId: routeRequestId,
+        latestRequestId: _activeRouteRequestId,
+        requestedRideId: ride.id,
+        activeRideId: _activeRide?.id,
+        requestedDropoff: useDropoff,
+        currentDropoff: _activeRide?.state == 'IN_PROGRESS',
+      )) return;
       setState(() => _activeRoute = route);
       if (shouldFitRoute && _mapReady) {
         try {
