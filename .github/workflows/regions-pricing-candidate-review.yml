@@ -206,3 +206,10 @@ jobs:
           fi
           docker logs --tail 40 ramo-nessa-staging-core-1 || true
           docker logs --tail 40 ramo-nessa-staging-gateway-1 || true
+          sudo "$(command -v node)" --input-type=module - <<'DIFFERENCES'
+          import {existsSync,readdirSync,readFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          function differences(a,b,p='',out=[]){if(JSON.stringify(a)===JSON.stringify(b))return out;if(a&&b&&typeof a==='object'&&typeof b==='object'){for(const k of new Set([...Object.keys(a),...Object.keys(b)]))differences(a[k],b[k],p+'.'+k,out);}else out.push(p);return out;}
+          function visit(p){if(!existsSync(p))return;for(const e of readdirSync(p,{withFileTypes:true})){const f=join(p,e.name);if(e.isDirectory())visit(f);else if(['runtime-changed.private.json','runtime-difference.private.json'].includes(e.name)){const d=JSON.parse(readFileSync(f));console.log('Changed runtime fields only:',d.role,differences(d.before,d.after||d.current).slice(0,100));}}}
+          visit('/var/backups/ramo-nessa-regions');visit('/opt/ramo-nessa-regions/releases');
+          DIFFERENCES

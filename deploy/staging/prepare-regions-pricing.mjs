@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream, readFileSync, writeFileSync, mkdirSync, existsSync, lstatSync, statfsSync, readdirSync, chownSync, copyFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { validate } from './backup-regions-pricing.mjs';
+import { validate, runtimeIdentity } from './backup-regions-pricing.mjs';
 import { coreSourceFingerprintProgram } from './inspect-regions-pricing.mjs';
 const roles={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'};
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -32,7 +32,7 @@ export async function prepare(argv) {
   const saved=JSON.parse(readFileSync(join(backup,'runtime.private.json')));
   const inspect=()=>Object.fromEntries(Object.entries(roles).map(([role,name])=>[role,JSON.parse(run('docker',['inspect',name]))[0]]));
   const before=inspect(),expected={'core-image':saved.core.Image,'gateway-image':saved.gateway.Image}; validate(before,expected);
-  const stable=c=>JSON.stringify([c.Id,c.Image,c.State.StartedAt,c.Config,c.HostConfig,c.Mounts,c.NetworkSettings.Networks]);
+  const stable=runtimeIdentity;
   for(const role of Object.keys(roles))if(before[role].Id!==manifest.runtimeIds[role]||stable(before[role])!==stable(saved[role]))throw Error('Runtime mudou desde o backup: '+role);
   const sql=q=>run('docker',['exec',roles.postgres,'sh','-lc','exec env PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atq -c "$1"','regions-prepare-read-only',"BEGIN READ ONLY; SET LOCAL statement_timeout='10s'; "+q+'; COMMIT;']);
   const migrationSQL='SELECT json_agg(t ORDER BY filename) FROM (SELECT filename,checksum FROM schema_migrations) t';

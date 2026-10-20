@@ -31,7 +31,18 @@ export function validate(runtime, expected) {
   for (const m of mounts) if (!['bind', 'volume'].includes(m.Type) || !m.Source?.startsWith('/') || m.Source === '/' || /[\n,]/.test(m.Source)) throw Error('Mount não suportado; interrompido antes do backup.');
   return [...new Map(mounts.map(m => [m.Source, m])).values()];
 }
-const stable = item => JSON.stringify([item.Id, item.Image, item.State.StartedAt, item.Config, item.Mounts, item.NetworkSettings.Networks]);
+function canonical(value,key='') {
+  if(Array.isArray(value)) {
+    const rows=value.map(v=>canonical(v));
+    if(['Env','Aliases','DNSNames','CapAdd','CapDrop','SecurityOpt'].includes(key))return rows.sort();
+    if(key==='Mounts')return rows.sort((a,b)=>a.Destination.localeCompare(b.Destination));
+    return rows;
+  }
+  if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k],k)]));
+  return value;
+}
+export const runtimeIdentity = item => JSON.stringify(canonical([item.Id,item.Image,item.State.StartedAt,item.Config,item.HostConfig,item.Mounts,item.NetworkSettings.Networks]));
+const stable=runtimeIdentity;
 export async function backup(argv) {
   const expected = options(argv);
   if (process.getuid?.() !== 0) throw Error('Execute com sudo.');
@@ -118,7 +129,7 @@ export async function backup(argv) {
     void counts;
     save('restored-counts.private.txt', run('docker', ['exec', drill, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'ramo_restore', '-d', 'ramo_restore', '-Atqf', '/tmp/counts.sql']));
     const after = inspect(); validate(after, expected);
-    for (const role of Object.keys(names)) if (stable(before[role]) !== stable(after[role])) throw Error('Runtime mudou durante o backup: ' + role);
+    for (const role of Object.keys(names)) if (stable(before[role]) !== stable(after[role])) {save('runtime-changed.private.json',JSON.stringify({role,before:before[role],after:after[role]},null,2));throw Error('Runtime mudou durante o backup: ' + role);}
     if (sql('SELECT json_agg(t ORDER BY filename) FROM (SELECT filename,checksum FROM schema_migrations) t').trim() !== migrations.trim()) throw Error('Migrations ativas mudaram.');
     for (const c of configMap) if (!readFileSync(c.path).equals(readFileSync(join(destination, c.file)))) throw Error('Compose mudou durante o backup.');
     cleanup();
