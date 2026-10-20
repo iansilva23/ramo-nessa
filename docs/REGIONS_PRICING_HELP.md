@@ -24,3 +24,16 @@ Conteúdo em `apps/admin/src/help/regions-pricing-guide.js`. Cada capítulo decl
 Os testes verificam busca no conteúdo completo, ligações válidas, cobertura dos campos e opções do editor. O ensaio Chromium/WebKit está integrado ao fluxo existente de gestão: navegação, busca, ausência de chamadas de API, entrada como leitor, foco/Escape, preservação de formulário e confirmação MFA, além de capturas em 1440/860/390 px.
 
 Esta alteração precisa de uma atualização do ADM na homologação para aparecer no painel instalado. Não exige novo reset do catálogo nem reconfiguração de preços. A versão implantada anteriormente permanece até essa atualização; não inferir publicação a partir de um commit ou CI aprovado.
+
+## Resultado verificado — 20/10/2026
+Código: `d104d1f925e60aad1d0b7525a7c64152077cc61e`.
+[Revisão Web 39514657691](https://github.com/iansilva23/ramo-nessa/actions/runs/39514657691): seis jobs aprovados (ADM, Core, PostgreSQL, Chromium/WebKit, Passageiro Web e Motorista Web).
+
+- ADM: sintaxe e **166 testes aprovados**, sem falhas ou ignorados, tanto localmente quanto no runner.
+- Chromium e WebKit: busca no conteúdo, busca sem acentos, retorno sem resultados, limpeza, links relacionados, foco/teclado/Escape, leitura sem chamada de API, acesso como leitor e ausência de overflow.
+- Ajuda sobre assistente e confirmação de senha/MFA: valores e estados dos campos preservados, foco devolvido ao botão de origem, nomes dos campos continuam clicáveis para focar a entrada.
+- Fluxo existente de gestão: cadastro de região, tarifa, edição protegida, simulação, ausência de período noturno, arquivamento/restauração, arraste e teclado no mapa continuam aprovados nos dois motores.
+- Capturas da ajuda examinadas em 1440, 860 e 390 px, além da entrada no painel em tablet/celular. Evidência no artefato `regions-pricing-browser-evidence` da execução, sujeito à retenção do GitHub Actions.
+- Tipagem/testes/build do Core, integrações PostgreSQL existentes e análise/testes/build dos dois aplicativos Web aprovados. A guarda de preservação financeira/nativa passou.
+
+O ensaio utiliza autenticação/serviços reais da aplicação com repositórios em memória e provedores sintéticos no navegador. Não representa aceite no login conectado da VPS, em aparelhos reais ou em provedores externos. A ajuda segue pendente de instalação no ADM da homologação; nenhum serviço ativo foi atualizado por esta alteração.
