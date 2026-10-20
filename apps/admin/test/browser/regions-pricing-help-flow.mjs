@@ -61,6 +61,8 @@ export async function testEditorHelp(page, editor, label, topicText) {
   // The MFA dialog is created after an HTTP challenge. Wait for its controls
   // before snapshotting; evaluateAll alone does not wait for DOM insertion.
   await trigger.waitFor({state: 'visible'});
+  await editor.getByText(label, {exact: true}).click();
+  assert.equal(await editor.getByLabel(label, {exact: true}).evaluate(n => document.activeElement === n), true);
   const before = await editor.locator('input,select').evaluateAll(inputs => inputs.map(n => [n.value, n.checked, n.disabled]));
   await trigger.click();
   const manual = page.getByRole('dialog', {name: 'Ajuda e tutoriais', exact: true});

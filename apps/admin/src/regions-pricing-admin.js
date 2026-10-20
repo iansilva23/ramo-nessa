@@ -17,11 +17,12 @@ function button(text,onClick,primary=false){
   const b=node('button',text,'button '+(primary?'button--primary':'button--ghost'));b.type='button';b.addEventListener('click',onClick);return b;
 }
 function field(label,type='text',value='',options={}){
-  const wrap=node('div',null,'rp-field'),caption=node('span',label);let input;
+  const wrap=node('div',null,'rp-field'),caption=node('label',label);let input;
   if(type==='select'){
     input=node('select');for(const [key,name] of options.items??[]){const option=node('option',name);option.value=key;input.append(option);}
   }else{input=node('input');input.type=type;}
   caption.id='rp-field-'+crypto.randomUUID();
+  input.id=caption.id+'-input';caption.htmlFor=input.id;
   input.setAttribute('aria-labelledby',caption.id);
   input.value=String(value??'');
   for(const [key,v]of Object.entries(options))if(key!=='items'&&key!=='hint')input[key]=v;
