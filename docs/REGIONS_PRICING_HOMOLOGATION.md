@@ -5,7 +5,7 @@ A gestão nova substitui a navegação fragmentada por uma única área com quat
 Precedência: tarifa fixa válida → regra por quilômetro válida → indisponível.
 Não há valores comerciais previamente carregados no catálogo preparado. Valores encontrados em testes e capturas são exclusivamente sintéticos.
 
-Esta branch não publica serviços. Ela não executou limpeza, migração de dados reais, repasses ou cobranças. O catálogo legado permanece efetivo até preparação e rollout especificamente autorizados.
+Os workflows desta branch não publicam serviços. As ferramentas operacionais de ativação exigem execução explícita na homologação, plano conferido e autorização do proprietário. Até o último retorno do operador, não houve reset ativo, migração de dados comerciais, repasse ou cobrança nesta entrega.
 
 ## Preparação do catálogo
 O script backend/core/scripts/prepare-regions-catalog.ts é uma ferramenta operacional separada das migrations.
@@ -175,3 +175,24 @@ O operador retornou `CANDIDATA_PREPARADA_E_TESTADA` para `e24a5ecb93e22b8054b599
 [Revisão aprovada](https://github.com/iansilva23/ramo-nessa/actions/runs/39506490711), código `9a76cdcfeeb421e22e43e276d19b03503346945c`: dez testes Node e quatro Python; execução completa em Docker/PostgreSQL com Compose real, pacotes Web configurados, ambiente com dólares literais, plano ativo somente leitura e conferência de que o catálogo/serviços do fixture permanecem intactos. Os serviços do fixture ficam dormentes; esse ensaio verifica os modelos e o CLI, não a troca real nem o fluxo público completo dos aplicativos.
 
 A política de retorno futura é coberta separadamente em `regions-runtime-switch.test.mjs`: se o reset tiver resposta incerta, primeiro reconcilia/recupera o catálogo como nova versão. Se outro administrador já o tiver alterado ou o banco não permitir confirmar a recuperação, preserva a candidata capaz de interpretar o modo novo e exige conferência. Nunca restaura dump no banco ativo nem reativa o motor legado sobre catálogo managed sem recuperação comprovada. Essa política ainda não foi executada no ambiente real.
+
+## Ativação controlada da homologação Web
+O operador confirmou `PLANO_DE_ATIVACAO_PREPARADO`, com os 108 arquivos Web verificados e nenhum serviço reiniciado/reset aplicado. O diretório e SHA-256 privados foram recebidos na conversa operacional.
+
+`activate-regions-pricing.mjs DIRETORIO_PLANO SHA256_PLANO`:
+1. Reconfere plano, candidata, backup integral por hashes, configurações de origem, catálogos, migrations, imagens, serviços, Caddy e árvores Web. Exige ambiente staging. O SHA-256 externo confere o plano aprovado.
+2. Usa os modelos privados já preparados para substituir somente Core e Gateway, preservando todos os valores efetivos do ambiente, volumes, portas, redes e proteções; o mount Web muda para os dois pacotes preparados. Não muda configurações Asaas, Mercado Pago, Maps, OTP ou Firebase.
+3. Confere saúde, readiness, site, acesso protegido ao financeiro e arquivos públicos de ADM/Passageiro/Motorista por hash. Só então executa o reset ativo já autorizado, com plano próprio, checksum e proprietário humano ativo.
+4. Confirma no banco e na política pública três regiões, categorias preservadas e zero tarifas/opções utilizáveis. Sem tarifa válida, as opções permanecem indisponíveis até configuração no ADM.
+5. Mantém journal privado e trava de execução; não permite repetir uma ativação registrada. Detecta troca concorrente de serviço/configuração e revisões concorrentes do catálogo.
+6. Se houver falha após possível commit do reset, reconcilia o estado no banco. Recupera o catálogo anterior como nova versão somente se a versão atual ainda for exatamente a desta operação. Só depois retorna às imagens/arquivos anteriores. Se não for possível confirmar recuperação segura ou houver alteração posterior, preserva a candidata e exige conferência. Nunca restaura dump no banco ativo.
+
+As identidades dos containers são comparadas de forma determinística: ordenação de mapas, ambiente e listas de mounts/aliases não equivale a mudança de configuração. IDs, imagens, início, valores, caminhos, portas, redes e opções continuam sendo comparados. Os dois formatos Docker de mount (`Destination` e `Target`) são tratados, com testes contra alterações reais de credenciais, caminhos, portas e imagens.
+
+O modo de injeção de falha usado no ensaio só é disponibilizado pela função de teste em runner CI identificado, com origem loopback e label do fixture. Não há flag de publicação para ignorar validações na VPS.
+
+[Ativação e retorno aprovados em Core/Caddy/PostgreSQL reais no runner](https://github.com/iansilva23/ramo-nessa/actions/runs/39509391497), código `feef79eabea176e9f0e7cb8e4089ef082391feaf`: 19 testes Node e quatro Python em cada cenário; compilação/configuração dos pacotes; troca real das imagens e bind Web; reset real no banco sintético e conferência da política pública. No cenário de falha injetada após o commit, catálogo recuperado como nova versão e imagens/Web anteriores recuperados e conferidos. A corrida histórica mantém valor e referência ao catálogo anterior; pagamento e duas entradas de ledger permanecem intactos nos dois cenários. Não houve chamada a provedor real, deploy na VPS pelo runner ou teste de aparelho.
+
+[Backup revisto](https://github.com/iansilva23/ramo-nessa/actions/runs/39509214504), mesma implementação operacional da ativação final, aprovado. [Regressão PostgreSQL completa](https://github.com/iansilva23/ramo-nessa/actions/runs/39508266642): 826 aprovados, zero falhas, dois ignorados; cinco testes de inspeção aprovados. As mudanças posteriores são somente ferramentas operacionais/CI, sem alteração do Core, dos apps ou das migrations.
+
+O resultado real de ativação ainda deve ser recebido do operador. A entrega só é declarada publicada na homologação após esse retorno, e o aceite funcional conectado/real permanece separado.
