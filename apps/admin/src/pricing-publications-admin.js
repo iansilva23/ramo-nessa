@@ -169,7 +169,7 @@ export function createPricingPublicationsAdmin({
         'Preços alterados (' + priceChanges.length + ')');
       review.append(heading);
       const list = el('div', 'publication-price-changes');
-      for (const change of priceChanges.slice(0, 30)) {
+      for (const change of priceChanges) {
         const item = el('div', 'publication-price-change');
         item.append(el('strong', '', change.label + ' · ' + change.category));
         item.append(el('span', '', 'Antes: ' + change.before));
@@ -180,11 +180,6 @@ export function createPricingPublicationsAdmin({
         list.append(item);
       }
       review.append(list);
-      if (priceChanges.length > 30) {
-        review.append(el('p', 'pricing-policy-help',
-          'Há mais ' + (priceChanges.length - 30) +
-          ' alterações. Confira a tabela integral em Operação e Tarifas antes de publicar.'));
-      }
     }
     if (differences.length === 0) {
       review.append(el('p', 'pricing-policy-help',
