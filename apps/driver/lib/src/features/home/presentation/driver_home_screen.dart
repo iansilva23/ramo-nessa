@@ -9,6 +9,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/driver_core_config.dart';
+import '../../../core/config/driver_map_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
@@ -1768,7 +1769,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             LatLng(supply.latitude, supply.longitude),
             LatLng(pickupLat, pickupLng),
           ],
-          padding: 110,
+          padding: DriverMapConfig.routeEdgePadding(
+            MediaQuery.sizeOf(context).width,
+          ),
           animate: !MediaQuery.disableAnimationsOf(context),
         );
       }
@@ -1818,7 +1821,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       setState(() => _activeRoute = route);
       if (shouldFitRoute && _mapReady) {
         try {
-          await _mapController.fitCoordinates(route.points);
+          await _mapController.fitCoordinates(
+            route.points,
+            padding: DriverMapConfig.routeEdgePadding(
+              MediaQuery.sizeOf(context).width,
+            ),
+          );
         } catch (_) {
           // O desenho da rota continua visível mesmo se o Google Maps ainda
           // não tiver concluído o layout necessário para ajustar a câmera.
@@ -1849,7 +1857,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     unawaited(
       _mapController.move(
         LatLng(supply.latitude, supply.longitude),
-        _mapController.currentZoom,
+        DriverMapConfig.recenterZoom(_mapController.currentZoom),
       ),
     );
   }
