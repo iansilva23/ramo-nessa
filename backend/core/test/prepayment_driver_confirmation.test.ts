@@ -127,8 +127,10 @@ test('confirmação pré-pagamento falha fechada com reserva sem prazo ou prazo 
   for (const driverHoldExpiresAt of [undefined,'data-invalida','2026-10-03T11:59:59Z']) {
     const ctx = await setup();
     const prepared = await ctx.prepare();
+    const { driverHoldExpiresAt: _previousExpiry, ...withoutExpiry } = prepared;
     const altered = await ctx.rides.save({
-      ...prepared,driverHoldExpiresAt,
+      ...withoutExpiry,
+      ...(driverHoldExpiresAt === undefined ? {} : {driverHoldExpiresAt}),
     });
     const result = await prepaymentDriverConfirmation({
       rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,
