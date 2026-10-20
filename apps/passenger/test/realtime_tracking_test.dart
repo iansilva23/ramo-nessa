@@ -102,6 +102,99 @@ void main() {
     await realtime.close();
   });
 
+  testWidgets('polling HTTP atrasado não reverte motorista chegou ou corrida iniciada',
+      (tester) async {
+    final delayed = _DelayedTrackingService();
+    final realtime = _FakeRealtimeService();
+    await tester.pumpWidget(MaterialApp(
+      home: RideTrackingScreen(
+        rideId: 'ride-1',
+        remainingWalletCents: null,
+        trackingService: delayed,
+        realtimeService: realtime,
+        networkTilesEnabled: false,
+      ),
+    ));
+    await tester.pump();
+    // The first HTTP request is deliberately held while realtime advances.
+    realtime.add(const PassengerRideTrackingSnapshot(
+      rideId: 'ride-1',
+      state: 'DRIVER_ARRIVED',
+      category: 'car',
+      pickupLatitude: -2.82,
+      pickupLongitude: -40.41,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Seu motorista chegou'), findsOneWidget);
+
+    delayed.complete(const PassengerRideTrackingSnapshot(
+      rideId: 'ride-1',
+      state: 'SEARCHING_DRIVER',
+      category: 'car',
+      pickupLatitude: -2.82,
+      pickupLongitude: -40.41,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Seu motorista chegou'), findsOneWidget);
+    expect(find.text('Procurando motorista'), findsNothing);
+
+    realtime.add(const PassengerRideTrackingSnapshot(
+      rideId: 'ride-1',
+      state: 'IN_PROGRESS',
+      category: 'car',
+      pickupLatitude: -2.82,
+      pickupLongitude: -40.41,
+      dropoffLatitude: -2.8986,
+      dropoffLongitude: -40.4506,
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Corrida em andamento'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await realtime.close();
+  });
+
+  testWidgets('sem motorista, cancelamento e reembolso não cortam tela 320px',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final realtime = _FakeRealtimeService();
+    await tester.pumpWidget(MaterialApp(
+      home: RideTrackingScreen(
+        rideId: 'ride-1',
+        remainingWalletCents: null,
+        trackingService: _FakeTrackingService(),
+        realtimeService: realtime,
+        networkTilesEnabled: false,
+      ),
+    ));
+    await tester.pump();
+    for (final item in <(String, String)>[
+      ('NO_DRIVER_FOUND', 'Nenhum motorista disponível nesta rodada'),
+      ('REFUND_PENDING', 'Estorno em processamento'),
+      ('REFUNDED', 'Pagamento devolvido'),
+    ]) {
+      realtime.add(PassengerRideTrackingSnapshot(
+        rideId: 'ride-1', state: item.$1, category: 'car',
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(item.$2), findsWidgets);
+      expect(tester.takeException(), isNull,
+          reason: 'estado ${item.$1} em viewport 320px');
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await realtime.close();
+  });
+
   testWidgets('passageiro avalia motorista após corrida concluída',
       (tester) async {
     final service = _RatingTrackingService();
@@ -193,6 +286,19 @@ class _RatingTrackingService implements PassengerRideTrackingService {
         ratingCount: 0,
       ),
     );
+  }
+}
+
+class _DelayedTrackingService extends _FakeTrackingService {
+  final Completer<PassengerRideTrackingSnapshot> _delayed =
+      Completer<PassengerRideTrackingSnapshot>();
+
+  @override
+  Future<PassengerRideTrackingSnapshot> tracking(String rideId) =>
+      _delayed.future;
+
+  void complete(PassengerRideTrackingSnapshot snapshot) {
+    _delayed.complete(snapshot);
   }
 }
 
