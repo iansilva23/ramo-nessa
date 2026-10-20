@@ -46,3 +46,9 @@ Posicionar no mapa e Enter nesses campos validam o par inteiro antes de alterar 
 O ensaio de navegador cobre entrada inválida, zero, vírgula, precisão, raio, Enter, Continuar sem aplicação anterior, sincronização da pesquisa/arraste, persistência real pelo endpoint de gestão e reabertura da região. Inclui capturas do assistente em 1440/860/390 px. A ajuda dos dois campos leva ao capítulo do mapa, ampliado com instruções completas.
 
 Não altera o contrato de região no servidor ou os dados já cadastrados. Esta inclusão acompanha a atualização pendente do ADM; não requer reset ou atualização dos aplicativos Passageiro/Motorista.
+
+### Verificação do complemento — 20/10/2026
+Código `07968353dd19b8f14c9e07cf1cd2224543a06bcc`; [revisão 39516160222](https://github.com/iansilva23/ramo-nessa/actions/runs/39516160222).
+O ADM tem 167 testes aprovados, sem falhas ou ignorados. Chromium e WebKit aprovaram os novos cenários de coordenadas junto com o fluxo existente de regiões/tarifas, segurança e ajuda. Capturas do assistente examinadas em 1440/860/390 px: campos abaixo da busca, em duas colunas no computador/tablet e empilhados no celular.
+
+Também foram aprovados Core, PostgreSQL e análise/testes/build Web de Passageiro e Motorista; os seis jobs da revisão passaram. Nenhuma implantação na VPS foi executada por essa revisão. Aceite conectado e em aparelhos reais continua separado.
