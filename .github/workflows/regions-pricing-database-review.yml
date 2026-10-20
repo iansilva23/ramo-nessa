@@ -5,6 +5,7 @@ on:
     paths:
       - 'backend/core/**'
       - 'scripts/web/admin_localities_core_browser_e2e.mjs'
+      - 'deploy/staging/inspect-regions-pricing*'
       - '.github/workflows/regions-pricing-database-review.yml'
 permissions:
   contents: read
@@ -38,6 +39,10 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: backend/core/package-lock.json
+      - name: Verify read-only runtime inventory contract
+        run: |
+          node --check deploy/staging/inspect-regions-pricing.mjs
+          node --test deploy/staging/inspect-regions-pricing.test.mjs
       - name: Assert local disposable database before any database command
         run: |
           test "$GITHUB_ACTIONS" = "true"

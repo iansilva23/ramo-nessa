@@ -167,7 +167,9 @@ async function run(engine){
     await prea.getByRole('button',{name:'Editar',exact:true}).click();
     wizard=page.getByRole('dialog',{name:'Editar região',exact:true});
     const coords=await wizard.locator('.rp-hint').filter({hasText:'Ponto selecionado:'}).textContent();
-    const pin=wizard.locator('.pricing-geofence-map__pin'),box=await pin.boundingBox();assert.ok(box);
+    const pin=wizard.locator('.pricing-geofence-map__pin');
+    await pin.waitFor({state:'visible'});await pin.scrollIntoViewIfNeeded();
+    const box=await pin.boundingBox();assert.ok(box);
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
     await page.mouse.move(box.x+box.width/2+35,box.y+box.height/2+5,{steps:5});await page.mouse.up();
     assert.notEqual(await wizard.locator('.rp-hint').filter({hasText:'Ponto selecionado:'}).textContent(),coords);

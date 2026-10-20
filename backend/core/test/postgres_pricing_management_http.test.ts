@@ -10,6 +10,10 @@ import {createPostgresPool} from '../src/db/postgres.js';
 import {PostgresAdminRepository} from '../src/admin/repositories/postgres-admin-repository.js';
 import {PostgresAdminHumanAuthRepository} from '../src/admin/repositories/postgres-admin-human-auth-repository.js';
 import {PostgresPricingCatalogVersionRepository} from '../src/pricing/repositories/postgres-pricing-catalog-version-repository.js';
+import {issueAuthSession} from '../src/auth/auth-service.js';
+import {PostgresAuthSessionRepository} from '../src/auth/repositories/postgres-auth-session-repository.js';
+import {PostgresAuthOtpRepository} from '../src/auth/repositories/postgres-auth-otp-repository.js';
+import {pricingPeriodAt} from '../src/pricing/period.js';
 import {createAdminHumanUser} from '../src/admin/admin-human-auth-service.js';
 import {totpCodeAt} from '../src/admin/admin-human-crypto.js';
 import {STATIC_PRICING_CATALOG_V1} from '../src/pricing/catalog-snapshot.js';
@@ -32,7 +36,7 @@ test('actual Core HTTP/PostgreSQL: login, direct saves, public policy, sensitive
   };
   try{
     await root.query('CREATE SCHEMA '+schema);
-    for(const table of ['pricing_catalog_versions','admin_audit_log'])
+    for(const table of ['pricing_catalog_versions','admin_audit_log','admin_users','admin_sessions','admin_login_rate_limits','auth_sessions','auth_identities'])
       await root.query('CREATE TABLE '+schema+'.'+table+' (LIKE public.'+table+' INCLUDING ALL)');
     const accounts=[];
     for(const [i,scopes]of [['writer',['pricing:read','pricing:write']],['other',['pricing:read','pricing:write']],['reader',['pricing:read']]] as const){
@@ -96,7 +100,21 @@ test('actual Core HTTP/PostgreSQL: login, direct saves, public policy, sensitive
     assert.deepEqual((await request('GET','/v1/pricing/policy')).body.enabledCategories,['moto']);
     const quote={origin:{zoneId:'prea',localityId:'prea'},destination:{zoneId:'prea',localityId:'prea'},category:'moto',period:'day',
       passengers:1,pickup:{latitude:region.latitude,longitude:region.longitude},dropoff:{latitude:region.latitude,longitude:region.longitude}};
-    assert.equal((await request('POST','/v1/pricing/quote',undefined,quote)).status,401);
+    // NODE_ENV=test intentionally refuses missing development identity with 503.
+    // An explicit invalid passenger session must be rejected with 401.
+    const anonymous=await request('POST','/v1/pricing/quote',undefined,quote);
+    assert.equal(anonymous.status,503);assert.equal(anonymous.body.error,'AUTH_NOT_CONFIGURED');
+    assert.equal((await request('POST','/v1/pricing/quote','invalid-passenger-session',quote)).status,401);
+    const passengerId=randomUUID(),identityId=randomUUID(),createdAt=new Date().toISOString();
+    await new PostgresAuthOtpRepository(pool).createIdentity({id:identityId,subjectId:passengerId,subjectType:'passenger',
+      phoneE164:'+5588999999899',status:'active',createdAt,updatedAt:createdAt});
+    const passenger=await issueAuthSession({repository:new PostgresAuthSessionRepository(pool),subjectId:passengerId,
+      subjectType:'passenger',ttlMs:3600000});
+    const period=pricingPeriodAt(new Date(),STATIC_PRICING_CATALOG_V1.periodPolicy);
+    const publicQuote=await request('POST','/v1/pricing/quote',passenger.token,{...quote,period:period==='day'?'after_22':'day',tripDistanceKm:4999});
+    assert.equal(publicQuote.status,period==='day'?200:422);
+    if(period==='day')assert.equal(publicQuote.body.totalAmountCents,2500);
+    else assert.equal(publicQuote.body.error,'UNKNOWN_ROUTE');
     const simulated=await request('POST',path+'/simulate',readerToken,quote);
     assert.equal(simulated.status,200);assert.equal(simulated.body.quote.totalAmountCents,2500);
     assert.equal((await request('POST',path+'/simulate',readerToken,{...quote,period:'after_22'})).status,422);
