@@ -94,7 +94,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
         if (!mounted || !TrackingMapTransitionPolicy.isExpectedRide(
           expectedRideId: widget.rideId,
           receivedRideId: snapshot.rideId,
-        )) return;
+        )) {
+          return;
+        }
         _applySnapshot(snapshot);
       },
       onError: (_) {
@@ -116,7 +118,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     if (snapshot == null || route == null || driver == null ||
         !TrackingMapTransitionPolicy.isUsableGps(
           driver.latitude, driver.longitude,
-        )) return;
+        )) {
+      return;
+    }
     final stage = _routeStage(snapshot);
     final isDropoff = stage == 'to-dropoff';
     final targetLat = isDropoff
@@ -126,20 +130,22 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     if (!TrackingMapTransitionPolicy.shouldFrameRoute(
       mapReady: _mapReady,
       terminal: snapshot.isTerminal,
-      hasDriver: driver != null,
+      hasDriver: true,
       hasTarget: TrackingMapTransitionPolicy.isUsableGps(
         targetLat, targetLng,
       ),
       routePointCount: route.points.length,
       stage: stage,
       lastFramedStage: _framedRouteStage,
-    )) return;
+    )) {
+      return;
+    }
 
     _framedRouteStage = stage;
     _hasCenteredMap = true;
     unawaited(_mapController.fitCoordinates(
       coordinates: [
-        LatLng(driver!.latitude, driver.longitude),
+        LatLng(driver.latitude, driver.longitude),
         ...route.points,
         LatLng(targetLat!, targetLng!),
       ],
@@ -211,15 +217,20 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     if (service == null || driver == null || driver.stale ||
         !TrackingMapTransitionPolicy.isUsableGps(
           driver.latitude, driver.longitude,
-        ) || _routeRequestInFlight) return;
+        ) || _routeRequestInFlight) {
+      return;
+    }
     final useDropoff = snapshot.state == 'IN_PROGRESS';
     final targetLatitude =
         useDropoff ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
     final targetLongitude =
         useDropoff ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
-    if (!TrackingMapTransitionPolicy.isUsableGps(
-      targetLatitude, targetLongitude,
-    )) return;
+    if (targetLatitude == null || targetLongitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          targetLatitude, targetLongitude,
+        )) {
+      return;
+    }
     final now = DateTime.now();
     if (_lastRouteState == snapshot.state &&
         _lastRouteAttemptAt != null &&
@@ -465,7 +476,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _pickup(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.pickupLatitude;
     final longitude = snapshot?.pickupLongitude;
-    if (!TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+    if (latitude == null || longitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
       return null;
     }
 
