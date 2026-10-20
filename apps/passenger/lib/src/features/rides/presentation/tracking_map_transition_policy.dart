@@ -1,6 +1,22 @@
 /// Map transitions for an ongoing ride. This policy is pure Dart, so it can
 /// be verified without Google Maps tiles, device GPS or paid route requests.
 abstract final class TrackingMapTransitionPolicy {
+  /// Do not render another passenger's ride if a realtime channel leaks,
+  /// reconnects with a stale subscription or sends a malformed message.
+  static bool isExpectedRide({
+    required String expectedRideId,
+    required String receivedRideId,
+  }) => expectedRideId.isNotEmpty && expectedRideId == receivedRideId;
+
+  /// Do not send non-finite/out-of-range coordinates or the common (0,0)
+  /// location fallback to the camera and the routing provider.
+  static bool isUsableGps(double? latitude, double? longitude) {
+    if (latitude == null || longitude == null ||
+        !latitude.isFinite || !longitude.isFinite) return false;
+    if (latitude.abs() > 90 || longitude.abs() > 180) return false;
+    return latitude != 0 || longitude != 0;
+  }
+
   static String stageFor({
     required String rideState,
     required bool terminal,
