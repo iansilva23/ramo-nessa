@@ -8,7 +8,7 @@ import { InMemoryRidePreparationRepository } from '../src/rides/in-memory-ride-p
 import { InMemoryRideMatchingRepository } from '../src/matching/in-memory-ride-matching-repository.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { prepareRideForPayment } from '../src/rides/prepare-ride.js';
-import { createPrepaymentDriverOffer } from '../src/rides/prepayment-driver-confirmation.js';
+import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from '../src/rides/prepayment-driver-confirmation.js';
 import { createPaymentForRide } from '../src/payments/create-payment.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { performDriverRideAction } from '../src/drivers/driver-ride-service.js';
@@ -121,4 +121,21 @@ test('oferta antiga de outra corrida não pode tomar motorista reservado', async
   await ctx.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() });
   await assert.rejects(ctx.matching.acceptOffer({ offerId: oldOffer.offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() }), { code: 'DRIVER_NOT_AVAILABLE' });
   assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, next.id);
+});
+
+test('confirmação pré-pagamento falha fechada com reserva sem prazo ou prazo inválido', async () => {
+  for (const driverHoldExpiresAt of [undefined,'data-invalida','2026-10-03T11:59:59Z']) {
+    const ctx = await setup();
+    const prepared = await ctx.prepare();
+    const altered = await ctx.rides.save({
+      ...prepared,driverHoldExpiresAt,
+    });
+    const result = await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,
+      registry:{} as never,routing:null,
+      rideId:altered.id,passengerId:altered.passengerId,now,
+    });
+    assert.equal(result?.status,'EXPIRED');
+    assert.equal(result?.driver,null);
+  }
 });
