@@ -63,6 +63,11 @@ export async function prepaymentDriverConfirmation(input: {
   ]);
   if (profile?.status !== 'approved' || vehicle?.status !== 'approved' || supply == null ||
       !supply.online || supply.busy || supply.reservedRideId !== ride.id ||
+      ride.reservedDriverId !== offer.driverId ||
+      supply.vehicleId !== vehicle.id ||
+      !supply.categories.includes(ride.category) ||
+      supply.seatCapacity < ride.passengers ||
+      (ride.requiresFourByFour === true && (!vehicle.fourByFour || !supply.fourByFour)) ||
       !Number.isFinite(Date.parse(supply.reservedUntil ?? '')) ||
       Date.parse(supply.reservedUntil ?? '') <= now.getTime() ||
       !Number.isFinite(Date.parse(supply.locationUpdatedAt)) ||
