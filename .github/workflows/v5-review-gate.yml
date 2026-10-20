@@ -169,8 +169,16 @@ jobs:
       - name: Apply real historical migrations to ephemeral PostgreSQL only
         working-directory: backend/core
         run: npm run db:migrate
+      - name: Install existing isolated Chromium E2E dependencies
+        working-directory: scripts/web/browser-tests
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
       - name: Test pricing persistence, CAS and future effective versions
         working-directory: backend/core
         run: |
           npm run typecheck
           node --import tsx --test test/postgres_pricing_v5_finance_safe.test.ts test/pricing_locality_postgres_atomicity.test.ts
+      - name: Test real Core HTTP, ADM API and Chromium against disposable PostgreSQL
+        working-directory: backend/core
+        run: node --import tsx --test test/pricing_locality_http_postgres.test.ts
