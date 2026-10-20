@@ -12,8 +12,12 @@ abstract final class TrackingMapTransitionPolicy {
   /// location fallback to the camera and the routing provider.
   static bool isUsableGps(double? latitude, double? longitude) {
     if (latitude == null || longitude == null ||
-        !latitude.isFinite || !longitude.isFinite) return false;
-    if (latitude.abs() > 90 || longitude.abs() > 180) return false;
+        !latitude.isFinite || !longitude.isFinite) {
+      return false;
+    }
+    if (latitude.abs() > 90 || longitude.abs() > 180) {
+      return false;
+    }
     return latitude != 0 || longitude != 0;
   }
 
