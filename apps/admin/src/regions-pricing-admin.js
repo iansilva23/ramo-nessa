@@ -1,5 +1,7 @@
 import {createPricingCoverageMap,createPricingGeofenceMap} from './pricing-geofence-map.js';
 import {icons,formatMoney,inputMoney,moneyInputCents,overlappingRegions,formatRate,nextTabIndex} from './regions-pricing-model.js';
+import {createPricingHelp,pricingHelpButton} from './regions-pricing-help.js';
+import {helpTopicForLabel,helpTopicForCheck} from './help/regions-pricing-guide.js';
 
 const CATEGORY_LABELS={moto:'Mototáxi',car:'Táxi',buggy:'Buggy',delivery:'Entregas',comfort_black:'4x4 Comfort/Black'};
 function node(tag,text,className){
@@ -15,7 +17,7 @@ function button(text,onClick,primary=false){
   const b=node('button',text,'button '+(primary?'button--primary':'button--ghost'));b.type='button';b.addEventListener('click',onClick);return b;
 }
 function field(label,type='text',value='',options={}){
-  const wrap=node('label',null,'rp-field'),caption=node('span',label);let input;
+  const wrap=node('div',null,'rp-field'),caption=node('span',label);let input;
   if(type==='select'){
     input=node('select');for(const [key,name] of options.items??[]){const option=node('option',name);option.value=key;input.append(option);}
   }else{input=node('input');input.type=type;}
@@ -23,17 +25,24 @@ function field(label,type='text',value='',options={}){
   input.setAttribute('aria-labelledby',caption.id);
   input.value=String(value??'');
   for(const [key,v]of Object.entries(options))if(key!=='items'&&key!=='hint')input[key]=v;
-  wrap.append(caption,input);if(options.hint)wrap.append(node('small',options.hint));return {wrap,input};
+  const captionRow=node('div',null,'rp-field-caption');captionRow.append(caption);
+  if(helpTopicForLabel[label])captionRow.append(pricingHelpButton(helpTopicForLabel[label],'Ajuda: '+label));
+  wrap.append(captionRow,input);if(options.hint)wrap.append(node('small',options.hint));
+  return {wrap,input};
 }
 function check(label,checked=false){
-  const wrap=node('label',null,'rp-check'),input=node('input');input.type='checkbox';input.checked=checked;
-  wrap.append(input,node('span',label));return {wrap,input};
+  const wrap=node('div',null,'rp-check'),input=node('input');input.type='checkbox';input.checked=checked;
+  input.id='rp-check-'+crypto.randomUUID();const caption=node('label',label);caption.htmlFor=input.id;
+  wrap.append(input,caption);
+  if(helpTopicForCheck[label])wrap.append(pricingHelpButton(helpTopicForCheck[label],'Ajuda: '+label));
+  return {wrap,input};
 }
 const asMoney=input=>moneyInputCents(input.value);
 const id=prefix=>prefix+'-'+crypto.randomUUID();
 const regionArea=r=>({zoneId:r.zoneId,localityId:r.id,label:r.name,centerLatitude:r.latitude,centerLongitude:r.longitude,radiusKm:r.radiusKm});
 export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()=>{}}){
   const abort=new AbortController(),dialogs=new Set();let disposed=false,busy=false,data=null,coverage=null,tab='regions';
+  const help=createPricingHelp({root,ownsElement:element=>root.contains(element)||[...dialogs].some(d=>d.contains(element))});
   const get=name=>root.querySelector('[data-rp="'+name+'"]');
   // Explicit IDs document the accessible tab/panel relationship.
   const tabIds=['rp-tab-regions','rp-tab-categories','rp-tab-rates','rp-tab-settings'];
@@ -67,7 +76,10 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
     const d=node('dialog',null,'rp-dialog'),header=node('header',null,'rp-dialog-header'),body=node('div',null,'rp-dialog-body');
     const heading=node('div');const h=node('h2',title);h.id=id('dialog-title');d.setAttribute('aria-labelledby',h.id);
     heading.append(h);if(subtitle)heading.append(node('p',subtitle));
-    const x=button('Fechar',()=>d.close());x.classList.add('rp-close');header.append(heading,x);
+    const topic=title.includes('região')?'region':title.includes('categoria')?'category':title.includes('tarifa')?'rate':title==='Simular corrida'?'simulation':'security';
+    const headerActions=node('div',null,'rp-dialog-tools');
+    const x=button('Fechar',()=>d.close());x.classList.add('rp-close');
+    headerActions.append(pricingHelpButton(title.startsWith('Excluir')?'archive':topic),x);header.append(heading,headerActions);
     const feedback=node('div',null,'rp-dialog-message');feedback.setAttribute('role','alert');feedback.hidden=true;
     body.append(feedback);d.append(header,body);document.body.append(d);dialogs.add(d);
     d.addEventListener('close',()=>{dialogs.delete(d);d.remove();},{once:true});
@@ -413,5 +425,6 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
   coverage=createPricingCoverageMap({root:get('coverage-map'),tiles:get('coverage-tiles'),overlay:get('coverage-overlay'),zoomIn:get('coverage-plus'),zoomOut:get('coverage-minus'),
     onSelect:area=>{if(canWrite()){const region=operations().regions.find(r=>r.id===area.localityId);if(region)openRegion(region);}}});
   void load();
-  return {destroy(){disposed=true;abort.abort();coverage?.destroy();dialogs.forEach(d=>d.close());dialogs.clear();}};
+  return {destroy(){disposed=true;abort.abort();help.destroy();coverage?.destroy();dialogs.forEach(d=>d.close());dialogs.clear();}};
 }
+

@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: '22'
       - working-directory: apps/admin
-        run: npm run check && npm test
+        run: npm run check && npm run check:help && npm test
   web:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -124,3 +124,4 @@ jobs:
           path: apps/admin/regions-browser-artifacts
           if-no-files-found: ignore
           retention-days: 14
+

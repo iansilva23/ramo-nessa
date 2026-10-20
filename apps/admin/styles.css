@@ -5760,3 +5760,58 @@ td strong {
 .regions-workspace .button--ghost,.rp-dialog .button--ghost{color:#24231f;border-color:#d5d0c5;background:#fff}
 .regions-workspace .button--ghost:hover:not(:disabled),.rp-dialog .button--ghost:hover:not(:disabled){background:#f5f2e8;border-color:#b4a45c}
 .regions-workspace .button--ghost.rp-delete,.rp-dialog .button--ghost.rp-delete{color:#963c2b}
+
+/* Help stays inside the existing workspace and never replaces the editor. */
+.rp-heading-actions,.rp-dialog-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.rp-heading-actions{flex:none}
+.rp-help-link{appearance:none;border:0;background:transparent;color:#63500b;padding:7px 0;font:inherit;font-size:12px;font-weight:650;text-decoration:underline;text-underline-offset:3px;cursor:pointer;white-space:normal;text-align:left;line-height:1.5}
+.rp-help-link:hover{color:#241d04}
+.rp-help-icon{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;min-height:28px;padding:0;border:1px solid #d9d1b2;border-radius:50%;background:#fff9df;color:#51430d;font:700 13px/1 sans-serif;cursor:pointer}
+.rp-help-icon:hover{background:#f8e79d}
+.rp-field-caption{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px}
+.rp-check>label{cursor:pointer;flex:1}
+.rp-help-link:focus-visible,.rp-help-icon:focus-visible,.rp-help-dialog button:focus-visible,.rp-help-dialog input:focus-visible,.rp-help-article:focus-visible{outline:3px solid #877000;outline-offset:3px}
+.rp-help-dialog{width:min(1100px,calc(100vw - 32px));height:min(880px,calc(100dvh - 40px));overflow:hidden}
+.rp-help-dialog[open]{display:grid;grid-template-rows:auto auto minmax(0,1fr)}
+.rp-help-dialog .rp-dialog-header{padding:22px 26px 18px;align-items:center}
+.rp-help-dialog .rp-dialog-header h2{margin-top:7px}
+.rp-help-search{padding:15px 26px;border-bottom:1px solid #e8e4d9;background:#fcfbf7}
+.rp-help-search>label{font-size:12px;font-weight:650;display:block;margin-bottom:8px}
+.rp-help-search-row{display:flex;gap:10px;align-items:center}
+.rp-help-search-row input{min-width:0;flex:1;width:100%;background:white;color:#202020;border:1px solid #c9c4b5;border-radius:9px;padding:11px 12px;font:inherit;font-size:14px}
+.rp-help-search-row .button{font-size:12px;flex:none}
+.rp-help-dialog .rp-help-count{font-size:11px;color:#625d53;margin:8px 0 0}
+.rp-help-layout{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:0}
+.rp-help-index{overflow:auto;overscroll-behavior:contain;padding:18px 14px;background:#f8f7f2;border-right:1px solid #e8e4d9;min-width:0}
+.rp-help-index h3{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#666055;margin:17px 10px 8px}
+.rp-help-index h3:first-child{margin-top:0}
+.rp-help-chapter{display:grid;gap:5px;width:100%;padding:12px 11px;border:1px solid transparent;border-radius:10px;background:transparent;color:#29261f;cursor:pointer;text-align:left;font:inherit;line-height:1.5}
+.rp-help-chapter strong{font-size:12px;font-weight:650}
+.rp-help-chapter span{font-size:11px;color:#666055}
+.rp-help-chapter:hover{background:#eeebe1}
+.rp-help-chapter[aria-current]{background:#fff7cf;border-color:#dac462;color:#352b05}
+.rp-help-article{padding:27px 32px 40px;overflow:auto;overscroll-behavior:contain;min-width:0;scroll-margin:8px;overflow-wrap:anywhere}
+.rp-help-article>h3{font-size:27px;line-height:1.2;letter-spacing:-.025em;margin:10px 0 14px}
+.rp-help-dialog .rp-help-article p,.rp-help-article li{font-size:14px;line-height:1.85;color:#39362f}
+.rp-help-dialog .rp-help-article .rp-help-lead{font-size:15px;color:#625c4f;border-bottom:1px solid #e9e5d9;padding-bottom:20px;margin-bottom:24px}
+.rp-help-article h4{font-size:16px;line-height:1.5;margin:26px 0 12px;color:#211f19}
+.rp-help-article ol{padding-left:23px}.rp-help-article li{padding-left:5px;margin-bottom:12px}
+.rp-help-definitions{margin:0;display:grid;gap:0;border:1px solid #e4dfd1;border-radius:12px;overflow:hidden}
+.rp-help-definitions>div{padding:15px 17px;background:#fff}.rp-help-definitions>div+div{border-top:1px solid #e4dfd1}
+.rp-help-definitions dt{font-size:13px;font-weight:700;margin-bottom:6px;color:#28241b}
+.rp-help-definitions dd{font-size:13px;line-height:1.8;margin:0;color:#484236}
+.rp-help-related{border-top:1px solid #e8e4d9;margin-top:30px;padding-top:3px;display:grid;justify-items:start;gap:5px}
+.rp-help-empty{padding:12px;line-height:1.7;font-size:12px}
+@media(max-width:700px){
+  .rp-heading{flex-wrap:wrap}.rp-heading-actions{width:100%;justify-content:flex-start}.rp-heading-actions .button{font-size:11px;min-height:40px}
+  .rp-dialog-tools{max-width:130px}.rp-dialog-tools .rp-help-link{font-size:11px}
+  .rp-help-dialog{height:calc(100dvh - 20px);width:calc(100vw - 20px)}
+  .rp-help-dialog .rp-dialog-header{padding:16px;gap:10px}.rp-help-dialog .rp-dialog-header h2{font-size:20px}
+  .rp-help-dialog .rp-dialog-header .button{font-size:11px;white-space:normal;padding:9px;min-width:80px}
+  .rp-help-search{padding:12px 16px}.rp-help-search-row{flex-wrap:wrap}.rp-help-search-row input{font-size:16px}
+  .rp-help-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(110px,27%) minmax(0,1fr)}
+  .rp-help-index{border-right:0;border-bottom:1px solid #e8e4d9;padding:10px 12px}
+  .rp-help-chapter{padding:9px}.rp-help-chapter span{display:none}
+  .rp-help-article{padding:22px 18px 30px}.rp-help-article>h3{font-size:23px}
+}
+

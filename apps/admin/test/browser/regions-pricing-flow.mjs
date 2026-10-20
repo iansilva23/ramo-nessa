@@ -8,6 +8,7 @@ import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {resolve,extname,sep} from 'node:path';
 import {chromium,webkit} from 'playwright';
+import {testPricingHelp,testEditorHelp} from './regions-pricing-help-flow.mjs';
 import {STATIC_PRICING_CATALOG_V1} from '../../../../backend/core/src/pricing/catalog-snapshot.ts';
 import {prepareThreeRegionCatalog} from '../../../../backend/core/src/pricing/management-service.ts';
 import {pricingManagementRoutes} from '../../../../backend/core/src/pricing/management-routes.ts';
@@ -94,10 +95,12 @@ async function run(engine){
       const a=luminance(style.color),b=luminance(style.backgroundColor);return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
     });
     assert.ok(contrast>=4.5,'Action text must meet WCAG AA contrast');
+    await testPricingHelp(page,out,engine);
     await page.getByRole('button',{name:/Adicionar região/}).click();
     let wizard=page.getByRole('dialog',{name:'Adicionar região',exact:true});
     await wizard.getByLabel('Nome da região',{exact:true}).fill('Cobertura de teste');
     await wizard.getByLabel('Município',{exact:true}).fill('Cruz');
+    await testEditorHelp(page,wizard,'Raio de cobertura (km)',/Mapa, alfinete e raio de cobertura/);
     await wizard.getByLabel('Raio de cobertura (km)',{exact:true}).fill('0.8');
     await wizard.getByLabel('Pesquisar no mapa',{exact:true}).fill('Cobertura de teste');
     await wizard.getByRole('button',{name:'Buscar',exact:true}).click();
@@ -127,6 +130,7 @@ async function run(engine){
     await day.getByLabel('Preço (R$)',{exact:true}).fill('25.00');
     await editor.getByRole('button',{name:'Salvar tarifa',exact:true}).click();
     let confirmation=page.getByRole('dialog',{name:'Confirmar alteração',exact:true});
+    await testEditorHelp(page,confirmation,'Sua senha',/Salvar, senha, MFA e edições simultâneas/);
     await confirmation.getByLabel('Sua senha',{exact:true}).fill('incorrect-long-password');
     await confirmation.getByLabel('Código MFA',{exact:true}).fill('000000');
     await confirmation.getByRole('button',{name:'Confirmar e salvar',exact:true}).click();
@@ -205,6 +209,8 @@ async function run(engine){
     await page.goto(base+'/reader');
     await page.locator('.rp-region-card').filter({hasText:'Preá'}).waitFor();
     assert.equal(await page.getByRole('button',{name:/Adicionar região/}).isDisabled(),true);
+    await page.getByRole('button',{name:'Ajuda e tutoriais',exact:true}).click();
+    await page.getByRole('dialog',{name:'Ajuda e tutoriais',exact:true}).getByRole('button',{name:'Voltar ao painel',exact:true}).click();
     const denied=await fetch(base+'/v1/admin/pricing/management',{method:'PUT',headers:{authorization:'Bearer '+readerToken,'content-type':'application/json'},body:JSON.stringify({requestId:randomUUID(),mutation:{kind:'region.archive',id:'prea'}})});
     assert.equal(denied.status,403);
     assert.deepEqual(errors,[]);
@@ -213,3 +219,4 @@ async function run(engine){
   finally{await context.close();await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
 for(const engine of ['chromium','webkit'])await run(engine);
+
