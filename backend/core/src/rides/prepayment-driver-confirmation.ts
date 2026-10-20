@@ -15,12 +15,16 @@ export async function createPrepaymentDriverOffer(input: {
   if (!input.ride.driverConsentRequired || input.ride.reservedDriverId == null) {
     throw new Error('A solicitação precisa de uma reserva antes da oferta.');
   }
+  const holdExpiryMs = Date.parse(input.ride.driverHoldExpiresAt ?? '');
+  if (!Number.isFinite(holdExpiryMs) || holdExpiryMs <= now.getTime()) {
+    throw new Error('A reserva do motorista está vencida ou possui prazo inválido.');
+  }
   const result = await input.matching.createOffer({
     rideId: input.ride.id, driverId: input.ride.reservedDriverId,
     approximatePickupDistanceKm: input.ride.driverPickupDistanceKm ?? 0,
     createdAt: now.toISOString(),
     expiresAt: new Date(Math.min(now.getTime() + DEFAULT_DRIVER_OFFER_TTL_SECONDS * 1000,
-      Date.parse(input.ride.driverHoldExpiresAt!))).toISOString(),
+      holdExpiryMs)).toISOString(),
   });
   return result.offer;
 }
@@ -43,7 +47,8 @@ export async function prepaymentDriverConfirmation(input: {
   }
   if (offer == null) return { ...base, status: 'NOT_STARTED', driver: null };
   if (offer?.status === 'OFFERED') {
-    if (Date.parse(offer.expiresAt) <= now.getTime()) {
+    const offerExpiryMs = Date.parse(offer.expiresAt);
+    if (!Number.isFinite(offerExpiryMs) || offerExpiryMs <= now.getTime()) {
       await input.matching.expireOffer({ offerId: offer.id, expiredAt: now.toISOString() });
       return { ...base, status: 'NO_DRIVER_FOUND', driver: null };
     }
