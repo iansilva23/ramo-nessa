@@ -137,3 +137,73 @@ test('cadastro municipal não autoriza automaticamente táxi ou mototáxi em cid
   assert.equal(isKnownOutsideLocalArea(pending),false);
   assert.equal(catalog.distanceFarePolicies.length,0);
 });
+
+test('tarifa regional futura não transforma localidades pendentes em corrida por km', () => {
+  const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+  const byScope = {
+    prea: Object.keys(catalog.localities.prea),
+    jijoca: Object.keys(catalog.localities.jijoca),
+  } as const;
+
+  // Simulate an overly broad opt-in draft without publishing it. Regional
+  // prices may apply only if BOTH localities have confirmed municipality data.
+  for (const [scope, ids] of Object.entries(byScope) as Array<
+    ['prea' | 'jijoca', string[]]
+  >) {
+    catalog.distanceFarePolicies.push({
+      id: 'regression-must-never-price-unverified-' + scope,
+      anchorZoneId: scope,
+      anchorLocalityId: scope,
+      category: 'moto',
+      scope: 'intra_zone',
+      coveredLocalityIds: ids,
+      minKm: 0,
+      maxKm: 100,
+      minimumFareCents: 1000,
+      pricePerKmCents: 100,
+      after22MinimumFareCents: 1200,
+      after22PricePerKmCents: 150,
+    });
+    for (const id of ids) {
+      const assignment = municipalityFor(catalog, scope, id);
+      if (assignment.status !== 'pending_review') continue;
+      assert.equal(isLocalServiceMunicipality(assignment), false, scope + '/' + id);
+
+      // The legacy fare must not hide a broken regional boundary in this
+      // synthetic test; original catalog and production prices stay intact.
+      const original = catalog.localities[scope][id];
+      catalog.localities[scope][id] = {};
+      try {
+        for (const period of ['day', 'after_22'] as const) {
+          assert.throws(() => quoteFare({
+            origin: {zoneId: scope, localityId: scope},
+            destination: {zoneId: scope, localityId: id},
+            category: 'moto',
+            period,
+            tripDistanceKm: 5,
+          }, catalog), (error: unknown) =>
+            error instanceof PricingError && error.code === 'UNKNOWN_ROUTE',
+          'Regra por km não pode precificar ' + scope + '/' + id + ' (' + period + ')');
+        }
+      } finally {
+        catalog.localities[scope][id] = original!;
+      }
+    }
+  }
+
+  // Source confirmation alone is not an operational permit, but a confirmed
+  // same-municipality pair may reach a deliberately published regional rule.
+  const old = catalog.localities.prea['cavalo-bravo'];
+  catalog.localities.prea['cavalo-bravo'] = {};
+  try {
+    const quote = quoteFare({
+      origin: {zoneId: 'prea', localityId: 'prea'},
+      destination: {zoneId: 'prea', localityId: 'cavalo-bravo'},
+      category: 'moto', period: 'day', tripDistanceKm: 5,
+    }, catalog);
+    assert.equal(quote.ruleId, 'regression-must-never-price-unverified-prea');
+    assert.equal(quote.kind, 'exact');
+  } finally {
+    catalog.localities.prea['cavalo-bravo'] = old!;
+  }
+});
