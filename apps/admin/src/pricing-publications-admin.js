@@ -106,7 +106,9 @@ export function createPricingPublicationsAdmin({
       version.id === payload?.effectiveVersionId);
     byId('publication-active').textContent = effective
       ? 'Versão #' + effective.versionNumber
-      : 'Catálogo padrão';
+      : payload?.effectiveVersionId
+        ? 'Versão vigente não identificada na lista'
+        : 'Catálogo padrão';
     byId('publication-count').textContent = String(drafts.length);
     const list = byId('publication-drafts');
     list.replaceChildren();
