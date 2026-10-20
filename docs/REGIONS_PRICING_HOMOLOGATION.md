@@ -105,3 +105,30 @@ Código verificado: `6472c875b974d0c6cae6b8785374e1cfafecb996`.
 Os dois testes ainda ignorados na suíte PostgreSQL completa tratam de entrega de OTP persistida e de uma migração/preferência com sessão, sob guardas próprias. Não são declarados aprovados. O resultado anterior de 51 ignorados era da suíte sem banco; esta execução ampliada valida as integrações então não exercitadas, exceto esses dois casos.
 
 Continuam pendentes o diagnóstico real da VPS/banco, provedores externos, aparelhos reais e aceite do proprietário. Nenhum teste conectou-se a Google, Asaas, Mercado Pago, VPS ou banco reais.
+
+## Preparação para o ambiente instalado — 20/10/2026
+O primeiro inventário do operador confirmou que checkout, imagens e catálogo podem ter revisões diferentes. Um label ausente não prova a origem da imagem; por isso o comando de leitura ganhou a opção `--runtime-files`.
+
+Essa opção calcula assinaturas do JavaScript compilado do Core, por área, do lockfile e dos cinco arquivos centrais do ADM; informa somente os mounts de Web/Caddy e os checksums das migrations. Não lê Config.Env, não exibe configurações privadas e não altera containers ou banco.
+
+[Quatro referências compiladas](https://github.com/iansilva23/ramo-nessa/actions/runs/39500465201) permitem comparar o runtime com a integração financeira, a referência indicada pela tag V5, a base #35 e a candidata de Regiões e preços. O grupo de pagamentos tem a mesma assinatura nas quatro referências:
+`b2ae90d9dc642bc696f8cd9f9838bf53ee72ec912532789a655102112316630d`.
+Essa paridade é evidência entre fontes auditadas, não confirmação automática da imagem da VPS. A assinatura real ainda precisa ser recebida e comparada.
+
+[Pacotes Web configurados, sem deploy](https://github.com/iansilva23/ramo-nessa/actions/runs/39500699215), na revisão `fa5ad133c06721b5d9e48468a5e61a7fbd384c95`: Passageiro e Motorista compilados com base-href dos caminhos existentes, Core na mesma origem e configuração pública Firebase/Maps já existente. Artefato `ramo-v5-configured-web-homologation`, ID `12299797049`, digest `sha256:ea823ef57c06ce1026565e0dbde74a0a72bb1125988761793900eea7b67445cb`, retenção do GitHub Actions até 03/11/2026. Diferem dos bundles example.invalid da suíte de revisão. Sua compilação não comprova mapas, sessão ou pagamentos no ambiente conectado.
+
+O plano privado do reset agora inventaria as tabelas reais de ledger, carteira e tentativas/eventos Asaas, além das chaves estrangeiras que as relacionam. Um teste PostgreSQL executa o CLI em schema descartável e verifica permissões 0600, catálogo/dados preservados e recusa de sobrescrever o plano.
+[Regressão ampliada](https://github.com/iansilva23/ramo-nessa/actions/runs/39500996970): 826 testes do Core aprovados, nenhuma falha, dois ignorados; mais cinco testes de inspeção/assinaturas aprovados.
+
+Para completar a conferência, no terminal da VPS:
+```bash
+bash <<'CONFERIR_ARQUIVOS'
+set -euo pipefail
+git -C /opt/ramo-nessa fetch origin feature/admin-regions-pricing-simple-20261020
+git -C /opt/ramo-nessa show efa6527a78b5f50d0d54790e430059b2925792aa:deploy/staging/inspect-regions-pricing.mjs |
+  sudo node --input-type=module - --runtime-files
+CONFERIR_ARQUIVOS
+```
+A conferência é somente leitura. Backup verificado, preparação do catálogo e ativação são etapas posteriores. Não executar os scripts antigos de Asaas/GeoAgent para esta atualização: eles têm contratos e imagens de outras etapas.
+
+[Revisão Web final desta etapa](https://github.com/iansilva23/ramo-nessa/actions/runs/39501498518), código `41229ad0a9ea5c7e7770eec1324685c33769d051`: seis jobs aprovados, incluindo Chromium/WebKit com três reaberturas consecutivas do editor, arraste e teclado. A automação aguarda a pintura do mapa antes de medir o alfinete. O diff desde o build configurado contém somente um teste do ADM e o CLI/teste do plano; nenhum código dos aplicativos mudou após a compilação configurada.
