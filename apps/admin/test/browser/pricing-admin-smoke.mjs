@@ -168,6 +168,26 @@ try {
   assert.equal(published.localities.prea[0].prices.car.amountCents,4200,'Published fixture changed unexpectedly');
   assert.equal(publishRequests,0,'Saving a draft must never publish it');
 
+  // Separate publication center: preview only; no accidental publish.
+  await page.locator('.sidebar-nav [data-view="pricing-publications"]').click();
+  await page.locator('#publication-drafts .publication-draft-button').first().waitFor({timeout:15000});
+  await page.waitForFunction(() =>
+    document.querySelector('#publication-selected-title')?.textContent?.includes('#2'));
+  assert.match(await page.locator('#publication-active').innerText(),/Catálogo padrão/);
+  assert.match(await page.locator('#publication-diff').innerText(),/Tarifas de localidades/);
+  assert.equal(await page.locator('#publication-publish').isDisabled(),true,
+    'Publication requires an explicit review confirmation');
+  assert.equal(publishRequests,0,'Navigating to publication center never publishes');
+
+  const evidenceDir = resolve(root, 'pricing-browser-artifacts');
+  await mkdir(evidenceDir, {recursive:true});
+  await page.screenshot({
+    path:resolve(evidenceDir,'pricing-publications-desktop-1280.png'),
+    fullPage:true, animations:'disabled',
+  });
+  await page.locator('.sidebar-nav [data-view="pricing"]').click();
+  await page.locator('#pricing-complete-body tr').first().waitFor({timeout:15000});
+
   // Reload creates a fresh browser app session while preserving only mock draft state.
   await page.reload({waitUntil:'domcontentloaded'});
   await page.locator('#login-email').fill('auditoria@example.test');
@@ -181,8 +201,6 @@ try {
     document.querySelector('#pricing-complete-body')?.textContent?.includes('47,00'));
   assert.equal(publishRequests,0);
   assert.deepEqual(errors,[],'Browser JavaScript errors');
-  const evidenceDir = resolve(root, 'pricing-browser-artifacts');
-  await mkdir(evidenceDir, {recursive:true});
   await page.screenshot({path:resolve(evidenceDir,'pricing-desktop-1280.png'), fullPage:true, animations:'disabled'});
   console.log('PASS Chromium localhost-only: login, price matrix, filters, draft gating, edit, reload, no publication');
   await context.close();
