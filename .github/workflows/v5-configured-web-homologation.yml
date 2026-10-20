@@ -1,6 +1,9 @@
 name: V5 configured Web homologation - manual only - no deploy
 on:
   workflow_dispatch:
+  push:
+    branches: [integration/pricing-v5-finance-safe-20261019]
+    paths: [.github/workflows/v5-configured-web-homologation.yml]
 permissions:
   contents: read
 concurrency:
