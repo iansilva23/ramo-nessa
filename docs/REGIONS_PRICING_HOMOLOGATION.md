@@ -160,3 +160,18 @@ O operador retornou `BACKUP_VERIFICADO`, com restauração PostgreSQL isolada co
 A preparação ainda não é ativação nem homologação funcional conectada. Os bundles Web configurados tiveram os 108 arquivos verificados localmente contra o manifesto e o digest do artefato; não foram publicados.
 
 [Candidate Preparation Review aprovado](https://github.com/iansilva23/ramo-nessa/actions/runs/39505009335), código `e24a5ecb93e22b8054b599c4f377809fc63dcffb`: seis testes de guardas e execução real da preparação em Docker, com builds, backup/restauração, paridade de migrations/pagamentos, validação Caddy e reset/idempotência/recuperação na cópia PostgreSQL. O fixture é sintético; o resultado do ensaio com o backup da VPS ainda precisa ser recebido do operador.
+
+## Candidata confirmada pelo operador e plano de ativação
+O operador retornou `CANDIDATA_PREPARADA_E_TESTADA` para `e24a5ecb93e22b8054b599c4f377809fc63dcffb`, com código financeiro preservado, migrations iguais, reset/recuperação aprovados na cópia e nenhum serviço reiniciado/reset ativo. O manifesto privado foi fornecido na conversa.
+
+`prepare-regions-activation.mjs DIRETORIO_PREPARADO SHA256_MANIFESTO ZIP_WEB` prepara a etapa de troca, sem executá-la:
+- Exige runtime idêntico ao ensaio e `NODE_ENV=staging`, reconfere backup/migrations e verifica a origem dos pacotes Web contra o código dos aplicativos da candidata.
+- Verifica o ZIP configurado por digest fixo, manifesto e hashes de todos os 108 arquivos. Rejeita caminhos inseguros, entradas especiais, duplicadas, fora do manifesto, adulteração e placeholders Maps. Prepara ambos os aplicativos em diretório novo; o mount ativo não muda.
+- Resolve os arquivos Compose identificados pelo runtime. Compara ambiente, mounts e redes; produz modelos privados de candidata/retorno usando `servicePlan` já existente. Preserva todos os valores efetivos do ambiente, incluindo dólares literais, sem mudar opções Asaas ou outros provedores.
+- A candidata muda somente as imagens de Core/ADM e o bind dos dois apps Web. Caddy, certificados/volumes, portas, redes e proteções permanecem nos modelos originais.
+- Gera um plano novo de catálogo ativo em leitura, separado do ensaio. Cancela se a revisão/digest não forem iguais aos ensaiados; não sobrescreve alterações administrativas recentes.
+- Retorna `PLANO_DE_ATIVACAO_PREPARADO` com diretório/SHA-256 para a etapa posterior. Não faz merge, migração, troca de serviço, reset ou chamada financeira.
+
+[Revisão aprovada](https://github.com/iansilva23/ramo-nessa/actions/runs/39506490711), código `9a76cdcfeeb421e22e43e276d19b03503346945c`: dez testes Node e quatro Python; execução completa em Docker/PostgreSQL com Compose real, pacotes Web configurados, ambiente com dólares literais, plano ativo somente leitura e conferência de que o catálogo/serviços do fixture permanecem intactos. Os serviços do fixture ficam dormentes; esse ensaio verifica os modelos e o CLI, não a troca real nem o fluxo público completo dos aplicativos.
+
+A política de retorno futura é coberta separadamente em `regions-runtime-switch.test.mjs`: se o reset tiver resposta incerta, primeiro reconcilia/recupera o catálogo como nova versão. Se outro administrador já o tiver alterado ou o banco não permitir confirmar a recuperação, preserva a candidata capaz de interpretar o modo novo e exige conferência. Nunca restaura dump no banco ativo nem reativa o motor legado sobre catálogo managed sem recuperação comprovada. Essa política ainda não foi executada no ambiente real.
