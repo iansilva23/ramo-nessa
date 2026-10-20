@@ -36,8 +36,9 @@ export async function prepaymentDriverConfirmation(input: {
   const offers = await input.matching.listOffersForRide(ride.id);
   const offer = offers.at(-1);
   const base = { ride: passengerRideView(ride), holdExpiresAt: ride.driverHoldExpiresAt ?? now.toISOString() };
+  const holdExpiryMs = Date.parse(ride.driverHoldExpiresAt ?? '');
   if (ride.state !== 'AWAITING_PAYMENT' ||
-      Date.parse(ride.driverHoldExpiresAt ?? '') <= now.getTime()) {
+      !Number.isFinite(holdExpiryMs) || holdExpiryMs <= now.getTime()) {
     return { ...base, status: 'EXPIRED', driver: null };
   }
   if (offer == null) return { ...base, status: 'NOT_STARTED', driver: null };
@@ -57,7 +58,10 @@ export async function prepaymentDriverConfirmation(input: {
   ]);
   if (profile?.status !== 'approved' || vehicle?.status !== 'approved' || supply == null ||
       !supply.online || supply.busy || supply.reservedRideId !== ride.id ||
+      !Number.isFinite(Date.parse(supply.reservedUntil ?? '')) ||
       Date.parse(supply.reservedUntil ?? '') <= now.getTime() ||
+      !Number.isFinite(Date.parse(supply.locationUpdatedAt)) ||
+      Date.parse(supply.locationUpdatedAt) > now.getTime() ||
       now.getTime() - Date.parse(supply.locationUpdatedAt) > 120_000) {
     return { ...base, status: 'NO_DRIVER_FOUND', driver: null };
   }
