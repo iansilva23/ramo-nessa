@@ -73,7 +73,9 @@ class RamoMapController {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
 
-    if (coordinates.length == 1) {
+    if (!RamoMapConfig.hasRouteBounds(coordinates)) {
+      // A zero-length route must not be passed to newLatLngBounds: native
+      // map SDKs can yield an unstable zoom for identical endpoints.
       await move(coordinates.first, maxZoom);
       return;
     }
