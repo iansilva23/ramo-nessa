@@ -157,7 +157,7 @@ export function assertPricingLocationMatchesPoint(input: {
     );
   }
 
-  if (!catalog.zonePolicies[input.ref.zoneId].enabled) {
+  if (!input.ref || !catalog.zonePolicies[input.ref.zoneId]?.enabled) {
     throw new PricingLocationMismatchError(
       `${input.field}.zoneId está desativada no catálogo vigente.`,
     );
