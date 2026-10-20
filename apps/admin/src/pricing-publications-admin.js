@@ -243,7 +243,10 @@ export function createPricingPublicationsAdmin({
     }
   }
   async function selectDraft(id, {notify = true, internalRefresh = false} = {}) {
-    if (!mounted || (writing && !internalRefresh)) return;
+    // A refresh owns the draft list until it finishes. Ignore manual clicks
+    // against stale list items rather than cancelling the refresh sequence.
+    if (!mounted || (loading && !internalRefresh) ||
+        (writing && !internalRefresh)) return;
     const match = drafts.find(version => version.id === id);
     if (!match) return;
     // Invalidate the previous review immediately. A failed request must never
