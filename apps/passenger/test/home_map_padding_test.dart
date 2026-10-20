@@ -3,6 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/core/config/ramo_map_config.dart';
 
 void main() {
+  test('GPS recente mantém foco da rota selecionada', () {
+    expect(
+      RamoMapConfig.shouldCenterOnGpsUpdate(hasDestination: false),
+      isTrue,
+    );
+    expect(
+      RamoMapConfig.shouldCenterOnGpsUpdate(hasDestination: true),
+      isFalse,
+    );
+    expect(RamoMapConfig.locationZoom, greaterThan(16));
+  });
+
   test('painel inferior não vira margem lateral na rota', () {
     final padding = ramoHomeMapPadding(
       viewport: const Size(390, 844),
