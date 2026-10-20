@@ -4340,22 +4340,26 @@ class _ActiveRideCompactBar extends StatelessWidget {
                   child: Icon(_icon, size: 20, color: RamoColors.brandBlack),
                 ),
                 const SizedBox(width: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 190),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        route == null
-                            ? 'Corrida ativa'
-                            : '${route!.durationLabel} · ${route!.distanceLabel}',
-                        style: const TextStyle(
-                          color: RamoColors.brandYellow,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 190),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          route == null
+                              ? 'Corrida ativa'
+                              : '${route!.durationLabel} · ${route!.distanceLabel}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: RamoColors.brandYellow,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
                       Text(
                         _target,
                         maxLines: 1,
@@ -4366,7 +4370,8 @@ class _ActiveRideCompactBar extends StatelessWidget {
                           fontSize: 12,
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
