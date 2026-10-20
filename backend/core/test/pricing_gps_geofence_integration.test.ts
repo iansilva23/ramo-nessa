@@ -58,7 +58,8 @@ test('GPS correto preserva transfer aprovado e exigência 4x4 na fronteira da Vi
   },catalog);
   assert.equal(jjd.kind,'exact');
   assert.equal(jjd.ruleId,'jeri-airport-comfort');
-  if (jjd.kind==='exact') assert.equal(jjd.baseAmountCents,24000);
+  // A revisão comercial aprovada em 03/10 substituiu a base legada de R$ 240.
+  if (jjd.kind==='exact') assert.equal(jjd.baseAmountCents,22000);
 });
 
 test('identidade de GPS falsa não transforma ponto remoto em localidade tarifável', () => {
