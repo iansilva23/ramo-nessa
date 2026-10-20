@@ -195,3 +195,30 @@ test('confirmação do motorista recusa veículo e atributos incompatíveis com 
     assert.equal(result?.driver,null,problem);
   }
 });
+
+test('aceite aos 30s mantém confirmação pronta após 35s durante hold de pagamento', async () => {
+  const ctx = await setup();
+  const prepared = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+  const acceptedAt = new Date(now.getTime()+30_000);
+  const accepted = await ctx.matching.acceptOffer({
+    offerId:offer.id,driverId:offer.driverId,
+    acceptedAt:acceptedAt.toISOString(),paymentHoldSeconds:90,
+  });
+  assert.ok(Date.parse(offer.expiresAt)<now.getTime()+40_000);
+  assert.ok(Date.parse(accepted.ride.driverHoldExpiresAt!)>now.getTime()+40_000);
+  const registry = {
+    findProfile:async()=>({status:'approved',fullName:'Motorista de teste'}),
+    findVehicleByDriverId:async()=>({
+      id:'vehicle-confirm',status:'approved',fourByFour:false,
+      make:'Veículo',model:'Teste',plateNormalized:'ABC1D23',
+    }),
+  } as never;
+  const confirmed = await prepaymentDriverConfirmation({
+    rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,registry,
+    routing:null,rideId:accepted.ride.id,passengerId:accepted.ride.passengerId,
+    now:new Date(now.getTime()+40_000),
+  });
+  assert.equal(confirmed?.status,'READY_TO_PAY');
+  assert.equal(confirmed?.driver?.id,offer.driverId);
+});
