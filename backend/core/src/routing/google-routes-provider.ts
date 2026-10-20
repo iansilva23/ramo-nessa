@@ -121,6 +121,14 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
 
         byte = encoded.charCodeAt(index) - 63;
         index += 1;
+        // Each encoded polyline byte must be a printable ASCII offset
+        // between 63 and 126. Reject malformed geometry before map display.
+        if (byte < 0 || byte > 0x3f) {
+          throw new RoutingRouteError(
+            'INVALID_PROVIDER_RESPONSE',
+            'Google Routes retornou caracteres inválidos na geometria.',
+          );
+        }
         result |= (byte & 0x1f) << shift;
         shift += 5;
 
@@ -147,9 +155,23 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
     latitude += latDelta;
     longitude += lonDelta;
 
+    const latitudeDegrees = latitude / 1e5;
+    const longitudeDegrees = longitude / 1e5;
+    if (
+      !Number.isFinite(latitudeDegrees) ||
+      !Number.isFinite(longitudeDegrees) ||
+      latitudeDegrees < -90 || latitudeDegrees > 90 ||
+      longitudeDegrees < -180 || longitudeDegrees > 180
+    ) {
+      throw new RoutingRouteError(
+        'INVALID_PROVIDER_RESPONSE',
+        'Google Routes retornou coordenadas fora dos limites geográficos.',
+      );
+    }
+
     points.push({
-      latitude: latitude / 1e5,
-      longitude: longitude / 1e5,
+      latitude: latitudeDegrees,
+      longitude: longitudeDegrees,
     });
   }
 
