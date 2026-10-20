@@ -42,8 +42,9 @@ export async function testPricingHelp(page, out, engine) {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
       await page.keyboard.press('Tab');
       assert.equal(await manual.evaluate(n => n.contains(document.activeElement)), true, 'Focus must stay in manual');
+      await manual.locator('[data-chapter="rate"]').click();
       await page.screenshot({path: resolve(out, engine + '-help-' + width + '.png')});
-      if (engine === 'chromium' && width !== 860) {
+      if (engine === 'chromium') {
         console.log('RP_HELP_PREVIEW_' + width + ':' + (await page.screenshot({type: 'jpeg', quality: 45})).toString('base64'));
       }
     }
@@ -57,6 +58,9 @@ export async function testPricingHelp(page, out, engine) {
 
 export async function testEditorHelp(page, editor, label, topicText) {
   const trigger = editor.getByRole('button', {name: 'Ajuda: ' + label, exact: true});
+  // The MFA dialog is created after an HTTP challenge. Wait for its controls
+  // before snapshotting; evaluateAll alone does not wait for DOM insertion.
+  await trigger.waitFor({state: 'visible'});
   const before = await editor.locator('input,select').evaluateAll(inputs => inputs.map(n => [n.value, n.checked, n.disabled]));
   await trigger.click();
   const manual = page.getByRole('dialog', {name: 'Ajuda e tutoriais', exact: true});
