@@ -335,8 +335,13 @@ try {
     assert.equal(await publisher.locator('#publication-publish').isEnabled(),true);
 
     // Dismissing browser confirmation must not touch any published fare.
+    const cancelDialog = publisher.waitForEvent('dialog');
     publisher.once('dialog',dialog => void dialog.dismiss());
     await publisher.locator('#publication-publish').click();
+    await cancelDialog;
+    await publisher.waitForFunction(() =>
+      document.querySelector('#publication-publish')?.disabled === false,
+      {timeout:15000});
     assert.equal(publishRequests,0,'Cancelamento nunca publica');
     assert.equal(published.localities.prea[0].prices.car.amountCents,4200);
 
