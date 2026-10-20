@@ -1,0 +1,68 @@
+name: V5 configured Web homologation - manual only - no deploy
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v5-configured-web-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  web:
+    if: github.ref == 'refs/heads/integration/pricing-v5-finance-safe-20261019'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Prepare icons
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+      - name: Compile both Web apps with existing public configuration
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            (
+              cd "apps/$role"
+              flutter pub get --enforce-lockfile
+              flutter build web --release --no-web-resources-cdn --no-pub \
+                --base-href="/$route/" \
+                --dart-define=RAMO_CORE_BASE_URL= \
+                --dart-define=RAMO_PREVIEW_MODE=false
+            )
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Verify release manifest and unchanged sources
+        run: |
+          set -euo pipefail
+          node scripts/web/write_homologation_manifest.mjs \
+            --passenger=apps/passenger/build/web \
+            --driver=apps/driver/build/web \
+            --commit="${{ github.sha }}" \
+            --output=web-release-manifest.json
+          git diff --exit-code -- 'apps/*/lib/**' 'apps/*/pubspec.yaml' 'packages/**'
+      - name: Package immutable source-matched bundles, without deploy
+        run: |
+          mkdir -p artifacts/v5-web
+          cp -a apps/passenger/build/web artifacts/v5-web/passenger
+          cp -a apps/driver/build/web artifacts/v5-web/driver
+          cp web-release-manifest.json artifacts/v5-web/release.json
+          printf '%s\n' "${{ github.sha }}" > artifacts/v5-web/source-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ramo-v5-configured-web-homologation
+          path: artifacts/v5-web/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
