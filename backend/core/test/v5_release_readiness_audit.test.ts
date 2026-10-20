@@ -45,7 +45,7 @@ test('relatório não trata comparação estática como tarifa publicada no Post
   assert.match(text, /nome da revisão no código NÃO comprova/);
   assert.match(text, /Matriz para conciliação/);
   assert.match(text, /Sem evidência anexada neste relatório/);
-  assert.match(text, /R\\$ -110,00/);
+  assert.match(text, /R\$ -110,00/);
   assert.match(text, /26/);
 });
 
