@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,existsSync,lstatSync,openSync,closeSync,unlin
 import {join,dirname,relative,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
-import {isDeepStrictEqual} from 'node:util';
+import {isDeepStrictEqual,inspect as describeError} from 'node:util';
 import {validate} from './backup-regions-pricing.mjs';
 import {makeModels,identity,assertRuntime,environmentMap} from './regions-activation-contract.mjs';
 import {switchRegionsRuntime} from './regions-runtime-switch.mjs';
@@ -58,7 +58,10 @@ export async function activate(args,{testAfterReset}={}){
   else if(kind!=='rollback'||docker(['ps','-a','--format','{{.Names}}']).trim().split('\n').includes(names[role]))throw Error('Serviço não pôde ser identificado para troca.');
   if(current&&! [plan.beforeImages[role],plan.candidate[role]].includes(current.Image))throw Error('Implantação concorrente; retorno não sobrescreverá outro serviço.');
   if(current&&role==='gateway'&&![plan.oldWebRoot,plan.webRoot].includes(current.Mounts.find(m=>m.Destination==='/srv/web')?.Source))throw Error('Gateway concorrente; troca cancelada.');
-  if(current&&kind==='candidate'&&identity(current)!==identity(before[role]))throw Error('Runtime mudou imediatamente antes da troca.');
+  if(current&&kind==='candidate'&&identity(current)!==identity(before[role])){
+   writeFileSync(join(dir,'runtime-difference.private.json'),JSON.stringify({role,before:before[role],current},null,2),{mode:0o600});
+   throw Error('Runtime mudou imediatamente antes da troca.');
+  }
   if(current&&kind==='rollback'){
    // Health can be the reason for returning; still require the planned effective configuration.
    const checked=structuredClone(current);checked.State.Health={Status:'healthy'};
@@ -124,7 +127,7 @@ export async function activate(args,{testAfterReset}={}){
   journal.completedAt=new Date().toISOString();record('completed');
   console.log(JSON.stringify({status:'REGIOES_E_PRECOS_ATIVADOS',revision:plan.revision,regions:3,commercialRates:0,categoriesPreserved:true,resetApplied:true,adminUpdated:true,passengerWebUpdated:true,driverWebUpdated:true,nativeAppsUpdated:false,providerConfigurationPreserved:true,realDeviceAcceptancePending:true,adminUrl:origin+'/administrodo/'},null,2));
  }catch(error){
-  writeFileSync(join(dir,'activation-error.private.log'),String(error.stack||error),{mode:0o600});
+  writeFileSync(join(dir,'activation-error.private.log'),describeError(error,{depth:8}),{mode:0o600});
   if(journal){journal.rollbackComplete=error.rollbackComplete??null;journal.candidatePreserved=error.candidatePreserved??false;journal.catalogRecovery=error.catalogRecovery??null;record(error.rollbackComplete===true?'rolled-back':'review-required');}
   console.error(error.message);console.error('Não repita este comando. Envie a saída final para conferência. Nenhum dump foi restaurado no banco ativo.');process.exitCode=1;
  }finally{for(const signal of ['SIGINT','SIGTERM','SIGHUP'])process.off(signal,onInterrupt);unlinkSync(lock);}

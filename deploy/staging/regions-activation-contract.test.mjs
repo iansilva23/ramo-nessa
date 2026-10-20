@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {makeModels,assertRuntime,environmentMap} from './regions-activation-contract.mjs';
+import {makeModels,assertRuntime,environmentMap,identity} from './regions-activation-contract.mjs';
 import {activationArguments} from './prepare-regions-activation.mjs';
 const before={Name:'/ramo-nessa-staging-gateway-1',Image:'sha256:old',Config:{Env:['PATH=/bin','TOKEN=one$two$$three'],Labels:{'com.docker.compose.project':'ramo-nessa-staging','com.docker.compose.service':'gateway'},User:'',Entrypoint:['caddy'],Cmd:['run']},State:{Health:{Status:'healthy'}},HostConfig:{PortBindings:{'443/tcp':[{HostPort:'443'}]},ReadonlyRootfs:false,RestartPolicy:{Name:'unless-stopped'},CapDrop:['ALL']},Mounts:[{Type:'bind',Source:'/old/bundles',Destination:'/srv/web',RW:false},{Type:'volume',Name:'caddy-data',Source:'/vol/data',Destination:'/data',RW:true}],NetworkSettings:{Networks:{'staging-net':{Aliases:['gateway']}}}};
 const oldImage={Id:'sha256:old',Config:{Env:['PATH=/bin']}};
@@ -26,4 +26,10 @@ test('runtime checks reject financial environment, TLS mounts, port and protecti
 test('activation plan requires exact prepared directory, digest and absolute artifact path',()=>{
  assert.doesNotThrow(()=>activationArguments(['/opt/ramo-nessa-regions/releases/'+'a'.repeat(12),'b'.repeat(64),'/tmp/web.zip']));
  for(const args of [[],['/tmp/release','b'.repeat(64),'/tmp/web.zip'],['/opt/ramo-nessa-regions/releases/'+'a'.repeat(12),'wrong','web.zip']])assert.throws(()=>activationArguments(args));
+});
+test('identity ignores map/alias/environment ordering and still detects credential, mount and port changes',()=>{
+ const a=structuredClone(before);a.Id='same';a.State.StartedAt='same';a.NetworkSettings.Networks['staging-net'].Aliases=['gateway','stable-name'];
+ const b=structuredClone(a);b.Config.Env.reverse();b.NetworkSettings.Networks['staging-net'].Aliases.reverse();b.HostConfig=Object.fromEntries(Object.entries(b.HostConfig).reverse());
+ assert.equal(identity(a),identity(b));
+ for(const change of [c=>c.Config.Env[0]='TOKEN=changed',c=>c.Mounts[0].Source='/other',c=>c.HostConfig.PortBindings={},c=>c.Image='other',c=>c.Id='other']){const c=structuredClone(b);change(c);assert.notEqual(identity(a),identity(c));}
 });

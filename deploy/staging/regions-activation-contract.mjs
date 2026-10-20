@@ -1,7 +1,17 @@
 import {isDeepStrictEqual} from 'node:util';
 import {environmentMap,escapeCompose,servicePlan,assertEnvironmentMatches} from './asaas-activation-plan-contract.mjs';
 export {environmentMap,escapeCompose,assertEnvironmentMatches};
-export const identity=c=>JSON.stringify([c.Id,c.Image,c.State.StartedAt,c.Config,c.HostConfig,c.Mounts,c.NetworkSettings.Networks]);
+function canonical(value,key=''){
+ if(Array.isArray(value)){
+  const rows=value.map(v=>canonical(v));
+  if(['Env','Aliases','DNSNames','CapAdd','CapDrop','SecurityOpt'].includes(key))return rows.sort();
+  if(key==='Mounts')return rows.sort((a,b)=>a.Destination.localeCompare(b.Destination));
+  return rows;
+ }
+ if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k],k)]));
+ return value;
+}
+export const identity=c=>JSON.stringify(canonical([c.Id,c.Image,c.State.StartedAt,c.Config,c.HostConfig,c.Mounts,c.NetworkSettings.Networks]));
 export function makeModels(resolved,role,before,oldImage,newImage,webRoot) {
   assertEnvironmentMatches(resolved.services[role],before,oldImage);
   const actual=environmentMap(before.Config.Env);
