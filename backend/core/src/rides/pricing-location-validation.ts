@@ -129,6 +129,25 @@ export function assertPricingLocationMatchesPoint(input: {
 }): void {
   const catalog = input.catalog ?? STATIC_PRICING_CATALOG_V1;
 
+  // Nunca aceitar latitude/longitude inválidas: NaN escaparia à comparação
+  // "distance > radiusKm" e poderia validar uma geofence indevidamente.
+  const point = input.point;
+  if (
+    point == null ||
+    typeof point.latitude !== 'number' ||
+    typeof point.longitude !== 'number' ||
+    !Number.isFinite(point.latitude) ||
+    !Number.isFinite(point.longitude) ||
+    point.latitude < -90 ||
+    point.latitude > 90 ||
+    point.longitude < -180 ||
+    point.longitude > 180
+  ) {
+    throw new PricingLocationMismatchError(
+      `${input.field} possui coordenadas GPS inválidas.`,
+    );
+  }
+
   if (!catalog.zonePolicies[input.ref.zoneId].enabled) {
     throw new PricingLocationMismatchError(
       `${input.field}.zoneId está desativada no catálogo vigente.`,
