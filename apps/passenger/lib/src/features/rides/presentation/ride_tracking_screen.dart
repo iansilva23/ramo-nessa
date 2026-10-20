@@ -14,6 +14,7 @@ import '../data/passenger_ride_tracking_service.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import '../domain/prepared_ride.dart';
 import 'passenger_ride_chat_screen.dart';
+import 'widgets/animated_ride_status.dart';
 import 'tracking_map_transition_policy.dart';
 
 class RideTrackingScreen extends StatefulWidget {
@@ -532,12 +533,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                     ],
                   ),
                   const SizedBox(height: RamoSpacing.sm),
-                  Text(
-                    _status,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
+                  AnimatedRideStatus(label: _status),
                   if (driverProfile != null) ...[
                     const SizedBox(height: RamoSpacing.md),
                     _AssignedDriverCard(driver: driverProfile),
