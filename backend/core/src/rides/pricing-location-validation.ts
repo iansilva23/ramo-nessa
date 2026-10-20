@@ -179,6 +179,18 @@ export function assertPricingLocationMatchesPoint(input: {
         candidate.localityId === input.ref.localityId,
     );
     if (geofence != null) {
+      // Fail closed if a versioned catalog contains an invalid geofence.
+      // NaN radius would otherwise make "distance > radius" false.
+      if (!Number.isFinite(geofence.centerLatitude) ||
+          geofence.centerLatitude < -90 || geofence.centerLatitude > 90 ||
+          !Number.isFinite(geofence.centerLongitude) ||
+          geofence.centerLongitude < -180 || geofence.centerLongitude > 180 ||
+          !Number.isFinite(geofence.radiusKm) ||
+          geofence.radiusKm <= 0 || geofence.radiusKm > 100) {
+        throw new PricingLocationMismatchError(
+          `${input.field}.localityId possui geocerca inválida no catálogo.`,
+        );
+      }
       const distance = distanceKm(input.point, {
         latitude: geofence.centerLatitude,
         longitude: geofence.centerLongitude,
