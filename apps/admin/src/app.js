@@ -15,6 +15,7 @@ import { createDriverBenefitsAdmin } from './driver-benefits-admin.js';
 import { AdminApiError, createAdminApi } from './api.js';
 import { createFleetMap } from './fleet-map.js';
 import { createLocalitiesAdmin } from './localities-admin.js';
+import { createPricingPublicationsAdmin } from './pricing-publications-admin.js';
 import { createPricingGeofenceMap } from './pricing-geofence-map.js';
 import { buildPricingRateRows, formatPriceView, nightDifference } from './pricing-rate-matrix.js';
 import {
@@ -207,6 +208,7 @@ const routeOutlet = byId('route-outlet');
 const routeLoading = byId('route-loading');
 let fleetMap = null;
 let localitiesAdmin = null;
+let pricingPublicationsAdmin = null;
 let promotionsAdmin = null;
 let driverBenefitsAdmin = null;
 let payoutReconciliationBusy = false;
@@ -278,6 +280,11 @@ const adminRoutes = Object.freeze({
     path: '/administrodo/operacao-tarifas',
     title: 'Operação e Tarifas',
     page: 'pricing',
+  },
+  'pricing-publications': {
+    path: '/administrodo/rascunhos-publicacoes',
+    title: 'Rascunhos e publicações',
+    page: 'pricing-publications',
   },
   costs: {
     path: '/administrodo/custos-resultado',
@@ -432,6 +439,7 @@ const viewAccessScopes = Object.freeze({
   localities: ['pricing:read', 'pricing:write'],
   geo: ['pricing:read', 'pricing:write'],
   pricing: ['pricing:read', 'pricing:write'],
+  'pricing-publications': ['pricing:read', 'pricing:write'],
   coupons: ['finance:read', 'finance:write'],
   finance: ['finance:read', 'finance:write'],
   issues:['issues:read','issues:write'],
@@ -498,6 +506,11 @@ function destroyLocalitiesAdmin() {
   if (localitiesAdmin == null) return;
   localitiesAdmin.destroy();
   localitiesAdmin = null;
+}
+function destroyPricingPublicationsAdmin() {
+  if (pricingPublicationsAdmin == null) return;
+  pricingPublicationsAdmin.destroy();
+  pricingPublicationsAdmin = null;
 }
 
 function destroyPricingGeofenceMap() {
@@ -923,6 +936,9 @@ async function activateView(
   }
   if (currentView === 'localities') {
     destroyLocalitiesAdmin();
+  }
+  if (currentView === 'pricing-publications') {
+    destroyPricingPublicationsAdmin();
   }
   if (currentView === 'pricing') {
     destroyPricingGeofenceMap();
@@ -10800,6 +10816,18 @@ function initializeRouteView(view) {
     return;
   }
 
+  if (view === 'pricing-publications') {
+    destroyPricingPublicationsAdmin();
+    pricingPublicationsAdmin = createPricingPublicationsAdmin({
+      root: routeOutlet, api, getToken: () => state.token, hasScope,
+      onError(error) {
+        if (error instanceof AdminApiError && error.status === 401) {
+          handleAuthenticatedError(error);
+        }
+      },
+    });
+    return;
+  }
   if (view === 'localities') {
     destroyLocalitiesAdmin();
     localitiesAdmin = createLocalitiesAdmin({
