@@ -141,3 +141,20 @@ test('confirmação pré-pagamento falha fechada com reserva sem prazo ou prazo 
     assert.equal(result?.driver,null);
   }
 });
+
+test('oferta pré-pagamento nunca é criada com reserva vencida ou sem prazo válido', async () => {
+  for (const invalidExpiry of [undefined,'data-invalida','2026-10-03T11:59:59Z']) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const { driverHoldExpiresAt: _previous, ...withoutExpiry }=prepared;
+    const ride={
+      ...withoutExpiry,
+      ...(invalidExpiry === undefined ? {} : {driverHoldExpiresAt:invalidExpiry}),
+    };
+    await assert.rejects(
+      createPrepaymentDriverOffer({ride,matching:ctx.matching,now}),
+      /reserva do motorista está vencida ou possui prazo inválido/,
+    );
+    assert.equal((await ctx.matching.listOffersForRide(ride.id)).length,0);
+  }
+});
