@@ -5597,3 +5597,32 @@ td strong {
   .publication-action-buttons .button { flex: 1 1 170px; }
   .publication-links .button { flex: 1 1 140px; }
 }
+
+.publication-diff-heading {
+  display: block;
+  margin: 14px 0 10px;
+  font-size: 0.86rem;
+}
+.publication-price-changes {
+  display: grid;
+  gap: 9px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 16px;
+}
+.publication-price-change {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #e4e4e4;
+  border-radius: 11px;
+  background: #fafafa;
+  overflow-wrap: anywhere;
+}
+.publication-price-change strong { font-size: 0.82rem; }
+.publication-price-change span, .publication-price-change small {
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
