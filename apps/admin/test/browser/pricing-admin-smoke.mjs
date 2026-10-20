@@ -329,8 +329,31 @@ try {
       document.querySelector('#publication-selected-title')?.textContent?.includes('#2'));
     assert.equal(await publisher.locator('#publication-publish').isDisabled(),true);
     assert.equal(publishRequests,0);
+    assert.match(await publisher.locator('#publication-diff').innerText(),/42,00/);
+    assert.match(await publisher.locator('#publication-diff').innerText(),/47,00/);
     await publisher.locator('#publication-confirm-review').check();
     assert.equal(await publisher.locator('#publication-publish').isEnabled(),true);
+
+    // Dismissing browser confirmation must not touch any published fare.
+    publisher.once('dialog',dialog => void dialog.dismiss());
+    await publisher.locator('#publication-publish').click();
+    assert.equal(publishRequests,0,'Cancelamento nunca publica');
+    assert.equal(published.localities.prea[0].prices.car.amountCents,4200);
+
+    // Another administrator edits while the review is open. The UI must
+    // fetch the current ETag/updatedAt and require fresh review, not publish
+    // blindly or retry a stale version.
+    draft.updatedAt = '2026-10-19T12:02:00.000Z';
+    await publisher.locator('#publication-publish').click();
+    await publisher.waitForFunction(() =>
+      document.querySelector('#publication-message')?.textContent?.includes('mudou desde sua revisão'),
+      {timeout:15000});
+    assert.equal(publishRequests,0,'Revisão antiga nunca publica');
+    assert.equal(await publisher.locator('#publication-confirm-review').isChecked(),false,
+      'É obrigatório confirmar novamente após alterações de terceiros');
+    await publisher.locator('#publication-confirm-review').check();
+    assert.equal(await publisher.locator('#publication-publish').isEnabled(),true);
+
     publisher.once('dialog',dialog => void dialog.accept());
     await publisher.locator('#publication-publish').click();
     await publisher.waitForFunction(() =>
