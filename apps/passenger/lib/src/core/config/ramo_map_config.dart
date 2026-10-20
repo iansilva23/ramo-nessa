@@ -12,6 +12,17 @@ abstract final class RamoMapConfig {
   /// This avoids a zoom jump while the refreshed route is being calculated.
   static bool shouldCenterOnGpsUpdate({required bool hasDestination}) =>
       !hasDestination;
+
+  /// A list can have several identical points (e.g. zero-distance routes).
+  /// Such a list has no useful bounds; the camera should center on one point.
+  static bool hasRouteBounds(List<LatLng> coordinates) {
+    if (coordinates.length < 2) return false;
+    final first = coordinates.first;
+    return coordinates.skip(1).any(
+      (point) => point.latitude != first.latitude ||
+          point.longitude != first.longitude,
+    );
+  }
 }
 
 /// Reserves the actual bottom-sheet height without narrowing the sides.
