@@ -617,6 +617,12 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    pricingManagement(token) { return request('/v1/admin/pricing/management', {token}); },
+    savePricingManagement(token, body) { return request('/v1/admin/pricing/management', {token,method:'PUT',body}); },
+    pricingManagementHistory(token) { return request('/v1/admin/pricing/management/history', {token}); },
+    searchPricingRegion(token, query) { return request('/v1/admin/pricing/management/search?q='+encodeURIComponent(query), {token}); },
+    simulatePricing(token, body) { return request('/v1/admin/pricing/management/simulate', {token,method:'POST',body}); },
+
     pricingCatalog(token) {
       return request('/v1/admin/pricing/catalog', { token });
     },

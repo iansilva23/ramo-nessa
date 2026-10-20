@@ -56,7 +56,7 @@ export class ManagementError extends Error {
     super(message); this.name = 'ManagementError';
   }
 }
-const fail = (message: string): never => { throw new ManagementError('MANAGEMENT_INVALID', message); };
+function fail(message: string): never { throw new ManagementError('MANAGEMENT_INVALID', message); }
 const object = (v: unknown): Record<string, unknown> =>
   v != null && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : fail('Dados inválidos.');
 const text = (v: unknown, label: string, max = 100): string =>

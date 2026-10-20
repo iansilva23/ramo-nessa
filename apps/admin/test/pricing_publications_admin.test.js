@@ -90,12 +90,12 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   assert.match(localities, /class="publication-legacy-controls" hidden/);
 });
 
-test('originais ficam protegidos: não muda motor e mantém rotas prévias', () => {
+test('gestão unificada remove menus antigos e preserva controlador histórico', () => {
   const index = readFileSync(new URL('../index.html',import.meta.url),'utf8');
   assert.match(index, /data-view="pricing"/);
-  assert.match(index, /data-view="localities"/);
-  assert.ok(index.includes('data-view="localities"') && index.includes('            Localidades'));
-  assert.match(index, /data-view="pricing-publications"/);
+  assert.doesNotMatch(index, /data-view="localities"/);
+  assert.match(index, /Regiões e preços/);
+  assert.doesNotMatch(index, /data-view="pricing-publications"/);
   const code = readFileSync(new URL('../src/pricing-publications-admin.js',import.meta.url),'utf8');
   assert.ok(!code.includes('fetch('), 'Todas as operações devem usar o cliente API com MFA');
   assert.ok(!code.includes('setInterval('));

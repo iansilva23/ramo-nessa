@@ -57,7 +57,7 @@ test('fixed tariff takes precedence in both directions, night is explicit',()=>{
 });
 test('distance, minimum, extras and commission preserve exact integer money',()=>{
   const catalog=configured([rate({extras:[{name:'Synthetic extra',amountCents:100,period:'day'}]})]);
-  for(const [km,cents]of [[1,1100],[5.1,1375]]){
+  for(const [km,cents]of [[1,1100],[5.1,1375]] as const){
     const q=quoteFare({...request,tripDistanceKm:km},catalog);
     assert.equal(q.kind,'exact');
     if(q.kind==='exact'){

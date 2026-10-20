@@ -5,7 +5,7 @@ import test from 'node:test';
 const pagesDir = new URL('../pages/', import.meta.url);
 
 async function adminSource() {
-  const [index, app, localities, publications, coupons, benefits, costs, growth, geo] = await Promise.all([
+  const [index, app, localities, publications, coupons, benefits, costs, growth, geo, regions] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     // Loaded below alongside the other isolated page controllers.
@@ -19,11 +19,12 @@ async function adminSource() {
     readFile(new URL('../src/company-costs-admin.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/growth-admin.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/geo-admin.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/regions-pricing-admin.js', import.meta.url), 'utf8'),
   ]);
   return {
     index,
     app,
-    controls: app + '\n' + localities + '\n' + publications + '\n' + coupons + '\n' + benefits + '\n' + costs + '\n' + growth + '\n' + geo,
+    controls: app + '\n' + localities + '\n' + publications + '\n' + coupons + '\n' + benefits + '\n' + costs + '\n' + growth + '\n' + geo + '\n' + regions,
   };
 }
 

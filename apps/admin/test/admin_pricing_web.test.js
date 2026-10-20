@@ -259,7 +259,7 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   }
 
   assert.match(html, /data-view=["']pricing["']/);
-  assert.match(html, /Operação e Tarifas/i);
+  assert.match(html, /Regiões e preços/i);
   assert.match(html, /Catálogo ativo protegido/i);
   assert.match(html, /Localidades agora têm uma área própria/i);
   assert.match(html, /Gerenciar localidades/i);
