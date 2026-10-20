@@ -54,9 +54,7 @@ export async function prepaymentDriverConfirmation(input: {
     }
     return { ...base, status: 'WAITING_ACCEPTANCE', driver: null };
   }
-  if (offer?.status !== 'ACCEPTED' || ride.driverId !== offer.driverId ||
-      !Number.isFinite(Date.parse(offer.expiresAt)) ||
-      Date.parse(offer.expiresAt) <= now.getTime()) {
+  if (offer?.status !== 'ACCEPTED' || ride.driverId !== offer.driverId) {
     return { ...base, status: 'NO_DRIVER_FOUND', driver: null };
   }
   const [profile, vehicle, supply] = await Promise.all([
