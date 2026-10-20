@@ -1,3 +1,4 @@
+import '../../../core/auth/session_http_client.dart';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -16,10 +17,13 @@ class HttpPricingQuoteService implements PricingQuoteService {
   HttpPricingQuoteService({
     required Uri baseUrl,
     http.Client? client,
+    String? accessToken,
   })  : _baseUrl = baseUrl,
-        _client = client ?? http.Client();
+        _accessToken = accessToken,
+        _client = client ?? createSessionHttpClient('passenger');
 
   final Uri _baseUrl;
+  final String? _accessToken;
   final http.Client _client;
 
   @override
@@ -48,7 +52,11 @@ class HttpPricingQuoteService implements PricingQuoteService {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/pricing/quote'),
-          headers: const {'content-type': 'application/json'},
+          headers: {
+            'content-type': 'application/json',
+            if (kIsWeb && _accessToken?.isNotEmpty == true)
+              'authorization': 'Bearer $_accessToken',
+          },
           body: jsonEncode({
             'origin': originRef.toJson(),
             'destination': destinationRef.toJson(),

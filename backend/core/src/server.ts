@@ -1,3 +1,4 @@
+import { authorizeManagedQuote } from './pricing/quote-request-security.js';
 import { managedPlacesBounds } from './places/managed-places-coverage.js';
 import { pricingManagementRoutes } from './pricing/management-routes.js';
 import { authoritativeManagedQuote } from './pricing/authoritative-quote.js';
@@ -7895,6 +7896,10 @@ const server = createServer(async (request, response) => {
       const pricing = await resolvePricingCatalogContext({
         versions: pricingCatalogVersionRepository,
         at: now,
+      });
+      await authorizeManagedQuote({
+        catalog:pricing.snapshot,limits:adminHumanAuthRepository,now,
+        authenticate:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
       });
       const trustedBody = {...body,period:pricingPeriodAt(now,pricing.snapshot.periodPolicy)};
       const quote = pricing.snapshot.managedOperations == null

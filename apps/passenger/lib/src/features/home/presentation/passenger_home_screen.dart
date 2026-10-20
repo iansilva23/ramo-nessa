@@ -122,7 +122,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   late final PricingQuoteService? _pricingQuoteService =
       widget.pricingQuoteService ??
           (RamoCoreConfig.enabled
-              ? HttpPricingQuoteService(baseUrl: RamoCoreConfig.baseUri!)
+              ? HttpPricingQuoteService(baseUrl: RamoCoreConfig.baseUri!, accessToken: _accessToken)
               : null);
 
   late final RidePreparationService? _ridePreparationService =

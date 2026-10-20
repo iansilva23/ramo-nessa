@@ -19,6 +19,8 @@ function field(label,type='text',value='',options={}){
   if(type==='select'){
     input=node('select');for(const [key,name] of options.items??[]){const option=node('option',name);option.value=key;input.append(option);}
   }else{input=node('input');input.type=type;}
+  caption.id='rp-field-'+crypto.randomUUID();
+  input.setAttribute('aria-labelledby',caption.id);
   input.value=String(value??'');
   for(const [key,v]of Object.entries(options))if(key!=='items'&&key!=='hint')input[key]=v;
   wrap.append(caption,input);if(options.hint)wrap.append(node('small',options.hint));return {wrap,input};
