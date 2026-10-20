@@ -11,7 +11,7 @@ export function assertCatalogLocationSupported(input: {
 }): void {
   const { catalog, ref, field } = input;
 
-  if (!catalog.zonePolicies[ref.zoneId].enabled) {
+  if (!ref || !catalog.zonePolicies[ref.zoneId]?.enabled) {
     throw new PricingError(
       'UNAVAILABLE_ZONE',
       `${field}.zoneId ${ref.zoneId} está desativada no catálogo vigente.`,
