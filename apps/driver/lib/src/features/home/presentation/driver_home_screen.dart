@@ -4360,16 +4360,16 @@ class _ActiveRideCompactBar extends StatelessWidget {
                             fontSize: 11,
                           ),
                         ),
-                      Text(
-                        _target,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                        Text(
+                          _target,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
                       ],
                     ),
                   ),
