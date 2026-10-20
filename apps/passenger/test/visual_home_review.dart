@@ -42,12 +42,16 @@ void main() {
     }
   });
 
-  for (final dark in [false, true]) {
-    for (final destinationSelected in [false, true]) {
-      final appearance = dark ? 'dark' : 'light';
-      final stage = destinationSelected ? 'selected' : 'empty';
-      testWidgets('review floating route $appearance/$stage', (tester) async {
-        tester.view.physicalSize = const Size(390, 844);
+  for (final width in [320, 390]) {
+    for (final dark in [false, true]) {
+      for (final destinationSelected in [false, true]) {
+        final appearance = dark ? 'dark' : 'light';
+        final stage = destinationSelected ? 'selected' : 'empty';
+        final imageName = width == 390
+            ? 'v5-floating-$appearance-$stage.png'
+            : 'v5-floating-${width}-$appearance-$stage.png';
+        testWidgets('review floating route ${width}px $appearance/$stage', (tester) async {
+          tester.view.physicalSize = Size(width.toDouble(), width == 320 ? 640 : 844);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
@@ -112,9 +116,11 @@ void main() {
         expect(tester.takeException(), isNull);
         await expectLater(
           find.byKey(const Key('visual-review-screen')),
-          matchesGoldenFile('goldens/v5-floating-$appearance-$stage.png'),
+          matchesGoldenFile('goldens/$imageName'),
         );
+        expect(tester.takeException(), isNull);
       });
     }
   }
+}
 }
