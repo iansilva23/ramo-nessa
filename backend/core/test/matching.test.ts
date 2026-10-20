@@ -306,3 +306,18 @@ test('reserva vencida libera motorista e reserva da mesma corrida não bloqueia'
   assert.deepEqual(ranked.map(item=>item.supply.driverId),
     ['held-other-expired','held-same-ride']);
 });
+
+test('indisponibilidade do motorista impede despacho mesmo com pagamento confirmado', () => {
+  const currentRide=ride();
+  const pickup={latitude:-2.82017,longitude:-40.41467};
+  const candidates=[
+    supply('offline',{online:false}),
+    supply('busy',{busy:true}),
+    supply('stale',{locationUpdatedAt:'2026-09-23T11:50:00.000Z'}),
+    supply('no-category',{categories:['moto']}),
+    supply('no-capacity',{seatCapacity:1}),
+  ];
+  assert.deepEqual(rankEligibleDrivers({ride:currentRide,pickup,candidates,now}),[]);
+  assert.throws(()=>selectDriverForDispatch({ride:currentRide,pickup,candidates,now}),
+    (error:unknown)=>error instanceof Error && error.message.includes('Nenhum motorista elegível'));
+});
