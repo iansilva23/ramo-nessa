@@ -163,3 +163,53 @@ test('geofence versionada protege localidade externa sem placeProof', () => {
     /área cadastrada/i,
   );
 });
+
+test('GPS malformado não pode validar geocerca, ponto externo ou prova assinada', () => {
+  const refs = [
+    { zoneId: 'prea' as const, localityId: 'prea' },
+    { zoneId: 'external' as const },
+    { zoneId: 'external' as const, localityId: 'airport-jjd' },
+    { zoneId: 'jericoacoara' as const, localityId: 'jericoacoara' },
+  ];
+  const invalidPoints = [
+    { latitude: Number.NaN, longitude: -40.41467 },
+    { latitude: -2.82017, longitude: Number.NaN },
+    { latitude: Number.POSITIVE_INFINITY, longitude: -40.41467 },
+    { latitude: -2.82017, longitude: Number.NEGATIVE_INFINITY },
+    { latitude: 91, longitude: -40.41467 },
+    { latitude: -91, longitude: -40.41467 },
+    { latitude: -2.82017, longitude: 181 },
+    { latitude: -2.82017, longitude: -181 },
+    { latitude: null as unknown as number, longitude: -40.41467 },
+    { latitude: -2.82017, longitude: undefined as unknown as number },
+  ];
+  for (const ref of refs) {
+    for (const point of invalidPoints) {
+      for (const localityProofVerified of [false, true]) {
+        assert.throws(
+          () => assertPricingLocationMatchesPoint({
+            ref, point, field: 'destination', localityProofVerified,
+          }),
+          (error: unknown) => error instanceof PricingLocationMismatchError &&
+            /coordenadas GPS inválidas/i.test(error.message),
+          'invalid GPS must fail closed in ' + ref.zoneId +
+            '/' + (ref.localityId ?? 'free') +
+            ', signed=' + localityProofVerified,
+        );
+      }
+    }
+  }
+});
+
+test('GPS válido continua aceito dentro das geocercas aprovadas', () => {
+  assert.doesNotThrow(() => assertPricingLocationMatchesPoint({
+    ref: { zoneId: 'prea', localityId: 'prea' },
+    point: { latitude: -2.82017, longitude: -40.41467 },
+    field: 'origin',
+  }));
+  assert.doesNotThrow(() => assertPricingLocationMatchesPoint({
+    ref: { zoneId: 'external', localityId: 'airport-jjd' },
+    point: { latitude: -2.906425, longitude: -40.357338 },
+    field: 'destination',
+  }));
+});
