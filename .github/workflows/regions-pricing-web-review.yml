@@ -65,3 +65,33 @@ jobs:
           name: regions-pricing-web-${{ matrix.app }}
           path: apps/${{ matrix.app }}/build/web
           retention-days: 7
+
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ramo_v5_ci
+          POSTGRES_USER: ramo_ci
+          POSTGRES_PASSWORD: ramo_ci_ephemeral_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ramo_ci -d ramo_v5_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgresql://ramo_ci:ramo_ci_ephemeral_only@127.0.0.1:5432/ramo_v5_ci
+      RAMO_V5_EPHEMERAL_PG: 'true'
+      DB_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - working-directory: backend/core
+        run: npm run db:migrate
+      - working-directory: backend/core
+        run: node --import tsx --test test/postgres_managed_operations.test.ts test/postgres_pricing_v5_finance_safe.test.ts

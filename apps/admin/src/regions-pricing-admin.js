@@ -282,6 +282,12 @@ export function createRegionsPricingAdmin({root,api,getToken,hasScope,onError=()
       municipality=field('Município','text',initial.municipality??'',{required:true,maxLength:100}),
       state=field('Estado','select',initial.state??'CE',{items:['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf=>[uf,uf])}),
       radius=field('Raio de cobertura (km)','number',initial.radiusKm??'',{required:true,min:'0.05',max:'100',step:'0.05',inputMode:'decimal'});
+    const municipalityChoices=node('datalist');municipalityChoices.id=id('municipalities');
+    municipality.input.setAttribute('list',municipalityChoices.id);
+    for(const name of new Set(['Cruz','Jijoca de Jericoacoara',...ops.regions.map(r=>r.municipality)])){
+      const option=node('option');option.value=name;municipalityChoices.append(option);
+    }
+    panels[0].append(municipalityChoices);
     const searchRow=node('div',null,'rp-search-row'),searchButton=button('Buscar',()=>void findPlaces()),results=node('div',null,'rp-search-results');
     searchRow.append(search.wrap,searchButton);panels[0].append(name.wrap,searchRow,results);
     const grid=node('div',null,'rp-form-grid');grid.append(municipality.wrap,state.wrap,radius.wrap);panels[0].append(grid);

@@ -40,7 +40,7 @@ function harness() {
   });
   vm.runInContext(`let routeLoadSequence = 0, currentView = null;
     let siteAdmin = null, growthAdmin = null, companyCostsAdmin = null, geoAdmin = null;
-    let promotionsAdmin = null, driverBenefitsAdmin = null;
+    let promotionsAdmin = null, driverBenefitsAdmin = null, regionsPricingAdmin = null;
     ${routing}\n${loader}\n${navigation}
     globalThis.router = { routes: adminRoutes, requestedViewFromLocation, routePath, loadRouteMarkup, activateView };`, context);
   return { calls, window, router: context.router, context, select: view => { requestedView = view; } };
@@ -52,7 +52,7 @@ test('all menu deep links resolve under administrodo, including trailing slashes
     assert.ok(route.path.startsWith('/administrodo/'));
     for (const path of [route.path, route.path + '/']) {
       window.location.pathname = path;
-      assert.equal(router.requestedViewFromLocation(), view);
+      assert.equal(router.requestedViewFromLocation(), ['localities','pricing-publications'].includes(view) ? 'pricing' : view);
     }
   }
   window.location.pathname = '/administrodo/precos';
@@ -78,7 +78,7 @@ test('navigation and session restoration keep new URLs and preserve permission f
   select('pricing');
   await router.activateView('pricing', { historyMode: 'replace' });
   assert.equal(calls.at(-1).method, 'replaceState');
-  assert.equal(window.location.pathname, '/administrodo/operacao-tarifas');
+  assert.equal(window.location.pathname, '/administrodo/regioes-precos');
   context.canAccessView = () => false;
   select('overview');
   await router.activateView('finance');
