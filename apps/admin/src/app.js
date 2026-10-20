@@ -580,6 +580,7 @@ function clearSession(message = '') {
   state.currentDriverCashPolicy = null;
   state.currentDriverFinance = null;
   destroyLocalitiesAdmin();
+  destroyPricingPublicationsAdmin();
   destroyPricingGeofenceMap();
   state.pricingCatalog = null;
   state.pricingVersions = {
