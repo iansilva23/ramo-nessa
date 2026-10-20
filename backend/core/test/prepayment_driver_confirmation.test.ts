@@ -246,3 +246,47 @@ test('reserva de pagamento expirada deixa de apresentar motorista como pronto', 
     idempotencyKey:'expired-hold-payment',now:new Date(expiresAt),
   }),{code:'DRIVER_HOLD_EXPIRED'});
 });
+
+test('oferta de consentimento não pode ser criada depois que corrida saiu de AWAITING_PAYMENT', async () => {
+  for (const state of ['PAID','CANCELLED_BY_PASSENGER'] as const) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    await assert.rejects(createPrepaymentDriverOffer({
+      ride:{...prepared,state},matching:ctx.matching,now,
+    }),/reserva antes da oferta/);
+    assert.deepEqual(await ctx.matching.listOffersForRide(prepared.id),[]);
+  }
+});
+
+test('confirmação não exibe READY_TO_PAY quando GPS persistido do motorista está corrompido', async () => {
+  for (const invalid of [
+    {latitude:Number.NaN,longitude:-40.4145},
+    {latitude:91,longitude:-40.4145},
+    {latitude:-2.8205,longitude:Number.POSITIVE_INFINITY},
+  ]) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const currentSupply=(await ctx.drivers.findByDriverId(offer.driverId))!;
+    const corruptedDriverRepository={
+      findByDriverId:async()=>({...currentSupply,...invalid}),
+    } as never;
+    const registry={
+      findProfile:async()=>({status:'approved',fullName:'Motorista teste'}),
+      findVehicleByDriverId:async()=>({
+        id:'vehicle-confirm',status:'approved',fourByFour:false,
+        make:'Teste',model:'Veículo',plateNormalized:'ABC1D23',
+      }),
+    } as never;
+    const result=await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:corruptedDriverRepository,
+      registry,routing:null,rideId:accepted.ride.id,
+      passengerId:accepted.ride.passengerId,now,
+    });
+    assert.equal(result?.status,'NO_DRIVER_FOUND');
+    assert.equal(result?.driver,null);
+  }
+});
