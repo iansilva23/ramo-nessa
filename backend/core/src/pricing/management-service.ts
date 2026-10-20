@@ -25,9 +25,10 @@ export function prepareThreeRegionCatalog(source: PricingCatalogSnapshot): Prici
     schema:1,categories:definitions,rates:[],
     regions:meta.map(r=>{
       const existing=source.localityGeofences.find(g=>g.zoneId===r.id&&g.localityId===r.id);
-      // Existing coordinates/radii are retained, never commercial prices.
-      return {...r,zoneId:r.id,state:'CE',radiusKm:existing?.radiusKm ?? 0.05,
-        latitude:existing?.centerLatitude??r.latitude,longitude:existing?.centerLongitude??r.longitude,
+      if (!existing) throw new ManagementError('RESET_GEOFENCE_MISSING','Revise a cobertura de '+r.name+' antes de preparar o catálogo.',409);
+      // Existing coordinates/radii are retained; no coverage is guessed.
+      return {...r,zoneId:r.id,state:'CE',radiusKm:existing.radiusKm,
+        latitude:existing.centerLatitude,longitude:existing.centerLongitude,
         categoryIds:definitions.filter(c=>!c.archived&&c.enabled).map(c=>c.id),enabled:true,archived:false};
     }),
   });

@@ -1,3 +1,4 @@
+import '../domain/managed_pricing_catalog.dart';
 import 'dart:math' as math;
 
 import 'package:latlong2/latlong.dart';
@@ -29,6 +30,13 @@ abstract final class PricingLocationResolver {
     required RamoPlace place,
     required String serviceZoneId,
   }) {
+    if (ManagedPricingCatalog.enabled) {
+      final region = ManagedPricingCatalog.zoneFor(place.position);
+      if (region == null) {
+        throw const FormatException('Este ponto está fora das regiões atendidas.');
+      }
+      return PricingLocationRef(zoneId: region.id, localityId: region.localityId ?? region.id);
+    }
     final approvedZoneId = place.approvedPricingZoneId?.trim();
     final approvedLocalityId = place.approvedPricingLocalityId?.trim();
     if (

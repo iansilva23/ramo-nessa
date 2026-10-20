@@ -1,0 +1,56 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:latlong2/latlong.dart';
+import '../../service_area/domain/service_zone.dart';
+
+/// The Web rollout consumes server configuration. Native behavior is preserved
+/// until its separately authorized synchronization and device homologation.
+abstract final class ManagedPricingCatalog {
+  static bool _enabled = false;
+  static List<ServiceZone> _zones = const [];
+  static Map<String, Map<String, String>> _presentation = const {};
+
+  static bool get enabled => kIsWeb && _enabled;
+  static List<ServiceZone>? get zones => enabled ? _zones : null;
+
+  static void update({
+    required bool enabled,
+    required List<ServiceZone>? zones,
+    required dynamic categories,
+  }) {
+    if (!kIsWeb) return;
+    _enabled = enabled;
+    _zones = enabled ? List.unmodifiable(zones ?? const <ServiceZone>[]) : const [];
+    final entries = <String, Map<String, String>>{};
+    if (enabled && categories is List) {
+      for (final category in categories.whereType<Map>()) {
+        final id = category['id'];
+        if (id is! String) continue;
+        entries[id] = {
+          for (final key in ['name', 'description', 'icon'])
+            if (category[key] is String) key: category[key] as String,
+        };
+      }
+    }
+    _presentation = Map.unmodifiable(entries);
+  }
+
+  static String? presentation(String category, String key) =>
+      enabled ? _presentation[category]?[key] : null;
+
+  static ServiceZone? zoneFor(LatLng point) {
+    if (!enabled) return null;
+    final candidates = _zones.where((zone) => zone.contains(point)).toList();
+    candidates.sort((a, b) {
+      final radius = a.radiusMeters.compareTo(b.radiusMeters);
+      if (radius != 0) return radius;
+      final proximity = (a.distanceTo(point) / a.radiusMeters)
+          .compareTo(b.distanceTo(point) / b.radiusMeters);
+      if (proximity != 0) return proximity;
+      final zone = a.id.compareTo(b.id);
+      return zone != 0
+          ? zone
+          : (a.localityId ?? a.id).compareTo(b.localityId ?? b.id);
+    });
+    return candidates.isEmpty ? null : candidates.first;
+  }
+}

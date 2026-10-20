@@ -1,3 +1,4 @@
+import '../domain/managed_pricing_catalog.dart';
 import 'package:latlong2/latlong.dart';
 import '../../service_area/domain/service_zone.dart';
 import 'package:http/http.dart' as http;
@@ -47,9 +48,15 @@ class PassengerPricingPolicy {
       );
     }
 
+    final catalogZones = _catalogZones(json['localityGeofences'], json['regions']);
+    ManagedPricingCatalog.update(
+      enabled: json['managementMode'] == 'managed',
+      zones: catalogZones,
+      categories: json['categories'],
+    );
     return PassengerPricingPolicy(
       sharedTransfers: json['sharedTransfers'],
-      catalogZones: _catalogZones(json['localityGeofences']),
+      catalogZones: catalogZones,
       enabledCategories: categories
           .whereType<String>()
           .map((value) => value.trim())
@@ -95,8 +102,16 @@ class PassengerPricingPolicy {
     return null;
   }
 
-  static List<ServiceZone>? _catalogZones(dynamic raw) {
+  static List<ServiceZone>? _catalogZones(dynamic raw, [dynamic rawRegions]) {
     if (raw is! List) return null;
+    final labels = <String, String>{};
+    if (rawRegions is List) {
+      for (final region in rawRegions.whereType<Map>()) {
+        if (region['id'] is String && region['name'] is String) {
+          labels[region['id'] as String] = region['name'] as String;
+        }
+      }
+    }
     final zones = <ServiceZone>[];
     for (final area in raw.whereType<Map>()) {
       final id = area['zoneId']?.toString();
@@ -108,7 +123,7 @@ class PassengerPricingPolicy {
           lat.abs() > 90 || lng.abs() > 180 || radius <= 0) {
         continue;
       }
-      zones.add(ServiceZone(id: id!,label: locality,localityId: locality,
+      zones.add(ServiceZone(id: id!,label: labels[locality] ?? locality,localityId: locality,
         center: LatLng(lat.toDouble(),lng.toDouble()),radiusMeters: radius.toDouble()*1000));
     }
     return zones;

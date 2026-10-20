@@ -2379,6 +2379,16 @@ const server = createServer(async (request, response) => {
           };
         }
 
+        const currentLocationCatalog = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+        if (currentLocationCatalog.snapshot.managedOperations != null) {
+          // A place name never overrides the selected, versioned coverage.
+          try {
+            approvedPricingLocation = classifyCoordinateByCatalog({catalog:currentLocationCatalog.snapshot,latitude:place.latitude,longitude:place.longitude});
+          } catch {
+            json(response,422,{error:'OUTSIDE_OPERATIONAL_REGION',message:'Este local está fora das regiões atendidas.'}); return;
+          }
+        }
+
         const proofLocalityId = approvedPricingLocation?.localityId;
         const placeProof = proofLocalityId == null
           ? undefined
@@ -2502,7 +2512,18 @@ const server = createServer(async (request, response) => {
             );
 
         let responsePlaces = safePlaces;
-        if (localOnly) {
+        const currentSearchCatalog=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+        if (currentSearchCatalog.snapshot.managedOperations != null) {
+          responsePlaces=safePlaces.flatMap(place=>{
+            try {
+              const location=classifyCoordinateByCatalog({catalog:currentSearchCatalog.snapshot,latitude:place.latitude,longitude:place.longitude});
+              return [{...place,approvedPricingZoneId:location.zoneId,approvedPricingLocalityId:location.localityId,
+                placeProof:issuePlaceProof({localityId:location.localityId,placeId:place.id,latitude:place.latitude,longitude:place.longitude,secret:placeProofSecret,ttlSeconds:placeProofTtlSeconds})}];
+            } catch { return []; }
+          });
+        }
+
+        if (localOnly && currentSearchCatalog.snapshot.managedOperations == null) {
           const pricing = await resolvePricingCatalogContext({
             versions: pricingCatalogVersionRepository,
             at: new Date(),

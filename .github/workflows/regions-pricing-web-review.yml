@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: regions-pricing-web-${{ github.ref }}
+  group: regions-pricing-web-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   core:
@@ -57,6 +57,10 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - working-directory: apps/${{ matrix.app }}
         run: flutter analyze --no-fatal-infos && flutter test
+      - name: Verify managed pricing on actual Chrome runtime
+        if: matrix.app == 'passenger'
+        working-directory: apps/passenger
+        run: flutter test --platform chrome test/managed_pricing_catalog_test.dart
       - working-directory: apps/${{ matrix.app }}
         run: flutter build web --release --dart-define=RAMO_CORE_BASE_URL=https://example.invalid --dart-define=RAMO_PREVIEW_MODE=false
       - name: Review bundle only, no deployment
@@ -95,3 +99,29 @@ jobs:
         run: npm run db:migrate
       - working-directory: backend/core
         run: node --import tsx --test test/postgres_managed_operations.test.ts test/postgres_pricing_v5_finance_safe.test.ts
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - working-directory: apps/admin
+        run: npm install --no-save --no-package-lock --ignore-scripts playwright@1.55.1
+      - working-directory: apps/admin
+        run: npx playwright install --with-deps chromium webkit
+      - name: Real controller, HTTP, pricing, password and MFA on loopback
+        working-directory: backend/core
+        run: node --import tsx ../../apps/admin/test/browser/regions-pricing-flow.mjs
+      - name: Upload browser evidence with synthetic data only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regions-pricing-browser-evidence
+          path: apps/admin/regions-browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 14

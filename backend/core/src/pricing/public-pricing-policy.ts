@@ -14,6 +14,7 @@ export function publicPricingPolicyView(
   }).map(r=>r.categoryId));
   return {
     ...(ops == null ? {} : {
+      managementMode: 'managed' as const,
       regions: ops.regions.filter(r=>r.enabled&&!r.archived).map(r=>({...r})),
       categories: ops.categories.filter(c=>c.enabled&&!c.archived&&usable?.has(c.id)&&OPERATIONAL_CATEGORIES.includes(c.id as typeof OPERATIONAL_CATEGORIES[number])).map(c=>({...c})),
     }),
