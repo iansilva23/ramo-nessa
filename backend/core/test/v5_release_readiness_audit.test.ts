@@ -23,6 +23,16 @@ test('relatório não altera o catálogo nem inventa aprovação de lançamento'
     row.revisedDayCents === 22000));
   assert.ok(report.routeDifferences.every((row, i, arr) =>
     i === 0 || arr[i - 1]!.routeId.localeCompare(row.routeId) <= 0));
+  assert.ok(report.routeDifferences.every(row =>
+    row.reconciliationStatus === 'AWAITING_EVIDENCE_CROSS_CHECK' &&
+    row.dayDeltaCents === row.revisedDayCents - row.legacyDayCents &&
+    row.nightDeltaCents === row.revisedNightCents - row.legacyNightCents));
+  const preAirportCar = report.routeDifferences.find(row =>
+    row.routeId === 'prea-airport-car');
+  assert.ok(preAirportCar);
+  assert.equal(preAirportCar.legacyDayCents, 18000);
+  assert.equal(preAirportCar.revisedDayCents, 7000);
+  assert.equal(preAirportCar.dayDeltaCents, -11000);
 });
 
 test('relatório não trata comparação estática como tarifa publicada no PostgreSQL', () => {
@@ -32,6 +42,10 @@ test('relatório não trata comparação estática como tarifa publicada no Post
   assert.match(text, /Não consulta banco PostgreSQL vigente/);
   assert.match(text, /não significa necessariamente erro/);
   assert.match(text, /Nunca alterar tarifas automaticamente/);
+  assert.match(text, /nome da revisão no código NÃO comprova/);
+  assert.match(text, /Matriz para conciliação/);
+  assert.match(text, /Sem evidência anexada neste relatório/);
+  assert.match(text, /R\\$ -110,00/);
   assert.match(text, /26/);
 });
 
