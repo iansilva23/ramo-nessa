@@ -158,3 +158,38 @@ test('oferta pré-pagamento nunca é criada com reserva vencida ou sem prazo vá
     assert.equal((await ctx.matching.listOffersForRide(ride.id)).length,0);
   }
 });
+
+test('confirmação do motorista recusa veículo e atributos incompatíveis com a corrida', async () => {
+  for (const problem of ['vehicle','category','capacity','fourByFour'] as const) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const current=problem==='fourByFour'
+      ? await ctx.rides.save({...accepted.ride,requiresFourByFour:true})
+      : accepted.ride;
+    const existing=(await ctx.drivers.findByDriverId(offer.driverId))!;
+    const modified={
+      ...existing,
+      ...(problem==='vehicle'?{vehicleId:'different-vehicle'}:{}),
+      ...(problem==='category'?{categories:['moto' as const]}:{}),
+      ...(problem==='capacity'?{seatCapacity:0}:{}),
+    };
+    await ctx.drivers.upsert(modified);
+    const registry={
+      findProfile:async()=>({status:'approved',fullName:'Motorista teste'}),
+      findVehicleByDriverId:async()=>({
+        id:'vehicle-confirm',status:'approved',fourByFour:false,
+        make:'Teste',model:'Veículo',plateNormalized:'ABC1D23',
+      }),
+    } as never;
+    const result=await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,registry,
+      routing:null,rideId:current.id,passengerId:current.passengerId,now,
+    });
+    assert.equal(result?.status,'NO_DRIVER_FOUND',problem);
+    assert.equal(result?.driver,null,problem);
+  }
+});
