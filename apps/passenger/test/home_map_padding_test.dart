@@ -1,8 +1,37 @@
 import 'package:flutter/widgets.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/core/config/ramo_map_config.dart';
 
 void main() {
+  test('GPS recente mantém foco da rota selecionada', () {
+    expect(
+      RamoMapConfig.shouldCenterOnGpsUpdate(hasDestination: false),
+      isTrue,
+    );
+    expect(
+      RamoMapConfig.shouldCenterOnGpsUpdate(hasDestination: true),
+      isFalse,
+    );
+    expect(RamoMapConfig.locationZoom, greaterThan(16));
+  });
+
+  test('rota com origem e destino idênticos não cria bounds degenerados', () {
+    const origin = LatLng(-2.82017, -40.41467);
+    const destination = LatLng(-2.89860, -40.45060);
+    expect(RamoMapConfig.hasRouteBounds(const []), isFalse);
+    expect(RamoMapConfig.hasRouteBounds(const [origin]), isFalse);
+    expect(RamoMapConfig.hasRouteBounds(const [origin, origin]), isFalse);
+    expect(
+      RamoMapConfig.hasRouteBounds(const [origin, origin, destination]),
+      isTrue,
+    );
+    expect(
+      RamoMapConfig.hasRouteBounds(const [origin, destination]),
+      isTrue,
+    );
+  });
+
   test('painel inferior não vira margem lateral na rota', () {
     final padding = ramoHomeMapPadding(
       viewport: const Size(390, 844),

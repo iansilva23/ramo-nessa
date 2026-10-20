@@ -34,6 +34,17 @@ List<domain.LatLng> ramoVisibleRoutePoints(
   ];
 }
 
+/// Repeat the reveal animation for a new route/stage, not for every
+/// background location refresh while the passenger is tracking a driver.
+@visibleForTesting
+bool ramoShouldRevealRoute({
+  required int previousPointCount,
+  required int nextPointCount,
+  required String? previousPhase,
+  required String? nextPhase,
+}) => nextPointCount >= 2 &&
+    (previousPointCount < 2 || nextPhase == null || previousPhase != nextPhase);
+
 class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
@@ -73,7 +84,9 @@ class RamoMapController {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
 
-    if (coordinates.length == 1) {
+    if (!RamoMapConfig.hasRouteBounds(coordinates)) {
+      // A zero-length route must not be passed to newLatLngBounds: native
+      // map SDKs can yield an unstable zoom for identical endpoints.
       await move(coordinates.first, maxZoom);
       return;
     }
@@ -146,6 +159,7 @@ class RamoLiveMap extends StatefulWidget {
     required this.origin,
     required this.destination,
     required this.routePoints,
+    this.routePhase,
     this.driverPosition,
     this.driverCategory,
     this.driverPositionStale = false,
@@ -158,6 +172,8 @@ class RamoLiveMap extends StatefulWidget {
   final RamoPlace? origin;
   final RamoPlace? destination;
   final List<domain.LatLng> routePoints;
+  /// Optional tracking phase. Ordinary route searches retain their animation.
+  final String? routePhase;
   final domain.LatLng? driverPosition;
   final String? driverCategory;
   final bool driverPositionStale;
@@ -351,12 +367,22 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       _notifyPlaceholderReadyIfNeeded();
     }
 
-    if (!_sameRoute(oldWidget.routePoints, widget.routePoints)) {
+    if (!_sameRoute(oldWidget.routePoints, widget.routePoints) ||
+        oldWidget.routePhase != widget.routePhase) {
       if (widget.routePoints.length < 2) {
         _routeDrawController.stop();
         _routeDrawController.value = 0;
-      } else {
+      } else if (ramoShouldRevealRoute(
+        previousPointCount: oldWidget.routePoints.length,
+        nextPointCount: widget.routePoints.length,
+        previousPhase: oldWidget.routePhase,
+        nextPhase: widget.routePhase,
+      )) {
         _routeDrawController.forward(from: 0);
+      } else {
+        // GPS/reroute changed shape inside the same ride stage: show it
+        // immediately instead of replaying the 950 ms reveal animation.
+        _routeDrawController.value = 1;
       }
     }
 

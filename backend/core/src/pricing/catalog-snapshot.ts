@@ -15,6 +15,7 @@ import {
   type LocalityPricing,
 } from './catalog.v1.js';
 import { applyApprovedCommercialRevision } from './approved-commercial-revision.js';
+import type { MunicipalityAssignment } from './municipality-directory.js';
 import type {
   PricePeriod,
   ServiceCategory,
@@ -45,7 +46,13 @@ export interface DistanceFarePolicy {
   id: string;
   anchorZoneId: ZoneId;
   anchorLocalityId: string;
-  category: Exclude<ServiceCategory, 'buggy'>;
+  category: ServiceCategory;
+  // Existing anchor rules remain unchanged. Regional rules are opt-in only
+  // and cannot price an unlisted locality or any inter-zone route.
+  scope?: 'intra_zone';
+  coveredLocalityIds?: string[];
+  after22MinimumFareCents?: number;
+  after22PricePerKmCents?: number;
   minKm: number;
   maxKm: number;
   minimumFareCents: number;
@@ -126,6 +133,9 @@ export interface PricingCatalogSnapshot {
   externalLocalities: string[];
   // Optional metadata: a display label never changes the stable pricing ID.
   localityDisplayNames?: Record<'prea' | 'jijoca' | 'external', Record<string, string>>;
+  // Administrative municipality is separate from the commercial pricing zone.
+  // Overrides only change after publication of an audited catalog draft.
+  municipalityOverrides?: Partial<Record<ZoneId, Record<string, MunicipalityAssignment>>>;
   localityGeofences: PricingLocalityGeofence[];
   localityPolicies: {
     prea: Record<string, PricingLocalityPolicy>;
@@ -345,6 +355,7 @@ export function normalizePricingCatalogSnapshot(
       value.externalLocalities == null
         ? [...STATIC_PRICING_CATALOG_V1.externalLocalities]
         : [...value.externalLocalities],
+    municipalityOverrides: structuredClone(value.municipalityOverrides ?? {}),
     localityGeofences:
       value.localityGeofences == null
         ? structuredClone(STATIC_PRICING_CATALOG_V1.localityGeofences)

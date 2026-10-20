@@ -12,15 +12,20 @@ export async function createPrepaymentDriverOffer(input: {
   ride: RideRecord; matching: RideMatchingRepository; now?: Date;
 }) {
   const now = input.now ?? new Date();
-  if (!input.ride.driverConsentRequired || input.ride.reservedDriverId == null) {
+  if (input.ride.state !== 'AWAITING_PAYMENT' ||
+      !input.ride.driverConsentRequired || input.ride.reservedDriverId == null) {
     throw new Error('A solicitação precisa de uma reserva antes da oferta.');
+  }
+  const holdExpiryMs = Date.parse(input.ride.driverHoldExpiresAt ?? '');
+  if (!Number.isFinite(holdExpiryMs) || holdExpiryMs <= now.getTime()) {
+    throw new Error('A reserva do motorista está vencida ou possui prazo inválido.');
   }
   const result = await input.matching.createOffer({
     rideId: input.ride.id, driverId: input.ride.reservedDriverId,
     approximatePickupDistanceKm: input.ride.driverPickupDistanceKm ?? 0,
     createdAt: now.toISOString(),
     expiresAt: new Date(Math.min(now.getTime() + DEFAULT_DRIVER_OFFER_TTL_SECONDS * 1000,
-      Date.parse(input.ride.driverHoldExpiresAt!))).toISOString(),
+      holdExpiryMs)).toISOString(),
   });
   return result.offer;
 }
@@ -36,13 +41,15 @@ export async function prepaymentDriverConfirmation(input: {
   const offers = await input.matching.listOffersForRide(ride.id);
   const offer = offers.at(-1);
   const base = { ride: passengerRideView(ride), holdExpiresAt: ride.driverHoldExpiresAt ?? now.toISOString() };
+  const holdExpiryMs = Date.parse(ride.driverHoldExpiresAt ?? '');
   if (ride.state !== 'AWAITING_PAYMENT' ||
-      Date.parse(ride.driverHoldExpiresAt ?? '') <= now.getTime()) {
+      !Number.isFinite(holdExpiryMs) || holdExpiryMs <= now.getTime()) {
     return { ...base, status: 'EXPIRED', driver: null };
   }
   if (offer == null) return { ...base, status: 'NOT_STARTED', driver: null };
   if (offer?.status === 'OFFERED') {
-    if (Date.parse(offer.expiresAt) <= now.getTime()) {
+    const offerExpiryMs = Date.parse(offer.expiresAt);
+    if (!Number.isFinite(offerExpiryMs) || offerExpiryMs <= now.getTime()) {
       await input.matching.expireOffer({ offerId: offer.id, expiredAt: now.toISOString() });
       return { ...base, status: 'NO_DRIVER_FOUND', driver: null };
     }
@@ -57,7 +64,17 @@ export async function prepaymentDriverConfirmation(input: {
   ]);
   if (profile?.status !== 'approved' || vehicle?.status !== 'approved' || supply == null ||
       !supply.online || supply.busy || supply.reservedRideId !== ride.id ||
+      !Number.isFinite(supply.latitude) || supply.latitude < -90 || supply.latitude > 90 ||
+      !Number.isFinite(supply.longitude) || supply.longitude < -180 || supply.longitude > 180 ||
+      ride.reservedDriverId !== offer.driverId ||
+      supply.vehicleId !== vehicle.id ||
+      !supply.categories.includes(ride.category) ||
+      supply.seatCapacity < ride.passengers ||
+      (ride.requiresFourByFour === true && (!vehicle.fourByFour || !supply.fourByFour)) ||
+      !Number.isFinite(Date.parse(supply.reservedUntil ?? '')) ||
       Date.parse(supply.reservedUntil ?? '') <= now.getTime() ||
+      !Number.isFinite(Date.parse(supply.locationUpdatedAt)) ||
+      Date.parse(supply.locationUpdatedAt) > now.getTime() ||
       now.getTime() - Date.parse(supply.locationUpdatedAt) > 120_000) {
     return { ...base, status: 'NO_DRIVER_FOUND', driver: null };
   }

@@ -5,7 +5,7 @@ import test from 'node:test';
 const pagesDir = new URL('../pages/', import.meta.url);
 
 async function adminSource() {
-  const [index, app, localities, coupons, benefits, costs, growth, geo] = await Promise.all([
+  const [index, app, localities, publications, coupons, benefits, costs, growth, geo] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app.js', import.meta.url), 'utf8'),
     // Loaded below alongside the other isolated page controllers.
@@ -13,6 +13,7 @@ async function adminSource() {
       new URL('../src/localities-admin.js', import.meta.url),
       'utf8',
     ),
+    readFile(new URL('../src/pricing-publications-admin.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/promotions-admin.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/driver-benefits-admin.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/company-costs-admin.js', import.meta.url), 'utf8'),
@@ -22,7 +23,7 @@ async function adminSource() {
   return {
     index,
     app,
-    controls: app + '\n' + localities + '\n' + coupons + '\n' + benefits + '\n' + costs + '\n' + growth + '\n' + geo,
+    controls: app + '\n' + localities + '\n' + publications + '\n' + coupons + '\n' + benefits + '\n' + costs + '\n' + growth + '\n' + geo,
   };
 }
 
@@ -120,8 +121,9 @@ test('rotas do menu correspondem às páginas registradas', async () => {
   const routesSource = app.slice(routesStart, routesEnd);
 
   for (const item of nav) {
-    const entryStart = routesSource.indexOf(
-      '  ' + item.view + ': {',
+    const entryStart = Math.max(
+      routesSource.indexOf('  ' + item.view + ': {'),
+      routesSource.indexOf("  '" + item.view + "': {"),
     );
     assert.notEqual(
       entryStart,

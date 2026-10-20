@@ -72,10 +72,13 @@ abstract final class RamoServiceArea {
   static ServiceZone? zoneFor(LatLng point, {List<ServiceZone>? catalogZones}) {
     final candidates = (catalogZones ?? zones).where((zone)=>zone.contains(point)).toList();
     candidates.sort((a,b) {
-      final radius = a.radiusMeters.compareTo(b.radiusMeters);
-      if (radius != 0) return radius;
+      // Em áreas sobrepostas, use a proximidade ao centro da localidade,
+      // não o menor raio: um círculo pequeno não deve tomar o destino
+      // pertencente ao núcleo de outra zona.
       final proximity = (a.distanceTo(point)/a.radiusMeters).compareTo(b.distanceTo(point)/b.radiusMeters);
       if (proximity != 0) return proximity;
+      final radius = a.radiusMeters.compareTo(b.radiusMeters);
+      if (radius != 0) return radius;
       final zone = a.id.compareTo(b.id);
       return zone != 0 ? zone : (a.localityId ?? a.id).compareTo(b.localityId ?? b.id);
     });

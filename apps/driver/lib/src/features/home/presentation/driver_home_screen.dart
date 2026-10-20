@@ -9,6 +9,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/driver_core_config.dart';
+import '../../../core/config/driver_map_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
@@ -150,6 +151,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   final DriverMapController _mapController = DriverMapController();
   bool _mapReady = false;
   DateTime? _lastRouteRefreshAt;
+  int _activeRouteRequestId = 0;
   bool _navigationMode = false;
   bool _ridePanelExpanded = false;
   int _selectedTab = 0;
@@ -547,7 +549,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
       setState(() => _supply = updated);
-      if (_mapReady) {
+      if (_mapReady && DriverMapConfig.shouldAutoFollow(
+        hasActiveRide: _activeRide != null,
+        navigationMode: _navigationMode,
+      )) {
         unawaited(
           _mapController.move(
             LatLng(updated.latitude, updated.longitude),
@@ -1768,7 +1773,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             LatLng(supply.latitude, supply.longitude),
             LatLng(pickupLat, pickupLng),
           ],
-          padding: 110,
+          padding: DriverMapConfig.routeEdgePadding(
+            MediaQuery.sizeOf(context).width,
+          ),
           animate: !MediaQuery.disableAnimationsOf(context),
         );
       }
@@ -1808,17 +1815,30 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final longitude = useDropoff ? ride.dropoffLongitude : ride.pickupLongitude;
     if (latitude == null || longitude == null) return;
 
+    final routeRequestId = ++_activeRouteRequestId;
     _lastRouteRefreshAt = now;
     try {
       final route = await service.route(
         origin: currentPosition,
         destination: LatLng(latitude, longitude),
       );
-      if (!mounted) return;
+      if (!mounted || !DriverRouteRefreshPolicy.isCurrentRouteResponse(
+        requestId: routeRequestId,
+        latestRequestId: _activeRouteRequestId,
+        requestedRideId: ride.id,
+        activeRideId: _activeRide?.id,
+        requestedDropoff: useDropoff,
+        currentDropoff: _activeRide?.state == 'IN_PROGRESS',
+      )) return;
       setState(() => _activeRoute = route);
       if (shouldFitRoute && _mapReady) {
         try {
-          await _mapController.fitCoordinates(route.points);
+          await _mapController.fitCoordinates(
+            route.points,
+            padding: DriverMapConfig.routeEdgePadding(
+              MediaQuery.sizeOf(context).width,
+            ),
+          );
         } catch (_) {
           // O desenho da rota continua visível mesmo se o Google Maps ainda
           // não tiver concluído o layout necessário para ajustar a câmera.
@@ -1849,7 +1869,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     unawaited(
       _mapController.move(
         LatLng(supply.latitude, supply.longitude),
-        _mapController.currentZoom,
+        DriverMapConfig.recenterZoom(_mapController.currentZoom),
       ),
     );
   }
@@ -3262,14 +3282,19 @@ class _DriverProfileHero extends StatelessWidget {
                       size: 18,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      ratingAverage == null
-                          ? 'Novo motorista'
-                          : ratingAverage!.toStringAsFixed(2),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: Text(
+                        ratingAverage == null
+                            ? 'Novo motorista'
+                            : ratingAverage!.toStringAsFixed(2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     if (ratingCount > 0) ...[
@@ -4320,33 +4345,38 @@ class _ActiveRideCompactBar extends StatelessWidget {
                   child: Icon(_icon, size: 20, color: RamoColors.brandBlack),
                 ),
                 const SizedBox(width: 10),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 190),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        route == null
-                            ? 'Corrida ativa'
-                            : '${route!.durationLabel} · ${route!.distanceLabel}',
-                        style: const TextStyle(
-                          color: RamoColors.brandYellow,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 190),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          route == null
+                              ? 'Corrida ativa'
+                              : '${route!.durationLabel} · ${route!.distanceLabel}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: RamoColors.brandYellow,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                      Text(
-                        _target,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
+                        Text(
+                          _target,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -4572,31 +4602,40 @@ class _ActiveRideCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _DriverMetaPill(
-                icon: Icons.directions_car_filled_rounded,
-                label: _categoryLabel,
+              Flexible(
+                fit: FlexFit.loose,
+                child: _DriverMetaPill(
+                  icon: Icons.directions_car_filled_rounded,
+                  label: _categoryLabel,
+                ),
               ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'SEU GANHO',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 9,
-                      letterSpacing: .7,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'SEU GANHO',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 9,
+                        letterSpacing: .7,
+                      ),
                     ),
-                  ),
-                  Text(
-                    formatCents(ride.driverEarningsCents),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
+                    Text(
+                      formatCents(ride.driverEarningsCents),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

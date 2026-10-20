@@ -1,6 +1,12 @@
 import { PREA_LOCALITIES, JIJOCA_LOCALITIES } from './catalog.v1.js';
 import type { PricingCatalogSnapshot } from './catalog-snapshot.js';
 
+export const APPROVED_PREA_BEACH_LOCALITY_IDS: ReadonlySet<string> = new Set([
+  'prea-beach-villas','play-kitie','cabana','ranchos','vila-prea',
+  'clube-da-irrancha','casas-eli-lula','d3-luna','kite-lodge',
+  'beach-house','vida-ao-vento','casa-de-praia-teto-branco',
+]);
+
 /** Approved with Ian on 2026-10-03. Does not mutate historical snapshots. */
 export function applyApprovedCommercialRevision(source: PricingCatalogSnapshot): PricingCatalogSnapshot {
   const catalog = structuredClone(source);
@@ -27,7 +33,7 @@ export function applyApprovedCommercialRevision(source: PricingCatalogSnapshot):
   catalog.jeri.buggy.dayBaseCents = 3500;
   catalog.jeri.buggy.after22BaseCents = 5000;
   const localIds = new Set(catalog.surcharges.preaLocalCarAfter22LocalityIds);
-  const beachIds = new Set(['prea-beach-villas','play-kitie','cabana','ranchos','vila-prea','clube-da-irrancha','casas-eli-lula','d3-luna','kite-lodge','beach-house','vida-ao-vento','casa-de-praia-teto-branco']);
+  const beachIds = APPROVED_PREA_BEACH_LOCALITY_IDS;
   const fixedMotoNight = new Set(['prea','formosa','cavalo-bravo']);
   for (const id of Object.keys(PREA_LOCALITIES)) {
     const price = catalog.localities.prea[id]!;

@@ -90,6 +90,12 @@ export function rankEligibleDrivers(input: {
   return input.candidates
     .filter((candidate) => {
       if (!candidate.online || candidate.busy) return false;
+      // Defensive check for stale/corrupted persisted supply records: one bad
+      // GPS position must not crash matching for all other drivers.
+      if (!Number.isFinite(candidate.latitude) ||
+          candidate.latitude < -90 || candidate.latitude > 90 ||
+          !Number.isFinite(candidate.longitude) ||
+          candidate.longitude < -180 || candidate.longitude > 180) return false;
 
       const reservedUntilMs =
         candidate.reservedUntil == null

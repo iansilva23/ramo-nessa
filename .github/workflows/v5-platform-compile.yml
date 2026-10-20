@@ -1,7 +1,7 @@
 name: Ramo Nessa V5 - Platform Compilation
 on:
   push:
-    branches: [feature/v5-seven-fixes-20261016, fix/pricing-route-eligibility-20261018]
+    branches: [feature/v5-seven-fixes-20261016, fix/pricing-route-eligibility-20261018, integration/pricing-v5-finance-safe-20261019]
     # ADM-only changes should not cancel or restart long Android/iOS builds.
     paths:
       - 'apps/passenger/**'
@@ -52,6 +52,14 @@ jobs:
         if: matrix.platform == 'android'
         working-directory: apps/${{ matrix.app }}
         run: test -s build/app/outputs/flutter-apk/app-debug.apk
+      - name: Preserve Android compilation artifact for review only
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-android-DEBUG-NOT-CONFIGURED
+          path: apps/${{ matrix.app }}/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
       - name: Compile browser Web
         if: matrix.platform == 'web'
         working-directory: apps/${{ matrix.app }}
@@ -95,10 +103,23 @@ jobs:
       - name: Verify simulator binary
         working-directory: apps/${{ matrix.app }}
         run: test -s build/ios/iphonesimulator/Runner.app/Runner
+      - name: Record iOS simulator compile evidence (not a signed IPA)
+        run: |
+          mkdir -p artifacts/ios
+          printf 'Source: %s\\nRole: %s\\nPlatform: iOS simulator only\\nAPI: example.invalid\\nSigning: none\\n' "${{ github.sha }}" "${{ matrix.app }}" > artifacts/ios/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v5-${{ matrix.app }}-ios-SIMULATOR-EVIDENCE
+          path: artifacts/ios/README.txt
+          if-no-files-found: error
+          retention-days: 7
       - name: Confirm source and lockfile unchanged
         run: git diff --exit-code -- apps/${{ matrix.app }}/lib apps/${{ matrix.app }}/pubspec.yaml apps/${{ matrix.app }}/pubspec.lock packages/
 
   configured-web-homologation:
+    # This job can access a production-configured Maps key. The Pricing V5
+    # branch must compile ONLY with inert configuration and no provider secrets.
+    if: github.ref != 'refs/heads/integration/pricing-v5-finance-safe-20261019'
     name: Compile configured Passenger + Driver Web bundles (no deploy)
     runs-on: ubuntu-24.04
     timeout-minutes: 40

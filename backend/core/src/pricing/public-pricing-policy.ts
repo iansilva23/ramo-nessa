@@ -22,17 +22,13 @@ export function publicPricingPolicyView(
       prea: Object.entries(snapshot.localityPolicies.prea)
         .map(([localityId, policy]) => ({
           localityId,
-          sharedTransfers: snapshot.sharedTransfers?.enabled && snapshot.sharedTransfers.whatsappPhone ? structuredClone(snapshot.sharedTransfers) : null,
-    localityGeofences: snapshot.localityGeofences.filter(area => snapshot.zonePolicies[area.zoneId].enabled).map(area=>({...area})),
-    enabledCategories: [...policy.enabledCategories],
+          enabledCategories: [...policy.enabledCategories],
         }))
         .sort((a, b) => a.localityId.localeCompare(b.localityId)),
       jijoca: Object.entries(snapshot.localityPolicies.jijoca)
         .map(([localityId, policy]) => ({
           localityId,
-          sharedTransfers: snapshot.sharedTransfers?.enabled && snapshot.sharedTransfers.whatsappPhone ? structuredClone(snapshot.sharedTransfers) : null,
-    localityGeofences: snapshot.localityGeofences.filter(area => snapshot.zonePolicies[area.zoneId].enabled).map(area=>({...area})),
-    enabledCategories: [...policy.enabledCategories],
+          enabledCategories: [...policy.enabledCategories],
         }))
         .sort((a, b) => a.localityId.localeCompare(b.localityId)),
     },

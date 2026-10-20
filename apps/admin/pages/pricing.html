@@ -18,16 +18,19 @@
             </div>
 
             <nav class="pricing-section-nav" aria-label="Atalhos de Operação e Tarifas">
-              <a href="#pricing-section-editor">Tarifas e regras</a>
+              <a href="#pricing-all-rates">Todos os preços</a>
+              <a href="#pricing-night-controls">Adicionais noturnos</a>
+              <a href="#pricing-section-editor">Editor de tarifas</a>
               <a href="#pricing-section-availability">Disponibilidade</a>
               <a href="#pricing-section-routes">Rotas</a>
-              <a href="/administrodo/nova-localidade" data-view="localities">Nova localidade</a>
+              <a href="/administrodo/nova-localidade" data-view="localities">Localidades</a>
+              <a href="/administrodo/rascunhos-publicacoes" data-view="pricing-publications">Rascunhos e publicações</a>
             </nav>
 
             <div class="pricing-locality-callout">
               <div>
                 <strong>Localidades agora têm uma área própria.</strong>
-                <span>Use “Nova localidade” para cadastrar, editar, excluir, posicionar alfinete e ajustar o raio por etapas.</span>
+                <span>Use “Localidades” para cadastrar, editar, excluir, posicionar alfinete e ajustar o raio por etapas.</span>
               </div>
               <a class="button button--primary" href="/administrodo/nova-localidade" data-view="localities">Gerenciar localidades</a>
             </div>
@@ -62,6 +65,47 @@
               </span>
             </div>
 
+            <article id="pricing-all-rates" class="panel-card pricing-complete-card">
+              <div class="pricing-table-heading">
+                <div><span class="eyebrow eyebrow--dark">CONTROLE COMERCIAL</span>
+                  <h2>Todos os preços · dia e noite</h2>
+                  <p>Pesquise localidades, categorias e transfers. Edite individualmente sem digitar IDs.</p>
+                </div><span id="pricing-complete-count" class="pill">0 itens</span>
+              </div>
+              <div class="pricing-complete-filters">
+                <label class="field"><span>Pesquisar</span><input id="pricing-rate-search" type="search" placeholder="Ex.: Cavalo Bravo, Comfort, Preá"></label>
+                <label class="field"><span>Região</span><select id="pricing-rate-region">
+                  <option value="">Todas</option><option value="prea">Preá</option>
+                  <option value="jijoca">Jijoca</option><option value="jericoacoara">Jericoacoara</option>
+                  <option value="transfer">Transfers</option><option value="regional">Entrega regional</option>
+                </select></label>
+                <label class="field"><span>Categoria</span><select id="pricing-rate-category">
+                  <option value="">Todas</option><option value="moto">Mototáxi</option>
+                  <option value="car">Carro</option><option value="comfort_black">Comfort/Black</option>
+                  <option value="buggy">Buggy</option><option value="delivery">Entrega</option>
+                </select></label>
+              </div>
+              <div class="table-wrap"><table class="pricing-table pricing-complete-table">
+                <thead><tr><th>Local / rota</th><th>Categoria</th><th>Dia</th>
+                  <th>Noite</th><th>Diferença</th><th>Regra</th><th>Editar</th></tr></thead>
+                <tbody id="pricing-complete-body"></tbody>
+              </table></div>
+              <div id="pricing-complete-empty" class="empty-state" hidden>Nenhuma tarifa corresponde ao filtro.</div>
+              <p class="pricing-policy-help">Preços noturnos automáticos seguem a regra comercial. Um preço noturno específico tem prioridade e não muda junto do adicional global. A tarifa real é confirmada pelo Core. Regras por quilômetro exibem apenas a corrida mínima; a cobrança final depende da distância roteada e dos limites configurados.</p>
+            </article>
+            <article id="pricing-night-controls" class="panel-card pricing-complete-card">
+              <span class="eyebrow eyebrow--dark">EDITAR ADICIONAIS</span>
+              <h2>Adicionais noturnos</h2>
+              <p>Ajuste a região inteira ou use “Noite” na tabela para uma localidade específica.</p>
+              <div class="pricing-night-shortcuts">
+                <button type="button" class="button button--ghost-dark" data-pricing-rule="commercial_policy">Jijoca (%) / Buggy Preá</button>
+                <button type="button" class="button button--ghost-dark" data-pricing-rule="surcharge_policy">Carro Preá / Comfort</button>
+                <button type="button" class="button button--ghost-dark" data-pricing-rule="buggy_policy">Buggy Jericoacoara</button>
+                <button type="button" class="button button--ghost-dark" data-pricing-rule="period_policy">Horário noturno</button>
+                <a class="button button--ghost-dark" href="/administrodo/nova-localidade" data-view="localities">Tarifas/km regionais</a>
+              </div>
+              <p class="pricing-policy-help">Entrega permanece sem adicional noturno pela política comercial vigente; novas regras para Entrega exigem homologação própria.</p>
+            </article>
             <div class="pricing-workflow-grid">
               <article class="panel-card pricing-draft-card">
                 <div>
@@ -70,7 +114,7 @@
                   <p class="panel-card__copy">
                     Para evitar confusão, o histórico técnico saiu desta tela.
                     Aqui você apenas edita. A publicação ou exclusão do rascunho
-                    fica em “Nova localidade”.
+                    fica na central “Rascunhos e publicações”.
                   </p>
                 </div>
                 <div class="pricing-draft-card__status">
@@ -87,10 +131,10 @@
                   </button>
                   <a
                     class="button button--ghost-dark"
-                    href="/administrodo/nova-localidade"
-                    data-view="localities"
+                    href="/administrodo/rascunhos-publicacoes"
+                    data-view="pricing-publications"
                   >
-                    Revisar / publicar
+                    Rascunhos e publicações
                   </a>
                 </div>
               </article>
@@ -170,6 +214,7 @@
                       <label class="field">
                         <span>Categoria</span>
                         <select id="pricing-locality-category">
+                          <option value="comfort_black">Comfort/Black</option>
                           <option value="buggy">Buggy</option>
                           <option value="moto">Moto</option>
                           <option value="delivery">Entrega</option>
@@ -491,15 +536,15 @@
                     <div>
                       <strong>Terminou as alterações?</strong>
                       <small>
-                        Revise, publique ou exclua o rascunho na página “Nova localidade”.
+                        Revise, publique ou exclua o rascunho na central “Rascunhos e publicações”.
                       </small>
                     </div>
                     <a
                       class="button button--dark"
-                      href="/administrodo/nova-localidade"
-                      data-view="localities"
+                      href="/administrodo/rascunhos-publicacoes"
+                      data-view="pricing-publications"
                     >
-                      Revisar rascunho
+                      Revisar e publicar
                     </a>
                   </div>
                 </div>

@@ -215,6 +215,20 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
       final.body.catalog.localityDisplayNames.prea['ci-http-' + local],
       'CI API TESTE',
     );
+    const quoteBody = {
+      origin: {zoneId: 'prea', localityId: 'prea'},
+      destination: {zoneId: 'prea', localityId: 'ci-http-' + local},
+      category: 'moto',
+      period: 'day',
+      driverPickupDistanceKm: 0,
+    };
+    // A new app quote cannot see uncommitted ADM edits.
+    const pendingQuote = await request(
+      'POST', '/v1/pricing/quote', undefined, quoteBody,
+    );
+    assert.ok(pendingQuote.status >= 400 && pendingQuote.status < 500,
+      'Uma localidade recém-criada não pode ser cotada antes da publicação');
+
     const publishPath = path + '/publish';
     const readerPublish = await request(
       'POST', publishPath, reader.token,
@@ -242,6 +256,19 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
     const afterPublish = await request('GET', path, reader.token);
     assert.equal(afterPublish.body.version.status, 'published');
 
+    // This is the *actual* HTTP quote contract consumed by passenger clients.
+    // It resolves the newly published catalog from ephemeral PostgreSQL,
+    // without updating Android/iOS/Web bundles or calling Google/PSPs.
+    const quoted = await request(
+      'POST', '/v1/pricing/quote', undefined, quoteBody,
+    );
+    assert.equal(quoted.status, 200);
+    assert.equal(quoted.body.kind, 'exact');
+    assert.equal(quoted.body.ruleId, 'prea-ci-http-' + local + '-moto');
+    assert.equal(quoted.body.baseAmountCents, 1200);
+    assert.equal(quoted.body.totalAmountCents, 1200);
+    assert.equal(quoted.body.pricingCatalog.catalogVersionId, draftId);
+
     const audit = await pool.query<{ action: string; metadata: { kind?: string } }>(
       "SELECT action, metadata FROM admin_audit_log WHERE actor_key_id = $1 AND target_id = $2",
       [writer.key.id, draftId],
@@ -258,6 +285,14 @@ test('localhost HTTP pricing API: writer persists one batch, reader is denied an
     );
     assert.equal(browserDraft.status, 201);
     browserDraftId = browserDraft.body.id as string;
+    const inherited = await request(
+      'GET', '/v1/admin/pricing/versions/' + browserDraftId, reader.token,
+    );
+    assert.equal(inherited.status, 200);
+    assert.equal(inherited.body.catalog.localities.prea.find(
+      (row: {localityId: string}) => row.localityId === 'ci-http-' + local,
+    )?.prices.moto.amountCents, 1200,
+    'O segundo rascunho ADM deve herdar a tarifa publicada, não reiniciar o catálogo');
     const browserE2E = execFileSync(
       process.execPath,
       [fileURLToPath(new URL('../../../scripts/web/admin_localities_core_browser_e2e.mjs', import.meta.url))],

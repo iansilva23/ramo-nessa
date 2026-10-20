@@ -121,6 +121,14 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
 
         byte = encoded.charCodeAt(index) - 63;
         index += 1;
+        // Each encoded polyline byte must be a printable ASCII offset
+        // between 63 and 126. Reject malformed geometry before map display.
+        if (byte < 0 || byte > 0x3f) {
+          throw new RoutingRouteError(
+            'INVALID_PROVIDER_RESPONSE',
+            'Google Routes retornou caracteres inválidos na geometria.',
+          );
+        }
         result |= (byte & 0x1f) << shift;
         shift += 5;
 
@@ -147,13 +155,49 @@ function decodeGooglePolyline(encoded: string): GeoPoint[] {
     latitude += latDelta;
     longitude += lonDelta;
 
+    const latitudeDegrees = latitude / 1e5;
+    const longitudeDegrees = longitude / 1e5;
+    if (
+      !Number.isFinite(latitudeDegrees) ||
+      !Number.isFinite(longitudeDegrees) ||
+      latitudeDegrees < -90 || latitudeDegrees > 90 ||
+      longitudeDegrees < -180 || longitudeDegrees > 180
+    ) {
+      throw new RoutingRouteError(
+        'INVALID_PROVIDER_RESPONSE',
+        'Google Routes retornou coordenadas fora dos limites geográficos.',
+      );
+    }
+
     points.push({
-      latitude: latitude / 1e5,
-      longitude: longitude / 1e5,
+      latitude: latitudeDegrees,
+      longitude: longitudeDegrees,
     });
   }
 
   return points;
+}
+
+// A decoded polyline cannot travel farther in straight-line segments than
+// the distance represented by the road route. Reject extreme inconsistencies
+// that would zoom the map out to unrelated cities or states.
+function polylineMinimumTravelMeters(points: GeoPoint[]): number {
+  const earthRadiusMeters = 6_371_000;
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1]!;
+    const current = points[index]!;
+    const lat1 = radians(previous.latitude);
+    const lat2 = radians(current.latitude);
+    const dLat = radians(current.latitude - previous.latitude);
+    const dLon = radians(current.longitude - previous.longitude);
+    const h = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    total += 2 * earthRadiusMeters *
+      Math.atan2(Math.sqrt(Math.min(1, h)), Math.sqrt(Math.max(0, 1 - h)));
+  }
+  return total;
 }
 
 function nearestRoutePointIndex(
@@ -350,6 +394,15 @@ export class GoogleRoutesProvider
       throw new RoutingRouteError(
         'INVALID_PROVIDER_RESPONSE',
         'Google Routes retornou poucos pontos para desenhar a rota.',
+      );
+    }
+    // Allow generous tolerance for sparse Google route geometry, while
+    // refusing impossible jumps to unrelated parts of the map.
+    const maximumPlausibleMeters = route.distanceMeters * 1.25 + 1000;
+    if (polylineMinimumTravelMeters(points) > maximumPlausibleMeters) {
+      throw new RoutingRouteError(
+        'INVALID_PROVIDER_RESPONSE',
+        'Google Routes retornou um traçado incompatível com a distância da viagem.',
       );
     }
 

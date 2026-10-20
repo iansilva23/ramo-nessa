@@ -2,10 +2,11 @@ name: Ramo Nessa V5 - Floating Home Visual Review
 
 on:
   push:
-    branches: [feature/v5-seven-fixes-20261016]
+    branches: [feature/v5-seven-fixes-20261016, integration/pricing-v5-finance-safe-20261019]
     paths:
       - 'apps/passenger/lib/src/features/home/**'
       - 'apps/passenger/test/visual_home_review.dart'
+      - 'apps/passenger/lib/src/features/rides/presentation/**'
       - 'packages/design_system/**'
       - '.github/workflows/v5-home-visual-review.yml'
   workflow_dispatch:
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   screenshots:
-    name: Capture four floating card states for manual visual review
+    name: Capture eight passenger card states for manual visual review
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -33,19 +34,31 @@ jobs:
       - name: Capture goldens on fake map without production services
         working-directory: apps/passenger
         run: flutter test --update-goldens test/visual_home_review.dart
-      - name: Require the four generated screenshots
+      - name: Verify eight generated screenshots (320px and 390px)
         working-directory: apps/passenger
         run: |
           for theme in light dark; do
             for state in empty selected; do
               test -s "test/goldens/v5-floating-${theme}-${state}.png"
+              test -s "test/goldens/v5-floating-320-${theme}-${state}.png"
             done
           done
+      - name: Write review artifact limitations
+        run: |
+          cat > apps/passenger/test/goldens/REVIEW-NOTES.txt <<'EOF'
+          Passenger Home visual review — mock map only; 320x640 and 390x844.
+          These screenshots depict RideBottomSheet and placeholder backgrounds.
+          No real GPS, map tiles, live pricing, payments, production tokens,
+          device-native gesture/animation, or real network traffic is tested.
+          Not a release approval or evidence of physical-device compatibility.
+          EOF
       - name: Upload isolated UI images for review
         uses: actions/upload-artifact@v4
         with:
           name: v5-floating-home-visual-review
-          path: apps/passenger/test/goldens/v5-floating-*.png
+          path: |
+            apps/passenger/test/goldens/v5-floating-*.png
+            apps/passenger/test/goldens/REVIEW-NOTES.txt
           retention-days: 7
       - name: Confirm no runtime sources or dependency constraints were modified
         run: |

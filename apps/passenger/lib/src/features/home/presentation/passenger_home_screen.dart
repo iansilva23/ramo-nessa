@@ -517,11 +517,16 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
         _serviceAreaLabel = null;
       });
 
-      if (_mapReady) {
+      // A selected destination owns the route framing. Do not briefly
+      // center the GPS at a high zoom before the route has been refreshed.
+      final hasDestination = _destination != null;
+      if (_mapReady && RamoMapConfig.shouldCenterOnGpsUpdate(
+        hasDestination: hasDestination,
+      )) {
         unawaited(_mapController.move(location, RamoMapConfig.locationZoom));
       }
 
-      if (_destination != null) {
+      if (hasDestination) {
         await _loadRoute();
       }
     } catch (error) {

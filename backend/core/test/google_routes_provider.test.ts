@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { GoogleRoutesProvider } from '../src/routing/google-routes-provider.js';
+import { RoutingRouteError } from '../src/routing/route-provider.js';
 
 function encodePolyline5(
   points: Array<{ latitude: number; longitude: number }>,
@@ -319,4 +320,101 @@ test('rotas simultâneas idênticas geram uma só consulta e não ficam guardada
   assert.deepEqual(first,second);
   await provider.route({ from:a, to:b });
   assert.equal(calls,2);
+});
+
+
+test('rota com geometria fora dos limites da Terra é rejeitada antes de desenhar no mapa', async () => {
+  const from = { latitude: -2.82017, longitude: -40.41467 };
+  const to = { latitude: -2.89860, longitude: -40.45060 };
+  for (const wrong of [
+    { latitude: 95, longitude: -40.42 },
+    { latitude: -2.86, longitude: 185 },
+  ]) {
+    const fetcher = (async () => new Response(JSON.stringify({ routes: [{
+      distanceMeters: 12000, duration: '900s',
+      polyline: { encodedPolyline: encodePolyline5([from, wrong, to]) },
+    }] }), { status: 200 })) as typeof fetch;
+    const provider = new GoogleRoutesProvider(
+      'fake-test-key', 'http://127.0.0.1:19999/', 1000, fetcher,
+    );
+    await assert.rejects(
+      () => provider.route({ from, to }),
+      (error: unknown) =>
+        error instanceof RoutingRouteError &&
+        error.code === 'INVALID_PROVIDER_RESPONSE',
+    );
+  }
+});
+
+test('geometria do Google com caracteres fora do formato polyline falha fechada', async () => {
+  const from = { latitude: -2.82017, longitude: -40.41467 };
+  const to = { latitude: -2.89860, longitude: -40.45060 };
+  let calls = 0;
+  const fetcher = (async () => {
+    calls++;
+    return new Response(JSON.stringify({ routes: [{
+      distanceMeters: 12000, duration: '900s',
+      polyline: { encodedPolyline: '❌invalid' },
+    }] }), { status: 200 });
+  }) as typeof fetch;
+  const provider = new GoogleRoutesProvider(
+    'fake-test-key', 'http://127.0.0.1:19999/', 1000, fetcher,
+  );
+  for (let i = 0; i < 2; i++) {
+    await assert.rejects(
+      () => provider.route({ from, to }),
+      (error: unknown) =>
+        error instanceof RoutingRouteError &&
+        error.code === 'INVALID_PROVIDER_RESPONSE',
+    );
+  }
+  assert.equal(calls, 2, 'Falhas não podem ficar armazenadas como rota válida');
+});
+
+test('etapa com polyline GPS inválida também é rejeitada', async () => {
+  const from = { latitude: -2.82017, longitude: -40.41467 };
+  const to = { latitude: -2.89860, longitude: -40.45060 };
+  const fetcher = (async () => new Response(JSON.stringify({ routes: [{
+    distanceMeters: 12000, duration: '900s',
+    polyline: { encodedPolyline: encodePolyline5([from, to]) },
+    legs: [{ steps: [{
+      distanceMeters: 12000, staticDuration: '900s',
+      polyline: { encodedPolyline: encodePolyline5([
+        from, { latitude: 91, longitude: -40.42 },
+      ]) },
+    }] }],
+  }] }), { status: 200 })) as typeof fetch;
+  const provider = new GoogleRoutesProvider(
+    'fake-test-key', 'http://127.0.0.1:19999/', 1000, fetcher,
+  );
+  await assert.rejects(
+    () => provider.route({ from, to }),
+    (error: unknown) =>
+      error instanceof RoutingRouteError &&
+      error.code === 'INVALID_PROVIDER_RESPONSE',
+  );
+});
+
+
+test('rota com salto distante não pode afastar o zoom para outro estado', async () => {
+  const from = { latitude: -2.82017, longitude: -40.41467 };
+  const to = { latitude: -2.89860, longitude: -40.45060 };
+  // Every vertex is within global GPS bounds, but the middle point makes
+  // a claimed 20 km road route geometrically impossible.
+  const farAway = { latitude: -7.12, longitude: -43.10 };
+  const fetcher = (async () => new Response(JSON.stringify({ routes: [{
+    distanceMeters: 20000,
+    duration: '1800s',
+    polyline: { encodedPolyline: encodePolyline5([from, farAway, to]) },
+  }] }), { status: 200 })) as typeof fetch;
+  const provider = new GoogleRoutesProvider(
+    'fake-test-key', 'http://127.0.0.1:19999/', 1000, fetcher,
+  );
+  await assert.rejects(
+    () => provider.route({ from, to }),
+    (error: unknown) =>
+      error instanceof RoutingRouteError &&
+      error.code === 'INVALID_PROVIDER_RESPONSE' &&
+      /incompatível com a distância/i.test(error.message),
+  );
 });

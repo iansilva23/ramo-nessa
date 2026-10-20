@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import test from 'node:test';
+import {pricingPublicationSummary, pricingPublicationPriceChanges} from '../src/pricing-publications-admin.js';
+
+test('resumo compara alterações relevantes sem mutar o catálogo efetivo', () => {
+  const current = {
+    fixedRoutes: [{id:'prea-jijoca-car', dayCents:13000, after22Cents:15000}],
+    localities: {prea:[{localityId:'cavalo-bravo',prices:{car:{kind:'exact',amountCents:4200}}}],jijoca:[]},
+    localityPolicies: {prea:[],jijoca:[]},
+    commissionBps: 1000,
+  };
+  const original = structuredClone(current);
+  const draft = structuredClone(current);
+  draft.fixedRoutes[0].dayCents = 14000;
+  draft.localities.prea[0].prices.car.amountCents = 4700;
+  const summary = pricingPublicationSummary(current, draft);
+  assert.deepEqual(summary, ['Rotas fixas','Tarifas de localidades']);
+  const priceChanges = pricingPublicationPriceChanges(current, draft);
+  // Comfort/Black inherits the Car price unless explicitly overridden:
+  // publication review must also show this indirect commercial effect.
+  assert.equal(priceChanges.length, 3);
+  assert.ok(priceChanges.some(row =>
+    row.key === 'prea:cavalo-bravo:comfort_black'));
+  assert.ok(priceChanges.some(row =>
+    row.key === 'route:prea-jijoca-car' && row.after.includes('140,00')));
+  assert.ok(priceChanges.some(row =>
+    row.key === 'prea:cavalo-bravo:car' && row.after.includes('47,00')));
+  assert.deepEqual(current, original);
+  assert.deepEqual(pricingPublicationSummary(current, current), []);
+  assert.deepEqual(pricingPublicationPriceChanges(current, current), [],
+    'Catálogos idênticos não podem produzir mudanças publicáveis');
+  const reordered = structuredClone(current);
+  assert.deepEqual(pricingPublicationPriceChanges(current, reordered), [],
+    'Uma cópia idêntica não pode simular alteração de preço');
+
+});
+
+test('nova central publica só por ação explícita, com permissão e revisão', () => {
+  const app = readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const html = readFileSync(new URL('../pages/pricing-publications.html',import.meta.url),'utf8');
+  const code = readFileSync(new URL('../src/pricing-publications-admin.js',import.meta.url),'utf8');
+  const pricing = readFileSync(new URL('../pages/pricing.html',import.meta.url),'utf8');
+  const localities = readFileSync(new URL('../pages/localities.html',import.meta.url),'utf8');
+
+  assert.match(app, /createPricingPublicationsAdmin/);
+  assert.match(app, /\/administrodo\/rascunhos-publicacoes/);
+  for (const id of [
+    'publication-drafts','publication-history','publication-diff',
+    'publication-confirm-review','publication-publish','publication-discard',
+    'publication-message',
+  ]) assert.ok(html.includes('id="'+id+'"'));
+  assert.match(html, /id="publication-publish"[^>]*disabled/);
+  assert.match(code, /hasScope\('pricing:write'\)/);
+  assert.match(code, /Nenhuma alteração detectada: não é possível publicar/);
+  assert.match(code, /action === 'publish' && \(!checked \|\|/);
+  assert.match(code, /pricingPublicationSummary\(activeCatalog, selected\.catalog\)\.length === 0/);
+  assert.match(code, /!allowed \|\| !hasChanges \|\| !byId\('publication-confirm-review'\)\.checked/);
+  assert.match(code, /Versão vigente não identificada na lista/);
+  assert.match(code, /for \(const version of published\)/);
+  assert.ok(!code.includes('published.slice(0, 12)'),
+    'Histórico não pode ocultar versões anteriores sem paginação');
+  assert.match(code, /drafts = items\.filter\(version => version\.status === 'draft'\)/);
+  assert.match(code, /\.sort\(\(a, b\) => Number\(b\.versionNumber\) - Number\(a\.versionNumber\)\)/);
+  assert.match(code, /sort\(\(a, b\) => Number\(b\.versionNumber\) - Number\(a\.versionNumber\)\)/);
+  assert.match(code, /getPricingVersion\(getToken\(\), versionId\)/);
+  assert.match(code, /fresh\.version\.updatedAt !== original\.updatedAt/);
+  assert.match(code, /freshActive\?\.versionId !== activeCatalog\?\.versionId/);
+  assert.match(code, /versão em vigor mudou durante a revisão/);
+  assert.match(code, /window\.confirm/);
+  assert.match(code, /expectedUpdatedAt: original\.updatedAt/);
+  assert.match(code, /api\.publishPricingVersion/);
+  assert.match(code, /api\.deletePricingVersion/);
+  // A failed asynchronous draft selection must never retain previous approval.
+  assert.match(code, /selected = null;\s*pendingVersionId = null;\s*renderSelection\(\);\s*const payload = await api\.getPricingVersion/);
+  assert.match(code, /selected\?\.version\?\.id === version\.id/);
+  assert.match(code, /loading && !internalRefresh/);
+  assert.match(code, /selected\?\.version\?\.id === button\.dataset\.versionId/);
+  assert.match(code, /writing && !internalWrite/);
+  assert.match(code, /setAttribute\('aria-busy', 'true'\)/);
+  assert.match(code, /removeAttribute\('aria-busy'\)/);
+  assert.match(code, /await refresh\(\{internalWrite: true\}\)/);
+  assert.match(code, /pendingVersionId = pendingVersionId \|\| selected\?\.version\.id \|\| null;/);
+  assert.match(code, /if \(!mounted \|\| loading \|\| writing \|\| !hasScope\('pricing:write'\)/);
+  assert.ok(!code.includes('localStorage'));
+  assert.ok(!code.includes('sessionStorage'));
+  assert.ok(!code.includes('.innerHTML'));
+  assert.match(pricing, /href="\/administrodo\/rascunhos-publicacoes"[^>]*data-view="pricing-publications"/);
+  assert.match(localities, /href="\/administrodo\/rascunhos-publicacoes"[^>]*data-view="pricing-publications"/);
+  assert.match(localities, /class="publication-legacy-controls" hidden/);
+});
+
+test('originais ficam protegidos: não muda motor e mantém rotas prévias', () => {
+  const index = readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(index, /data-view="pricing"/);
+  assert.match(index, /data-view="localities"/);
+  assert.ok(index.includes('data-view="localities"') && index.includes('            Localidades'));
+  assert.match(index, /data-view="pricing-publications"/);
+  const code = readFileSync(new URL('../src/pricing-publications-admin.js',import.meta.url),'utf8');
+  assert.ok(!code.includes('fetch('), 'Todas as operações devem usar o cliente API com MFA');
+  assert.ok(!code.includes('setInterval('));
+});

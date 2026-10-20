@@ -8,7 +8,7 @@ import { InMemoryRidePreparationRepository } from '../src/rides/in-memory-ride-p
 import { InMemoryRideMatchingRepository } from '../src/matching/in-memory-ride-matching-repository.js';
 import { InMemoryFinanceRepository } from '../src/payments/repositories/in-memory-finance-repository.js';
 import { prepareRideForPayment } from '../src/rides/prepare-ride.js';
-import { createPrepaymentDriverOffer } from '../src/rides/prepayment-driver-confirmation.js';
+import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from '../src/rides/prepayment-driver-confirmation.js';
 import { createPaymentForRide } from '../src/payments/create-payment.js';
 import { dispatchRideAfterPayment } from '../src/rides/dispatch-after-payment.js';
 import { performDriverRideAction } from '../src/drivers/driver-ride-service.js';
@@ -121,4 +121,191 @@ test('oferta antiga de outra corrida não pode tomar motorista reservado', async
   await ctx.matching.acceptOffer({ offerId: offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() });
   await assert.rejects(ctx.matching.acceptOffer({ offerId: oldOffer.offer.id, driverId: offer.driverId, acceptedAt: now.toISOString() }), { code: 'DRIVER_NOT_AVAILABLE' });
   assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.reservedRideId, next.id);
+});
+
+test('confirmação pré-pagamento falha fechada com reserva sem prazo ou prazo inválido', async () => {
+  for (const driverHoldExpiresAt of [undefined,'data-invalida','2026-10-03T11:59:59Z']) {
+    const ctx = await setup();
+    const prepared = await ctx.prepare();
+    const { driverHoldExpiresAt: _previousExpiry, ...withoutExpiry } = prepared;
+    const altered = await ctx.rides.save({
+      ...withoutExpiry,
+      ...(driverHoldExpiresAt === undefined ? {} : {driverHoldExpiresAt}),
+    });
+    const result = await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,
+      registry:{} as never,routing:null,
+      rideId:altered.id,passengerId:altered.passengerId,now,
+    });
+    assert.equal(result?.status,'EXPIRED');
+    assert.equal(result?.driver,null);
+  }
+});
+
+test('oferta pré-pagamento nunca é criada com reserva vencida ou sem prazo válido', async () => {
+  for (const invalidExpiry of [undefined,'data-invalida','2026-10-03T11:59:59Z']) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const { driverHoldExpiresAt: _previous, ...withoutExpiry }=prepared;
+    const ride={
+      ...withoutExpiry,
+      ...(invalidExpiry === undefined ? {} : {driverHoldExpiresAt:invalidExpiry}),
+    };
+    await assert.rejects(
+      createPrepaymentDriverOffer({ride,matching:ctx.matching,now}),
+      /reserva do motorista está vencida ou possui prazo inválido/,
+    );
+    assert.equal((await ctx.matching.listOffersForRide(ride.id)).length,0);
+  }
+});
+
+test('confirmação do motorista recusa veículo e atributos incompatíveis com a corrida', async () => {
+  for (const problem of ['vehicle','category','capacity','fourByFour'] as const) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const current=problem==='fourByFour'
+      ? await ctx.rides.save({...accepted.ride,requiresFourByFour:true})
+      : problem==='capacity'
+        ? await ctx.rides.save({...accepted.ride,passengers:2})
+        : accepted.ride;
+    const existing=(await ctx.drivers.findByDriverId(offer.driverId))!;
+    const modified={
+      ...existing,
+      ...(problem==='vehicle'?{vehicleId:'different-vehicle'}:{}),
+      ...(problem==='category'?{categories:['moto' as const]}:{}),
+      ...(problem==='capacity'?{seatCapacity:1}:{}),
+    };
+    await ctx.drivers.upsert(modified);
+    const registry={
+      findProfile:async()=>({status:'approved',fullName:'Motorista teste'}),
+      findVehicleByDriverId:async()=>({
+        id:'vehicle-confirm',status:'approved',fourByFour:false,
+        make:'Teste',model:'Veículo',plateNormalized:'ABC1D23',
+      }),
+    } as never;
+    const result=await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,registry,
+      routing:null,rideId:current.id,passengerId:current.passengerId,now,
+    });
+    assert.equal(result?.status,'NO_DRIVER_FOUND',problem);
+    assert.equal(result?.driver,null,problem);
+  }
+});
+
+test('aceite aos 30s mantém confirmação pronta após 35s durante hold de pagamento', async () => {
+  const ctx = await setup();
+  const prepared = await ctx.prepare();
+  const offer = await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+  const acceptedAt = new Date(now.getTime()+30_000);
+  const accepted = await ctx.matching.acceptOffer({
+    offerId:offer.id,driverId:offer.driverId,
+    acceptedAt:acceptedAt.toISOString(),paymentHoldSeconds:90,
+  });
+  assert.ok(Date.parse(offer.expiresAt)<now.getTime()+40_000);
+  assert.ok(Date.parse(accepted.ride.driverHoldExpiresAt!)>now.getTime()+40_000);
+  const registry = {
+    findProfile:async()=>({status:'approved',fullName:'Motorista de teste'}),
+    findVehicleByDriverId:async()=>({
+      id:'vehicle-confirm',status:'approved',fourByFour:false,
+      make:'Veículo',model:'Teste',plateNormalized:'ABC1D23',
+    }),
+  } as never;
+  const confirmed = await prepaymentDriverConfirmation({
+    rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,registry,
+    routing:null,rideId:accepted.ride.id,passengerId:accepted.ride.passengerId,
+    now:new Date(now.getTime()+40_000),
+  });
+  assert.equal(confirmed?.status,'READY_TO_PAY');
+  assert.equal(confirmed?.driver?.id,offer.driverId);
+});
+
+test('reserva de pagamento expirada deixa de apresentar motorista como pronto', async () => {
+  const ctx=await setup();
+  const prepared=await ctx.prepare();
+  const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+  const accepted=await ctx.matching.acceptOffer({
+    offerId:offer.id,driverId:offer.driverId,
+    acceptedAt:new Date(now.getTime()+30_000).toISOString(),
+    paymentHoldSeconds:90,
+  });
+  const expiresAt=Date.parse(accepted.ride.driverHoldExpiresAt!);
+  const confirmed=await prepaymentDriverConfirmation({
+    rides:ctx.rides,matching:ctx.matching,drivers:ctx.drivers,
+    registry:{} as never,routing:null,
+    rideId:accepted.ride.id,passengerId:accepted.ride.passengerId,
+    now:new Date(expiresAt),
+  });
+  assert.equal(confirmed?.status,'EXPIRED');
+  assert.equal(confirmed?.driver,null);
+  await assert.rejects(createPaymentForRide(ctx.finance,{
+    ride:accepted.ride,method:'pix',processor:'test',
+    idempotencyKey:'expired-hold-payment',now:new Date(expiresAt),
+  }),{code:'DRIVER_HOLD_EXPIRED'});
+});
+
+test('oferta de consentimento não pode ser criada depois que corrida saiu de AWAITING_PAYMENT', async () => {
+  for (const state of ['PAID','CANCELLED_BY_PASSENGER'] as const) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    await assert.rejects(createPrepaymentDriverOffer({
+      ride:{...prepared,state},matching:ctx.matching,now,
+    }),/reserva antes da oferta/);
+    assert.deepEqual(await ctx.matching.listOffersForRide(prepared.id),[]);
+  }
+});
+
+test('confirmação não exibe READY_TO_PAY quando GPS persistido do motorista está corrompido', async () => {
+  for (const invalid of [
+    {latitude:Number.NaN,longitude:-40.4145},
+    {latitude:91,longitude:-40.4145},
+    {latitude:-2.8205,longitude:Number.POSITIVE_INFINITY},
+  ]) {
+    const ctx=await setup();
+    const prepared=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride:prepared,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const currentSupply=(await ctx.drivers.findByDriverId(offer.driverId))!;
+    const corruptedDriverRepository={
+      findByDriverId:async()=>({...currentSupply,...invalid}),
+    } as never;
+    const registry={
+      findProfile:async()=>({status:'approved',fullName:'Motorista teste'}),
+      findVehicleByDriverId:async()=>({
+        id:'vehicle-confirm',status:'approved',fourByFour:false,
+        make:'Teste',model:'Veículo',plateNormalized:'ABC1D23',
+      }),
+    } as never;
+    const result=await prepaymentDriverConfirmation({
+      rides:ctx.rides,matching:ctx.matching,drivers:corruptedDriverRepository,
+      registry,routing:null,rideId:accepted.ride.id,
+      passengerId:accepted.ride.passengerId,now,
+    });
+    assert.equal(result?.status,'NO_DRIVER_FOUND');
+    assert.equal(result?.driver,null);
+  }
+});
+
+test('despacho após pagamento não aceita prazo de reserva ausente ou inválido', async () => {
+  for (const invalidExpiry of [undefined,'prazo-invalido','2026-10-03T11:59:59Z']) {
+    const ctx=await setup();
+    const ride=await ctx.prepare();
+    const offer=await createPrepaymentDriverOffer({ride,matching:ctx.matching,now});
+    const accepted=await ctx.matching.acceptOffer({
+      offerId:offer.id,driverId:offer.driverId,acceptedAt:now.toISOString(),
+    });
+    const {driverHoldExpiresAt: _previous, ...withoutExpiry}=accepted.ride;
+    const paid=await ctx.rides.save({
+      ...withoutExpiry,state:'PAID',paymentStatus:'paid',paymentMethod:'pix',
+      ...(invalidExpiry===undefined?{}:{driverHoldExpiresAt:invalidExpiry}),
+    });
+    const result=await dispatchRideAfterPayment({ride:paid,...ctx,now});
+    assert.equal(result.kind,'NOT_PREPARED');
+    assert.equal((await ctx.drivers.findByDriverId(offer.driverId))?.busy,false);
+  }
 });

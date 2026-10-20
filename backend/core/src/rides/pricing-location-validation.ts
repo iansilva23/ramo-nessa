@@ -111,6 +111,15 @@ function assertKnownLocality(
   }
 
   if (
+    ref.zoneId === 'jericoacoara' &&
+    localityId !== 'jericoacoara'
+  ) {
+    throw new PricingLocationMismatchError(
+      `${field}.localityId não pertence à tabela de Jericoacoara.`,
+    );
+  }
+
+  if (
     ref.zoneId === 'external' &&
     !catalog.externalLocalities.includes(localityId)
   ) {
@@ -129,7 +138,26 @@ export function assertPricingLocationMatchesPoint(input: {
 }): void {
   const catalog = input.catalog ?? STATIC_PRICING_CATALOG_V1;
 
-  if (!catalog.zonePolicies[input.ref.zoneId].enabled) {
+  // Nunca aceitar latitude/longitude inválidas: NaN escaparia à comparação
+  // "distance > radiusKm" e poderia validar uma geofence indevidamente.
+  const point = input.point;
+  if (
+    point == null ||
+    typeof point.latitude !== 'number' ||
+    typeof point.longitude !== 'number' ||
+    !Number.isFinite(point.latitude) ||
+    !Number.isFinite(point.longitude) ||
+    point.latitude < -90 ||
+    point.latitude > 90 ||
+    point.longitude < -180 ||
+    point.longitude > 180
+  ) {
+    throw new PricingLocationMismatchError(
+      `${input.field} possui coordenadas GPS inválidas.`,
+    );
+  }
+
+  if (!input.ref || !catalog.zonePolicies[input.ref.zoneId]?.enabled) {
     throw new PricingLocationMismatchError(
       `${input.field}.zoneId está desativada no catálogo vigente.`,
     );
@@ -151,6 +179,18 @@ export function assertPricingLocationMatchesPoint(input: {
         candidate.localityId === input.ref.localityId,
     );
     if (geofence != null) {
+      // Fail closed if a versioned catalog contains an invalid geofence.
+      // NaN radius would otherwise make "distance > radius" false.
+      if (!Number.isFinite(geofence.centerLatitude) ||
+          geofence.centerLatitude < -90 || geofence.centerLatitude > 90 ||
+          !Number.isFinite(geofence.centerLongitude) ||
+          geofence.centerLongitude < -180 || geofence.centerLongitude > 180 ||
+          !Number.isFinite(geofence.radiusKm) ||
+          geofence.radiusKm <= 0 || geofence.radiusKm > 100) {
+        throw new PricingLocationMismatchError(
+          `${input.field}.localityId possui geocerca inválida no catálogo.`,
+        );
+      }
       const distance = distanceKm(input.point, {
         latitude: geofence.centerLatitude,
         longitude: geofence.centerLongitude,

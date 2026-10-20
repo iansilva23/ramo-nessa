@@ -191,6 +191,72 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('fluxo oferta → aceite → embarque → viagem cabe em celular 320px',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final api = _FakeDriverApi();
+    await tester.pumpWidget(RamoNessaDriverApp(
+      api: api,
+      locationService: const _FakeLocationService(),
+      navigationService: _FakeNavigationService(),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Você está offline'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'offline 320 px');
+
+    await tester.tap(find.byKey(const Key('driver-go-online')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('NOVA CORRIDA'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'oferta 320 px');
+
+    await tester.ensureVisible(find.text('Aceitar corrida'));
+    await tester.tap(find.text('Aceitar corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.byTooltip('Expandir corrida'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'aceite e mini-barra 320 px');
+
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('Cheguei'), findsOneWidget);
+    final coletaError = tester.takeException();
+    if (coletaError != null) {
+      final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
+      for (var index = 0; index < lines.length; index++) {
+        if (lines[index].contains('OVERFLOWING')) {
+          final start = index - 4 < 0 ? 0 : index - 4;
+          final end = index + 7 < lines.length ? index + 7 : lines.length;
+          debugPrint('RENDER_OVERFLOW_COLETA: ${lines.sublist(start, end).join('\n')}');
+        }
+      }
+    }
+    expect(coletaError, isNull, reason: 'coleta 320 px');
+
+    await tester.ensureVisible(find.text('Cheguei'));
+    await tester.tap(find.text('Cheguei'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('Iniciar corrida'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'chegada 320 px');
+
+    await tester.ensureVisible(find.text('Iniciar corrida'));
+    await tester.tap(find.text('Iniciar corrida'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.text('Finalizar corrida'), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'viagem 320 px');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
   testWidgets(
     'cadastro aprovado sem supply inicializa offline usando GPS real',
     (tester) async {

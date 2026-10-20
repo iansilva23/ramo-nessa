@@ -14,6 +14,8 @@ import '../data/passenger_ride_tracking_service.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import '../domain/prepared_ride.dart';
 import 'passenger_ride_chat_screen.dart';
+import 'widgets/animated_ride_status.dart';
+import 'tracking_map_transition_policy.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -46,8 +48,13 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   Timer? _timer;
   StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
   PassengerRideTrackingSnapshot? _snapshot;
+  // A stale HTTP poll must never overwrite a more recent realtime event.
+  int _snapshotRevision = 0;
   String? _error;
   bool _mapReady = false;
+  bool _hasCenteredMap = false;
+  String? _framedRouteStage;
+  int _routeEpoch = 0;
   bool _requestInFlight = false;
   bool _routeRequestInFlight = false;
   DateTime? _lastRouteAttemptAt;
@@ -84,7 +91,12 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
     _realtimeSubscription = service.watch(widget.rideId).listen(
       (snapshot) {
-        if (!mounted) return;
+        if (!mounted || !TrackingMapTransitionPolicy.isExpectedRide(
+          expectedRideId: widget.rideId,
+          receivedRideId: snapshot.rideId,
+        )) {
+          return;
+        }
         _applySnapshot(snapshot);
       },
       onError: (_) {
@@ -93,14 +105,80 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     );
   }
 
+  String _routeStage(PassengerRideTrackingSnapshot snapshot) =>
+      TrackingMapTransitionPolicy.stageFor(
+        rideState: snapshot.state,
+        terminal: snapshot.isTerminal,
+      );
+
+  void _fitTrackingRouteIfNeeded() {
+    final snapshot = _snapshot;
+    final route = _route;
+    final driver = snapshot?.driverLocation;
+    if (snapshot == null || route == null || driver == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          driver.latitude, driver.longitude,
+        )) {
+      return;
+    }
+    final stage = _routeStage(snapshot);
+    final isDropoff = stage == 'to-dropoff';
+    final targetLat = isDropoff
+        ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
+    final targetLng = isDropoff
+        ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
+    if (!TrackingMapTransitionPolicy.shouldFrameRoute(
+      mapReady: _mapReady,
+      terminal: snapshot.isTerminal,
+      hasDriver: true,
+      hasTarget: TrackingMapTransitionPolicy.isUsableGps(
+        targetLat, targetLng,
+      ),
+      routePointCount: route.points.length,
+      stage: stage,
+      lastFramedStage: _framedRouteStage,
+    )) {
+      return;
+    }
+
+    _framedRouteStage = stage;
+    _hasCenteredMap = true;
+    unawaited(_mapController.fitCoordinates(
+      coordinates: [
+        LatLng(driver.latitude, driver.longitude),
+        ...route.points,
+        LatLng(targetLat!, targetLng!),
+      ],
+      edgePadding: 20,
+      maxZoom: 16.5,
+    ));
+  }
+
   void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
     if (!mounted) return;
+    _snapshotRevision++;
+    final old = _snapshot;
+    final previousStage = old == null ? null : _routeStage(old);
+    final currentStage = _routeStage(snapshot);
+    final stageChanged =
+        previousStage != null && previousStage != currentStage;
 
+    if (stageChanged) {
+      // Invalidate an in-flight route to the old pickup when the passenger
+      // starts travelling to the destination (or the ride becomes terminal).
+      _routeEpoch++;
+      _lastRouteAttemptAt = null;
+      _lastRouteState = null;
+      _framedRouteStage = null;
+    }
     setState(() {
       _snapshot = snapshot;
+      if (stageChanged) _route = null;
       _error = null;
     });
-    unawaited(_refreshRoute(snapshot));
+    if (!snapshot.isTerminal) {
+      unawaited(_refreshRoute(snapshot));
+    }
 
     if (snapshot.isTerminal) {
       _timer?.cancel();
@@ -108,37 +186,59 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     }
 
     final driver = snapshot.driverLocation;
-    final center = driver != null
+    final center = driver != null &&
+            TrackingMapTransitionPolicy.isUsableGps(
+              driver.latitude, driver.longitude,
+            )
         ? LatLng(driver.latitude, driver.longitude)
-        : snapshot.pickupLatitude != null &&
-                snapshot.pickupLongitude != null
+        : TrackingMapTransitionPolicy.isUsableGps(
+            snapshot.pickupLatitude, snapshot.pickupLongitude,
+          )
             ? LatLng(
                 snapshot.pickupLatitude!,
                 snapshot.pickupLongitude!,
               )
             : null;
 
-    if (_mapReady && center != null) {
-      unawaited(_mapController.move(center, 15.5));
+    if (TrackingMapTransitionPolicy.shouldCenterInitially(
+      mapReady: _mapReady,
+      alreadyCentered: _hasCenteredMap,
+      hasPosition: center != null,
+    )) {
+      _hasCenteredMap = true;
+      unawaited(_mapController.move(center!, 15.5));
     }
+    _fitTrackingRouteIfNeeded();
   }
 
   Future<void> _refreshRoute(PassengerRideTrackingSnapshot snapshot) async {
     final service = widget.routeService;
     final driver = snapshot.driverLocation;
-    if (service == null || driver == null || _routeRequestInFlight) return;
+    if (service == null || driver == null || driver.stale ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          driver.latitude, driver.longitude,
+        ) || _routeRequestInFlight) {
+      return;
+    }
     final useDropoff = snapshot.state == 'IN_PROGRESS';
     final targetLatitude =
         useDropoff ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
     final targetLongitude =
         useDropoff ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
-    if (targetLatitude == null || targetLongitude == null) return;
+    if (targetLatitude == null || targetLongitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          targetLatitude, targetLongitude,
+        )) {
+      return;
+    }
     final now = DateTime.now();
     if (_lastRouteState == snapshot.state &&
         _lastRouteAttemptAt != null &&
         now.difference(_lastRouteAttemptAt!) < const Duration(seconds: 8)) {
       return;
     }
+    final requestEpoch = _routeEpoch;
+    final requestedStage = _routeStage(snapshot);
     _routeRequestInFlight = true;
     _lastRouteAttemptAt = now;
     _lastRouteState = snapshot.state;
@@ -147,28 +247,50 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
         origin: LatLng(driver.latitude, driver.longitude),
         destination: LatLng(targetLatitude, targetLongitude),
       );
-      if (mounted) setState(() => _route = route);
+      final latest = _snapshot;
+      if (!mounted || latest == null ||
+          !TrackingMapTransitionPolicy.isCurrentRouteResponse(
+            requestEpoch: requestEpoch,
+            latestEpoch: _routeEpoch,
+            requestedStage: requestedStage,
+            latestStage: _routeStage(latest),
+          )) return;
+      setState(() => _route = route);
+      _fitTrackingRouteIfNeeded();
     } catch (_) {
       // A telemetria continua visível; uma nova tentativa acontece no próximo
       // ciclo sem transformar falha do provedor em localização falsa.
     } finally {
       _routeRequestInFlight = false;
+      // The ride might have started while the old pickup route was pending.
+      // Refresh with the new destination as soon as the old call finishes.
+      if (mounted && requestEpoch != _routeEpoch) {
+        final latest = _snapshot;
+        if (latest != null && !latest.isTerminal) {
+          unawaited(_refreshRoute(latest));
+        }
+      }
     }
   }
 
   Future<void> _refresh() async {
     if (_requestInFlight) return;
     _requestInFlight = true;
+    final revisionAtRequest = _snapshotRevision;
 
     try {
       final snapshot = await widget.trackingService.tracking(widget.rideId);
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision ||
+          !TrackingMapTransitionPolicy.isExpectedRide(
+            expectedRideId: widget.rideId,
+            receivedRideId: snapshot.rideId,
+          )) return;
       _applySnapshot(snapshot);
     } on PassengerRideTrackingException catch (error) {
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision) return;
       setState(() => _error = error.message);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision) return;
       setState(() {
         _error = 'Não conseguimos atualizar a localização agora.';
       });
@@ -354,7 +476,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _pickup(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.pickupLatitude;
     final longitude = snapshot?.pickupLongitude;
-    if (latitude == null || longitude == null) return null;
+    if (latitude == null || longitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+      return null;
+    }
 
     return RamoPlace(
       name: 'Embarque',
@@ -366,7 +491,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _dropoff(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.dropoffLatitude;
     final longitude = snapshot?.dropoffLongitude;
-    if (latitude == null || longitude == null) return null;
+    if (latitude == null || longitude == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+      return null;
+    }
 
     return RamoPlace(
       name: 'Destino',
@@ -380,7 +508,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     final snapshot = _snapshot;
     final driver = snapshot?.driverLocation;
     final driverProfile = snapshot?.driver;
-    final driverPosition = driver == null
+    final driverPosition = driver == null ||
+            !TrackingMapTransitionPolicy.isUsableGps(
+              driver.latitude, driver.longitude,
+            )
         ? null
         : LatLng(driver.latitude, driver.longitude);
 
@@ -396,12 +527,15 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               origin: _pickup(snapshot),
               destination: _dropoff(snapshot),
               routePoints: _route?.points ?? const [],
+              routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,
               driverCategory: snapshot?.category,
-              driverPositionStale: driver?.stale ?? false,
+              driverPositionStale: driver?.stale == true ||
+                  (driver != null && driverPosition == null),
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
                 _mapReady = true;
+                _fitTrackingRouteIfNeeded();
                 _refresh();
               },
             ),
@@ -430,27 +564,25 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                         color: RamoColors.signal,
                       ),
                       const SizedBox(width: RamoSpacing.xs),
-                      Text(
-                        widget.paymentMethod == 'cash'
-                            ? 'Pagamento em dinheiro'
-                            : _snapshot?.state == 'REFUNDED'
-                                ? 'Pagamento devolvido'
-                                : _snapshot?.state == 'REFUND_PENDING'
-                                    ? 'Estorno solicitado'
-                                    : 'Pagamento confirmado',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
+                      Expanded(
+                        child: Text(
+                          widget.paymentMethod == 'cash'
+                              ? 'Pagamento em dinheiro'
+                              : _snapshot?.state == 'REFUNDED'
+                                  ? 'Pagamento devolvido'
+                                  : _snapshot?.state == 'REFUND_PENDING'
+                                      ? 'Estorno solicitado'
+                                      : 'Pagamento confirmado',
+                          softWrap: true,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: RamoSpacing.sm),
-                  Text(
-                    _status,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
+                  AnimatedRideStatus(label: _status),
                   if (driverProfile != null) ...[
                     const SizedBox(height: RamoSpacing.md),
                     _AssignedDriverCard(driver: driverProfile),
@@ -528,10 +660,13 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       onSubmit: _submitDriverRating,
                     ),
                   ],
-                  if (driver?.stale == true) ...[
+                  if (driver?.stale == true ||
+                      (driver != null && driverPosition == null)) ...[
                     const SizedBox(height: RamoSpacing.xs),
                     Text(
-                      'A última posição do motorista está desatualizada.',
+                      driverPosition == null
+                          ? 'A posição do motorista está indisponível no momento.'
+                          : 'A última posição do motorista está desatualizada.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],

@@ -32,7 +32,7 @@ test('Nova localidade tem fluxo guiado, mapa, edição e exclusão protegida', (
     index,
     /href=["']\/administrodo\/nova-localidade["'][^>]*data-view=["']localities["']/,
   );
-  assert.match(index, /Nova localidade/);
+  assert.match(index, /Localidades/);
   assert.match(app, /path: '\/administrodo\/nova-localidade'/);
   assert.match(app, /createLocalitiesAdmin/);
   assert.match(app, /destroyLocalitiesAdmin/);

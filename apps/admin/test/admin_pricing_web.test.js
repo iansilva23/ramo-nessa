@@ -173,6 +173,12 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     'pricing-localities',
     'pricing-fixed-routes',
     'pricing-routes-body',
+    'pricing-all-rates',
+    'pricing-complete-body',
+    'pricing-rate-search',
+    'pricing-rate-region',
+    'pricing-rate-category',
+    'pricing-night-controls',
     'pricing-category-count',
     'pricing-category-policies-body',
     'pricing-category-policy-fields',
@@ -263,6 +269,10 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
   assert.match(html, /Clique para posicionar o alfinete/i);
   assert.match(html, /Raio da localidade/i);
   assert.match(html, /Aplicar adicional noturno da região/i);
+  assert.match(app, /buildPricingRateRows/);
+  assert.match(app, /editPricingFromMatrix/);
+  assert.match(app, /renderPricingCompleteMatrix/);
+  assert.match(app, /pricing-night-controls/);
   assert.match(app, /hasScope\('pricing:read'\)/);
   assert.match(app, /hasScope\('pricing:write'\)/);
   assert.match(app, /api\.pricingCatalog\(state\.token\)/);
@@ -327,5 +337,130 @@ test('frontend de preços expõe catálogo protegido e fluxo versionado', () => 
     '.pricing-toggle-field',
   ]) {
     assert.equal(css.includes(selector), true);
+  }
+});
+
+
+test('ADM propaga conflitos de edição sem reenviar mutações nem perder controle de versão', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({url, options});
+    return jsonResponse(409, {error:'VERSION_CONFLICT', message:'O rascunho foi alterado por outra pessoa.'});
+  });
+  const versionId = '11111111-1111-4111-8111-111111111111';
+  const expectedUpdatedAt = '2026-10-19T12:00:00.000Z';
+  await assert.rejects(
+    api.updatePricingVersion('secret', {
+      versionId,
+      expectedUpdatedAt,
+      patch:{kind:'fixed_route',routeId:'prea-jijoca-car',dayCents:13000,after22Cents:15000},
+    }),
+    error => error.status === 409 && error.code === 'VERSION_CONFLICT',
+  );
+  assert.equal(calls.length, 1, 'Conflito não pode provocar nova tentativa automática');
+  assert.equal(calls[0].options.method, 'PATCH');
+  assert.equal(JSON.parse(calls[0].options.body).expectedUpdatedAt, expectedUpdatedAt);
+  assert.equal(calls[0].url.includes('secret'), false);
+});
+
+test('ADM não converte erro de permissão em publicação bem-sucedida', async () => {
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push({url, options});
+    return jsonResponse(403, {error:'FORBIDDEN',message:'Permissão insuficiente.'});
+  });
+  await assert.rejects(
+    api.publishPricingVersion('restricted', {
+      versionId:'11111111-1111-4111-8111-111111111111',
+      effectiveFrom:'2026-10-20T03:00:00.000Z',
+      expectedUpdatedAt:'2026-10-19T12:00:00.000Z',
+    }),
+    error => error.status === 403 && error.code === 'FORBIDDEN',
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method,'POST');
+  assert.equal(calls[0].options.credentials,'omit');
+});
+
+
+test('ADM persiste edição de rascunho e relê a versão sem publicar tarifa', async () => {
+  const token = 'isolated_test_token';
+  const versionId = '11111111-1111-4111-8111-111111111111';
+  let version = null;
+  const calls = [];
+  const api = createAdminApi(async (url, options) => {
+    calls.push([url, options.method]);
+    if (url === '/v1/admin/pricing/versions' && options.method === 'POST') {
+      version = {id:versionId,status:'draft',updatedAt:'2026-10-19T12:00:00.000Z'};
+      return jsonResponse(201, version);
+    }
+    if (url === '/v1/admin/pricing/versions/' + versionId && options.method === 'PATCH') {
+      const payload = JSON.parse(options.body);
+      if (payload.expectedUpdatedAt !== version.updatedAt) {
+        return jsonResponse(409,{error:'VERSION_CONFLICT'});
+      }
+      version = {...version,updatedAt:'2026-10-19T12:01:00.000Z',
+        dayCents:payload.dayCents,after22Cents:payload.after22Cents};
+      return jsonResponse(200,version);
+    }
+    if (url === '/v1/admin/pricing/versions/' + versionId && options.method === 'GET') {
+      return jsonResponse(200,structuredClone(version));
+    }
+    throw new Error('Requisição inesperada: ' + options.method + ' ' + url);
+  });
+  const draft = await api.createPricingVersion(token);
+  assert.equal(draft.status, 'draft');
+  await api.updatePricingVersion(token,{
+    versionId,expectedUpdatedAt:draft.updatedAt,
+    patch:{kind:'fixed_route',routeId:'prea-jijoca-car',dayCents:13000,after22Cents:15000},
+  });
+  const reloaded = await api.getPricingVersion(token,versionId);
+  assert.equal(reloaded.status,'draft');
+  assert.equal(reloaded.dayCents,13000);
+  assert.equal(reloaded.after22Cents,15000);
+  assert.deepEqual(calls.map(([,method])=>method),['POST','PATCH','GET']);
+  assert.equal(calls.some(([url])=>url.endsWith('/publish')),false,
+    'Salvar um rascunho não pode publicá-lo automaticamente');
+});
+
+
+test('frontend só envia publicação após confirmação e com versão atualizada', () => {
+  const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const start = app.indexOf('async function handlePricingPublish()');
+  const end = app.indexOf('\nfunction renderDriverSummary(', start);
+  assert.ok(start >= 0 && end > start, 'Fluxo de publicação do ADM não localizado');
+  const handler = app.slice(start, end);
+  assert.match(handler, /hasScope\('pricing:write'\)/);
+  assert.match(handler, /version\?\.status !== 'draft'/);
+  assert.match(handler, /window\.confirm\(/);
+  assert.match(handler, /if \(!confirmed\) return;/);
+  assert.ok(handler.indexOf('if (!confirmed) return;') <
+    handler.indexOf('await api.publishPricingVersion('),
+    'Confirmação precisa ocorrer antes da chamada de publicação');
+  assert.match(handler, /expectedUpdatedAt: version\.updatedAt/);
+  assert.match(handler, /button\.disabled = true/);
+  assert.match(handler, /finally \{\s*button\.disabled = false/);
+});
+
+
+test('matriz de tarifas liga filtros e edições a rascunhos protegidos', () => {
+  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('function editPricingFromMatrix(');
+  const end=app.indexOf('function renderPricingCatalog(',start);
+  assert.ok(start>=0 && end>start);
+  const matrix=app.slice(start,end);
+  assert.match(matrix,/state\.selectedPricingVersion\?\.status !== 'draft'/);
+  assert.match(matrix,/hasScope\('pricing:write'\)/);
+  assert.match(matrix,/\['day','Dia'\],\['after_22','Noite'\]/);
+  assert.match(matrix,/pricing-rate-search/);
+  assert.match(matrix,/pricing-rate-region/);
+  assert.match(matrix,/pricing-rate-category/);
+  assert.match(matrix,/item\.enabled === false \? 'Categoria desativada'/);
+  assert.match(matrix,/isDistanceMinimum \? 'Mín\. ' : ''/);
+  assert.match(matrix,/body\.replaceChildren\(\)/);
+  assert.equal(matrix.includes('.innerHTML'),false);
+  const route=app.slice(app.indexOf('function bindRouteEvents('));
+  for(const id of ['pricing-rate-search','pricing-rate-region','pricing-rate-category']) {
+    assert.ok(route.includes(id),'Filtro não ligado: '+id);
   }
 });
