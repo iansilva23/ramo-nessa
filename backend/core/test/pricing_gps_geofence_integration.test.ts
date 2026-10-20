@@ -138,3 +138,17 @@ test('classificador de geocercas rejeita coordenadas inválidas e pontos sem ár
   }), (error:unknown) => error instanceof CoordinateClassificationError &&
     error.code === 'COORDINATE_NOT_CLASSIFIED');
 });
+
+test('localidade fictícia da Vila não pode ser validada apenas por estar dentro da geocerca', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const jeri = fixtures[2]!;
+  assert.throws(() => assertPricingLocationMatchesPoint({
+    catalog,
+    ref:{zoneId:'jericoacoara',localityId:'vila-inventada'},
+    point:jeri.point,
+    field:'destination',
+  }), PricingLocationMismatchError);
+  assert.doesNotThrow(() => assertPricingLocationMatchesPoint({
+    catalog,ref:jeri.ref,point:jeri.point,field:'destination',
+  }));
+});
