@@ -70,3 +70,38 @@ Execução: [GitHub Actions 39480460591](https://github.com/iansilva23/ramo-ness
 
 Os 51 testes ignorados na suíte geral não são aprovação: permanecem dependentes de seus ambientes próprios. O job PostgreSQL executa especificamente a integração transacional nova e a regressão V5 financeira existente, não todos os testes PostgreSQL do repositório.
 Os artefatos da execução incluem as capturas `regions-pricing-browser-evidence` e os dois bundles Web, sujeitos à retenção do GitHub Actions.
+
+## Diagnóstico do ambiente antes da ativação
+`deploy/staging/inspect-regions-pricing.mjs` é um inventário somente de leitura:
+- Consulta nomes, imagens, saúde e o label de revisão dos containers Ramo Nessa em execução; não lê nem imprime Config.Env.
+- Diferencia o checkout Git da revisão implantada. Ausência de label de revisão é registrada como desconhecida, sem inferir main.
+- No PostgreSQL, usa exclusivamente transações READ ONLY com limites de execução e espera por lock. Retorna catálogo efetivo, hash de snapshot, migrações e contagens de dependências; não retorna dados pessoais, credenciais ou o snapshot completo.
+- Se houver vários containers PostgreSQL, não escolhe um automaticamente. A opção --postgres-container exige um PostgreSQL Ramo Nessa já em execução.
+- Não gera backup, não aplica plano, não altera arquivos/configuração, não cria imagens e não reinicia serviços. O inventário não substitui o backup nem a revisão das dependências.
+
+Nesta sessão não houve acesso SSH direto. A tentativa de consultar health/ready pela navegação disponível também não permitiu verificar o host. Por isso, a conferência real continua pendente; não se concluiu que o ambiente estava acessível ou indisponível.
+
+Execução no terminal já existente da VPS, sem checkout/merge:
+```bash
+bash <<'AUDITAR_REGIOES'
+set -euo pipefail
+git -C /opt/ramo-nessa fetch origin feature/admin-regions-pricing-simple-20261020
+git -C /opt/ramo-nessa show 6472c875b974d0c6cae6b8785374e1cfafecb996:deploy/staging/inspect-regions-pricing.mjs |
+  sudo node --input-type=module -
+AUDITAR_REGIOES
+```
+O fetch somente atualiza referências Git; o programa faz leitura do runtime e do banco. A execução deste diagnóstico não autoriza publicação ou preparação do catálogo.
+
+## Ampliação da homologação — 20/10/2026
+Código verificado: `6472c875b974d0c6cae6b8785374e1cfafecb996`.
+- [Regressão completa com PostgreSQL](https://github.com/iansilva23/ramo-nessa/actions/runs/39482627575): 827 testes do Core, 825 aprovados, nenhuma falha e dois ignorados por guardas específicas. O banco foi criado e removido somente no runner GitHub; migrations foram executadas duas vezes para verificar idempotência.
+- No mesmo job, três testes do diagnóstico de leitura passaram: projeção sem variáveis de ambiente, SQL READ ONLY, seleção não ambígua de banco e rejeição de ações de escrita.
+- A confirmação MFA foi testada contra PostgreSQL com dois pools independentes: rejeição do código usado no login, consumo único em concorrência, limite persistente de tentativas e revogação de sessão.
+- Um processo real do Core foi iniciado em localhost com schema PostgreSQL exclusivo. O teste passou pelo login HTTP real, permissões de leitura, desafio 428, senha inválida, confirmação MFA, idempotência, dois administradores concorrentes, política pública, sessão real de passageiro, horário autoritativo, simulação e arquivamento/auditoria.
+- No modo de teste, ausência de identidade de desenvolvimento retorna AUTH_NOT_CONFIGURED/503; sessão explícita inválida retorna 401. O teste verifica os dois comportamentos sem liberar cotação anônima.
+- A automação WebKit passou a esperar a visibilidade do alfinete renderizado antes de medir sua posição; continua exigindo arraste efetivo e alteração real das coordenadas.
+- [Revisão Web correspondente](https://github.com/iansilva23/ramo-nessa/actions/runs/39482627456): Core, ADM, PostgreSQL isolado, Chromium/WebKit e apps Web.
+
+Os dois testes ainda ignorados na suíte PostgreSQL completa tratam de entrega de OTP persistida e de uma migração/preferência com sessão, sob guardas próprias. Não são declarados aprovados. O resultado anterior de 51 ignorados era da suíte sem banco; esta execução ampliada valida as integrações então não exercitadas, exceto esses dois casos.
+
+Continuam pendentes o diagnóstico real da VPS/banco, provedores externos, aparelhos reais e aceite do proprietário. Nenhum teste conectou-se a Google, Asaas, Mercado Pago, VPS ou banco reais.
