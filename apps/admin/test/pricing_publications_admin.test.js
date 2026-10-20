@@ -49,6 +49,8 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   assert.match(code, /hasScope\('pricing:write'\)/);
   assert.match(code, /getPricingVersion\(getToken\(\), versionId\)/);
   assert.match(code, /fresh\.version\.updatedAt !== original\.updatedAt/);
+  assert.match(code, /freshActive\?\.versionId !== activeCatalog\?\.versionId/);
+  assert.match(code, /versão em vigor mudou durante a revisão/);
   assert.match(code, /window\.confirm/);
   assert.match(code, /expectedUpdatedAt: original\.updatedAt/);
   assert.match(code, /api\.publishPricingVersion/);
