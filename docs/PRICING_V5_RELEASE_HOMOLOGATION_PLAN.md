@@ -76,3 +76,18 @@ A proteção de publicação sem diferenças foi reforçada tanto na disponibili
 5. **Aceite visual e operação:** verificações manuais Android/iOS/Web/ADM, papéis administrativos e evidências de backup/rollback antes de qualquer proposta de deploy.
 
 **Decisão:** concluir a fase de regressão automatizada atual como aprovada para o HEAD informado, sem reabrir o ADM por cosmética. A fase de homologação operacional **NÃO está encerrada**. Manter PR #35 DRAFT, sem merge, VPS ou publicação.
+
+## REGRA MESTRE — EXECUÇÃO EM BLOCOS COMPLETOS (20/10/2026)
+
+**Regra obrigatória para toda continuidade do Ramo Nessa V5: trabalhar por blocos técnicos completos, não por um único teste ou commit a cada solicitação de “continue”.**
+
+1. Antes de editar, verificar HEAD, PR, CI, escopo protegido, dependências e regressões relacionadas.
+2. Organizar cada execução em um bloco substancial de funcionalidades e validações interdependentes, agrupando alterações, correções e testes; evitar commits meramente incrementais ou cosméticos que não tragam progresso real.
+3. Corrigir erros detectados na mesma execução, quando tecnicamente possível, e verificar o CI do HEAD resultante. Se o CI estiver pendente, relatar explicitamente, sem fingir aprovação.
+4. Preservar tudo que já foi aprovado, sem recriar ou sobrescrever código existente, sem alterar tarifas comerciais, financeiro, providers, infraestrutura, credenciais, card protegido do passageiro ou outras áreas fora do escopo.
+5. Não fazer merge, publicação, deploy ou alteração de VPS. Manter PR #35 DRAFT até gates de homologação e autorização explícita.
+6. Ao finalizar um bloco, entregar **um relatório consolidado** com evidências, testes aprovados/falhos, commits e pendências reais. Medir progresso por critérios encerrados, não pela quantidade de commits.
+7. Priorizar integração ponta a ponta e bloqueios reais de lançamento, em vez de acrescentar regressões triviais sem necessidade.
+8. Não exigir do proprietário dezenas de mensagens de continuação para microtarefas; trabalhar o máximo possível no mesmo turno, reconhecendo que não existe execução autônoma em segundo plano após a resposta.
+
+**Aplicação imediata:** a falha do workflow #39449389550 foi uma expectativa equivocada do teste: a API já emite `DRIVER_HOLD_EXPIRED` para pagamento com reserva expirada, mantendo o bloqueio correto. Corrigir o teste sem trocar a semântica de negócio.
