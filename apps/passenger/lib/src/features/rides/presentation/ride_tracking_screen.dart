@@ -518,16 +518,19 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                         color: RamoColors.signal,
                       ),
                       const SizedBox(width: RamoSpacing.xs),
-                      Text(
-                        widget.paymentMethod == 'cash'
-                            ? 'Pagamento em dinheiro'
-                            : _snapshot?.state == 'REFUNDED'
-                                ? 'Pagamento devolvido'
-                                : _snapshot?.state == 'REFUND_PENDING'
-                                    ? 'Estorno solicitado'
-                                    : 'Pagamento confirmado',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
+                      Expanded(
+                        child: Text(
+                          widget.paymentMethod == 'cash'
+                              ? 'Pagamento em dinheiro'
+                              : _snapshot?.state == 'REFUNDED'
+                                  ? 'Pagamento devolvido'
+                                  : _snapshot?.state == 'REFUND_PENDING'
+                                      ? 'Estorno solicitado'
+                                      : 'Pagamento confirmado',
+                          softWrap: true,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ],
