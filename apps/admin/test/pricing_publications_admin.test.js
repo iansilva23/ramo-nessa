@@ -57,6 +57,8 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   assert.match(code, /pricingPublicationSummary\(activeCatalog, selected\.catalog\)\.length === 0/);
   assert.match(code, /!allowed \|\| !hasChanges \|\| !byId\('publication-confirm-review'\)\.checked/);
   assert.match(code, /Versão vigente não identificada na lista/);
+  assert.match(code, /drafts = items\.filter\(version => version\.status === 'draft'\)/);
+  assert.match(code, /\.sort\(\(a, b\) => Number\(b\.versionNumber\) - Number\(a\.versionNumber\)\)/);
   assert.match(code, /sort\(\(a, b\) => Number\(b\.versionNumber\) - Number\(a\.versionNumber\)\)/);
   assert.match(code, /getPricingVersion\(getToken\(\), versionId\)/);
   assert.match(code, /fresh\.version\.updatedAt !== original\.updatedAt/);
