@@ -22,7 +22,7 @@ const pool=createPostgresPool(databaseUrl),versions=new PostgresPricingCatalogVe
 try{
   if(output){
     const plan=await prepareCatalogResetPlan(versions);
-    const tables=['rides','payments','ledger_entries','driver_payouts','passenger_wallet_ledger','driver_payout_events'];
+    const tables=['rides','payments','ledger_entries','ledger_transactions','driver_payouts','wallet_topups','wallet_topup_events','asaas_driver_transfer_attempts','asaas_driver_transfer_events'];
     const available=await pool.query<{table_name:string}>("SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema() AND table_name=ANY($1::text[])",[tables]);
     const dependencies:Record<string,string>={};
     for(const row of available.rows){
@@ -30,7 +30,18 @@ try{
       const result=await pool.query<{count:string}>('SELECT count(*)::text AS count FROM "'+row.table_name+'"');
       dependencies[row.table_name]=result.rows[0]!.count;
     }
-    const text=JSON.stringify({plan,dependencyInventory:dependencies,scope:'Only pricing_catalog_versions and admin_audit_log may be written. No ride, payment, payout or ledger is deleted.'},null,2)+'\n';
+    const foreignKeys=await pool.query<{name:string;source_table:string;target_table:string;definition:string}>(
+      `SELECT c.conname AS name,source.relname AS source_table,target.relname AS target_table,
+        pg_get_constraintdef(c.oid) AS definition
+        FROM pg_constraint c JOIN pg_class source ON source.oid=c.conrelid
+        JOIN pg_namespace source_ns ON source_ns.oid=source.relnamespace
+        JOIN pg_class target ON target.oid=c.confrelid
+        JOIN pg_namespace target_ns ON target_ns.oid=target.relnamespace
+        WHERE c.contype='f' AND (
+          (source_ns.nspname=current_schema() AND source.relname=ANY($1::text[])) OR
+          (target_ns.nspname=current_schema() AND target.relname=ANY($1::text[])))
+        ORDER BY source.relname,c.conname`,[[...tables,'pricing_catalog_versions']]);
+    const text=JSON.stringify({plan,dependencyInventory:dependencies,foreignKeyInventory:foreignKeys.rows,scope:'Only pricing_catalog_versions and admin_audit_log may be written. No ride, payment, payout or ledger is deleted.'},null,2)+'\n';
     const path=resolve(output);await mkdir(dirname(path),{recursive:true,mode:0o700});await writeFile(path,text,{flag:'wx',mode:0o600});
     console.log(JSON.stringify({result:'PLAN_ONLY_NO_MUTATION',planFile:path,sha256:createHash('sha256').update(text).digest('hex'),revision:plan.sourceRevision,dependencies}));
   }else{
