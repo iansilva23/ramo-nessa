@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { classifyCoordinateByCatalog } from '../src/places/coordinate-place-policy.js';
+import { classifyCoordinateByCatalog, CoordinateClassificationError } from '../src/places/coordinate-place-policy.js';
 import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 import { municipalityFor } from '../src/pricing/municipality-directory.js';
@@ -115,4 +115,26 @@ test('coordenada local não pode ser declarada destino externo sem prova', () =>
     point:prea.point,
     field:'destination',
   }), PricingLocationMismatchError);
+});
+
+test('classificador de geocercas rejeita coordenadas inválidas e pontos sem área aprovada', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const invalidPoints = [
+    {latitude:Number.NaN,longitude:-40.41467},
+    {latitude:Number.POSITIVE_INFINITY,longitude:-40.41467},
+    {latitude:-2.82017,longitude:Number.NEGATIVE_INFINITY},
+    {latitude:90.01,longitude:-40.41467},
+    {latitude:-90.01,longitude:-40.41467},
+    {latitude:-2.82017,longitude:180.01},
+    {latitude:-2.82017,longitude:-180.01},
+  ];
+  for (const point of invalidPoints) {
+    assert.throws(() => classifyCoordinateByCatalog({catalog,...point}),
+      (error:unknown) => error instanceof CoordinateClassificationError &&
+        error.code === 'INVALID_COORDINATES');
+  }
+  assert.throws(() => classifyCoordinateByCatalog({
+    catalog,latitude:0,longitude:0,
+  }), (error:unknown) => error instanceof CoordinateClassificationError &&
+    error.code === 'COORDINATE_NOT_CLASSIFIED');
 });
