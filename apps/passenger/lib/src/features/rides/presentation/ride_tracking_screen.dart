@@ -48,6 +48,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   Timer? _timer;
   StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
   PassengerRideTrackingSnapshot? _snapshot;
+  // A stale HTTP poll must never overwrite a more recent realtime event.
+  int _snapshotRevision = 0;
   String? _error;
   bool _mapReady = false;
   bool _hasCenteredMap = false;
@@ -140,6 +142,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
   void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
     if (!mounted) return;
+    _snapshotRevision++;
     final old = _snapshot;
     final previousStage = old == null ? null : _routeStage(old);
     final currentStage = _routeStage(snapshot);
@@ -245,16 +248,17 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   Future<void> _refresh() async {
     if (_requestInFlight) return;
     _requestInFlight = true;
+    final revisionAtRequest = _snapshotRevision;
 
     try {
       final snapshot = await widget.trackingService.tracking(widget.rideId);
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision) return;
       _applySnapshot(snapshot);
     } on PassengerRideTrackingException catch (error) {
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision) return;
       setState(() => _error = error.message);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision) return;
       setState(() {
         _error = 'Não conseguimos atualizar a localização agora.';
       });
