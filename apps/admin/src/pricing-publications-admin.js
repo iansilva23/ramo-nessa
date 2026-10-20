@@ -219,6 +219,11 @@ export function createPricingPublicationsAdmin({
     if (loading || !mounted) return;
     loading = true;
     const current = ++sequence;
+    // Do not permit publishing a previously reviewed snapshot while a fresh
+    // baseline and draft list are being fetched.
+    pendingVersionId = pendingVersionId || selected?.version.id || null;
+    selected = null;
+    renderSelection();
     byId('publication-refresh').disabled = true;
     try {
       const token = getToken();
@@ -271,7 +276,7 @@ export function createPricingPublicationsAdmin({
     if (notify) message();
   }
   async function mutate(action) {
-    if (!mounted || writing || !hasScope('pricing:write') || !selected) return;
+    if (!mounted || loading || writing || !hasScope('pricing:write') || !selected) return;
     const checked = byId('publication-confirm-review').checked;
     if (action === 'publish' && !checked) return;
     const original = selected.version;
