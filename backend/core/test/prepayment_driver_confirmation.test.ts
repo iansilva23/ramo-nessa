@@ -169,13 +169,15 @@ test('confirmação do motorista recusa veículo e atributos incompatíveis com 
     });
     const current=problem==='fourByFour'
       ? await ctx.rides.save({...accepted.ride,requiresFourByFour:true})
-      : accepted.ride;
+      : problem==='capacity'
+        ? await ctx.rides.save({...accepted.ride,passengers:2})
+        : accepted.ride;
     const existing=(await ctx.drivers.findByDriverId(offer.driverId))!;
     const modified={
       ...existing,
       ...(problem==='vehicle'?{vehicleId:'different-vehicle'}:{}),
       ...(problem==='category'?{categories:['moto' as const]}:{}),
-      ...(problem==='capacity'?{seatCapacity:0}:{}),
+      ...(problem==='capacity'?{seatCapacity:1}:{}),
     };
     await ctx.drivers.upsert(modified);
     const registry={
