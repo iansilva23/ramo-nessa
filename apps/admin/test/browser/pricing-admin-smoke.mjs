@@ -37,6 +37,7 @@ const fixture = () => ({
 const published = fixture();
 let draft = null;
 let draftCatalog = null;
+let publishedVersion = null;
 let publishRequests = 0;
 let updateRequests = 0;
 
@@ -66,7 +67,10 @@ async function handleRequest(request, response) {
       return sendJson(response, 200, published);
     }
     if (pathname === '/v1/admin/pricing/versions') {
-      if (method === 'GET') return sendJson(response, 200, {items:draft ? [draft] : [],effectiveVersionId:null});
+      if (method === 'GET') return sendJson(response, 200, {
+          items:[...(draft ? [draft] : []), ...(publishedVersion ? [publishedVersion] : [])],
+          effectiveVersionId:publishedVersion?.id ?? null,
+        });
       if (method === 'POST') {
         assert.equal(draft, null, 'Only one dummy draft is allowed');
         draft = {id:versionId,versionNumber:2,status:'draft',updatedAt:'2026-10-19T12:00:00.000Z',catalogVersion:'browser-smoke'};
@@ -91,7 +95,23 @@ async function handleRequest(request, response) {
         return sendJson(response, 200, {version:draft,catalog:draftCatalog});
       }
     }
-    if (pathname.endsWith('/publish')) publishRequests++;
+    if (pathname === '/v1/admin/pricing/versions/' + versionId + '/publish' &&
+        method === 'POST') {
+      publishRequests++;
+      if (!draft || data.expectedUpdatedAt !== draft.updatedAt) {
+        return sendJson(response, 409, {error:'VERSION_CONFLICT',
+          message:'O rascunho foi alterado'});
+      }
+      // Mock-only publication. This local browser fixture never forwards
+      // requests to VPS, production Core, providers or a real database.
+      Object.assign(published, structuredClone(draftCatalog));
+      publishedVersion = {...draft, status:'published',
+        effectiveFrom:'2026-10-20T12:00:00.000Z',
+        publishedAt:'2026-10-20T12:00:00.000Z'};
+      draft = null;
+      draftCatalog = null;
+      return sendJson(response, 200, {version:publishedVersion});
+    }
     return sendJson(response, 403, {error:'SAFE_BROWSER_FIXTURE',message:'Operação bloqueada no teste'});
   }
   // Serve only local static ADM assets and the login page; never forward requests.
@@ -284,6 +304,49 @@ try {
     } finally {
       await mobileContext.close();
     }
+  }
+
+  // Dedicated publication is tested only after all draft and responsive
+  // checks. It must not happen on page load, navigation or without consent.
+  const publishContext = await browser.newContext({viewport:{width:1280,height:800}});
+  try {
+    await publishContext.route('**/*', route => {
+      if (route.request().url().startsWith(base + '/')) return route.continue();
+      return route.abort('blockedbyclient');
+    });
+    const publisher = await publishContext.newPage();
+    const publisherErrors = [];
+    publisher.on('pageerror', error => publisherErrors.push(error.message));
+    await publisher.goto(base+'/administrodo/operacao-tarifas',{waitUntil:'domcontentloaded'});
+    await publisher.locator('#login-email').fill('auditoria@example.test');
+    await publisher.locator('#login-password').fill('fictitious-password-123');
+    await publisher.locator('#login-totp').fill('123456');
+    await publisher.locator('#login-form button[type="submit"]').click();
+    await publisher.locator('.sidebar-nav [data-view="pricing-publications"]').click();
+    await publisher.locator('#publication-drafts .publication-draft-button').first()
+      .waitFor({timeout:15000});
+    await publisher.waitForFunction(() =>
+      document.querySelector('#publication-selected-title')?.textContent?.includes('#2'));
+    assert.equal(await publisher.locator('#publication-publish').isDisabled(),true);
+    assert.equal(publishRequests,0);
+    await publisher.locator('#publication-confirm-review').check();
+    assert.equal(await publisher.locator('#publication-publish').isEnabled(),true);
+    publisher.once('dialog',dialog => void dialog.accept());
+    await publisher.locator('#publication-publish').click();
+    await publisher.waitForFunction(() =>
+      document.querySelector('#publication-count')?.textContent === '0',
+      {timeout:15000});
+    assert.equal(publishRequests,1,'One explicit action publishes exactly once');
+    assert.equal(draft,null,'Published version must not remain an editable draft');
+    assert.equal(published.localities.prea[0].prices.car.amountCents,4700);
+    assert.match(await publisher.locator('#publication-active').innerText(),/#2/);
+    assert.match(await publisher.locator('#publication-history').innerText(),/#2/);
+    assert.deepEqual(publisherErrors,[],'Publisher browser JS errors');
+    await publisher.screenshot({path:resolve(root,'pricing-browser-artifacts',
+      'pricing-publications-published-1280.png'),fullPage:true,animations:'disabled'});
+    console.log('PASS isolated mock publication: explicit review, dialog, one publication, history');
+  } finally {
+    await publishContext.close();
   }
 } finally {
   if (browser) await browser.close();
