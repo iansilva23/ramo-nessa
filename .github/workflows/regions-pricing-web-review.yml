@@ -2,6 +2,7 @@ name: Regions and Pricing - Web Review
 on:
   push:
     branches: [feature/admin-regions-pricing-simple-20261020]
+    paths-ignore: ['docs/**']
 permissions:
   contents: read
 concurrency:

@@ -181,6 +181,10 @@ async function run(engine){
       await page.screenshot({path:resolve(out,engine+'-regions-'+width+'.png'),fullPage:true});
       const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);
       assert.equal(overflow,false,'Horizontal overflow at '+width);
+      if(engine==='chromium'&&width!==1440){
+        const capture=await page.screenshot({type:'jpeg',quality:55});
+        console.log('RP_PREVIEW_'+width+':'+capture.toString('base64'));
+      }
     }
     if(engine==='chromium'){
       await page.setViewportSize({width:1200,height:900});
