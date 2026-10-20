@@ -163,3 +163,18 @@ test('zona desconhecida falha com erro de domínio, nunca exceção não tratada
   assert.throws(() => assertCatalogLocationSupported({catalog,ref,field:'origin'}),
     (error:unknown) => error instanceof PricingError && error.code === 'UNAVAILABLE_ZONE');
 });
+
+test('geocerca corrompida nunca valida GPS por comparação com NaN', () => {
+  const reference = fixtures[0]!;
+  for (const radiusKm of [Number.NaN,Number.POSITIVE_INFINITY,0,-1,101]) {
+    const catalog = structuredClone(STATIC_PRICING_CATALOG_V1);
+    const geofence = catalog.localityGeofences.find(row =>
+      row.zoneId === reference.ref.zoneId &&
+      row.localityId === reference.ref.localityId);
+    assert.ok(geofence, 'Preá deve ter geocerca no catálogo de teste');
+    geofence.radiusKm = radiusKm;
+    assert.throws(() => assertPricingLocationMatchesPoint({
+      catalog,ref:reference.ref,point:reference.point,field:'origin',
+    }), PricingLocationMismatchError);
+  }
+});
