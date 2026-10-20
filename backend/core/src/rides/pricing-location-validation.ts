@@ -111,6 +111,15 @@ function assertKnownLocality(
   }
 
   if (
+    ref.zoneId === 'jericoacoara' &&
+    localityId !== 'jericoacoara'
+  ) {
+    throw new PricingLocationMismatchError(
+      `${field}.localityId não pertence à tabela de Jericoacoara.`,
+    );
+  }
+
+  if (
     ref.zoneId === 'external' &&
     !catalog.externalLocalities.includes(localityId)
   ) {
