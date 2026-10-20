@@ -4,13 +4,45 @@ import {createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
+
+export const coreSourceFingerprintProgram="import {readdirSync,readFileSync,existsSync} from 'node:fs';\nimport {join,relative} from 'node:path';\nimport {createHash} from 'node:crypto';\nconst root=process.argv[1],lock=process.argv[2];\nif(!root)throw Error('Source tree required.');\nconst digest=bytes=>createHash('sha256').update(bytes).digest('hex');\nconst entries=[];\nfunction walk(dir){\n  for(const item of readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0)){\n    const file=join(dir,item.name);\n    if(item.isSymbolicLink())throw Error('Unexpected symbolic link in source tree.');\n    if(item.isDirectory())walk(file);\n    else if(item.isFile()&&item.name.endsWith('.js'))entries.push([relative(root,file).split('\\\\').join('/'),digest(readFileSync(file))]);\n  }\n}\nwalk(root);\nif(!entries.length)throw Error('Empty source tree.');\nentries.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);\nconst grouped={};\nfor(const row of entries){\n  const group=row[0]==='server.js'?'server':row[0].includes('/')?row[0].split('/')[0]:'root';\n  (grouped[group]??=[]).push(row);\n}\nconst groups=Object.fromEntries(Object.keys(grouped).sort().map(key=>[key,{files:grouped[key].length,sha256:digest(JSON.stringify(grouped[key]))}]));\nconsole.log(JSON.stringify({format:1,source:{files:entries.length,sha256:digest(JSON.stringify(entries)),groups},packageLockSha256:lock&&existsSync(lock)?digest(readFileSync(lock)):null}));";
+export const gatewayFingerprintFiles=['index.html','styles.css','src/app.js','src/api.js','src/pricing-geofence-map.js'];
+
+function inspectRuntimeFiles({run,services}){
+  const core=services.find(s=>s.name==='ramo-nessa-staging-core-1');
+  const gateway=services.find(s=>s.name==='ramo-nessa-staging-gateway-1');
+  const result={core:null,gateway:null};
+  if(core){
+    const manifest=JSON.parse(run('docker',['exec',core.name,'node','--input-type=module','-e',coreSourceFingerprintProgram,'/app/dist/src','/app/package-lock.json']));
+    if(manifest.format!==1||!Number.isInteger(manifest.source?.files)||!/^[a-f0-9]{64}$/.test(manifest.source?.sha256??''))
+      throw Error('Assinatura do Core inválida.');
+    result.core={container:core.name,imageId:core.imageId,...manifest};
+  }
+  if(gateway){
+    const text=run('docker',['exec',gateway.name,'sha256sum',...gatewayFingerprintFiles.map(p=>'/srv/admin/'+p)]);
+    const files={};
+    for(const line of text.split(/\r?\n/)){
+      const match=line.match(/^([a-f0-9]{64})\s+\/srv\/admin\/(.+)$/);
+      if(!match||!gatewayFingerprintFiles.includes(match[2])||files[match[2]])throw Error('Assinatura do ADM inválida.');
+      files[match[2]]=match[1];
+    }
+    if(Object.keys(files).length!==gatewayFingerprintFiles.length)throw Error('Assinatura do ADM incompleta.');
+    const raw=JSON.parse(run('docker',['inspect','--format','{{json .Mounts}}',gateway.name]));
+    if(!Array.isArray(raw))throw Error('Inventário de mounts inválido.');
+    const mounts=raw.filter(m=>['/srv/web','/etc/caddy/Caddyfile'].includes(m.Destination))
+      .map(m=>({type:m.Type,source:m.Source,destination:m.Destination,readOnly:m.RW===false}));
+    result.gateway={container:gateway.name,imageId:gateway.imageId,files,mounts};
+  }
+  return result;
+}
+
 const projection=[
   '{{json .Name}}','{{json .Id}}','{{json .Image}}','{{json .Config.Image}}','{{json .State.Status}}',
   '{{if .State.Health}}{{json .State.Health.Status}}{{else}}"not-configured"{{end}}',
   '{{json (index .Config.Labels "org.opencontainers.image.revision")}}',
 ].join('\t');
-const dependencyTables=['rides','payments','ledger_entries','driver_payouts','passenger_wallet_ledger','driver_payout_events'];
-export function inspectRegionsPricing({execute=spawnSync,postgresContainer}={}){
+const dependencyTables=['rides','payments','ledger_entries','ledger_transactions','driver_payouts','wallet_topups','wallet_topup_events','asaas_driver_transfer_attempts','asaas_driver_transfer_events'];
+export function inspectRegionsPricing({execute=spawnSync,postgresContainer,includeFingerprints=false}={}){
   const run=(command,args)=>{
     const result=execute(command,args,{encoding:'utf8',timeout:15000,maxBuffer:8*1024*1024,stdio:['ignore','pipe','pipe']});
     if(result.error||result.status!==0)throw Error('Diagnóstico interrompido em '+command+'. Saída privada não exibida.');
@@ -35,6 +67,7 @@ export function inspectRegionsPricing({execute=spawnSync,postgresContainer}={}){
   }catch{}
   const report={format:1,generatedAt:new Date().toISOString(),readOnly:true,checkoutRevision,
     checkoutIsNotDeploymentProof:true,services,database:{status:'selection-required',candidates}};
+  if(includeFingerprints)report.runtimeFiles=inspectRuntimeFiles({run,services});
   if(!selected)return report;
   const query=sql=>{
     const transaction="BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='1s'; "+sql+'; COMMIT;';
@@ -64,13 +97,19 @@ export function inspectRegionsPricing({execute=spawnSync,postgresContainer}={}){
   report.database={status:'inspected',container:selected,catalog,dependencies,migrations,
     staticCatalogWhenNoPublishedVersion:catalog===null,
     inventoryIsNotBackup:true};
+  if(includeFingerprints&&tables.includes('schema_migrations'))
+    report.database.migrationChecksums=query("SELECT coalesce(json_agg(json_build_object('filename',filename,'checksum',checksum) ORDER BY filename),'[]'::json) FROM public.schema_migrations");
   return report;
 }
 export function runRegionsPricingInspection(args=process.argv.slice(2)){
-  const allowed=args.filter(a=>/^--postgres-container=ramo-nessa-[a-zA-Z0-9_.-]+$/.test(a));
-  if(allowed.length!==args.length||allowed.length>1)throw Error('Use somente --postgres-container=NOME, se necessário.');
-  const report=inspectRegionsPricing({postgresContainer:allowed[0]?.slice('--postgres-container='.length)});
-  console.log(JSON.stringify(report,null,2));
+  const postgres=args.filter(a=>/^--postgres-container=ramo-nessa-[a-zA-Z0-9_.-]+$/.test(a));
+  const fingerprint=args.filter(a=>a==='--runtime-files');
+  if(postgres.length+fingerprint.length!==args.length||postgres.length>1||fingerprint.length>1)
+    throw Error('Use somente --runtime-files e/ou --postgres-container=NOME, se necessário.');
+  const report=inspectRegionsPricing({postgresContainer:postgres[0]?.slice('--postgres-container='.length),includeFingerprints:fingerprint.length===1});
+  const output=fingerprint.length?{format:2,generatedAt:report.generatedAt,readOnly:true,runtimeFiles:report.runtimeFiles,
+    catalog:report.database.catalog??null,migrationChecksums:report.database.migrationChecksums??null,databaseStatus:report.database.status}:report;
+  console.log(JSON.stringify(output,null,2));
 }
 if(process.argv[1]==='-'||(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)){
   try{runRegionsPricingInspection();}catch(error){console.error(error.message);process.exitCode=1;}
