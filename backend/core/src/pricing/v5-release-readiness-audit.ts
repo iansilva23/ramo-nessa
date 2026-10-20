@@ -9,6 +9,10 @@ export type RouteDifference = {
   revisedDayCents: number;
   legacyNightCents: number;
   revisedNightCents: number;
+  // Differences are calculated, not manually chosen or approved.
+  dayDeltaCents: number;
+  nightDeltaCents: number;
+  reconciliationStatus: 'AWAITING_EVIDENCE_CROSS_CHECK';
   changedEndpointsOrCategory: boolean;
 };
 
@@ -43,6 +47,9 @@ export function auditV5Readiness(
     routeDifferences.push({
       routeId, legacyDayCents: old.dayCents, revisedDayCents: next.dayCents,
       legacyNightCents: old.after22Cents, revisedNightCents: next.after22Cents,
+      dayDeltaCents: next.dayCents - old.dayCents,
+      nightDeltaCents: next.after22Cents - old.after22Cents,
+      reconciliationStatus: 'AWAITING_EVIDENCE_CROSS_CHECK',
       changedEndpointsOrCategory,
     });
   }
@@ -102,6 +109,7 @@ export function formatV5ReadinessMarkdown(report: V5ReadinessReport): string {
     '',
     'Fonte: somente código estático do repositório. Não consulta banco PostgreSQL vigente, Google ou VPS.',
     'Versão de revisão: ' + report.revisedCatalogVersion,
+    'O nome da revisão no código NÃO comprova, isoladamente, o aceite comercial ou a versão ativa na VPS.',
     '',
     '## Tarifas fixas',
     'Legado: ' + report.legacyRouteCount +
@@ -113,14 +121,21 @@ export function formatV5ReadinessMarkdown(report: V5ReadinessReport): string {
       brl(report.airportComfort.revisedDayCents) +
       ' (revisão)**. Requer decisão comercial explícita.',
     '',
-    '| Rota | Dia legado | Dia revisão | Noite legado | Noite revisão | Extremos/categoria alterados |',
-    '|---|---:|---:|---:|---:|---|',
+    '### Matriz para conciliação com aprovações anteriores e catálogo ativo',
+    '',
+    'Situação **a conciliar** NÃO significa tarifa errada ou revisão não aprovada. Significa que este gerador estático não possui evidência de aceite nem acesso ao banco ativo.',
+    '',
+    '| Rota | Dia legado | Dia revisão | Variação dia | Noite legado | Noite revisão | Variação noite | Extremos/categoria alterados | Conciliação |',
+    '|---|---:|---:|---:|---:|---:|---:|---|---|',
     ...report.routeDifferences.map(row =>
       '| ' + row.routeId + ' | ' + brl(row.legacyDayCents) +
       ' | ' + brl(row.revisedDayCents) +
+      ' | ' + brl(row.dayDeltaCents) +
       ' | ' + brl(row.legacyNightCents) +
       ' | ' + brl(row.revisedNightCents) +
-      ' | ' + (row.changedEndpointsOrCategory ? 'SIM' : 'não') + ' |'),
+      ' | ' + brl(row.nightDeltaCents) +
+      ' | ' + (row.changedEndpointsOrCategory ? 'SIM' : 'não') +
+      ' | Sem evidência anexada neste relatório |'),
     '',
     'IDs legados ausentes na revisão: ' +
       (report.legacyRouteIdsMissingFromRevision.join(', ') || 'nenhum') + '.',
@@ -140,6 +155,7 @@ export function formatV5ReadinessMarkdown(report: V5ReadinessReport): string {
     '- Este arquivo não sabe qual catálogo está realmente publicado no banco.',
     '- Município documental não significa geocerca GPS comprovada ou licença operacional.',
     '- Exige homologação em aparelhos físicos, APIs externas autorizadas, backup, rollback e aceite comercial humano.',
+    '- Conferir cada diferença com registro comercial anterior e catálogo ativo; registrar evidência, data e versão no processo de homologação.',
     '- Nunca alterar tarifas automaticamente com base neste relatório.',
     '',
   ].join('\n');
