@@ -1,3 +1,4 @@
+import { regionForRef } from './managed-operations.js';
 import type { PricingCatalogSnapshot } from './catalog-snapshot.js';
 import {
   PricingError,
@@ -20,6 +21,12 @@ export function assertCatalogLocationSupported(input: {
     );
   }
 
+  if (catalog.managedOperations != null) {
+    if (!regionForRef(catalog.managedOperations, ref)) {
+      throw new PricingError('UNAVAILABLE_ZONE', 'Localidade fora das regiões ativas.');
+    }
+    return;
+  }
   const localityId = ref.localityId;
   if (ref.zoneId === 'external') {
     // Um ponto externo sem localityId representa uma coordenada livre.

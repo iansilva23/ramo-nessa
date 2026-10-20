@@ -1,4 +1,4 @@
-import type { AdminActor } from '../admin/admin-repository.js';
+import type { AdminActor, AdminAuditRecord, AdminRepository } from '../admin/admin-repository.js';
 import type { PricingCatalogSnapshot } from './admin-catalog.js';
 
 export type PricingCatalogVersionStatus = 'draft' | 'published';
@@ -17,6 +17,15 @@ export interface PricingCatalogVersionRecord {
 }
 
 export interface PricingCatalogVersionRepository {
+  // One direct save, immutable history, optimistic concurrency and audit.
+  // Optional for old test adapters; writes fail closed if unsupported.
+  commitDirect?(input: {
+    record: Omit<PricingCatalogVersionRecord, 'versionNumber'>;
+    expectedEffectiveId: string | null;
+    audit: AdminAuditRecord;
+    admin: AdminRepository;
+  }): Promise<PricingCatalogVersionRecord | null>;
+
   createDraft(input: {
     id: string;
     snapshot: PricingCatalogSnapshot;

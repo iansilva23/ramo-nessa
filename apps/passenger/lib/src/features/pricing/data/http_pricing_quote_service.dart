@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
@@ -55,6 +56,14 @@ class HttpPricingQuoteService implements PricingQuoteService {
             'period': isNight ? 'after_22' : 'day',
             'tripDistanceKm': route.distanceMeters / 1000,
             'passengers': passengers,
+            if (kIsWeb) 'pickup': {
+              'latitude': origin.position.latitude,
+              'longitude': origin.position.longitude,
+            },
+            if (kIsWeb) 'dropoff': {
+              'latitude': destination.position.latitude,
+              'longitude': destination.position.longitude,
+            },
           }),
         )
         .timeout(RamoCoreConfig.requestTimeout);

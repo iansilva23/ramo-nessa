@@ -1,3 +1,6 @@
+import { pricingManagementRoutes } from './pricing/management-routes.js';
+import { authoritativeManagedQuote } from './pricing/authoritative-quote.js';
+import { ManagementError } from './pricing/managed-operations.js';
 import { AsaasDriverPayoutProvider, AsaasWebhookError } from './payments/asaas-driver-payout-provider.js';
 import { applyConfirmedDriverPayoutResult } from './payments/driver-payout-processing-service.js';
 import { GrowthService } from './growth/growth-service.js';
@@ -5035,6 +5038,12 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (await pricingManagementRoutes({
+      request,response,url:requestUrl,admin:adminRepository,humans:adminHumanAuthRepository,versions:pricingCatalogVersionRepository,
+      json,readJson,places:googlePlacesService,routing:routingDistanceProvider,
+      encryptionKey:adminMfaEncryptionKey,rateLimitSecret:adminLoginRateLimitSecret,
+    })) return;
+
     if (
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/admin/pricing/catalog'
@@ -7843,22 +7852,20 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && request.url === '/v1/pricing/quote') {
-      const body = parseQuoteRequest(await readJson(request));
+      const rawQuoteBody = await readJson(request) as Record<string,unknown>;
+      const body = parseQuoteRequest(rawQuoteBody);
       const now = new Date();
       const pricing = await resolvePricingCatalogContext({
         versions: pricingCatalogVersionRepository,
         at: now,
       });
-      const quote = quoteFare(
-        {
-          ...body,
-          period: pricingPeriodAt(
-            now,
-            pricing.snapshot.periodPolicy,
-          ),
-        },
-        pricing.snapshot,
-      );
+      const trustedBody = {...body,period:pricingPeriodAt(now,pricing.snapshot.periodPolicy)};
+      const quote = pricing.snapshot.managedOperations == null
+        ? quoteFare(trustedBody,pricing.snapshot)
+        : await authoritativeManagedQuote({catalog:pricing.snapshot,request:trustedBody,
+            pickup:rawQuoteBody.pickup as {latitude:number;longitude:number},
+            dropoff:rawQuoteBody.dropoff as {latitude:number;longitude:number},
+            routing:routingDistanceProvider});
       json(response, 200, {
         ...publicFareQuoteView(quote),
         pricingCatalog: pricing.reference,
@@ -9154,6 +9161,9 @@ const server = createServer(async (request, response) => {
 
     json(response, 404, { error: 'NOT_FOUND' });
   } catch (error) {
+    if (error instanceof ManagementError) {
+      json(response,error.status,{error:error.code,message:error.message}); return;
+    }
     if (
       error instanceof InvalidQuoteRequestError ||
       error instanceof InvalidRideRequestError ||

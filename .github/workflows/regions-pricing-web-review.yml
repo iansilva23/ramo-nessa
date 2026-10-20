@@ -1,0 +1,67 @@
+name: Regions and Pricing - Web Review
+on:
+  push:
+    branches: [feature/admin-regions-pricing-simple-20261020]
+  pull_request:
+    branches: [integration/pricing-v5-finance-safe-20261019]
+permissions:
+  contents: read
+concurrency:
+  group: regions-pricing-web-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/core/package-lock.json
+      - name: Preserve financial providers and native projects
+        run: |
+          git diff --exit-code 6f90c616ec181943d093b0e373e21fdb23b57f4f -- backend/core/src/payments backend/core/src/finance backend/core/src/wallet backend/core/migrations apps/admin/src/payout-policy.js apps/driver/android apps/driver/ios apps/passenger/android apps/passenger/ios
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund
+      - working-directory: backend/core
+        run: npm run typecheck && npm test && npm run build
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - working-directory: apps/admin
+        run: npm run check && npm test
+  web:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [passenger, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - working-directory: apps/${{ matrix.app }}
+        run: flutter pub get --enforce-lockfile
+      - working-directory: apps/${{ matrix.app }}
+        run: flutter analyze --no-fatal-infos && flutter test
+      - working-directory: apps/${{ matrix.app }}
+        run: flutter build web --release --dart-define=RAMO_CORE_BASE_URL=https://example.invalid --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Review bundle only, no deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: regions-pricing-web-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/build/web
+          retention-days: 7

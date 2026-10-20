@@ -67,6 +67,45 @@ export class PostgresPricingCatalogVersionRepository
   implements PricingCatalogVersionRepository {
   constructor(private readonly pool: Pool) {}
 
+  async commitDirect(input: Parameters<NonNullable<PricingCatalogVersionRepository['commitDirect']>>[0]): Promise<PricingCatalogVersionRecord | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Also serializes legacy writers and protects the no-active-version case.
+      await client.query('LOCK TABLE pricing_catalog_versions IN SHARE ROW EXCLUSIVE MODE');
+      const effective = await client.query<PricingCatalogVersionRow>(
+        "SELECT * FROM pricing_catalog_versions WHERE status='published' AND effective_from <= $1 ORDER BY effective_from DESC, version_number DESC LIMIT 1",
+        [input.record.effectiveFrom],
+      );
+      if ((effective.rows[0]?.id ?? null) !== input.expectedEffectiveId) {
+        await client.query('ROLLBACK'); return null;
+      }
+      const future = await client.query(
+        "SELECT id FROM pricing_catalog_versions WHERE status='published' AND effective_from > $1 LIMIT 1",
+        [input.record.effectiveFrom],
+      );
+      if (future.rows.length > 0) { await client.query('ROLLBACK'); return null; }
+      const r = input.record, actor = r.createdBy;
+      const result = await client.query<PricingCatalogVersionRow>(
+        `INSERT INTO pricing_catalog_versions (
+          id,status,snapshot,effective_from,created_by_kind,created_by_id,created_by_name,
+          published_by_kind,published_by_id,published_by_name,created_at,updated_at,published_at
+        ) VALUES ($1,'published',$2::jsonb,$3,$4,$5,$6,$4,$5,$6,$3,$3,$3) RETURNING *`,
+        [r.id,JSON.stringify(r.snapshot),r.effectiveFrom,actor.kind,actor.id,actor.name],
+      );
+      const a=input.audit;
+      await client.query(
+        `INSERT INTO admin_audit_log (id,actor_key_id,actor_user_id,actor_name,action,target_type,target_id,metadata,created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`,
+        [a.id,a.actor.kind==='api_key'?a.actor.id:null,a.actor.kind==='user'?a.actor.id:null,
+          a.actor.name,a.action,a.targetType,a.targetId,JSON.stringify(a.metadata),a.createdAt],
+      );
+      await client.query('COMMIT');
+      return mapRow(result.rows[0]!);
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+
   async createDraft(
     input: Parameters<PricingCatalogVersionRepository['createDraft']>[0],
   ): Promise<PricingCatalogVersionRecord> {
@@ -156,6 +195,10 @@ export class PostgresPricingCatalogVersionRepository
       WHERE id = $1
         AND status = 'draft'
         AND updated_at = $7
+        AND NOT EXISTS (
+          SELECT 1 FROM pricing_catalog_versions direct_version
+          WHERE direct_version.status='published' AND direct_version.snapshot ? 'managedOperations'
+        )
       RETURNING *
       `,
       [
