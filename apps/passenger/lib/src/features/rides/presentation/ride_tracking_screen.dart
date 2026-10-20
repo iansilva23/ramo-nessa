@@ -14,6 +14,7 @@ import '../data/passenger_ride_tracking_service.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import '../domain/prepared_ride.dart';
 import 'passenger_ride_chat_screen.dart';
+import 'tracking_map_transition_policy.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -48,6 +49,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   PassengerRideTrackingSnapshot? _snapshot;
   String? _error;
   bool _mapReady = false;
+  bool _hasCenteredMap = false;
+  String? _framedRouteStage;
+  int _routeEpoch = 0;
   bool _requestInFlight = false;
   bool _routeRequestInFlight = false;
   DateTime? _lastRouteAttemptAt;
@@ -93,14 +97,70 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     );
   }
 
+  String _routeStage(PassengerRideTrackingSnapshot snapshot) =>
+      TrackingMapTransitionPolicy.stageFor(
+        rideState: snapshot.state,
+        terminal: snapshot.isTerminal,
+      );
+
+  void _fitTrackingRouteIfNeeded() {
+    final snapshot = _snapshot;
+    final route = _route;
+    final driver = snapshot?.driverLocation;
+    if (snapshot == null || route == null) return;
+    final stage = _routeStage(snapshot);
+    final isDropoff = stage == 'to-dropoff';
+    final targetLat = isDropoff
+        ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
+    final targetLng = isDropoff
+        ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
+    if (!TrackingMapTransitionPolicy.shouldFrameRoute(
+      mapReady: _mapReady,
+      terminal: snapshot.isTerminal,
+      hasDriver: driver != null,
+      hasTarget: targetLat != null && targetLng != null,
+      routePointCount: route.points.length,
+      stage: stage,
+      lastFramedStage: _framedRouteStage,
+    )) return;
+
+    _framedRouteStage = stage;
+    _hasCenteredMap = true;
+    unawaited(_mapController.fitCoordinates(
+      coordinates: [
+        LatLng(driver!.latitude, driver.longitude),
+        ...route.points,
+        LatLng(targetLat!, targetLng!),
+      ],
+      edgePadding: 20,
+      maxZoom: 16.5,
+    ));
+  }
+
   void _applySnapshot(PassengerRideTrackingSnapshot snapshot) {
     if (!mounted) return;
+    final old = _snapshot;
+    final previousStage = old == null ? null : _routeStage(old);
+    final currentStage = _routeStage(snapshot);
+    final stageChanged =
+        previousStage != null && previousStage != currentStage;
 
+    if (stageChanged) {
+      // Invalidate an in-flight route to the old pickup when the passenger
+      // starts travelling to the destination (or the ride becomes terminal).
+      _routeEpoch++;
+      _lastRouteAttemptAt = null;
+      _lastRouteState = null;
+      _framedRouteStage = null;
+    }
     setState(() {
       _snapshot = snapshot;
+      if (stageChanged) _route = null;
       _error = null;
     });
-    unawaited(_refreshRoute(snapshot));
+    if (!snapshot.isTerminal) {
+      unawaited(_refreshRoute(snapshot));
+    }
 
     if (snapshot.isTerminal) {
       _timer?.cancel();
@@ -118,9 +178,15 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               )
             : null;
 
-    if (_mapReady && center != null) {
-      unawaited(_mapController.move(center, 15.5));
+    if (TrackingMapTransitionPolicy.shouldCenterInitially(
+      mapReady: _mapReady,
+      alreadyCentered: _hasCenteredMap,
+      hasPosition: center != null,
+    )) {
+      _hasCenteredMap = true;
+      unawaited(_mapController.move(center!, 15.5));
     }
+    _fitTrackingRouteIfNeeded();
   }
 
   Future<void> _refreshRoute(PassengerRideTrackingSnapshot snapshot) async {
@@ -139,6 +205,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
         now.difference(_lastRouteAttemptAt!) < const Duration(seconds: 8)) {
       return;
     }
+    final requestEpoch = _routeEpoch;
+    final requestedStage = _routeStage(snapshot);
     _routeRequestInFlight = true;
     _lastRouteAttemptAt = now;
     _lastRouteState = snapshot.state;
@@ -147,12 +215,29 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
         origin: LatLng(driver.latitude, driver.longitude),
         destination: LatLng(targetLatitude, targetLongitude),
       );
-      if (mounted) setState(() => _route = route);
+      final latest = _snapshot;
+      if (!mounted || latest == null ||
+          !TrackingMapTransitionPolicy.isCurrentRouteResponse(
+            requestEpoch: requestEpoch,
+            latestEpoch: _routeEpoch,
+            requestedStage: requestedStage,
+            latestStage: _routeStage(latest),
+          )) return;
+      setState(() => _route = route);
+      _fitTrackingRouteIfNeeded();
     } catch (_) {
       // A telemetria continua visível; uma nova tentativa acontece no próximo
       // ciclo sem transformar falha do provedor em localização falsa.
     } finally {
       _routeRequestInFlight = false;
+      // The ride might have started while the old pickup route was pending.
+      // Refresh with the new destination as soon as the old call finishes.
+      if (mounted && requestEpoch != _routeEpoch) {
+        final latest = _snapshot;
+        if (latest != null && !latest.isTerminal) {
+          unawaited(_refreshRoute(latest));
+        }
+      }
     }
   }
 
@@ -396,12 +481,14 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               origin: _pickup(snapshot),
               destination: _dropoff(snapshot),
               routePoints: _route?.points ?? const [],
+              routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,
               driverCategory: snapshot?.category,
               driverPositionStale: driver?.stale ?? false,
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
                 _mapReady = true;
+                _fitTrackingRouteIfNeeded();
                 _refresh();
               },
             ),
