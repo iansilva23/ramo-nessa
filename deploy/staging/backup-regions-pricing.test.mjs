@@ -1,10 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { options, validate } from './backup-regions-pricing.mjs';
 const image = 'sha256:' + 'a'.repeat(64);
 const expected = options(['--core-image=' + image, '--gateway-image=' + image]);
 const runtime = () => Object.fromEntries(Object.entries({core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'}).map(([role,name]) => [role,{Name:'/'+name,Image:image,State:{Running:true,Health:{Status:'healthy'}},Mounts:role==='core'?[{Type:'volume',Source:'/vol/docs',Destination:'/var/lib/ramo-nessa'}]:role==='gateway'?[{Type:'bind',Source:'/release/web',Destination:'/srv/web',RW:false},{Type:'bind',Source:'/release/Caddyfile',Destination:'/etc/caddy/Caddyfile',RW:false}]:[]}]));
+test('stdin imports do not execute operational programs; direct piped invocation still validates arguments',()=>{
+ const a=new URL('./backup-regions-pricing.mjs',import.meta.url),b=new URL('./inspect-regions-pricing.mjs',import.meta.url);
+ const imported=spawnSync(process.execPath,['--input-type=module','-'],{input:`await import(${JSON.stringify(a.href)});await import(${JSON.stringify(b.href)});console.log('IMPORT_ONLY');`,encoding:'utf8'});
+ assert.equal(imported.status,0);assert.equal(imported.stdout.trim(),'IMPORT_ONLY');assert.equal(imported.stderr,'');
+ const piped=spawnSync(process.execPath,['--input-type=module','-'],{input:readFileSync(a,'utf8'),encoding:'utf8'});
+ assert.equal(piped.status,1);assert.match(piped.stderr,/duas imagens auditadas/);
+});
 test('requires both exact images and rejects operational mutation flags', () => {
   assert.throws(() => options([]));
   assert.throws(() => options(['--core-image=' + image]));

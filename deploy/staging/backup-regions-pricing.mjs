@@ -134,6 +134,6 @@ export async function backup(argv) {
     console.log(JSON.stringify({ status: 'BACKUP_VERIFICADO', directory: finalDir, manifestSha256: createHash('sha256').update(readFileSync(join(finalDir, 'verified.private.json'))).digest('hex'), databaseRestoredInIsolation: true, mountArchivesListed: true, servicesRestarted: false, resetApplied: false }, null, 2));
   } finally { cleanup(); }
 }
-if (process.argv[1] === '-' || (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)) {
+if ((process.argv[1] === '-' && /\/\[eval\d+\]$/.test(import.meta.url)) || (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)) {
   try { await backup(process.argv.slice(2)); } catch (error) { console.error('BACKUP NÃO CONCLUÍDO: ' + error.message + ' Nenhum reset foi executado.'); process.exitCode = 1; }
 }

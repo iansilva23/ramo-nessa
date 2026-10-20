@@ -6,7 +6,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {validate} from './backup-regions-pricing.mjs';
-import {makeModels,identity,assertRuntime} from './regions-activation-contract.mjs';
+import {makeModels,identity,assertRuntime,environmentMap} from './regions-activation-contract.mjs';
 import {switchRegionsRuntime} from './regions-runtime-switch.mjs';
 const names={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'};
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -58,6 +58,16 @@ export async function activate(args,{testAfterReset}={}){
   else if(kind!=='rollback'||docker(['ps','-a','--format','{{.Names}}']).trim().split('\n').includes(names[role]))throw Error('Serviço não pôde ser identificado para troca.');
   if(current&&! [plan.beforeImages[role],plan.candidate[role]].includes(current.Image))throw Error('Implantação concorrente; retorno não sobrescreverá outro serviço.');
   if(current&&role==='gateway'&&![plan.oldWebRoot,plan.webRoot].includes(current.Mounts.find(m=>m.Destination==='/srv/web')?.Source))throw Error('Gateway concorrente; troca cancelada.');
+  if(current&&kind==='candidate'&&identity(current)!==identity(before[role]))throw Error('Runtime mudou imediatamente antes da troca.');
+  if(current&&kind==='rollback'){
+   // Health can be the reason for returning; still require the planned effective configuration.
+   const checked=structuredClone(current);checked.State.Health={Status:'healthy'};
+   const image=current.Image===plan.candidate[role]?images[role].candidate:images[role].rollback;
+   const model=current.Image===plan.candidate[role]?models[role].candidate:models[role].rollback;
+   const web=current.Mounts.find(m=>m.Destination==='/srv/web')?.Source;
+   assertRuntime(before[role],checked,role,image,model,role==='gateway'?web:plan.oldWebRoot);
+   if(!isDeepStrictEqual(environmentMap(current.Config.Env),environmentMap(before[role].Config.Env)))throw Error('Ambiente alterado por outra implantação; retorno cancelado.');
+  }
   record(role+'-'+kind);
   docker([...compose(role,kind),'up','-d','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90',role]);
   await barrier();checkInstance(role,kind);
@@ -106,6 +116,7 @@ export async function activate(args,{testAfterReset}={}){
    applyReset:async()=>{record('catalog-reset');console.log('Aplicando catálogo inicial: Jericoacoara, Jijoca (sede) e Preá, sem tarifas comerciais...');const result=resetCLI(['--apply-plan','/ops/data/reset-active.plan.json','--plan-sha256',plan.resetPlanHash,'--confirm','three-regions-empty-fares-20261020']);if(result.result!=='CATALOG_PREPARED'||result.versionId!==plan.resetRequestId)throw Error('Resposta do reset exige reconciliação.');journal.resetApplied=true;journal.catalogVersionId=result.versionId;record('catalog-reset-applied');await barrier();},
    verify:async()=>{const state=catalog();if(state.versionId!==plan.resetRequestId||!state.emptyPrepared)throw Error('Catálogo inicial divergiu ou recebeu alteração concorrente.');if(testAfterReset)await testAfterReset();const policy=JSON.parse((await expect('/v1/pricing/policy',200)).toString());if(policy.managementMode!=='managed'||policy.regions?.length!==3||policy.categories?.length!==0||policy.enabledCategories?.length!==0||policy.pricingCatalog?.catalogVersionId!==state.versionId)throw Error('Política pública não corresponde ao catálogo inicial.');await baseline();await checkPublic('candidate');untouched();checkInstance('core','candidate');checkInstance('gateway','candidate');await filesUnchanged();await barrier();},
    restoreCatalogIfUnchanged:async()=>{recovering=true;record('catalog-recovery');const state=catalog();if(!state.managed&&state.digest===plan.resetSourceDigest)return 'unchanged';if(state.versionId!==plan.resetRequestId||state.migrationId!=='three-regions-empty-fares-20261020')return 'conflict';const result=resetCLI(['--restore-plan','/ops/data/reset-active.plan.json','--plan-sha256',plan.resetPlanHash,'--expected-revision',state.revision,'--confirm','RESTORE_PRICING_CATALOG']);if(result.result!=='PREVIOUS_CATALOG_RESTORED_AS_NEW_VERSION')return 'unknown';const restored=catalog();if(restored.managed||restored.digest!==plan.resetSourceDigest)return 'unknown';journal.catalogRestoredAsNewVersion=true;journal.resetApplied=false;record('catalog-recovered');return 'restored';},
+   checkRollbackSafety:async()=>{const state=sql("SELECT json_build_object('managed',coalesce((SELECT snapshot ? 'managedOperations' FROM pricing_catalog_versions WHERE status='published' AND effective_from<=now() ORDER BY effective_from DESC,version_number DESC LIMIT 1),false))");return state.managed?'managed':'legacy';},
    rollbackCore:async()=>{console.log('Recuperando imagem anterior do Core...');await up('core','rollback');},
    rollbackGateway:async()=>{console.log('Recuperando ADM e arquivos Web anteriores...');await up('gateway','rollback');},
    verifyRollback:async()=>{await baseline();await checkPublic('rollback');checkInstance('core','rollback');checkInstance('gateway','rollback');untouched();await filesUnchanged();const state=catalog();if(state.managed)throw Error('Catálogo gerenciado não pode usar a versão anterior.');},

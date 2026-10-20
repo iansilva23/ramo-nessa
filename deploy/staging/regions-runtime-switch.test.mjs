@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {switchRegionsRuntime} from './regions-runtime-switch.mjs';
 function fixture(fail,recovery='restored'){
  const calls=[];const steps={};for(const name of ['preflight','upCore','checkCore','upGateway','checkGateway','beforeReset','applyReset','verify','rollbackCore','rollbackGateway','verifyRollback'])steps[name]=async()=>{calls.push(name);if(name===fail)throw Error('synthetic');};
+ steps.checkRollbackSafety=async()=>{calls.push('checkRollbackSafety');return 'legacy';};
  steps.restoreCatalogIfUnchanged=async()=>{calls.push('restoreCatalogIfUnchanged');if(recovery==='error')throw Error('db-unavailable');return recovery;};return {calls,steps};
 }
 test('successful activation checks both services before applying reset and verifying',async()=>{
@@ -22,4 +23,8 @@ test('later administrator changes or unavailable database never reactivate the o
 });
 test('preflight failure makes no service or reset attempt',async()=>{
  const {calls,steps}=fixture('preflight');await assert.rejects(switchRegionsRuntime(steps));assert.deepEqual(calls,['preflight']);
+});
+test('managed catalog introduced by another operator before our reset prevents legacy rollback',async()=>{
+ const {calls,steps}=fixture('checkGateway');steps.checkRollbackSafety=async()=> 'managed';
+ await assert.rejects(switchRegionsRuntime(steps),e=>e.candidatePreserved===true);assert.ok(!calls.includes('rollbackCore'));assert.ok(!calls.includes('rollbackGateway'));
 });

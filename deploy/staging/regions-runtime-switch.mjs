@@ -16,6 +16,10 @@ export async function switchRegionsRuntime(steps){
         const error=Error('Ativação requer conferência: catálogo mudou ou sua recuperação não pôde ser confirmada. A candidata foi preservada para não reativar preços legados.',{cause});
         error.rollbackComplete=false;error.catalogRecovery=recovery;error.candidatePreserved=true;throw error;
       }
+    }else if(coreTouched){
+      let safe=false;
+      try{safe=await steps.checkRollbackSafety()==='legacy';}catch{}
+      if(!safe){const error=Error('Retorno interrompido: o estado do catálogo não permite reativar o motor anterior.',{cause});error.rollbackComplete=false;error.candidatePreserved=true;error.catalogRecovery='external-managed-or-unknown';throw error;}
     }
     const failures=[];
     if(coreTouched)try{await steps.rollbackCore();}catch{failures.push('core');}

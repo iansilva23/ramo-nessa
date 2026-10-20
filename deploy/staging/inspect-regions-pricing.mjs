@@ -111,6 +111,7 @@ export function runRegionsPricingInspection(args=process.argv.slice(2)){
     catalog:report.database.catalog??null,migrationChecksums:report.database.migrationChecksums??null,databaseStatus:report.database.status}:report;
   console.log(JSON.stringify(output,null,2));
 }
-if(process.argv[1]==='-'||(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)){
+if((process.argv[1]==='-'&&/\/\[eval\d+\]$/.test(import.meta.url))||(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url)){
   try{runRegionsPricingInspection();}catch(error){console.error(error.message);process.exitCode=1;}
 }
+
