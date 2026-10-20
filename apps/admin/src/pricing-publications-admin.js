@@ -118,7 +118,7 @@ export function createPricingPublicationsAdmin({
         const button = el('button', 'publication-draft-button', '');
         button.type = 'button';
         button.dataset.versionId = version.id;
-        button.setAttribute('aria-pressed', String(selected?.id === version.id));
+        button.setAttribute('aria-pressed', String(selected?.version?.id === version.id));
         const title = el('strong', '', 'Rascunho #' + version.versionNumber);
         button.append(title, el('span', '',
           'Salvo em ' + formatDate(version.updatedAt)));
@@ -246,7 +246,12 @@ export function createPricingPublicationsAdmin({
     if (!mounted || (writing && !internalRefresh)) return;
     const match = drafts.find(version => version.id === id);
     if (!match) return;
+    // Invalidate the previous review immediately. A failed request must never
+    // leave an older draft enabled for publication under another selection.
     const requestSequence = ++sequence;
+    selected = null;
+    pendingVersionId = null;
+    renderSelection();
     const payload = await api.getPricingVersion(getToken(), match.id);
     if (!mounted || requestSequence !== sequence) return;
     if (payload?.version?.id !== id || payload.version.status !== 'draft') {
