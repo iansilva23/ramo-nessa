@@ -140,7 +140,7 @@ export function createPricingPublicationsAdmin({
       history.append(el('p', 'pricing-policy-help',
         'Ainda não há versões publicadas; o catálogo padrão está em vigor.'));
     } else {
-      for (const version of published.slice(0, 12)) {
+      for (const version of published) {
         appendLine(history,
           'Versão #' + version.versionNumber +
             (version.id === payload?.effectiveVersionId ? ' · Em vigor' : ''),
