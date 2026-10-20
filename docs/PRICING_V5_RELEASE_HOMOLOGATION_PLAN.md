@@ -44,3 +44,13 @@ Escopo: preservar o catálogo publicado #8, credenciais, Web GIF, Core, Postgres
 
 ## Política de conclusão
 CI verde é necessário, porém não suficiente. Nenhum passo está concluído sem teste visual, teste real de cotação por rota, auditoria de regulação e autorização explícita para publicação.
+
+## Revisão consolidada do ADM no PR #35 — 20/10/2026
+
+A área `Rascunhos e publicações` foi integrada ao roteamento existente, com cliente autenticado, visão da versão vigente, comparação de tarifas e histórico. A publicação e a exclusão continuam vinculadas ao controle de concorrência e às permissões do Core. A edição de preços e de localidades permanece nas telas originais; seus atalhos apontam para a central.
+
+A proteção de publicação sem diferenças foi reforçada tanto na disponibilidade do botão quanto no manipulador da ação. Essa defesa de interface **não substitui** a validação autoritativa do Core.
+
+**Critérios ainda não encerrados:** validação visual manual em aparelhos reais; aceite comercial de tarifas; inventário das 26 atribuições municipais pendentes; limites de operação no dispatch real; integração de produção e rollback controlado. Um CI verde não aprova automaticamente estes critérios. Nenhuma dessas aprovações pode ser inferida dos testes automatizados.
+
+**Restrições:** manter o PR #35 em DRAFT; não publicar, não mesclar e não alterar VPS, financeiro, credenciais, tarifas reais ou o card protegido do Passageiro.
