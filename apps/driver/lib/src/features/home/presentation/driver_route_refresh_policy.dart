@@ -7,6 +7,19 @@ import '../domain/driver_route_info.dart';
 class DriverRouteRefreshPolicy {
   const DriverRouteRefreshPolicy._();
 
+  /// A route may arrive after a driver accepted a new ride or started
+  /// travelling to the destination. Never display the previous target.
+  static bool isCurrentRouteResponse({
+    required int requestId,
+    required int latestRequestId,
+    required String requestedRideId,
+    required String? activeRideId,
+    required bool requestedDropoff,
+    required bool currentDropoff,
+  }) => requestId == latestRequestId &&
+      requestedRideId == activeRideId &&
+      requestedDropoff == currentDropoff;
+
   static const Duration minimumAttemptInterval = Duration(seconds: 15);
   static const Duration onRouteRefreshInterval = Duration(seconds: 90);
   static const double offRouteThresholdMeters = 80;
