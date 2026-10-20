@@ -29,7 +29,8 @@ test('activation plan requires exact prepared directory, digest and absolute art
 });
 test('identity ignores map/alias/environment ordering and still detects credential, mount and port changes',()=>{
  const a=structuredClone(before);a.Id='same';a.State.StartedAt='same';a.NetworkSettings.Networks['staging-net'].Aliases=['gateway','stable-name'];
- const b=structuredClone(a);b.Config.Env.reverse();b.NetworkSettings.Networks['staging-net'].Aliases.reverse();b.HostConfig=Object.fromEntries(Object.entries(b.HostConfig).reverse());
+ a.HostConfig.Mounts=[{Type:'bind',Source:'/old/bundles',Target:'/srv/web'},{Type:'bind',Source:'/old/Caddyfile',Target:'/etc/caddy/Caddyfile'}];
+ const b=structuredClone(a);b.Config.Env.reverse();b.NetworkSettings.Networks['staging-net'].Aliases.reverse();b.HostConfig=Object.fromEntries(Object.entries(b.HostConfig).reverse());b.HostConfig.Mounts.reverse();b.Mounts.reverse();
  assert.equal(identity(a),identity(b));
  for(const change of [c=>c.Config.Env[0]='TOKEN=changed',c=>c.Mounts[0].Source='/other',c=>c.HostConfig.PortBindings={},c=>c.Image='other',c=>c.Id='other']){const c=structuredClone(b);change(c);assert.notEqual(identity(a),identity(c));}
 });

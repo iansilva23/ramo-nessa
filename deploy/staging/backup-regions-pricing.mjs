@@ -35,7 +35,7 @@ function canonical(value,key='') {
   if(Array.isArray(value)) {
     const rows=value.map(v=>canonical(v));
     if(['Env','Aliases','DNSNames','CapAdd','CapDrop','SecurityOpt'].includes(key))return rows.sort();
-    if(key==='Mounts')return rows.sort((a,b)=>a.Destination.localeCompare(b.Destination));
+    if(key==='Mounts')return rows.sort((a,b)=>String(a.Destination??a.Target??a.target??JSON.stringify(a)).localeCompare(String(b.Destination??b.Target??b.target??JSON.stringify(b))));
     return rows;
   }
   if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k],k)]));
