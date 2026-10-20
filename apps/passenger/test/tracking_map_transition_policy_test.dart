@@ -3,6 +3,47 @@ import 'package:ramo_nessa_passenger/src/features/rides/presentation/tracking_ma
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ramo_live_map.dart';
 
 void main() {
+  test('atualizações de outra corrida são ignoradas', () {
+    expect(TrackingMapTransitionPolicy.isExpectedRide(
+      expectedRideId: 'ride-1', receivedRideId: 'ride-1',
+    ), isTrue);
+    expect(TrackingMapTransitionPolicy.isExpectedRide(
+      expectedRideId: 'ride-1', receivedRideId: 'ride-2',
+    ), isFalse);
+    expect(TrackingMapTransitionPolicy.isExpectedRide(
+      expectedRideId: '', receivedRideId: '',
+    ), isFalse);
+  });
+
+  test('GPS só aceita pares finitos e dentro dos limites terrestres', () {
+    for (final point in <(double?, double?)>[
+      (null, -40.41),
+      (-2.82, null),
+      (double.nan, -40.41),
+      (-2.82, double.infinity),
+      (double.negativeInfinity, -40.41),
+      (91, -40.41),
+      (-91, -40.41),
+      (-2.82, 181),
+      (-2.82, -181),
+      (0, 0),
+    ]) {
+      expect(TrackingMapTransitionPolicy.isUsableGps(point.$1, point.$2),
+          isFalse, reason: 'GPS ${point.$1}, ${point.$2}');
+    }
+    for (final point in <(double, double)>[
+      (-2.82017, -40.41467),
+      (-2.89860, -40.45060),
+      (-2.80023, -40.51638),
+      (-2.906425, -40.357338),
+      (90, 180),
+      (-90, -180),
+    ]) {
+      expect(TrackingMapTransitionPolicy.isUsableGps(point.$1, point.$2),
+          isTrue, reason: 'GPS válido ${point.$1}, ${point.$2}');
+    }
+  });
+
   test('busca, aceite e chegada pertencem à mesma etapa de embarque', () {
     for (final state in [
       'PAID', 'SEARCHING_DRIVER', 'DRIVER_ASSIGNED',
