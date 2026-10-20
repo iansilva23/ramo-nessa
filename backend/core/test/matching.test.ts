@@ -9,7 +9,7 @@ import {
   selectDriverForDispatch,
 } from '../src/matching/select-driver.js';
 import type { RideRecord } from '../src/rides/ride.js';
-import { transitionRide, RideStateError } from '../src/rides/ride-state.js';
+import { transitionRide, markRidePaid, RideStateError } from '../src/rides/ride-state.js';
 import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 
@@ -340,4 +340,48 @@ test('aceite, recusa e cancelamento respeitam os estados autorizados da corrida'
   ] as const) {
     assert.throws(()=>transitionRide(from,to),RideStateError);
   }
+});
+
+test('ciclo isolado pagamento confirmado → despacho 4x4 → conclusão', () => {
+  const origin={zoneId:'prea' as const,localityId:'prea'};
+  const destination={zoneId:'jericoacoara' as const,localityId:'jericoacoara'};
+  const requiresFourByFour=requiresFourByFourForTrip({
+    catalog:STATIC_PRICING_CATALOG_V1,origin,destination,category:'car',
+  });
+  const paidState=markRidePaid('AWAITING_PAYMENT',{
+    status:'paid',amountCents:12000,
+  });
+  const currentRide=ride({
+    state:paidState,paymentStatus:'paid',origin,destination,
+    category:'car',requiresFourByFour,
+  });
+  const dispatch=selectDriverForDispatch({
+    ride:currentRide,
+    pickup:{latitude:-2.82017,longitude:-40.41467},
+    candidates:[
+      supply('ordinary-driver',{fourByFour:false}),
+      supply('approved-4x4',{fourByFour:true,latitude:-2.83}),
+    ],now,
+  });
+  assert.equal(dispatch.nextRideState,'SEARCHING_DRIVER');
+  assert.equal(dispatch.driver.supply.driverId,'approved-4x4');
+  let state=dispatch.nextRideState;
+  for (const next of ['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED',
+    'IN_PROGRESS','COMPLETED'] as const) {
+    state=transitionRide(state,next);
+  }
+  assert.equal(state,'COMPLETED');
+  assert.throws(()=>transitionRide(state,'SEARCHING_DRIVER'),RideStateError);
+});
+
+test('ciclo isolado sem motorista permite tentar novamente ou solicitar reembolso', () => {
+  const currentRide=ride();
+  assert.throws(()=>selectDriverForDispatch({
+    ride:currentRide,pickup:{latitude:-2.82017,longitude:-40.41467},
+    candidates:[],now,
+  }),/Nenhum motorista elegível/);
+  const noDriver=transitionRide('SEARCHING_DRIVER','NO_DRIVER_FOUND');
+  assert.equal(transitionRide(noDriver,'SEARCHING_DRIVER'),'SEARCHING_DRIVER');
+  const refundPending=transitionRide(noDriver,'REFUND_PENDING');
+  assert.equal(transitionRide(refundPending,'REFUNDED'),'REFUNDED');
 });
