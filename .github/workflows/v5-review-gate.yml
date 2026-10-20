@@ -98,6 +98,20 @@ jobs:
         run: |
           npm run typecheck
           npm test
+      - name: Export read-only V5 commercial and municipality audit
+        working-directory: backend/core
+        run: |
+          node --import tsx scripts/v5-release-readiness-report.ts "$RUNNER_TEMP/v5-release-readiness.md"
+          cat "$RUNNER_TEMP/v5-release-readiness.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload static V5 release audit for human review
+        uses: actions/upload-artifact@v4
+        with:
+          name: v5-readiness-source-code-audit
+          path: |
+            ${{ runner.temp }}/v5-release-readiness.md
+            ${{ runner.temp }}/v5-release-readiness.json
+          if-no-files-found: error
+          retention-days: 14
 
   admin-browser:
     name: ADM Chromium isolated browser smoke
