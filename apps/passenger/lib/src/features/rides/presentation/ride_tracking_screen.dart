@@ -91,7 +91,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
     _realtimeSubscription = service.watch(widget.rideId).listen(
       (snapshot) {
-        if (!mounted) return;
+        if (!mounted || !TrackingMapTransitionPolicy.isExpectedRide(
+          expectedRideId: widget.rideId,
+          receivedRideId: snapshot.rideId,
+        )) return;
         _applySnapshot(snapshot);
       },
       onError: (_) {
@@ -110,7 +113,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     final snapshot = _snapshot;
     final route = _route;
     final driver = snapshot?.driverLocation;
-    if (snapshot == null || route == null) return;
+    if (snapshot == null || route == null || driver == null ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          driver.latitude, driver.longitude,
+        )) return;
     final stage = _routeStage(snapshot);
     final isDropoff = stage == 'to-dropoff';
     final targetLat = isDropoff
@@ -121,7 +127,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
       mapReady: _mapReady,
       terminal: snapshot.isTerminal,
       hasDriver: driver != null,
-      hasTarget: targetLat != null && targetLng != null,
+      hasTarget: TrackingMapTransitionPolicy.isUsableGps(
+        targetLat, targetLng,
+      ),
       routePointCount: route.points.length,
       stage: stage,
       lastFramedStage: _framedRouteStage,
@@ -172,10 +180,14 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     }
 
     final driver = snapshot.driverLocation;
-    final center = driver != null
+    final center = driver != null &&
+            TrackingMapTransitionPolicy.isUsableGps(
+              driver.latitude, driver.longitude,
+            )
         ? LatLng(driver.latitude, driver.longitude)
-        : snapshot.pickupLatitude != null &&
-                snapshot.pickupLongitude != null
+        : TrackingMapTransitionPolicy.isUsableGps(
+            snapshot.pickupLatitude, snapshot.pickupLongitude,
+          )
             ? LatLng(
                 snapshot.pickupLatitude!,
                 snapshot.pickupLongitude!,
@@ -196,13 +208,18 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   Future<void> _refreshRoute(PassengerRideTrackingSnapshot snapshot) async {
     final service = widget.routeService;
     final driver = snapshot.driverLocation;
-    if (service == null || driver == null || _routeRequestInFlight) return;
+    if (service == null || driver == null || driver.stale ||
+        !TrackingMapTransitionPolicy.isUsableGps(
+          driver.latitude, driver.longitude,
+        ) || _routeRequestInFlight) return;
     final useDropoff = snapshot.state == 'IN_PROGRESS';
     final targetLatitude =
         useDropoff ? snapshot.dropoffLatitude : snapshot.pickupLatitude;
     final targetLongitude =
         useDropoff ? snapshot.dropoffLongitude : snapshot.pickupLongitude;
-    if (targetLatitude == null || targetLongitude == null) return;
+    if (!TrackingMapTransitionPolicy.isUsableGps(
+      targetLatitude, targetLongitude,
+    )) return;
     final now = DateTime.now();
     if (_lastRouteState == snapshot.state &&
         _lastRouteAttemptAt != null &&
@@ -252,7 +269,11 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
     try {
       final snapshot = await widget.trackingService.tracking(widget.rideId);
-      if (!mounted || revisionAtRequest != _snapshotRevision) return;
+      if (!mounted || revisionAtRequest != _snapshotRevision ||
+          !TrackingMapTransitionPolicy.isExpectedRide(
+            expectedRideId: widget.rideId,
+            receivedRideId: snapshot.rideId,
+          )) return;
       _applySnapshot(snapshot);
     } on PassengerRideTrackingException catch (error) {
       if (!mounted || revisionAtRequest != _snapshotRevision) return;
@@ -444,7 +465,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _pickup(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.pickupLatitude;
     final longitude = snapshot?.pickupLongitude;
-    if (latitude == null || longitude == null) return null;
+    if (!TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+      return null;
+    }
 
     return RamoPlace(
       name: 'Embarque',
@@ -456,7 +479,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   RamoPlace? _dropoff(PassengerRideTrackingSnapshot? snapshot) {
     final latitude = snapshot?.dropoffLatitude;
     final longitude = snapshot?.dropoffLongitude;
-    if (latitude == null || longitude == null) return null;
+    if (!TrackingMapTransitionPolicy.isUsableGps(latitude, longitude)) {
+      return null;
+    }
 
     return RamoPlace(
       name: 'Destino',
@@ -470,7 +495,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     final snapshot = _snapshot;
     final driver = snapshot?.driverLocation;
     final driverProfile = snapshot?.driver;
-    final driverPosition = driver == null
+    final driverPosition = driver == null ||
+            !TrackingMapTransitionPolicy.isUsableGps(
+              driver.latitude, driver.longitude,
+            )
         ? null
         : LatLng(driver.latitude, driver.longitude);
 
@@ -489,7 +517,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
               routePhase: snapshot == null ? null : _routeStage(snapshot),
               driverPosition: driverPosition,
               driverCategory: snapshot?.category,
-              driverPositionStale: driver?.stale ?? false,
+              driverPositionStale: driver?.stale == true ||
+                  (driver != null && driverPosition == null),
               networkTilesEnabled: widget.networkTilesEnabled,
               onMapReady: () {
                 _mapReady = true;
@@ -618,10 +647,13 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       onSubmit: _submitDriverRating,
                     ),
                   ],
-                  if (driver?.stale == true) ...[
+                  if (driver?.stale == true ||
+                      (driver != null && driverPosition == null)) ...[
                     const SizedBox(height: RamoSpacing.xs),
                     Text(
-                      'A última posição do motorista está desatualizada.',
+                      driverPosition == null
+                          ? 'A posição do motorista está indisponível no momento.'
+                          : 'A última posição do motorista está desatualizada.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
