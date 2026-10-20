@@ -5,6 +5,9 @@ on:
     branches: [feature/admin-regions-pricing-simple-20261020]
     paths:
       - deploy/staging/prepare-regions-pricing*
+      - deploy/staging/backup-regions-pricing*
+      - deploy/staging/inspect-regions-pricing*
+      - deploy/staging/asaas-activation-plan-contract.mjs
       - deploy/staging/regions-restoration-probe.mjs
       - deploy/staging/prepare-regions-activation.mjs
       - deploy/staging/regions-activation-contract*
