@@ -9,7 +9,7 @@ void main() {
   });
 
   test('rota cabe em telas pequenas sem margem lateral excessiva', () {
-    for (final width in [320.0, 375, 390, 428, 768]) {
+    for (final width in <double>[320, 375, 390, 428, 768]) {
       final margin = DriverMapConfig.routeEdgePadding(width);
       expect(margin, inInclusiveRange(32, 72));
       expect(width - margin * 2, greaterThan(width * .5));
