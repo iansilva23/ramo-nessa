@@ -66,6 +66,40 @@ void main() {
     );
   });
 
+  test('aceite e início não aceitam resposta atrasada da rota anterior', () {
+    expect(DriverRouteRefreshPolicy.isCurrentRouteResponse(
+      requestId: 2, latestRequestId: 2,
+      requestedRideId: 'ride-1', activeRideId: 'ride-1',
+      requestedDropoff: false, currentDropoff: false,
+    ), isTrue);
+
+    // Passenger already collected: previous route was to pickup.
+    expect(DriverRouteRefreshPolicy.isCurrentRouteResponse(
+      requestId: 2, latestRequestId: 2,
+      requestedRideId: 'ride-1', activeRideId: 'ride-1',
+      requestedDropoff: false, currentDropoff: true,
+    ), isFalse);
+
+    // Another refresh superseded the old route, even in the same ride.
+    expect(DriverRouteRefreshPolicy.isCurrentRouteResponse(
+      requestId: 2, latestRequestId: 3,
+      requestedRideId: 'ride-1', activeRideId: 'ride-1',
+      requestedDropoff: true, currentDropoff: true,
+    ), isFalse);
+
+    // The ride has ended or another one was accepted.
+    expect(DriverRouteRefreshPolicy.isCurrentRouteResponse(
+      requestId: 4, latestRequestId: 4,
+      requestedRideId: 'ride-1', activeRideId: null,
+      requestedDropoff: true, currentDropoff: false,
+    ), isFalse);
+    expect(DriverRouteRefreshPolicy.isCurrentRouteResponse(
+      requestId: 4, latestRequestId: 4,
+      requestedRideId: 'ride-1', activeRideId: 'ride-2',
+      requestedDropoff: false, currentDropoff: false,
+    ), isFalse);
+  });
+
   test('mudança de etapa pode forçar rota imediatamente', () {
     final last = DateTime(2026, 9, 25, 8);
 
