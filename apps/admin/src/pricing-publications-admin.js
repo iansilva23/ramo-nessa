@@ -232,6 +232,7 @@ export function createPricingPublicationsAdmin({
     selected = null;
     renderSelection();
     byId('publication-refresh').disabled = true;
+    byId('publication-drafts').setAttribute('aria-busy', 'true');
     try {
       const token = getToken();
       if (!token || !hasScope('pricing:read')) {
@@ -251,7 +252,10 @@ export function createPricingPublicationsAdmin({
       if (announce) message('Versões atualizadas.');
     } finally {
       loading = false;
-      if (mounted) byId('publication-refresh').disabled = false;
+      if (mounted) {
+        byId('publication-refresh').disabled = false;
+        byId('publication-drafts').removeAttribute('aria-busy');
+      }
     }
   }
   async function selectDraft(id, {notify = true, internalRefresh = false} = {}) {
