@@ -385,3 +385,23 @@ test('ciclo isolado sem motorista permite tentar novamente ou solicitar reembols
   const refundPending=transitionRide(noDriver,'REFUND_PENDING');
   assert.equal(transitionRide(refundPending,'REFUNDED'),'REFUNDED');
 });
+
+test('GPS corrompido em motorista não impede matching de outro elegível', () => {
+  const pickup={latitude:-2.82017,longitude:-40.41467};
+  const ranked=rankEligibleDrivers({
+    ride:ride(),pickup,now,
+    candidates:[
+      supply('invalid-nan',{latitude:Number.NaN}),
+      supply('invalid-lat',{latitude:91}),
+      supply('invalid-lon',{longitude:-181}),
+      supply('valid-driver',{latitude:-2.822}),
+    ],
+  });
+  assert.deepEqual(ranked.map(item=>item.supply.driverId),['valid-driver']);
+  const selected=selectDriverForDispatch({
+    ride:ride(),pickup,now,
+    candidates:[supply('invalid-inf',{longitude:Number.POSITIVE_INFINITY}),
+      supply('valid-driver',{latitude:-2.822})],
+  });
+  assert.equal(selected.driver.supply.driverId,'valid-driver');
+});
