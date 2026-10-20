@@ -144,3 +144,19 @@ A conferência é somente leitura. Backup verificado, preparação do catálogo 
 - Não restaura banco ativo automaticamente. O retorno de código/configuração e a restauração de catálogo como nova versão são etapas distintas; restaurar um banco antigo pode perder transações posteriores.
 
 A suíte `Regions and Pricing - Backup Review` testa guardas e executa backup/restauração reais em Docker com dados exclusivamente sintéticos no runner. O resultado real da VPS ainda deve ser recebido antes de declarar o backup concluído.
+
+## Backup real recebido e preparação da candidata
+O operador retornou `BACKUP_VERIFICADO`, com restauração PostgreSQL isolada concluída, arquivos montados listados, nenhum serviço reiniciado e nenhum reset aplicado. O diretório privado e o SHA-256 do manifesto foram fornecidos na conversa operacional; não são publicados neste documento.
+
+`deploy/staging/prepare-regions-pricing.mjs REVISAO DIRETORIO_BACKUP SHA256_MANIFESTO` reaproveita esse backup:
+- Confere o hash externo do manifesto e o tamanho/hash/permissões de cada arquivo, além da identidade e configuração dos cinco serviços.
+- Extrai somente Core/ADM para um diretório novo. O checkout existente não é modificado. Exige igualdade exata das migrations e seus checksums; não executa migrations.
+- Compila imagens separadas, compara lockfile e código compilado de pagamentos com o Core ativo e valida o Caddy vigente usando armazenamento temporário e nenhuma rede.
+- Restaura o backup em PostgreSQL descartável sem rede. Usa somente o CLI de catálogo, sem iniciar API, workers ou provedores. Ensaios: exportação do plano, reset com proprietário humano configurado, três regiões/zero tarifas/categorias preservadas, repetição idempotente e recuperação integral do snapshot anterior como nova versão.
+- Confere todas as demais tabelas públicas antes/depois dos ensaios. Somente catálogos/auditoria podem mudar na cópia. Não aplica reset ao banco ativo e não altera serviços ativos.
+- Mantém logs, plano de ensaio e ambiente somente em arquivos privados. O plano gerado nessa cópia é exclusivamente de ensaio e **não deve ser usado para aplicar reset no banco ativo**: a aplicação real exigirá plano próprio com referência atual do catálogo ativo.
+- Reconfere runtime, migrations, Caddy e Compose após o ensaio, remove exclusivamente o banco/volume descartáveis e registra `CANDIDATA_PREPARADA_E_TESTADA`.
+
+A preparação ainda não é ativação nem homologação funcional conectada. Os bundles Web configurados tiveram os 108 arquivos verificados localmente contra o manifesto e o digest do artefato; não foram publicados.
+
+[Candidate Preparation Review aprovado](https://github.com/iansilva23/ramo-nessa/actions/runs/39505009335), código `e24a5ecb93e22b8054b599c4f377809fc63dcffb`: seis testes de guardas e execução real da preparação em Docker, com builds, backup/restauração, paridade de migrations/pagamentos, validação Caddy e reset/idempotência/recuperação na cópia PostgreSQL. O fixture é sintético; o resultado do ensaio com o backup da VPS ainda precisa ser recebido do operador.
