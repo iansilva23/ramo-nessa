@@ -59,6 +59,8 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   assert.match(code, /selected = null;\s*pendingVersionId = null;\s*renderSelection\(\);\s*const payload = await api\.getPricingVersion/);
   assert.match(code, /selected\?\.version\?\.id === version\.id/);
   assert.match(code, /loading && !internalRefresh/);
+  assert.match(code, /pendingVersionId = pendingVersionId \|\| selected\?\.version\.id \|\| null;/);
+  assert.match(code, /if \(!mounted \|\| loading \|\| writing \|\| !hasScope\('pricing:write'\)/);
   assert.ok(!code.includes('localStorage'));
   assert.ok(!code.includes('sessionStorage'));
   assert.ok(!code.includes('.innerHTML'));
