@@ -178,3 +178,54 @@ test('geocerca corrompida nunca valida GPS por comparação com NaN', () => {
     }), PricingLocationMismatchError);
   }
 });
+
+test('matriz GPS → localidade → cotação percorre categorias e horários sem liberar rota desconhecida', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const categories = ['moto','car','comfort_black','buggy','delivery'] as const;
+  const periods = ['day','after_22'] as const;
+  let exact = 0;
+  let range = 0;
+  let denied = 0;
+  for (const origin of fixtures) {
+    for (const destination of fixtures) {
+      const originRef = classifyCoordinateByCatalog({catalog,...origin.point});
+      const destinationRef = classifyCoordinateByCatalog({catalog,...destination.point});
+      assert.deepEqual(originRef, origin.ref);
+      assert.deepEqual(destinationRef, destination.ref);
+      assertPricingLocationMatchesPoint({catalog,ref:originRef,point:origin.point,field:'origin'});
+      assertPricingLocationMatchesPoint({catalog,ref:destinationRef,point:destination.point,field:'destination'});
+      for (const category of categories) {
+        for (const period of periods) {
+          try {
+            const result = quoteFare({
+              origin:originRef,destination:destinationRef,category,period,
+              tripDistanceKm:7.25,driverPickupDistanceKm:0,
+              passengers:category === 'buggy' ? 2 : 1,
+            },catalog);
+            if (result.kind === 'exact') {
+              assert.ok(Number.isSafeInteger(result.totalAmountCents));
+              assert.ok(result.totalAmountCents >= 0);
+              assert.equal(result.platformCommissionCents + result.driverNetCents,
+                result.totalAmountCents);
+              exact++;
+            } else {
+              assert.equal(result.requiresExactResolution,true);
+              range++;
+            }
+          } catch (error) {
+            if (!(error instanceof PricingError)) throw error;
+            assert.ok(['UNKNOWN_ROUTE','UNAVAILABLE_CATEGORY','UNAVAILABLE_ZONE',
+              'UNKNOWN_LOCALITY','MISSING_DISTANCE','INVALID_PASSENGER_COUNT']
+              .includes(error.code),error.code);
+            denied++;
+          }
+        }
+      }
+    }
+  }
+  assert.equal(exact+range+denied,fixtures.length**2*categories.length*periods.length);
+  assert.ok(exact > 0);
+  assert.ok(denied > 0);
+  assert.equal(catalog.distanceFarePolicies.length,0,
+    'Não habilitar fallback regional por km durante os testes');
+});
