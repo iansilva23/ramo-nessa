@@ -3282,14 +3282,19 @@ class _DriverProfileHero extends StatelessWidget {
                       size: 18,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      ratingAverage == null
-                          ? 'Novo motorista'
-                          : ratingAverage!.toStringAsFixed(2),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12,
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: Text(
+                        ratingAverage == null
+                            ? 'Novo motorista'
+                            : ratingAverage!.toStringAsFixed(2),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     if (ratingCount > 0) ...[
@@ -4597,31 +4602,40 @@ class _ActiveRideCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _DriverMetaPill(
-                icon: Icons.directions_car_filled_rounded,
-                label: _categoryLabel,
+              Flexible(
+                fit: FlexFit.loose,
+                child: _DriverMetaPill(
+                  icon: Icons.directions_car_filled_rounded,
+                  label: _categoryLabel,
+                ),
               ),
-              const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'SEU GANHO',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 9,
-                      letterSpacing: .7,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'SEU GANHO',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 9,
+                        letterSpacing: .7,
+                      ),
                     ),
-                  ),
-                  Text(
-                    formatCents(ride.driverEarningsCents),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
+                    Text(
+                      formatCents(ride.driverEarningsCents),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
