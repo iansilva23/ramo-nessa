@@ -258,6 +258,26 @@ try {
       await mobile.locator('#pricing-complete-body tr').first().locator('button').filter({hasText:'Noite'}).click();
       assert.equal(await mobile.locator('#pricing-locality-period').inputValue(),'after_22');
       assert.equal(publishRequests,0,'Mobile interaction must not publish');
+      // New independent draft center must fit narrow screens and stay read-only
+      // until the operator explicitly approves the version.
+      await mobile.locator('#mobile-menu-button').click();
+      await mobile.locator('.sidebar-nav [data-view="pricing-publications"]').click();
+      await mobile.locator('#publication-drafts .publication-draft-button')
+        .first().waitFor({timeout:15000});
+      await mobile.waitForFunction(() =>
+        document.querySelector('#publication-selected-title')?.textContent?.includes('#2'));
+      assert.equal(await mobile.locator('#publication-publish').isDisabled(),true);
+      const publicationSizes = await mobile.evaluate(() => ({
+        viewport:document.documentElement.clientWidth,
+        content:document.documentElement.scrollWidth,
+      }));
+      assert.ok(publicationSizes.content <= publicationSizes.viewport + 3,
+        'Draft center overflow at '+width+'px: '+JSON.stringify(publicationSizes));
+      await mobile.screenshot({
+        path:resolve(evidenceDir,'pricing-publications-mobile-'+width+'.png'),
+        fullPage:true,animations:'disabled',
+      });
+      assert.equal(publishRequests,0,'Viewing draft center must never publish');
       assert.deepEqual(mobileErrors,[],'Mobile browser JS error at '+width+'px');
       console.log('PASS mobile Chromium '+width+'x'+height+
         ': filters, horizontal containment, night editor, screenshot');
