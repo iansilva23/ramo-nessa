@@ -47,6 +47,8 @@ test('nova central publica só por ação explícita, com permissão e revisão'
   ]) assert.ok(html.includes('id="'+id+'"'));
   assert.match(html, /id="publication-publish"[^>]*disabled/);
   assert.match(code, /hasScope\('pricing:write'\)/);
+  assert.match(code, /Nenhuma alteração detectada: não é possível publicar/);
+  assert.match(code, /!allowed \|\| !hasChanges \|\| !byId\('publication-confirm-review'\)\.checked/);
   assert.match(code, /Versão vigente não identificada na lista/);
   assert.match(code, /getPricingVersion\(getToken\(\), versionId\)/);
   assert.match(code, /fresh\.version\.updatedAt !== original\.updatedAt/);
