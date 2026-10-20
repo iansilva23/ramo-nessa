@@ -548,7 +548,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       final updated = await api.updateSupply(position: position);
       if (!mounted) return;
       setState(() => _supply = updated);
-      if (_mapReady) {
+      if (_mapReady && DriverMapConfig.shouldAutoFollow(
+        hasActiveRide: _activeRide != null,
+        navigationMode: _navigationMode,
+      )) {
         unawaited(
           _mapController.move(
             LatLng(updated.latitude, updated.longitude),
