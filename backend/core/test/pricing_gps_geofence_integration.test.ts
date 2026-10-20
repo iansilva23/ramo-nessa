@@ -6,6 +6,7 @@ import { STATIC_PRICING_CATALOG_V1 } from '../src/pricing/catalog-snapshot.js';
 import { requiresFourByFourForTrip } from '../src/pricing/category-eligibility.js';
 import { municipalityFor } from '../src/pricing/municipality-directory.js';
 import { quoteFare } from '../src/pricing/quote-engine.js';
+import { assertCatalogLocationSupported } from '../src/pricing/catalog-location-policy.js';
 import { PricingError } from '../src/pricing/types.js';
 import {
   assertPricingLocationMatchesPoint,
@@ -151,4 +152,14 @@ test('localidade fictícia da Vila não pode ser validada apenas por estar dentr
   assert.doesNotThrow(() => assertPricingLocationMatchesPoint({
     catalog,ref:jeri.ref,point:jeri.point,field:'destination',
   }));
+});
+
+test('zona desconhecida falha com erro de domínio, nunca exceção não tratada', () => {
+  const catalog = STATIC_PRICING_CATALOG_V1;
+  const ref = {zoneId:'zona-inexistente',localityId:'prea'} as unknown as typeof fixtures[0]['ref'];
+  assert.throws(() => assertPricingLocationMatchesPoint({
+    catalog,ref,point:fixtures[0]!.point,field:'origin',
+  }), PricingLocationMismatchError);
+  assert.throws(() => assertCatalogLocationSupported({catalog,ref,field:'origin'}),
+    (error:unknown) => error instanceof PricingError && error.code === 'UNAVAILABLE_ZONE');
 });
