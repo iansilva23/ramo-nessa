@@ -1,3 +1,4 @@
+import type { ManagedOperations } from './managed-operations.js';
 import {
   CAR_REFERENCE_KM_PER_LITER,
   COMMISSION_BPS,
@@ -111,6 +112,10 @@ export interface SharedTransferSettings {
 }
 
 export interface PricingCatalogSnapshot {
+  // Explicit opt-in only: legacy published snapshots retain their behavior.
+  managedOperations?: ManagedOperations;
+  managementChange?: { requestHash: string; baseRevision: string };
+  managementMigration?: { id: string; sourceVersionId: string | null };
   commercialPolicy?: CommercialPolicy;
   sharedTransfers?: SharedTransferSettings;
   catalogVersion: string;

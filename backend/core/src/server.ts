@@ -1,3 +1,8 @@
+import { authorizeManagedQuote } from './pricing/quote-request-security.js';
+import { managedPlacesBounds } from './places/managed-places-coverage.js';
+import { pricingManagementRoutes } from './pricing/management-routes.js';
+import { authoritativeManagedQuote } from './pricing/authoritative-quote.js';
+import { ManagementError } from './pricing/managed-operations.js';
 import { AsaasDriverPayoutProvider, AsaasWebhookError } from './payments/asaas-driver-payout-provider.js';
 import { applyConfirmedDriverPayoutResult } from './payments/driver-payout-processing-service.js';
 import { GrowthService } from './growth/growth-service.js';
@@ -401,6 +406,7 @@ import {
   placesLocalityId,
 } from './places/places-access-policy.js';
 import { resolveApprovedLocalPlace } from './places/local-place-policy.js';
+import {googlePrimaryPlaces} from './places/google-primary-places.js';
 import {
   classifyCoordinateByCatalog,
   CoordinateClassificationError,
@@ -2096,6 +2102,15 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            geoLookupStats.googleFallbacks += 1;
+            json(response,200,await googlePrimaryPlaces({action:'autocomplete',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds}));
+            return;
+          }
+        }
         const query =
           typeof value.input === 'string' ? value.input : '';
         const localOnly = await resolvePlacesLocalOnly({
@@ -2123,6 +2138,7 @@ const server = createServer(async (request, response) => {
           }
         }
         geoLookupStats.googleFallbacks += 1;
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const suggestions = await googlePlacesService.autocomplete({
           query,
           sessionToken:
@@ -2130,6 +2146,10 @@ const server = createServer(async (request, response) => {
               ? value.sessionToken
               : '',
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
         const safeSuggestions = localOnly
           ? suggestions
@@ -2279,6 +2299,28 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            if (typeof value.placeId === 'string' && value.placeId.startsWith('geo:')) {
+              // Explicitly selected saved/manual locations remain resolvable.
+              // They never replace the Google suggestions for a typed query.
+              const local = geoSearchEnabled ? await geoCatalogRepository.findById(value.placeId) : null;
+              const approved = local == null ? null : await approvedGeoPlace(local);
+              if (approved == null) {
+                json(response,404,{error:'LOCAL_PLACE_NOT_FOUND',message:'Endereço salvo não encontrado na base regional aprovada.'});return;
+              }
+              if (isAuthenticatedPassenger) observeSelectedGeoPlace(value.placeId);
+              json(response,200,{provider:'ramo-geo',place:approved});return;
+            }
+            const result = await googlePrimaryPlaces({action:'details',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds});
+            if (isAuthenticatedPassenger && 'place' in result && result.place) {
+              observePassengerSelectedGooglePlace(result.place.id,false,result.place.latitude,result.place.longitude);
+            }
+            json(response,200,result);return;
+          }
+        }
         const localOnly = value.localOnly !== false;
         const externalLocalityId =
           typeof value.externalLocalityId === 'string'
@@ -2316,6 +2358,7 @@ const server = createServer(async (request, response) => {
           json(response, 200, { provider: 'ramo-geo', place: approvedPlace });
           return;
         }
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const place = await googlePlacesService.placeDetails({
           placeId:
             typeof value.placeId === 'string' ? value.placeId : '',
@@ -2324,6 +2367,10 @@ const server = createServer(async (request, response) => {
               ? value.sessionToken
               : '',
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
 
         if (
@@ -2374,6 +2421,16 @@ const server = createServer(async (request, response) => {
             zoneId: 'external',
             localityId: externalLocalityId,
           };
+        }
+
+        const currentLocationCatalog = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+        if (currentLocationCatalog.snapshot.managedOperations != null) {
+          // A place name never overrides the selected, versioned coverage.
+          try {
+            approvedPricingLocation = classifyCoordinateByCatalog({catalog:currentLocationCatalog.snapshot,latitude:place.latitude,longitude:place.longitude});
+          } catch {
+            json(response,422,{error:'OUTSIDE_OPERATIONAL_REGION',message:'Este local está fora das regiões atendidas.'}); return;
+          }
         }
 
         const proofLocalityId = approvedPricingLocation?.localityId;
@@ -2463,6 +2520,15 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            geoLookupStats.googleFallbacks += 1;
+            json(response,200,await googlePrimaryPlaces({action:'search',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds}));
+            return;
+          }
+        }
         const query =
           typeof value.query === 'string' ? value.query : '';
         const localOnly = await resolvePlacesLocalOnly({
@@ -2487,9 +2553,14 @@ const server = createServer(async (request, response) => {
           }
         }
         geoLookupStats.googleFallbacks += 1;
+        const searchCoverage=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
         const places = await googlePlacesService.searchText({
           query,
           localOnly,
+          ...(() => {
+            const bounds=managedPlacesBounds(searchCoverage.snapshot);
+            return bounds == null ? {} : {bounds};
+          })(),
         });
         const safePlaces = localOnly
           ? places
@@ -2499,7 +2570,18 @@ const server = createServer(async (request, response) => {
             );
 
         let responsePlaces = safePlaces;
-        if (localOnly) {
+        const currentSearchCatalog=await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+        if (currentSearchCatalog.snapshot.managedOperations != null) {
+          responsePlaces=safePlaces.flatMap(place=>{
+            try {
+              const location=classifyCoordinateByCatalog({catalog:currentSearchCatalog.snapshot,latitude:place.latitude,longitude:place.longitude});
+              return [{...place,approvedPricingZoneId:location.zoneId,approvedPricingLocalityId:location.localityId,
+                placeProof:issuePlaceProof({localityId:location.localityId,placeId:place.id,latitude:place.latitude,longitude:place.longitude,secret:placeProofSecret,ttlSeconds:placeProofTtlSeconds})}];
+            } catch { return []; }
+          });
+        }
+
+        if (localOnly && currentSearchCatalog.snapshot.managedOperations == null) {
           const pricing = await resolvePricingCatalogContext({
             versions: pricingCatalogVersionRepository,
             at: new Date(),
@@ -5034,6 +5116,12 @@ const server = createServer(async (request, response) => {
       json(response, 200, policy);
       return;
     }
+
+    if (await pricingManagementRoutes({
+      request,response,url:requestUrl,admin:adminRepository,humans:adminHumanAuthRepository,versions:pricingCatalogVersionRepository,
+      json,readJson,places:googlePlacesService,routing:routingDistanceProvider,
+      encryptionKey:adminMfaEncryptionKey,rateLimitSecret:adminLoginRateLimitSecret,
+    })) return;
 
     if (
       request.method === 'GET' &&
@@ -7843,22 +7931,24 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'POST' && request.url === '/v1/pricing/quote') {
-      const body = parseQuoteRequest(await readJson(request));
+      const rawQuoteBody = await readJson(request) as Record<string,unknown>;
+      const body = parseQuoteRequest(rawQuoteBody);
       const now = new Date();
       const pricing = await resolvePricingCatalogContext({
         versions: pricingCatalogVersionRepository,
         at: now,
       });
-      const quote = quoteFare(
-        {
-          ...body,
-          period: pricingPeriodAt(
-            now,
-            pricing.snapshot.periodPolicy,
-          ),
-        },
-        pricing.snapshot,
-      );
+      await authorizeManagedQuote({
+        catalog:pricing.snapshot,limits:adminHumanAuthRepository,now,
+        authenticate:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      });
+      const trustedBody = {...body,period:pricingPeriodAt(now,pricing.snapshot.periodPolicy)};
+      const quote = pricing.snapshot.managedOperations == null
+        ? quoteFare(trustedBody,pricing.snapshot)
+        : await authoritativeManagedQuote({catalog:pricing.snapshot,request:trustedBody,
+            pickup:rawQuoteBody.pickup as {latitude:number;longitude:number},
+            dropoff:rawQuoteBody.dropoff as {latitude:number;longitude:number},
+            routing:routingDistanceProvider});
       json(response, 200, {
         ...publicFareQuoteView(quote),
         pricingCatalog: pricing.reference,
@@ -9154,6 +9244,9 @@ const server = createServer(async (request, response) => {
 
     json(response, 404, { error: 'NOT_FOUND' });
   } catch (error) {
+    if (error instanceof ManagementError) {
+      json(response,error.status,{error:error.code,message:error.message}); return;
+    }
     if (
       error instanceof InvalidQuoteRequestError ||
       error instanceof InvalidRideRequestError ||

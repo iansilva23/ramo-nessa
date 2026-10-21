@@ -122,7 +122,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   late final PricingQuoteService? _pricingQuoteService =
       widget.pricingQuoteService ??
           (RamoCoreConfig.enabled
-              ? HttpPricingQuoteService(baseUrl: RamoCoreConfig.baseUri!)
+              ? HttpPricingQuoteService(baseUrl: RamoCoreConfig.baseUri!, accessToken: _accessToken)
               : null);
 
   late final RidePreparationService? _ridePreparationService =
@@ -191,6 +191,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _routeLoading = false;
   bool _preparingRide = false;
   int _routeRequestId = 0;
+  int _originSelectionRevision = 0;
   int? _pendingRouteFitId;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
@@ -464,11 +465,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    final originSelectionRevision = _originSelectionRevision;
     setState(() => _locating = true);
 
     try {
       final location = await _locationService.getCurrentLocation();
       if (!mounted) {
+        return;
+      }
+
+      if (kIsWeb && originSelectionRevision != _originSelectionRevision) {
+        setState(() => _locating = false);
         return;
       }
 
@@ -507,6 +514,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       }
 
       if (!mounted) {
+        return;
+      }
+
+      if (kIsWeb && originSelectionRevision != _originSelectionRevision) {
+        setState(() => _locating = false);
         return;
       }
 
@@ -550,9 +562,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     required String title,
     required String emptyTitle,
     bool showSavedPlaces = false,
-  }) {
-    return Navigator.of(context).push<RamoPlace>(
-      MaterialPageRoute(
+  }) async {
+    final searchRoute = MaterialPageRoute<RamoPlace>(
         builder: (_) => DestinationSearchScreen(
           searchService: _placeSearchService,
           autocompleteService:
@@ -564,8 +575,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           savedPlaceService:
               showSavedPlaces ? widget.savedPlaceService : null,
         ),
-      ),
     );
+    final selected = await Navigator.of(context).push<RamoPlace>(searchRoute);
+    if (kIsWeb) {
+      // `push` resolves at pop, before the reverse animation and overlay removal.
+      // An HTML map can still be hidden/offstage then. Apply the new camera only
+      // after the map has returned to layout, not while closing the search page.
+      await searchRoute.completed;
+      if (!mounted) return null;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    return selected;
   }
 
   Future<void> _chooseOrigin() async {
@@ -579,6 +599,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     _routeRequestId++;
+    _originSelectionRevision++;
 
     setState(() {
       _origin = origin;
@@ -690,6 +711,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       }
     }
 
+    if (policy?.usesManagedRegions == true) {
+      // Managed regions have administrator-created IDs. The legacy route
+      // matrix below only applies to the historical/native catalog.
+      final allowed = policy!.managedCategoriesForTrip(
+        coverage.originZone!.localityId ?? coverage.originZone!.id,
+        coverage.destinationZone!.localityId ?? coverage.destinationZone!.id,
+      );
+      // These are quote candidates, not confirmed fares or driver supply.
+      // VehicleSelectionScreen requires an exact server quote to continue.
+      return ServiceType.values
+          .where((service) => allowed.contains(service.backendKey))
+          .toList(growable: false);
+    }
+
     List<ServiceType> services;
     if (origin == 'jericoacoara' && destination == 'jericoacoara') {
       services = const [
@@ -796,7 +831,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    // Policy loading is asynchronous too. A newer selection can occur before
+    // the route request has even started; invalidate the whole Web operation.
+    final selectionRevision = _routeRequestId;
     await _loadPricingPolicy();
+    if (!mounted || (kIsWeb && (selectionRevision != _routeRequestId ||
+        !identical(origin, _origin) || !identical(destination, _destination)))) {
+      return;
+    }
 
     final coverage = RamoServiceArea.checkPlaceTrip(
       catalogZones: _pricingPolicy?.catalogZones,
@@ -1319,3 +1361,4 @@ class _UnavailablePlaceSearchService implements PlaceSearchService {
     );
   }
 }
+

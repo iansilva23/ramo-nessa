@@ -1,3 +1,4 @@
+import '../../pricing/domain/managed_pricing_catalog.dart';
 import 'package:flutter/material.dart';
 
 enum ServiceType {
@@ -9,7 +10,7 @@ enum ServiceType {
 }
 
 extension ServiceTypeUi on ServiceType {
-  String get label => switch (this) {
+  String get label => ManagedPricingCatalog.presentation(backendKey, 'name') ?? switch (this) {
         ServiceType.car => 'Carro normal',
         ServiceType.moto => 'Mototáxi',
         ServiceType.delivery => 'Entrega',
@@ -17,7 +18,7 @@ extension ServiceTypeUi on ServiceType {
         ServiceType.buggy => 'Táxi Buggy',
       };
 
-  String get description => switch (this) {
+  String get description => ManagedPricingCatalog.presentation(backendKey, 'description') ?? switch (this) {
         ServiceType.car => 'Carro popular',
         ServiceType.moto => 'Mototáxi local',
         ServiceType.delivery => 'Envie algo',
@@ -33,7 +34,16 @@ extension ServiceTypeUi on ServiceType {
         ServiceType.buggy => 'buggy',
       };
 
-  IconData get icon => switch (this) {
+  IconData get icon => switch (ManagedPricingCatalog.presentation(backendKey, 'icon')) {
+        'moto' => Icons.two_wheeler_rounded,
+        'delivery' => Icons.inventory_2_rounded,
+        'car' => Icons.directions_car_filled_rounded,
+        'comfort_black' => Icons.airport_shuttle_rounded,
+        'buggy' => Icons.directions_car_rounded,
+        _ => _defaultIcon,
+      };
+
+  IconData get _defaultIcon => switch (this) {
         ServiceType.car => Icons.directions_car_filled_rounded,
         ServiceType.moto => Icons.two_wheeler_rounded,
         ServiceType.delivery => Icons.inventory_2_rounded,

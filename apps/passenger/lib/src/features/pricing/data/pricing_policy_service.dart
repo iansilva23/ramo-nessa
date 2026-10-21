@@ -1,3 +1,5 @@
+import '../domain/managed_pricing_catalog.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:latlong2/latlong.dart';
 import '../../service_area/domain/service_zone.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +17,8 @@ class PassengerPricingPolicy {
     this.catalogZones,
     this.preaLocalityCategories = const {},
     this.jijocaLocalityCategories = const {},
+    this.managementMode = false,
+    this.managedRegionCategories = const {},
   });
 
   factory PassengerPricingPolicy.fromJson(Map<String, dynamic> json) {
@@ -47,9 +51,17 @@ class PassengerPricingPolicy {
       );
     }
 
+    final catalogZones = _catalogZones(json['localityGeofences'], json['regions']);
+    ManagedPricingCatalog.update(
+      enabled: json['managementMode'] == 'managed',
+      zones: catalogZones,
+      categories: json['categories'],
+    );
     return PassengerPricingPolicy(
+      managementMode: json['managementMode'] == 'managed',
+      managedRegionCategories: _regionCategories(json['regions']),
       sharedTransfers: json['sharedTransfers'],
-      catalogZones: _catalogZones(json['localityGeofences']),
+      catalogZones: catalogZones,
       enabledCategories: categories
           .whereType<String>()
           .map((value) => value.trim())
@@ -81,6 +93,30 @@ class PassengerPricingPolicy {
   final int buggyMaxPassengers;
   final Map<String, Set<String>> preaLocalityCategories;
   final Map<String, Set<String>> jijocaLocalityCategories;
+  final bool managementMode;
+  final Map<String, Set<String>> managedRegionCategories;
+
+  bool get usesManagedRegions => kIsWeb && managementMode;
+
+  Set<String> managedCategoriesForTrip(String originId, String destinationId) {
+    if (!usesManagedRegions) return const {};
+    final origin = managedRegionCategories[originId];
+    final destination = managedRegionCategories[destinationId];
+    if (origin == null || destination == null) return const {};
+    return enabledCategories.intersection(origin).intersection(destination);
+  }
+
+  static Map<String, Set<String>> _regionCategories(dynamic raw) {
+    if (raw is! List) return const {};
+    return Map.unmodifiable({
+      for (final region in raw.whereType<Map>())
+        if (region['id'] is String && region['enabled'] == true &&
+            region['archived'] == false && region['categoryIds'] is List)
+          region['id'] as String: Set<String>.unmodifiable(
+            (region['categoryIds'] as List).whereType<String>(),
+          ),
+    });
+  }
 
   Set<String>? localityCategories({
     required String zoneId,
@@ -95,8 +131,16 @@ class PassengerPricingPolicy {
     return null;
   }
 
-  static List<ServiceZone>? _catalogZones(dynamic raw) {
+  static List<ServiceZone>? _catalogZones(dynamic raw, [dynamic rawRegions]) {
     if (raw is! List) return null;
+    final labels = <String, String>{};
+    if (rawRegions is List) {
+      for (final region in rawRegions.whereType<Map>()) {
+        if (region['id'] is String && region['name'] is String) {
+          labels[region['id'] as String] = region['name'] as String;
+        }
+      }
+    }
     final zones = <ServiceZone>[];
     for (final area in raw.whereType<Map>()) {
       final id = area['zoneId']?.toString();
@@ -108,7 +152,7 @@ class PassengerPricingPolicy {
           lat.abs() > 90 || lng.abs() > 180 || radius <= 0) {
         continue;
       }
-      zones.add(ServiceZone(id: id!,label: locality,localityId: locality,
+      zones.add(ServiceZone(id: id!,label: labels[locality] ?? locality,localityId: locality,
         center: LatLng(lat.toDouble(),lng.toDouble()),radiusMeters: radius.toDouble()*1000));
     }
     return zones;

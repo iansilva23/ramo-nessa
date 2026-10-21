@@ -1,3 +1,5 @@
+import { createRegionsPricingAdmin } from './regions-pricing-admin.js';
+let regionsPricingAdmin = null;
 import { parsePayoutPolicyAmounts, asaasIntegrationMessage } from './payout-policy.js';
 import { createSiteAdmin } from './site-admin.js';
 let siteAdmin = null;
@@ -277,9 +279,9 @@ const adminRoutes = Object.freeze({
     page: 'geo',
   },
   pricing: {
-    path: '/administrodo/operacao-tarifas',
-    title: 'Operação e Tarifas',
-    page: 'pricing',
+    path: '/administrodo/regioes-precos',
+    title: 'Regiões e preços',
+    page: 'regions-pricing',
   },
   'pricing-publications': {
     path: '/administrodo/rascunhos-publicacoes',
@@ -345,6 +347,9 @@ const routeByPath = new Map(
   ]),
 );
 routeByPath.set('/administrodo/precos', 'pricing');
+routeByPath.set('/administrodo/operacao-tarifas', 'pricing');
+routeByPath.set('/administrodo/nova-localidade', 'pricing');
+routeByPath.set('/administrodo/rascunhos-publicacoes', 'pricing');
 
 function requestedViewFromLocation() {
   const path = window.location.pathname.replace(/\/$/, '') || '/administrodo';
@@ -561,6 +566,7 @@ function clearPassengerPhoto() {
 }
 
 function clearSession(message = '') {
+  if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   stopSessionTimer();
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
@@ -914,7 +920,9 @@ async function activateView(
   viewName,
   { historyMode = 'push' } = {},
 ) {
+  if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   const requestedView =
+    ['localities','pricing-publications'].includes(viewName) ? 'pricing' :
     adminRoutes[viewName] == null ? 'overview' : viewName;
   const view = canAccessView(requestedView)
     ? requestedView
@@ -10845,6 +10853,15 @@ function initializeRouteView(view) {
   }
 
   if (view === 'pricing') {
+    regionsPricingAdmin = createRegionsPricingAdmin({
+      root:routeOutlet,api,getToken:()=>state.token,hasScope,
+      onError(error) { if (error instanceof AdminApiError && error.status === 401) handleAuthenticatedError(error); },
+    });
+    return;
+  }
+
+  // Retained legacy implementation for historical catalog compatibility.
+  if (view === 'pricing-legacy') {
     renderPricingCatalog();
     renderPricingVersions();
     renderPricingEditor();

@@ -1,3 +1,4 @@
+import { quoteManagedFare } from './managed-operations.js';
 import {
   type LocalityPricing,
   type PriceBand,
@@ -675,6 +676,7 @@ export function quoteFare(
       `Categoria ${request.category} está desativada no catálogo vigente.`,
     );
   }
+  if (catalog.managedOperations != null) return quoteManagedFare(request, catalog);
   assertApprovedRoute(request, catalog);
   const delivery = quoteRegionalDelivery(request, catalog);
   if (delivery != null) return delivery;

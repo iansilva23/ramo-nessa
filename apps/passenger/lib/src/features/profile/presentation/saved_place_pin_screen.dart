@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart';
@@ -31,7 +32,10 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
 
   @override
   void dispose() {
-    _map?.dispose();
+    // GoogleMap's State owns SDK disposal. Disposing it here as well closes
+    // the same Web map twice while returning from the pin screen.
+    if (!kIsWeb) _map?.dispose();
+    _map = null;
     super.dispose();
   }
 
@@ -76,6 +80,11 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
         'Mova o mapa para posicionar o alfinete na entrada do endereço.')),
       Expanded(child: Stack(alignment: Alignment.center, children: [
         gm.GoogleMap(
+          // Full-screen app maps must accept the first one-finger drag.
+          // Leaving this automatic can select cooperative (two-finger) mode.
+          webGestureHandling: kIsWeb
+              ? (_saving ? gm.WebGestureHandling.none : gm.WebGestureHandling.greedy)
+              : null,
           initialCameraPosition: gm.CameraPosition(target: gm.LatLng(_point.latitude, _point.longitude), zoom: 17),
           onMapCreated: (controller) {
             _map = controller;
@@ -103,3 +112,4 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
     ]),
   );
 }
+

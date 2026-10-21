@@ -2,14 +2,27 @@
 // It does not validate map tiles, routes, GPS or Google Maps rendering.
 (() => {
   const listeners = new WeakMap();
+  globalThis.ramoTestMapOptions = [];
+  globalThis.ramoTestCameraUpdates = [];
   const event = {
     addListener(target, name, callback) {
       let list = listeners.get(target); if (!list) listeners.set(target, list = new Map());
       if (!list.has(name)) list.set(name, new Set()); list.get(name).add(callback);
       const handle = { remove: () => list.get(name)?.delete(callback) };
-      if (['idle', 'tilesloaded', 'projection_changed'].includes(name)) setTimeout(() => {
-        if (list.get(name)?.has(callback)) callback();
-      }, 30);
+      if (['idle', 'tilesloaded', 'projection_changed'].includes(name)) {
+        let attempts = 0;
+        const notify = () => {
+          if (!list.get(name)?.has(callback)) return;
+          if (name === 'tilesloaded' && globalThis.ramoTestSuppressTiles) return;
+          if (name === 'idle' && target.element &&
+              (!target.element.isConnected || target.element.offsetWidth === 0 || target.element.offsetHeight === 0)) {
+            if (++attempts < 100) setTimeout(notify, 20);
+            return;
+          }
+          callback();
+        };
+        setTimeout(notify, 30);
+      }
       return handle;
     },
     removeListener(handle) { handle?.remove(); },
@@ -36,11 +49,13 @@
     setMap(map) { this.map = map; }
     set(name, value) { this.options[name] = value; }
     addListener(name, callback) { return event.addListener(this, name, callback); }
+    setContent(content) { this.options.content = content; }
     open() {} close() {}
   }
   class TestMap extends Overlay {
     constructor(element, options = {}) {
       super(options); this.element = element;
+      globalThis.ramoTestMapOptions.push({ gestureHandling: options.gestureHandling });
       element.style.backgroundColor = '#30343b';
       element.setAttribute('aria-label', 'Mapa simulado para teste');
     }
@@ -50,9 +65,9 @@
     getTilt() { return this.options.tilt ?? 0; }
     getBounds() { return new LatLngBounds(); }
     getDiv() { return this.element; }
-    setCenter(center) { this.options.center = center; }
+    setCenter(center) { this.options.center = center; globalThis.ramoTestCameraUpdates.push("center"); }
     panTo(center) { this.setCenter(center); }
-    setZoom(zoom) { this.options.zoom = zoom; }
+    setZoom(zoom) { this.options.zoom = zoom; globalThis.ramoTestCameraUpdates.push("zoom"); }
     fitBounds(bounds) { this.options.center = bounds.getCenter(); }
     panBy() {}
     getProjection() { return { fromLatLngToPoint: p => new Point(p.lng(), p.lat()), fromPointToLatLng: p => new LatLng(p.y, p.x) }; }
@@ -65,3 +80,4 @@
     marker: { AdvancedMarkerElement: Overlay }, visualization: { HeatmapLayer: Overlay },
   } };
 })();
+

@@ -260,7 +260,11 @@ export async function prepareRideForPayment(input: {
       );
     }
 
-    const customFee = input.pickupFeeForDistance?.(routedPickupKm);
+    // Managed fares contain only explicitly configured extras. Legacy
+    // operational pickup callbacks must not silently add another charge.
+    const customFee = pricing.snapshot.managedOperations == null
+      ? input.pickupFeeForDistance?.(routedPickupKm)
+      : undefined;
     if (customFee != null) {
       const delta = customFee - finalFare.pickupCompensationCents;
       finalFare.pickupCompensationCents = customFee;

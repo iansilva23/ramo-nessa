@@ -76,6 +76,7 @@ export function createPricingGeofenceMap(input) {
     radiusKm: 2,
   };
   let pointer = null;
+  let otherAreas = [];
 
   function render() {
     const width = Math.max(1, root.clientWidth);
@@ -121,6 +122,15 @@ export function createPricingGeofenceMap(input) {
       }
     }
 
+    for (const area of otherAreas) {
+      const p=project(area.centerLatitude,area.centerLongitude,zoom);
+      const radius=Math.min(4000,area.radiusKm*1000/Math.max(0.01,metersPerPixel(area.centerLatitude,zoom)));
+      const context=document.createElement('div');context.className='rp-map-context';
+      context.style.left=(p.x-viewportLeft)+'px';context.style.top=(p.y-viewportTop)+'px';
+      context.style.width=(radius*2)+'px';context.style.height=(radius*2)+'px';
+      context.title=area.label??area.localityId;overlay.append(context);
+    }
+
     const point = project(
       selection.latitude,
       selection.longitude,
@@ -146,13 +156,17 @@ export function createPricingGeofenceMap(input) {
     circle.style.width = `${radiusPixels * 2}px`;
     circle.style.height = `${radiusPixels * 2}px`;
 
-    const pin = document.createElement('div');
+    const pin = document.createElement('button');
+    pin.type = 'button';
     pin.className = 'pricing-geofence-map__pin';
     pin.style.left = `${left}px`;
     pin.style.top = `${top}px`;
-    pin.setAttribute('aria-hidden', 'true');
+    pin.setAttribute('aria-label','Mover alfinete da região com as setas');
 
-    overlay.append(circle, pin);
+    const handle=document.createElement('button');handle.type='button';handle.className='rp-radius-handle';
+    handle.style.left=(left+radiusPixels)+'px';handle.style.top=top+'px';
+    handle.setAttribute('aria-label','Ajustar raio de cobertura com as setas');
+    overlay.append(circle,pin,handle);
   }
 
   function setSelection(next, options = {}) {
@@ -221,6 +235,10 @@ export function createPricingGeofenceMap(input) {
         zoom,
       ),
       moved: false,
+      mode:canSelect() && event.target instanceof Element
+        ? event.target.closest('.rp-radius-handle')?'radius'
+          : event.target.closest('.pricing-geofence-map__pin, .pricing-geofence-map__radius')?'selection':'map'
+        : 'map',
     };
   }
 
@@ -233,6 +251,16 @@ export function createPricingGeofenceMap(input) {
     }
     if (!pointer.moved) return;
 
+    if (pointer.mode === 'selection') {
+      const point=coordinateAt(event.clientX,event.clientY);
+      selection.latitude=point.latitude;selection.longitude=point.longitude;render();notifySelection();return;
+    }
+    if (pointer.mode === 'radius') {
+      const point=coordinateAt(event.clientX,event.clientY);
+      const a=project(point.latitude,point.longitude,zoom),b=project(selection.latitude,selection.longitude,zoom);
+      selection.radiusKm=clamp(Math.hypot(a.x-b.x,a.y-b.y)*metersPerPixel(selection.latitude,zoom)/1000,0.05,100);
+      render();notifySelection();return;
+    }
     center = unproject(
       pointer.centerPoint.x - dx,
       pointer.centerPoint.y - dy,
@@ -264,21 +292,37 @@ export function createPricingGeofenceMap(input) {
     render();
   }
 
-  zoomIn.addEventListener('click', () => changeZoom(1));
-  zoomOut.addEventListener('click', () => changeZoom(-1));
+  const onZoomIn=()=>changeZoom(1),onZoomOut=()=>changeZoom(-1),onPointerCancel=()=>{pointer=null;};
+  zoomIn.addEventListener('click',onZoomIn);
+  zoomOut.addEventListener('click',onZoomOut);
   root.addEventListener('pointerdown', onPointerDown);
   root.addEventListener('pointermove', onPointerMove);
   root.addEventListener('pointerup', onPointerUp);
-  root.addEventListener('pointercancel', () => {
-    pointer = null;
-  });
+  root.addEventListener('pointercancel',onPointerCancel);
 
+  const onKeyDown=event=>{
+    if(!canSelect()||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||!(event.target instanceof Element))return;
+    const radiusControl=event.target.closest('.rp-radius-handle'),pinControl=event.target.closest('.pricing-geofence-map__pin');
+    if(!radiusControl&&!pinControl)return;event.preventDefault();
+    if(radiusControl)selection.radiusKm=clamp(selection.radiusKm+(['ArrowRight','ArrowUp'].includes(event.key)?0.05:-0.05),0.05,100);
+    else{
+      selection.latitude=clamp(selection.latitude+(event.key==='ArrowUp'?0.001:event.key==='ArrowDown'?-0.001:0),-85,85);
+      selection.longitude=clamp(selection.longitude+(event.key==='ArrowRight'?0.001:event.key==='ArrowLeft'?-0.001:0),-180,180);
+    }
+    render();notifySelection();
+    overlay.querySelector(radiusControl?'.rp-radius-handle':'.pricing-geofence-map__pin')?.focus();
+  };
+  root.addEventListener('keydown',onKeyDown);
   const resize = () => render();
   window.addEventListener('resize', resize);
 
   render();
 
   return {
+    setOtherAreas(next) {
+      otherAreas=Array.isArray(next)?next.filter(a=>Number.isFinite(a.centerLatitude)&&Number.isFinite(a.centerLongitude)&&Number.isFinite(a.radiusKm)&&a.radiusKm>0):[];
+      render();
+    },
     getSelection() {
       return { ...selection };
     },
@@ -290,6 +334,9 @@ export function createPricingGeofenceMap(input) {
       root.removeEventListener('pointerdown', onPointerDown);
       root.removeEventListener('pointermove', onPointerMove);
       root.removeEventListener('pointerup', onPointerUp);
+      root.removeEventListener('pointercancel',onPointerCancel);
+      zoomIn.removeEventListener('click',onZoomIn);zoomOut.removeEventListener('click',onZoomOut);
+      root.removeEventListener('keydown',onKeyDown);
       tiles.replaceChildren();
       overlay.replaceChildren();
     },
@@ -491,14 +538,13 @@ export function createPricingCoverageMap(input) {
     render();
   }
 
-  zoomIn.addEventListener('click', () => changeZoom(1));
-  zoomOut.addEventListener('click', () => changeZoom(-1));
+  const onZoomIn=()=>changeZoom(1),onZoomOut=()=>changeZoom(-1),onPointerCancel=()=>{pointer=null;};
+  zoomIn.addEventListener('click',onZoomIn);
+  zoomOut.addEventListener('click',onZoomOut);
   root.addEventListener('pointerdown', onPointerDown);
   root.addEventListener('pointermove', onPointerMove);
   root.addEventListener('pointerup', onPointerUp);
-  root.addEventListener('pointercancel', () => {
-    pointer = null;
-  });
+  root.addEventListener('pointercancel',onPointerCancel);
 
   const resize = () => render();
   window.addEventListener('resize', resize);
@@ -511,6 +557,8 @@ export function createPricingCoverageMap(input) {
       root.removeEventListener('pointerdown', onPointerDown);
       root.removeEventListener('pointermove', onPointerMove);
       root.removeEventListener('pointerup', onPointerUp);
+      root.removeEventListener('pointercancel',onPointerCancel);
+      zoomIn.removeEventListener('click',onZoomIn);zoomOut.removeEventListener('click',onZoomOut);
       tiles.replaceChildren();
       overlay.replaceChildren();
     },

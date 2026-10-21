@@ -8,7 +8,7 @@ export function categoryEnabled(input: {
   catalog: PricingCatalogSnapshot;
   category: ServiceCategory;
 }): boolean {
-  return input.catalog.categoryPolicies[input.category].enabled;
+  return input.catalog.categoryPolicies[input.category]?.enabled === true;
 }
 
 export function requiresFourByFourForTrip(input: {
@@ -21,6 +21,10 @@ export function requiresFourByFourForTrip(input: {
   const destinationIsJeri =
     input.destination.zoneId === 'jericoacoara';
 
+  if (input.catalog.managedOperations != null) {
+    return (originIsJeri || destinationIsJeri) &&
+      input.catalog.categoryPolicies[input.category]?.requiresFourByFourOnJeriBoundary === true;
+  }
   if (originIsJeri === destinationIsJeri) return false;
 
   return input.catalog.categoryPolicies[input.category]

@@ -1,3 +1,4 @@
+import '../../pricing/domain/managed_pricing_catalog.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../map/domain/ramo_place.dart';
@@ -70,6 +71,7 @@ abstract final class RamoServiceArea {
   ];
 
   static ServiceZone? zoneFor(LatLng point, {List<ServiceZone>? catalogZones}) {
+    if (ManagedPricingCatalog.enabled) return ManagedPricingCatalog.zoneFor(point);
     final candidates = (catalogZones ?? zones).where((zone)=>zone.contains(point)).toList();
     candidates.sort((a,b) {
       // Em áreas sobrepostas, use a proximidade ao centro da localidade,
@@ -86,6 +88,12 @@ abstract final class RamoServiceArea {
   }
 
   static ServiceAreaEndpoint? endpointForPlace(RamoPlace place, {List<ServiceZone>? catalogZones}) {
+    if (ManagedPricingCatalog.enabled) {
+      final region = ManagedPricingCatalog.zoneFor(place.position);
+      return region == null ? null : ServiceAreaEndpoint(
+        id: region.id, label: region.label, localityId: region.localityId ?? region.id,
+      );
+    }
     final approvedZone = place.approvedPricingZoneId?.trim();
     final approvedLocality =
         place.approvedPricingLocalityId?.trim();

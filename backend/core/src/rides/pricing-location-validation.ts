@@ -1,3 +1,4 @@
+import { classifyCoordinateByCatalog } from '../places/coordinate-place-policy.js';
 import type { GeoPoint } from '../matching/select-driver.js';
 import {
   STATIC_PRICING_CATALOG_V1,
@@ -163,6 +164,14 @@ export function assertPricingLocationMatchesPoint(input: {
     );
   }
 
+  if (catalog.managedOperations != null) {
+    let selected;
+    try { selected = classifyCoordinateByCatalog({catalog, ...point}); }
+    catch { throw new PricingLocationMismatchError('Ponto fora das regiões atendidas.'); }
+    if (selected.zoneId !== input.ref.zoneId || selected.localityId !== (input.ref.localityId ?? input.ref.zoneId))
+      throw new PricingLocationMismatchError('A região selecionada não corresponde ao ponto no mapa. Atualize a seleção.');
+    return;
+  }
   assertKnownLocality(input.ref, input.field, catalog);
 
   if (

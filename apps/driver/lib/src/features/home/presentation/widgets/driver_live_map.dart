@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart' as domain;
@@ -37,6 +39,11 @@ class DriverMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
   double _currentZoom = DriverMapConfig.fallbackZoom;
+  Size _viewport = Size.zero;
+
+  void updateViewport(Size size) {
+    _viewport = size;
+  }
 
   bool get ready => !_disposed && _nativeController != null;
 
@@ -78,6 +85,20 @@ class DriverMapController {
   }) async {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
+    if (kIsWeb) {
+      final fit = RamoMapCameraFit.calculate(
+        points: coordinates.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
+        viewport: _viewport,
+        edgePadding: padding,
+        maxZoom: maxZoom,
+      );
+      if (fit == null) return;
+      _currentZoom = fit.zoom;
+      await controller.moveCamera(gm.CameraUpdate.newLatLngZoom(
+        gm.LatLng(fit.center.latitude, fit.center.longitude), fit.zoom,
+      ));
+      return;
+    }
     if (coordinates.length == 1) {
       await move(coordinates.first, maxZoom);
       return;
@@ -385,14 +406,29 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     _placeholderReadyNotified = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      widget.onMapReady?.call();
+      _notifyMapReady();
     });
+  }
+
+  void _notifyMapReady() {
+    widget.onMapReady?.call();
+    final route = widget.route;
+    if (kIsWeb && route != null && route.points.length >= 2) {
+      // A route can arrive before tiles are ready, or survive a tab change
+      // which recreates the map. Do not leave the driver framed on GPS only.
+      unawaited(widget.controller.fitCoordinates(
+        route.points,
+        padding: DriverMapConfig.routeEdgePadding(MediaQuery.sizeOf(context).width),
+      ).catchError((Object _) {
+        // Keep the route line and controls available if the SDK is not ready.
+      }));
+    }
   }
 
   void _onMapCreated(gm.GoogleMapController controller) {
     _nativeController = controller;
     widget.controller.attach(controller);
-    widget.onMapReady?.call();
+    _notifyMapReady();
   }
 
   Set<gm.Marker> get _markers {
@@ -499,7 +535,12 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     }
 
     final driverPoint = _driverPoint;
-    return gm.GoogleMap(
+    return LayoutBuilder(builder: (context, constraints) {
+      widget.controller.updateViewport(constraints.biggest);
+      return gm.GoogleMap(
+          // Full-screen app maps must accept the first one-finger drag.
+          // Leaving this automatic can select cooperative (two-finger) mode.
+          webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
       style: Theme.of(context).brightness == Brightness.dark
           ? ramoDarkMapStyle
           : ramoLightMapStyle,
@@ -522,7 +563,9 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: widget.navigationMode,
-    );
+      );
+    });
   }
 }
+
 

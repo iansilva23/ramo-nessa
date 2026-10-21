@@ -12,7 +12,7 @@ import { prepareBrowserSessionRequest, browserAuthResponse, clearBrowserSessionC
 import { browserName, launchTestBrowser } from './browser_test_runtime.mjs';
 const role = process.env.RAMO_WEB_TEST_ROLE;
 if (!['passenger', 'driver'].includes(role)) throw new Error('Specify RAMO_WEB_TEST_ROLE');
-const root = resolve(new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
+const root = resolve(process.env.RAMO_WEB_TEST_DIST ?? new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
 const prefix = role === 'passenger' ? '/passageiro/' : '/motorista/';
 test(browserName + '/' + role + ': release bundle logs in, restores cookie session and returns to login after logout', { timeout: 120000 }, async t => {
   let origin, session, publicHandle;
@@ -78,12 +78,18 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 },
+    ...(role === 'passenger' ? { permissions: ['geolocation'], geolocation: { latitude: -2.7956, longitude: -40.5142, accuracy: 5 } } : {}),
     ...(browserName === 'webkit' ? { isMobile: true, hasTouch: true,
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) });
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
-  const errors = [], remote = [];
-  page.on('pageerror', error => errors.push(error.message));
+  const errors = [], remote = [], failedAssets = [];
+  page.on('pageerror', error => errors.push(error.stack ?? error.message));
+  page.on('requestfailed', request => {
+    if (request.url().startsWith(origin + prefix + 'assets/')) {
+      failedAssets.push({ path: new URL(request.url()).pathname, error: request.failure()?.errorText });
+    }
+  });
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
@@ -93,10 +99,11 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     }
     remote.push(url.origin); return route.abort();
   });
-  await page.addInitScript(() => {
+  await page.addInitScript(suppressTiles => {
+    globalThis.ramoTestSuppressTiles = suppressTiles;
     globalThis.bundleViolations = [];
     addEventListener('securitypolicyviolation', event => bundleViolations.push({ directive: event.effectiveDirective, uri: event.blockedURI }));
-  });
+  }, role === 'passenger');
   try {
   await page.goto(origin + prefix);
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
@@ -132,6 +139,19 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
   await banner.waitFor({ state: 'hidden' });
   assert.equal(await banner.count(), 0, 'The installation banner can be dismissed without blocking the app');
+  // Inspect options received by the JS SDK stub through the real Web plugin.
+  // This proves configuration delivery, not real Google tiles or Safari GPU paint.
+  if (role === 'passenger') {
+    await page.waitForFunction(() => globalThis.ramoTestMapOptions?.length > 0);
+    assert.ok((await page.evaluate(() => ramoTestMapOptions)).every(options => options.gestureHandling === 'greedy'),
+      'Full-screen app maps must not fall back to cooperative two-finger gestures');
+    // Real plugin/controller initialization must not depend on every tile loading.
+    // GPS is synthetic and granted; its first camera update requires onMapCreated.
+    await page.waitForFunction(() => globalThis.ramoTestCameraUpdates?.length > 0,
+      undefined, { timeout: 10000 }).catch(() => { throw new Error('WEB_MAP_NOT_READY_WITH_STALLED_TILES'); });
+  }
+  // Driver's authentication fixture does not provide its operational registration
+  // or location permissions; it validates sessions without entering the map.
   assert.equal(loginCalls, 1);
   assert.match(publicHandle, new RegExp('^ramo_web_' + role + '_v1_[a-f0-9]{32}$'));
   const cookies = await page.context().cookies();
@@ -139,11 +159,16 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   assert.ok(authCookie?.httpOnly && authCookie.secure && authCookie.sameSite === 'Strict');
   assert.equal(await page.evaluate(() => document.cookie), '');
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
+  // Reload only after the async Flutter marker/engine asset requests finish.
+  // Otherwise WebKit reports the intentionally interrupted fetch as a pageerror.
+  // Keep all runtime/CSP/request failure assertions active below.
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByText('Adicionar app à Tela de Início', { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
   assert.equal(logout, 204);
@@ -153,6 +178,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   const violations = await page.evaluate(() => bundleViolations);
   assert.deepEqual(violations.filter(item => /script-src|worker-src|connect-src/.test(item.directive)), []);
   assert.deepEqual(errors, []);
+  assert.deepEqual(failedAssets, [], 'Bundled assets must finish without interrupted or failed requests');
   // No SDK/engine leaves loopback; Maps is an intercepted stub, not a real map test.
   assert.deepEqual([...new Set(remote)], []);
   } finally {
@@ -161,4 +187,5 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     await browser.close();
   }
 });
+
 

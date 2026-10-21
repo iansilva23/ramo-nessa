@@ -8,6 +8,23 @@ export class InMemoryPricingCatalogVersionRepository
   implements PricingCatalogVersionRepository {
   private readonly versions = new Map<string, PricingCatalogVersionRecord>();
   private nextVersion = 1;
+  private directQueue: Promise<unknown> = Promise.resolve();
+
+  commitDirect(input: Parameters<NonNullable<PricingCatalogVersionRepository['commitDirect']>>[0]): Promise<PricingCatalogVersionRecord | null> {
+    const save = async () => {
+      const effective = await this.findEffective(input.record.effectiveFrom!);
+      const future = [...this.versions.values()].some(r=>r.status==='published'&&r.effectiveFrom!>input.record.effectiveFrom!);
+      if ((effective?.id??null)!==input.expectedEffectiveId || future) return null;
+      const record: PricingCatalogVersionRecord = {...structuredClone(input.record),versionNumber:this.nextVersion};
+      await input.admin.appendAudit(input.audit);
+      this.nextVersion++;
+      this.versions.set(record.id,record);
+      return structuredClone(record);
+    };
+    const pending = this.directQueue.then(save);
+    this.directQueue = pending.catch(()=>{});
+    return pending;
+  }
 
   async createDraft(
     input: Parameters<PricingCatalogVersionRepository['createDraft']>[0],
@@ -75,6 +92,7 @@ export class InMemoryPricingCatalogVersionRepository
       return null;
     }
 
+    if ([...this.versions.values()].some(r=>r.status==='published'&&r.snapshot.managedOperations!=null)) return null;
     const updated: PricingCatalogVersionRecord = {
       ...current,
       status: 'published',

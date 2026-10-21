@@ -1,3 +1,4 @@
+import { OPERATIONAL_CATEGORIES } from './managed-operations.js';
 import type { PricingCatalogContext } from './effective-catalog.js';
 
 export function publicPricingPolicyView(
@@ -5,11 +6,22 @@ export function publicPricingPolicyView(
 ) {
   const snapshot = pricing.snapshot;
 
+  const ops = snapshot.managedOperations;
+  const usable = ops == null ? null : new Set(ops.rates.filter(rate => {
+    const regions = [rate.originRegionId,rate.destinationRegionId].map(id=>ops.regions.find(r=>r.id===id));
+    return rate.enabled && !rate.archived && (rate.day != null || rate.night != null) &&
+      regions.every(r=>r?.enabled && !r.archived && r.categoryIds.includes(rate.categoryId));
+  }).map(r=>r.categoryId));
   return {
+    ...(ops == null ? {} : {
+      managementMode: 'managed' as const,
+      regions: ops.regions.filter(r=>r.enabled&&!r.archived).map(r=>({...r})),
+      categories: ops.categories.filter(c=>c.enabled&&!c.archived&&usable?.has(c.id)&&OPERATIONAL_CATEGORIES.includes(c.id as typeof OPERATIONAL_CATEGORIES[number])).map(c=>({...c})),
+    }),
     sharedTransfers: snapshot.sharedTransfers?.enabled && snapshot.sharedTransfers.whatsappPhone ? structuredClone(snapshot.sharedTransfers) : null,
     localityGeofences: snapshot.localityGeofences.filter(area => snapshot.zonePolicies[area.zoneId].enabled).map(area=>({...area})),
     enabledCategories: snapshot.categories.filter(
-      (category) => snapshot.categoryPolicies[category].enabled,
+      (category) => snapshot.categoryPolicies[category].enabled && (usable == null || usable.has(category)),
     ),
     enabledZones: snapshot.zones.filter(
       (zoneId) => snapshot.zonePolicies[zoneId].enabled,
