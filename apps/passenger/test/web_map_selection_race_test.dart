@@ -76,10 +76,22 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   Navigator.of(tester.element(find.byType(DestinationSearchScreen))).pop(place);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
+  // Flush overlay removal, the awaited visible frame, then the selected state.
+  await tester.pump();
+  await tester.pump();
   await tester.pump();
 }
 
 void main() {
+  setUp(() {
+    if (!kIsWeb) return;
+    final previous = FlutterError.onError;
+    FlutterError.onError = (details) {
+      print('WEB_SELECTION_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      previous?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previous);
+  });
   testWidgets('Web waits for search transition before applying the selected route', (tester) async {
     if (!kIsWeb) return;
     final previousErrorHandler = FlutterError.onError;
