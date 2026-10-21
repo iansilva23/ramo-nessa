@@ -185,3 +185,63 @@ O comando operacional completo só deve ser fornecido após obter o pacote
 configurado aprovado e seus hashes. Não reutilizar activate-regions-pricing.mjs
 nem o reset para atualizar mapas. Instalação, prova pública dos arquivos e
 retorno precisam de autorização específica e permanecem separados da preparação.
+
+
+## Pacote aprovado e correção do ensaio de instalação
+
+A revisão `c6390a6d55610c5bcb45d78ddd03b623d23fe124` passou nos seis jobs
+Web/Core/PostgreSQL/ADM/browser do run 39623810684. O pacote configurado dos
+dois Web passou no run 39623811345, incluindo os fluxos compilados de sessão
+em Chromium e WebKit (serviços sintéticos). Artifact 12355793923, 36.920.908 bytes,
+SHA-256 `872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a`.
+O ZIP foi baixado e validado localmente: manifesto da revisão c6390a6d, 108 arquivos,
+94.485.882 bytes expandidos, sem arquivos extras ou divergências de integridade.
+
+A falha do run 39623357343 foi localizada: prepare-regions-activation.mjs usa
+`git diff --exit-code staged.sourceCommit prepared.revision -- apps/passenger
+apps/driver packages`. O ensaio baixava o ZIP original fa5ad133 e preparava a
+HEAD nova, que intencionalmente já contém as correções de mapas. O comando
+recusou combinar fontes distintas. Não houve falha do motor, perda de dados ou
+execução na VPS. O ensaio original agora prepara a revisão e24a5ecb, cujas fontes
+desses três diretórios são idênticas às do ZIP original, sem remover a proteção.
+
+A revisão operacional 9ab768635d8763db030e8aa850f11be5dabcdf5a acrescenta ensaios
+reais isolados para o pacote novo: preparação sem alterar serviços, troca exclusiva
+do bind dos dois Web com a imagem Gateway atual, prova HTTP dos arquivos, comparação
+do catálogo/corridas/pagamentos/ledger antes e depois, e falha sintética após troca
+para comprovar o retorno. O ensaio original de rollback do catálogo é preservado
+em cenário separado. Esse reset só ocorre no banco sintético criado pelo CI.
+
+activate-web-map-update.mjs requer o plano privado e seu SHA-256, valida hashes dos
+modelos e bundles, identidades de todos os serviços, Caddy e configuração atual.
+Somente recria o Gateway usando a mesma imagem e o mesmo ambiente. Não executa SQL,
+reset, migrações, build, atualização do Core/ADM ou alterações nativas. Verifica
+os arquivos publicados dos dois Web; falhas disparam retorno ao bind anterior e
+conferência. Se outra operação alterar o Gateway, recusa sobrescrevê-la no retorno.
+O journal registra completed, rolled-back ou requires-review sem alegar recuperação
+quando ela não foi confirmada. Nenhum dado privado deve ser enviado nos logs.
+
+Os 18 contratos Node e seis casos Python locais passaram. O resultado dos ensaios
+Docker/HTTP da revisão operacional deve ser consultado antes de fornecer o comando
+de instalação. O pacote não foi instalado na VPS e a tela branca permanece pendente
+de homologação física no iPhone/PWA dos dois aplicativos.
+
+
+Resultado dos ensaios operacionais de 9ab768635d8763db030e8aa850f11be5dabcdf5a:
+run 39631036259 aprovado nos três cenários: success, rollback_after_reset e
+map_rollback. O cenário success ativou de fato o pacote novo em Gateway/Caddy
+isolados e confirmou os bytes via HTTP. O cenário map_rollback provocou erro
+após a troca e a verificação dos arquivos, restaurou o bind anterior e verificou
+sua publicação. Nos dois casos, catálogo, corridas, pagamentos e ledger foram
+comparados antes/depois e permaneceram idênticos. O teste legado do catálogo
+voltou a passar preservando sua barreira de identidade das fontes. A validação
+leve de preparação/ativação também passou no run 39631036217.
+
+Esses resultados autorizam a preparação para homologação, não comprovam o
+comportamento da GPU/tiles Google no iPhone. Não houve execução na VPS real.
+
+A revisão Web completa da mesma revisão operacional também passou: run
+39631036362, seis jobs aprovados (Core, PostgreSQL, ADM, navegador, Passageiro
+e Motorista). Inclui o teste do ciclo de vida do alfinete Web corrigido, os
+testes de câmera no Chrome sem toque e ambos os builds release. Nenhuma
+verificação pendente é tratada como aprovada; aceitação no iPhone continua aberta.
