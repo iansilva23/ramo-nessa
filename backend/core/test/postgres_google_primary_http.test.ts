@@ -51,7 +51,7 @@ test('actual managed Core HTTP: Google first, unmodified queries, details/proofs
         latitude:-3.82428,longitude:-38.55410,radiusKm:25,categoryIds:['comfort_black'],enabled:true,archived:false,
       }}).snapshot;
       const id=randomUUID(),actor=randomUUID();
-      await pool.query("INSERT INTO pricing_catalog_versions(id,status,snapshot,effective_from,created_by_kind,created_by_id,created_by_name,created_at,updated_at,published_at) VALUES ($1,'published',$2,now()-interval '1 minute','user',$3,'Synthetic tester',now(),now(),now())",[id,snapshot,actor]);
+      await pool.query("INSERT INTO pricing_catalog_versions(id,status,snapshot,effective_from,created_by_kind,created_by_id,created_by_name,published_by_kind,published_by_id,published_by_name,created_at,updated_at,published_at) VALUES ($1,'published',$2,now()-interval '1 minute','user',$3,'Synthetic tester','user',$3,'Synthetic tester',now(),now(),now())",[id,snapshot,actor]);
       await pool.query("INSERT INTO geo_catalog_places(id,source,source_id,name,normalized_name,normalized_address,address,category,city,latitude,longitude) VALUES ('geo:manual:fixture','manual','fixture','Fortaleza local fixture','fortaleza local fixture','prea','Preá CE','poi','Cruz',-2.82017,-40.41467)");
       const before=(await pool.query('SELECT snapshot FROM pricing_catalog_versions WHERE id=$1',[id])).rows[0].snapshot;
       await new Promise<void>(resolve=>mock.listen(0,'127.0.0.1',resolve));
