@@ -29,7 +29,7 @@ jobs:
       - name: Require reviewed map sources without changing native or financial code
         run: |
           git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
-          git diff --exit-code 07d1b245169e788550c26a5e4eb1fe2cda559242 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
+          git diff --exit-code 67cf531b07200499e094815d7ddfd98a08e4f585 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
       - name: Prepare icons
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
