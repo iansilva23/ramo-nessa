@@ -49,6 +49,13 @@ class RamoMapController {
   gm.GoogleMapController? _nativeController;
   bool _disposed = false;
   int _cameraRequestId = 0;
+  Size _viewport = Size.zero;
+  EdgeInsets _viewportPadding = EdgeInsets.zero;
+
+  void updateViewport(Size size, EdgeInsets padding) {
+    _viewport = size;
+    _viewportPadding = padding;
+  }
 
   bool get ready => !_disposed && _nativeController != null;
 
@@ -84,6 +91,22 @@ class RamoMapController {
     final controller = _nativeController;
     if (!ready || controller == null || coordinates.isEmpty) return;
 
+    if (kIsWeb) {
+      final fit = RamoMapCameraFit.calculate(
+        points: coordinates.map((p) => RamoMapPoint(p.latitude, p.longitude)).toList(),
+        viewport: _viewport,
+        padding: _viewportPadding,
+        edgePadding: edgePadding,
+        maxZoom: maxZoom,
+      );
+      if (fit == null) return;
+      _cameraRequestId++;
+      // One complete target. Never read a stale zoom after Web fitBounds.
+      await controller.moveCamera(gm.CameraUpdate.newLatLngZoom(
+        gm.LatLng(fit.center.latitude, fit.center.longitude), fit.zoom,
+      ));
+      return;
+    }
     if (!RamoMapConfig.hasRouteBounds(coordinates)) {
       // A zero-length route must not be passed to newLatLngBounds: native
       // map SDKs can yield an unstable zoom for identical endpoints.
@@ -117,14 +140,8 @@ class RamoMapController {
       ),
       edgePadding,
     );
-    // On Safari/Web, changing map padding and animating through multiple
-    // zoom levels can race the map renderer's tile loading. Move directly to
-    // the final bounds there; retain the existing native camera animation.
-    if (kIsWeb) {
-      await controller.moveCamera(boundsUpdate);
-    } else {
-      await controller.animateCamera(boundsUpdate);
-    }
+    // Keep the existing native SDK bounds and animation behavior.
+    await controller.animateCamera(boundsUpdate);
 
     // A newer location/route may have replaced this camera movement.
     if (!ready || controller != _nativeController ||
@@ -138,11 +155,7 @@ class RamoMapController {
     }
     if (currentZoom > maxZoom) {
       final zoomUpdate = gm.CameraUpdate.zoomTo(maxZoom);
-      if (kIsWeb) {
-        await controller.moveCamera(zoomUpdate);
-      } else {
-        await controller.animateCamera(zoomUpdate);
-      }
+      await controller.animateCamera(zoomUpdate);
     }
   }
 
@@ -530,7 +543,9 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       );
     }
 
-    return gm.GoogleMap(
+    return LayoutBuilder(builder: (context, constraints) {
+      widget.controller.updateViewport(constraints.biggest, widget.cameraPadding);
+      return gm.GoogleMap(
       style: Theme.of(context).brightness == Brightness.dark
           ? ramoDarkMapStyle
           : ramoLightMapStyle,
@@ -559,6 +574,8 @@ class _RamoLiveMapState extends State<RamoLiveMap>
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: false,
-    );
+      );
+    });
   }
 }
+

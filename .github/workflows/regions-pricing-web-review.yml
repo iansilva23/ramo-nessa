@@ -56,6 +56,13 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - working-directory: apps/${{ matrix.app }}
         run: flutter analyze --no-fatal-infos && flutter test
+      - name: Verify shared map projection and padding
+        if: matrix.app == 'passenger'
+        working-directory: packages/design_system
+        run: flutter pub get && flutter test test/ramo_map_camera_fit_test.dart
+      - name: Verify Web map camera regression on Chrome without touch input
+        working-directory: apps/${{ matrix.app }}
+        run: flutter test --platform chrome test/web_map_camera_test.dart
       - name: Verify managed pricing on actual Chrome runtime
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
@@ -124,4 +131,5 @@ jobs:
           path: apps/admin/regions-browser-artifacts
           if-no-files-found: ignore
           retention-days: 14
+
 
