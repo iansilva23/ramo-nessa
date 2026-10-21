@@ -191,6 +191,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   bool _routeLoading = false;
   bool _preparingRide = false;
   int _routeRequestId = 0;
+  int _originSelectionRevision = 0;
   int? _pendingRouteFitId;
   AgencyPromotion? _agencyPromotion;
   PassengerPricingPolicy? _pricingPolicy;
@@ -464,11 +465,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    final originSelectionRevision = _originSelectionRevision;
     setState(() => _locating = true);
 
     try {
       final location = await _locationService.getCurrentLocation();
       if (!mounted) {
+        return;
+      }
+
+      if (kIsWeb && originSelectionRevision != _originSelectionRevision) {
+        setState(() => _locating = false);
         return;
       }
 
@@ -507,6 +514,11 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       }
 
       if (!mounted) {
+        return;
+      }
+
+      if (kIsWeb && originSelectionRevision != _originSelectionRevision) {
+        setState(() => _locating = false);
         return;
       }
 
@@ -579,6 +591,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     }
 
     _routeRequestId++;
+    _originSelectionRevision++;
 
     setState(() {
       _origin = origin;
@@ -796,7 +809,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       return;
     }
 
+    // Policy loading is asynchronous too. A newer selection can occur before
+    // the route request has even started; invalidate the whole Web operation.
+    final selectionRevision = _routeRequestId;
     await _loadPricingPolicy();
+    if (!mounted || (kIsWeb && (selectionRevision != _routeRequestId ||
+        !identical(origin, _origin) || !identical(destination, _destination)))) {
+      return;
+    }
 
     final coverage = RamoServiceArea.checkPlaceTrip(
       catalogZones: _pricingPolicy?.catalogZones,
@@ -1319,3 +1339,4 @@ class _UnavailablePlaceSearchService implements PlaceSearchService {
     );
   }
 }
+

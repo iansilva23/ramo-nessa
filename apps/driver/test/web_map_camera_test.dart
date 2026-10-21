@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:latlong2/latlong.dart';
@@ -19,7 +20,37 @@ class RecordingMap extends Fake implements gm.GoogleMapController {
   Future<double> getZoomLevel() async { zoomReads++; return 19; }
 }
 
+class ReadyRouteController extends DriverMapController {
+  List<LatLng>? fitted;
+  @override
+  Future<void> fitCoordinates(List<LatLng> coordinates, {double padding = 90, double maxZoom = 16.5, bool animate = true}) async {
+    fitted = coordinates;
+  }
+}
+
 void main() {
+  testWidgets('loaded route is framed when Web map becomes ready again', (tester) async {
+    final controller = ReadyRouteController();
+    const points = [LatLng(-2.82, -40.41), LatLng(-2.85, -40.43), LatLng(-2.8986, -40.4506)];
+    var ready = 0;
+    Widget screen() => MaterialApp(home: SizedBox(width: 390, height: 760,
+      child: DriverLiveMap(controller: controller, supply: null, activeRide: null,
+        route: const DriverRouteInfo(points: points, distanceMeters: 14000, duration: Duration(minutes: 30)),
+        onMapReady: () => ready++, networkTilesEnabled: false)));
+    await tester.pumpWidget(screen());
+    await tester.pump();
+    expect(ready, 1);
+    expect(controller.fitted, kIsWeb ? points : isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.fitted = null;
+    await tester.pumpWidget(screen());
+    await tester.pump();
+    expect(ready, 2);
+    expect(controller.fitted, kIsWeb ? points : isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+    expect(tester.takeException(), isNull);
+  });
   test('route selection sends a complete Web camera without a gesture or stale zoom', () async {
     final sdk = RecordingMap();
     final controller = DriverMapController();

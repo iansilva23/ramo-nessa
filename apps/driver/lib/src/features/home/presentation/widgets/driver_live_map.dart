@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -405,14 +406,29 @@ class _DriverLiveMapState extends State<DriverLiveMap>
     _placeholderReadyNotified = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      widget.onMapReady?.call();
+      _notifyMapReady();
     });
+  }
+
+  void _notifyMapReady() {
+    widget.onMapReady?.call();
+    final route = widget.route;
+    if (kIsWeb && route != null && route.points.length >= 2) {
+      // A route can arrive before tiles are ready, or survive a tab change
+      // which recreates the map. Do not leave the driver framed on GPS only.
+      unawaited(widget.controller.fitCoordinates(
+        route.points,
+        padding: DriverMapConfig.routeEdgePadding(MediaQuery.sizeOf(context).width),
+      ).catchError((Object _) {
+        // Keep the route line and controls available if the SDK is not ready.
+      }));
+    }
   }
 
   void _onMapCreated(gm.GoogleMapController controller) {
     _nativeController = controller;
     widget.controller.attach(controller);
-    widget.onMapReady?.call();
+    _notifyMapReady();
   }
 
   Set<gm.Marker> get _markers {
