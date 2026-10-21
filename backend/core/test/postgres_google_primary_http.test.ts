@@ -90,6 +90,11 @@ test('actual managed Core HTTP: Google first, unmodified queries, details/proofs
       const beforeAuth=calls.length;
       assert.equal((await request('/v1/maps/places/autocomplete',{searchMode:'google',input:'fortal',sessionToken:session},'invalid')).status,401);
       assert.equal(calls.length,beforeAuth);
+      const saved=await request('/v1/maps/places/details',{searchMode:'google',placeId:'geo:manual:fixture',sessionToken:session,localOnly:false});
+      assert.equal(saved.status,200);assert.equal(saved.body.provider,'ramo-geo');
+      assert.equal(saved.body.place.approvedPricingLocalityId,'prea');assert.equal(calls.length,beforeAuth);
+      assert.equal((await request('/v1/maps/places/details',{searchMode:'google',placeId:'geo:manual:missing',sessionToken:session})).status,404);
+      assert.equal(calls.length,beforeAuth);
       const legacy=await request('/v1/maps/places/autocomplete',{input:'fortal',sessionToken:session,localOnly:true});
       assert.equal(legacy.body.provider,'ramo-geo');assert.equal(calls.length,beforeAuth);
       failGoogle=true;

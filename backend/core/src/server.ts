@@ -2302,6 +2302,17 @@ const server = createServer(async (request, response) => {
         if (value.searchMode === 'google') {
           const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
           if (current.snapshot.managedOperations != null) {
+            if (typeof value.placeId === 'string' && value.placeId.startsWith('geo:')) {
+              // Explicitly selected saved/manual locations remain resolvable.
+              // They never replace the Google suggestions for a typed query.
+              const local = geoSearchEnabled ? await geoCatalogRepository.findById(value.placeId) : null;
+              const approved = local == null ? null : await approvedGeoPlace(local);
+              if (approved == null) {
+                json(response,404,{error:'LOCAL_PLACE_NOT_FOUND',message:'Endereço salvo não encontrado na base regional aprovada.'});return;
+              }
+              if (isAuthenticatedPassenger) observeSelectedGeoPlace(value.placeId);
+              json(response,200,{provider:'ramo-geo',place:approved});return;
+            }
             const result = await googlePrimaryPlaces({action:'details',body:value,catalog:current.snapshot,
               google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds});
             if (isAuthenticatedPassenger && 'place' in result && result.place) {
