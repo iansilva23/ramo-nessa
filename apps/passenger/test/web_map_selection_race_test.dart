@@ -69,17 +69,29 @@ class RecordingRoutes implements RouteService {
 }
 
 Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) async {
+  if (kIsWeb) {
+    final previous = FlutterError.onError;
+    FlutterError.onError = (details) {
+      print('WEB_PICK_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      previous?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previous);
+  }
   final card = tester.widget<RideBottomSheet>(find.byType(RideBottomSheet));
   if (origin) { card.onOriginTap(); } else { card.onDestinationTap(); }
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 350));
-  Navigator.of(tester.element(find.byType(DestinationSearchScreen))).pop(place);
+  final search = tester.element(find.byType(DestinationSearchScreen));
+  final route = ModalRoute.of(search)!;
+  await tester.pump(route.transitionDuration);
+  Navigator.of(search).pop(place);
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 350));
-  // Flush overlay removal, the awaited visible frame, then the selected state.
+  // Use the actual theme transition duration, not an assumed 350 ms. Recent
+  // Material transitions can last longer; zero-duration pumps do not finish it.
+  await tester.pump(route.reverseTransitionDuration);
   await tester.pump();
   await tester.pump();
   await tester.pump();
+  expect(find.byType(DestinationSearchScreen), findsNothing);
 }
 
 void main() {
