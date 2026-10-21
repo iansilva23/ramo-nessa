@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show PlatformViewCreatedCallback;
@@ -10,6 +12,12 @@ import 'package:ramo_nessa_passenger/src/features/map/data/place_search_service.
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/presentation/saved_place_pin_screen.dart';
 
+class DelayedReverse extends NoSearch implements CoordinateAddressResolver {
+  final response = Completer<RamoPlace?>();
+  @override
+  Future<RamoPlace?> reverseCoordinate(LatLng coordinate) => response.future;
+}
+
 class NoSearch implements PlaceSearchService {
   @override
   Future<List<RamoPlace>> search(String query) async => [];
@@ -17,6 +25,9 @@ class NoSearch implements PlaceSearchService {
 
 // Real GoogleMap/GoogleMapController lifecycle, no provider/DOM/tiles.
 class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
+  final configurations = <gi.MapConfiguration>[];
+  @override
+  Future<void> updateMapConfiguration(gi.MapConfiguration update, {required int mapId}) async { configurations.add(update); }
   final created = <int>{};
   final disposals = <int, int>{};
   @override
@@ -73,6 +84,30 @@ class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
 }
 
 void main() {
+  testWidgets('Web pin allows one-finger drag and locks gestures while saving', (tester) async {
+    if (!kIsWeb) return;
+    final original = gi.GoogleMapsFlutterPlatform.instance;
+    final sdk = LifecycleMapPlatform();
+    gi.GoogleMapsFlutterPlatform.instance = sdk;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      gi.GoogleMapsFlutterPlatform.instance = original;
+    });
+    final resolver = DelayedReverse();
+    await tester.pumpWidget(MaterialApp(home: SavedPlacePinScreen(
+      searchService: resolver, initialPosition: const LatLng(-2.82017, -40.41467))));
+    await tester.pumpAndSettle();
+    expect(tester.widget<gm.GoogleMap>(find.byType(gm.GoogleMap)).webGestureHandling, gm.WebGestureHandling.greedy);
+    await tester.tap(find.text('Confirmar este ponto'));
+    await tester.pump();
+    expect(tester.widget<gm.GoogleMap>(find.byType(gm.GoogleMap)).webGestureHandling, gm.WebGestureHandling.none);
+    expect(sdk.configurations.last.webGestureHandling, gi.WebGestureHandling.none);
+    await tester.pumpWidget(const SizedBox.shrink());
+    resolver.response.complete(null);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('returning from Web pin screen disposes each SDK map exactly once', (tester) async {
     if (!kIsWeb) return;
     final originalErrorHandler = FlutterError.onError;

@@ -82,7 +82,9 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
         gm.GoogleMap(
           // Full-screen app maps must accept the first one-finger drag.
           // Leaving this automatic can select cooperative (two-finger) mode.
-          webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
+          webGestureHandling: kIsWeb
+              ? (_saving ? gm.WebGestureHandling.none : gm.WebGestureHandling.greedy)
+              : null,
           initialCameraPosition: gm.CameraPosition(target: gm.LatLng(_point.latitude, _point.longitude), zoom: 17),
           onMapCreated: (controller) {
             _map = controller;
