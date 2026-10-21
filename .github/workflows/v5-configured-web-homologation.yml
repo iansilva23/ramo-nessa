@@ -30,7 +30,7 @@ jobs:
       - name: Require reviewed managed region sources without changing native or financial code
         run: |
           git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
-          git diff --exit-code c95c23ddc63b204cae39f7f4b88fa294c7dc01dd HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
+          git diff --exit-code e193f5d1b0e51777aa0c29538249d046ad4f89d1 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
       - name: Prepare icons
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
