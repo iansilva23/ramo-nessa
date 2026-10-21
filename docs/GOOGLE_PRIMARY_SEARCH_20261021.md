@@ -138,13 +138,72 @@ Artifacts aprovados, fonte 731d524d55ecfab945605c00611abd067bc955c5:
 - Patch Core (não é instalador): 12390246564, SHA-256 ZIP
   d32112d01b48c2c72af6a70ebab3bc8f565c3c87d6e3ac5fc2c42314f507d2eb.
 
-Não usar o artifact de depuração 12390370278 como release. Ainda é obrigatório
-conferir o Core ativo e montar/ensaiar a troca compatível com o runtime real
-antes de qualquer atualização na VPS. Nenhuma ativação foi realizada nesta etapa.
+Não usar o artifact de depuração 12390370278 como release. A ativação exige os
+dois pacotes aprovados e o procedimento específico de busca; o patch isolado
+não deve ser instalado pelos scripts antigos de mapas/reset.
 
 Validação local dos artifacts: 108 arquivos Web, 94.500.512 bytes expandidos,
 manifesto/fonte/hashes corretos e Maps/Firebase públicos preservados nos dois
 clientes. Os seis arquivos do patch Core e os dois hashes de árvore compilada
 foram conferidos contra o manifesto. Run 39693460342 terminou com seis jobs
-aprovados na mesma revisão dos pacotes. A identificação do runtime real da VPS
-permanece pendente do retorno do operador.
+aprovados na mesma revisão dos pacotes.
+
+## Inventário real recebido e atualização sem reset
+
+Inventário de leitura gerado na VPS em 2026-10-21T23:22:57.433Z:
+
+- Core ativo: sha256:de12cb8230f155d9c088bb12be097a2f866f368c2489e2da6ee55a098b8f6809.
+  Os 235 arquivos JS e o lock correspondem exatamente à base compilada acima.
+- Gateway ativo: sha256:72c5f3b8fb7152673823fa968bf0d79e623805b2449d5faab3d78b7c8afd8cd6.
+  Web montada em /opt/ramo-nessa-web/releases/maps-0f5305ddef33/bundles.
+- Catálogo gerenciado versão 81: 41 localidades e 14 tarifas ativas. São dados
+  operacionais atuais, a preservar; não executar novamente a limpeza inicial.
+
+prepare-google-search-update.mjs recebe os ZIPs Web e Core aprovados, verifica
+hashes e proveniência, recusa Core/Web diferentes da referência auditada e
+captura separadamente os Compose efetivos do Core e Gateway. Configurações
+privadas ficam apenas na pasta root 0700 da VPS, sem valores no terminal.
+Uma imagem derivada da imagem Core efetivamente instalada recebe somente os
+seis arquivos compilados. Configuração da imagem, árvore JS completa e lock são
+verificados antes da troca. O patch não recria o financeiro a partir de outra
+branch e não executa migrations, reset ou comandos SQL.
+
+A preparação grava uma candidata inativa, mantém as imagens/bundles anteriores,
+compara Maps/Firebase públicos e gera plano privado com SHA-256. Não reinicia
+serviços. activate-google-search-update.mjs recebe caminho e SHA desse plano e
+revalida imagens, configurações, Caddy, arquivos e identidade dos serviços.
+Troca primeiro o Core, que continua compatível com o cliente anterior, e depois
+a Web. Confere saúde, ambiente literal, volumes, proteções, árvore Core e bytes
+Web publicados por HTTP. O Gateway usa a mesma imagem, preservando o ADM.
+
+Em falha, restaura a Web antes do Core e verifica o retorno. Se uma mudança
+concorrente impedir retorno seguro, registra requires-review e não afirma
+recuperação. Registra completed ou rolled-back somente após as verificações
+correspondentes. O catálogo e os registros existentes não são restaurados de
+um backup antigo. Os serviços PostgreSQL, mapas auxiliares e site não são
+reiniciados. Android/iOS não recebem atualização.
+
+O ensaio de instalação usa apenas um runner descartável com Core anterior real,
+PostgreSQL, Caddy e os ZIPs aprovados. Verifica bloqueio por configuração alterada,
+falhas provocadas após Core e após Web, retorno completo e instalação bem-sucedida.
+Compara os dados sintéticos do banco e os serviços fora do escopo. Esse ensaio
+não acessa a VPS nem substitui o aceite da API Google real e do iPhone instalado.
+
+Ensaio aprovado: run 39696048923, revisão operacional
+2bfa29dbaabbd9ee8626f8d9092d857a77581aa2. As três situações foram executadas
+com contêineres reais: falha após Core com retorno confirmado, falha após Web
+com retorno confirmado e ativação completa verificada por HTTP. Os dados
+sintéticos do banco, catálogo publicado, sentinela financeira, ADM, ambiente
+literal com cifrões, Caddy e serviços fora do escopo permaneceram iguais.
+A mudança concorrente do arquivo Caddy foi recusada antes de qualquer reinício.
+Também foram aprovados 18 testes de contratos de troca/retorno e seis testes
+do extrator Web. A imagem Core derivada mantém as camadas da imagem anterior,
+além da configuração e dos hashes compilados conferidos.
+
+Situação da entrega: código, pacotes e instalador revisados e testados; nenhuma
+ativação na VPS executada pelo desenvolvimento. O operador deve instalar os
+dois ZIPs com os scripts prepare/activate específicos de busca. Após o status
+BUSCA_GOOGLE_ATUALIZADA, confirmar no Passageiro Web instalado no iPhone:
+fortal, Fortaleza sem CE, estabelecimentos/endereço, escolha de local dentro
+da cobertura e indisponibilidade clara fora da cobertura. Homologação Google
+real e aparelho físico permanecem pendentes até esse aceite.
