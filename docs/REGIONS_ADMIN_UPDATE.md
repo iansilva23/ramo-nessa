@@ -20,3 +20,13 @@ Uma execução sobre a candidata já instalada apenas confere os arquivos públi
 
 ## Ensaio
 O workflow `Regions Admin - Safe Help Update` usa Core e ADM reais da base auditada, Caddy, PostgreSQL 16 e dados sintéticos. Exercita sucesso/idempotência e falha após troca com retorno; compara a política pública e assinaturas de todas as tabelas públicas, incluindo tarifa configurada, corrida, pagamento e ledger. Os providers externos ficam desativados. Os testes de interface da fonte candidata já passaram separadamente em Chromium/WebKit e 1440/860/390 px.
+
+## Resultado verificado — 20/10/2026 (Fortaleza)
+Ferramenta da revisão `dbe145be7d25a9ef360cd06636c66c6a0cfa2afc`, fonte do ADM `7efa18dc87da800d313357902316107029735666`.
+[Ensaio 39519398332](https://github.com/iansilva23/ramo-nessa/actions/runs/39519398332): dois jobs aprovados, com cinco testes de contrato em cada um e execução real do procedimento.
+
+- Sucesso: imagem do Gateway trocada, conteúdo completo do ADM conferido por HTTP, ajuda/coordenadas presentes; segunda execução informa ADM_JA_ATUALIZADO sem reiniciar.
+- Retorno: falha simulada após a troca e conferência da candidata recupera imagem e arquivos anteriores, com journal rolled-back/rollbackComplete.
+- Nos dois cenários: mesmo container do Core, política pública idêntica e assinaturas de todas as tabelas públicas idênticas, incluindo tarifa pré-existente, corrida, pagamento e ledger. Web/mounts/Caddy/ambiente preservados, incluindo dólares literais.
+
+Os ensaios rodaram exclusivamente no GitHub Actions. A execução autorizada na VPS é feita pelo operador com o comando fixado nessa revisão. O resultado real ainda precisa ser recebido antes de registrar a instalação concluída. A homologação funcional conectada permanece separada.
