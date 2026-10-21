@@ -20,7 +20,8 @@ def safe_path(value):
         raise ValueError('Caminho inseguro.')
     return value
 
-def validate_and_stage(archive, expected_sha, output):
+def validate_and_stage(archive, expected_sha, output, source=SOURCE):
+    if not isinstance(source, str) or not re.fullmatch('[a-f0-9]{40}', source): raise ValueError('Revisão inválida.')
     if not re.fullmatch('[a-f0-9]{64}', expected_sha): raise ValueError('Checksum inválido.')
     fd = os.open(archive, os.O_RDONLY | os.O_NOFOLLOW)
     with os.fdopen(fd, 'rb') as stream:
@@ -44,10 +45,10 @@ def validate_and_stage(archive, expected_sha, output):
             raise ValueError('Manifesto ausente ou pacote grande demais.')
         if bundle.getinfo('release.json').file_size > 2 * 1024**2: raise ValueError('Manifesto grande demais.')
         manifest = json.loads(bundle.read('release.json'), object_pairs_hook=unique)
-        expected = {'schemaVersion': 1, 'commit': SOURCE, 'expectedOrigin': 'https://app.ramonessa.com.br', 'expectedProject': 'ramo-nessa', 'structuralCheck': True, 'providerHomologation': False}
+        expected = {'schemaVersion': 1, 'commit': source, 'expectedOrigin': 'https://app.ramonessa.com.br', 'expectedProject': 'ramo-nessa', 'structuralCheck': True, 'providerHomologation': False}
         if not isinstance(manifest, dict) or any(type(manifest.get(k)) is not type(v) or manifest.get(k) != v for k, v in expected.items()):
             raise ValueError('Manifesto diferente da referência aprovada.')
-        if bundle.read('source-commit.txt').decode().strip() != SOURCE or set(manifest.get('roles', {})) != {'passenger', 'driver'}:
+        if bundle.read('source-commit.txt').decode().strip() != source or set(manifest.get('roles', {})) != {'passenger', 'driver'}:
             raise ValueError('Origem ou aplicativos divergentes.')
         declared, contents = {}, {}
         for role in ('passenger', 'driver'):
@@ -81,12 +82,15 @@ def validate_and_stage(archive, expected_sha, output):
             target.write_bytes(raw); target.chmod(0o644)
         for path in output.rglob('*'):
             if path.is_dir(): path.chmod(0o755)
-        return {'sourceCommit': SOURCE, 'archiveSha256': expected_sha, 'files': len(contents), 'expandedBytes': total, 'bundleRoot': str(output), 'providerHomologation': False}
+        return {'sourceCommit': source, 'archiveSha256': expected_sha, 'files': len(contents), 'expandedBytes': total, 'bundleRoot': str(output), 'providerHomologation': False}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--archive', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--source', default=SOURCE)
+    parser.add_argument('--sha256', default=ARCHIVE_SHA256)
     args = parser.parse_args()
-    try: print(json.dumps(validate_and_stage(args.archive, ARCHIVE_SHA256, args.output)))
+    try: print(json.dumps(validate_and_stage(args.archive, args.sha256, args.output, args.source)))
     except Exception as error: raise SystemExit(str(error))
+

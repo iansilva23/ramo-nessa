@@ -67,9 +67,12 @@ A correção adicional do encerramento do alfinete está no commit
 07d1b245169e788550c26a5e4eb1fe2cda559242. O teste de ciclo de vida usa
 os componentes reais GoogleMap/GoogleMapController com a interface de SDK
 substituída por um contador e exige um descarte por instância ao abrir/fechar
-duas vezes. Sua execução adicional em CI ainda não apareceu para esse commit;
-não se considera esse ajuste adicional homologado. A suíte anterior aprovada
-não substitui esse teste novo.
+duas vezes. A execução adicional 39620905543 iniciou e falhou no fixture, que não
+implementava updateTileOverlays, chamado pelo próprio SDK durante a criação.
+O fixture foi completado sem alterar a proteção de descarte da candidata;
+nova revisão de testes: c6390a6d55610c5bcb45d78ddd03b623d23fe124.
+Não se considera esse ajuste adicional homologado antes da aprovação dessa
+rodada. A suíte anterior aprovada não substitui o teste novo.
 
 A primeira rodada identificou timers de uma consulta opcional de conteúdo
 no fixture da tela inicial (divulgação e consulta de versão). Esses serviços passaram a ser explicitamente
@@ -147,3 +150,38 @@ Não orientar o usuário a apagar dados/reinstalar como substituto do diagnósti
 
 O mapa branco não está marcado como resolvido em aparelho real. A candidata
 continua no PR DRAFT e aguarda homologação conectada, sem merge ou implantação.
+
+
+## Preparação da atualização dos dois Web
+
+A revisão c6390a6d55610c5bcb45d78ddd03b623d23fe124 prepara bundles configurados
+com os caminhos /passageiro/ e /motorista/, Firebase e chave Maps Web já
+existentes. A rotina não implanta. O pacote passa pela verificação do manifesto
+e pelos fluxos compilados de login, recuperação de sessão e logout em Chromium
+e WebKit com serviços sintéticos. Esses testes não homologam tiles Google reais.
+
+A ferramenta prepare-web-map-update.mjs é exclusivamente de preparação na VPS:
+
+- Requer o ZIP configurado e seu SHA-256 confirmado; rejeita arquivos simbólicos,
+  pacotes de revisão e divergências no manifesto/arquivos.
+- Confere a ativação Web previamente fornecida pelo operador e o hash completo
+  dos Web ativos. Se os aplicativos mudaram desde então, interrompe para evitar
+  sobrescrever trabalho de outra branch/chat.
+- Confere que a diferença de fontes dos apps se limita aos arquivos dos mapas.
+- Compara Maps/Firebase dos novos pacotes com os Web atualmente instalados.
+- Preserva a imagem do Gateway/ADM, o Caddy atual, os serviços e o ambiente
+  resolvido. Guarda os modelos privados de candidata e retorno.
+- Só grava a candidata em um novo diretório e o plano privado. Não executa
+  compose up, SQL, migrações, reset, troca de mount ou reinício.
+- Recusa repetir uma preparação existente; nenhum diretório ativo é apagado.
+
+O validador de ZIP anterior mantém os defaults imutáveis da ativação original;
+a revisão nova é informada explicitamente apenas pela ferramenta dos mapas.
+Seis testes Python de staging e quatro contratos Node da preparação passaram
+localmente. Os contratos compartilhados de mudança exclusiva do mount também
+são executados pela revisão CI. Não houve execução desta ferramenta na VPS.
+
+O comando operacional completo só deve ser fornecido após obter o pacote
+configurado aprovado e seus hashes. Não reutilizar activate-regions-pricing.mjs
+nem o reset para atualizar mapas. Instalação, prova pública dos arquivos e
+retorno precisam de autorização específica e permanecem separados da preparação.
