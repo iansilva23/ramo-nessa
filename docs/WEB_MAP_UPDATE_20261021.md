@@ -1,59 +1,87 @@
-# Atualização dos mapas Web — homologação
+# Seguimento dos mapas Web — homologação física pendente
 
-Pacote aprovado: c6390a6d55610c5bcb45d78ddd03b623d23fe124.
-Ferramentas operacionais aprovadas: 9ab768635d8763db030e8aa850f11be5dabcdf5a.
-ZIP: artifact 12355793923 do run 39623811345.
-SHA-256: 872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a.
+A versão c639 foi instalada na VPS, mas o proprietário confirmou que o fundo do
+mapa ainda fica vazio no iPhone/PWA. Esta candidata ajusta o gesto do mapa e a
+ordem de retorno da busca e atualiza somente o plugin Maps Web para o patch
+oficial 0.6.4+2, que evita bloquear onMapCreated quando tiles atrasam/falham.
+A causa do fundo vazio no aparelho ainda não está
+confirmada. Não repetir o reset nem a instalação do pacote c639.
 
-## Escopo e evidência
+## Versões e pacote
 
-Somente Passageiro Web e Motorista Web. Gateway recriado com a mesma imagem,
-mesmo ADM, mesmo ambiente e Caddy atual. Core, banco, catálogo, tarifas,
-financeiro, site e Android/iOS não são atualizados. Não executar novamente o
-reset nem activate-regions-pricing.mjs para instalar os mapas.
+- Fonte dos bundles: 0ad3ba73cfe2a1265344de09c75309b95daac8dd.
+- Ferramentas operacionais: dd9b68bc149a37c0456f5b05e229d426a5ed1455.
+- Artifact configurado: 12365640705 do run 39641033029 aprovado.
+- SHA-256 ZIP: 392f89862e0a46ad7010cb44618f2110f87cb1e3fd860e7c135beefefa84b46e.
+- Preparação nova: /opt/ramo-nessa-regions/map-web-updates/0ad3ba73cfe2.
+- Base instalada exigida: plano c639, SHA-256 dd59053306a0646817c4e7c4423332690a019834172fd8e7e5c7a4cc0158742a.
 
-O run 39631036259 passou nos três cenários: instalação original com pacote
-compatível, rollback do catálogo original exclusivamente em banco sintético e
-instalação dos mapas com falha provocada/retorno verificado. A instalação dos
-mapas e o retorno usaram Docker, Core, PostgreSQL e Caddy reais, isolados dos
-serviços da VPS. Arquivos servidos foram conferidos por HTTP. Catálogo, corridas,
-pagamentos e ledger permaneceram iguais durante os ensaios dos mapas.
+Somente Passageiro Web e Motorista Web. O Gateway é recriado com a mesma imagem,
+ADM, ambiente e Caddy atuais. Core, banco, tarifas, financeiro, site e Android/iOS
+não são atualizados. Não executar activate-regions-pricing.mjs para mapas.
 
-## Operação após autorização do responsável
+## Preparação e ativação após autorização do responsável
 
-Baixar o ZIP configurado do run indicado; nunca instalar o artifact de revisão
-que usa example.invalid. Buscar a branch sem alterar o checkout e extrair somente
-as ferramentas do commit operacional informado para um diretório temporário.
+Buscar a branch sem alterar o checkout. Extrair somente deploy/staging do commit
+operacional informado para uma pasta temporária. Baixar o ZIP configurado e
+conferir seu SHA-256; não instalar artifacts de revisão example.invalid.
 
-Executar com sudo:
-
-```sh
-node deploy/staging/prepare-web-map-update.mjs /caminho/absoluto/mapas.zip 872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a
-```
-
-A preparação deve retornar MAPAS_WEB_PREPARADOS_SEM_ATIVACAO. Se informar que o
-Web atual mudou, parar e auditar a nova versão; não contornar o bloqueio. Não
-repetir uma preparação existente nem apagar suas pastas para tentar novamente.
-
-Conferir a preparação privada e seu SHA-256 retornado. A ativação explícita usa:
+Executar com sudo, usando o Node instalado:
 
 ```sh
-node deploy/staging/activate-web-map-update.mjs /opt/ramo-nessa-regions/map-web-updates/c6390a6d5561 SHA256_DA_PREPARACAO
+node deploy/staging/prepare-web-map-update.mjs /caminho/absoluto/mapas.zip 392f89862e0a46ad7010cb44618f2110f87cb1e3fd860e7c135beefefa84b46e
 ```
 
-O SHA é específico do plano da VPS; não é o SHA do ZIP. A ferramenta revalida os
-serviços, hashes dos modelos, Caddy, configuração e ambos os bundles antes de
-recriar somente o Gateway. Compara os bytes publicados dos dois Web. Em falha,
-restaura e verifica o bind anterior; preserva todos os arquivos antigos. O
-journal privado registra completed, rolled-back ou requires-review. Se houver
-requires-review, não repetir: inspecionar o erro privado e a identidade atual.
-Nenhum log privado, token ou configuração deve ser colado em chats públicos.
+Esperar MAPAS_WEB_PREPARADOS_SEM_ATIVACAO. Se o Web atual divergir da base auditada,
+parar e conferir a nova versão; não contornar o bloqueio. Não repetir uma
+preparação existente nem apagar suas pastas para tentar novamente.
+
+A ativação explícita usa o SHA-256 retornado para o plano privado da VPS:
+
+```sh
+node deploy/staging/activate-web-map-update.mjs /opt/ramo-nessa-regions/map-web-updates/0ad3ba73cfe2 SHA256_DA_PREPARACAO
+```
+
+O SHA do plano difere do SHA do ZIP. A ferramenta revalida serviços, modelos,
+Caddy, configuração e ambos os bundles antes de recriar somente o Gateway.
+Compara os bytes publicados dos dois Web. Em falha, restaura e verifica o bind
+anterior; conserva os bundles antigos. O journal registra completed, rolled-back
+ou requires-review. Em requires-review, não repetir: conferir o erro privado e a
+identidade atual. Não compartilhar logs privados, tokens ou configurações.
+
+## Evidência e limites
+
+O ZIP foi validado: 108 arquivos, manifesto/source e hashes corretos. As opções
+Maps/Firebase dos dois aplicativos continuam iguais às da instalação c639.
+Os quatro fluxos compilados de sessão passaram em Chromium/WebKit com serviços
+sintéticos. A opção de gesto recebida pelo SDK simulado é conferida no Passageiro;
+o fixture de login do Motorista não fornece cadastro operacional ou GPS.
+
+Run 39641032929: seis jobs de regressão aprovados. Run 39641033029: builds
+configurados e quatro checks Chromium/WebKit aprovados. O controle negativo
+reproduziu a inicialização bloqueada no bundle anterior com tiles suprimidos;
+a candidata iniciou a câmera sem tiles no stub. Isso valida a regressão da
+biblioteca, não o desenho real do Google no Safari físico. Os testes do gesto,
+transição e alfinete também passaram. 22 contratos Node e seis Python passaram
+localmente. Run 39670229404 da revisão dd9b aprovado nos três cenários:
+instalação original compatível, rollback legado em banco sintético e upgrade
+c639 → 0ad com falha provocada/retorno verificado ao c639. Catálogo, corridas,
+pagamentos e ledger permaneceram iguais no upgrade/retorno dos mapas.
+Run 39670229542: contratos operacionais aprovados. Nenhum desses ensaios
+executou a atualização na VPS do proprietário.
 
 ## Aceitação no iPhone
 
-Após instalação, abrir os dois aplicativos instalados na tela inicial. Testar
-escolha de rota sem tocar no mapa, alteração rápida de destino, GPS atrasado,
-retorno de outra tela e bloqueio/desbloqueio. Depois testar rotas e andamento da
-corrida. Não usar uma corrida paga real apenas para teste. Os mocks e testes de
-Chrome/WebKit não comprovam tiles Google/GPU nem substituem um iPhone físico.
-A tela branca só será marcada como resolvida após essa homologação.
+Após instalação autorizada, fechar completamente e reabrir os aplicativos sem
+apagar dados. Testar separadamente:
+
+1. Escolher destino: fundo e rota aparecem sem tocar no mapa.
+2. Primeiro arraste com um dedo: mapa move sem aviso de dois dedos.
+3. Repetir busca, trocar origem/destino e voltar de outra tela: fundo continua visível.
+4. Voltar após bloquear/desbloquear a tela e conferir rota/controles.
+
+Se o gesto funcionar mas o fundo continuar vazio, não concluir que eram o mesmo
+defeito. Capturar eventos de tiles/erros do SDK na sessão física antes de alterar
+outra parte da renderização. Registrar modelo do iPhone/iOS e vídeo do caso sem
+publicar dados pessoais. Não limpar dados/reinstalar, mudar credenciais ou
+recriar mapas em loop como substitutos da investigação.

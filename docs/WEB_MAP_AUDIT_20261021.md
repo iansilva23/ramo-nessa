@@ -245,3 +245,114 @@ A revisão Web completa da mesma revisão operacional também passou: run
 e Motorista). Inclui o teste do ciclo de vida do alfinete Web corrigido, os
 testes de câmera no Chrome sem toque e ambos os builds release. Nenhuma
 verificação pendente é tratada como aprovada; aceitação no iPhone continua aberta.
+
+
+## Evidência física após instalar c6390a6d — ainda não resolvido
+
+O operador executou a atualização Web e informou MAPAS_WEB_ATUALIZADOS com fonte
+c6390a6d55610c5bcb45d78ddd03b623d23fe124. Plano da VPS:
+/opt/ramo-nessa-regions/map-web-updates/c6390a6d5561/prepared.private.json,
+SHA-256 dd59053306a0646817c4e7c4423332690a019834172fd8e7e5c7a4cc0158742a.
+Core/ADM/reset/nativos false, provedores preservados. Não repetir essa instalação.
+
+O usuário confirmou que o fundo vazio persiste. Três capturas do Passageiro no
+iPhone/PWA mostram: marcadores/controles/resumo da rota e atribuição Google no
+fundo vazio; no primeiro gesto, overlay 'Use dois dedos para mover o mapa'; após
+outro gesto, tiles do mapa aparecem. Essas capturas foram vistas na conversa;
+não foram incluídas no repositório. Isso comprova o sintoma e o modo cooperativo,
+não sua causa interna de renderização. C639 não é considerada correção aprovada
+em aparelho real. Nenhuma captura/conta/localização pessoal foi publicada.
+
+O SDK Web 0.6.4 converte webGestureHandling ausente para 'auto'; uma opção
+explícita tem precedência sobre scrollGesturesEnabled/zoomGesturesEnabled.
+https://github.com/flutter/packages/blob/google_maps_flutter_web-v0.6.4/packages/google_maps_flutter/google_maps_flutter_web/lib/src/convert.dart
+Por isso os mapas principais passam a solicitar greedy (arraste com um dedo),
+e o alfinete solicita none durante o salvamento, preservando o bloqueio anterior.
+https://developers.google.com/maps/documentation/javascript/interaction
+
+Outro problema identificável no código: Navigator.push devolve o endereço no
+pop antes de terminar a animação de saída. A busca instantânea/cache pode mover
+um HtmlElementView ainda encoberto/offstage. A candidata Web espera
+searchRoute.completed e o frame de layout antes de entregar a seleção à tela
+principal. Não usa timeout fixo, zoom artificial, gesto sintético, recriação
+contínua do mapa ou mudança de chaves. O comportamento nativo conserva o retorno
+pelo popped, sem esperar a transição adicional.
+https://api.flutter.dev/flutter/widgets/TransitionRoute/completed.html
+
+A hipótese de que essa corrida de transição causa o fundo vazio no iPhone ainda
+precisa de homologação física. O teste novo verifica precisamente a ordem:
+nenhuma chamada de rota durante a animação reversa; uma chamada correta após a
+volta. A revisão CI também executa o mesmo teste contra o fonte instalado para
+comprovar que ele falha pela assertiva esperada antes de validar a candidata.
+Os checks compilados de sessão agora inspecionam as opções recebidas pelo stub
+JS pelo plugin real em Chromium e WebKit no Passageiro. O fixture de login do
+Motorista não fornece cadastro operacional/GPS e continua verificando somente
+sessão, sem alegar cobertura de seu mapa. Isso comprova entrega de greedy ao
+SDK do Passageiro, não desenho real dos tiles ou equivalência com Safari físico.
+
+
+Pacote da candidata física seguinte: 0a6d4240e55e71dc8e841799bc0c3a01fcb4a375,
+artifact 12362030461 do run 39635682131 aprovado. SHA-256:
+92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1.
+Baixado e validado localmente: 108 arquivos, 94.486.846 bytes expandidos,
+manifesto correto. assertMapProviders confirmou Maps/Firebase iguais aos bundles
+c639 nos dois aplicativos, sem exibir valores. Os quatro checks compilados de
+sessão passaram (ambos os papéis × Chromium/WebKit); opções recebidas pelo SDK
+simulado são verificadas no Passageiro. O Motorista segue com sessão/compilação,
+sem alegar que seu fixture de login entrou em operação com GPS.
+
+Ferramentas operacionais 619775b33f92f5e80a4f27a3f144965d1d040e14:
+run 39636514810 aprovado nos três cenários. O CI primeiro recriou a instalação
+c639 usando as ferramentas anteriores e depois atualizou para o pacote 0a6d.
+O cenário map_rollback falhou de propósito após verificar a troca e comprovou
+retorno ao c639 com os arquivos públicos corretos. Catálogo/corridas/pagamentos/
+ledger permaneceram iguais durante o upgrade/retorno dos mapas. O rollback do
+reset antigo só foi exercitado em banco sintético no cenário legado separado.
+O run leve 39636514723 também passou. Não houve segunda instalação na VPS real.
+
+Os erros intermediários do CI não são falhas de renderização: o teste de
+comparação da transição inicialmente não tinha histórico Git e depois usava rg,
+que não está instalado no runner. A revisão usa fetch-depth 0, grep disponível
+e diagnóstico Flutter que preserva o handler de falhas original. Não remove
+assertivas nem considera um timeout do fixture como evidência da tela branca.
+
+## Candidata seguinte: patch oficial do plugin Maps Web
+
+A candidata 0a6d acima não foi instalada. Foi substituída pela revisão
+0ad3ba73cfe2a1265344de09c75309b95daac8dd, que conserva gesto/transição e altera
+somente google_maps_flutter_web de 0.6.4 para 0.6.4+2 nos locks de ambos os apps.
+Nenhuma dependência Android/iOS ou outra entrada de dependência foi alterada.
+Hash publicado do pacote: de408355e21b0da7da17962b86c338d320d9bc1c5eb94e72a2d021955bda5aaa.
+
+O changelog oficial descreve onMapCreated bloqueado se uma requisição de tile
+falhar/atrasar. O patch aceita também idle quando o elemento está conectado e
+com dimensões positivas, em vez de depender exclusivamente de tilesloaded.
+https://github.com/flutter/packages/blob/google_maps_flutter_web-v0.6.4%2B2/packages/google_maps_flutter/google_maps_flutter_web/CHANGELOG.md
+https://github.com/flutter/packages/blob/google_maps_flutter_web-v0.6.4%2B2/packages/google_maps_flutter/google_maps_flutter_web/lib/src/google_maps_controller.dart
+https://pub.dev/api/packages/google_maps_flutter_web/versions/0.6.4%2B2
+
+Prova negativa: o teste compilado com GPS sintético e tilesloaded suprimido
+falhou pela sentinela WEB_MAP_NOT_READY_WITH_STALLED_TILES no bundle 0a6d com
+plugin anterior. O mesmo cenário passou no Passenger Chromium/WebKit com o
+patch; os checks de sessão Driver passaram nos dois engines. O stub não baixa
+tiles reais nem emula GPU/Safari físico. Isso é uma falha reproduzida da
+biblioteca; ainda não prova que ela explica integralmente o relato físico.
+
+Run 39641033029 aprovado e artifact configurado 12365640705. SHA-256 ZIP:
+392f89862e0a46ad7010cb44618f2110f87cb1e3fd860e7c135beefefa84b46e.
+Validação local: 108 arquivos, 94.498.591 bytes expandidos; manifesto/fonte/hashes
+corretos; Maps/Firebase públicos iguais ao c639 nos dois aplicativos.
+Run 39641032929: seis jobs aprovados, incluindo transição (cinco casos), alfinete
+(dois), câmeras e builds. Contratos operacionais locais: 22 Node e seis Python
+aprovados. Ferramentas dd9b68bc149a37c0456f5b05e229d426a5ed1455 exigem base c639,
+fonte 0ad e somente o patch Web exato nos locks. Recusam outra atualização
+concorrente ou alteração de dependências nativas. Não houve segunda instalação
+na VPS; aceitação física segue pendente.
+
+Run 39670229404 da revisão operacional dd9b: três cenários aprovados. O ensaio
+instalou primeiro c639 e depois o pacote 0ad verificado, confirmou publicação
+HTTP dos dois aplicativos e, no cenário map_rollback, provocou falha após a
+troca para verificar a restauração ao c639. Catálogo, corridas, pagamentos e
+ledger foram comparados antes/depois e permaneceram iguais no upgrade/retorno
+dos mapas. O cenário legado de rollback do catálogo foi exercitado somente em
+banco sintético. Run 39670229542 também aprovado nos contratos operacionais.
