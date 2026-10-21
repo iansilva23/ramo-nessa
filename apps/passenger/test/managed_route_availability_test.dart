@@ -101,7 +101,8 @@ void main() {
 
   test('managed category permissions fail closed and native stays on previous rollout', () {
     final json = policyJson();
-    final regions = json['regions'] as List;
+    final regions = List<Map<String, dynamic>>.from(json['regions'] as List);
+    json['regions'] = regions;
     regions.addAll([
       {'id': 'disabled', 'enabled': false, 'archived': false, 'categoryIds': ['comfort_black']},
       {'id': 'archived', 'enabled': true, 'archived': true, 'categoryIds': ['comfort_black']},

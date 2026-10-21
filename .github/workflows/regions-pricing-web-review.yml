@@ -64,6 +64,10 @@ jobs:
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
         run: flutter test --platform chrome --reporter expanded test/web_pin_map_lifecycle_test.dart
+      - name: Verify managed region route availability on Chrome
+        if: matrix.app == 'passenger'
+        working-directory: apps/passenger
+        run: flutter test --platform chrome --reporter expanded test/managed_route_availability_test.dart
       - working-directory: apps/${{ matrix.app }}
         run: flutter analyze --no-fatal-infos && flutter test
       - name: Verify shared map projection and padding
@@ -104,7 +108,7 @@ jobs:
       - name: Verify managed pricing on actual Chrome runtime
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
-        run: flutter test --platform chrome --reporter expanded test/managed_pricing_catalog_test.dart test/managed_route_availability_test.dart
+        run: flutter test --platform chrome --reporter expanded test/managed_pricing_catalog_test.dart
       - name: Prove generated region routes were blocked by installed Web matrix
         if: matrix.app == 'passenger'
         shell: bash
