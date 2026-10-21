@@ -84,7 +84,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.stack ?? error.message));
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();

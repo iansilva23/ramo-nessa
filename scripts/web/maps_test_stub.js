@@ -49,6 +49,7 @@
     setMap(map) { this.map = map; }
     set(name, value) { this.options[name] = value; }
     addListener(name, callback) { return event.addListener(this, name, callback); }
+    setContent(content) { this.options.content = content; }
     open() {} close() {}
   }
   class TestMap extends Overlay {

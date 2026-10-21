@@ -92,6 +92,7 @@ jobs:
             exit 1
           fi
           echo 'Previous Web dependency reproduces the stalled tile initialization failure.'
+      # Marker InfoWindow content updates are exercised with synthetic GPS too.
       - name: Verify both configured apps in Chromium and WebKit with synthetic services
         run: |
           set -euo pipefail
@@ -115,3 +116,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Preserve failed compiled map fixture for local diagnosis only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-web-ci-debug-not-for-installation
+          path: |
+            apps/passenger/build/web/
+            apps/driver/build/web/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
