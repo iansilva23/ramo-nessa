@@ -1,4 +1,4 @@
-name: V5 configured Web homologation - manual only - no deploy
+name: Configured Web map fixes - homologation packages only - no deploy
 on:
   workflow_dispatch:
   push:
@@ -24,6 +24,10 @@ jobs:
           flutter-version: '3.47.5'
           channel: stable
           cache: true
+      - name: Require reviewed map sources without changing native or financial code
+        run: |
+          git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
+          git diff --exit-code 07d1b245169e788550c26a5e4eb1fe2cda559242 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
       - name: Prepare icons
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
@@ -55,6 +59,20 @@ jobs:
             --commit="${{ github.sha }}" \
             --output=web-release-manifest.json
           git diff --exit-code -- 'apps/*/lib/**' 'apps/*/pubspec.yaml' 'packages/**'
+      - name: Prepare isolated compiled bundle browser checks
+        run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Verify both configured apps in Chromium and WebKit with synthetic services
+        run: |
+          set -euo pipefail
+          for role in passenger driver; do
+            for engine in chromium webkit; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/bundle_csp_browser_test.mjs
+            done
+          done
       - name: Package immutable source-matched bundles, without deploy
         run: |
           mkdir -p artifacts/v5-web

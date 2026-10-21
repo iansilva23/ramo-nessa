@@ -22,6 +22,8 @@ class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
   @override
   Future<void> init(int mapId) async {}
   @override
+  Future<void> updateTileOverlays({required Set<gi.TileOverlay> newTileOverlays, required int mapId}) async {}
+  @override
   void dispose({required int mapId}) {
     disposals.update(mapId, (count) => count + 1, ifAbsent: () => 1);
   }
@@ -73,6 +75,14 @@ class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
 void main() {
   testWidgets('returning from Web pin screen disposes each SDK map exactly once', (tester) async {
     if (!kIsWeb) return;
+    final originalErrorHandler = FlutterError.onError;
+    FlutterError.onError = (details) {
+      // Provider-free diagnostic: expose framework errors hidden by Chrome's
+      // test console while preserving the test binding's failure handler.
+      print('PIN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      originalErrorHandler?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = originalErrorHandler);
     final original = gi.GoogleMapsFlutterPlatform.instance;
     final sdk = LifecycleMapPlatform();
     gi.GoogleMapsFlutterPlatform.instance = sdk;
@@ -86,12 +96,15 @@ void main() {
         searchService: NoSearch(), initialPosition: const LatLng(-2.82017, -40.41467),
       )));
       await tester.pumpAndSettle();
+      print('PIN_MOUNT: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
       expect(sdk.created.length, i + 1);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
+      print('PIN_DISPOSE: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
       expect(sdk.disposals.length, i + 1);
       expect(sdk.disposals.values, everyElement(1));
       expect(tester.takeException(), isNull);
     }
   });
 }
+
