@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -135,13 +136,15 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
   Future<void> _selectSavedPlace(
     PassengerSavedPlace place,
   ) async {
+    final selectionRequestId = kIsWeb ? ++_requestId : _requestId;
+    if (kIsWeb) _debounce?.cancel();
     if (place.mapPinned) {
       setState(() { _loading = true; _error = null; });
       try {
         final resolver = _searchService;
         if (resolver is! CoordinatePlaceResolver) throw StateError('Classificação indisponível');
         final approved = await (resolver as CoordinatePlaceResolver).classifyCoordinate(place.position);
-        if (!mounted) return;
+        if (!mounted || (kIsWeb && selectionRequestId != _requestId)) return;
         if (approved == null) {
           setState(() { _loading = false; _error = 'Este endereço está fora da área atendida.'; });
           return;
@@ -151,7 +154,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
           approvedPricingZoneId: approved.approvedPricingZoneId,
           approvedPricingLocalityId: approved.approvedPricingLocalityId, placeProof: approved.placeProof));
       } catch (_) {
-        if (!mounted) return;
+        if (!mounted || (kIsWeb && selectionRequestId != _requestId)) return;
         setState(() { _loading = false; _error = 'Não conseguimos validar este endereço salvo agora. Tente novamente.'; });
       }
       return;
@@ -186,7 +189,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
           ),
           sessionToken: autocomplete.beginSession(),
         );
-        if (!mounted) return;
+        if (!mounted || (kIsWeb && selectionRequestId != _requestId)) return;
         Navigator.of(context).pop(RamoPlace(name: place.name, address: place.fullAddress,
           position: refreshed.position, providerPlaceId: refreshed.providerPlaceId,
           approvedExternalId: refreshed.approvedExternalId,
@@ -194,7 +197,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
           approvedPricingLocalityId: refreshed.approvedPricingLocalityId, placeProof: refreshed.placeProof));
         return;
       } catch (_) {
-        if (!mounted) return;
+        if (!mounted || (kIsWeb && selectionRequestId != _requestId)) return;
         setState(() {
           _loading = false;
           _error =
@@ -936,3 +939,4 @@ class _MissingPlaceSearchService implements PlaceSearchService {
     );
   }
 }
+

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
+import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/passenger_home_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/destination_search_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/widgets/ramo_live_map.dart';
@@ -28,6 +29,19 @@ class NoSearch implements PlaceSearchService {
   @override
   Future<List<RamoPlace>> search(String query) async => [];
 }
+class DelayedResolver extends NoSearch implements CoordinatePlaceResolver {
+  final response = Completer<RamoPlace?>();
+  @override
+  Future<RamoPlace?> classifyCoordinate(LatLng point) => response.future;
+}
+class SavedStore extends Fake implements PassengerSavedPlaceService {
+  @override
+  Future<List<PassengerSavedPlace>> list() async => [PassengerSavedPlace(
+    id: 'saved', kind: 'home', label: 'Casa de teste', name: 'Casa salva', address: 'Endereço sintético',
+    position: pickup.position, addressDetails: const {'mapPinned': true},
+    createdAt: DateTime(2026), updatedAt: DateTime(2026))];
+}
+
 class ControlledPolicy implements PricingPolicyService {
   Completer<PassengerPricingPolicy>? delayed;
   @override
@@ -53,6 +67,47 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
 }
 
 void main() {
+  testWidgets('late coordinate classification cannot replace the chosen Web origin', (tester) async {
+    if (!kIsWeb) return;
+    final location = DelayedLocation();
+    final resolver = DelayedResolver();
+    await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
+      locationService: location, placeSearchService: resolver,
+      pricingPolicyService: ControlledPolicy(), networkTilesEnabled: false,
+    )));
+    location.response.complete(const LatLng(-2.9, -40.45));
+    await tester.pump();
+    await pick(tester, pickup, origin: true);
+    resolver.response.complete(firstDestination);
+    await tester.pump();
+    expect(tester.widget<RamoLiveMap>(find.byType(RamoLiveMap)).origin?.name, pickup.name);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('late saved address validation cannot close a newer Web search', (tester) async {
+    if (!kIsWeb) return;
+    final resolver = DelayedResolver();
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) => Scaffold(
+      body: TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => DestinationSearchScreen(searchService: resolver, savedPlaceService: SavedStore()))),
+        child: const Text('Abrir busca'))))));
+    await tester.tap(find.text('Abrir busca'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Meus endereços'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Casa de teste'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Outro destino');
+    await tester.pump();
+    resolver.response.complete(pickup);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(DestinationSearchScreen), findsOneWidget);
+    expect(find.text('Outro destino'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('late Web GPS cannot replace an origin selected in the actual screen', (tester) async {
     if (!kIsWeb) return;
     final location = DelayedLocation();
