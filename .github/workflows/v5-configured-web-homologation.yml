@@ -93,7 +93,7 @@ jobs:
           fi
           echo 'Previous Web dependency reproduces the stalled tile initialization failure.'
       # Marker InfoWindow content updates are exercised with synthetic GPS too.
-      - name: Verify both configured apps in Chromium and WebKit with synthetic services
+      - name: Verify both configured apps in Chromium and WebKit with settled reload assets
         run: |
           set -euo pipefail
           for role in passenger driver; do

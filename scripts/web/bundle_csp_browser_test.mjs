@@ -83,8 +83,13 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) });
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
-  const errors = [], remote = [];
+  const errors = [], remote = [], failedAssets = [];
   page.on('pageerror', error => errors.push(error.stack ?? error.message));
+  page.on('requestfailed', request => {
+    if (request.url().startsWith(origin + prefix + 'assets/')) {
+      failedAssets.push({ path: new URL(request.url()).pathname, error: request.failure()?.errorText });
+    }
+  });
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin === origin) return route.continue();
@@ -154,11 +159,16 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   assert.ok(authCookie?.httpOnly && authCookie.secure && authCookie.sameSite === 'Strict');
   assert.equal(await page.evaluate(() => document.cookie), '');
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
+  // Reload only after the async Flutter marker/engine asset requests finish.
+  // Otherwise WebKit reports the intentionally interrupted fetch as a pageerror.
+  // Keep all runtime/CSP/request failure assertions active below.
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByText('Adicionar app à Tela de Início', { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
   assert.equal(logout, 204);
@@ -168,6 +178,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   const violations = await page.evaluate(() => bundleViolations);
   assert.deepEqual(violations.filter(item => /script-src|worker-src|connect-src/.test(item.directive)), []);
   assert.deepEqual(errors, []);
+  assert.deepEqual(failedAssets, [], 'Bundled assets must finish without interrupted or failed requests');
   // No SDK/engine leaves loopback; Maps is an intercepted stub, not a real map test.
   assert.deepEqual([...new Set(remote)], []);
   } finally {
