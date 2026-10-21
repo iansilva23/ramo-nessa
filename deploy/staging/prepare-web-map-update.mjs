@@ -26,7 +26,7 @@ export function assertMapProviders(oldRoot,newRoot){
         !isDeepStrictEqual(publicPushConfig(readFileSync(join(oldRoot,role,'ramo_push_config.js'),'utf8')),publicPushConfig(readFileSync(join(newRoot,role,'ramo_push_config.js'),'utf8'))))throw Error('Configuração pública de Maps/Firebase diverge do aplicativo atual. Nenhuma publicação será feita.');
   }
 }
-export async function prepareMapWeb(args){
+export async function prepareMapWeb(args, rehearsal={}){
   const request=mapPreparationArguments(args);
   if(process.getuid?.()!==0)throw Error('Execute com sudo.');
   process.umask(0o077);
@@ -46,7 +46,8 @@ export async function prepareMapWeb(args){
     const before=Object.fromEntries(Object.keys(names).map(role=>[role,inspect(role)]));
     validate(before,{'core-image':before.core.Image,'gateway-image':before.gateway.Image});
     if(!before.core.Config.Env.includes('NODE_ENV=staging'))throw Error('Preparação exclusiva de homologação.');
-    const baseBytes=readFileSync(baselinePlan);if(digest(baseBytes)!==baselineDigest)throw Error('Referência da última ativação Web não confirmada.');
+    if(Object.keys(rehearsal).length&&(process.env.GITHUB_ACTIONS!=='true'||before.gateway.Config.Labels?.['br.com.ramonessa.regions-ci']!=='true'))throw Error('Referência de ensaio permitida somente no fixture isolado do CI.');
+    const baseBytes=readFileSync(rehearsal.baselinePlan??baselinePlan);if(digest(baseBytes)!==(rehearsal.baselineDigest??baselineDigest))throw Error('Referência da última ativação Web não confirmada.');
     const base=JSON.parse(baseBytes),web=before.gateway.Mounts.find(m=>m.Destination==='/srv/web'),caddy=before.gateway.Mounts.find(m=>m.Destination==='/etc/caddy/Caddyfile');
     if(web.Source!==base.webRoot||await hashTree(web.Source)!==base.newWebHash)throw Error('Os aplicativos Web mudaram desde a última ativação auditada. Nada será sobrescrito.');
     const allowed=['apps/passenger/lib/src/features/home/presentation/widgets/ramo_live_map.dart','apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart','apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart','apps/passenger/lib/src/features/home/presentation/destination_search_screen.dart','apps/passenger/lib/src/features/profile/presentation/saved_place_pin_screen.dart','packages/design_system/lib/ramo_design_system.dart','packages/design_system/lib/src/map/ramo_map_camera_fit.dart'];
@@ -75,7 +76,7 @@ export async function prepareMapWeb(args){
       const parsed=JSON.parse(docker(['compose','--project-name','ramo-nessa-staging','--env-file','/dev/null','-f',join(dir,name+'.compose.private.json'),'config','--format','json']));
       if(!isDeepStrictEqual(parsed.services.gateway.environment,model.services.gateway.environment))throw Error('Compose alterou o ambiente na releitura.');
     }
-    const plan={format:1,sourceCommit:mapWebSource,...request,preparedAt:new Date().toISOString(),bundleRoot,newWebHash:await hashTree(bundleRoot),oldBundleRoot:web.Source,oldWebHash:base.newWebHash,sourceConfig:paths[0],sourceConfigHash:digest(sourceBytes),caddy:caddy.Source,caddyHash:await hashFile(caddy.Source),gatewayImage:before.gateway.Image,servicesRestarted:false,resetApplied:false,scope:['passenger-web','driver-web']};
+    const plan={format:1,sourceCommit:mapWebSource,...request,preparedAt:new Date().toISOString(),bundleRoot,newWebHash:await hashTree(bundleRoot),oldBundleRoot:web.Source,oldWebHash:base.newWebHash,sourceConfig:paths[0],sourceConfigHash:digest(sourceBytes),planFiles:Object.fromEntries(['runtime-before.private.json','gateway-image.private.json','candidate.compose.private.json','rollback.compose.private.json'].map(n=>[n,digest(readFileSync(join(dir,n)))])),caddy:caddy.Source,caddyHash:await hashFile(caddy.Source),gatewayImage:before.gateway.Image,servicesRestarted:false,resetApplied:false,scope:['passenger-web','driver-web']};
     for(const role of Object.keys(names))if(runtimeIdentity(inspect(role))!==runtimeIdentity(before[role]))throw Error('Serviço mudou durante a preparação: '+role);
     if(await hashTree(web.Source)!==base.newWebHash||!readFileSync(paths[0]).equals(sourceBytes))throw Error('Arquivos ativos mudaram durante a preparação.');
     save('prepared.private.json',plan);

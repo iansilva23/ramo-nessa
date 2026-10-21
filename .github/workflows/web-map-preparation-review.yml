@@ -2,7 +2,7 @@ name: Web map package preparation - no deployment
 on:
   push:
     branches: [feature/admin-regions-pricing-simple-20261020]
-    paths: [deploy/staging/prepare-web-map-update*, deploy/staging/stage-regions-web.py, deploy/staging/test_stage_regions_web.py, .github/workflows/web-map-preparation-review.yml]
+    paths: [deploy/staging/prepare-web-map-update*, deploy/staging/activate-web-map-update*, deploy/staging/stage-regions-web.py, deploy/staging/test_stage_regions_web.py, .github/workflows/web-map-preparation-review.yml]
 permissions:
   contents: read
 jobs:
@@ -16,5 +16,6 @@ jobs:
       - name: Validate Web staging, provenance and unchanged provider configuration
         run: |
           node --check deploy/staging/prepare-web-map-update.mjs
-          node --test deploy/staging/prepare-web-map-update.test.mjs deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          node --check deploy/staging/activate-web-map-update.mjs
+          node --test deploy/staging/activate-web-map-update.test.mjs deploy/staging/prepare-web-map-update.test.mjs deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
           python3 -m unittest discover -s deploy/staging -p test_stage_regions_web.py
