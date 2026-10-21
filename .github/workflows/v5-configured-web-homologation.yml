@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: v5-configured-web-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   web:
     if: github.ref == 'refs/heads/integration/pricing-v5-finance-safe-20261019' || github.ref == 'refs/heads/feature/admin-regions-pricing-simple-20261020'
