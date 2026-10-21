@@ -10,10 +10,10 @@ import {validate,runtimeIdentity} from './backup-regions-pricing.mjs';
 import {servicePlan,assertEnvironmentMatches} from './asaas-activation-plan-contract.mjs';
 import {gatewayWebPlan,assertGatewayWebDelta,publicPushConfig,browserMapsKey} from './asaas-driver-web-contract.mjs';
 
-export const mapWebSource='c6390a6d55610c5bcb45d78ddd03b623d23fe124';
-const originalWebSource='fa5ad133c06721b5d9e48468a5e61a7fbd384c95';
-const baselinePlan='/opt/ramo-nessa-regions/releases/e24a5ecb93e2/activation-d047f10cba33d87d/plan.private.json';
-const baselineDigest='fae3f0dee044a7ffb213d57bf68550a144f34cfa2a746b0742d45ee209eb9e42';
+export const mapWebSource='0a6d4240e55e71dc8e841799bc0c3a01fcb4a375';
+const originalWebSource='c6390a6d55610c5bcb45d78ddd03b623d23fe124';
+const baselinePlan='/opt/ramo-nessa-regions/map-web-updates/c6390a6d5561/prepared.private.json';
+const baselineDigest='dd59053306a0646817c4e7c4423332690a019834172fd8e7e5c7a4cc0158742a';
 const names={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'};
 const digest=b=>createHash('sha256').update(b).digest('hex');
 export function mapPreparationArguments(args){
@@ -49,7 +49,7 @@ export async function prepareMapWeb(args, rehearsal={}){
     if(Object.keys(rehearsal).length&&(process.env.GITHUB_ACTIONS!=='true'||before.gateway.Config.Labels?.['br.com.ramonessa.regions-ci']!=='true'))throw Error('Referência de ensaio permitida somente no fixture isolado do CI.');
     const baseBytes=readFileSync(rehearsal.baselinePlan??baselinePlan);if(digest(baseBytes)!==(rehearsal.baselineDigest??baselineDigest))throw Error('Referência da última ativação Web não confirmada.');
     const base=JSON.parse(baseBytes),web=before.gateway.Mounts.find(m=>m.Destination==='/srv/web'),caddy=before.gateway.Mounts.find(m=>m.Destination==='/etc/caddy/Caddyfile');
-    if(web.Source!==base.webRoot||await hashTree(web.Source)!==base.newWebHash)throw Error('Os aplicativos Web mudaram desde a última ativação auditada. Nada será sobrescrito.');
+    if(web.Source!==(base.bundleRoot??base.webRoot)||await hashTree(web.Source)!==base.newWebHash)throw Error('Os aplicativos Web mudaram desde a última ativação auditada. Nada será sobrescrito.');
     const allowed=['apps/passenger/lib/src/features/home/presentation/widgets/ramo_live_map.dart','apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart','apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart','apps/passenger/lib/src/features/home/presentation/destination_search_screen.dart','apps/passenger/lib/src/features/profile/presentation/saved_place_pin_screen.dart','packages/design_system/lib/ramo_design_system.dart','packages/design_system/lib/src/map/ramo_map_camera_fit.dart'];
     const delta=git(['diff','--name-only',originalWebSource,mapWebSource,'--','apps/passenger/lib','apps/driver/lib',':(glob)packages/**/lib/**','apps/passenger/pubspec.yaml','apps/passenger/pubspec.lock','apps/driver/pubspec.yaml','apps/driver/pubspec.lock','apps/passenger/android','apps/passenger/ios','apps/driver/android','apps/driver/ios']).trim().split('\n').filter(Boolean);
     if(delta.some(p=>!allowed.includes(p)))throw Error('Fontes dos aplicativos mudaram fora da revisão dos mapas.');

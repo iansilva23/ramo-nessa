@@ -51,8 +51,13 @@ jobs:
           curl --fail --silent --show-error --location \
             --header "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/iansilva23/ramo-nessa/actions/artifacts/12355793923/zip \
+            --output "$RUNNER_TEMP/installed-maps-configured.zip"
+          echo "872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a  $RUNNER_TEMP/installed-maps-configured.zip" | sha256sum --check
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/iansilva23/ramo-nessa/actions/artifacts/12362030461/zip \
             --output "$RUNNER_TEMP/maps-configured.zip"
-          echo "872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a  $RUNNER_TEMP/maps-configured.zip" | sha256sum --check
+          echo "92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1  $RUNNER_TEMP/maps-configured.zip" | sha256sum --check
       - name: Build candidate, backup real synthetic PostgreSQL and rehearse preparation
         shell: bash
         env:
@@ -209,14 +214,31 @@ jobs:
           console.log('ACTUAL CORE/CADDY/POSTGRES ROLLOUT VERIFIED: '+scenario);
           ACTIVATE
           if test "$REGIONS_TEST_SCENARIO" != rollback_after_reset; then
-            sudo env GITHUB_ACTIONS=true MAP_BASELINE="$activation/plan.private.json" MAP_BASELINE_DIGEST="$plan_digest" MAP_ARCHIVE="$RUNNER_TEMP/maps-configured.zip" MAP_SCENARIO="$REGIONS_TEST_SCENARIO" "$(command -v node)" --input-type=module - <<'MAPS'
+            # First recreate the exact c639 Web version already installed on the VPS.
+            installed_tools=$(mktemp -d)
+            git archive 9ab768635d8763db030e8aa850f11be5dabcdf5a deploy/staging | tar -x -C "$installed_tools"
+            sudo env GITHUB_ACTIONS=true MAP_BASELINE="$activation/plan.private.json" MAP_BASELINE_DIGEST="$plan_digest" MAP_ARCHIVE="$RUNNER_TEMP/installed-maps-configured.zip" INSTALLED_MAP_TOOLS="$installed_tools/deploy/staging" "$(command -v node)" --input-type=module - <<'INSTALLED_MAPS'
+          import {readFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {pathToFileURL} from 'node:url';
+          const root=process.env.INSTALLED_MAP_TOOLS;
+          const {prepareMapWeb,mapWebSource}=await import(pathToFileURL(root+'/prepare-web-map-update.mjs'));
+          const {activateMapWeb}=await import(pathToFileURL(root+'/activate-web-map-update.mjs'));
+          await prepareMapWeb([process.env.MAP_ARCHIVE,'872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a'],{baselinePlan:process.env.MAP_BASELINE,baselineDigest:process.env.MAP_BASELINE_DIGEST});
+          const dir='/opt/ramo-nessa-regions/map-web-updates/'+mapWebSource.slice(0,12);
+          await activateMapWeb([dir,createHash('sha256').update(readFileSync(dir+'/prepared.private.json')).digest('hex')]);
+          console.log('INSTALLED C639 WEB BASELINE RECREATED BEFORE FOLLOW-UP UPGRADE');
+          INSTALLED_MAPS
+            previous_map=/opt/ramo-nessa-regions/map-web-updates/c6390a6d5561/prepared.private.json
+            previous_digest=$(sudo sha256sum "$previous_map" | cut -d ' ' -f 1)
+            sudo env GITHUB_ACTIONS=true MAP_BASELINE="$previous_map" MAP_BASELINE_DIGEST="$previous_digest" MAP_ARCHIVE="$RUNNER_TEMP/maps-configured.zip" MAP_SCENARIO="$REGIONS_TEST_SCENARIO" "$(command -v node)" --input-type=module - <<'MAPS'
           import {prepareMapWeb,mapWebSource} from './deploy/staging/prepare-web-map-update.mjs';
           import {activateMapWeb} from './deploy/staging/activate-web-map-update.mjs';
           import {readFileSync} from 'node:fs';
           import {createHash} from 'node:crypto';
           import {spawnSync} from 'node:child_process';
           import assert from 'node:assert/strict';
-          await prepareMapWeb([process.env.MAP_ARCHIVE,'872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a'],{baselinePlan:process.env.MAP_BASELINE,baselineDigest:process.env.MAP_BASELINE_DIGEST});
+          await prepareMapWeb([process.env.MAP_ARCHIVE,'92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1'],{baselinePlan:process.env.MAP_BASELINE,baselineDigest:process.env.MAP_BASELINE_DIGEST});
           const dir='/opt/ramo-nessa-regions/map-web-updates/'+mapWebSource.slice(0,12);
           const bytes=readFileSync(dir+'/prepared.private.json'),hash=createHash('sha256').update(bytes).digest('hex'),plan=JSON.parse(bytes);
           const query=()=>{const r=spawnSync('docker',['exec','ramo-nessa-staging-postgres-1','psql','-U','ramo','-d','ramo','-Atqc',"SELECT json_build_array((SELECT json_agg(row_to_json(t) ORDER BY id) FROM pricing_catalog_versions t),(SELECT json_agg(row_to_json(t) ORDER BY id) FROM rides t),(SELECT json_agg(row_to_json(t) ORDER BY id) FROM payments t),(SELECT json_agg(row_to_json(t)) FROM ledger_entries t))"],{encoding:'utf8'});assert.equal(r.status,0);return r.stdout;};
