@@ -356,3 +356,13 @@ troca para verificar a restauração ao c639. Catálogo, corridas, pagamentos e
 ledger foram comparados antes/depois e permaneceram iguais no upgrade/retorno
 dos mapas. O cenário legado de rollback do catálogo foi exercitado somente em
 banco sintético. Run 39670229542 também aprovado nos contratos operacionais.
+
+## Retorno do operador e correção posterior de regiões
+
+O operador confirmou MAPAS_WEB_ATUALIZADOS com fonte
+0ad3ba73cfe2a1265344de09c75309b95daac8dd e plano
+74b6fed1673311134dfe6af7d3b48ad6578037f300c27a415534c02012375b94.
+Em seguida confirmou sucesso do mapa no iPhone/PWA. Essa confirmação encerra o
+sintoma relatado no Passageiro; não equivale a teste operacional do Motorista.
+A base 0ad e seu patch de mapa são preservados na correção de disponibilidade de
+regiões cadastradas no ADM, documentada em MANAGED_REGION_ROUTES_FIX_20261021.md.

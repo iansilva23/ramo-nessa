@@ -1,5 +1,9 @@
 # Seguimento dos mapas Web — homologação física pendente
 
+Registro histórico da atualização do mapa 0ad, posteriormente instalada pelo
+operador com funcionamento confirmado no iPhone. Para a correção seguinte de
+regiões criadas no ADM, usar [o procedimento atual](MANAGED_REGION_ROUTES_FIX_20261021.md).
+
 A versão c639 foi instalada na VPS, mas o proprietário confirmou que o fundo do
 mapa ainda fica vazio no iPhone/PWA. Esta candidata ajusta o gesto do mapa e a
 ordem de retorno da busca e atualiza somente o plugin Maps Web para o patch
