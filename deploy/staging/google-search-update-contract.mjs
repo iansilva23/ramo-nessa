@@ -18,6 +18,8 @@ export function assertFingerprint(actual,expected){
 }
 export function assertImageDelta(before,after){
   if(!isDeepStrictEqual(before.Config,after.Config))throw Error('A imagem candidata altera configuração além dos arquivos compilados.');
+  const layers=before.RootFS?.Layers;
+  if(layers&&!isDeepStrictEqual(layers,after.RootFS?.Layers?.slice(0,layers.length)))throw Error('A candidata não deriva da imagem Core ativa.');
 }
 export function assertCoreRuntime(before,current,model,image,{healthy=true}={}){
   if(current.Image!==image.Id||(healthy&&current.State.Health?.Status!=='healthy'))throw Error('Imagem/saúde do Core divergente.');

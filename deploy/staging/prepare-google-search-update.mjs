@@ -49,7 +49,10 @@ export async function prepareSearch(args,rehearsal={}){
     const staged=JSON.parse(run('python3',[join(here,'stage-regions-web.py'),'--archive',args[0],'--output',newWebRoot,'--source',source,'--sha256',webSha]));
     assertMapProviders(oldWebRoot,newWebRoot);
     const manifest=JSON.parse(readFileSync(join(directory,'core-patch','core-patch-manifest.json')));
-    const dockerfile='FROM '+before.core.Image+'\n'+manifest.files.map(f=>'COPY --chmod=0644 '+f.path+' /app/'+f.path).join('\n')+'\n';
+    const baseTag='ramo-nessa-google-search-base:'+before.core.Image.slice(7);
+    docker(['tag',before.core.Image,baseTag]);
+    if(image(baseTag).Id!==before.core.Image)throw Error('Referência local da imagem Core divergente.');
+    const dockerfile='FROM '+baseTag+'\n'+manifest.files.map(f=>'COPY --chmod=0644 '+f.path+' /app/'+f.path).join('\n')+'\n';
     writeFileSync(join(directory,'core-patch','Dockerfile'),dockerfile,{mode:0o600,flag:'wx'});
     console.log('Preparando imagem do Core com somente os seis arquivos compilados revisados...');
     const tag='ramo-nessa-google-search:'+source.slice(0,12);

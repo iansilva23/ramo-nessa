@@ -1,7 +1,7 @@
 // Disposable GitHub runner only. Real old Core/Postgres/Caddy, approved binaries.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdirSync,writeFileSync,readFileSync,rmSync,chmodSync} from 'node:fs';
+import {mkdirSync,writeFileSync,readFileSync,rmSync,chmodSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {prepareSearch} from './prepare-google-search-update.mjs';
 import {activateSearch} from './activate-google-search-update.mjs';
@@ -75,7 +75,7 @@ try{
   await activateSearch([directory,hashFile(directory+'/prepared.private.json')]);
   assertFingerprint(fingerprint(names.core,true),candidateSource);checkUntouched();
   console.log('GOOGLE SEARCH UPDATE REHEARSAL PASSED: exact old/new Core, approved Web, literal environment, ADM, providers, catalog and financial rows preserved; configuration race rejected before restart; Core and Web failure paths restore both old services; successful activation verified over HTTP. No live system accessed.');
-}catch(e){for(const r of ['core','gateway']){const p=spawnSync('docker',['logs','--tail','40',names[r]],{encoding:'utf8'});console.error('Synthetic '+r+' logs: '+p.stdout+p.stderr);}throw e;
+}catch(e){if(existsSync(directory+'/command.private.log'))console.error('Disposable fixture command log: '+readFileSync(directory+'/command.private.log','utf8').slice(-6000));for(const r of ['core','gateway']){const p=spawnSync('docker',['logs','--tail','40',names[r]],{encoding:'utf8'});console.error('Synthetic '+r+' logs: '+p.stdout+p.stderr);}throw e;
 }finally{
   if(started)for(const r of Object.keys(names))spawnSync('docker',['rm','-fv',names[r]]);
   for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])spawnSync('docker',['volume','rm',v]);spawnSync('docker',['network','rm',network]);
