@@ -562,9 +562,8 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
     required String title,
     required String emptyTitle,
     bool showSavedPlaces = false,
-  }) {
-    return Navigator.of(context).push<RamoPlace>(
-      MaterialPageRoute(
+  }) async {
+    final searchRoute = MaterialPageRoute<RamoPlace>(
         builder: (_) => DestinationSearchScreen(
           searchService: _placeSearchService,
           autocompleteService:
@@ -576,8 +575,17 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
           savedPlaceService:
               showSavedPlaces ? widget.savedPlaceService : null,
         ),
-      ),
     );
+    final selected = await Navigator.of(context).push<RamoPlace>(searchRoute);
+    if (kIsWeb) {
+      // `push` resolves at pop, before the reverse animation and overlay removal.
+      // An HTML map can still be hidden/offstage then. Apply the new camera only
+      // after the map has returned to layout, not while closing the search page.
+      await searchRoute.completed;
+      if (!mounted) return null;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    return selected;
   }
 
   Future<void> _chooseOrigin() async {

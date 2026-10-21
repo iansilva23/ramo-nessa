@@ -80,6 +80,9 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
         'Mova o mapa para posicionar o alfinete na entrada do endereço.')),
       Expanded(child: Stack(alignment: Alignment.center, children: [
         gm.GoogleMap(
+          // Full-screen app maps must accept the first one-finger drag.
+          // Leaving this automatic can select cooperative (two-finger) mode.
+          webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
           initialCameraPosition: gm.CameraPosition(target: gm.LatLng(_point.latitude, _point.longitude), zoom: 17),
           onMapCreated: (controller) {
             _map = controller;
@@ -107,3 +110,4 @@ class _SavedPlacePinScreenState extends State<SavedPlacePinScreen> {
     ]),
   );
 }
+

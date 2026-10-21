@@ -546,6 +546,9 @@ class _RamoLiveMapState extends State<RamoLiveMap>
     return LayoutBuilder(builder: (context, constraints) {
       widget.controller.updateViewport(constraints.biggest, widget.cameraPadding);
       return gm.GoogleMap(
+          // Full-screen app maps must accept the first one-finger drag.
+          // Leaving this automatic can select cooperative (two-finger) mode.
+          webGestureHandling: kIsWeb ? gm.WebGestureHandling.greedy : null,
       style: Theme.of(context).brightness == Brightness.dark
           ? ramoDarkMapStyle
           : ramoLightMapStyle,

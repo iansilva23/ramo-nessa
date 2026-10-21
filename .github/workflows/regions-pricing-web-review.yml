@@ -63,6 +63,32 @@ jobs:
       - name: Verify Web map camera regression on Chrome without touch input
         working-directory: apps/${{ matrix.app }}
         run: flutter test --platform chrome test/web_map_camera_test.dart
+      - name: Prove early Web route regression on the installed source
+        if: matrix.app == 'passenger'
+        shell: bash
+        run: |
+          set -euo pipefail
+          home=apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart
+          saved=$(mktemp)
+          cp "$home" "$saved"
+          trap 'cp "$saved" "$home"; rm -f "$saved"' EXIT
+          git show fb76419fc003fb5ee89cb952a6ec72d2abc11541:"$home" > "$home"
+          set +e
+          (cd apps/passenger && flutter test --platform chrome --reporter expanded test/web_map_selection_race_test.dart --plain-name 'Web waits for search transition before applying the selected route') > "$RUNNER_TEMP/map-return-regression.log" 2>&1
+          result=$?
+          set -e
+          cp "$saved" "$home"
+          rm -f "$saved"
+          trap - EXIT
+          if test "$result" = 0; then
+            echo 'Expected the installed version to fail the route transition regression.'
+            exit 1
+          fi
+          if ! rg -q WEB_ROUTE_MUST_WAIT_FOR_SEARCH_TRANSITION "$RUNNER_TEMP/map-return-regression.log"; then
+            cat "$RUNNER_TEMP/map-return-regression.log"
+            exit 1
+          fi
+          echo 'Installed source reproduces route computation before reverse transition completion.'
       - name: Verify route and GPS selection races on Web screen
         if: matrix.app == 'passenger'
         working-directory: apps/passenger

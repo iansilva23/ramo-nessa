@@ -132,6 +132,11 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   await page.getByRole('button', { name: 'Fechar aviso de instalação', exact: true }).click();
   await banner.waitFor({ state: 'hidden' });
   assert.equal(await banner.count(), 0, 'The installation banner can be dismissed without blocking the app');
+  // Inspect options received by the JS SDK stub through the real Web plugin.
+  // This proves configuration delivery, not real Google tiles or Safari GPU paint.
+  await page.waitForFunction(() => globalThis.ramoTestMapOptions?.length > 0);
+  assert.ok((await page.evaluate(() => ramoTestMapOptions)).every(options => options.gestureHandling === 'greedy'),
+    'Full-screen app maps must not fall back to cooperative two-finger gestures');
   assert.equal(loginCalls, 1);
   assert.match(publicHandle, new RegExp('^ramo_web_' + role + '_v1_[a-f0-9]{32}$'));
   const cookies = await page.context().cookies();
@@ -161,4 +166,5 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     await browser.close();
   }
 });
+
 

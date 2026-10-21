@@ -2,6 +2,7 @@
 // It does not validate map tiles, routes, GPS or Google Maps rendering.
 (() => {
   const listeners = new WeakMap();
+  globalThis.ramoTestMapOptions = [];
   const event = {
     addListener(target, name, callback) {
       let list = listeners.get(target); if (!list) listeners.set(target, list = new Map());
@@ -41,6 +42,7 @@
   class TestMap extends Overlay {
     constructor(element, options = {}) {
       super(options); this.element = element;
+      globalThis.ramoTestMapOptions.push({ gestureHandling: options.gestureHandling });
       element.style.backgroundColor = '#30343b';
       element.setAttribute('aria-label', 'Mapa simulado para teste');
     }
@@ -65,3 +67,4 @@
     marker: { AdvancedMarkerElement: Overlay }, visualization: { HeatmapLayer: Overlay },
   } };
 })();
+

@@ -76,9 +76,38 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   Navigator.of(tester.element(find.byType(DestinationSearchScreen))).pop(place);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
+  await tester.pump();
 }
 
 void main() {
+  testWidgets('Web waits for search transition before applying the selected route', (tester) async {
+    if (!kIsWeb) return;
+    final location = DelayedLocation();
+    final routes = RecordingRoutes();
+    await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
+      releasePolicyService: NoRelease(), agencyPromotionService: NoAgency(),
+      locationService: location, routeService: routes, placeSearchService: NoSearch(),
+      pricingPolicyService: ControlledPolicy(), networkTilesEnabled: false,
+    )));
+    location.response.complete(pickup.position);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    tester.widget<RideBottomSheet>(find.byType(RideBottomSheet)).onDestinationTap();
+    await tester.pumpAndSettle();
+    final search = tester.element(find.byType(DestinationSearchScreen));
+    final searchRoute = ModalRoute.of(search)!;
+    Navigator.of(search).pop(firstDestination);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(searchRoute.animation!.status, AnimationStatus.reverse);
+    expect(routes.destinations, isEmpty,
+      reason: 'WEB_ROUTE_MUST_WAIT_FOR_SEARCH_TRANSITION');
+    await tester.pumpAndSettle();
+    expect(routes.destinations, [firstDestination.position]);
+    expect(tester.widget<RamoLiveMap>(find.byType(RamoLiveMap)).destination?.name, firstDestination.name);
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('late coordinate classification cannot replace the chosen Web origin', (tester) async {
     if (!kIsWeb) return;
     final location = DelayedLocation();
