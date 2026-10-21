@@ -26,7 +26,7 @@ try{
   run('python3',[resolve('deploy/staging/stage-regions-web.py'),'--archive',oldZip,'--output',oldWebRoot,'--source','0f5305ddef3398112ca1e7d10a00fd05fa8548e8','--sha256','3026f5f9ac800445ea37faaf214871ec6c3e481a805680ddc619c8be4257f35d']);
   writeFileSync(fixture+'/Caddyfile','{\n admin off\n auto_https off\n}\n:8080 {\n respond /healthz 200\n handle_path /passageiro/* {\n root * /srv/web/passenger\n file_server\n }\n handle_path /motorista/* {\n root * /srv/web/driver\n file_server\n }\n}\n');
   writeFileSync(fixture+'/sentinel','unchanged documents and ADM');
-  docker(['network','create','--internal',network]);for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])docker(['volume','create',v]);
+  docker(['network','create','--internal',network]);docker(['network','create',network+'-ingress']);for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])docker(['volume','create',v]);
   const labels={'br.com.ramonessa.regions-ci':'true'},security={cap_drop:['ALL'],security_opt:['no-new-privileges:true'],restart:'unless-stopped'};
   const coreEnv={NODE_ENV:'staging',PORT:'8080',DATABASE_URL:'postgresql://ci:synthetic@postgres:5432/ci',DB_SSL:'false',ROUTING_PROVIDER:'google',GOOGLE_MAPS_SERVER_API_KEY:'synthetic',GOOGLE_PLACES_BASE_URL:'http://maps:8080/v1/',PLACE_PROOF_SECRET:'synthetic-google-ci-proof-secret-123456789',MERCADO_PAGO_MODE:'disabled',PUSH_PROVIDER:'disabled',OTP_HASH_SECRET:'synthetic-google-ci-otp-secret-123456789',OTP_RATE_LIMIT_SECRET:'synthetic-google-ci-rate-secret-123456789',ADMIN_LOGIN_RATE_LIMIT_SECRET:'synthetic-google-ci-login-secret-123456789',ADMIN_MFA_ENCRYPTION_KEY:'a'.repeat(64),DOCUMENT_INSPECTION_ENCRYPTION_KEY:'b'.repeat(64),LITERAL_SECRET:'fixture-$abc-${UNKNOWN}-$$'};
   coreEnv.ADMIN_MFA_ENCRYPTION_KEY=Buffer.alloc(32,1).toString('base64');
@@ -40,6 +40,9 @@ try{
     maps:{...service('maps',gatewayImage)},site:{...service('site',gatewayImage)},
   },networks:{default:{name:network,external:true}},volumes:{docs:{name:volume,external:true},pg:{name:pgVolume,external:true},caddydata:{name:'google-search-ci-caddy-data',external:true},caddyconfig:{name:'google-search-ci-caddy-config',external:true}}};
   model.services.gateway.cap_add=['NET_BIND_SERVICE'];
+  // Only Caddy has host ingress. Core/Postgres remain on the internal network.
+  model.networks.ingress={name:network+'-ingress',external:true};
+  model.services.gateway.networks.ingress=null;
   writeFileSync(modelPath,JSON.stringify(escapeCompose(model)),{mode:0o600});
   started=true;compose(['up','-d','--no-build','--pull','never','postgres','maps','site']);await health('postgres');
   docker(['run','--rm','--network',network,'-e','DATABASE_URL='+coreEnv.DATABASE_URL,'-e','DB_SSL=false',coreImage,'node','dist/scripts/migrate.js']);
@@ -78,6 +81,6 @@ try{
 }catch(e){if(existsSync(directory+'/command.private.log'))console.error('Disposable fixture command log: '+readFileSync(directory+'/command.private.log','utf8').slice(-6000));for(const r of ['core','gateway']){const p=spawnSync('docker',['logs','--tail','40',names[r]],{encoding:'utf8'});console.error('Synthetic '+r+' logs: '+p.stdout+p.stderr);}throw e;
 }finally{
   if(started)for(const r of Object.keys(names))spawnSync('docker',['rm','-fv',names[r]]);
-  for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])spawnSync('docker',['volume','rm',v]);spawnSync('docker',['network','rm',network]);
+  for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])spawnSync('docker',['volume','rm',v]);for(const n of [network,network+'-ingress'])spawnSync('docker',['network','rm',n]);
   rmSync(root,{recursive:true,force:true});rmSync(resolve(newWebRoot,'..'),{recursive:true,force:true});rmSync(resolve(oldWebRoot,'..'),{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});
 }
