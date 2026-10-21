@@ -33,6 +33,20 @@ class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
   @override
   Future<void> init(int mapId) async {}
   @override
+  Future<void> updateMarkers(gi.MarkerUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updateClusterManagers(gi.ClusterManagerUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updatePolygons(gi.PolygonUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updatePolylines(gi.PolylineUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updateCircles(gi.CircleUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updateHeatmaps(gi.HeatmapUpdates updates, {required int mapId}) async {}
+  @override
+  Future<void> updateGroundOverlays(gi.GroundOverlayUpdates updates, {required int mapId}) async {}
+  @override
   Future<void> updateTileOverlays({required Set<gi.TileOverlay> newTileOverlays, required int mapId}) async {}
   @override
   void dispose({required int mapId}) {
@@ -86,6 +100,12 @@ class LifecycleMapPlatform extends gi.GoogleMapsFlutterPlatform {
 void main() {
   testWidgets('Web pin allows one-finger drag and locks gestures while saving', (tester) async {
     if (!kIsWeb) return;
+    final previousErrorHandler = FlutterError.onError;
+    FlutterError.onError = (details) {
+      print('PIN_GESTURE_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
+      previousErrorHandler?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previousErrorHandler);
     final original = gi.GoogleMapsFlutterPlatform.instance;
     final sdk = LifecycleMapPlatform();
     gi.GoogleMapsFlutterPlatform.instance = sdk;
