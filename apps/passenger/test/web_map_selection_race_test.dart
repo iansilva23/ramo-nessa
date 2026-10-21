@@ -72,14 +72,22 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   if (kIsWeb) {
     final previous = FlutterError.onError;
     FlutterError.onError = (details) {
-      print('WEB_PICK_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      print('WEB_PICK_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
       previous?.call(details);
     };
     addTearDown(() => FlutterError.onError = previous);
   }
+  Future<void> visible(Finder finder) async {
+    for (var frame = 0; frame < 30 && finder.evaluate().isEmpty; frame++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(finder, findsOneWidget);
+  }
+  await visible(find.byType(RideBottomSheet));
   final card = tester.widget<RideBottomSheet>(find.byType(RideBottomSheet));
   if (origin) { card.onOriginTap(); } else { card.onDestinationTap(); }
   await tester.pump();
+  await visible(find.byType(DestinationSearchScreen));
   final search = tester.element(find.byType(DestinationSearchScreen));
   final route = ModalRoute.of(search)!;
   await tester.pump(route.transitionDuration);
@@ -92,6 +100,8 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   await tester.pump();
   await tester.pump();
   expect(find.byType(DestinationSearchScreen), findsNothing);
+  await visible(find.byType(RamoLiveMap));
+  await tester.pump();
 }
 
 void main() {
