@@ -26,7 +26,9 @@ const caddy=join(dir,'Caddyfile');writeFileSync(caddy,`{
 }
 :8080 {
  @api path /v1/* /health /ready
- handle @api { reverse_proxy core:8080 }
+ handle @api {
+  reverse_proxy core:8080
+ }
  handle_path /administrodo/* {
   root * /srv/admin
   try_files {path} /index.html
@@ -40,8 +42,12 @@ const caddy=join(dir,'Caddyfile');writeFileSync(caddy,`{
   root * /srv/web/driver
   file_server
  }
- handle /api/health { respond 200 }
- handle / { respond "synthetic institutional site" 200 }
+ handle /api/health {
+  respond 200
+ }
+ handle / {
+  respond "synthetic institutional site" 200
+ }
 }
 `);
 const model={name:'ramo-nessa-staging',services:{
