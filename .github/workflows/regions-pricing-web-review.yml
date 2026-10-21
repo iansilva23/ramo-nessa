@@ -47,6 +47,8 @@ jobs:
         app: [passenger, driver]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: subosito/flutter-action@v2.23.0
         with:
           flutter-version: '3.47.5'
