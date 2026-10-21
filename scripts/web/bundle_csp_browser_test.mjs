@@ -12,7 +12,7 @@ import { prepareBrowserSessionRequest, browserAuthResponse, clearBrowserSessionC
 import { browserName, launchTestBrowser } from './browser_test_runtime.mjs';
 const role = process.env.RAMO_WEB_TEST_ROLE;
 if (!['passenger', 'driver'].includes(role)) throw new Error('Specify RAMO_WEB_TEST_ROLE');
-const root = resolve(new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
+const root = resolve(process.env.RAMO_WEB_TEST_DIST ?? new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
 const prefix = role === 'passenger' ? '/passageiro/' : '/motorista/';
 test(browserName + '/' + role + ': release bundle logs in, restores cookie session and returns to login after logout', { timeout: 120000 }, async t => {
   let origin, session, publicHandle;
@@ -78,6 +78,7 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
   const browser = await launchTestBrowser();
   t.after(() => browser.close());
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 430, height: 900 },
+    ...(role === 'passenger' ? { permissions: ['geolocation'], geolocation: { latitude: -2.7956, longitude: -40.5142, accuracy: 5 } } : {}),
     ...(browserName === 'webkit' ? { isMobile: true, hasTouch: true,
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1' } : {}) });
   page.setDefaultTimeout(20000);
@@ -93,10 +94,11 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     }
     remote.push(url.origin); return route.abort();
   });
-  await page.addInitScript(() => {
+  await page.addInitScript(suppressTiles => {
+    globalThis.ramoTestSuppressTiles = suppressTiles;
     globalThis.bundleViolations = [];
     addEventListener('securitypolicyviolation', event => bundleViolations.push({ directive: event.effectiveDirective, uri: event.blockedURI }));
-  });
+  }, role === 'passenger');
   try {
   await page.goto(origin + prefix);
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
@@ -138,6 +140,10 @@ test(browserName + '/' + role + ': release bundle logs in, restores cookie sessi
     await page.waitForFunction(() => globalThis.ramoTestMapOptions?.length > 0);
     assert.ok((await page.evaluate(() => ramoTestMapOptions)).every(options => options.gestureHandling === 'greedy'),
       'Full-screen app maps must not fall back to cooperative two-finger gestures');
+    // Real plugin/controller initialization must not depend on every tile loading.
+    // GPS is synthetic and granted; its first camera update requires onMapCreated.
+    await page.waitForFunction(() => globalThis.ramoTestCameraUpdates?.length > 0,
+      undefined, { timeout: 10000 }).catch(() => { throw new Error('WEB_MAP_NOT_READY_WITH_STALLED_TILES'); });
   }
   // Driver's authentication fixture does not provide its operational registration
   // or location permissions; it validates sessions without entering the map.

@@ -99,6 +99,9 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   await tester.pump();
   await tester.pump();
   await tester.pump();
+  for (var frame = 0; frame < 30 && find.byType(DestinationSearchScreen).evaluate().isNotEmpty; frame++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
   expect(find.byType(DestinationSearchScreen), findsNothing);
   await visible(find.byType(RamoLiveMap));
   await tester.pump();

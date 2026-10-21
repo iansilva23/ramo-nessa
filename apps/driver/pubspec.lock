@@ -484,10 +484,10 @@ packages:
     dependency: transitive
     description:
       name: google_maps_flutter_web
-      sha256: ec802303734d907dea71adfe8037233966837acb10c5282ebdbc65fe33787750
+      sha256: de408355e21b0da7da17962b86c338d320d9bc1c5eb94e72a2d021955bda5aaa
       url: "https://pub.dev"
     source: hosted
-    version: "0.6.4"
+    version: "0.6.4+2"
   gsettings:
     dependency: transitive
     description:
@@ -1141,4 +1141,5 @@ packages:
 sdks:
   dart: ">=3.12.0 <4.0.0"
   flutter: ">=3.44.0"
+
 
