@@ -10,10 +10,10 @@ import {validate,runtimeIdentity} from './backup-regions-pricing.mjs';
 import {servicePlan,assertEnvironmentMatches} from './asaas-activation-plan-contract.mjs';
 import {gatewayWebPlan,assertGatewayWebDelta,publicPushConfig,browserMapsKey} from './asaas-driver-web-contract.mjs';
 
-export const mapWebSource='0ad3ba73cfe2a1265344de09c75309b95daac8dd';
-const originalWebSource='c6390a6d55610c5bcb45d78ddd03b623d23fe124';
-const baselinePlan='/opt/ramo-nessa-regions/map-web-updates/c6390a6d5561/prepared.private.json';
-const baselineDigest='dd59053306a0646817c4e7c4423332690a019834172fd8e7e5c7a4cc0158742a';
+export const mapWebSource='0f5305ddef3398112ca1e7d10a00fd05fa8548e8';
+const originalWebSource='0ad3ba73cfe2a1265344de09c75309b95daac8dd';
+const baselinePlan='/opt/ramo-nessa-regions/map-web-updates/0ad3ba73cfe2/prepared.private.json';
+const baselineDigest='74b6fed1673311134dfe6af7d3b48ad6578037f300c27a415534c02012375b94';
 const names={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'};
 const digest=b=>createHash('sha256').update(b).digest('hex');
 export function mapPreparationArguments(args){
@@ -31,6 +31,9 @@ export function assertWebMapLockDelta(before,after){
   const expected=before.slice(0,start)+block.replace(oldHash,newHash).replace('version: "0.6.4"','version: "0.6.4+2"')+before.slice(end);
   // Pub may normalize the final newline; every dependency entry stays exact.
   if(expected.trimEnd()!==after.trimEnd())throw Error('O lock altera dependências além do patch Web revisado.');
+}
+export function assertWebRouteLockUnchanged(before,after){
+  if(before!==after)throw Error('A correção de regiões não pode alterar dependências.');
 }
 export function assertMapProviders(oldRoot,newRoot){
   for(const role of ['passenger','driver']){
@@ -62,12 +65,12 @@ export async function prepareMapWeb(args, rehearsal={}){
     const baseBytes=readFileSync(rehearsal.baselinePlan??baselinePlan);if(digest(baseBytes)!==(rehearsal.baselineDigest??baselineDigest))throw Error('Referência da última ativação Web não confirmada.');
     const base=JSON.parse(baseBytes),web=before.gateway.Mounts.find(m=>m.Destination==='/srv/web'),caddy=before.gateway.Mounts.find(m=>m.Destination==='/etc/caddy/Caddyfile');
     if(web.Source!==(base.bundleRoot??base.webRoot)||await hashTree(web.Source)!==base.newWebHash)throw Error('Os aplicativos Web mudaram desde a última ativação auditada. Nada será sobrescrito.');
-    const allowed=['apps/passenger/pubspec.lock','apps/driver/pubspec.lock','apps/passenger/lib/src/features/home/presentation/widgets/ramo_live_map.dart','apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart','apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart','apps/passenger/lib/src/features/home/presentation/destination_search_screen.dart','apps/passenger/lib/src/features/profile/presentation/saved_place_pin_screen.dart','packages/design_system/lib/ramo_design_system.dart','packages/design_system/lib/src/map/ramo_map_camera_fit.dart'];
+    const allowed=['apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart','apps/passenger/lib/src/features/pricing/data/pricing_policy_service.dart'];
     const delta=git(['diff','--name-only',originalWebSource,mapWebSource,'--','apps/passenger/lib','apps/driver/lib',':(glob)packages/**/lib/**','apps/passenger/pubspec.yaml','apps/passenger/pubspec.lock','apps/driver/pubspec.yaml','apps/driver/pubspec.lock','apps/passenger/android','apps/passenger/ios','apps/driver/android','apps/driver/ios']).trim().split('\n').filter(Boolean);
     if(delta.some(p=>!allowed.includes(p)))throw Error('Fontes dos aplicativos mudaram fora da revisão dos mapas.');
     for(const role of ['passenger','driver']){
       const path='apps/'+role+'/pubspec.lock';
-      assertWebMapLockDelta(git(['show',originalWebSource+':'+path]),git(['show',mapWebSource+':'+path]));
+      assertWebRouteLockUnchanged(git(['show',originalWebSource+':'+path]),git(['show',mapWebSource+':'+path]));
     }
     const archiveStat=lstatSync(request.archive);if(!archiveStat.isFile()||archiveStat.isSymbolicLink()||archiveStat.size>128*1024**2||await hashFile(request.archive)!==request.archiveSha256)throw Error('Pacote diferente do checksum revisado.');
     const paths=(before.gateway.Config.Labels?.['com.docker.compose.project.config_files']||'').split(',').filter(Boolean);

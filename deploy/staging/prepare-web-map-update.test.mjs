@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {mapPreparationArguments,assertMapProviders,mapWebSource,assertWebMapLockDelta} from './prepare-web-map-update.mjs';
+import {mapPreparationArguments,assertMapProviders,mapWebSource,assertWebMapLockDelta,assertWebRouteLockUnchanged} from './prepare-web-map-update.mjs';
 
 test('preparation accepts only an explicit ZIP and digest for the reviewed source',()=>{
   assert.match(mapWebSource,/^[a-f0-9]{40}$/);
@@ -59,4 +59,10 @@ test('refuses wrong Web archive checksum or unreviewed source version',()=>{
 test('lock final newline normalization does not weaken native dependency preservation',()=>{
   assert.doesNotThrow(()=>assertWebMapLockDelta(lockBefore,lockAfter+'\n'));
   assert.throws(()=>assertWebMapLockDelta(lockBefore,lockAfter.replace('2.20.0','2.21.0')+'\n'));
+});
+
+test('managed route update preserves every dependency byte including Web map patch',()=>{
+  assert.doesNotThrow(()=>assertWebRouteLockUnchanged(lockAfter,lockAfter));
+  assert.throws(()=>assertWebRouteLockUnchanged(lockAfter,lockBefore));
+  assert.throws(()=>assertWebRouteLockUnchanged(lockAfter,lockAfter.replace('2.20.0','2.21.0')));
 });
