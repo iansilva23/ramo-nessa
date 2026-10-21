@@ -67,7 +67,7 @@ jobs:
       - name: Verify managed region route availability on Chrome
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
-        run: flutter test --platform chrome --reporter expanded test/managed_route_availability_test.dart
+        run: flutter test --platform chrome --reporter expanded test/managed_route_availability_test.dart test/google_primary_search_test.dart
       - working-directory: apps/${{ matrix.app }}
         run: flutter analyze --no-fatal-infos && flutter test
       - name: Verify shared map projection and padding
@@ -172,7 +172,7 @@ jobs:
       - working-directory: backend/core
         run: npm run db:migrate
       - working-directory: backend/core
-        run: node --import tsx --test test/postgres_managed_operations.test.ts test/postgres_pricing_v5_finance_safe.test.ts
+        run: node --import tsx --test test/postgres_managed_operations.test.ts test/postgres_pricing_v5_finance_safe.test.ts test/postgres_google_primary_http.test.ts
 
   browser:
     runs-on: ubuntu-24.04

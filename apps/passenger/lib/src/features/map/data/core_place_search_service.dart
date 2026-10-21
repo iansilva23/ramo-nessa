@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../pricing/domain/managed_pricing_catalog.dart';
 
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -31,6 +33,7 @@ class CorePlaceSearchService
   final String _accessToken;
   final http.Client _client;
   final Map<String, List<RamoPlace>> _cache = {};
+  bool get _googlePrimary => kIsWeb && ManagedPricingCatalog.enabled;
 
   Map<String, String> get _headers => {
         'content-type': 'application/json',
@@ -89,8 +92,8 @@ class CorePlaceSearchService
     final normalized = query.trim();
     if (normalized.isEmpty) return const [];
 
-    final approvedExternal =
-        _approvedExternalForAutocomplete(normalized);
+    final approvedExternal = _googlePrimary
+        ? null : _approvedExternalForAutocomplete(normalized);
     final queryForProvider = approvedExternal == null
         ? normalized
         : '${approvedExternal.label}, Ceará, Brasil';
@@ -101,6 +104,7 @@ class CorePlaceSearchService
           headers: _headers,
           body: jsonEncode({
             'input': queryForProvider,
+            if (_googlePrimary) 'searchMode': 'google',
             'sessionToken': sessionToken,
             'localOnly': approvedExternal == null,
           }),
@@ -167,6 +171,7 @@ class CorePlaceSearchService
           headers: _headers,
           body: jsonEncode({
             'placeId': suggestion.placeId,
+            if (_googlePrimary) 'searchMode': 'google',
             'sessionToken': sessionToken,
             'localOnly': suggestion.localOnly,
             if (suggestion.approvedExternalId != null)
@@ -230,7 +235,7 @@ class CorePlaceSearchService
       approvedExternalId:
           raw['approvedExternalId']?.toString().trim().isNotEmpty == true
               ? raw['approvedExternalId'].toString().trim()
-              : suggestion.approvedExternalId,
+              : (_googlePrimary ? null : suggestion.approvedExternalId),
       approvedPricingZoneId:
           approvedPricingZoneId?.isNotEmpty == true
               ? approvedPricingZoneId
@@ -246,7 +251,7 @@ class CorePlaceSearchService
 
     final approvedExternalId = suggestion.approvedExternalId;
     if (
-      approvedExternalId != null &&
+      !_googlePrimary && approvedExternalId != null &&
       ApprovedDestinationCatalog.matchPlace(place)?.id !=
           approvedExternalId
     ) {
@@ -327,11 +332,11 @@ class CorePlaceSearchService
     if (normalized.length < 3) return const [];
 
     final cacheKey = normalized.toLowerCase();
-    final cached = _cache[cacheKey];
+    final cached = _googlePrimary ? null : _cache[cacheKey];
     if (cached != null) return cached;
 
-    final approvedExternal =
-        ApprovedDestinationCatalog.matchQuery(normalized);
+    final approvedExternal = _googlePrimary
+        ? null : ApprovedDestinationCatalog.matchQuery(normalized);
     final queryForProvider = approvedExternal == null
         ? normalized
         : '${approvedExternal.label}, Ceará, Brasil';
@@ -342,6 +347,7 @@ class CorePlaceSearchService
           headers: _headers,
           body: jsonEncode({
             'query': queryForProvider,
+            if (_googlePrimary) 'searchMode': 'google',
             'localOnly': approvedExternal == null,
           }),
         )
@@ -392,7 +398,7 @@ class CorePlaceSearchService
         _cache.isNotEmpty) {
       _cache.remove(_cache.keys.first);
     }
-    _cache[cacheKey] = safeResults;
+    if (!_googlePrimary) _cache[cacheKey] = safeResults;
     return safeResults;
   }
 

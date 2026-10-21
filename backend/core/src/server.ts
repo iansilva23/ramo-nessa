@@ -406,6 +406,7 @@ import {
   placesLocalityId,
 } from './places/places-access-policy.js';
 import { resolveApprovedLocalPlace } from './places/local-place-policy.js';
+import {googlePrimaryPlaces} from './places/google-primary-places.js';
 import {
   classifyCoordinateByCatalog,
   CoordinateClassificationError,
@@ -2101,6 +2102,15 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            geoLookupStats.googleFallbacks += 1;
+            json(response,200,await googlePrimaryPlaces({action:'autocomplete',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds}));
+            return;
+          }
+        }
         const query =
           typeof value.input === 'string' ? value.input : '';
         const localOnly = await resolvePlacesLocalOnly({
@@ -2289,6 +2299,17 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            const result = await googlePrimaryPlaces({action:'details',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds});
+            if (isAuthenticatedPassenger && 'place' in result && result.place) {
+              observePassengerSelectedGooglePlace(result.place.id,false,result.place.latitude,result.place.longitude);
+            }
+            json(response,200,result);return;
+          }
+        }
         const localOnly = value.localOnly !== false;
         const externalLocalityId =
           typeof value.externalLocalityId === 'string'
@@ -2488,6 +2509,15 @@ const server = createServer(async (request, response) => {
           ? body as Record<string, unknown>
           : {};
       try {
+        if (value.searchMode === 'google') {
+          const current = await resolvePricingCatalogContext({versions:pricingCatalogVersionRepository});
+          if (current.snapshot.managedOperations != null) {
+            geoLookupStats.googleFallbacks += 1;
+            json(response,200,await googlePrimaryPlaces({action:'search',body:value,catalog:current.snapshot,
+              google:googlePlacesService,proofSecret:placeProofSecret,proofTtlSeconds:placeProofTtlSeconds}));
+            return;
+          }
+        }
         const query =
           typeof value.query === 'string' ? value.query : '';
         const localOnly = await resolvePlacesLocalOnly({

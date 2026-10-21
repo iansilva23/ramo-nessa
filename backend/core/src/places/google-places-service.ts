@@ -195,6 +195,7 @@ export class GooglePlacesService {
     sessionToken: string;
     localOnly: boolean;
     bounds?: LocalPlacesBounds;
+    bias?: LocalPlacesBounds;
   }): Promise<GooglePlacePrediction[]> {
     const bounds=input.bounds??LOCAL_BOUNDS;
     const query = input.query.trim();
@@ -230,6 +231,12 @@ export class GooglePlacesService {
           languageCode: 'pt-BR',
           regionCode: 'BR',
           includedRegionCodes: ['br'],
+          ...(!input.localOnly && input.bias ? {
+            locationBias: {rectangle: {
+              low: {latitude:input.bias.minLatitude,longitude:input.bias.minLongitude},
+              high: {latitude:input.bias.maxLatitude,longitude:input.bias.maxLongitude},
+            }},
+          } : {}),
           ...(input.localOnly
             ? {
                 locationRestriction: {
@@ -427,6 +434,8 @@ export class GooglePlacesService {
     query: string;
     localOnly: boolean;
     bounds?: LocalPlacesBounds;
+    bias?: LocalPlacesBounds;
+    maxResults?: number;
   }): Promise<GooglePlaceResult[]> {
     const bounds=input.bounds??LOCAL_BOUNDS;
     const query = input.query.trim();
@@ -457,9 +466,15 @@ export class GooglePlacesService {
         },
         body: JSON.stringify({
           textQuery: query,
-          pageSize: 6,
+          pageSize: Math.max(1,Math.min(20,Math.floor(input.maxResults ?? 6))),
           languageCode: 'pt-BR',
           regionCode: 'BR',
+          ...(!input.localOnly && input.bias ? {
+            locationBias: {rectangle: {
+              low: {latitude:input.bias.minLatitude,longitude:input.bias.minLongitude},
+              high: {latitude:input.bias.maxLatitude,longitude:input.bias.maxLongitude},
+            }},
+          } : {}),
           ...(input.localOnly
             ? {
                 locationBias: {
