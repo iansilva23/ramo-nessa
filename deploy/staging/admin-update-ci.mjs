@@ -82,7 +82,7 @@ docker([...compose,'up','-d','--no-build','--pull','never','core','gateway']);
 for(let n=0;;n++){if(['ramo-nessa-staging-core-1','ramo-nessa-staging-gateway-1'].every(name=>inspect(name).State.Health?.Status==='healthy'))break;if(n>90)throw Error('Core/Gateway not healthy');await new Promise(r=>setTimeout(r,1000));}
 for(const name of ['ramo-nessa-staging-google-maps-mock-1','ramo-nessa-site-institutional-site-1'])docker(['run','-d','--name',name,'--entrypoint','sleep','postgres:16','1200']);
 const core=inspect('ramo-nessa-staging-core-1'),oldGateway=inspect('ramo-nessa-staging-gateway-1');
-const fingerprint=()=>inDb(`
+const fingerprint=()=>inDb(String.raw`
  import {createPostgresPool} from './dist/src/db/postgres.js';
  const p=createPostgresPool(process.env.DATABASE_URL),tables=await p.query("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"),result={};
  for(const {tablename:t} of tables.rows){if(!/^[a-z0-9_]+$/.test(t))throw Error('table');result[t]=(await p.query('SELECT md5(coalesce(string_agg(to_jsonb(r)::text,\'|\' ORDER BY to_jsonb(r)::text),\'\')) AS hash FROM public."'+t+'" r')).rows[0].hash;}
