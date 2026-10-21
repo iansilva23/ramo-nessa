@@ -66,7 +66,7 @@ jobs:
       - name: Verify route and GPS selection races on Web screen
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
-        run: flutter test --platform chrome test/web_map_selection_race_test.dart
+        run: flutter test --platform chrome --reporter expanded test/web_map_selection_race_test.dart
       - name: Verify managed pricing on actual Chrome runtime
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
