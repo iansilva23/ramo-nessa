@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {mapPreparationArguments,assertMapProviders,mapWebSource} from './prepare-web-map-update.mjs';
+import {mapPreparationArguments,assertMapProviders,mapWebSource,assertWebMapLockDelta} from './prepare-web-map-update.mjs';
 
 test('preparation accepts only an explicit ZIP and digest for the reviewed source',()=>{
   assert.match(mapWebSource,/^[a-f0-9]{40}$/);
@@ -28,4 +28,35 @@ test('refuses a Maps key change and never prints provider values',t=>{
 test('refuses swapped passenger/driver Firebase configuration',t=>{
   const f=fixture(t);writeFileSync(join(f.next,'driver','ramo_push_config.js'),'// fixture\nself.ramoPushConfig = '+JSON.stringify({apiKey:'fixture',appId:'passenger',projectId:'ramo-nessa',messagingSenderId:'fixture',vapidKey:'fixture'})+';\n');
   assert.throws(()=>assertMapProviders(f.old,f.next));
+});
+
+const lockBefore=`packages:
+  google_maps_flutter_android:
+    dependency: transitive
+    version: "2.20.0"
+  google_maps_flutter_web:
+    dependency: transitive
+    description:
+      name: google_maps_flutter_web
+      sha256: ec802303734d907dea71adfe8037233966837acb10c5282ebdbc65fe33787750
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.4"
+  preserved_future_feature:
+    version: "1.0.0"
+`;
+const lockAfter=lockBefore.replace('ec802303734d907dea71adfe8037233966837acb10c5282ebdbc65fe33787750','de408355e21b0da7da17962b86c338d320d9bc1c5eb94e72a2d021955bda5aaa').replace('version: "0.6.4"','version: "0.6.4+2"');
+test('only the verified Web patch may change in either app lock',()=>assert.doesNotThrow(()=>assertWebMapLockDelta(lockBefore,lockAfter)));
+test('rejects Android or future feature dependency changes alongside Web patch',()=>{
+  assert.throws(()=>assertWebMapLockDelta(lockBefore,lockAfter.replace('2.20.0','2.21.0')));
+  assert.throws(()=>assertWebMapLockDelta(lockBefore,lockAfter.replace('1.0.0','2.0.0')));
+});
+test('refuses wrong Web archive checksum or unreviewed source version',()=>{
+  assert.throws(()=>assertWebMapLockDelta(lockBefore,lockAfter.replace('de408355','ffffffff')));
+  assert.throws(()=>assertWebMapLockDelta(lockBefore.replace('0.6.4','0.6.3'),lockAfter));
+});
+
+test('lock final newline normalization does not weaken native dependency preservation',()=>{
+  assert.doesNotThrow(()=>assertWebMapLockDelta(lockBefore,lockAfter+'\n'));
+  assert.throws(()=>assertWebMapLockDelta(lockBefore,lockAfter.replace('2.20.0','2.21.0')+'\n'));
 });

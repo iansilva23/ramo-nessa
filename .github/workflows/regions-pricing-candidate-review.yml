@@ -55,9 +55,9 @@ jobs:
           echo "872e17e87dedd8cf8410b5e0103c5ba1f0a747aaa94e4b6e16c2e86d3338b19a  $RUNNER_TEMP/installed-maps-configured.zip" | sha256sum --check
           curl --fail --silent --show-error --location \
             --header "Authorization: Bearer $GH_TOKEN" \
-            https://api.github.com/repos/iansilva23/ramo-nessa/actions/artifacts/12362030461/zip \
+            https://api.github.com/repos/iansilva23/ramo-nessa/actions/artifacts/12365640705/zip \
             --output "$RUNNER_TEMP/maps-configured.zip"
-          echo "92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1  $RUNNER_TEMP/maps-configured.zip" | sha256sum --check
+          echo "392f89862e0a46ad7010cb44618f2110f87cb1e3fd860e7c135beefefa84b46e  $RUNNER_TEMP/maps-configured.zip" | sha256sum --check
       - name: Build candidate, backup real synthetic PostgreSQL and rehearse preparation
         shell: bash
         env:
@@ -238,7 +238,7 @@ jobs:
           import {createHash} from 'node:crypto';
           import {spawnSync} from 'node:child_process';
           import assert from 'node:assert/strict';
-          await prepareMapWeb([process.env.MAP_ARCHIVE,'92a13615a015c5f08fe4480506666db3e09c5c61b67b0fcc493e496be7d7cae1'],{baselinePlan:process.env.MAP_BASELINE,baselineDigest:process.env.MAP_BASELINE_DIGEST});
+          await prepareMapWeb([process.env.MAP_ARCHIVE,'392f89862e0a46ad7010cb44618f2110f87cb1e3fd860e7c135beefefa84b46e'],{baselinePlan:process.env.MAP_BASELINE,baselineDigest:process.env.MAP_BASELINE_DIGEST});
           const dir='/opt/ramo-nessa-regions/map-web-updates/'+mapWebSource.slice(0,12);
           const bytes=readFileSync(dir+'/prepared.private.json'),hash=createHash('sha256').update(bytes).digest('hex'),plan=JSON.parse(bytes);
           const query=()=>{const r=spawnSync('docker',['exec','ramo-nessa-staging-postgres-1','psql','-U','ramo','-d','ramo','-Atqc',"SELECT json_build_array((SELECT json_agg(row_to_json(t) ORDER BY id) FROM pricing_catalog_versions t),(SELECT json_agg(row_to_json(t) ORDER BY id) FROM rides t),(SELECT json_agg(row_to_json(t) ORDER BY id) FROM payments t),(SELECT json_agg(row_to_json(t)) FROM ledger_entries t))"],{encoding:'utf8'});assert.equal(r.status,0);return r.stdout;};
