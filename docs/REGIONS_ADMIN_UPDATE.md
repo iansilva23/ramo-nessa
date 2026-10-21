@@ -29,4 +29,16 @@ Ferramenta da revisão `dbe145be7d25a9ef360cd06636c66c6a0cfa2afc`, fonte do ADM 
 - Retorno: falha simulada após a troca e conferência da candidata recupera imagem e arquivos anteriores, com journal rolled-back/rollbackComplete.
 - Nos dois cenários: mesmo container do Core, política pública idêntica e assinaturas de todas as tabelas públicas idênticas, incluindo tarifa pré-existente, corrida, pagamento e ledger. Web/mounts/Caddy/ambiente preservados, incluindo dólares literais.
 
-Os ensaios rodaram exclusivamente no GitHub Actions. A execução autorizada na VPS é feita pelo operador com o comando fixado nessa revisão. O resultado real ainda precisa ser recebido antes de registrar a instalação concluída. A homologação funcional conectada permanece separada.
+Os ensaios rodaram exclusivamente no GitHub Actions. A execução autorizada na VPS é feita pelo operador com o comando fixado nessa revisão. O resultado real foi posteriormente recebido, conforme registro abaixo. A homologação funcional conectada permanece separada.
+
+
+## Instalação real confirmada pelo operador
+O operador forneceu o retorno `ADM_AJUDA_E_COORDENADAS_ATUALIZADOS` após executar a ferramenta fixada em `dbe145be7d25a9ef360cd06636c66c6a0cfa2afc` na homologação. A revisão do ADM instalada é `7efa18dc87da800d313357902316107029735666`.
+
+- ADM atualizado, com 18 capítulos de ajuda e campos Latitude/Longitude.
+- `resetApplied: false`: nenhum novo reset aplicado.
+- Core, Passageiro Web, Motorista Web e aplicativos nativos sem atualização nesta etapa.
+- Configurações dos provedores preservadas.
+- Aceite funcional pelo proprietário e em aparelhos reais permanece pendente.
+
+Registro baseado no resultado fornecido pelo operador e nas conferências da ferramenta, sem acesso SSH direto pelo agente. Abrir https://app.ramonessa.com.br/administrodo/, conferir Ajuda e tutoriais e os campos abaixo de Pesquisar no mapa no assistente de região. O PR #36 continua DRAFT, sem merge na main. Não repetir reset para conferir esta entrega.

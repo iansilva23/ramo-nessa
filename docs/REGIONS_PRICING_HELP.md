@@ -23,7 +23,7 @@ Conteúdo em `apps/admin/src/help/regions-pricing-guide.js`. Cada capítulo decl
 
 Os testes verificam busca no conteúdo completo, ligações válidas, cobertura dos campos e opções do editor. O ensaio Chromium/WebKit está integrado ao fluxo existente de gestão: navegação, busca, ausência de chamadas de API, entrada como leitor, foco/Escape, preservação de formulário e confirmação MFA, além de capturas em 1440/860/390 px.
 
-Esta alteração precisa de uma atualização do ADM na homologação para aparecer no painel instalado. Não exige novo reset do catálogo nem reconfiguração de preços. A versão implantada anteriormente permanece até essa atualização; não inferir publicação a partir de um commit ou CI aprovado.
+A instalação desta alteração na homologação foi confirmada posteriormente pelo operador com ADM_AJUDA_E_COORDENADAS_ATUALIZADOS, revisão 7efa18dc87da800d313357902316107029735666. Não houve novo reset. O registro operacional completo está em docs/REGIONS_ADMIN_UPDATE.md; aceite funcional conectado continua separado.
 
 ## Resultado verificado — 20/10/2026
 Código: `d104d1f925e60aad1d0b7525a7c64152077cc61e`.
@@ -36,7 +36,7 @@ Código: `d104d1f925e60aad1d0b7525a7c64152077cc61e`.
 - Capturas da ajuda examinadas em 1440, 860 e 390 px, além da entrada no painel em tablet/celular. Evidência no artefato `regions-pricing-browser-evidence` da execução, sujeito à retenção do GitHub Actions.
 - Tipagem/testes/build do Core, integrações PostgreSQL existentes e análise/testes/build dos dois aplicativos Web aprovados. A guarda de preservação financeira/nativa passou.
 
-O ensaio utiliza autenticação/serviços reais da aplicação com repositórios em memória e provedores sintéticos no navegador. Não representa aceite no login conectado da VPS, em aparelhos reais ou em provedores externos. A ajuda segue pendente de instalação no ADM da homologação; nenhum serviço ativo foi atualizado por esta alteração.
+O ensaio utiliza autenticação/serviços reais da aplicação com repositórios em memória e provedores sintéticos no navegador. Não representa aceite no login conectado da VPS, em aparelhos reais ou em provedores externos. Naquele ensaio, a instalação ainda estava pendente; posteriormente o operador confirmou a atualização somente do ADM, registrada em docs/REGIONS_ADMIN_UPDATE.md.
 
 ## Complemento: coordenadas no assistente de região
 Latitude e Longitude ficam imediatamente abaixo de Pesquisar no mapa, tanto em Adicionar quanto em Editar região. Campos de texto com teclado decimal reaproveitam `parseLocalityCoordinates`, já usado pelo editor anterior: sinal, zero, ponto/vírgula decimal e precisão numérica preservados; latitude limitada ao mapa Web Mercator e longitude a ±180.
@@ -45,7 +45,7 @@ Posicionar no mapa e Enter nesses campos validam o par inteiro antes de alterar 
 
 O ensaio de navegador cobre entrada inválida, zero, vírgula, precisão, raio, Enter, Continuar sem aplicação anterior, sincronização da pesquisa/arraste, persistência real pelo endpoint de gestão e reabertura da região. Inclui capturas do assistente em 1440/860/390 px. A ajuda dos dois campos leva ao capítulo do mapa, ampliado com instruções completas.
 
-Não altera o contrato de região no servidor ou os dados já cadastrados. Esta inclusão acompanha a atualização pendente do ADM; não requer reset ou atualização dos aplicativos Passageiro/Motorista.
+Não altera o contrato de região no servidor ou os dados já cadastrados. Esta inclusão foi instalada junto da ajuda, conforme retorno do operador. Não houve reset nem atualização dos aplicativos Passageiro/Motorista.
 
 ### Verificação do complemento — 20/10/2026
 Código `07968353dd19b8f14c9e07cf1cd2224543a06bcc`; [revisão 39516160222](https://github.com/iansilva23/ramo-nessa/actions/runs/39516160222).
