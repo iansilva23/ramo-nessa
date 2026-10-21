@@ -1,4 +1,4 @@
-name: Configured Web managed regions - homologation packages only - no deploy
+name: Configured Google primary search - Core and Web review packages - no deploy
 on:
   workflow_dispatch:
   push:
@@ -30,7 +30,7 @@ jobs:
       - name: Require reviewed managed region sources without changing native or financial code
         run: |
           git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
-          git diff --exit-code 8c24469743238ddf0bb7b43109f1accf94fb838b HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
+          git diff --exit-code c95c23ddc63b204cae39f7f4b88fa294c7dc01dd HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
       - name: Prepare icons
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
@@ -101,6 +101,14 @@ jobs:
               RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/bundle_csp_browser_test.mjs
             done
           done
+      - name: Verify minimal Core patch against compiled installed-source baseline
+        run: |
+          set -euo pipefail
+          baseline=$(mktemp -d)
+          git archive 0f5305ddef3398112ca1e7d10a00fd05fa8548e8 backend/core | tar -x -C "$baseline"
+          npm ci --prefix "$baseline/backend/core" --no-audit --no-fund
+          npm run build --prefix "$baseline/backend/core"
+          node scripts/web/package_google_primary_core_patch.mjs --source="${{ github.sha }}" --baseline="$baseline/backend/core" --output=artifacts/google-primary-core-patch
       - name: Package immutable source-matched bundles, without deploy
         run: |
           mkdir -p artifacts/v5-web
@@ -113,6 +121,13 @@ jobs:
           name: ramo-v5-configured-web-homologation
           path: artifacts/v5-web/
           include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Preserve reviewed Core patch without activation
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-primary-core-patch-no-deployment
+          path: artifacts/google-primary-core-patch
           if-no-files-found: error
           retention-days: 14
 

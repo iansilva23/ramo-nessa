@@ -68,6 +68,32 @@ jobs:
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
         run: flutter test --platform chrome --reporter expanded test/managed_route_availability_test.dart test/google_primary_search_test.dart
+      - name: Prove installed search client rewrites the Google query
+        if: matrix.app == 'passenger'
+        shell: bash
+        run: |
+          set -euo pipefail
+          search_file=apps/passenger/lib/src/features/map/data/core_place_search_service.dart
+          saved=$(mktemp)
+          cp "$search_file" "$saved"
+          trap 'cp "$saved" "$search_file"; rm -f "$saved"' EXIT
+          git show 0f5305ddef3398112ca1e7d10a00fd05fa8548e8:"$search_file" > "$search_file"
+          set +e
+          (cd apps/passenger && flutter test --platform chrome --reporter expanded test/google_primary_search_test.dart --plain-name 'Google primary preserves query fortal and provider ordering') > "$RUNNER_TEMP/google-query-regression.log" 2>&1
+          result=$?
+          set -e
+          cp "$saved" "$search_file"
+          rm -f "$saved"
+          trap - EXIT
+          if test "$result" = 0; then
+            echo 'Expected installed search client to rewrite the original query.'
+            exit 1
+          fi
+          if ! grep -q GOOGLE_PRIMARY_MUST_KEEP_QUERY "$RUNNER_TEMP/google-query-regression.log"; then
+            cat "$RUNNER_TEMP/google-query-regression.log"
+            exit 1
+          fi
+          echo 'Installed client reproduces Google query rewriting before search.'
       - working-directory: apps/${{ matrix.app }}
         run: flutter analyze --no-fatal-infos && flutter test
       - name: Verify shared map projection and padding
