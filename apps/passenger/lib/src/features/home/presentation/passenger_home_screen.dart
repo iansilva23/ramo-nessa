@@ -711,6 +711,20 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       }
     }
 
+    if (policy?.usesManagedRegions == true) {
+      // Managed regions have administrator-created IDs. The legacy route
+      // matrix below only applies to the historical/native catalog.
+      final allowed = policy!.managedCategoriesForTrip(
+        coverage.originZone!.localityId ?? coverage.originZone!.id,
+        coverage.destinationZone!.localityId ?? coverage.destinationZone!.id,
+      );
+      // These are quote candidates, not confirmed fares or driver supply.
+      // VehicleSelectionScreen requires an exact server quote to continue.
+      return ServiceType.values
+          .where((service) => allowed.contains(service.backendKey))
+          .toList(growable: false);
+    }
+
     List<ServiceType> services;
     if (origin == 'jericoacoara' && destination == 'jericoacoara') {
       services = const [

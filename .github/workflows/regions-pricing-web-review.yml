@@ -104,7 +104,33 @@ jobs:
       - name: Verify managed pricing on actual Chrome runtime
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
-        run: flutter test --platform chrome test/managed_pricing_catalog_test.dart
+        run: flutter test --platform chrome --reporter expanded test/managed_pricing_catalog_test.dart test/managed_route_availability_test.dart
+      - name: Prove generated region routes were blocked by installed Web matrix
+        if: matrix.app == 'passenger'
+        shell: bash
+        run: |
+          set -euo pipefail
+          route_home_file=apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart
+          saved=$(mktemp)
+          cp "$route_home_file" "$saved"
+          trap 'cp "$saved" "$route_home_file"; rm -f "$saved"' EXIT
+          git show 0ad3ba73cfe2a1265344de09c75309b95daac8dd:"$route_home_file" > "$route_home_file"
+          set +e
+          (cd apps/passenger && flutter test --platform chrome --reporter expanded test/managed_route_availability_test.dart --plain-name 'managed route Fortaleza fixture, reverse=false reaches authoritative quote') > "$RUNNER_TEMP/managed-region-regression.log" 2>&1
+          result=$?
+          set -e
+          cp "$saved" "$route_home_file"
+          rm -f "$saved"
+          trap - EXIT
+          if test "$result" = 0; then
+            echo 'Expected installed Web route matrix to reject generated region ID.'
+            exit 1
+          fi
+          if ! grep -q MANAGED_GENERATED_REGION_MUST_REACH_ROUTE "$RUNNER_TEMP/managed-region-regression.log"; then
+            cat "$RUNNER_TEMP/managed-region-regression.log"
+            exit 1
+          fi
+          echo 'Installed Web matrix reproduces generated region route rejection.'
       - working-directory: apps/${{ matrix.app }}
         run: flutter build web --release --dart-define=RAMO_CORE_BASE_URL=https://example.invalid --dart-define=RAMO_PREVIEW_MODE=false
       - name: Review bundle only, no deployment

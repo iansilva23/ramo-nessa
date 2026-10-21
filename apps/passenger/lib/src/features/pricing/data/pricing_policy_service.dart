@@ -1,4 +1,5 @@
 import '../domain/managed_pricing_catalog.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:latlong2/latlong.dart';
 import '../../service_area/domain/service_zone.dart';
 import 'package:http/http.dart' as http;
@@ -16,6 +17,8 @@ class PassengerPricingPolicy {
     this.catalogZones,
     this.preaLocalityCategories = const {},
     this.jijocaLocalityCategories = const {},
+    this.managementMode = false,
+    this.managedRegionCategories = const {},
   });
 
   factory PassengerPricingPolicy.fromJson(Map<String, dynamic> json) {
@@ -55,6 +58,8 @@ class PassengerPricingPolicy {
       categories: json['categories'],
     );
     return PassengerPricingPolicy(
+      managementMode: json['managementMode'] == 'managed',
+      managedRegionCategories: _regionCategories(json['regions']),
       sharedTransfers: json['sharedTransfers'],
       catalogZones: catalogZones,
       enabledCategories: categories
@@ -88,6 +93,30 @@ class PassengerPricingPolicy {
   final int buggyMaxPassengers;
   final Map<String, Set<String>> preaLocalityCategories;
   final Map<String, Set<String>> jijocaLocalityCategories;
+  final bool managementMode;
+  final Map<String, Set<String>> managedRegionCategories;
+
+  bool get usesManagedRegions => kIsWeb && managementMode;
+
+  Set<String> managedCategoriesForTrip(String originId, String destinationId) {
+    if (!usesManagedRegions) return const {};
+    final origin = managedRegionCategories[originId];
+    final destination = managedRegionCategories[destinationId];
+    if (origin == null || destination == null) return const {};
+    return enabledCategories.intersection(origin).intersection(destination);
+  }
+
+  static Map<String, Set<String>> _regionCategories(dynamic raw) {
+    if (raw is! List) return const {};
+    return Map.unmodifiable({
+      for (final region in raw.whereType<Map>())
+        if (region['id'] is String && region['enabled'] == true &&
+            region['archived'] == false && region['categoryIds'] is List)
+          region['id'] as String: Set<String>.unmodifiable(
+            (region['categoryIds'] as List).whereType<String>(),
+          ),
+    });
+  }
 
   Set<String>? localityCategories({
     required String zoneId,
