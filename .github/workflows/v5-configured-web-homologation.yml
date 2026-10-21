@@ -1,4 +1,4 @@
-name: Configured Web map fixes - homologation packages only - no deploy
+name: Configured Web managed regions - homologation packages only - no deploy
 on:
   workflow_dispatch:
   push:
@@ -27,10 +27,10 @@ jobs:
           flutter-version: '3.47.5'
           channel: stable
           cache: true
-      - name: Require reviewed map sources without changing native or financial code
+      - name: Require reviewed managed region sources without changing native or financial code
         run: |
           git fetch --no-tags origin feature/admin-regions-pricing-simple-20261020
-          git diff --exit-code 83741a96f474dc4f91c1d7c4eb4d8b2310789482 HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
+          git diff --exit-code 8c24469743238ddf0bb7b43109f1accf94fb838b HEAD -- apps/passenger/lib apps/driver/lib packages apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src backend/core/migrations apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios
       - name: Prepare icons
         run: |
           python3 -m pip install --quiet Pillow==11.3.0
