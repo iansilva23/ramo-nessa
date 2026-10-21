@@ -82,6 +82,12 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
 void main() {
   testWidgets('Web waits for search transition before applying the selected route', (tester) async {
     if (!kIsWeb) return;
+    final previousErrorHandler = FlutterError.onError;
+    FlutterError.onError = (details) {
+      print('WEB_RETURN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      previousErrorHandler?.call(details);
+    };
+    addTearDown(() => FlutterError.onError = previousErrorHandler);
     final location = DelayedLocation();
     final routes = RecordingRoutes();
     await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(

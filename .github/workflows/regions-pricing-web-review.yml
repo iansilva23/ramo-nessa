@@ -70,23 +70,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          home=apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart
+          map_home_file=apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart
           saved=$(mktemp)
-          cp "$home" "$saved"
-          trap 'cp "$saved" "$home"; rm -f "$saved"' EXIT
-          git show fb76419fc003fb5ee89cb952a6ec72d2abc11541:"$home" > "$home"
+          cp "$map_home_file" "$saved"
+          trap 'cp "$saved" "$map_home_file"; rm -f "$saved"' EXIT
+          git show fb76419fc003fb5ee89cb952a6ec72d2abc11541:"$map_home_file" > "$map_home_file"
           set +e
           (cd apps/passenger && flutter test --platform chrome --reporter expanded test/web_map_selection_race_test.dart --plain-name 'Web waits for search transition before applying the selected route') > "$RUNNER_TEMP/map-return-regression.log" 2>&1
           result=$?
           set -e
-          cp "$saved" "$home"
+          cp "$saved" "$map_home_file"
           rm -f "$saved"
           trap - EXIT
           if test "$result" = 0; then
             echo 'Expected the installed version to fail the route transition regression.'
             exit 1
           fi
-          if ! rg -q WEB_ROUTE_MUST_WAIT_FOR_SEARCH_TRANSITION "$RUNNER_TEMP/map-return-regression.log"; then
+          if ! grep -q WEB_ROUTE_MUST_WAIT_FOR_SEARCH_TRANSITION "$RUNNER_TEMP/map-return-regression.log"; then
             cat "$RUNNER_TEMP/map-return-regression.log"
             exit 1
           fi
