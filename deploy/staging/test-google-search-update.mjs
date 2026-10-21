@@ -29,6 +29,8 @@ try{
   docker(['network','create','--internal',network]);for(const v of [volume,pgVolume,'google-search-ci-caddy-data','google-search-ci-caddy-config'])docker(['volume','create',v]);
   const labels={'br.com.ramonessa.regions-ci':'true'},security={cap_drop:['ALL'],security_opt:['no-new-privileges:true'],restart:'unless-stopped'};
   const coreEnv={NODE_ENV:'staging',PORT:'8080',DATABASE_URL:'postgresql://ci:synthetic@postgres:5432/ci',DB_SSL:'false',ROUTING_PROVIDER:'google',GOOGLE_MAPS_SERVER_API_KEY:'synthetic',GOOGLE_PLACES_BASE_URL:'http://maps:8080/v1/',PLACE_PROOF_SECRET:'synthetic-google-ci-proof-secret-123456789',MERCADO_PAGO_MODE:'disabled',PUSH_PROVIDER:'disabled',OTP_HASH_SECRET:'synthetic-google-ci-otp-secret-123456789',OTP_RATE_LIMIT_SECRET:'synthetic-google-ci-rate-secret-123456789',ADMIN_LOGIN_RATE_LIMIT_SECRET:'synthetic-google-ci-login-secret-123456789',ADMIN_MFA_ENCRYPTION_KEY:'a'.repeat(64),DOCUMENT_INSPECTION_ENCRYPTION_KEY:'b'.repeat(64),LITERAL_SECRET:'fixture-$abc-${UNKNOWN}-$$'};
+  coreEnv.ADMIN_MFA_ENCRYPTION_KEY=Buffer.alloc(32,1).toString('base64');
+  coreEnv.DOCUMENT_INSPECTION_ENCRYPTION_KEY=Buffer.alloc(32,2).toString('base64');
   const healthcheck={test:['CMD','node','-e',"fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"],interval:'1s',timeout:'2s',retries:30};
   const service=(role,img)=>({image:img,container_name:names[role],networks:{default:{aliases:[role]}},labels});
   const model={name:'ramo-nessa-staging',services:{
@@ -37,6 +39,7 @@ try{
     gateway:{...service('gateway',gatewayImage),...security,environment:{LITERAL_SECRET:coreEnv.LITERAL_SECRET},ports:[{target:8080,published:'18080',host_ip:'127.0.0.1',protocol:'tcp'}],healthcheck:{test:['CMD','wget','-q','-O','/dev/null','http://127.0.0.1:8080/healthz'],interval:'1s',timeout:'2s',retries:20},volumes:[{type:'bind',source:oldWebRoot,target:'/srv/web',read_only:true},{type:'bind',source:fixture+'/Caddyfile',target:'/etc/caddy/Caddyfile',read_only:true},{type:'bind',source:fixture+'/sentinel',target:'/srv/admin-proof',read_only:true},{type:'volume',source:'caddydata',target:'/data'},{type:'volume',source:'caddyconfig',target:'/config'}]},
     maps:{...service('maps',gatewayImage)},site:{...service('site',gatewayImage)},
   },networks:{default:{name:network,external:true}},volumes:{docs:{name:volume,external:true},pg:{name:pgVolume,external:true},caddydata:{name:'google-search-ci-caddy-data',external:true},caddyconfig:{name:'google-search-ci-caddy-config',external:true}}};
+  model.services.gateway.cap_add=['NET_BIND_SERVICE'];
   writeFileSync(modelPath,JSON.stringify(escapeCompose(model)),{mode:0o600});
   started=true;compose(['up','-d','--no-build','--pull','never','postgres','maps','site']);await health('postgres');
   docker(['run','--rm','--network',network,'-e','DATABASE_URL='+coreEnv.DATABASE_URL,'-e','DB_SSL=false',coreImage,'node','dist/scripts/migrate.js']);
@@ -60,10 +63,13 @@ try{
   await assert.rejects(activateSearch([directory,planSha],{failAfterCore:true}),e=>e.rollbackComplete===true);
   assert.equal(JSON.parse(readFileSync(directory+'/activation.private.json')).phase,'rolled-back');
   assertFingerprint(fingerprint(names.core,true),baselineSource);checkUntouched();
+  // Keep the fixture's source Compose present when discarding a prior private plan.
+  compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');
   rmSync(directory,{recursive:true,force:true});rmSync(resolve(newWebRoot,'..'),{recursive:true,force:true});
   await prepareSearch([webZip,patchZip],{coreImage,gatewayImage});
   const nextSha=hashFile(directory+'/prepared.private.json');
   await assert.rejects(activateSearch([directory,nextSha],{failAfterWeb:true}),e=>e.rollbackComplete===true);checkUntouched();
+  compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');
   rmSync(directory,{recursive:true,force:true});rmSync(resolve(newWebRoot,'..'),{recursive:true,force:true});
   await prepareSearch([webZip,patchZip],{coreImage,gatewayImage});
   await activateSearch([directory,hashFile(directory+'/prepared.private.json')]);

@@ -77,9 +77,9 @@ export async function activateSearch(args,rehearsal={}){
         },
         verifyRollback:async()=>verifyAll(false),
       });
-    }catch(e){record({phase:e.rollbackComplete?'rolled-back':'requires-review',rollbackComplete:e.rollbackComplete===true});throw e;}
+    }catch(e){record({phase:e.rollbackComplete?'rolled-back':'requires-review',rollbackComplete:e.rollbackComplete===true,failure:e.cause?.message??e.message,rollbackFailures:e.rollbackFailures??[]});throw e;}
     record({phase:'completed',oldCoreImage:oldImage.Id,newCoreImage:nextImage.Id,oldWebRoot,newWebRoot});
     console.log(JSON.stringify({status:'BUSCA_GOOGLE_ATUALIZADA',source,coreUpdated:true,passengerWebUpdated:true,driverWebUpdated:true,adminUpdated:false,resetApplied:false,nativeAppsUpdated:false,providerConfigurationPreserved:true,realDeviceAcceptancePending:true},null,2));
   }finally{unlinkSync(lock);}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{await activateSearch(process.argv.slice(2));}catch(e){console.error(e.message);process.exitCode=1;}}
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{await activateSearch(process.argv.slice(2));}catch(e){console.error(e.message);if(e.cause)console.error('Motivo: '+e.cause.message);process.exitCode=1;}}
