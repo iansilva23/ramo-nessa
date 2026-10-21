@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:ramo_nessa_passenger/src/core/location/location_service.dart';
+import 'package:ramo_nessa_passenger/src/core/communications/agency_promotion_service.dart';
 import 'package:ramo_nessa_passenger/src/features/profile/data/passenger_saved_place_service.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/passenger_home_screen.dart';
 import 'package:ramo_nessa_passenger/src/features/home/presentation/destination_search_screen.dart';
@@ -19,6 +20,11 @@ const pickup = RamoPlace(name: 'Origem escolhida', address: '', position: LatLng
 const firstDestination = RamoPlace(name: 'Primeiro destino', address: '', position: LatLng(-2.89860, -40.45060));
 const latestDestination = RamoPlace(name: 'Destino atual', address: '', position: LatLng(-2.80023, -40.51638));
 const policy = PassengerPricingPolicy(enabledCategories: {'car'}, enabledZones: {'prea', 'jijoca', 'jericoacoara'}, buggyMinPassengers: 1, buggyMaxPassengers: 4);
+
+class NoAgency implements AgencyPromotionService {
+  @override
+  Future<AgencyPromotion> load() async => throw StateError('Optional content disabled in isolated map test');
+}
 
 class DelayedLocation implements LocationService {
   final response = Completer<LatLng>();
@@ -72,7 +78,7 @@ void main() {
     final location = DelayedLocation();
     final resolver = DelayedResolver();
     await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
-      locationService: location, placeSearchService: resolver,
+      agencyPromotionService: NoAgency(), locationService: location, placeSearchService: resolver,
       pricingPolicyService: ControlledPolicy(), networkTilesEnabled: false,
     )));
     location.response.complete(const LatLng(-2.9, -40.45));
@@ -112,7 +118,7 @@ void main() {
     if (!kIsWeb) return;
     final location = DelayedLocation();
     await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
-      locationService: location, placeSearchService: NoSearch(),
+      agencyPromotionService: NoAgency(), locationService: location, placeSearchService: NoSearch(),
       pricingPolicyService: ControlledPolicy(), networkTilesEnabled: false,
     )));
     await tester.pump();
@@ -131,7 +137,7 @@ void main() {
     final policies = ControlledPolicy();
     final routes = RecordingRoutes();
     await tester.pumpWidget(MaterialApp(home: PassengerHomeScreen(
-      locationService: location, routeService: routes, placeSearchService: NoSearch(),
+      agencyPromotionService: NoAgency(), locationService: location, routeService: routes, placeSearchService: NoSearch(),
       pricingPolicyService: policies, networkTilesEnabled: false,
     )));
     location.response.complete(pickup.position);
