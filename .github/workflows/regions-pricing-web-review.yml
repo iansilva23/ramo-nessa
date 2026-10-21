@@ -67,6 +67,10 @@ jobs:
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
         run: flutter test --platform chrome --reporter expanded test/web_map_selection_race_test.dart
+      - name: Verify Web pin map SDK ownership on Chrome
+        if: matrix.app == 'passenger'
+        working-directory: apps/passenger
+        run: flutter test --platform chrome --reporter expanded test/web_pin_map_lifecycle_test.dart
       - name: Verify managed pricing on actual Chrome runtime
         if: matrix.app == 'passenger'
         working-directory: apps/passenger
