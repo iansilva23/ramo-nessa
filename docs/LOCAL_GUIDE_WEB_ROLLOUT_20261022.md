@@ -62,9 +62,9 @@ Aguardar `GUIA_LOCAL_WEB_ATUALIZADO`, fechar e reabrir o Passageiro Web e acessa
 
 Testar no Safari/Chrome real: login existente, troca de localidade, passeio com foto, WhatsApp/Instagram e destino no mapa com cotação. A ação de rota não solicita corrida automaticamente. O aceite em aparelho físico e com provedores reais continua necessário; o ensaio isolado não o substitui.
 
-## Comando revisado de retomada após EACCES
+## Comando histórico de retomada após EACCES — já executado
 
-Executar na VPS como ubuntu, com sudo. O fetch não altera o checkout ativo. O instalador recebe a revisão operacional testada e o hash exato do ZIP disponibilizado. Aguardar a conclusão e guardar a saída.
+Comando executado com sucesso pelo operador em 22/10/2026. Não repetir após a implantação concluída. O fetch não altera o checkout ativo. O instalador recebe a revisão operacional testada e o hash exato do ZIP disponibilizado. Aguardar a conclusão e guardar a saída.
 
 ```bash
 bash <<'RETOMAR_GUIA_WEB'
@@ -99,3 +99,18 @@ O instalador agora define explicitamente a pasta nova de código como 0755 duran
 O modo `recover-install` aceita somente esta falha de preparação, sem plano/ativação existentes, pacote com SHA válido e serviços/imagens/catálogo anteriores intactos. Preserva as duas pastas incompletas com sufixo de auditoria e prepara novamente com backup verificado. Não exclui arquivos nem restaura dados financeiros.
 
 O ensaio de regressão usa o ZIP público original com SHA `bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba`, força a mesma falha real de leitura no usuário restrito e testa a retomada. A publicação automática do pacote foi desabilitada nesta rodada para preservar o release imutável. Execução da correção aprovada: https://github.com/iansilva23/ramo-nessa/actions/runs/39829574474, revisão operacional `3b43a7e71a356cca69798fb474139b45229f5f11`. O job de testes passou; a publicação foi intencionalmente ignorada. Passaram os 20 testes Node, dois testes Python, sessões Chromium/WebKit e o ensaio Docker com quatro backups/restaurações isoladas, dois retornos provocados, recusa de configuração concorrente e recuperação de EACCES real. A imagem corrigida foi lida como usuário não root; pastas públicas 0755 e diretório privado 0700 foram conferidos. Instalação final verificada por HTTP e dados anteriores preservados. Isso continua sendo evidência isolada; a implantação na VPS aguarda a execução de `recover-install` pelo operador.
+
+
+## Implantação confirmada na VPS — 22/10/2026
+
+O operador executou `recover-install` com a revisão operacional `3b43a7e71a356cca69798fb474139b45229f5f11` e o ZIP de SHA fixado. A preparação incompleta foi preservada para auditoria. O novo backup teve restauração isolada verificada antes da migração/troca:
+
+- Diretório: `/var/backups/ramo-nessa-regions/2026-10-22T18-39-36-499Z-96e1232154ef03e07615` (backup iniciado às 15:39:36, horário de Fortaleza).
+- Manifesto: `274b0b720953e3df11ff2082a98b0f2f1dd551598a6520822e7847307e0011e0`.
+- Plano preparado: `8d636b44a80b4777fe2bdd47f7d7c072539fd153d1cc670f8283f7adc06b64f7`.
+- O terminal confirmou migration aditiva, atualização de Core e ADM/Web, e status final `GUIA_LOCAL_WEB_ATUALIZADO`, fonte `9f294f81fe6dad56ffd46edf0482ab947347c36a`.
+- Resultado declarado pelo instalador após suas verificações: `driverWebUpdated=false`, `nativeAppsUpdated=false`, `providerConfigurationPreserved=true`, `realDeviceAcceptancePending=true`.
+
+Conferência HTTP independente após a saída do operador, em `https://app.ramonessa.com.br`: `/health` 200, `/ready` 200, `/v1/content/guide` 200 (quatro entidades, sem campos administrativos `draft`, `published`, `archived`), `/v1/admin/guide` 401 sem autenticação e `/administrodo/guide.css` 200. A confirmação de instalação substitui as pendências de execução descritas nas seções históricas acima.
+
+Passageiro Web, ADM e backend do Guia estão implantados. Permanecem pendentes a conferência visual pelo responsável em aparelho real, GPS/rotas e interações com provedores reais, além da distribuição posterior de Android/iOS. Não houve merge na main; PRs #39/#40 continuam DRAFT. Não repetir os comandos de instalação/retomada numa implantação já concluída.
