@@ -48,6 +48,8 @@ class PassengerHomeScreen extends StatefulWidget {
     this.accessToken,
     this.onLogout,
     this.onOpenProfile,
+    this.onOpenGuideLocal,
+    this.guideDestination,
     this.locationService,
     this.routeService,
     this.placeSearchService,
@@ -66,6 +68,8 @@ class PassengerHomeScreen extends StatefulWidget {
   final String? accessToken;
   final Future<bool> Function()? onLogout;
   final VoidCallback? onOpenProfile;
+  final VoidCallback? onOpenGuideLocal;
+  final ValueListenable<RamoPlace?>? guideDestination;
   final LocationService? locationService;
   final RouteService? routeService;
   final PlaceSearchService? placeSearchService;
@@ -200,6 +204,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   @override
   void initState() {
     super.initState();
+    widget.guideDestination?.addListener(_guideDestinationChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _locateUser();
@@ -210,8 +215,45 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   @override
   void dispose() {
+    widget.guideDestination?.removeListener(_guideDestinationChanged);
     _mapController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant PassengerHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.guideDestination != widget.guideDestination) {
+      oldWidget.guideDestination?.removeListener(_guideDestinationChanged);
+      widget.guideDestination?.addListener(_guideDestinationChanged);
+    }
+  }
+
+  void _guideDestinationChanged() {
+    final destination = widget.guideDestination?.value;
+    if (destination != null) unawaited(_applyGuideDestination(destination));
+  }
+
+  Future<void> _applyGuideDestination(RamoPlace destination) async {
+    if (!mounted) return;
+    _routeRequestId++;
+    setState(() {
+      _destination = destination;
+      _route = null;
+      _routeLoading = false;
+      _coverageMessage = null;
+      _serviceAreaLabel = null;
+    });
+    if (_origin == null) {
+      await _locateUser();
+    } else {
+      await _loadRoute();
+    }
+    // Vehicle selection quotes only. The passenger still explicitly requests
+    // a driver and confirms payment through the existing flow.
+    if (mounted && identical(_destination, destination) && _route != null) {
+      await _continueToVehicleSelection();
+    }
   }
 
   String? get _platformName {
@@ -366,6 +408,10 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   }
 
   Future<void> _openAgencyPromotion() {
+    if (widget.onOpenGuideLocal != null) {
+      widget.onOpenGuideLocal!();
+      return Future<void>.value();
+    }
     final promotion = _agencyPromotion;
     if (promotion == null || !promotion.enabled) {
       return Future<void>.value();

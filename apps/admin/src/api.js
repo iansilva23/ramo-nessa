@@ -617,6 +617,13 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       );
     },
 
+    guide(token) { return request('/v1/admin/guide',{token}); },
+    saveGuide(token,body) { return request('/v1/admin/guide',{token,method:'PUT',body}); },
+    guideHistory(token) { return request('/v1/admin/guide/history',{token}); },
+    guidePlaces(token,query) { return request('/v1/admin/guide/places?q='+encodeURIComponent(query),{token}); },
+    guideImage(token,id) { return requestBinary('/v1/admin/guide/images/'+encodeURIComponent(id),{token}); },
+    uploadGuideImage(token,{bytes,contentType}) { return uploadBinary('/v1/admin/guide/images',{token,bytes,contentType}); },
+
     pricingManagement(token) { return request('/v1/admin/pricing/management', {token}); },
     savePricingManagement(token, body) { return request('/v1/admin/pricing/management', {token,method:'PUT',body}); },
     pricingManagementHistory(token) { return request('/v1/admin/pricing/management/history', {token}); },
