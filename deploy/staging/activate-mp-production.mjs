@@ -60,6 +60,7 @@ export async function activateMpProduction(args,rehearsal={}){
     for(const [name,hash]of Object.entries(p.files))if(hashFile(join(dir,name))!==hash)throw Error('MP_PREPARATION_FILE_CHANGED');
     const before=JSON.parse(readFileSync(join(dir,'runtime-before.private.json'))),old=JSON.parse(readFileSync(join(dir,'core-before.compose.private.json'))),candidate=JSON.parse(readFileSync(join(dir,'core-after.compose.private.json'))),coreImage=JSON.parse(readFileSync(join(dir,'core-image.private.json')));
     validate(before,{'core-image':rehearsal.coreImage??confirmedCore,'gateway-image':rehearsal.gatewayImage??confirmedGateway});
+    if(Object.values(before.core.HostConfig.PortBindings??{}).some(bindings=>bindings?.length)||before.core.HostConfig.NetworkMode==='host')throw Error('MP_CORE_DIRECT_INGRESS_REQUIRES_REVIEW');
     const {docker,inspect,image,compose,health}=io(dir);
     for(const role of Object.keys(names))if(runtimeIdentity(inspect(role))!==runtimeIdentity(before[role]))throw Error('MP_RUNTIME_CHANGED');
     const credentials=JSON.parse(readFileSync(join(base,'credentials.private.json')));
