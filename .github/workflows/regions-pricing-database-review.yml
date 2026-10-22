@@ -1,7 +1,7 @@
 name: Regions and Pricing - Full Database Review
 on:
   push:
-    branches: [feature/admin-regions-pricing-simple-20261020]
+    branches: [feature/admin-regions-pricing-simple-20261020, feature/admin-web-entry-toggle-20261021]
     paths:
       - 'backend/core/**'
       - 'scripts/web/admin_localities_core_browser_e2e.mjs'

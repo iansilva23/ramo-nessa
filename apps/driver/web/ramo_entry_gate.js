@@ -20,6 +20,9 @@
     <span class="ramo-gate-anywhere" aria-hidden="true">Em qualquer lugar da tela</span>`;
 
   let locked = false;
+  let enabled = false;
+  let settingsGeneration = 0;
+  let settingsRequest;
   let hiddenSinceEntry = false;
   let gesture = null;
   let hideTimer;
@@ -45,6 +48,7 @@
   }
 
   function show(reason) {
+    if (!enabled || document.visibilityState === 'hidden') return;
     if (locked) {
       if (gate.classList.contains('ramo-gate-leaving')) {
         generation += 1;
@@ -65,6 +69,45 @@
     protectChildren();
     observer.observe(document.body, { childList: true });
     emit('locked', reason);
+  }
+
+  function deactivate(reason) {
+    generation += 1;
+    clearTimeout(hideTimer);
+    locked = false;
+    resetGesture();
+    observer.disconnect();
+    gate.hidden = true;
+    gate.disabled = false;
+    gate.classList.remove('ramo-gate-leaving');
+    if (document.activeElement === gate) gate.blur();
+    for (const node of madeInert) node.inert = false;
+    madeInert.clear();
+    emit('unlocked', reason);
+  }
+
+  async function refreshSettings(reason) {
+    const current = ++settingsGeneration;
+    settingsRequest?.abort();
+    const controller = new AbortController();
+    settingsRequest = controller;
+    const timer = setTimeout(() => controller.abort(), 1500);
+    let next = false;
+    try {
+      const response = await fetch('/v1/public/web-entry-settings', {
+        method: 'GET', credentials: 'omit', cache: 'no-store',
+        headers: { accept: 'application/json' }, signal: controller.signal,
+      });
+      if (response.ok) {
+        const body = await response.json();
+        next = body?.enabled === true;
+      }
+    } catch { /* An unavailable presentation setting must never trap the app. */ }
+    finally { clearTimeout(timer); }
+    if (current !== settingsGeneration) return;
+    enabled = next;
+    if (enabled) show(reason);
+    else deactivate('disabled');
   }
 
   function unlock(reason) {
@@ -128,6 +171,8 @@
   // Focus/blur are deliberately ignored: an OS permission dialog is not a new entry.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
+      settingsGeneration += 1;
+      settingsRequest?.abort();
       hiddenSinceEntry = true;
       resetGesture();
       // Cancel an in-flight unlock before the document is suspended.
@@ -139,12 +184,13 @@
       }
     } else if (hiddenSinceEntry) {
       hiddenSinceEntry = false;
-      show('foreground');
+      void refreshSettings('foreground');
     }
   });
-  window.addEventListener('pageshow', event => { if (event.persisted) show('page-restored'); });
+  window.addEventListener('pageshow', event => { if (event.persisted) void refreshSettings('page-restored'); });
   window.addEventListener('resize', resetGesture, { passive: true });
   window.addEventListener('orientationchange', resetGesture, { passive: true });
+  gate.hidden = true;
   document.body.append(gate);
-  show('launch');
+  void refreshSettings('launch');
 })();

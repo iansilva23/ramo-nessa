@@ -532,8 +532,11 @@ import {
   parsePushPlatform,
 } from './admin/admin-communications-validation.js';
 
+import {WebEntrySettingsError} from './config/web-entry-settings.js';
+import {webEntrySettingsRoutes} from './config/web-entry-settings-routes.js';
 const port = resolveCorePort();
 const {
+  webEntrySettingsRepository,
   asaasPayoutStore,
   authSessionRepository,
   authOtpRepository,
@@ -1563,6 +1566,7 @@ const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? '/', 'http://ramo-nossa.local');
     requestPath = requestUrl.pathname;
+    if(await webEntrySettingsRoutes({request,response,url:requestUrl,repository:webEntrySettingsRepository,admin:adminRepository,humans:adminHumanAuthRepository,readJson,json}))return;
     const cookieBootstrap = request.method === 'GET' && requestPath === '/v1/auth/web/session';
     if (cookieBootstrap) response.setHeader('x-ramo-web-session', '1');
     const browserRole = prepareBrowserSessionRequest(request, { cookieBootstrap });
@@ -9244,6 +9248,7 @@ const server = createServer(async (request, response) => {
 
     json(response, 404, { error: 'NOT_FOUND' });
   } catch (error) {
+    if(error instanceof WebEntrySettingsError){json(response,error.status,{error:error.code,message:error.message});return;}
     if (error instanceof ManagementError) {
       json(response,error.status,{error:error.code,message:error.message}); return;
     }

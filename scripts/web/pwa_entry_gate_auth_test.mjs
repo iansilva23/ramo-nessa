@@ -27,6 +27,10 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   t.after(() => rm(certificates, { recursive: true, force: true }));
   const server = createServer({ key: await readFile(keyFile), cert: await readFile(certFile) }, async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
+    if(path==='/v1/public/web-entry-settings'){
+      response.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
+      response.end(JSON.stringify({enabled:process.env.RAMO_ENTRY_TEST_ENABLED!=='false'}));return;
+    }
     if (path.startsWith('/v1/')) {
       if (path === '/v1/auth/web/session') response.setHeader('x-ramo-web-session', '1');
       response.setHeader('content-type', 'application/json'); response.setHeader('cache-control', 'no-store');
@@ -100,6 +104,11 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   });
   async function enterInstalledApp() {
     const gate = page.locator('#ramo-entry-gate');
+    if(process.env.RAMO_ENTRY_TEST_ENABLED==='false'){
+      await gate.waitFor({state:'hidden'});
+      assert.equal(await page.locator('body > [inert]').count(),0);
+      return;
+    }
     await gate.waitFor({ state: 'visible' });
     await page.mouse.move(100, 240); await page.mouse.down();
     await page.mouse.move(290, 240, { steps: 12 }); await page.mouse.up();

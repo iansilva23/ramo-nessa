@@ -21,8 +21,16 @@ test(browserName + ': installed entry gate, full-screen gestures and lifecycle',
   const evidence = new URL('../../artifacts/pwa-entry-gate/' + browserName + '/', import.meta.url);
   await mkdir(evidence, { recursive: true });
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ramo_entry_gate.css"></head><body style="margin:0;background:#d7ded8;font-family:Arial"><main id="app"><button id="underlay" style="position:absolute;left:20px;top:160px;width:44px;height:44px">Perfil</button><h1 style="margin:0;padding:300px 30px">Escolha seu destino</h1></main><div id="pre-inert" inert>Estado anterior preservado</div><script src="ramo_entry_gate.js"></script></body></html>`;
+  let setting=true;
   const server = createServer(async (req, res) => {
-    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    if(req.url==='/v1/public/web-entry-settings'){
+      const captured=setting;
+      if(captured==='slow')await new Promise(r=>setTimeout(r,2200));
+      res.setHeader('content-type','application/json');res.setHeader('cache-control','no-store');
+      res.statusCode=captured==='error'?503:captured==='missing'?404:200;
+      res.end(JSON.stringify({enabled:captured==='invalid'?'true':captured===true}));return;
+    }
     if (req.url.endsWith('ramo_entry_gate.js')) { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(gateJs); }
     else if (req.url.endsWith('ramo_entry_gate.css')) { res.setHeader('Content-Type', 'text/css; charset=utf-8'); res.end(gateCss); }
     else if (req.url.endsWith('icons/Icon-192.png')) { res.setHeader('Content-Type', 'image/png'); res.end(await readFile(new URL('icons/Icon-192.png', web))); }
@@ -54,6 +62,27 @@ test(browserName + ': installed entry gate, full-screen gestures and lifecycle',
       Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange'));
     });
   }
+  for(const role of ['passageiro','motorista'])for(const mode of [false,'error','missing','invalid','slow']){
+    await t.test('installed app opens directly when setting is '+mode+': '+role,async()=>{
+      setting=mode;const s=await open(true,'navigator',role);
+      await s.page.waitForTimeout(mode==='slow'?1700:150);
+      await hidden(s.page);
+      assert.equal(await s.page.locator('#app').evaluate(n=>n.inert),false);
+      await s.page.locator('#underlay').click();assert.equal(await s.page.evaluate(()=>underlayClicks),1);
+      assert.equal(await s.page.locator('#pre-inert').evaluate(n=>n.inert),true);
+      assert.deepEqual(s.errors,[]);await s.context.close();
+    });
+  }
+  setting=true;
+  await t.test('ADM disables a locked gate and enables it on next entry without trapping controls',async()=>{
+    const s=await open(true);await visible(s.page);
+    setting=false;await background(s.page);await hidden(s.page);
+    assert.equal(await s.page.locator('#app').evaluate(n=>n.inert),false);
+    await s.page.locator('#underlay').click();assert.equal(await s.page.evaluate(()=>underlayClicks),1);
+    setting=true;await background(s.page);await visible(s.page);
+    await drag(s.page,100,300,160);await hidden(s.page);
+    assert.deepEqual(s.errors,[]);await s.context.close();
+  });
   for (const role of ['passageiro', 'motorista']) {
     await t.test('ordinary browser tab remains unchanged: ' + role, async () => {
       const s = await open(false, 'navigator', role);

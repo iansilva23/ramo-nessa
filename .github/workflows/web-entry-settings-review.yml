@@ -1,0 +1,76 @@
+name: Web entry setting - ADM and installed app regression
+on:
+  push:
+    branches: [feature/admin-regions-pricing-simple-20261020, feature/admin-web-entry-toggle-20261021]
+    paths:
+      - apps/admin/**
+      - apps/*/web/ramo_entry_gate.js
+      - backend/core/src/config/web-entry-settings*
+      - backend/core/migrations/087_web_entry_gate_settings.sql
+      - scripts/web/*entry*test.mjs
+      - .github/workflows/web-entry-settings-review.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: web-entry-setting-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preserve approved Flutter, maps, Google search and native source
+        run: git diff --exit-code 7dece1706d617ea15ef3df2ab78310ca873762fe -- apps/passenger/lib apps/driver/lib packages apps/passenger/android apps/passenger/ios apps/driver/android apps/driver/ios apps/passenger/pubspec.yaml apps/passenger/pubspec.lock apps/driver/pubspec.yaml apps/driver/pubspec.lock backend/core/src/payments backend/core/src/rides backend/core/src/places
+      - working-directory: backend/core
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: Prepare browser without contacting live providers
+        run: |
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps ${{ matrix.engine }}
+      - name: Installed gestures enabled/disabled, server failure, ADM toggle and permissions
+        env:
+          RAMO_BROWSER_ENGINE: ${{ matrix.engine }}
+        run: node --test scripts/web/pwa_entry_gate_browser_test.mjs scripts/web/web_entry_admin_browser_test.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 39693460184
+          artifact-ids: '12389892455'
+          path: approved
+          merge-multiple: true
+      - name: Reuse approved Google search build; overlay only the entry script
+        run: |
+          for role in passenger driver; do
+            mkdir -p "apps/$role/build/web"
+            cp -a "approved/$role/." "apps/$role/build/web/"
+            cp "apps/$role/web/ramo_entry_gate.js" "apps/$role/build/web/ramo_entry_gate.js"
+          done
+      - name: Real compiled login, session recovery and logout with entry enabled and disabled
+        env:
+          RAMO_BROWSER_ENGINE: ${{ matrix.engine }}
+        run: |
+          for role in passenger driver; do
+            for enabled in false true; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_ENTRY_TEST_ENABLED="$enabled" node --test scripts/web/pwa_entry_gate_auth_test.mjs
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-entry-setting-${{ matrix.engine }}
+          path: |
+            artifacts/web-entry-settings/
+            artifacts/pwa-entry-gate/
+            artifacts/web-csp/
+          retention-days: 14
