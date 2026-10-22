@@ -1,90 +1,142 @@
-# Guia Local — auditoria e implementação
+# Guia Local — entrega técnica para homologação
 
-## Base auditada antes das alterações
+PR DRAFT: https://github.com/iansilva23/ramo-nessa/pull/39
 
-- Branch isolada: `feature/local-guide-20261022`; base `ccd7db77152180a01c649a3da5b04da9ef392e20`, PR #37. A base inclui a pesquisa Google e a remoção da tela Web de deslizar. O PR financeiro #38 contém ferramentas operacionais independentes; não são incorporadas ao Guia.
-- Checkout anterior contém alterações pendentes e foi preservado. Nenhum arquivo dele foi editado.
-- Passageiro Android/iOS/Web: Flutter compartilhado, `PassengerMainShell`, `PassengerHomeScreen`, `AgencyToursScreen`, `HttpAgencyTourService`.
-- Backend: Core Node/TypeScript, PostgreSQL, autenticação administrativa por escopos, APIs `/v1/content/tours`, `agency_tours` (migration 052), imagens binárias versionadas.
-- ADM: JavaScript modular, router existente, componentes de formulário, dialogs e estilos. Referência real aprovada: `regions-pricing.html`, `regions-pricing-admin.js`, classes `rp-*` em `styles.css`. Reaproveitar hierarquia, cards, navegação curta e editor em painel; não alterar tarifas.
-- Mapa: `CorePlaceSearchService.classifyCoordinate` emite classificação/prova existente; `PassengerHomeScreen` já calcula rota e abre cotação. Integração do Guia fornece somente o destino para esse fluxo.
-- Sete JPEGs anexados inspecionados. Dois modelos de Gastronomia complementares: ações opcionais permitem delivery sem rota e estabelecimentos com rota. Referências são design, não fonte de conteúdo público.
+Branch: `feature/local-guide-20261022`. Base: `feature/admin-web-entry-toggle-20261021`, commit `ccd7db77152180a01c649a3da5b04da9ef392e20` (PR #37). Sem merge ou deploy.
 
-## Decisões
+## Resultado
 
-Modelo aditivo isolado para conteúdo: localidades → categorias → itens. Cada registro possui cópia de trabalho e publicação independente. Alterações usam revisão otimista e transação com histórico. Nenhuma migration anterior é modificada. Passeios e fotos existentes são copiados sem excluir ou atualizar os originais. APIs antigas continuam disponíveis para clientes anteriores.
+O passageiro recebe um Guia Local dinâmico com localidades, categorias, seis modelos e ações opcionais. O ADM usa uma entrada única e a hierarquia **localidade → categoria → conteúdos**, com editor compacto, publicação separada de rascunhos e persistência no Core/PostgreSQL.
 
-A ação de rota reutiliza classificação, origem/GPS, roteamento e cotação existentes, sem criar corrida ou cobrança. Fotos novas são imutáveis; imagens de rascunho exigem autenticação. A publicação valida destinos e hierarquia; ocultar uma categoria/localidade oculta seus descendentes sem apagá-los.
+A implementação está disponível para revisão técnica e visual. A aprovação final ainda depende da homologação em aparelhos físicos, GPS/provedores reais e comparação visual pelo responsável.
 
-Não há merge, deploy, reset, transação financeira, alteração de credencial ou conteúdo ilustrativo publicado por esta entrega.
+## Auditoria e preservação
 
-## Entrega para revisão
+Antes das mudanças foram inspecionados branch, HEAD, alterações pendentes, arquitetura Flutter/Core/ADM, cadastros de passeios e dependências. O checkout anterior com trabalhos pendentes foi preservado; o Guia foi implementado em checkout isolado.
 
-### Aplicativo
+A referência administrativa real foi `regions-pricing.html`, `regions-pricing-admin.js` e os estilos `rp-*`: hierarquia, cartões, diálogos, espaçamentos e edição agrupada foram reutilizados sem copiar a lógica de tarifas. Os sete JPEGs aprovados orientaram os modelos; nomes comerciais, horários e eventos ilustrativos não foram publicados.
 
-- Entrada inferior Guia Local; localidades e categorias carregadas do Core. A seleção muda os conteúdos na mesma tela e permanece ao voltar das categorias.
-- Seis modelos reutilizáveis: passeios, regras, destaques, eventos, gastronomia e casas de show. Capas, filtros opcionais, fotografias, detalhes e múltiplas ações.
-- Tema preto/grafite e amarelo, cards responsivos, carregamento progressivo, cache de conteúdo publicado de três minutos e reutilização das imagens pelo Flutter.
-- Ações de Instagram, WhatsApp com mensagem, site HTTPS, página interna e destino no mapa. Delivery pode ter apenas WhatsApp e Instagram.
-- Calcular rota classifica as coordenadas pelo serviço existente, entrega um RamoPlace ao mapa principal, usa a origem autorizada e abre o fluxo existente de rota/categorias/cotação. Nunca solicita uma corrida, confirma pagamento ou inventa preço.
-- O arquivo do painel/barra aprovada do mapa não foi alterado. Somente o callback de navegação passa a abrir o Guia.
+O diff de regressão, executado localmente e no CI, confirma ausência de alterações em pagamentos, finanças, preços, carteira, app do motorista, projetos nativos Android/iOS, seção administrativa Regiões e preços e `ride_bottom_sheet.dart`. A barra “Passeios e experiências em Jericoacoara” mantém seu componente visual; somente o callback passa a abrir o Guia.
 
-### ADM
+## Aplicativo
 
-Entrada única, mantendo a URL legada `/administrodo/passeios`. Organização: localidade → categoria → itens. Reutiliza classes `rp-*` da seção Regiões e preços, componentes de diálogo do painel e `createPricingGeofenceMap` para destinos. A seção de tarifas permanece intacta.
+- Entrada inferior **Guia Local**, mantendo as demais entradas. Título e subtítulo solicitados, seletor de localidades na mesma tela e retorno preservando seleção.
+- Categorias fotográficas dinâmicas em duas colunas, quatro em telas largas, com fundo preto/grafite, amarelo, imagens, degradês e cantos arredondados.
+- Filtros opcionais, listas progressivas, detalhes, falhas de rede e estados vazios. Catálogo publicado em cache por três minutos, requisições simultâneas compartilhadas e retorno ao conteúdo anterior em falha de atualização. Imagens reutilizadas pelo cache do Flutter.
+- Ações opcionais em layout que acomoda vários botões: Instagram, WhatsApp com mensagem, site HTTPS, página interna e rota. Delivery pode usar somente WhatsApp e Instagram.
 
-Editor único com foto, nome, descrição e ações; detalhes do modelo ficam recolhidos. Cada ação exibe seus próprios campos. Há busca, prévia, duplicação, reordenação com botões utilizáveis por toque, arquivamento/restauração e recuperação do histórico como rascunho. Upload JPEG/PNG/WebP até 8 MB, prévia e enquadramento vertical. Mantida a configuração existente de Divulgação e Instagram.
+| Modelo | Estrutura disponível |
+| --- | --- |
+| Passeios | Capa, filtros, foto, duração, percurso/referência, resumo, roteiro, inclusões e ações |
+| Regras e orientações | Capa, ícone, resumo, detalhes, fonte/link oficial e atualização |
+| Guia com destaques | Capa, destaque principal, mini cards e outras experiências |
+| Eventos e programação | Capa, foto, data, horários, local, resumo e ações |
+| Gastronomia | Capa, estabelecimento, referência, culinária, descrição e ações opcionais |
+| Casas de show | Capa, estabelecimentos, localização, programação e ações |
 
-Salvar rascunho preserva a versão pública. Publicar valida e copia o rascunho. Despublicar oculta sem excluir. Reordenar altera a ordem pública sem publicar o texto em revisão. Mudanças de modelo preservam campos e avisam sobre a mudança da apresentação.
+### Calcular rota
 
-### Dados e permissões
+As coordenadas são classificadas pelo serviço existente `CoordinatePlaceResolver`. O Guia preserva a prova e os identificadores de área do `RamoPlace`, entrega o destino ao mapa principal e reutiliza localização autorizada, roteamento e seleção/cotação de veículos existentes. O passageiro continua decidindo se solicita a corrida e confirma pagamento.
 
-Migration 087 aditiva: `local_guide_catalog`, `local_guide_images`, `local_guide_history`. Catálogo com revisão global, cópias draft/published, transação e controle de concorrência. Fotos imutáveis pelo SHA-256. Histórico privado limitado a 30 versões na leitura. Catálogo público omite campos administrativos; fotos de rascunhos exigem sessão administrativa. Escopos existentes `communications:read` e `communications:write`.
+Não há chamada automática de solicitação ou cobrança, preço inventado nem Google Maps como fluxo principal. Destino sem coordenadas ou fora da cobertura recebe tratamento de indisponibilidade.
 
-APIs novas: `/v1/content/guide`, `/v1/content/guide/images/:id`, `/v1/admin/guide`, `/v1/admin/guide/history`, `/v1/admin/guide/images` e busca administrativa de destinos. URLs externas são validadas, páginas internas precisam apontar para categorias publicadas e ações de rota precisam de coordenadas válidas.
+## ADM
 
-A migration cria as três localidades iniciais e seis categorias em Jericoacoara. Só Passeios começa publicada. Copia os passeios e fotos já existentes, sem alterar os originais. Os demais modelos começam em rascunho; nomes comerciais e eventos das referências não são publicados. As APIs antigas continuam lendo os cadastros originais: não existe sincronização reversa automática. Clientes antigos precisam de atualização para consumir o novo Guia.
+O módulo mantém a rota existente `/administrodo/passeios`, agora chamada Guia Local. Reutiliza o router, sessão/escopos, cliente de API, padrões de formulário/diálogo e `createPricingGeofenceMap` para selecionar destinos. A configuração anterior de Divulgação e Instagram permanece acessível.
 
-### Validação e evidências
+Localidades ficam no topo, categorias na coluna lateral e itens no espaço principal. Há pesquisa, Publicados/Rascunhos/Ocultos, prévia, duplicação, reordenação por botões utilizáveis por toque, arquivamento/restauração e histórico recuperável como rascunho.
 
-- Retomada: verificação sintática do ADM e **169 testes passaram**, incluindo o HTML real do Guia no loader de produção e rejeição de uma raiz incompatível.
-- Core nesta retomada: typecheck e build passaram; 868 testes, 809 passaram, zero falhas e 59 ignorados por condições de ambiente.
-- Execução anterior registrada: 224 testes Flutter, build Web e análise sem erros/avisos; dez informações preexistentes fora dos novos arquivos. Como houve ajustes posteriores, a revisão final repete estes checks no CI.
-- Capturas anteriores reais de widgets Flutter: início em 320, 390 e 900 px e seis modelos; fixtures sintéticas, fotografia existente do projeto. Arquivos em `apps/passenger/guide-test-artifacts/`.
-- Cenários administrativos A–G executados anteriormente em Chromium e WebKit, com controller e handlers reais e persistência em memória autenticada. Incluem restaurante, delivery sem rota, casa de show, evento, regra com fonte, categoria no Preá e edição sem alterar a versão pública. JSON e capturas em `apps/admin/guide-browser-artifacts/`.
-- A contagem dos JSON mede cliques de ponteiro gerados pelo Playwright; preenchimento, seleção e upload não são contados. Não representa o total de interações humanas.
-- Cenário adicional de login/MFA, router e logout do shell real incluído na automação para CI; ainda precisa execução na revisão final.
-- Teste PostgreSQL nativo cobre preservação do legado, publicação durável, disputa entre dois escritores e histórico. Requer banco descartável. Não foi executado localmente nesta retomada; CI usa PostgreSQL 16.
-- Validação SQL anterior com PGlite (PostgreSQL em WASM, uma sessão) não substitui o teste de concorrência em PostgreSQL nativo.
-- Auditoria por diff preserva pagamentos, finanças, tarifas, carteira, app do motorista, projetos nativos Android/iOS, barra do mapa e seção administrativa de preços.
+O cadastro ocorre em um editor: foto, nome, descrição e ações. Somente campos da ação escolhida são exibidos; opções específicas do modelo ficam recolhidas. O endereço é preservado ao adicionar/remover rota e não aparece em duplicidade. Upload JPEG/PNG/WebP até 8 MB, prévia e enquadramento vertical. Salvar/publicar fica bloqueado durante envio da foto. Recursos do mapa são liberados ao fechar o painel.
 
-O workflow `Local Guide Review` executa Core com PostgreSQL descartável, ADM em Chromium/WebKit, Flutter completo e build Web. Não contém deploy. Resultados de CI e eventuais correções serão registrados no PR DRAFT.
+**Salvar rascunho** preserva a versão pública. **Publicar** valida e copia a edição para a versão pública. **Despublicar** oculta sem excluir. Reordenar altera a ordem pública sem publicar o texto em revisão. Trocas de modelo preservam os dados e orientam conferir a prévia.
 
-### Como usar
+## Backend e dados
 
-1. Abra **Guia Local** no ADM. Para criar uma localidade, clique em **+ Localidade**, informe o nome e salve/publice.
-2. Selecione a localidade e clique no **+** de categorias. Informe nome, foto e escolha **Modelo da página** entre as seis prévias prontas.
-3. Entre na categoria e clique em **+ Adicionar**. Informe foto, nome e descrição. Detalhes de evento, culinária, duração ou fonte ficam em **Opções adicionais** conforme o modelo.
-4. Em **Adicionar botão**, selecione uma ação. Preencha somente os campos exibidos: link, número/mensagem ou destino no mapa. Repita para várias ações; escolha principal, ordem ou desative/remova cada botão.
-5. Use **Pré-visualizar** para conferir. **Salvar rascunho** mantém a versão pública atual. **Publicar** aplica a alteração. As opções adicionais do item permitem despublicar, duplicar, mover, arquivar e recuperar versões.
+Migration **087 aditiva**, criando `local_guide_catalog`, `local_guide_images` e `local_guide_history`. O catálogo guarda hierarquia, ordem, filtros, modelo, destaque, fotos, ações, coordenadas e cópias draft/published. Revisão global, transação e bloqueio de linha evitam sobrescrita concorrente. Histórico privado retorna até 30 versões; imagens são imutáveis pelo SHA-256.
 
-### Limites para homologação
+Permissões existentes `communications:read` e `communications:write`, validação de dados/links/destinos e tratamento de conflito. Catálogo público omite campos administrativos. Fotos referenciadas somente por rascunhos exigem autenticação. A projeção pública no PostgreSQL é reaproveitada enquanto a revisão não muda.
 
-Ainda exigem validação: CI da revisão final, teste em aparelhos físicos Android/iOS, GPS/permissões e provedores reais em ambiente de homologação, além de comparação final com as referências aprovadas. Não foram gerados APK/IPA nesta entrega. Capturas usam conteúdo sintético e não comprovam disponibilidade de estabelecimentos ou eventos.
+APIs: `/v1/content/guide`, `/v1/content/guide/images/:id`, `/v1/admin/guide`, `/v1/admin/guide/history`, `/v1/admin/guide/images` e `/v1/admin/guide/places`.
 
-Nenhum merge ou deploy foi realizado. O usuário autorizou nesta retomada o envio da branch ao repositório público e a abertura do PR DRAFT. Publicação operacional permanece uma etapa posterior.
+A migration cria Jericoacoara, Preá e Jijoca e seis categorias iniciais em Jericoacoara. Só Passeios começa publicada; as outras ficam em rascunho. Passeios/fotos existentes são copiados sem alterar ou excluir os originais. APIs antigas continuam disponíveis e lendo o cadastro original: **não há sincronização reversa automática**. Clientes antigos precisam ser atualizados para consumir o novo Guia.
 
-## Revisão remota
+## Testes executados e evidências
 
-- PR DRAFT: https://github.com/iansilva23/ramo-nessa/pull/39
-- Branch remota: `feature/local-guide-20261022`, base `feature/admin-web-entry-toggle-20261021` (`ccd7db77`).
-- Commit remoto inicial: `c28431ec5d72ef46a6b18a0acb359d67e22d5040`. Árvore `859cbb9c` idêntica aos commits locais `60bec9a0` + `f244a52a`; envio realizado pela API autenticada porque o Git local não possui credencial de push.
-- Primeira execução CI: migration aplicada e reaplicação ignorada corretamente; teste PostgreSQL do Guia passou (legado, persistência, isolamento, concorrência e histórico). Core: 865 passaram, uma falha de preparação do job (Playwright ausente para teste legado de localidades), dois ignorados. Workflow corrigido para instalar a dependência sem alterar o teste ou a lógica de tarifas.
-- Ajustes adicionais no editor evitam repetir o endereço quando a ação de rota é adicionada, encerram os recursos do mapa ao fechar o painel e bloqueiam salvar/publicar enquanto a foto está em envio. Testes de navegador incluem estes cenários.
+Código validado: **`9f294f81fe6dad56ffd46edf0482ab947347c36a`**.
 
-- Passageiro no CI inicial: **224 testes passaram**, **9 capturas de widgets passaram**, análise sem erros/avisos (dez infos preexistentes), build Web release concluído. Artefato: https://github.com/iansilva23/ramo-nessa/actions/runs/39786405206/artifacts/12429142033. Formatação produzida pelo SDK do CI incorporada ao código.
+Execução final, três jobs concluídos com sucesso: https://github.com/iansilva23/ramo-nessa/actions/runs/39788450563
 
-### Arquivos alterados em relação à base
+| Verificação | Resultado executado |
+| --- | --- |
+| Core | Typecheck e build passaram; 868 testes, **866 passaram, zero falhas, dois ignorados** |
+| Migration PostgreSQL 16 | Aplicação e reaplicação pelo runner; teste de preservação de passeios/fotos, persistência, publicação isolada, concorrência entre dois editores e histórico passou |
+| Regressão de tarifas existente | Teste HTTP/PostgreSQL/Chromium passou sem alterar sua lógica |
+| ADM | Verificação sintática e **169 testes passaram**, incluindo HTML real do Guia no loader de produção e rejeição de raiz incompatível |
+| ADM em navegadores | **Chromium e WebKit**: cenários A–G, prévia, duplicação, reordenação sem publicar rascunhos, arquivamento, restauração, busca e layout móvel/desktop |
+| Sessão e navegação ADM | Login/MFA, router real, Guia e logout pelo shell real passaram em ambos os navegadores |
+| Editor ADM | Publicação aguarda upload; endereço da rota aparece uma vez e é preservado |
+| Flutter | **224 testes passaram**, incluindo fluxo de destino no mapa, abertura da seleção/cotação e ausência de solicitação/cobrança automática |
+| Análise Flutter | Sem erros/avisos; dez informações preexistentes fora dos novos arquivos |
+| Formatação Dart | Seis arquivos verificados, zero alterações pelo formatador |
+| Revisão visual Flutter | **Nove verificações passaram**: início em 320/390/900 px e os seis modelos |
+| Web | Build release concluído, base `/passageiro/` |
+| Preservação de escopo | Diff de arquivos protegidos passou |
+
+Os dois testes condicionais ignorados são preexistentes: persistência de tentativas Asaas e preferência de push Web. Não são declarados aprovados. A execução local anterior passou 809 testes Core com 59 condicionais ignorados; a evidência principal é a rodada final com PostgreSQL acima.
+
+Os testes administrativos usam o controller, cliente de API, autenticação e handlers reais com repositórios em memória e dados sintéticos. O teste separado PostgreSQL comprova persistência real. Não houve inserção das fixtures em produção.
+
+### Facilidade de uso — cenários medidos
+
+Cada cenário usou **um editor**, sem assistente de várias etapas. A localização não aparece no delivery; data/horário e fonte oficial ficam nas opções do modelo. A versão pública foi consultada para confirmar que a edição em rascunho permanecia privada.
+
+| Cenário | Conteúdo | Cliques de ponteiro observados, Chromium / WebKit |
+| --- | --- | --- |
+| A | Restaurante com foto, descrição e Instagram | 2 / 2 |
+| B | Delivery com WhatsApp e Instagram, sem rota | 2 / 2 |
+| C | Casa de show com Instagram e rota; preservação do endereço | 6 / 6 |
+| D | Festa com data, horário e referência | 4 / 4 |
+| E | Regra com fonte/link e atualização | 4 / 4 |
+| F | Categoria de destaques no Preá | 4 / 3 |
+| G | Edição publicada salva como rascunho, público preservado | 3 / 3 |
+
+Esses números são da instrumentação de cliques automatizados nos fluxos delimitados pelos testes. **Não representam o total de interações humanas**: preencher campos, escolher opções por API do Playwright, upload e navegação anterior ao trecho medido não entram nessa contagem. A avaliação humana da facilidade de uso permanece na homologação.
+
+### Capturas e artefatos
+
+- Capturas atuais do ADM e JSON dos cenários: `docs/local-guide-evidence/`.
+- Widgets Flutter: `apps/passenger/guide-test-artifacts/`. Os nove PNGs já versionados são byte a byte idênticos aos gerados pelo CI final.
+- Artefato ADM: https://github.com/iansilva23/ramo-nessa/actions/runs/39788450563/artifacts/12430466100
+- Artefato passageiro: https://github.com/iansilva23/ramo-nessa/actions/runs/39788450563/artifacts/12429722985
+
+As capturas usam conteúdo sintético e fotografia existente do projeto; não comprovam disponibilidade de estabelecimentos/eventos. O CI limpa imagens anteriores antes da execução para não publicar evidência antiga em caso de interrupção.
+
+## Como utilizar o ADM após implantação e homologação
+
+1. Abra **Guia Local**. Clique em **+ Localidade**, informe o nome e salve/publice.
+2. Selecione a localidade e clique no **+** de categorias. Informe nome/foto e escolha **Modelo da página** entre as seis prévias prontas.
+3. Entre na categoria e clique em **+ Adicionar**. Preencha foto, nome e descrição. Use **Opções adicionais** para culinária, evento, duração, fonte ou filtros conforme necessário.
+4. Em **Adicionar botão**, escolha a ação e preencha somente os campos exibidos. Repita para vários botões; defina principal, ordem, ativação ou remoção individual. Para delivery, escolha apenas WhatsApp e Instagram.
+5. Use **Pré-visualizar**. **Salvar rascunho** mantém a versão pública; **Publicar** aplica a alteração. As opções de gerenciamento permitem despublicar, duplicar, mover, arquivar e recuperar versão como rascunho.
+
+## Commits e revisão
+
+- `c28431ec`: implementação do Guia, modelos, ADM, persistência e evidências iniciais.
+- `73f43363`: estado de endereço/foto, ciclo de vida do mapa, cenários de navegador, formatação e preparação do CI.
+- `9f294f81`: preparação dos runners e garantia de evidências atuais; código validado na execução final.
+- O commit posterior deste relatório e das capturas altera somente `docs/`.
+
+O envio foi feito pela conexão autenticada do GitHub porque o Git local não possui credencial de push. As árvores local/remota foram comparadas e eram idênticas em cada envio. O checkout anterior e seus trabalhos pendentes continuam preservados.
+
+A instalação dos navegadores no runner encontrou timeouts no espelho Ubuntu do Azure; o workflow usa o espelho Ubuntu oficial por HTTPS apenas no ambiente descartável. Nenhuma configuração do servidor do Ramo Nessa foi alterada.
+
+## Pendências e limites
+
+Homologar em aparelhos físicos Android/iOS, permissões/GPS, integração com provedores reais em ambiente de homologação e fidelidade final às referências. Não foram gerados/distribuídos APK/IPA. As prévias do ADM representam o modelo e não executam os botões externos ou corridas.
+
+A instalação da migration e das versões de Core/ADM/app ainda não ocorreu no ambiente operacional. **Sem merge, deploy, migração destrutiva, corrida, pagamento ou conteúdo comercial ilustrativo publicado.** O PR permanece DRAFT.
+
+## Arquivos alterados em relação à base
 
 - `.github/workflows/local-guide-review.yml`
 - `apps/admin/guide-browser-artifacts/chromium-delivery-editor-mobile.png`
@@ -132,7 +184,13 @@ Nenhum merge ou deploy foi realizado. O usuário autorizou nesta retomada o envi
 - `backend/core/test/local_guide_http.test.ts`
 - `backend/core/test/local_guide_postgres.test.ts`
 - `docs/LOCAL_GUIDE_20261022.md`
-
-### Preparação dos runners
-
-O espelho `azure.archive.ubuntu.com` apresentou timeouts durante o download das dependências dos navegadores no runner descartável. O workflow troca esse endereço pelo arquivo oficial Ubuntu via HTTPS apenas nesse runner. Também limpa capturas anteriores do checkout de CI para que uploads de execuções interrompidas não sejam confundidos com evidência nova. Nenhuma configuração do servidor do Ramo Nessa é alterada.
+- `docs/local-guide-evidence/chromium-delivery-editor-mobile.png`
+- `docs/local-guide-evidence/chromium-desktop.png`
+- `docs/local-guide-evidence/chromium-full-shell.png`
+- `docs/local-guide-evidence/chromium-mobile.png`
+- `docs/local-guide-evidence/chromium-scenarios.json`
+- `docs/local-guide-evidence/webkit-delivery-editor-mobile.png`
+- `docs/local-guide-evidence/webkit-desktop.png`
+- `docs/local-guide-evidence/webkit-full-shell.png`
+- `docs/local-guide-evidence/webkit-mobile.png`
+- `docs/local-guide-evidence/webkit-scenarios.json`
