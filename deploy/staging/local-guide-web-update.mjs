@@ -1,6 +1,6 @@
 // Scoped update over the exact running images. Never restores old financial data.
 import {spawnSync} from 'node:child_process';
-import {readFileSync,writeFileSync,readdirSync,mkdirSync,lstatSync,existsSync,openSync,closeSync,unlinkSync,cpSync,chmodSync,statfsSync} from 'node:fs';
+import {readFileSync,writeFileSync,readdirSync,mkdirSync,lstatSync,existsSync,openSync,closeSync,unlinkSync,cpSync,chmodSync,statfsSync,renameSync} from 'node:fs';
 import {join,resolve,dirname} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {randomBytes} from 'node:crypto';
@@ -57,15 +57,16 @@ export async function prepareGuide(args,fixture={}){
   }
   console.log('Criando backup verificado, com restauração isolada. Serviços ativos preservados...');
   await backup(['--core-image='+before.core.Image,'--gateway-image='+before.gateway.Image]);const backupDirectory=backupReceipt(before);verifyBackup(backupDirectory,before);
-  mkdirSync(dirname(guideWeb),{recursive:true,mode:0o755});chmodSync(dirname(guideWeb),0o755);mkdirSync(guideWeb,{mode:0o755});
+  mkdirSync(dirname(guideWeb),{recursive:true,mode:0o755});chmodSync(dirname(guideWeb),0o755);mkdirSync(guideWeb,{mode:0o755});chmodSync(guideWeb,0o755);
   cpSync(join(liveWeb,'driver'),join(guideWeb,'driver'),{recursive:true});cpSync(join(payload,'passenger'),join(guideWeb,'passenger'),{recursive:true});
-  function publishModes(p){const stat=lstatSync(p);if(stat.isSymbolicLink())throw Error('GUIDE_WEB_LINK');if(stat.isDirectory()){chmodSync(p,0o755);for(const n of readdirSync(p))publishModes(join(p,n));}else chmodSync(p,0o644);}publishModes(join(guideWeb,'passenger'));
+  function publishModes(p){const stat=lstatSync(p);if(stat.isSymbolicLink())throw Error('GUIDE_WEB_LINK');if(stat.isDirectory()){chmodSync(p,0o755);for(const n of readdirSync(p))publishModes(join(p,n));}else chmodSync(p,0o644);}publishModes(join(guideWeb,'passenger'));publishModes(join(guideWeb,'driver'));
   assertMapProviders(liveWeb,guideWeb);if(hashTree(join(liveWeb,'driver'))!==hashTree(join(guideWeb,'driver')))throw Error('GUIDE_DRIVER_CHANGED');
   const nextImages={};
   for(const role of ['core','gateway']){
    const base='ramo-nessa-guide-'+role+'-base:'+before[role].Image.slice(7);h.docker(['tag',before[role].Image,base]);if(h.image(base).Id!==before[role].Image)throw Error('GUIDE_IMAGE_REFERENCE');
+   if(role==='core'&&images.core.Config.User!=='node')throw Error('GUIDE_CORE_USER_CHANGED');
    const folder=role==='core'?'core':'admin',files=manifest.files.filter(f=>f.path.startsWith(folder+'/'));
-   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?'COPY --chmod=0644 migration/'+migration+' /app/migrations/'+migration+'\n':'');
+   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?'COPY --chmod=0644 migration/'+migration+' /app/migrations/'+migration+'\nUSER 0\nRUN chmod '+(fixture.restrictGuideDirectory?'0700':'0755')+' /app/dist/src/guide\nUSER node\n':'');
    const file=join(payload,role+'.Dockerfile');writeFileSync(file,dockerfile,{mode:0o600});const tag='ramo-nessa-guide-'+role+':'+guideSource.slice(0,12);
    h.docker(['build','--network','none','--pull=false','-f',file,'-t',tag,payload]);nextImages[role]=h.image(tag);assertImageDelta(images[role],nextImages[role]);
   }
@@ -82,6 +83,28 @@ export async function prepareGuide(args,fixture={}){
   const plan={format:1,source:guideSource,archiveSha256:args[1],manifestSha256:hashFile(join(payload,'guide-manifest.json')),files,configs,caddy:{path:caddy.Source,sha256:caddyHash},oldWebHash,newWebHash:hashTree(guideWeb),driverHash:hashTree(join(liveWeb,'driver')),catalog,backupDirectory};save(join(guideDirectory,'prepared.private.json'),plan);
   const result={directory:guideDirectory,sha256:hashFile(join(guideDirectory,'prepared.private.json'))};console.log(JSON.stringify({status:'GUIA_WEB_PREPARADO',...result,servicesRestarted:false}));return result;
  }finally{unlock();}
+}
+export async function recoverGuide(args,fixture={}){
+ if(args.length!==2||!args[0].startsWith('/')||!args[0].endsWith('.zip')||!/^[a-f0-9]{64}$/.test(args[1]))throw Error('Informe o ZIP absoluto e SHA-256 revisado.');
+ rootOnly();const unlock=lock();
+ try{
+  privateDir(guideDirectory);
+  if(existsSync(join(guideDirectory,'prepared.private.json'))||existsSync(join(guideDirectory,'activation.private.json')))throw Error('GUIDE_RECOVERY_ALREADY_PREPARED_OR_ACTIVATED');
+  if(hashFile(args[0])!==args[1])throw Error('GUIDE_ARCHIVE_CHANGED');
+  const log=readFileSync(join(guideDirectory,'command.private.log'),'utf8');
+  if(!log.includes("EACCES: permission denied, open '/app/dist/src/guide/guide-routes.js'"))throw Error('GUIDE_RECOVERY_UNEXPECTED_FAILURE');
+  const h=host(),before=Object.fromEntries(Object.keys(names).map(k=>[k,h.inspect(k)]));
+  fixtureAllowed(fixture,before);validate(before,{'core-image':fixture.coreImage??liveCore,'gateway-image':fixture.gatewayImage??liveGateway});
+  if(before.gateway.Mounts.find(m=>m.Destination==='/srv/web')?.Source!==liveWeb)throw Error('GUIDE_RECOVERY_WEB_CHANGED');
+  assertFingerprint(h.fingerprint(before.core.Id,true),baselineCore);
+  if(!isDeepStrictEqual(await h.db(),{version:81,sha256:fixture.catalog??liveCatalog}))throw Error('GUIDE_RECOVERY_CATALOG_CHANGED');
+  const webParent=dirname(guideWeb),stat=lstatSync(webParent);
+  if(!stat.isDirectory()||stat.isSymbolicLink()||stat.uid!==0)throw Error('GUIDE_RECOVERY_WEB_DIRECTORY');
+  const suffix='.incomplete-'+Date.now()+'-'+randomBytes(6).toString('hex');
+  renameSync(webParent,webParent+suffix);renameSync(guideDirectory,guideDirectory+suffix);
+  console.log('Preparação incompleta preservada para auditoria. Serviços ativos inalterados.');
+ }finally{unlock();}
+ const p=await prepareGuide(args,fixture);await activateGuide([p.directory,p.sha256]);
 }
 export async function activateGuide(args,rehearsal={}){
  if(args.length!==2||args[0]!==guideDirectory||!/^[a-f0-9]{64}$/.test(args[1]))throw Error('Informe preparação e SHA-256 revisados.');rootOnly();privateDir(guideDirectory);const unlock=lock(),journal=join(guideDirectory,'activation.private.json');
@@ -128,4 +151,4 @@ export async function activateGuide(args,rehearsal={}){
   record({phase:'completed',passengerWebUpdated:true,adminUpdated:true,coreUpdated:true,driverWebUpdated:false,nativeAppsUpdated:false});console.log(JSON.stringify({status:'GUIA_LOCAL_WEB_ATUALIZADO',source:guideSource,driverWebUpdated:false,nativeAppsUpdated:false,providerConfigurationPreserved:true,realDeviceAcceptancePending:true}));
  }finally{for(const name of ['SIGINT','SIGTERM','SIGHUP'])process.removeListener(name,signal);unlock();}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{const [mode,...args]=process.argv.slice(2);if(mode==='prepare')await prepareGuide(args);else if(mode==='activate')await activateGuide(args);else if(mode==='install'){const p=await prepareGuide(args);await activateGuide([p.directory,p.sha256]);}else throw Error('Use prepare, activate ou install.');}catch(e){console.error(e.message);if(e.cause)console.error('Motivo: '+e.cause.message);process.exitCode=1;}}
+if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href){try{const [mode,...args]=process.argv.slice(2);if(mode==='prepare')await prepareGuide(args);else if(mode==='activate')await activateGuide(args);else if(mode==='recover-install')await recoverGuide(args);else if(mode==='install'){const p=await prepareGuide(args);await activateGuide([p.directory,p.sha256]);}else throw Error('Use prepare, activate ou install.');}catch(e){console.error(e.message);if(e.cause)console.error('Motivo: '+e.cause.message);process.exitCode=1;}}

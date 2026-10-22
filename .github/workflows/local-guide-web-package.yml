@@ -76,7 +76,9 @@ jobs:
         run: |
           docker pull postgres:16
           docker pull caddy:2.11.7-alpine
-          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-local-guide-web-update.mjs "$PWD/local-guide-web.zip" "$PWD/baseline"
+          curl --fail --show-error --location https://github.com/iansilva23/ramo-nessa/releases/download/local-guide-web-9f294f81/local-guide-web.zip --output verified-release.zip
+          echo 'bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba  verified-release.zip' | sha256sum -c -
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-local-guide-web-update.mjs "$PWD/verified-release.zip" "$PWD/baseline"
       - uses: actions/upload-artifact@v4
         with:
           name: local-guide-configured-web-tested
@@ -92,6 +94,8 @@ jobs:
           path: artifacts/web-csp/
           if-no-files-found: ignore
   publish-package:
+    # The already published package is immutable; this run tests installer recovery only.
+    if: ${{ false }}
     needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 5

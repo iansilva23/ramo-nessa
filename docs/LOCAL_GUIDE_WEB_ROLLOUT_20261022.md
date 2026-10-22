@@ -89,3 +89,13 @@ ATUALIZAR_GUIA_WEB
 ```
 
 Sucesso esperado: `GUIA_LOCAL_WEB_ATUALIZADO`. Em erro, guardar a mensagem e consultar a fase do registro; não repetir o instalador nem executar comandos genéricos de reset/atualização. As versões antigas, o banco aditivo e o backup são mantidos.
+
+## Correção de preparação após a tentativa na VPS
+
+Em 22/10, o backup da VPS foi restaurado em isolamento e verificado, mas a preparação falhou com `EACCES` ao ler `/app/dist/src/guide/guide-routes.js` na imagem candidata. Não existiam plano preparado nem registro de ativação; Core/Gateway anteriores continuavam saudáveis. A instalação não foi concluída.
+
+O instalador agora define explicitamente a pasta nova de código como 0755 durante a construção e restaura `USER node` antes de verificar a imagem. Os arquivos continuam 0644, e a comparação completa da configuração da imagem permanece obrigatória. As pastas públicas da cópia Web também recebem permissões explícitas; configurações, planos e backups privados continuam protegidos.
+
+O modo `recover-install` aceita somente esta falha de preparação, sem plano/ativação existentes, pacote com SHA válido e serviços/imagens/catálogo anteriores intactos. Preserva as duas pastas incompletas com sufixo de auditoria e prepara novamente com backup verificado. Não exclui arquivos nem restaura dados financeiros.
+
+O ensaio de regressão usa o ZIP público original com SHA `bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba`, força a mesma falha real de leitura no usuário restrito e testa a retomada. A publicação automática do pacote foi desabilitada nesta rodada para preservar o release imutável. O resultado deste novo ensaio será registrado após a execução; a homologação anterior não comprova esta correção.

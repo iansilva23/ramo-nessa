@@ -1,9 +1,9 @@
 // Disposable CI only: real previous Core, PostgreSQL, Caddy and release bytes.
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,cpSync,chmodSync} from 'node:fs';
+import {mkdirSync,readFileSync,writeFileSync,rmSync,existsSync,cpSync,chmodSync,statSync} from 'node:fs';
 import {join,resolve} from 'node:path';
-import {prepareGuide,activateGuide} from './local-guide-web-update.mjs';
+import {prepareGuide,activateGuide,recoverGuide} from './local-guide-web-update.mjs';
 import {escapeCompose} from './asaas-activation-plan-contract.mjs';
 import {runtimeIdentity} from './backup-regions-pricing.mjs';
 import {names} from './google-search-update-contract.mjs';
@@ -54,13 +54,33 @@ try{
  const original=data(),driver=hashTree(join(liveWeb,'driver')),untouched=Object.fromEntries(['postgres','maps','site'].map(r=>[r,runtimeIdentity(inspect(r))]));
  const preserved=()=>{assert.equal(data(),original);assert.equal(hashTree(join(liveWeb,'driver')),driver);assert.equal(hashTree(join(guideWeb,'driver')),driver);assert.equal(readFileSync(lab+'/Caddyfile','utf8'),caddy);for(const r of Object.keys(untouched))assert.equal(runtimeIdentity(inspect(r)),untouched[r]);};
  const reset=async()=>{compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');rmSync(guideDirectory,{recursive:true});rmSync(dirnameSafe(guideWeb),{recursive:true});};
- let prepared=await prepareGuide([archive,hashFile(archive)],fixture);const ids=[inspect('core').Id,inspect('gateway').Id];
+ let prepared=await prepareGuide([archive,hashFile(archive)],fixture);
+ // A root-only Guide directory must fail as the actual nonroot runtime user.
+ // This regression was missed by the older BuildKit used in the first rehearsal.
+ const nextCore=JSON.parse(readFileSync(join(guideDirectory,'images-after.private.json'))).core;
+ const probe=join(lab,'permissions-probe');mkdirSync(probe);
+ writeFileSync(join(probe,'Dockerfile'),'FROM '+nextCore.Id+'\nUSER 0\nRUN chmod 0700 /app/dist/src/guide\nUSER node\n');
+ docker(['build','--network','none','-t','guide-web-ci-permissions-probe',probe]);
+ const denied=spawnSync('docker',['run','--rm','--network','none','--entrypoint','node','guide-web-ci-permissions-probe','--input-type=module','-e',"import{readFileSync}from'node:fs';readFileSync('/app/dist/src/guide/guide-routes.js');"],{encoding:'utf8'});
+ assert.notEqual(denied.status,0);assert.match(denied.stderr,/EACCES/);
+ docker(['run','--rm','--network','none','--entrypoint','node',nextCore.Id,'--input-type=module','-e',"import{readFileSync,statSync}from'node:fs';for(const f of ['guide-routes.js','guide-store.js','guide.js'])readFileSync('/app/dist/src/guide/'+f);if((statSync('/app/dist/src/guide').mode&0o777)!==0o755)process.exit(2);if(process.getuid()===0)process.exit(3);"]);
+ assert.equal(nextCore.Config.User,'node');
+ for(const p of [guideWeb,join(guideWeb,'driver'),join(guideWeb,'passenger')])assert.equal(statSync(p).mode&0o777,0o755);
+ assert.equal(statSync(guideDirectory).mode&0o777,0o700);
+ const ids=[inspect('core').Id,inspect('gateway').Id];
  writeFileSync(lab+'/Caddyfile',caddy+'\n# concurrent change');await assert.rejects(activateGuide([prepared.directory,prepared.sha256]),/GUIDE_ACTIVE_CONFIGURATION_CHANGED/);assert.deepEqual([inspect('core').Id,inspect('gateway').Id],ids);writeFileSync(lab+'/Caddyfile',caddy);
  await assert.rejects(activateGuide([prepared.directory,prepared.sha256],{failAfterCore:true}),e=>e.rollbackComplete===true);preserved();assert.equal(inspect('core').Image,coreImage);assert.equal(inspect('gateway').Image,gatewayImage);assert.equal(query("SELECT count(*) FROM schema_migrations WHERE filename='087_local_guide.sql'").trim(),'1');
  await reset();prepared=await prepareGuide([archive,hashFile(archive)],fixture);
  await assert.rejects(activateGuide([prepared.directory,prepared.sha256],{failAfterWeb:true}),e=>e.rollbackComplete===true);preserved();assert.equal(inspect('core').Image,coreImage);assert.equal(inspect('gateway').Image,gatewayImage);
- await reset();prepared=await prepareGuide([archive,hashFile(archive)],fixture);await activateGuide([prepared.directory,prepared.sha256]);preserved();
+ await reset();
+ const priorIds=[inspect('core').Id,inspect('gateway').Id];
+ await assert.rejects(prepareGuide([archive,hashFile(archive)],{...fixture,restrictGuideDirectory:true}),/GUIDE_COMMAND_FAILED/);
+ assert.match(readFileSync(join(guideDirectory,'command.private.log'),'utf8'),/EACCES: permission denied, open '\/app\/dist\/src\/guide\/guide-routes.js'/);
+ assert.equal(existsSync(join(guideDirectory,'prepared.private.json')),false);
+ assert.equal(existsSync(join(guideDirectory,'activation.private.json')),false);
+ assert.deepEqual([inspect('core').Id,inspect('gateway').Id],priorIds);
+ await recoverGuide([archive,hashFile(archive)],fixture);preserved();
  const publicGuide=await(await fetch('http://127.0.0.1:18080/v1/content/guide')).json();assert.ok(publicGuide.entities.some(e=>e.name==='Existing approved tour'));assert.equal(query('SELECT amount FROM ci_financial_sentinel').trim(),'12345');
- console.log('LOCAL GUIDE UPDATE REHEARSAL PASSED: verified restore backup, exact Core/admin payloads, additive migration preserving tours and financial/catalog data, literal production-mode environment preserved, driver bytes and other services unchanged, concurrent config blocked, both forced failures roll back, successful release verified over HTTP. Synthetic credentials only; no live system accessed.');
+ console.log('LOCAL GUIDE UPDATE REHEARSAL PASSED: verified restore backup, exact Core/admin payloads, additive migration preserving tours and financial/catalog data, literal production-mode environment preserved, driver bytes and other services unchanged, concurrent config blocked, both forced failures roll back, real EACCES preparation failure recovered without deleting evidence, nonroot file access verified, successful release verified over HTTP. Synthetic credentials only; no live system accessed.');
 }catch(e){if(existsSync(guideDirectory+'/command.private.log'))console.error('Synthetic fixture log: '+readFileSync(guideDirectory+'/command.private.log','utf8').slice(-5000));for(const role of ['core','gateway']){const r=spawnSync('docker',['logs','--tail','30',names[role]],{encoding:'utf8'});console.error('CI '+role+': '+r.stdout+r.stderr);const state=spawnSync('docker',['inspect','--format','{{json .State}}',names[role]],{encoding:'utf8'});console.error('CI state '+role+': '+state.stdout);}throw e;}
 finally{if(started)for(const role of Object.keys(names))spawnSync('docker',['rm','-fv',names[role]]);for(const v of volumes)spawnSync('docker',['volume','rm',v]);for(const n of [net,net+'-ingress'])spawnSync('docker',['network','rm',n]);for(const p of [guideRoot,dirnameSafe(liveWeb),dirnameSafe(guideWeb),lab])rmSync(p,{recursive:true,force:true});}
