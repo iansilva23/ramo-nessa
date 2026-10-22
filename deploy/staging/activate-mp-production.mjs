@@ -59,6 +59,8 @@ export async function activateMpProduction(args,rehearsal={}){
     if(!isDeepStrictEqual(Object.keys(p.files??{}).sort(),expectedFiles))throw Error('MP_PREPARATION_FILES_INVALID');
     for(const [name,hash]of Object.entries(p.files))if(hashFile(join(dir,name))!==hash)throw Error('MP_PREPARATION_FILE_CHANGED');
     const before=JSON.parse(readFileSync(join(dir,'runtime-before.private.json'))),old=JSON.parse(readFileSync(join(dir,'core-before.compose.private.json'))),candidate=JSON.parse(readFileSync(join(dir,'core-after.compose.private.json'))),coreImage=JSON.parse(readFileSync(join(dir,'core-image.private.json')));
+    const baselineEnvironment=environmentMap(before.core.Config.Env);
+    if(['ALLOW_DEV_IDENTITY','ALLOW_DEV_OTP','ALLOW_DEV_PAYMENT_GATEWAY'].some(k=>baselineEnvironment[k]==='true'))throw Error('MP_DEV_BYPASS_ENABLED');
     validate(before,{'core-image':rehearsal.coreImage??confirmedCore,'gateway-image':rehearsal.gatewayImage??confirmedGateway});
     if(Object.values(before.core.HostConfig.PortBindings??{}).some(bindings=>bindings?.length)||before.core.HostConfig.NetworkMode==='host')throw Error('MP_CORE_DIRECT_INGRESS_REQUIRES_REVIEW');
     const {docker,inspect,image,compose,health}=io(dir);

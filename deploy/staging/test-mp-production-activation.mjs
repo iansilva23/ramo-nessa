@@ -9,7 +9,7 @@ import {inventoryDigest,productionCorePlan} from './mp-production-preflight-cont
 import {names} from './google-search-update-contract.mjs';
 if(process.env.GITHUB_ACTIONS!=='true'||process.getuid?.()!==0)throw Error('Disposable root CI only');
 const scenario=process.argv[2];if(!['success','rollback'].includes(scenario))throw Error('scenario');
-const root='/opt/ramo-mp-activation-ci-'+scenario,dir=join(root,'preflight'),network='ramo-mp-activation-ci',source=join(root,'runtime.compose.private.json');
+const root='/var/lib/ramo-mp-activation-ci-'+scenario,dir=join(root,'preflight'),network='ramo-mp-activation-ci',source=join(root,'runtime.compose.private.json');
 if(existsSync(root))throw Error('fixture already exists');mkdirSync(root,{mode:0o700});mkdirSync(dir,{mode:0o700});
 function run(command,args,options={}){const r=spawnSync(command,args,{encoding:'utf8',timeout:600000,maxBuffer:32*1024**2,env:{PATH:process.env.PATH},...options});if(r.status!==0||r.error)throw Error('CI command failed: '+command+' '+String(r.stderr??''));return r.stdout;}
 const docker=args=>run('docker',args),inspect=role=>JSON.parse(docker(['inspect',names[role]]))[0];
