@@ -62,12 +62,12 @@ Aguardar `GUIA_LOCAL_WEB_ATUALIZADO`, fechar e reabrir o Passageiro Web e acessa
 
 Testar no Safari/Chrome real: login existente, troca de localidade, passeio com foto, WhatsApp/Instagram e destino no mapa com cotação. A ação de rota não solicita corrida automaticamente. O aceite em aparelho físico e com provedores reais continua necessário; o ensaio isolado não o substitui.
 
-## Comando revisado de instalação
+## Comando revisado de retomada após EACCES
 
 Executar na VPS como ubuntu, com sudo. O fetch não altera o checkout ativo. O instalador recebe a revisão operacional testada e o hash exato do ZIP disponibilizado. Aguardar a conclusão e guardar a saída.
 
 ```bash
-bash <<'ATUALIZAR_GUIA_WEB'
+bash <<'RETOMAR_GUIA_WEB'
 set -euo pipefail
 
 git -C /opt/ramo-nessa fetch origin \
@@ -75,7 +75,7 @@ git -C /opt/ramo-nessa fetch origin \
 
 preparo_guia=$(mktemp -d /tmp/ramo-guia-web.XXXXXX)
 git -C /opt/ramo-nessa archive \
-  d7ed38577a6d9bb1040ede952cd99d6a2ad690ed deploy/staging |
+  3b43a7e71a356cca69798fb474139b45229f5f11 deploy/staging |
   tar -x -C "$preparo_guia"
 
 curl --fail --show-error --location \
@@ -83,9 +83,9 @@ curl --fail --show-error --location \
   --output "$preparo_guia/local-guide-web.zip"
 
 sudo node "$preparo_guia/deploy/staging/local-guide-web-update.mjs" \
-  install "$preparo_guia/local-guide-web.zip" \
+  recover-install "$preparo_guia/local-guide-web.zip" \
   bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba
-ATUALIZAR_GUIA_WEB
+RETOMAR_GUIA_WEB
 ```
 
 Sucesso esperado: `GUIA_LOCAL_WEB_ATUALIZADO`. Em erro, guardar a mensagem e consultar a fase do registro; não repetir o instalador nem executar comandos genéricos de reset/atualização. As versões antigas, o banco aditivo e o backup são mantidos.
@@ -98,4 +98,4 @@ O instalador agora define explicitamente a pasta nova de código como 0755 duran
 
 O modo `recover-install` aceita somente esta falha de preparação, sem plano/ativação existentes, pacote com SHA válido e serviços/imagens/catálogo anteriores intactos. Preserva as duas pastas incompletas com sufixo de auditoria e prepara novamente com backup verificado. Não exclui arquivos nem restaura dados financeiros.
 
-O ensaio de regressão usa o ZIP público original com SHA `bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba`, força a mesma falha real de leitura no usuário restrito e testa a retomada. A publicação automática do pacote foi desabilitada nesta rodada para preservar o release imutável. O resultado deste novo ensaio será registrado após a execução; a homologação anterior não comprova esta correção.
+O ensaio de regressão usa o ZIP público original com SHA `bc893ebde3cf0c9d0d542d4fc2bdc4aa49f0741fc2cf0ae57c86c6cb5ed07aba`, força a mesma falha real de leitura no usuário restrito e testa a retomada. A publicação automática do pacote foi desabilitada nesta rodada para preservar o release imutável. Execução da correção aprovada: https://github.com/iansilva23/ramo-nessa/actions/runs/39829574474, revisão operacional `3b43a7e71a356cca69798fb474139b45229f5f11`. O job de testes passou; a publicação foi intencionalmente ignorada. Passaram os 20 testes Node, dois testes Python, sessões Chromium/WebKit e o ensaio Docker com quatro backups/restaurações isoladas, dois retornos provocados, recusa de configuração concorrente e recuperação de EACCES real. A imagem corrigida foi lida como usuário não root; pastas públicas 0755 e diretório privado 0700 foram conferidos. Instalação final verificada por HTTP e dados anteriores preservados. Isso continua sendo evidência isolada; a implantação na VPS aguarda a execução de `recover-install` pelo operador.
