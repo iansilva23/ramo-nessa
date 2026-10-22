@@ -35,6 +35,11 @@ jobs:
         run: git diff --exit-code ccd7db77152180a01c649a3da5b04da9ef392e20 -- backend/core/src/payments backend/core/src/finance backend/core/src/pricing backend/core/src/wallet apps/driver apps/passenger/android apps/passenger/ios apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart apps/admin/src/regions-pricing-admin.js apps/admin/pages/regions-pricing.html
       - working-directory: backend/core
         run: npm ci --no-audit --no-fund && npm run db:migrate && npm run db:migrate && npm run typecheck && npm run build
+      - name: Use Ubuntu archive when Azure mirror is unavailable
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
       - name: Browser dependency for existing PostgreSQL locality regression
         working-directory: scripts/web/browser-tests
         run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
@@ -45,12 +50,19 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Remove previous captures from this disposable checkout
+        run: rm -f apps/admin/guide-browser-artifacts/*.png apps/admin/guide-browser-artifacts/*.json
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - working-directory: apps/admin
         run: npm run check && node --check src/guide-admin.js && npm test
       - working-directory: backend/core
         run: npm ci --no-audit --no-fund
+      - name: Use Ubuntu archive when Azure mirror is unavailable
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
       - working-directory: scripts/web/browser-tests
         run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium webkit
       - name: Real controller and API, mobile and desktop scenarios
@@ -67,6 +79,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2.23.0
         with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Remove previous captures from this disposable checkout
+        run: rm -f apps/passenger/guide-test-artifacts/*.png
       - name: Format shared Dart changes for review
         run: |
           dart format apps/passenger/lib/src/features/guide apps/passenger/lib/src/features/home/presentation/passenger_main_shell.dart apps/passenger/test/local_guide_test.dart apps/passenger/test/local_guide_map_test.dart apps/passenger/test/local_guide_visual_review.dart

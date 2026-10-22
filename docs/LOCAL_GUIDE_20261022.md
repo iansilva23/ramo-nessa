@@ -132,3 +132,7 @@ Nenhum merge ou deploy foi realizado. O usuário autorizou nesta retomada o envi
 - `backend/core/test/local_guide_http.test.ts`
 - `backend/core/test/local_guide_postgres.test.ts`
 - `docs/LOCAL_GUIDE_20261022.md`
+
+### Preparação dos runners
+
+O espelho `azure.archive.ubuntu.com` apresentou timeouts durante o download das dependências dos navegadores no runner descartável. O workflow troca esse endereço pelo arquivo oficial Ubuntu via HTTPS apenas nesse runner. Também limpa capturas anteriores do checkout de CI para que uploads de execuções interrompidas não sejam confundidos com evidência nova. Nenhuma configuração do servidor do Ramo Nessa é alterada.
