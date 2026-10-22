@@ -66,7 +66,7 @@ export async function prepareGuide(args,fixture={}){
    const base='ramo-nessa-guide-'+role+'-base:'+before[role].Image.slice(7);h.docker(['tag',before[role].Image,base]);if(h.image(base).Id!==before[role].Image)throw Error('GUIDE_IMAGE_REFERENCE');
    if(role==='core'&&images.core.Config.User!=='node')throw Error('GUIDE_CORE_USER_CHANGED');
    const folder=role==='core'?'core':'admin',files=manifest.files.filter(f=>f.path.startsWith(folder+'/'));
-   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?'COPY --chmod=0644 migration/'+migration+' /app/migrations/'+migration+'\nUSER 0\nRUN chmod '+(fixture.restrictGuideDirectory?'0700':'0755')+' /app/dist/src/guide\nUSER node\n':'');
+   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?'COPY --chmod=0644 migration/'+migration+' /app/migrations/'+migration+'\nUSER 0\nRUN chmod '+(fixture.restrictGuideDirectory?'0644':'0755')+' /app/dist/src/guide\nUSER node\n':'');
    const file=join(payload,role+'.Dockerfile');writeFileSync(file,dockerfile,{mode:0o600});const tag='ramo-nessa-guide-'+role+':'+guideSource.slice(0,12);
    h.docker(['build','--network','none','--pull=false','-f',file,'-t',tag,payload]);nextImages[role]=h.image(tag);assertImageDelta(images[role],nextImages[role]);
   }

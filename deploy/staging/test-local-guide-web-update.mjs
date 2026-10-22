@@ -55,11 +55,11 @@ try{
  const preserved=()=>{assert.equal(data(),original);assert.equal(hashTree(join(liveWeb,'driver')),driver);assert.equal(hashTree(join(guideWeb,'driver')),driver);assert.equal(readFileSync(lab+'/Caddyfile','utf8'),caddy);for(const r of Object.keys(untouched))assert.equal(runtimeIdentity(inspect(r)),untouched[r]);};
  const reset=async()=>{compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');rmSync(guideDirectory,{recursive:true});rmSync(dirnameSafe(guideWeb),{recursive:true});};
  let prepared=await prepareGuide([archive,hashFile(archive)],fixture);
- // A root-only Guide directory must fail as the actual nonroot runtime user.
+ // A Guide directory without traversal permission must fail as the actual nonroot runtime user.
  // This regression was missed by the older BuildKit used in the first rehearsal.
  const nextCore=JSON.parse(readFileSync(join(guideDirectory,'images-after.private.json'))).core;
  const probe=join(lab,'permissions-probe');mkdirSync(probe);
- writeFileSync(join(probe,'Dockerfile'),'FROM '+nextCore.Id+'\nUSER 0\nRUN chmod 0700 /app/dist/src/guide\nUSER node\n');
+ writeFileSync(join(probe,'Dockerfile'),'FROM '+nextCore.Id+'\nUSER 0\nRUN chmod 0644 /app/dist/src/guide\nUSER node\n');
  docker(['build','--network','none','-t','guide-web-ci-permissions-probe',probe]);
  const denied=spawnSync('docker',['run','--rm','--network','none','--entrypoint','node','guide-web-ci-permissions-probe','--input-type=module','-e',"import{readFileSync}from'node:fs';readFileSync('/app/dist/src/guide/guide-routes.js');"],{encoding:'utf8'});
  assert.notEqual(denied.status,0);assert.match(denied.stderr,/EACCES/);
