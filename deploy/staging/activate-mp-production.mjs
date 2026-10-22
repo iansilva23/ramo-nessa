@@ -117,8 +117,11 @@ export async function activateMpProduction(args,rehearsal={}){
     assertConfirmedTestInventory(financialSubset(context));
     writeFileSync(join(work,'context-before.private.json'),JSON.stringify(context),{mode:0o600,flag:'wx'});
     const oldPublicKey=context.operational_settings[0]?.mercado_pago_public_key??null;
-    const gatewayShape=c=>({Id:c.Id,Image:c.Image,Config:c.Config,HostConfig:c.HostConfig,Mounts:c.Mounts,networks:Object.keys(c.NetworkSettings.Networks).sort()});
-    const gatewayIntact=()=>{if(!isDeepStrictEqual(gatewayShape(inspect('gateway')),gatewayShape(before.gateway)))throw Error('MP_GATEWAY_CHANGED');};
+    // Docker can return mounts in a different order on consecutive inspections.
+    // Reuse the canonical identity, excluding only restart timestamps and the
+    // ephemeral network endpoint addresses that change during stop/start.
+    const gatewayShape=c=>runtimeIdentity({...c,State:{StartedAt:'same-container-restart'},NetworkSettings:{Networks:Object.fromEntries(Object.keys(c.NetworkSettings.Networks).map(name=>[name,{}]))}});
+    const gatewayIntact=()=>{if(gatewayShape(inspect('gateway'))!==gatewayShape(before.gateway))throw Error('MP_GATEWAY_CHANGED');};
     const coreGuard=model=>assertCoreRuntime(before.core,inspect('core'),model,coreImage,{healthy:false});
     const privateCheck=(mode,publicKey)=>{
       const r=spawnSync('docker',['exec','-i',names.core,'node','--input-type=module','-e',privatePaymentProbe],{input:JSON.stringify({mode,publicKey}),encoding:'utf8',timeout:60000,maxBuffer:4*1024**2,env:{PATH:process.env.PATH}});
