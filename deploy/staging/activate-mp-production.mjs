@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process';
-import {readFileSync,writeFileSync,lstatSync,mkdirSync,openSync,closeSync,unlinkSync,existsSync,copyFileSync,chmodSync,createReadStream} from 'node:fs';
+import {readFileSync,writeFileSync,lstatSync,mkdirSync,openSync,closeSync,unlinkSync,existsSync,copyFileSync,chmodSync,chownSync,createReadStream} from 'node:fs';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
@@ -93,7 +93,7 @@ export async function activateMpProduction(args,rehearsal={}){
     for(const f of backup.files){if(!/^[A-Za-z0-9_.-]+$/.test(f.name)||await streamedHash(join(checkpoint.directory,f.name))!==f.sha256)throw Error('MP_BACKUP_FILE_CHANGED');}
     work=join(base,'activation');mkdirSync(work,{mode:0o700});
     const ops=join(work,'ops');mkdirSync(ops,{mode:0o700});const here=dirname(fileURLToPath(import.meta.url));
-    for(const name of ['mp-production-database.mjs','mp-production-preflight-contract.mjs','asaas-activation-plan-contract.mjs']){copyFileSync(join(here,name),join(ops,name));chmodSync(join(ops,name),0o600);}
+    for(const name of ['mp-production-database.mjs','mp-production-preflight-contract.mjs','asaas-activation-plan-contract.mjs']){const target=join(ops,name);copyFileSync(join(here,name),target);chownSync(target,0,0);chmodSync(target,0o600);}
     const env=environmentMap(before.core.Config.Env),databaseEnv=Object.fromEntries(['DATABASE_URL','DB_SSL','DB_SSL_CA'].filter(k=>env[k]!=null).map(k=>[k,env[k]]));
     // The maintenance worker shares PostgreSQL's network namespace, not the
     // Core's Docker DNS configuration. Pin it to that same database locally.
@@ -106,7 +106,7 @@ export async function activateMpProduction(args,rehearsal={}){
     let context;
     const worker=mode=>{
       const input={mode,reference,databaseEnv,publicKey:credentials.publicKey,before:context};
-      const r=spawnSync('docker',['run','--rm','-i','--pull','never','--user','0:0','--network','container:'+before.postgres.Id,'--read-only','--cap-drop','ALL','--cap-add','DAC_OVERRIDE','--security-opt','no-new-privileges',
+      const r=spawnSync('docker',['run','--rm','-i','--pull','never','--user','0:0','--network','container:'+before.postgres.Id,'--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
         '--mount','type=bind,src='+ops+',dst=/ops,readonly','--mount','type=bind,src='+work+',dst=/work','--entrypoint','node',before.core.Image,'/ops/mp-production-database.mjs'],
         {input:JSON.stringify(input),encoding:'utf8',timeout:120000,maxBuffer:32*1024**2,env:{PATH:process.env.PATH}});
       if(r.error||r.status!==0){writeFileSync(join(work,'worker-error.private.log'),String(r.stderr??''),{mode:0o600});throw Error('MP_DATABASE_WORKER_FAILED');}
@@ -139,19 +139,19 @@ export async function activateMpProduction(args,rehearsal={}){
     journalCreated=true;
     console.log('Pausando brevemente os aplicativos Web para retirar os saldos fictícios e ativar o Mercado Pago...');
     await switchMpProduction({
-      pause:async()=>{record({phase:'pausing'});gatewayIntact();docker(['stop','--time','30',before.gateway.Id]);if(inspect('core').Id!==before.core.Id)throw Error('MP_CORE_CHANGED');docker(['stop','--time','30',before.core.Id]);await barrier();},
+      pause:async()=>{record({phase:'pausing'});gatewayIntact();docker(['stop',before.gateway.Id]);if(inspect('core').Id!==before.core.Id)throw Error('MP_CORE_CHANGED');docker(['stop',before.core.Id]);await barrier();},
       assertPaused:async()=>{paused();if(inspect('core').State.Running)throw Error('MP_CORE_NOT_PAUSED');coreGuard(old);},
       applyData:async()=>{record({phase:'archiving-test-balances'});worker('apply');await barrier();},
       upProduction:async()=>{paused();record({phase:'starting-production-core'});compose(join(dir,'core-after.compose.private.json'),'core');await health('core');await barrier();},
       verifyPrivate:async()=>{paused();coreGuard(candidate);privateCheck('production',credentials.publicKey);worker('verify');if(rehearsal.failPrivate)throw Error('MP_SYNTHETIC_PRIVATE_FAILURE');await barrier();},
       openIngress:async()=>{paused();record({phase:'opening-production',productionMayBeOpen:true});opened=true;docker(['start',before.gateway.Id]);await health('gateway');},
       verifyPublic:()=>publicCheck(credentials.publicKey),
-      ensurePaused:async()=>{gatewayIntact();if(inspect('gateway').State.Running)docker(['stop','--time','30',before.gateway.Id]);paused();},
+      ensurePaused:async()=>{gatewayIntact();if(inspect('gateway').State.Running)docker(['stop',before.gateway.Id]);paused();},
       stopCandidate:async()=>{
         const r=spawnSync('docker',['inspect',names.core],{encoding:'utf8'});
         if(r.status!==0){if(docker(['ps','-a','--format','{{.Names}}']).trim().split('\n').includes(names.core))throw Error('MP_CORE_STATE_UNKNOWN');return;}
         try{coreGuard(candidate);}catch{coreGuard(old);}
-        const current=inspect('core');if(current.State.Running)docker(['stop','--time','30',current.Id]);
+        const current=inspect('core');if(current.State.Running)docker(['stop',current.Id]);
       },
       reverseData:async()=>{
         paused();const file=join(work,'apply-receipt.private.json');
