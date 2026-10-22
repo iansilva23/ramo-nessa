@@ -2,11 +2,13 @@
 // existing brand photograph. No fixture is inserted into a live database.
 import 'dart:io';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/guide/data/local_guide_service.dart';
 import 'package:ramo_nessa_passenger/src/features/guide/presentation/local_guide_screen.dart';
+
 import 'local_guide_test.dart' show Service;
 
 final core = Uri.parse('https://core.example');

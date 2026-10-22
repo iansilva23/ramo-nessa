@@ -6,6 +6,7 @@ import 'package:ramo_nessa_passenger/src/features/home/presentation/vehicle_sele
 import 'package:ramo_nessa_passenger/src/features/map/domain/ramo_place.dart';
 import 'package:ramo_nessa_passenger/src/features/payments/data/passenger_payment_service.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/data/ride_preparation_service.dart';
+
 import 'web_map_selection_race_test.dart'
     show
         NoRelease,

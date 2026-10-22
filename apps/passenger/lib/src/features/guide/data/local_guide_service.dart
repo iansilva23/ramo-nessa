@@ -80,9 +80,8 @@ class GuideEntry {
   String? get imageUrl {
     final path = text('image');
     if (baseUrl == null ||
-        !RegExp(
-          r'^/v1/content/guide/images/[a-zA-Z0-9_-]{1,100}$',
-        ).hasMatch(path)) {
+        !RegExp(r'^/v1/content/guide/images/[a-zA-Z0-9_-]{1,100}$')
+            .hasMatch(path)) {
       return null;
     }
     return baseUrl!.resolve(path).toString();

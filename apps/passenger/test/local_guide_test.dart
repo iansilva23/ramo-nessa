@@ -64,41 +64,33 @@ class Places implements PlaceSearchService, CoordinatePlaceResolver {
 }
 
 void main() {
-  test(
-    'HTTP content is cached, pending calls share one request and refresh handles offline content',
-    () async {
-      int calls = 0;
-      bool offline = false;
-      final service = HttpLocalGuideService(
-        baseUrl: Uri.parse('https://core.example'),
-        client: MockClient((r) async {
-          calls++;
-          if (offline) throw Exception('offline');
-          return http.Response(
-            jsonEncode({
-              'entities': [
-                {
-                  'id': 'p',
-                  'name': 'Preá',
-                  'kind': 'locality',
-                  'parentId': null,
-                },
-              ],
-            }),
-            200,
-          );
-        }),
-      );
-      final results = await Future.wait([service.load(), service.load()]);
-      expect(calls, 1);
-      expect(results.first.entries.single.name, 'Preá');
-      await service.load();
-      expect(calls, 1);
-      offline = true;
-      expect((await service.load(refresh: true)).stale, true);
-      expect(calls, 2);
-    },
-  );
+  test('HTTP content is cached, pending calls share one request and refresh handles offline content', () async {
+    int calls = 0;
+    bool offline = false;
+    final service = HttpLocalGuideService(
+      baseUrl: Uri.parse('https://core.example'),
+      client: MockClient((r) async {
+        calls++;
+        if (offline) throw Exception('offline');
+        return http.Response(
+          jsonEncode({
+            'entities': [
+              {'id': 'p', 'name': 'Preá', 'kind': 'locality', 'parentId': null},
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+    final results = await Future.wait([service.load(), service.load()]);
+    expect(calls, 1);
+    expect(results.first.entries.single.name, 'Preá');
+    await service.load();
+    expect(calls, 1);
+    offline = true;
+    expect((await service.load(refresh: true)).stale, true);
+    expect(calls, 2);
+  });
   test('WhatsApp messages are encoded and external URLs use safe schemes', () {
     final a = GuideAction({
       'id': 'w',
@@ -109,11 +101,8 @@ void main() {
     expect(a.externalUri!.host, 'wa.me');
     expect(a.externalUri!.queryParameters['text'], 'Olá! & teste');
     expect(
-      GuideAction({
-        'id': 'x',
-        'type': 'website',
-        'url': 'javascript:alert(1)',
-      }).externalUri,
+      GuideAction({'id': 'x', 'type': 'website', 'url': 'javascript:alert(1)'})
+          .externalUri,
       isNull,
     );
     expect(

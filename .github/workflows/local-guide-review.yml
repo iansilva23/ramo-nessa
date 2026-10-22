@@ -35,6 +35,9 @@ jobs:
         run: git diff --exit-code ccd7db77152180a01c649a3da5b04da9ef392e20 -- backend/core/src/payments backend/core/src/finance backend/core/src/pricing backend/core/src/wallet apps/driver apps/passenger/android apps/passenger/ios apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart apps/admin/src/regions-pricing-admin.js apps/admin/pages/regions-pricing.html
       - working-directory: backend/core
         run: npm ci --no-audit --no-fund && npm run db:migrate && npm run db:migrate && npm run typecheck && npm run build
+      - name: Browser dependency for existing PostgreSQL locality regression
+        working-directory: scripts/web/browser-tests
+        run: npm ci --no-audit --no-fund && npx playwright install --with-deps chromium
       - working-directory: backend/core
         run: node --import tsx --test --test-concurrency=1 test/*.test.ts
   admin:

@@ -73,3 +73,62 @@ O workflow `Local Guide Review` executa Core com PostgreSQL descartável, ADM em
 Ainda exigem validação: CI da revisão final, teste em aparelhos físicos Android/iOS, GPS/permissões e provedores reais em ambiente de homologação, além de comparação final com as referências aprovadas. Não foram gerados APK/IPA nesta entrega. Capturas usam conteúdo sintético e não comprovam disponibilidade de estabelecimentos ou eventos.
 
 Nenhum merge ou deploy foi realizado. O usuário autorizou nesta retomada o envio da branch ao repositório público e a abertura do PR DRAFT. Publicação operacional permanece uma etapa posterior.
+
+## Revisão remota
+
+- PR DRAFT: https://github.com/iansilva23/ramo-nessa/pull/39
+- Branch remota: `feature/local-guide-20261022`, base `feature/admin-web-entry-toggle-20261021` (`ccd7db77`).
+- Commit remoto inicial: `c28431ec5d72ef46a6b18a0acb359d67e22d5040`. Árvore `859cbb9c` idêntica aos commits locais `60bec9a0` + `f244a52a`; envio realizado pela API autenticada porque o Git local não possui credencial de push.
+- Primeira execução CI: migration aplicada e reaplicação ignorada corretamente; teste PostgreSQL do Guia passou (legado, persistência, isolamento, concorrência e histórico). Core: 865 passaram, uma falha de preparação do job (Playwright ausente para teste legado de localidades), dois ignorados. Workflow corrigido para instalar a dependência sem alterar o teste ou a lógica de tarifas.
+- Ajustes adicionais no editor evitam repetir o endereço quando a ação de rota é adicionada, encerram os recursos do mapa ao fechar o painel e bloqueiam salvar/publicar enquanto a foto está em envio. Testes de navegador incluem estes cenários.
+
+- Passageiro no CI inicial: **224 testes passaram**, **9 capturas de widgets passaram**, análise sem erros/avisos (dez infos preexistentes), build Web release concluído. Artefato: https://github.com/iansilva23/ramo-nessa/actions/runs/39786405206/artifacts/12429142033. Formatação produzida pelo SDK do CI incorporada ao código.
+
+### Arquivos alterados em relação à base
+
+- `.github/workflows/local-guide-review.yml`
+- `apps/admin/guide-browser-artifacts/chromium-delivery-editor-mobile.png`
+- `apps/admin/guide-browser-artifacts/chromium-desktop.png`
+- `apps/admin/guide-browser-artifacts/chromium-mobile.png`
+- `apps/admin/guide-browser-artifacts/chromium-scenarios.json`
+- `apps/admin/guide-browser-artifacts/webkit-delivery-editor-mobile.png`
+- `apps/admin/guide-browser-artifacts/webkit-desktop.png`
+- `apps/admin/guide-browser-artifacts/webkit-mobile.png`
+- `apps/admin/guide-browser-artifacts/webkit-scenarios.json`
+- `apps/admin/guide.css`
+- `apps/admin/index.html`
+- `apps/admin/package.json`
+- `apps/admin/pages/guide.html`
+- `apps/admin/src/api.js`
+- `apps/admin/src/app.js`
+- `apps/admin/src/guide-admin.js`
+- `apps/admin/src/guide-model.js`
+- `apps/admin/test/admin_public_path.test.js`
+- `apps/admin/test/browser/local-guide-flow.mjs`
+- `apps/passenger/guide-test-artifacts/events.png`
+- `apps/passenger/guide-test-artifacts/gastronomy.png`
+- `apps/passenger/guide-test-artifacts/highlights.png`
+- `apps/passenger/guide-test-artifacts/home-320.png`
+- `apps/passenger/guide-test-artifacts/home-390.png`
+- `apps/passenger/guide-test-artifacts/home-900.png`
+- `apps/passenger/guide-test-artifacts/rules.png`
+- `apps/passenger/guide-test-artifacts/tours.png`
+- `apps/passenger/guide-test-artifacts/venues.png`
+- `apps/passenger/lib/src/app.dart`
+- `apps/passenger/lib/src/features/guide/data/local_guide_service.dart`
+- `apps/passenger/lib/src/features/guide/presentation/local_guide_screen.dart`
+- `apps/passenger/lib/src/features/home/presentation/passenger_home_screen.dart`
+- `apps/passenger/lib/src/features/home/presentation/passenger_main_shell.dart`
+- `apps/passenger/test/local_guide_map_test.dart`
+- `apps/passenger/test/local_guide_test.dart`
+- `apps/passenger/test/local_guide_visual_review.dart`
+- `backend/core/migrations/087_local_guide.sql`
+- `backend/core/src/db/repositories.ts`
+- `backend/core/src/guide/guide-routes.ts`
+- `backend/core/src/guide/guide-store.ts`
+- `backend/core/src/guide/guide.ts`
+- `backend/core/src/server.ts`
+- `backend/core/test/local_guide.test.ts`
+- `backend/core/test/local_guide_http.test.ts`
+- `backend/core/test/local_guide_postgres.test.ts`
+- `docs/LOCAL_GUIDE_20261022.md`

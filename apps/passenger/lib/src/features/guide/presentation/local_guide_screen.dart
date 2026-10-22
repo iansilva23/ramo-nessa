@@ -228,8 +228,7 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                       hasScrollBody: false,
                       child: _Empty(
                         title: 'Novas descobertas em breve',
-                        message:
-                            'As experiências desta localidade aparecerão aqui assim que forem publicadas.',
+                        message: 'As experiências desta localidade aparecerão aqui assim que forem publicadas.',
                       ),
                     )
                   else
@@ -246,9 +245,9 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                                   crossAxisSpacing: 12,
                                   childAspectRatio:
                                       .70 /
-                                      MediaQuery.textScalerOf(
-                                        context,
-                                      ).scale(1).clamp(1.0, 2.5),
+                                      MediaQuery.textScalerOf(context)
+                                          .scale(1)
+                                          .clamp(1.0, 2.5),
                                 ),
                             itemCount: categories.length,
                             itemBuilder: (context, index) => _CategoryTile(
