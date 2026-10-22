@@ -1,5 +1,5 @@
 // Offline deterministic payload. No provider or server access.
-import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync,existsSync} from 'node:fs';
 import {resolve,join,relative,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
@@ -12,7 +12,7 @@ const old=new Map(before),next=new Map(after),delta=[...new Set([...old.keys(),.
 if(JSON.stringify(delta)!==JSON.stringify(coreDelta)||hash(JSON.stringify(before))!==baselineCore)throw Error('Unreviewed compiled Core delta/baseline');
 if(hash(readFileSync('backend/core/package-lock.json'))!==dependencyLock||!readFileSync('backend/core/package-lock.json').equals(readFileSync(join(base,'backend/core/package-lock.json'))))throw Error('Dependency changed');
 execFileSync('git',['diff','--exit-code',guideSource,'HEAD','--','backend','apps','packages','config/web'],{stdio:'pipe'});
-const runtimeAdmin=root=>['index.html','styles.css','favicon.svg'].map(p=>[p,hash(readFileSync(join(root,p)))]).concat(...['src','pages'].map(p=>files(join(root,p)).map(([f,h])=>[p+'/'+f,h]))).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+const runtimeAdmin=root=>['index.html','styles.css','favicon.svg',...(existsSync(join(root,'guide.css'))?['guide.css']:[])].map(p=>[p,hash(readFileSync(join(root,p)))]).concat(...['src','pages'].map(p=>files(join(root,p)).map(([f,h])=>[p+'/'+f,h]))).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
 const baselineAdmin=runtimeAdmin(join(base,'apps/admin')),candidateAdmin=runtimeAdmin('apps/admin'),oldAdmin=new Map(baselineAdmin),newAdmin=new Map(candidateAdmin);
 if(JSON.stringify([...new Set([...oldAdmin.keys(),...newAdmin.keys()])].filter(p=>oldAdmin.get(p)!==newAdmin.get(p)).sort())!==JSON.stringify(adminDelta))throw Error('Unreviewed admin delta');
 const baselineMigrations=files(join(base,'backend/core/migrations')).map(([filename,checksum])=>({filename,checksum}));
