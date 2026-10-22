@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {parseProductionCredentials,storeInDirectory} from './capture-mp-production.mjs';
+import {parseProductionCredentials,storeInDirectory,assertPrivateParent} from './capture-mp-production.mjs';
 import {mkdtempSync,mkdirSync,readFileSync,lstatSync,rmSync,symlinkSync,chmodSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -38,4 +38,14 @@ test('rejects open directories and symlinked directories/files without changing 
   chmodSync(dir,0o755);assert.throws(()=>storeInDirectory(input(),dir));chmodSync(dir,0o700);
   const target=join(root,'untouched');symlinkSync(target,join(dir,'credentials.private.json'));
   assert.throws(()=>storeInDirectory(input(),dir),{code:'EEXIST'});assert.equal(existsSync(target),false);
+});
+test('accepts shared root-owned 0755 parent while preserving mode and rejects writable or linked parents',t=>{
+  if(process.getuid?.()!==0){t.skip('root-only filesystem contract');return;}
+  const root=mkdtempSync(join(tmpdir(),'mp-parent-test-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  chmodSync(root,0o755);assertPrivateParent(root);
+  storeInDirectory(input(),join(root,'credentials'));
+  assert.equal(lstatSync(root).mode&0o777,0o755);
+  assert.equal(lstatSync(join(root,'credentials')).mode&0o777,0o700);
+  for(const mode of [0o775,0o757,0o777]){chmodSync(root,mode);assert.throws(()=>assertPrivateParent(root));}
+  chmodSync(root,0o755);const link=join(root,'link');symlinkSync(root,link);assert.throws(()=>assertPrivateParent(link));
 });

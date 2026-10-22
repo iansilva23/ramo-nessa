@@ -14,6 +14,12 @@ export function parseProductionCredentials(input){
 }
 const parent='/opt/ramo-nessa-private';
 const directory=parent+'/mp-production-20261022';
+export function assertPrivateParent(dir){
+  const stat=lstatSync(dir);
+  // The shared root-owned parent can be traversable (0755) by provider
+  // processes. Only the dedicated credential directory must be root-only.
+  if(!stat.isDirectory()||stat.isSymbolicLink()||stat.uid!==0||(stat.mode&0o022))throw Error('Pasta principal exige proprietário root e nenhuma escrita por grupo ou outros.');
+}
 function assertPrivateDirectory(dir){
   const stat=lstatSync(dir);
   if(!stat.isDirectory()||stat.isSymbolicLink()||stat.uid!==0||(stat.mode&0o077))throw Error('Diretório privado inválido.');
@@ -29,7 +35,7 @@ export function storeInDirectory(input,dir){
 export function storedStatus(){
   if(process.getuid?.()!==0)throw Error('Execute com sudo.');
   let parentExists=false,directoryExists=false;
-  try{assertPrivateDirectory(parent);parentExists=true;}catch(error){if(error.code!=='ENOENT')throw error;}
+  try{assertPrivateParent(parent);parentExists=true;}catch(error){if(error.code!=='ENOENT')throw error;}
   if(parentExists)try{assertPrivateDirectory(directory);directoryExists=true;}catch(error){if(error.code!=='ENOENT')throw error;}
   if(directoryExists){
     try{
@@ -48,7 +54,7 @@ export function saveProductionCredentials(input){
   // Create only the known private parent if absent, without chmod/chown of
   // existing Asaas or provider folders.
   try{mkdirSync(parent,{mode:0o700});}catch(error){if(error.code!=='EEXIST')throw error;}
-  assertPrivateDirectory(parent);
+  assertPrivateParent(parent);
   storeInDirectory(input,directory);
   console.log(JSON.stringify({status:'CREDENCIAIS_MP_ARMAZENADAS',runtimeChanged:false,paymentsCreated:false,testBalanceChanged:false,asaasChanged:false}));
 }
@@ -60,7 +66,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
     // Validate before creating anything, avoiding empty preparations on a typo.
     parseProductionCredentials(input);saveProductionCredentials(input);
   }catch(error){
-    const known=['Entrada privada incompleta.','Confira o campo Public Key de produção.','Confira o campo Access Token de produção.','Public Key e Access Token não podem ser iguais.','Confira a assinatura secreta do webhook de produção.','Diretório privado inválido.','Arquivo de credenciais existente exige revisão privada; não será sobrescrito.','Execute com sudo.','Entrada muito longa.','Argumentos inválidos.'];
+    const known=['Pasta principal exige proprietário root e nenhuma escrita por grupo ou outros.','Entrada privada incompleta.','Confira o campo Public Key de produção.','Confira o campo Access Token de produção.','Public Key e Access Token não podem ser iguais.','Confira a assinatura secreta do webhook de produção.','Diretório privado inválido.','Arquivo de credenciais existente exige revisão privada; não será sobrescrito.','Execute com sudo.','Entrada muito longa.','Argumentos inválidos.'];
     const message=known.includes(error.message)?error.message:({EEXIST:'Já existe um arquivo de credenciais. Use --status; nada foi sobrescrito.',ENOENT:'Pasta privada ausente. Nada foi sobrescrito.',EACCES:'Permissão insuficiente no armazenamento privado.',ENOSPC:'Espaço insuficiente no armazenamento privado.'}[error.code]??'Falha no armazenamento privado.');
     console.error('Preparação interrompida: '+message+' Nenhum serviço foi alterado.');process.exitCode=1;
   }
