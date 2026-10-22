@@ -40,7 +40,7 @@ function harness() {
   });
   vm.runInContext(`let routeLoadSequence = 0, currentView = null;
     let siteAdmin = null, growthAdmin = null, companyCostsAdmin = null, geoAdmin = null;
-    let promotionsAdmin = null, driverBenefitsAdmin = null, regionsPricingAdmin = null;
+    let promotionsAdmin = null, driverBenefitsAdmin = null, regionsPricingAdmin = null, guideAdmin = null;
     ${routing}\n${loader}\n${navigation}
     globalThis.router = { routes: adminRoutes, requestedViewFromLocation, routePath, loadRouteMarkup, activateView };`, context);
   return { calls, window, router: context.router, context, select: view => { requestedView = view; } };
@@ -95,4 +95,18 @@ test('gateways do not serve old UI routes or redirect root to the new address', 
     assert.match(source, /respond "Not Found" 404/);
     assert.match(source, /@api path \/v1\/\* \/health \/ready/);
   }
+});
+
+for (const valid of [true, false]) test(`Guide actual markup is ${valid ? 'accepted' : 'rejected with a mismatched root'} by the production loader`, async () => {
+  const { router, context } = harness();
+  const source = await readFile(new URL('../pages/guide.html', import.meta.url), 'utf8');
+  context.fetch = async () => ({ ok: true, text: async () => valid ? source : source.replace('view-agency', 'view-guide') });
+  context.DOMParser = class {
+    parseFromString(html) {
+      const match = html.match(/<section id="([^"]+)" class="view-panel/);
+      return { querySelector: () => match ? { id: match[1] } : null };
+    }
+  };
+  if (valid) assert.equal(await router.loadRouteMarkup('agency'), true);
+  else await assert.rejects(router.loadRouteMarkup('agency'), /conteúdo inválido/);
 });

@@ -1,3 +1,4 @@
+import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
 import { InMemoryAsaasPayoutStore, PostgresAsaasPayoutStore, type AsaasPayoutStore } from '../payments/asaas-payout-store.js';
 import { InMemoryGrowthRepository, PostgresGrowthRepository, type GrowthRepository } from '../growth/growth-repository.js';
 import { InMemoryCompanyCostRepository, PostgresCompanyCostRepository, type CompanyCostRepository } from '../costs/company-cost-repository.js';
@@ -93,6 +94,7 @@ export interface RepositoryBundle {
   rideMatchingRepository: RideMatchingRepository;
   ridePreparationRepository: RidePreparationRepository;
   pushDeviceRepository: PushDeviceRepository;
+  guideStore: GuideStore;
   adminCommunicationsRepository: AdminCommunicationsRepository;
   operationalSettingsRepository: OperationalSettingsRepository;
   passengerSavedPlaceRepository: PassengerSavedPlaceRepository;
@@ -118,6 +120,7 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      guideStore: new PostgresGuideStore(pool),
       asaasPayoutStore: new PostgresAsaasPayoutStore(pool),
       authSessionRepository: new PostgresAuthSessionRepository(pool),
       authOtpRepository: new PostgresAuthOtpRepository(pool),
@@ -227,6 +230,7 @@ export function createRepositories(): RepositoryBundle {
     privacyRepository: new InMemoryPrivacyRepository(),
     promotionRepository,
     driverBenefitRepository: new InMemoryDriverBenefitRepository(),
+    guideStore: new MemoryGuideStore(),
     storageMode: 'memory',
     async readinessCheck(): Promise<void> {},
     async close(): Promise<void> {},

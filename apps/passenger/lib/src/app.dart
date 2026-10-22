@@ -1,3 +1,4 @@
+import 'features/guide/data/local_guide_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -134,8 +135,11 @@ class RamoNessaPassengerApp extends StatelessWidget {
         supportService: services.support,
         privacyService: services.privacy,
         tourService: tourService,
+        guideService: coreUri == null ? const EmptyLocalGuideService() : HttpLocalGuideService(baseUrl: coreUri),
         previewMode: RamoCoreConfig.previewMode,
-        homeBuilder: (openProfile) => PassengerHomeScreen(
+        homeBuilder: (openProfile, openGuide, guideDestination) => PassengerHomeScreen(
+          onOpenGuideLocal: openGuide,
+          guideDestination: guideDestination,
           accessToken: normalizedToken,
           onLogout: logout,
           onOpenProfile: openProfile,

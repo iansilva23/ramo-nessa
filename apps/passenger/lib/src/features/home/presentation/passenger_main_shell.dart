@@ -1,3 +1,9 @@
+import 'package:flutter/foundation.dart';
+
+import '../../guide/data/local_guide_service.dart';
+import '../../guide/presentation/local_guide_screen.dart';
+import '../../map/domain/ramo_place.dart';
+
 import 'package:flutter/material.dart';
 import 'package:ramo_design_system/ramo_design_system.dart';
 
@@ -25,6 +31,7 @@ class PassengerMainShell extends StatefulWidget {
     required this.placeSearchService,
     required this.accessToken,
     required this.tourService,
+    this.guideService,
     this.supportService,
     this.privacyService,
     this.socialLinksService,
@@ -32,7 +39,12 @@ class PassengerMainShell extends StatefulWidget {
     this.previewMode = false,
   });
 
-  final Widget Function(VoidCallback openProfile) homeBuilder;
+  final Widget Function(
+    VoidCallback openProfile,
+    VoidCallback openGuide,
+    ValueListenable<RamoPlace?> destination,
+  )
+  homeBuilder;
   final PassengerActivityService? activityService;
   final PhoneAuthService? authService;
   final PassengerPaymentService? paymentService;
@@ -40,6 +52,7 @@ class PassengerMainShell extends StatefulWidget {
   final PlaceSearchService? placeSearchService;
   final SocialLinksService? socialLinksService;
   final AgencyTourService tourService;
+  final LocalGuideService? guideService;
   final PassengerSupportService? supportService;
   final PassengerPrivacyService? privacyService;
   final String? accessToken;
@@ -52,6 +65,13 @@ class PassengerMainShell extends StatefulWidget {
 
 class _PassengerMainShellState extends State<PassengerMainShell> {
   int _index = 0;
+  final ValueNotifier<RamoPlace?> _guideDestination = ValueNotifier(null);
+
+  @override
+  void dispose() {
+    _guideDestination.dispose();
+    super.dispose();
+  }
 
   void _select(int index) {
     if (index == _index) return;
@@ -63,8 +83,9 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       fit: StackFit.expand,
       children: List.generate(pages.length, (index) {
         final selected = index == _index;
-        final horizontalOffset =
-            selected ? 0.0 : (index < _index ? -0.025 : 0.025);
+        final horizontalOffset = selected
+            ? 0.0
+            : (index < _index ? -0.025 : 0.025);
 
         return Offstage(
           offstage: !selected,
@@ -134,7 +155,7 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
               NavigationDestination(
                 icon: Icon(Icons.explore_outlined),
                 selectedIcon: Icon(Icons.explore_rounded),
-                label: 'Passeios',
+                label: 'Guia Local',
               ),
               NavigationDestination(
                 icon: Icon(Icons.receipt_long_outlined),
@@ -156,8 +177,17 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      widget.homeBuilder(() => _select(3)),
-      AgencyToursScreen(service: widget.tourService),
+      widget.homeBuilder(() => _select(3), () => _select(1), _guideDestination),
+      widget.guideService == null
+          ? AgencyToursScreen(service: widget.tourService)
+          : LocalGuideScreen(
+              service: widget.guideService!,
+              places: widget.placeSearchService,
+              onDestination: (destination) {
+                _select(0);
+                _guideDestination.value = destination;
+              },
+            ),
       PassengerActivityScreen(service: widget.activityService),
       PassengerProfileScreen(
         authService: widget.authService,
@@ -175,9 +205,38 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       ),
     ];
 
+    final guideNavigationTheme = ThemeData.dark(useMaterial3: true).copyWith(
+      colorScheme: const ColorScheme.dark(
+        surface: Color(0xFF111419),
+        primary: RamoColors.brandYellow,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? Colors.black
+                : const Color(0xFFB9BDC5),
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            color: states.contains(WidgetState.selected)
+                ? RamoColors.brandYellow
+                : const Color(0xFFB9BDC5),
+          ),
+        ),
+      ),
+    );
     return Scaffold(
+      backgroundColor: _index == 1 ? const Color(0xFF090B0E) : null,
       body: _animatedTabs(pages),
-      bottomNavigationBar: _premiumBottomNavigation(context),
+      bottomNavigationBar: _index == 1
+          ? Theme(
+              data: guideNavigationTheme,
+              child: Builder(builder: _premiumBottomNavigation),
+            )
+          : _premiumBottomNavigation(context),
     );
   }
 }

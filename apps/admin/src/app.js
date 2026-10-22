@@ -1,3 +1,5 @@
+import {createGuideAdmin} from './guide-admin.js';
+let guideAdmin=null;
 import { createRegionsPricingAdmin } from './regions-pricing-admin.js';
 let regionsPricingAdmin = null;
 import { parsePayoutPolicyAmounts, asaasIntegrationMessage } from './payout-policy.js';
@@ -320,8 +322,8 @@ const adminRoutes = Object.freeze({
   },
   agency: {
     path: '/administrodo/passeios',
-    title: 'Ramo Nessa Agência',
-    page: 'agency',
+    title: 'Guia Local',
+    page: 'guide',
   },
   integrations: {
     path: '/administrodo/integracoes',
@@ -566,6 +568,7 @@ function clearPassengerPhoto() {
 }
 
 function clearSession(message = '') {
+  if (guideAdmin != null) { guideAdmin.destroy(); guideAdmin = null; }
   if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   stopSessionTimer();
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
@@ -920,6 +923,7 @@ async function activateView(
   viewName,
   { historyMode = 'push' } = {},
 ) {
+  if (guideAdmin != null) { guideAdmin.destroy(); guideAdmin = null; }
   if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   const requestedView =
     ['localities','pricing-publications'].includes(viewName) ? 'pricing' :
@@ -10852,6 +10856,11 @@ function initializeRouteView(view) {
     return;
   }
 
+  if (view === 'agency') {
+    guideAdmin=createGuideAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,onError:handleAuthenticatedError});
+    return;
+  }
+
   if (view === 'pricing') {
     regionsPricingAdmin = createRegionsPricingAdmin({
       root:routeOutlet,api,getToken:()=>state.token,hasScope,
@@ -11009,6 +11018,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  if (guideAdmin != null) { guideAdmin.destroy(); guideAdmin = null; }
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }

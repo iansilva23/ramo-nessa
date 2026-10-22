@@ -1,3 +1,4 @@
+import {guideRoutes} from './guide/guide-routes.js';
 import { authorizeManagedQuote } from './pricing/quote-request-security.js';
 import { managedPlacesBounds } from './places/managed-places-coverage.js';
 import { pricingManagementRoutes } from './pricing/management-routes.js';
@@ -534,6 +535,7 @@ import {
 
 const port = resolveCorePort();
 const {
+  guideStore,
   asaasPayoutStore,
   authSessionRepository,
   authOtpRepository,
@@ -1859,6 +1861,8 @@ const server = createServer(async (request, response) => {
       );
       return;
     }
+
+    if (await guideRoutes({request,response,url:requestUrl,store:guideStore,admin:adminRepository,humans:adminHumanAuthRepository,json,readJson,readBinary:readBinaryBody,places:googlePlacesService})) return;
 
     if (
       request.method === 'GET' &&
