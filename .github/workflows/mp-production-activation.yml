@@ -1,0 +1,59 @@
+name: Mercado Pago production activation - isolated rehearsal
+on:
+  push:
+    branches: [ops/mercado-pago-production-20261022]
+    paths:
+      - deploy/staging/*mp-production*
+      - deploy/staging/mp-production-*
+      - .github/workflows/mp-production-activation.yml
+permissions:
+  contents: read
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mp_ci
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: mp_activation_ci
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund && npm run build
+        working-directory: backend/core
+      - name: Migrate disposable database
+        working-directory: backend/core
+        env:
+          DATABASE_URL: postgresql://mp_ci:synthetic-only@127.0.0.1:5432/mp_activation_ci
+          DB_SSL: 'false'
+        run: node dist/scripts/migrate.js
+      - name: Financial archive, reversal, concurrency and ingress boundary tests
+        env:
+          CI_ACTIVATION_DATABASE_URL: postgresql://mp_ci:synthetic-only@127.0.0.1:5432/mp_activation_ci
+        run: node --test deploy/staging/mp-production-switch.test.mjs deploy/staging/mp-production-database.pg.test.mjs
+  actual_switch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [success, rollback]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build actual Core and disposable service images
+        run: |
+          docker build -t ramo-mp-ci-core:local backend/core
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+      - name: Verify paused ingress and actual database/runtime switch
+        run: sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-mp-production-activation.mjs ${{ matrix.scenario }}

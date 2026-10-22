@@ -1,0 +1,36 @@
+name: Mercado Pago production preparation - no live transactions
+on:
+  push:
+    branches: [ops/mercado-pago-production-20261022]
+    paths:
+      - deploy/staging/*mp-production*
+      - deploy/staging/mp-production-*
+      - .github/workflows/mp-production-preparation.yml
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mp_ci
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: mp_cutover_ci
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 2s --health-timeout 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+        working-directory: backend/core
+      - name: Private capture, real PostgreSQL read-only inventory and strict candidate scope
+        env:
+          CI_TEST_DATABASE_URL: postgresql://mp_ci:synthetic-only@127.0.0.1:5432/mp_cutover_ci
+        run: |
+          sudo --preserve-env=PATH,GITHUB_ACTIONS,CI_TEST_DATABASE_URL node --test deploy/staging/capture-mp-production.test.mjs deploy/staging/mp-production-preflight.test.mjs deploy/staging/mp-production-inventory.pg.test.mjs
+          node --check deploy/staging/prepare-mp-production.mjs
