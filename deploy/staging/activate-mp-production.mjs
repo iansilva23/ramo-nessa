@@ -95,6 +95,13 @@ export async function activateMpProduction(args,rehearsal={}){
     const ops=join(work,'ops');mkdirSync(ops,{mode:0o700});const here=dirname(fileURLToPath(import.meta.url));
     for(const name of ['mp-production-database.mjs','mp-production-preflight-contract.mjs','asaas-activation-plan-contract.mjs']){copyFileSync(join(here,name),join(ops,name));chmodSync(join(ops,name),0o600);}
     const env=environmentMap(before.core.Config.Env),databaseEnv=Object.fromEntries(['DATABASE_URL','DB_SSL','DB_SSL_CA'].filter(k=>env[k]!=null).map(k=>[k,env[k]]));
+    // The maintenance worker shares PostgreSQL's network namespace, not the
+    // Core's Docker DNS configuration. Pin it to that same database locally.
+    const databaseUrl=new URL(databaseEnv.DATABASE_URL);
+    const databaseAliases=new Set([names.postgres,...Object.values(before.postgres.NetworkSettings.Networks).flatMap(n=>[...(n.Aliases??[]),n.IPAddress]).filter(Boolean)]);
+    const postgresEnv=environmentMap(before.postgres.Config.Env);
+    if(!databaseAliases.has(databaseUrl.hostname)||databaseUrl.port&&databaseUrl.port!=='5432'||decodeURIComponent(databaseUrl.pathname.slice(1))!==postgresEnv.POSTGRES_DB)throw Error('MP_DATABASE_TARGET_REQUIRES_REVIEW');
+    databaseUrl.hostname='127.0.0.1';databaseUrl.port='5432';databaseEnv.DATABASE_URL=databaseUrl.toString();
     const reference='mp-production-cutover:'+sha;
     let context;
     const worker=mode=>{

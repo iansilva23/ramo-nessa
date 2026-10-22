@@ -90,6 +90,7 @@ try{
  assert.equal(readFileSync(join(root,'activation.private.json'),'utf8'),journalBefore,'A rejected repeat must not overwrite the completed/recovered audit');
  console.log('MP ACTIVATION '+scenario.toUpperCase()+' REHEARSAL PASSED: real compiled Core, real Caddy ingress pause/reopen, real PostgreSQL archive/rollback, verified restore, identical images and protected Web/ADM/Asaas. Synthetic credentials; no provider calls.');
 }catch(error){
+ const workerError=join(root,'activation','worker-error.private.log');if(existsSync(workerError))process.stderr.write('Synthetic worker diagnostic: '+readFileSync(workerError,'utf8'));
  for(const r of ['core','gateway']){try{process.stderr.write(docker(['logs','--tail','30',names[r]]));}catch{}}
  throw error;
 }finally{
