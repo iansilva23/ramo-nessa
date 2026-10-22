@@ -85,6 +85,9 @@ try{
  const balance=after.ledger_entries.filter(e=>e.account_key==='passenger:fixture-passenger:wallet').reduce((a,e)=>a+(e.direction==='credit'?e.amount_cents:-e.amount_cents),0);assert.equal(balance,scenario==='success'?0:15700);
  assert.equal(after.rides.filter(r=>r.state==='CANCELLED_BY_ADMIN').length,scenario==='success'?5:0);
  assert.equal(JSON.parse(readFileSync(join(root,'activation.private.json'))).phase,scenario==='success'?'completed':'rolled-back');
+ const journalBefore=readFileSync(join(root,'activation.private.json'),'utf8');
+ await assert.rejects(()=>activateMpProduction([sha],{root,coreImage:before.core.Image,gatewayImage:before.gateway.Image}),/MP_ACTIVATION_ALREADY_STARTED/);
+ assert.equal(readFileSync(join(root,'activation.private.json'),'utf8'),journalBefore,'A rejected repeat must not overwrite the completed/recovered audit');
  console.log('MP ACTIVATION '+scenario.toUpperCase()+' REHEARSAL PASSED: real compiled Core, real Caddy ingress pause/reopen, real PostgreSQL archive/rollback, verified restore, identical images and protected Web/ADM/Asaas. Synthetic credentials; no provider calls.');
 }catch(error){
  for(const r of ['core','gateway']){try{process.stderr.write(docker(['logs','--tail','30',names[r]]));}catch{}}

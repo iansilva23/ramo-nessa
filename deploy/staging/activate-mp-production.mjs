@@ -45,7 +45,7 @@ export async function activateMpProduction(args,rehearsal={}){
   if(!rehearsal.root&&storedStatus().status!=='CREDENCIAIS_MP_JA_ARMAZENADAS')throw Error('MP_CREDENTIALS_MISSING');
   const dir=join(base,'preflight');privateDir(dir);
   const lock=join(base,'operations.lock');closeSync(openSync(lock,'wx',0o600));
-  const journal=join(base,'activation.private.json');let work,opened=false;
+  const journal=join(base,'activation.private.json');let work,opened=false,journalCreated=false;
   let interrupted=false;const onInterrupt=()=>{interrupted=true;};for(const signal of ['SIGINT','SIGTERM','SIGHUP'])process.on(signal,onInterrupt);
   const barrier=async()=>{await new Promise(setImmediate);if(interrupted)throw Error('MP_INTERRUPTED');};
   const record=data=>writeFileSync(journal,JSON.stringify({...data,at:new Date().toISOString()},null,2),{mode:0o600});
@@ -118,15 +118,18 @@ export async function activateMpProduction(args,rehearsal={}){
       if(r.status!==0||r.stdout.trim()!=='MP_PRIVATE_PROBE_OK')throw Error('MP_CORE_PRIVATE_PROBE_FAILED');
     };
     const paused=()=>{gatewayIntact();if(inspect('gateway').State.Running)throw Error('MP_INGRESS_NOT_PAUSED');intact();};
-    const publicCheck=async()=>{
+    const publicCheck=async publicKey=>{
       const origin=rehearsal.origin??'https://app.ramonessa.com.br';
       for(const path of ['/ready','/administrodo/','/passageiro/','/motorista/']){const r=await fetch(origin+path,{signal:AbortSignal.timeout(20000),cache:'no-store'});await r.arrayBuffer();if(r.status!==200)throw Error('MP_PUBLIC_HTTP_FAILED');}
       if((await fetch(origin+'/v1/admin/finance',{signal:AbortSignal.timeout(20000)})).status!==401)throw Error('MP_PUBLIC_ADMIN_AUTH_FAILED');
+      const policy=await fetch(origin+'/v1/payments/policy',{signal:AbortSignal.timeout(20000),cache:'no-store'});
+      if(policy.status!==200||(await policy.json()).mercadoPagoPublicKey!==publicKey)throw Error('MP_PUBLIC_KEY_NOT_PUBLISHED');
       gatewayIntact();intact();
     };
     for(const role of Object.keys(names))if(runtimeIdentity(inspect(role))!==runtimeIdentity(before[role]))throw Error('MP_RUNTIME_CHANGED');
     await barrier();
     writeFileSync(journal,JSON.stringify({phase:'starting',preparationSha256:sha,at:new Date().toISOString()}),{mode:0o600,flag:'wx'});
+    journalCreated=true;
     console.log('Pausando brevemente os aplicativos Web para retirar os saldos fictícios e ativar o Mercado Pago...');
     await switchMpProduction({
       pause:async()=>{record({phase:'pausing'});gatewayIntact();docker(['stop','--time','30',before.gateway.Id]);if(inspect('core').Id!==before.core.Id)throw Error('MP_CORE_CHANGED');docker(['stop','--time','30',before.core.Id]);await barrier();},
@@ -135,9 +138,14 @@ export async function activateMpProduction(args,rehearsal={}){
       upProduction:async()=>{paused();record({phase:'starting-production-core'});compose(join(dir,'core-after.compose.private.json'),'core');await health('core');await barrier();},
       verifyPrivate:async()=>{paused();coreGuard(candidate);privateCheck('production',credentials.publicKey);worker('verify');if(rehearsal.failPrivate)throw Error('MP_SYNTHETIC_PRIVATE_FAILURE');await barrier();},
       openIngress:async()=>{paused();record({phase:'opening-production',productionMayBeOpen:true});opened=true;docker(['start',before.gateway.Id]);await health('gateway');},
-      verifyPublic:publicCheck,
+      verifyPublic:()=>publicCheck(credentials.publicKey),
       ensurePaused:async()=>{gatewayIntact();if(inspect('gateway').State.Running)docker(['stop','--time','30',before.gateway.Id]);paused();},
-      stopCandidate:async()=>{coreGuard(candidate);docker(['stop','--time','30',inspect('core').Id]);},
+      stopCandidate:async()=>{
+        const r=spawnSync('docker',['inspect',names.core],{encoding:'utf8'});
+        if(r.status!==0){if(docker(['ps','-a','--format','{{.Names}}']).trim().split('\n').includes(names.core))throw Error('MP_CORE_STATE_UNKNOWN');return;}
+        try{coreGuard(candidate);}catch{coreGuard(old);}
+        const current=inspect('core');if(current.State.Running)docker(['stop','--time','30',current.Id]);
+      },
       reverseData:async()=>{
         paused();const file=join(work,'apply-receipt.private.json');
         if(existsSync(file))worker('reverse');else if(inventoryDigest(worker('context'))!==inventoryDigest(context))throw Error('MP_UNEXPECTED_DATABASE_CHANGES');
@@ -145,7 +153,7 @@ export async function activateMpProduction(args,rehearsal={}){
       upRollback:async()=>{paused();record({phase:'returning-to-test-core'});compose(join(dir,'core-before.compose.private.json'),'core');await health('core');},
       verifyRollbackPrivate:async()=>{paused();coreGuard(old);privateCheck('test',oldPublicKey);},
       openRollbackIngress:async()=>{gatewayIntact();docker(['start',before.gateway.Id]);await health('gateway');},
-      verifyRollbackPublic:publicCheck
+      verifyRollbackPublic:()=>publicCheck(oldPublicKey)
     });
     record({phase:'completed',preparationSha256:sha,productionMayBeOpen:true});
     console.log(JSON.stringify({status:'MERCADO_PAGO_PRODUCAO_ATIVADO',mercadoPagoMode:'production',pixSimulation:false,
@@ -153,7 +161,7 @@ export async function activateMpProduction(args,rehearsal={}){
       coreImagePreserved:true,adminUpdated:false,webBundlesUpdated:false,nativeAppsUpdated:false,asaasPayoutsEnabled:false,
       realPixAcceptancePending:true,realCardAcceptancePending:true,realRefundAcceptancePending:true,externalWebhookAcceptancePending:true},null,2));
   }catch(error){
-    if(existsSync(journal))record({phase:error.rollbackComplete===true?'rolled-back':'requires-review',rollbackComplete:error.rollbackComplete??false,productionMayBeOpen:opened||error.productionMayBeOpen===true});
+    if(journalCreated)record({phase:error.rollbackComplete===true?'rolled-back':'requires-review',rollbackComplete:error.rollbackComplete??false,productionMayBeOpen:opened||error.productionMayBeOpen===true});
     throw error;
   }finally{for(const signal of ['SIGINT','SIGTERM','SIGHUP'])process.off(signal,onInterrupt);unlinkSync(lock);}
 }
