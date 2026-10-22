@@ -1,6 +1,4 @@
 import { createRegionsPricingAdmin } from './regions-pricing-admin.js';
-import { createWebEntryAdmin } from './web-entry-admin.js';
-let webEntryAdmin = null;
 let regionsPricingAdmin = null;
 import { parsePayoutPolicyAmounts, asaasIntegrationMessage } from './payout-policy.js';
 import { createSiteAdmin } from './site-admin.js';
@@ -568,7 +566,6 @@ function clearPassengerPhoto() {
 }
 
 function clearSession(message = '') {
-  webEntryAdmin?.reset();
   if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   stopSessionTimer();
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
@@ -923,7 +920,6 @@ async function activateView(
   viewName,
   { historyMode = 'push' } = {},
 ) {
-  if(webEntryAdmin != null){webEntryAdmin.reset();webEntryAdmin=null;}
   if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   const requestedView =
     ['localities','pricing-publications'].includes(viewName) ? 'pricing' :
@@ -10556,11 +10552,8 @@ function bindRouteEvents(view) {
   }
 
   if (view === 'design') {
-    const entryRoot=byId('web-entry-settings-card');
-    if(entryRoot&&!webEntryAdmin)webEntryAdmin=createWebEntryAdmin({root:entryRoot,api,getToken:()=>state.token,canRead:()=>hasScope('communications:read'),canWrite:()=>hasScope('communications:write'),onError:error=>{if(error.status===401)handleAuthenticatedError(error);}});
     bindRouteEvent('refresh-design-button', 'click', () => {
       void loadCommunications();
-      void webEntryAdmin?.load();
     });
     bindRouteEvent('app-auth-hero-file', 'change', (event) => {
       previewSelectedAppAuthHero(event.currentTarget.files?.[0] ?? null);
@@ -10910,7 +10903,6 @@ function initializeRouteView(view) {
 
   if (view === 'design') {
     renderCommunications();
-    void webEntryAdmin?.load();
     if (hasScope('communications:read')) {
       void loadCommunications({ announce: false });
     }
@@ -11017,7 +11009,6 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
-  webEntryAdmin?.reset();
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }

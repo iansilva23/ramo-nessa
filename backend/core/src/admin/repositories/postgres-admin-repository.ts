@@ -81,7 +81,7 @@ function mapAudit(row: AdminAuditRow): AdminAuditRecord {
 }
 
 export class PostgresAdminRepository implements AdminRepository {
-  constructor(private readonly pool: Pick<Pool, 'query'>) {}
+  constructor(private readonly pool: Pool) {}
 
   async createApiKey(record: AdminApiKeyRecord): Promise<AdminApiKeyRecord> {
     const result = await this.pool.query<AdminKeyRow>(

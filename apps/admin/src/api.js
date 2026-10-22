@@ -377,12 +377,6 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
       return request('/v1/admin/integrations', { token });
     },
 
-    webEntrySettings(token) {
-      return request('/v1/admin/web-entry-settings', { token });
-    },
-    updateWebEntrySettings(token, body) {
-      return request('/v1/admin/web-entry-settings', { method: 'PATCH', token, body });
-    },
     operationalSettings(token) {
       return request('/v1/admin/operational-settings', { token });
     },

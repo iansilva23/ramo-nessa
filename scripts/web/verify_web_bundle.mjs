@@ -26,12 +26,8 @@ const index = (await regularFile('index.html')).toString('utf8');
 const manifest = JSON.parse((await regularFile('manifest.json')).toString('utf8'));
 await regularFile('flutter_bootstrap.js');
 await regularFile('main.dart.js');
-await regularFile('ramo_entry_gate.js');
-await regularFile('ramo_entry_gate.css');
-if (!index.includes('href="ramo_entry_gate.css"') ||
-    index.indexOf('src="ramo_entry_gate.js"') < 0 ||
-    index.indexOf('src="ramo_entry_gate.js"') > index.indexOf('src="flutter_bootstrap.js"')) {
-  throw new Error('Installed PWA entry surface must load before Flutter.');
+if (index.includes('ramo_entry_gate') || (await readdir(root)).some(name => /^ramo_entry_gate\./.test(name))) {
+  throw new Error('A tela de deslizar foi removida e não pode permanecer no bundle.');
 }
 for (const file of ['ramo_web_push.js', 'ramo_push_worker.js', 'ramo_push_config.js']) await regularFile(file);
 if (!index.includes('src="ramo_push_config.js"') || !index.includes('src="ramo_web_push.js"')) {

@@ -1,7 +1,7 @@
 name: Regions and Pricing - Web Review
 on:
   push:
-    branches: [feature/admin-regions-pricing-simple-20261020, feature/admin-web-entry-toggle-20261021]
+    branches: [feature/admin-regions-pricing-simple-20261020]
     paths-ignore: ['docs/**']
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
           cache-dependency-path: backend/core/package-lock.json
       - name: Preserve financial providers and native projects
         run: |
-          git diff --exit-code 6f90c616ec181943d093b0e373e21fdb23b57f4f -- backend/core/src/payments backend/core/src/finance backend/core/src/wallet backend/core/migrations ':!backend/core/migrations/087_web_entry_gate_settings.sql' apps/admin/src/payout-policy.js apps/driver/android apps/driver/ios apps/passenger/android apps/passenger/ios apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart
+          git diff --exit-code 6f90c616ec181943d093b0e373e21fdb23b57f4f -- backend/core/src/payments backend/core/src/finance backend/core/src/wallet backend/core/migrations apps/admin/src/payout-policy.js apps/driver/android apps/driver/ios apps/passenger/android apps/passenger/ios apps/passenger/lib/src/features/home/presentation/widgets/ride_bottom_sheet.dart
       - working-directory: backend/core
         run: npm ci --no-audit --no-fund
       - working-directory: backend/core

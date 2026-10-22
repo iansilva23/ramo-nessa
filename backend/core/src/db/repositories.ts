@@ -69,13 +69,11 @@ import type { DriverBenefitRepository } from '../benefits/driver-benefit-reposit
 import { InMemoryDriverBenefitRepository } from '../benefits/repositories/in-memory-driver-benefit-repository.js';
 import { PostgresDriverBenefitRepository } from '../benefits/repositories/postgres-driver-benefit-repository.js';
 import { createPostgresPool } from './postgres.js';
-import {MemoryWebEntrySettingsRepository,PostgresWebEntrySettingsRepository,type WebEntrySettingsRepository} from '../config/web-entry-settings.js';
 import { InMemoryGeoStorageMaintenance, PostgresGeoStorageMaintenance, type GeoStorageMaintenance } from '../places/geo-storage-maintenance.js';
 import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, type PassengerGeoLearningStore } from '../places/passenger-geo-learning.js';
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
-  webEntrySettingsRepository: WebEntrySettingsRepository;
   asaasPayoutStore: AsaasPayoutStore;
   authSessionRepository: AuthSessionRepository;
   authOtpRepository: AuthOtpRepository;
@@ -149,7 +147,6 @@ export function createRepositories(): RepositoryBundle {
       pushDeviceRepository: new PostgresPushDeviceRepository(pool),
       adminCommunicationsRepository:
         new PostgresAdminCommunicationsRepository(pool),
-      webEntrySettingsRepository: new PostgresWebEntrySettingsRepository(pool),
       operationalSettingsRepository:
         new PostgresOperationalSettingsRepository(pool),
       passengerSavedPlaceRepository:
@@ -219,7 +216,6 @@ export function createRepositories(): RepositoryBundle {
     pushDeviceRepository: new InMemoryPushDeviceRepository(),
     adminCommunicationsRepository:
       new InMemoryAdminCommunicationsRepository(),
-    webEntrySettingsRepository: new MemoryWebEntrySettingsRepository(adminRepository),
     operationalSettingsRepository:
       new InMemoryOperationalSettingsRepository(),
     passengerSavedPlaceRepository:

@@ -14,7 +14,7 @@ const role = process.env.RAMO_WEB_TEST_ROLE;
 if (!['passenger', 'driver'].includes(role)) throw new Error('Specify RAMO_WEB_TEST_ROLE');
 const root = resolve(new URL('../../apps/' + role + '/build/web/', import.meta.url).pathname);
 const prefix = role === 'passenger' ? '/passageiro/' : '/motorista/';
-test(browserName + '/' + role + ': installed gate releases real Flutter login, cookie recovery and logout', { timeout: 120000 }, async t => {
+test(browserName + '/' + role + ': installed app opens directly, logs in, recovers cookie and logs out', { timeout: 120000 }, async t => {
   let origin, session, publicHandle;
   let loginCalls = 0;
   const privateCredential = 'fixture-private-cookie-' + role + '-abcdefghijklmnopqrstuvwxyz';
@@ -27,10 +27,6 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   t.after(() => rm(certificates, { recursive: true, force: true }));
   const server = createServer({ key: await readFile(keyFile), cert: await readFile(certFile) }, async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
-    if(path==='/v1/public/web-entry-settings'){
-      response.writeHead(200,{'content-type':'application/json','cache-control':'no-store'});
-      response.end(JSON.stringify({enabled:process.env.RAMO_ENTRY_TEST_ENABLED!=='false'}));return;
-    }
     if (path.startsWith('/v1/')) {
       if (path === '/v1/auth/web/session') response.setHeader('x-ramo-web-session', '1');
       response.setHeader('content-type', 'application/json'); response.setHeader('cache-control', 'no-store');
@@ -102,23 +98,22 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
     globalThis.bundleViolations = [];
     addEventListener('securitypolicyviolation', event => bundleViolations.push({ directive: event.effectiveDirective, uri: event.blockedURI }));
   });
-  async function enterInstalledApp() {
-    const gate = page.locator('#ramo-entry-gate');
-    if(process.env.RAMO_ENTRY_TEST_ENABLED==='false'){
-      await gate.waitFor({state:'hidden'});
-      assert.equal(await page.locator('body > [inert]').count(),0);
-      return;
-    }
-    await gate.waitFor({ state: 'visible' });
-    await page.mouse.move(100, 240); await page.mouse.down();
-    await page.mouse.move(290, 240, { steps: 12 }); await page.mouse.up();
-    await gate.waitFor({ state: 'hidden' });
+  async function assertDirectEntry() {
+    assert.equal(await page.locator('#ramo-entry-gate').count(), 0);
+    assert.equal(await page.locator('script[src*="ramo_entry_gate"], link[href*="ramo_entry_gate"]').count(), 0);
+    assert.equal(await page.locator('flutter-view').evaluate(n => n.inert), false);
+    await page.evaluate(() => {
+      Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+    });
+    assert.equal(await page.locator('#ramo-entry-gate').count(), 0);
     assert.equal(await page.locator('flutter-view').evaluate(n => n.inert), false);
   }
   try {
   await page.goto(origin + prefix);
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
-  await enterInstalledApp();
+  await assertDirectEntry();
   const semantics = page.locator('flt-semantics-placeholder');
   await semantics.waitFor({ state: 'attached', timeout: 30000 });
   // Flutter's offscreen accessibility placeholder handles a DOM click.
@@ -154,7 +149,7 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   await page.waitForLoadState('networkidle', { timeout: 10000 });
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
-  await enterInstalledApp();
+  await assertDirectEntry();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
   await page.waitForLoadState('networkidle', { timeout: 10000 });
@@ -164,7 +159,7 @@ test(browserName + '/' + role + ': installed gate releases real Flutter login, c
   assert.equal(logout, 204);
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
-  await enterInstalledApp();
+  await assertDirectEntry();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByRole('button', { name: role === 'passenger' ? 'Entrar' : 'Continuar', exact: true }).waitFor({ timeout: 30000 });
   const violations = await page.evaluate(() => bundleViolations);
