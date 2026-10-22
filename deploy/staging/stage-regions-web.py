@@ -66,10 +66,14 @@ def validate_and_stage(archive, expected_sha, output, source=SOURCE):
             raw = bundle.read(name)
             if len(raw) != item['bytes'] or hashlib.sha256(raw).hexdigest() != item['sha256']: raise ValueError('Hash divergente.')
             contents[name] = raw
-        required = {'index.html', 'main.dart.js', 'flutter_bootstrap.js', 'manifest.json', 'ramo_push_config.js', 'ramo_push_worker.js', 'ramo_web_push.js', 'ramo_entry_gate.js', 'ramo_entry_gate.css'}
+        required = {'index.html', 'main.dart.js', 'flutter_bootstrap.js', 'manifest.json', 'ramo_push_config.js', 'ramo_push_worker.js', 'ramo_web_push.js'}
         for role, route in (('passenger', '/passageiro/'), ('driver', '/motorista/')):
             if not {role + '/' + p for p in required} <= contents.keys(): raise ValueError('Arquivo obrigatório ausente.')
             html = contents[role + '/index.html']
+            gate_files = {role + '/ramo_entry_gate.js', role + '/ramo_entry_gate.css'}
+            present_gate = gate_files & contents.keys()
+            if present_gate and present_gate != gate_files: raise ValueError('Tela legada incompleta.')
+            if not present_gate and b'ramo_entry_gate' in html: raise ValueError('Referência a tela removida.')
             if ('<base href="' + route + '">').encode() not in html: raise ValueError('Caminho Web inválido.')
             if any(marker in html for marker in (b'__RAMO_GOOGLE_MAPS_WEB_KEY__', b'WEB_KEY_NOT_CONFIGURED_FOR_CI')):
                 raise ValueError('Pacote de revisão sem Maps não pode ser ativado.')
