@@ -1,6 +1,6 @@
 // Disposable CI only. Real compiled Core/Caddy/PostgreSQL, synthetic account.
 import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';
-import {mkdirSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';import {join,resolve} from 'node:path';
+import {mkdirSync,writeFileSync,readFileSync,existsSync,rmSync,lstatSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {activateMpProduction} from './activate-mp-production.mjs';
 import {runtimeIdentity} from './backup-regions-pricing.mjs';
 import {environmentMap,servicePlan,assertEnvironmentMatches} from './asaas-activation-plan-contract.mjs';
@@ -91,6 +91,10 @@ try{
  console.log('MP ACTIVATION '+scenario.toUpperCase()+' REHEARSAL PASSED: real compiled Core, real Caddy ingress pause/reopen, real PostgreSQL archive/rollback, verified restore, identical images and protected Web/ADM/Asaas. Synthetic credentials; no provider calls.');
 }catch(error){
  const workerError=join(root,'activation','worker-error.private.log');if(existsSync(workerError))process.stderr.write('Synthetic worker diagnostic: '+readFileSync(workerError,'utf8'));
+ const ops=join(root,'activation','ops');if(existsSync(ops)){
+  const stat=lstatSync(join(ops,'mp-production-database.mjs'));console.error('CI file owner/mode: '+JSON.stringify({uid:stat.uid,gid:stat.gid,mode:stat.mode&0o777}));
+  try{console.error(docker(['run','--rm','--user','0:0','--network','none','--cap-drop','ALL','--security-opt','no-new-privileges','--mount','type=bind,src='+ops+',dst=/ops,readonly','--entrypoint','node','ramo-mp-ci-core:local','-e',"const fs=require('fs');let stat;try{const s=fs.statSync('/ops');stat={uid:s.uid,gid:s.gid,mode:s.mode&511};}catch(e){stat=e.code};console.log(JSON.stringify({uid:process.getuid(),gid:process.getgid(),stat}));"]));}catch{}
+ }
  for(const r of ['core','gateway']){try{process.stderr.write(docker(['logs','--tail','30',names[r]]));}catch{}}
  throw error;
 }finally{

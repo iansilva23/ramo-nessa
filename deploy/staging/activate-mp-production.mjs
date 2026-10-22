@@ -106,7 +106,7 @@ export async function activateMpProduction(args,rehearsal={}){
     let context;
     const worker=mode=>{
       const input={mode,reference,databaseEnv,publicKey:credentials.publicKey,before:context};
-      const r=spawnSync('docker',['run','--rm','-i','--pull','never','--user','0:0','--network','container:'+before.postgres.Id,'--read-only','--cap-drop','ALL','--security-opt','no-new-privileges',
+      const r=spawnSync('docker',['run','--rm','-i','--pull','never','--user','0:0','--network','container:'+before.postgres.Id,'--read-only','--cap-drop','ALL','--cap-add','DAC_OVERRIDE','--security-opt','no-new-privileges',
         '--mount','type=bind,src='+ops+',dst=/ops,readonly','--mount','type=bind,src='+work+',dst=/work','--entrypoint','node',before.core.Image,'/ops/mp-production-database.mjs'],
         {input:JSON.stringify(input),encoding:'utf8',timeout:120000,maxBuffer:32*1024**2,env:{PATH:process.env.PATH}});
       if(r.error||r.status!==0){writeFileSync(join(work,'worker-error.private.log'),String(r.stderr??''),{mode:0o600});throw Error('MP_DATABASE_WORKER_FAILED');}
