@@ -923,6 +923,7 @@ async function activateView(
   viewName,
   { historyMode = 'push' } = {},
 ) {
+  if(webEntryAdmin != null){webEntryAdmin.reset();webEntryAdmin=null;}
   if (regionsPricingAdmin != null) { regionsPricingAdmin.destroy(); regionsPricingAdmin = null; }
   const requestedView =
     ['localities','pricing-publications'].includes(viewName) ? 'pricing' :
@@ -11016,6 +11017,7 @@ window.addEventListener('popstate', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  webEntryAdmin?.reset();
   if(siteAdmin != null){siteAdmin.destroy();siteAdmin=null;}
   if(growthAdmin != null){growthAdmin.destroy();growthAdmin=null;}
   if (companyCostsAdmin != null) { companyCostsAdmin.destroy(); companyCostsAdmin = null; }
