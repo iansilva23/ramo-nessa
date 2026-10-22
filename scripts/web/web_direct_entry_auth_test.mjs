@@ -83,6 +83,10 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
+  let completedCarLoads = 0;
+  const failedAssets = [];
+  page.on('requestfinished', request => { if(request.url().endsWith('/assets/map_markers/car.png')) completedCarLoads++; });
+  page.on('requestfailed', request => { if(request.url().startsWith(origin+prefix+'assets/')) failedAssets.push({url:request.url(),error:request.failure()?.errorText}); });
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -110,6 +114,18 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
     assert.equal(await page.locator('#ramo-entry-gate').count(), 0);
     assert.equal(await page.locator('flutter-view').evaluate(n => n.inert), false);
   }
+  async function settledHomeAssets(afterCount) {
+    // A visible profile label can precede the lazily loaded map marker. Do not
+    // unload the document while WebKit still resolves that fetch.
+    if(role==='passenger'){
+      const deadline=Date.now()+15000;
+      while(completedCarLoads<=afterCount){
+        if(Date.now()>deadline)throw Error('Passenger marker did not complete before deliberate reload.');
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
+    }
+    await page.waitForLoadState('networkidle',{timeout:15000});
+  }
   try {
   await page.goto(origin + prefix);
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
@@ -133,7 +149,7 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
   await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
-  await page.waitForLoadState('networkidle', { timeout: 10000 });
+  await settledHomeAssets(0);
   assert.equal(await page.getByText('Adicionar app à Tela de Início', { exact: true }).count(), 0);
   assert.equal(await page.getByText('Ative sua localização', { exact: true }).count(), 0);
   const setupEvidence = resolve('artifacts/web-csp'); await mkdir(setupEvidence, { recursive: true });
@@ -147,16 +163,18 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
   await page.evaluate(() => localStorage.clear());
   await page.waitForLoadState('networkidle', { timeout: 10000 });
+  const beforeRestoreCarLoads=completedCarLoads;
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
   await assertDirectEntry();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
-  await page.waitForLoadState('networkidle', { timeout: 10000 });
+  await settledHomeAssets(beforeRestoreCarLoads);
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
   assert.equal(logout, 204);
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
   await assertDirectEntry();
@@ -165,6 +183,7 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
   const violations = await page.evaluate(() => bundleViolations);
   assert.deepEqual(violations.filter(item => /script-src|worker-src|connect-src/.test(item.directive)), []);
   assert.deepEqual(errors, []);
+  assert.deepEqual(failedAssets, []);
   // No SDK/engine leaves loopback; Maps is an intercepted stub, not a real map test.
   assert.deepEqual([...new Set(remote)], []);
   } finally {
