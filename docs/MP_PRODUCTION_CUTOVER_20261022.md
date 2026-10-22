@@ -26,3 +26,34 @@ verificar credenciais/conta e webhook, preservar histórico, tratar saldos e
 movimentos de teste com evidência reversível, desligar a simulação e coordenar
 Public Key/Access Token de produção. A abertura a pagamentos reais permanece
 pendente dessa transição e da homologação Pix, cartão, carteira e reembolso.
+
+## Preparação após captura confirmada
+
+O proprietário confirmou `CREDENCIAIS_MP_ARMAZENADAS`, sem alterações de runtime,
+saldo ou Asaas. A pasta compartilhada root:root 0755 permanece intacta; apenas
+a subpasta específica exige 0700 e o arquivo 0600. A captura recusa escrita por
+outros usuários no pai, links simbólicos e substituição de arquivos existentes.
+
+`prepare-mp-production.mjs` autentica o token por GET no host fixo do Mercado
+Pago, recusa conta de teste e país diferente de MLB, prepara Compose do Core
+com a mesma imagem, configura production, desliga a simulação e remove o token
+de teste da candidata. Não aplica o Compose e não altera a Public Key ativa.
+Asaas e todos os campos não relacionados ao Mercado Pago são preservados.
+
+O inventário financeiro usa transação repeatable-read/read-only e fica privado.
+A saída contém totais e estados sem identificar passageiros, motoristas ou corridas.
+Reutiliza o backup existente de banco/documentos/configurações/Web/imagens, com
+restauração PostgreSQL isolada. Confere mudanças concorrentes, SHA-256 de arquivos
+e identidade dos serviços antes de concluir. Uma falha preserva evidências na
+subpasta `preflight` e recusa repetição cega; nenhum serviço ativo é atualizado.
+
+Código validado: f3061ce8680692ce7f9be5bdbd5e9e761d2432b0.
+[CI da preparação](https://github.com/iansilva23/ramo-nessa/actions/runs/39718832267):
+11 testes aprovados, sem skips, incluindo PostgreSQL real descartável, captura
+privada, GET autenticado simulado, rejeição de conta de teste e escopo da candidata.
+Não foram usadas credenciais reais nem chamadas financeiras no CI.
+
+O GET valida autenticação e identificação da conta; não prova pareamento da
+Public Key, permissões Orders, entrega externa do webhook ou liquidação. O teste
+de aceitação desses itens e a compensação reversível dos saldos de teste continuam
+pendentes. O preparo instalado exige o resultado real antes da ativação.
