@@ -121,6 +121,7 @@ void main() {
         isNull,
       );
       await tester.tap(find.byKey(const ValueKey('passenger-rating-star-4')));
+      await tester.pumpAndSettle();
       expect(find.text('Muito bom'), findsOneWidget);
       await tester.tap(find.text('Educado'));
       await tester.tap(find.text('Boa comunicação'));
@@ -162,7 +163,9 @@ void main() {
       final api = _Api()..fail = true;
       await open(tester, api);
       await tester.tap(find.byKey(const ValueKey('passenger-rating-star-5')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Pontual'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar avaliação'));
       await tester.pumpAndSettle();
       expect(find.text('Excelente'), findsOneWidget);
