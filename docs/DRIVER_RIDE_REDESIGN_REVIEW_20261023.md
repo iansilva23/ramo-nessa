@@ -1,6 +1,6 @@
 # Revisão do redesign do Motorista — 23/10/2026
 
-Status: implementação em DRAFT; homologação visual e funcional pendente.
+Status: PR em DRAFT; análise, 117 testes e compilação aprovados nas três execuções de CI. Homologação visual e testes em dispositivos reais pendentes.
 
 ## Base e recuperação
 
@@ -23,18 +23,18 @@ Os estados intermediários `AWAITING_PAYMENT` e `DRIVER_ARRIVED` preservam os co
 
 O retângulo existente `_ActiveRideCompactBar` foi adaptado para oferta, deslocamento, viagem e resumo final. Um único ramo monta o cartão ou o retângulo. Arrastar o indicador para baixo minimiza; tocar no retângulo restaura. O resumo recebe o estado atual e usa a identidade da corrida, sem novas chamadas de servidor. O prazo vem de `expiresAt` e não reinicia ao alternar a apresentação.
 
-O quadro limita a largura a 480 px e a altura ao espaço útil do mapa. Informações secundárias têm rolagem interna, enquanto indicador e ações ficam fora da rolagem. As áreas seguras e a barra inferior foram preservadas. Essas medidas ainda exigem revisão em telas pequenas, navegador móvel e texto ampliado.
+O quadro limita a largura a 480 px e a altura ao espaço útil do mapa. Informações têm rolagem interna, enquanto indicador e ações ficam fora da rolagem. Em áreas com menos de 360 px de altura o título acompanha a rolagem para preservar o acesso às ações. O aviso financeiro de conclusão foi posicionado acima do retângulo, preservando a mensagem sem bloquear a restauração. As áreas seguras e a barra inferior foram preservadas. Essas medidas ainda exigem revisão em telas pequenas, navegador móvel e texto ampliado.
 
 ## Testes e plataformas
 
-Verificação local: `git diff --check`. Flutter/Dart não estão instalados localmente; não atribuir aprovação a testes ou builds locais.
+Verificações locais: `git diff --check` e validação de sintaxe/formatação com Dart 3.13.7 instalado durante a retomada. Flutter não está disponível localmente; testes e compilações foram executados no GitHub Actions, não neste ambiente.
 
 Testes preparados:
 
-- `driver_flow_test.dart`: minimização/restauração de oferta, deslocamento, viagem e resumo; navegação externa; início; somente uma conclusão financeira; preservação de Atividade; fluxo em tela de 320 x 640.
+- `driver_flow_test.dart`: minimização/restauração de oferta, deslocamento, viagem e resumo; navegação externa; início; somente uma conclusão financeira; preservação de Atividade; fluxo completo em 320 × 568, 320 × 640, 375 × 667, 390 × 844 e 430 × 932, incluindo resumo final e acesso aos controles.
 - `realtime_offer_test.dart`: mudança de etapa minimizada, restauração atualizada, retirada da representação encerrada e nova corrida sem cartão obsoleto.
 
-O workflow `driver-ride-redesign-review.yml` executa análise, testes e builds Web, APK debug e iOS simulador, sem deploy e sem acesso a segredos de produção. Resultados reais devem ser registrados após a execução. Código compartilhado alcança Web/Android/iOS, mas não comprova homologação nessas plataformas.
+O workflow `driver-ride-redesign-review.yml` executa análise, testes e builds Web, APK debug e iOS simulador, sem deploy e sem acesso a segredos de produção. Os resultados executados estão registrados abaixo na seção de evidências. Código compartilhado alcança Web/Android/iOS, mas não comprova homologação nessas plataformas.
 
 ## Pendências de aceitação
 
@@ -50,3 +50,16 @@ O workflow `driver-ride-redesign-review.yml` executa análise, testes e builds W
 Arquivos do conjunto: `.github/workflows/driver-ride-redesign-review.yml`, `apps/driver/lib/src/features/home/presentation/driver_home_screen.dart`, `apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart`, `apps/driver/test/driver_flow_test.dart`, `apps/driver/test/realtime_offer_test.dart` e este relatório.
 
 O diff não altera arquivos do backend, API, banco, preços, comissões, repasses, ADM, Passageiro, cartografia, marcadores, câmera ou serviços de localização/navegação. As ações reais continuam vinculadas aos callbacks existentes. Essa constatação de escopo não substitui regressão. Nenhum merge, alteração na VPS ou publicação nas lojas faz parte desta execução.
+
+## Evidências da execução autorizada
+
+- PR: https://github.com/iansilva23/ramo-nessa/pull/43 — DRAFT.
+- Revisão de código testada: `a133772531357e00eaa6ab385d06705dde610735`.
+- Execução: https://github.com/iansilva23/ramo-nessa/actions/runs/39960814381.
+- Web/Linux: análise sem apontamentos, 117 testes aprovados e compilação Web concluída.
+- Android/Linux: análise sem apontamentos, 117 testes aprovados e APK debug compilado (`build/app/outputs/flutter-apk/app-debug.apk`).
+- iOS/macOS: análise sem apontamentos, 117 testes aprovados e compilação para simulador iOS concluída, sem assinatura de distribuição.
+
+A primeira rodada identificou um erro de sintaxe e a segunda, quatro apontamentos de estilo; ambos foram corrigidos. A rodada funcional seguinte passou em 111 testes e encontrou duas falhas: excesso de altura em 320 px e aviso de conclusão cobrindo a restauração. Corrigidos esses problemas, os 113 testes passaram; a ampliação para cinco tamanhos levou a suíte a 117 testes aprovados nos executores Linux. Não foram enfraquecidas as asserções para ocultar essas falhas.
+
+Os testes de widgets usam serviços simulados. Não comprovam GPS físico, navegação em aparelho real, pagamentos reais nem fidelidade visual integral às referências. Não foi instalado/distribuído APK, emitido IPA assinado, publicado Web na VPS ou feito merge. A gravação final deste relatório é documental e não altera a revisão de aplicação testada.
