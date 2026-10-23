@@ -69,7 +69,8 @@ try {
   assert.equal(final.State.StartedAt, original.State.StartedAt);
   console.log('HTTP PASS: passenger secure-field connections repaired, GPS preserved in both apps, ADM unchanged, reload and rollback preserve container identity.');
 } catch(error) {
-  try { console.error(docker(['logs',name])); } catch {}
+  const logs=spawnSync('docker',['logs',name],{encoding:'utf8'});console.error('Caddy fixture logs: '+logs.stdout+logs.stderr);
+  try { console.error(docker(['inspect','--format','{{json .State}}',name])); } catch {}
   throw error;
 } finally {
   try { docker(['rm', '-f', name]); } catch {}

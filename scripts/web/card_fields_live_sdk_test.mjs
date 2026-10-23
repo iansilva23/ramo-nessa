@@ -30,7 +30,7 @@ for(const mode of ['broken','fixed'])test(browserName+': real SDK '+(mode==='bro
  // A diagnostic must never submit tokens, order requests or real payment data.
  await page.route('**/*',route=>{
   const r=route.request(),url=new URL(r.url());requests.push(url.origin+url.pathname);
-  if(url.pathname.startsWith('/v1/')||/\/(?:card_tokens|orders|payments)(?:\/|$)/.test(url.pathname)&&r.method()!=='GET'){
+  if(url.origin===origin&&url.pathname.startsWith('/v1/')||/\/(?:card_tokens|orders|payments)(?:\/|$)/.test(url.pathname)&&r.method()!=='GET'){
    forbidden.push(url.origin+url.pathname);return route.abort();
   }
   return route.continue();

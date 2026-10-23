@@ -19,6 +19,13 @@ jobs:
       - run: docker pull caddy:2.11.7-alpine
       - name: Actual adapted Caddy routes over HTTP, hot reload and rollback
         run: node deploy/staging/test-web-card-csp-http.mjs
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
       - name: Browser dependencies
         run: |
           if [ -f /etc/apt/apt-mirrors.txt ]; then
