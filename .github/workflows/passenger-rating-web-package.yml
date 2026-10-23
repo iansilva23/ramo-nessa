@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Preserve the tested application revision
-        run: git diff --exit-code 8c178d84b00e57a506c2661cdfb026963eac4938 HEAD -- backend apps packages config/web
+        run: git diff --exit-code 8af62ee4b103d1433510605b0dd4ea66b2d8cb83 HEAD -- backend apps packages config/web
       - name: Unit checks for extraction, scoped plans and argument guards
         run: |
           node --check deploy/staging/rating-web-update.mjs

@@ -13,7 +13,7 @@ class Extraction(unittest.TestCase):
     def build(self, root, name='driver/index.html', duplicate=False, wrong=False):
         archive = root / 'release.zip'
         payload = b'fixture'
-        m = {'source': '8c178d84b00e57a506c2661cdfb026963eac4938', 'files': [{'path': name, 'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}]}
+        m = {'source': '8af62ee4b103d1433510605b0dd4ea66b2d8cb83', 'files': [{'path': name, 'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}]}
         with zipfile.ZipFile(archive, 'w') as z:
             z.writestr('rating-manifest.json', json.dumps(m))
             z.writestr(name, b'changed' if wrong else payload)

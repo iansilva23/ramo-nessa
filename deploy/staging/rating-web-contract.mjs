@@ -1,5 +1,5 @@
 import {isDeepStrictEqual} from 'node:util';
-export const ratingSource='8c178d84b00e57a506c2661cdfb026963eac4938';
+export const ratingSource='8af62ee4b103d1433510605b0dd4ea66b2d8cb83';
 export const ratingBase='75ca2b7c3d9a97cfaa6f48a3748c2f12867a19f1';
 export const baselineCore='8ae023ae3fc135fd535112ac2e2149f7d639c52b3b3d73e588055d8f06866dfb';
 export const dependencyLock='3c131484e89086f9de48ab3ba97bb62be54baa407c0d34fa52629a55bd2a403e';
