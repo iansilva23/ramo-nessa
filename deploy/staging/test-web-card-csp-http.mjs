@@ -26,6 +26,7 @@ const before = Buffer.from(JSON.stringify(fixtureConfig(adapt(source))));
 const after = Buffer.from(JSON.stringify(fixtureConfig(adapt(patchCardPolicy(source)))));
 const config = join(root, 'test.json');
 async function check(expectedCsp) {
+  expectedCsp=expectedCsp.replaceAll('{host}','app.ramonessa.com.br');
   for (const path of ['/motorista/', '/motorista/main.dart.js', '/motorista/corridas/atual', '/passageiro/', '/passageiro/main.dart.js', '/passageiro/historico', '/administrodo/']) {
     const result = spawnSync('docker', ['exec', name, 'wget', '-S', '-O', '/dev/null', '--header', 'Host: app.ramonessa.com.br', 'http://127.0.0.1:18080' + path], { encoding: 'utf8', timeout: 8000 });
     assert.equal(result.status, 0, result.stderr);

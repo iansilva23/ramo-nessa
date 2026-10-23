@@ -99,6 +99,7 @@ export async function repairCardPolicy() {
   };
   const paths = ['/motorista/', '/passageiro/', '/administrodo/', '/ready'];
   async function checkPublic(expectedCsp, before) {
+    expectedCsp=expectedCsp.replaceAll('{host}','app.ramonessa.com.br');
     const values = await Promise.all(paths.map(path => request(path)));
     for (let index = 0; index < values.length; index++) {
       assert.equal(values[index].policy, index < 2 ? allowedPolicy : deniedPolicy, 'Política HTTPS inesperada: ' + paths[index]);
@@ -154,6 +155,7 @@ export async function repairCardPolicy() {
     assert.equal(baseline.admin?.disabled, true, 'Admin do Caddy mudou.');
     assert.equal(candidate.admin?.disabled, true, 'Admin do candidato mudou.');
     async function rehearse(adapted, expectedCsp) {
+      expectedCsp=expectedCsp.replaceAll('{host}','app.ramonessa.com.br');
       const name = 'ramo-card-policy-test-' + process.pid;
       const file = join(root, 'test.json');
       writeFileSync(file, JSON.stringify(fixtureConfig(adapted)), { mode: 0o600 });
