@@ -51,6 +51,51 @@ void main() {
     await tester.pump();
     await realtime.close();
   });
+
+  testWidgets('etapa realtime atualiza barra minimizada e encerra representação antiga', (tester) async {
+    final realtime = _FakeRealtimeService();
+    await tester.pumpWidget(RamoNessaDriverApp(
+      api: _NoOfferDriverApi(),
+      locationService: const _NoopLocationService(),
+      realtimeService: realtime,
+    ));
+    await tester.pumpAndSettle();
+
+    AcceptedDriverRide ride(String state, {String id = 'ride-live'}) => AcceptedDriverRide(
+      id: id, state: state, category: 'car', passengers: 2,
+      origin: const DriverLocationRef(zoneId: 'prea'),
+      destination: const DriverLocationRef(zoneId: 'jijoca'),
+      driverEarningsCents: 10800, pickupCompensationCents: 0,
+    );
+    realtime.add(DriverRealtimeUpdate(ride: ride('DRIVER_ARRIVING'), rideUpdated: true));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-live-DRIVER_ARRIVING')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
+
+    realtime.add(DriverRealtimeUpdate(ride: ride('IN_PROGRESS'), rideUpdated: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-live-DRIVER_ARRIVING')), findsNothing);
+    expect(find.byKey(const ValueKey('ride-mini-ride-live-IN_PROGRESS')), findsOneWidget);
+    expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    expect(find.text('Passageiro a bordo'), findsOneWidget);
+    expect(find.byKey(const ValueKey('ride-mini-ride-live-IN_PROGRESS')), findsNothing);
+
+    realtime.add(const DriverRealtimeUpdate(rideUpdated: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Passageiro a bordo'), findsNothing);
+    expect(find.byTooltip('Expandir corrida'), findsNothing);
+    realtime.add(DriverRealtimeUpdate(ride: ride('DRIVER_ARRIVING', id: 'ride-next'), rideUpdated: true));
+    await tester.pumpAndSettle();
+    expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.byTooltip('Expandir corrida'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await realtime.close();
+  });
 }
 
 class _FakeRealtimeService implements DriverRealtimeService {

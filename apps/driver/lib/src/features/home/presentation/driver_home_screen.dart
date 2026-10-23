@@ -41,6 +41,8 @@ import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
 
+part 'widgets/driver_ride_design.dart';
+
 enum _DriverActivityPeriod {
   sevenDays,
   fifteenDays,
@@ -153,7 +155,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   DateTime? _lastRouteRefreshAt;
   int _activeRouteRequestId = 0;
   bool _navigationMode = false;
-  bool _ridePanelExpanded = false;
+  String? _collapsedRidePanel;
+  AcceptedDriverRide? _completedPresentation;
+
+  void _dismissCompletedPresentation() {
+    setState(() {
+      _completedPresentation = null;
+      _collapsedRidePanel = null;
+    });
+  }
   int _selectedTab = 0;
   late final DriverRouteService _routeService =
       widget.routeService ??
@@ -585,6 +595,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       return;
     }
     _lastAlertedOfferId = offer.id;
+    _completedPresentation = null;
+    _collapsedRidePanel = null;
     unawaited(HapticFeedback.mediumImpact());
     unawaited(_playOfferAlert());
   }
@@ -616,6 +628,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           }
           if (update.rideUpdated) {
             _activeRide = update.ride;
+            if (update.ride != null) _completedPresentation = null;
             if (update.ride == null) {
               _navigationMode = false;
               _activeRoute = null;
@@ -644,7 +657,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         if (update.ride?.state == 'AWAITING_PAYMENT') {
           setState(() {
             _navigationMode = false;
-            _ridePanelExpanded = true;
           });
           _startPolling();
         } else if (update.ride != null) {
@@ -760,6 +772,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         if (!mounted) return;
         setState(() {
           _activeRide = current;
+          if (current != null) _completedPresentation = null;
           if (current == null) {
             _activeRoute = null;
             _message = 'A reserva foi encerrada. Você está disponível para novas corridas.';
@@ -915,20 +928,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       _stopNearbyPolling();
       setState(() {
         _activeRide = ride;
+        _completedPresentation = null;
         _supply = supply;
         _offer = null;
         _offerPickupRoute = null;
         _offerTripRoute = null;
         _offerAction = false;
         _navigationMode = true;
-        _ridePanelExpanded = false;
         _selectedTab = 0;
         _message = null;
       });
       if (ride.state == 'AWAITING_PAYMENT') {
         setState(() {
           _navigationMode = false;
-          _ridePanelExpanded = true;
         });
         _startPolling();
       } else {
@@ -972,7 +984,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
     setState(() {
       _navigationMode = true;
-      _ridePanelExpanded = false;
       _selectedTab = 0;
       _message = null;
     });
@@ -990,7 +1001,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     if (!_navigationMode) return;
     setState(() {
       _navigationMode = false;
-      _ridePanelExpanded = true;
     });
   }
 
@@ -1361,6 +1371,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (!mounted) return;
 
       setState(() {
+        _completedPresentation = result.ride;
+        _collapsedRidePanel = null;
         _activeRide = null;
         _activeRoute = null;
         _navigationMode = false;
@@ -1878,6 +1890,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   Widget _buildHomeMap(DriverSupplySnapshot supply) {
     final showOffer = _offer != null && _activeRide == null;
+    final presentedRide = _activeRide ?? (showOffer ? null : _completedPresentation);
+    final panelIdentity = showOffer ? 'offer-${_offer!.id}' :
+        presentedRide == null ? null : 'ride-${presentedRide.id}';
+    final collapsed = panelIdentity != null && _collapsedRidePanel == panelIdentity;
+    void minimize() => setState(() => _collapsedRidePanel = panelIdentity);
+    void restore() => setState(() => _collapsedRidePanel = null);
 
     return Stack(
       fit: StackFit.expand,
@@ -1952,79 +1970,49 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         Positioned(
           left: 14,
           right: 14,
+          top: _navigationMode && _activeRide != null ? 224 : 82,
           bottom: 14,
           child: SafeArea(
             top: false,
-            child: AnimatedSwitcher(
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 360),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, .08),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              ),
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              // Mount only one presentation: no outgoing expanded/compact duplicate.
               child: showOffer
-                  ? _OfferCard(
-                      key: ValueKey('offer-${_offer!.id}'),
-                      offer: _offer!,
-                      busy: _offerAction,
-                      onAccept: _acceptOffer,
-                      onReject: _rejectOffer,
-                      pickupRoute: _offerPickupRoute,
-                      tripRoute: _offerTripRoute,
-                    )
-                  : _activeRide != null
-                  ? (_navigationMode && !_ridePanelExpanded
-                        ? _ActiveRideCompactBar(
-                            key: ValueKey(
-                              'ride-mini-${_activeRide!.id}-${_activeRide!.state}',
-                            ),
-                            ride: _activeRide!,
-                            route: _activeRoute,
-                            onChat: _openRideChat,
-                            onExpand: () =>
-                                setState(() => _ridePanelExpanded = true),
-                          )
-                        : _ActiveRideCard(
-                            key: ValueKey(
-                              'ride-${_activeRide!.id}-${_activeRide!.state}',
-                            ),
-                            ride: _activeRide!,
-                            busy: _rideAction,
-                            navigationActive: _navigationMode,
-                            onNavigate: _startInAppNavigation,
-                            onStopNavigation: _stopInAppNavigation,
-                            onExternalNavigation: _openExternalNavigation,
-                            onArrived: _markArrived,
-                            onStart: _startRide,
-                            onComplete: _completeRide,
-                            onCancel: _cancelRide,
-                            onChat: _openRideChat,
-                            onMinimize: _navigationMode
-                                ? () =>
-                                      setState(() => _ridePanelExpanded = false)
-                                : null,
-                            route: _activeRoute,
-                            currentPosition: LatLng(
-                              supply.latitude,
-                              supply.longitude,
-                            ),
-                          ))
+                  ? (collapsed
+                      ? _ActiveRideCompactBar(
+                          key: ValueKey('offer-mini-${_offer!.id}'),
+                          offer: _offer!, onExpand: restore)
+                      : _OfferCard(
+                          key: ValueKey('offer-${_offer!.id}'),
+                          offer: _offer!, busy: _offerAction,
+                          onAccept: _acceptOffer, onReject: _rejectOffer,
+                          onMinimize: minimize,
+                          pickupRoute: _offerPickupRoute,
+                          tripRoute: _offerTripRoute))
+                  : presentedRide != null
+                  ? (collapsed
+                      ? _ActiveRideCompactBar(
+                          key: ValueKey('ride-mini-${presentedRide.id}-${presentedRide.state}'),
+                          ride: presentedRide, route: _activeRoute,
+                          onChat: presentedRide.state == 'COMPLETED' ? null : _openRideChat,
+                          onExpand: restore)
+                      : _ActiveRideCard(
+                          key: ValueKey('ride-${presentedRide.id}-${presentedRide.state}'),
+                          ride: presentedRide, busy: _rideAction,
+                          navigationActive: _navigationMode,
+                          onNavigate: _startInAppNavigation,
+                          onStopNavigation: _stopInAppNavigation,
+                          onExternalNavigation: _openExternalNavigation,
+                          onArrived: _markArrived, onStart: _startRide,
+                          onComplete: presentedRide.state == 'COMPLETED'
+                              ? _dismissCompletedPresentation : _completeRide,
+                          onCancel: _cancelRide, onChat: _openRideChat,
+                          onMinimize: minimize, route: _activeRoute,
+                          currentPosition: LatLng(supply.latitude, supply.longitude)))
                   : _MapAvailabilityPanel(
                       key: ValueKey('availability-${supply.online}'),
-                      online: supply.online,
-                      changing: _changingStatus,
-                      onToggle: _setOnline,
-                      onUpdateLocation: _updateLocation,
-                    ),
+                      online: supply.online, changing: _changingStatus,
+                      onToggle: _setOnline, onUpdateLocation: _updateLocation),
             ),
           ),
         ),
@@ -3741,178 +3729,17 @@ class _DriverFinanceCard extends StatelessWidget {
 }
 
 class _OfferCard extends StatelessWidget {
-  const _OfferCard({
-    super.key,
-    required this.offer,
-    required this.busy,
-    required this.onAccept,
-    required this.onReject,
-    this.pickupRoute,
-    this.tripRoute,
-  });
-
+  const _OfferCard({super.key, required this.offer, required this.busy,
+    required this.onAccept, required this.onReject, required this.onMinimize,
+    this.pickupRoute, this.tripRoute});
   final DriverOffer offer;
   final bool busy;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-  final DriverRouteInfo? pickupRoute;
-  final DriverRouteInfo? tripRoute;
-
+  final VoidCallback onAccept, onReject, onMinimize;
+  final DriverRouteInfo? pickupRoute, tripRoute;
   @override
-  Widget build(BuildContext context) {
-    final remaining = offer.expiresAt.difference(DateTime.now());
-    final seconds = remaining.isNegative ? 0 : remaining.inSeconds;
-    final expired = seconds <= 0;
-    final pickupDistance =
-        pickupRoute?.distanceLabel ??
-        '${offer.approximatePickupDistanceKm.toStringAsFixed(1)} km';
-    final pickupDuration = pickupRoute?.durationLabel;
-    final tripDistance =
-        tripRoute?.distanceLabel ??
-        (offer.tripDistanceKm == null
-            ? null
-            : '${offer.tripDistanceKm!.toStringAsFixed(1)} km');
-    final tripDuration = tripRoute?.durationLabel;
-
-    return RamoWebMapOverlay(child: Container(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: RamoElevation.floating(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 11,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: RamoColors.brandYellow,
-                  borderRadius: BorderRadius.circular(RamoRadius.pill),
-                ),
-                child: const Text(
-                  'NOVA CORRIDA',
-                  style: TextStyle(
-                    color: RamoColors.brandBlack,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
-                  ),
-                ),
-              ),
-              const Spacer(),
-              RamoOfferCountdown(seconds: seconds),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'VOCÊ RECEBE',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 10,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      formatCents(offer.driverEarningsCents),
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _DriverMetaPill(
-                icon: Icons.directions_car_filled_rounded,
-                label: offer.categoryLabel,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _DriverRouteTimeline(
-            origin: offer.pickupInstructions ?? offer.origin.displayName,
-            destination: offer.dropoffInstructions ?? offer.destination.displayName,
-          ),
-          const SizedBox(height: 16),
-          _DriverTripMetrics(
-            pickupDuration: pickupDuration,
-            pickupDistance: pickupDistance,
-            tripDuration: tripDuration,
-            tripDistance: tripDistance,
-            passengers: offer.passengers,
-          ),
-          if (offer.pickupCompensationCents > 0) ...[
-            const SizedBox(height: 12),
-            _DriverNoticeStrip(
-              icon: Icons.add_road_rounded,
-              text:
-                  '+ ${formatCents(offer.pickupCompensationCents)} de coleta distante, integral para você',
-            ),
-          ],
-          if (offer.isCash && offer.cashCollectionAmountCents != null) ...[
-            const SizedBox(height: 8),
-            _DriverNoticeStrip(
-              icon: Icons.payments_outlined,
-              text:
-                  'Pagamento em dinheiro · cobrar ${formatCents(offer.cashCollectionAmountCents!)}',
-            ),
-          ],
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: busy || expired ? null : onReject,
-                    child: const Text('Recusar'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: SizedBox(
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: busy || expired ? null : onAccept,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: RamoColors.brandBlack,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: busy
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            'Aceitar corrida',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ));
-  }
+  Widget build(BuildContext context) => _DriverOfferDesign(
+    offer: offer, busy: busy, onAccept: onAccept, onReject: onReject,
+    onMinimize: onMinimize, pickupRoute: pickupRoute, tripRoute: tripRoute);
 }
 
 class _DriverRouteTimeline extends StatelessWidget {
@@ -4033,33 +3860,7 @@ class _DriverTripMetrics extends StatelessWidget {
       _ => 'Calculando',
     };
 
-    return Row(
-      children: [
-        Expanded(
-          child: _DriverMetric(
-            icon: Icons.near_me_outlined,
-            label: 'Até buscar',
-            value: pickupText,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _DriverMetric(
-            icon: Icons.route_rounded,
-            label: 'Viagem',
-            value: tripText,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _DriverMetric(
-            icon: Icons.group_outlined,
-            label: 'Pessoas',
-            value: '$passengers',
-          ),
-        ),
-      ],
-    );
+    return _rideMetrics('Até buscar', pickupText, 'Viagem', tripText, passengers);
   }
 }
 
@@ -4299,25 +4100,38 @@ class _NavigationInstructionBanner extends StatelessWidget {
 class _ActiveRideCompactBar extends StatelessWidget {
   const _ActiveRideCompactBar({
     super.key,
-    required this.ride,
+    this.ride,
+    this.offer,
     required this.onExpand,
-    required this.onChat,
+    this.onChat,
     this.route,
   });
 
-  final AcceptedDriverRide ride;
+  final AcceptedDriverRide? ride;
+  final DriverOffer? offer;
   final DriverRouteInfo? route;
   final VoidCallback onExpand;
-  final VoidCallback onChat;
+  final VoidCallback? onChat;
 
-  String get _target => ride.state == 'IN_PROGRESS'
-      ? ride.destination.displayName
-      : ride.origin.displayName;
+  String get _target => offer != null
+      ? formatCents(offer!.driverEarningsCents)
+      : ride!.state == 'COMPLETED' ? formatCents(ride!.driverEarningsCents)
+      : ride!.state == 'IN_PROGRESS' ? ride!.destination.displayName
+      : ride!.origin.displayName;
 
-  IconData get _icon => switch (ride.state) {
+  String get _status => offer != null ? 'Nova corrida' : switch (ride!.state) {
+    'COMPLETED' => 'Corrida finalizada',
+    'IN_PROGRESS' => 'Corrida em andamento',
+    'AWAITING_PAYMENT' => 'Aguardando pagamento',
+    'DRIVER_ARRIVED' => 'No embarque',
+    _ => 'Indo buscar passageiro',
+  };
+
+  IconData get _icon => switch (ride?.state) {
     'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => Icons.person_pin_circle_rounded,
     'DRIVER_ARRIVED' => Icons.hail_rounded,
     'IN_PROGRESS' => Icons.flag_rounded,
+    'COMPLETED' => Icons.check_rounded,
     _ => Icons.route_rounded,
   };
 
@@ -4356,9 +4170,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          route == null
-                              ? 'Corrida ativa'
-                              : '${route!.durationLabel} · ${route!.distanceLabel}',
+                          _status,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -4368,7 +4180,8 @@ class _ActiveRideCompactBar extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _target,
+                          route != null && ride?.state != 'COMPLETED'
+                              ? '${route!.distanceLabel} · $_target' : _target,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -4382,7 +4195,12 @@ class _ActiveRideCompactBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                IconButton(
+                if (offer != null) ...[
+                  const SizedBox(width: 6),
+                  Text('${offer!.expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 999)}s',
+                    style: const TextStyle(color: RamoColors.brandYellow)),
+                ],
+                if (onChat != null) IconButton(
                   tooltip: 'Mensagem com passageiro',
                   onPressed: onChat,
                   visualDensity: VisualDensity.compact,
@@ -4497,7 +4315,18 @@ class _ActiveRideCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RamoWebMapOverlay(child: Container(
+    // Activity uses this card without map-panel controls. Preserve its layout.
+    if (onMinimize != null &&
+        ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED'].contains(ride.state)) {
+      return _DriverActiveDesign(
+        ride: ride, busy: busy, route: route,
+        onMinimize: onMinimize!, onArrived: onArrived,
+        onComplete: onComplete, onCancel: onCancel, onChat: onChat,
+        canNavigate: _canNavigate, navigationActive: navigationActive,
+        onNavigate: onNavigate, onStopNavigation: onStopNavigation,
+        onExternalNavigation: onExternalNavigation);
+    }
+    final legacyCard = RamoWebMapOverlay(child: Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -4745,6 +4574,13 @@ class _ActiveRideCard extends StatelessWidget {
         ],
       ),
     ));
+    if (onMinimize == null) return legacyCard;
+    return _DriverDesignFrame(
+      onMinimize: onMinimize!,
+      header: const SizedBox.shrink(),
+      actions: const SizedBox.shrink(),
+      body: legacyCard,
+    );
   }
 }
 
