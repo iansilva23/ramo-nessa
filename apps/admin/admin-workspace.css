@@ -1,7 +1,13 @@
 /* Shared visual language from the approved Regions and Pricing workspace.
    Scoped away from that page; no global theme or application styles change. */
-.admin-nav-group{display:grid;gap:3px;min-width:0;margin-bottom:12px}
-.admin-nav-group h2{margin:13px 12px 7px;color:#959b9f;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.1em;text-transform:uppercase}
+.admin-nav-group{min-width:0;margin-bottom:8px}
+.admin-nav-group summary{display:flex;align-items:center;justify-content:space-between;padding:13px 12px;color:#b1b6b9;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.09em;text-transform:uppercase;cursor:pointer;list-style:none;border-radius:9px}
+.admin-nav-group summary::-webkit-details-marker{display:none}
+.admin-nav-group summary::after{content:'+';font-size:17px;font-weight:400;color:#8b9296}
+.admin-nav-group[open] summary::after{content:'−'}
+.admin-nav-group summary:hover{background:#ffffff09;color:white}
+.admin-nav-group summary:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.admin-nav-group[open] summary{color:#f4d52b}
 .admin-nav-group .nav-item{font-size:12px;font-weight:550;min-height:42px;line-height:1.4;padding-block:9px}
 .admin-nav-group .nav-item.is-active{font-weight:750}
 .admin-workspace{--workspace-line:#e8e5de;--workspace-muted:#66635c;max-width:1500px;margin-inline:auto;min-width:0}

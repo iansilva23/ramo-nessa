@@ -18,9 +18,9 @@ export function organizeAdminNavigation(nav) {
   if (!nav || nav.dataset.organized) return;
   nav.dataset.organized = 'true';
   for (const [label, views] of navigationGroups) {
-    const group = node('section', null, 'admin-nav-group');
+    const group = node('details', null, 'admin-nav-group');
     group.setAttribute('aria-label', label);
-    group.append(node('h2', label));
+    group.append(node('summary', label));
     for (const view of views) {
       const link = nav.querySelector(`[data-view="${view}"]`);
       if (link) group.append(link);
@@ -33,6 +33,7 @@ export function syncAdminNavigation(nav) {
   nav?.querySelectorAll('.admin-nav-group').forEach(group => {
     const hidden = ![...group.querySelectorAll('.nav-item')].some(link => !link.hidden);
     if (group.hidden !== hidden) group.hidden = hidden;
+    if (!hidden && group.querySelector('.nav-item.is-active:not([hidden])') && !group.open) group.open = true;
   });
 }
 

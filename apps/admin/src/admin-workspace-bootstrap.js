@@ -4,7 +4,7 @@ const nav = document.querySelector('.sidebar-nav');
 organizeAdminNavigation(nav);
 syncAdminNavigation(nav);
 if (nav) new MutationObserver(() => syncAdminNavigation(nav))
-  .observe(nav, {subtree:true, attributes:true, attributeFilter:['hidden']});
+  .observe(nav, {subtree:true, attributes:true, attributeFilter:['hidden','class']});
 
 const outlet = document.getElementById('route-outlet');
 function organize() {

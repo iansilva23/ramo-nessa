@@ -30,6 +30,7 @@ try {
   for (const engine of (process.env.RAMO_GUIDE_ENGINES ?? 'chromium,webkit').split(',')) {
     const browser = await (engine === 'webkit' ? webkit : chromium).launch({headless:true});
     const page = await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+    const settleLayout = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
     const errors = [], results = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.abort());
@@ -66,6 +67,8 @@ try {
         const pricingBefore = panel.outerHTML;
         organizeAdminWorkspace(panel, view);
         organizeAdminWorkspace(panel, view);
+        document.getElementById('page-title').textContent = panel.querySelector('h1')?.textContent ?? view;
+        document.querySelectorAll('.nav-item').forEach(link => link.classList.toggle('is-active', link.dataset.view === view));
         fields.forEach((field, index) => {
           if (!field.isConnected || JSON.stringify(snapshot(field)) !== JSON.stringify(before[index])) throw Error(`Changed field: ${file} ${field.id || field.name}`);
         });
@@ -75,6 +78,7 @@ try {
       results.push(result);
       for (const width of [1440,390,320]) {
         await page.setViewportSize({width,height:1000});
+        await settleLayout();
         await page.evaluate(() => window.scrollTo(0,0));
         const overflow = await page.evaluate(() => ({width:innerWidth, scroll:document.documentElement.scrollWidth, elements:[...document.querySelectorAll('#route-outlet *')].filter(element => element.getBoundingClientRect().right > innerWidth+1 && element.getBoundingClientRect().width > 0).slice(0,10).map(element => ({tag:element.tagName,id:element.id,class:element.className,width:element.getBoundingClientRect().width}))}));
         if (overflow.scroll > overflow.width + 1) await page.screenshot({path:resolve(output, `${engine}-${file}-${width}-overflow.png`),fullPage:true});
@@ -82,9 +86,11 @@ try {
       }
       if (['finance','drivers','staff','coupons','marketing','notifications','guide','costs'].some(name => file === name + '.html')) {
         await page.setViewportSize({width:1440,height:1000});
-        await page.screenshot({path:resolve(output,`${engine}-${file.replace('.html','')}-desktop.png`),fullPage:true});
+        await settleLayout();
+        await page.screenshot({path:resolve(output,`${engine}-${file.replace('.html','')}-desktop.png`),fullPage:true,animations:'disabled'});
         await page.setViewportSize({width:390,height:844});
-        await page.screenshot({path:resolve(output,`${engine}-${file.replace('.html','')}-mobile.png`),fullPage:true});
+        await settleLayout();
+        await page.screenshot({path:resolve(output,`${engine}-${file.replace('.html','')}-mobile.png`),fullPage:true,animations:'disabled'});
       }
       if (file === 'coupons.html') {
         await page.locator('#coupon-name').fill('Campanha de teste');
