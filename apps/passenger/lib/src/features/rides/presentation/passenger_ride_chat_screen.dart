@@ -26,6 +26,10 @@ class _PassengerRideChatScreenState
   final _scrollController = ScrollController();
   Timer? _timer;
   List<PassengerRideChatMessage> _messages = const [];
+  late final RamoChatReadController _readController;
+  bool _refreshing = false;
+  bool _loadingEarlier = false;
+  bool _hasEarlier = false;
   bool _loading = true;
   bool _sending = false;
   String? _error;
@@ -33,6 +37,8 @@ class _PassengerRideChatScreenState
   @override
   void initState() {
     super.initState();
+    _readController = RamoChatReadController(api: widget.service, rideId: widget.rideId,
+      context: () => context, scrollController: _scrollController);
     _refresh(scrollToEnd: true);
     _timer = Timer.periodic(
       const Duration(seconds: 4),
@@ -43,26 +49,30 @@ class _PassengerRideChatScreenState
   @override
   void dispose() {
     _timer?.cancel();
+    _readController.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _refresh({bool scrollToEnd = false}) async {
+    if (_refreshing) return;
+    _refreshing = true;
     try {
       final messages = await widget.service.rideMessages(widget.rideId);
       if (!mounted) return;
-      final changed =
-          messages.length != _messages.length ||
-          (messages.isNotEmpty &&
-              (_messages.isEmpty ||
-                  messages.last.id != _messages.last.id));
+      final changed = messages.any((message) => !_messages.any((old) => old.id == message.id));
       setState(() {
-        _messages = messages;
+        final merged = {for (final message in _messages) message.id: message,
+          for (final message in messages) message.id: message};
+        if (_loading) _hasEarlier = messages.length == 100;
+        _messages = merged.values.toList()..sort((a,b) =>
+          a.createdAt.compareTo(b.createdAt) != 0 ? a.createdAt.compareTo(b.createdAt) : a.id.compareTo(b.id));
         _loading = false;
         _error = null;
       });
       if (scrollToEnd || changed) _scrollToEnd();
+      _readController.checkVisible();
     } on PassengerRideTrackingException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -75,6 +85,36 @@ class _PassengerRideChatScreenState
         _loading = false;
         _error = 'Não conseguimos atualizar o chat agora.';
       });
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  Future<void> _loadEarlier() async {
+    final service = widget.service;
+    if (_loadingEarlier || _messages.isEmpty || service is! RamoRideChatApi) return;
+    setState(() => _loadingEarlier = true);
+    try {
+      final rows = await (service as RamoRideChatApi).rideChatPage(widget.rideId, before: _messages.first.id);
+      if (!mounted) return;
+      final older = rows.map(PassengerRideChatMessage.fromJson).toList();
+      final oldOffset = _scrollController.hasClients ? _scrollController.offset : 0.0;
+      final oldExtent = _scrollController.hasClients ? _scrollController.position.maxScrollExtent : 0.0;
+      setState(() {
+        final merged = {for (final m in older) m.id: m, for (final m in _messages) m.id: m};
+        _messages = merged.values.toList();
+        _hasEarlier = older.length == 100;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        final target = oldOffset + _scrollController.position.maxScrollExtent - oldExtent;
+        _scrollController.jumpTo(target.clamp(0.0, _scrollController.position.maxScrollExtent));
+        _readController.checkVisible();
+      });
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Não foi possível carregar mensagens anteriores.');
+    } finally {
+      if (mounted) setState(() => _loadingEarlier = false);
     }
   }
 
@@ -118,7 +158,7 @@ class _PassengerRideChatScreenState
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
-      );
+      ).then((_) => _readController.checkVisible());
     });
   }
 
@@ -130,6 +170,9 @@ class _PassengerRideChatScreenState
       ),
       body: Column(
         children: [
+          if (_hasEarlier)
+            TextButton(onPressed: _loadingEarlier ? null : _loadEarlier,
+              child: Text(_loadingEarlier ? 'Carregando…' : 'Ver mensagens anteriores')),
           Expanded(
             child: _loading && _messages.isEmpty
                 ? const Center(child: CircularProgressIndicator())
@@ -146,6 +189,7 @@ class _PassengerRideChatScreenState
                         ),
                       )
                     : ListView.builder(
+                        key: _readController.viewportKey,
                         controller: _scrollController,
                         padding: const EdgeInsets.all(RamoSpacing.md),
                         itemCount: _messages.length,
@@ -153,6 +197,7 @@ class _PassengerRideChatScreenState
                           final message = _messages[index];
                           final mine = message.fromPassenger;
                           return Align(
+                            key: mine ? null : _readController.messageKey(message.id),
                             alignment: mine
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,

@@ -1,3 +1,4 @@
+import { rideChatRoutes, passengerWhatsApp } from './rides/ride-chat-routes.js';
 import {guideRoutes} from './guide/guide-routes.js';
 import { authorizeManagedQuote } from './pricing/quote-request-security.js';
 import { managedPlacesBounds } from './places/managed-places-coverage.js';
@@ -795,34 +796,6 @@ function hasValidImageMagic(
   }
   return bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
 }
-
-const RIDE_CHAT_READABLE_STATES = new Set([
-  'DRIVER_ASSIGNED',
-  'DRIVER_ARRIVING',
-  'DRIVER_ARRIVED',
-  'IN_PROGRESS',
-  'COMPLETED',
-]);
-
-const RIDE_CHAT_WRITABLE_STATES = new Set([
-  'DRIVER_ASSIGNED',
-  'DRIVER_ARRIVING',
-  'DRIVER_ARRIVED',
-  'IN_PROGRESS',
-]);
-
-function parseRideChatBody(input: unknown): string {
-  if (input == null || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('RIDE_CHAT_BODY_INVALID');
-  }
-  const raw = (input as Record<string, unknown>).body;
-  const body = typeof raw === 'string' ? raw.trim() : '';
-  if (body.length < 1 || body.length > 1000) {
-    throw new Error('RIDE_CHAT_BODY_INVALID');
-  }
-  return body;
-}
-
 
 async function resolvePlacesLocalOnly(input: {
   query: string;
@@ -7466,71 +7439,18 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const driverChatMatch = requestUrl.pathname.match(
-      /^\/v1\/driver\/me\/rides\/([0-9a-fA-F-]+)\/messages$/,
-    );
-    if (
-      (request.method === 'GET' || request.method === 'POST') &&
-      driverChatMatch != null
-    ) {
-      const driverId = await resolveDriverId({
-        request,
-        sessions: authSessionRepository,
-        identities: authOtpRepository,
-      });
-      const rideId = driverChatMatch[1]!;
-      const ride = await rideRepository.findById(rideId);
-      if (
-        ride == null ||
-        ride.driverId !== driverId ||
-        !RIDE_CHAT_READABLE_STATES.has(ride.state)
-      ) {
-        json(response, 404, { error: 'RIDE_CHAT_NOT_AVAILABLE' });
-        return;
-      }
-
-      if (request.method === 'GET') {
-        json(response, 200, {
-          messages: await rideRepository.listChatMessages(rideId, 100),
-        });
-        return;
-      }
-
-      if (!RIDE_CHAT_WRITABLE_STATES.has(ride.state)) {
-        json(response, 409, {
-          error: 'RIDE_CHAT_NOT_ACTIVE',
-          message: 'O chat fica disponível enquanto a corrida está ativa.',
-        });
-        return;
-      }
-
-      let body: string;
-      try {
-        body = parseRideChatBody(await readJson(request));
-      } catch {
-        json(response, 400, {
-          error: 'INVALID_RIDE_CHAT_MESSAGE',
-          message: 'Mensagem deve ter entre 1 e 1000 caracteres.',
-        });
-        return;
-      }
-
-      const message = await rideRepository.appendChatMessage({
-        id: randomUUID(),
-        rideId,
-        senderType: 'driver',
-        senderId: driverId,
-        body,
-        createdAt: new Date().toISOString(),
-      });
-      realtimeHub.publishPassengerRide(rideId, {
-        type: 'ride.chat.message',
-        message,
-        serverTime: new Date().toISOString(),
-      });
-      json(response, 201, { message });
-      return;
-    }
+    if (await rideChatRoutes({
+      request, response, url: requestUrl, rides: rideRepository, identities: authOtpRepository,
+      authenticate: role => role === 'driver'
+        ? resolveDriverId({ request, sessions: authSessionRepository, identities: authOtpRepository })
+        : resolvePassengerId({ request, sessions: authSessionRepository, identities: authOtpRepository }),
+      readJson, json,
+      publish: (message, driverId) => {
+        const event = { type: 'ride.chat.message', message, serverTime: new Date().toISOString() };
+        if (message.senderType === 'driver') realtimeHub.publishPassengerRide(message.rideId, event);
+        else realtimeHub.publishDriver(driverId, event);
+      },
+    })) return;
 
     if (
       request.method === 'GET' &&
@@ -8060,6 +7980,13 @@ const server = createServer(async (request, response) => {
         sessions: authSessionRepository,
         identities: authOtpRepository,
       });
+      const passengerContact = await authOtpRepository.findIdentityBySubject('passenger', passengerId);
+      if (passengerWhatsApp(passengerContact?.phoneE164) == null) {
+        json(response, 409, { error: 'PASSENGER_WHATSAPP_REQUIRED',
+          message: 'Confirme seu WhatsApp com DDD na conta antes de pedir uma corrida.' });
+        return;
+      }
+
       if (routingDistanceProvider == null) {
         json(response, 503, {
           error: 'ROUTING_NOT_CONFIGURED',
@@ -8194,6 +8121,13 @@ const server = createServer(async (request, response) => {
         sessions: authSessionRepository,
         identities: authOtpRepository,
       });
+      const passengerContact = await authOtpRepository.findIdentityBySubject('passenger', passengerId);
+      if (passengerWhatsApp(passengerContact?.phoneE164) == null) {
+        json(response, 409, { error: 'PASSENGER_WHATSAPP_REQUIRED',
+          message: 'Confirme seu WhatsApp com DDD na conta antes de pedir uma corrida.' });
+        return;
+      }
+
       const body = parseCreateRideRequest(await readJson(request));
       const now = new Date();
       const pricing = await resolvePricingCatalogContext({
@@ -8327,75 +8261,6 @@ const server = createServer(async (request, response) => {
         refundStatus: refund.refundStatus,
         duplicateRefund: refund.duplicateRefund,
       });
-      return;
-    }
-
-    const passengerChatMatch = requestUrl.pathname.match(
-      /^\/v1\/rides\/([0-9a-fA-F-]+)\/messages$/,
-    );
-    if (
-      (request.method === 'GET' || request.method === 'POST') &&
-      passengerChatMatch != null
-    ) {
-      const passengerId = await resolvePassengerId({
-        request,
-        sessions: authSessionRepository,
-        identities: authOtpRepository,
-      });
-      const rideId = passengerChatMatch[1]!;
-      const ride = await rideRepository.findById(rideId);
-      if (
-        ride == null ||
-        ride.passengerId !== passengerId ||
-        !RIDE_CHAT_READABLE_STATES.has(ride.state)
-      ) {
-        json(response, 404, { error: 'RIDE_CHAT_NOT_AVAILABLE' });
-        return;
-      }
-
-      if (request.method === 'GET') {
-        json(response, 200, {
-          messages: await rideRepository.listChatMessages(rideId, 100),
-        });
-        return;
-      }
-
-      if (
-        ride.driverId == null ||
-        !RIDE_CHAT_WRITABLE_STATES.has(ride.state)
-      ) {
-        json(response, 409, {
-          error: 'RIDE_CHAT_NOT_ACTIVE',
-          message: 'O chat fica disponível enquanto a corrida está ativa.',
-        });
-        return;
-      }
-
-      let body: string;
-      try {
-        body = parseRideChatBody(await readJson(request));
-      } catch {
-        json(response, 400, {
-          error: 'INVALID_RIDE_CHAT_MESSAGE',
-          message: 'Mensagem deve ter entre 1 e 1000 caracteres.',
-        });
-        return;
-      }
-
-      const message = await rideRepository.appendChatMessage({
-        id: randomUUID(),
-        rideId,
-        senderType: 'passenger',
-        senderId: passengerId,
-        body,
-        createdAt: new Date().toISOString(),
-      });
-      realtimeHub.publishDriver(ride.driverId, {
-        type: 'ride.chat.message',
-        message,
-        serverTime: new Date().toISOString(),
-      });
-      json(response, 201, { message });
       return;
     }
 

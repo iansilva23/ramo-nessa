@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:ramo_design_system/ramo_design_system.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
@@ -8,7 +10,7 @@ import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
 
 class HttpPassengerRideTrackingService
-    implements PassengerRideTrackingService, PassengerRideRecoveryService {
+    implements RamoRideChatApi, PassengerRideTrackingService, PassengerRideRecoveryService {
   HttpPassengerRideTrackingService({
     required Uri baseUrl,
     String? accessToken,
@@ -106,6 +108,31 @@ class HttpPassengerRideTrackingService
         'Não conseguimos cancelar a busca agora.',
       ),
     );
+  }
+
+  @override
+  Future<RamoRideChatStatus> rideChatStatus(String rideId) async {
+    final response = await _client.get(_baseUrl.resolve('/v1/rides/$rideId/messages/status'),
+      headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) throw Exception('Não foi possível atualizar as mensagens.');
+    return RamoRideChatStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> markRideMessagesRead(String rideId, List<String> messageIds) async {
+    final response = await _client.post(_baseUrl.resolve('/v1/rides/$rideId/messages/read'),
+      headers: _identityHeaders, body: jsonEncode({'messageIds': messageIds})).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) throw Exception('Não foi possível registrar a leitura.');
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> rideChatPage(String rideId, {String? before}) async {
+    final uri = _baseUrl.resolve('/v1/rides/$rideId/messages').replace(
+      queryParameters: before == null ? null : {'before': before});
+    final response = await _client.get(uri, headers: _identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) throw Exception('Não foi possível carregar as mensagens anteriores.');
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    return (decoded['messages'] as List).cast<Map<String, dynamic>>();
   }
 
   @override

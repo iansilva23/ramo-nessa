@@ -602,8 +602,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: _openRideChat,
-                        icon: const Icon(
-                          Icons.chat_bubble_outline_rounded,
+                        icon: RamoUnreadChatIcon(
+                          api: widget.trackingService, rideId: widget.rideId,
                         ),
                         label: const Text('Mensagem com motorista'),
                       ),

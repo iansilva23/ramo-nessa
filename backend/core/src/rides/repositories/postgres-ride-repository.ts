@@ -8,6 +8,7 @@ import type {
   AdminRideOperationalSummary,
   DriverRideSummary,
   RideChatMessageRecord,
+  RideChatSenderType,
   RideRepository,
 } from '../ride-repository.js';
 
@@ -620,17 +621,20 @@ export class PostgresRideRepository implements RideRepository {
   async listChatMessages(
     rideId: string,
     limit: number,
+    beforeId?: string,
   ): Promise<RideChatMessageRecord[]> {
     const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
     const result = await this.pool.query<RideChatMessageRow>(
       `
       SELECT id, ride_id, sender_type, sender_id, body, created_at
       FROM ride_chat_messages
-      WHERE ride_id = $1
+      WHERE ride_id = $1 AND ($3::uuid IS NULL OR (created_at, id) < (
+        SELECT created_at, id FROM ride_chat_messages WHERE id = $3 AND ride_id = $1
+      ))
       ORDER BY created_at DESC, id DESC
       LIMIT $2
       `,
-      [rideId, safeLimit],
+      [rideId, safeLimit, beforeId ?? null],
     );
     return result.rows
       .reverse()
@@ -642,6 +646,24 @@ export class PostgresRideRepository implements RideRepository {
         body: row.body,
         createdAt: row.created_at.toISOString(),
       }));
+  }
+
+  async countUnreadChatMessages(rideId: string, readerType: RideChatSenderType, readerId: string): Promise<number> {
+    const result = await this.pool.query<{count: string}>(`
+      SELECT count(*)::text AS count FROM ride_chat_messages m
+      WHERE m.ride_id = $1 AND m.sender_type <> $2 AND NOT EXISTS (
+        SELECT 1 FROM ride_chat_reads r WHERE r.message_id = m.id
+          AND r.reader_type = $2 AND r.reader_id = $3
+      )`, [rideId, readerType, readerId]);
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  async markChatMessagesRead(rideId: string, readerType: RideChatSenderType, readerId: string, messageIds: string[]): Promise<void> {
+    await this.pool.query(`
+      INSERT INTO ride_chat_reads (message_id, reader_type, reader_id)
+      SELECT id, $2, $3 FROM ride_chat_messages
+      WHERE ride_id = $1 AND sender_type <> $2 AND id = ANY($4::uuid[])
+      ON CONFLICT DO NOTHING`, [rideId, readerType, readerId, messageIds]);
   }
 
   async appendChatMessage(

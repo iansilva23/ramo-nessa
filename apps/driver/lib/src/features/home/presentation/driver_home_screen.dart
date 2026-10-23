@@ -1998,6 +1998,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           key: ValueKey('ride-mini-${presentedRide.id}-${presentedRide.state}'),
                           ride: presentedRide, route: _activeRoute,
                           onChat: presentedRide.state == 'COMPLETED' ? null : _openRideChat,
+                          chatIcon: RamoUnreadChatIcon(api: _api, rideId: presentedRide.id, color: Colors.white, size: 20),
                           onExpand: restore)
                       : _ActiveRideCard(
                           key: ValueKey('ride-${presentedRide.id}-${presentedRide.state}'),
@@ -2010,6 +2011,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           onComplete: presentedRide.state == 'COMPLETED'
                               ? _dismissCompletedPresentation : _completeRide,
                           onCancel: _cancelRide, onChat: _openRideChat,
+                          chatIcon: RamoUnreadChatIcon(api: _api, rideId: presentedRide.id),
                           onMinimize: minimize, route: _activeRoute,
                           currentPosition: LatLng(supply.latitude, supply.longitude)))
                   : _MapAvailabilityPanel(
@@ -2143,6 +2145,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                 onComplete: _completeRide,
                 onCancel: _cancelRide,
                 onChat: _openRideChat,
+                chatIcon: RamoUnreadChatIcon(api: _api, rideId: _activeRide!.id),
                 route: _activeRoute,
                 currentPosition: LatLng(supply.latitude, supply.longitude),
               ),
@@ -4107,6 +4110,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
     this.offer,
     required this.onExpand,
     this.onChat,
+    this.chatIcon,
     this.route,
   });
 
@@ -4115,6 +4119,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
   final DriverRouteInfo? route;
   final VoidCallback onExpand;
   final VoidCallback? onChat;
+  final Widget? chatIcon;
 
   String get _target => offer != null
       ? formatCents(offer!.driverEarningsCents)
@@ -4207,7 +4212,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
                   tooltip: 'Mensagem com passageiro',
                   onPressed: onChat,
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(
+                  icon: chatIcon ?? const Icon(
                     Icons.chat_bubble_outline_rounded,
                     color: Colors.white,
                     size: 20,
@@ -4247,6 +4252,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onChat,
     required this.currentPosition,
     this.onMinimize,
+    this.chatIcon,
     this.route,
   });
 
@@ -4261,6 +4267,7 @@ class _ActiveRideCard extends StatelessWidget {
   final VoidCallback onComplete;
   final VoidCallback onCancel;
   final VoidCallback onChat;
+  final Widget? chatIcon;
   final LatLng currentPosition;
   final VoidCallback? onMinimize;
   final DriverRouteInfo? route;
@@ -4324,7 +4331,7 @@ class _ActiveRideCard extends StatelessWidget {
       return _DriverActiveDesign(
         ride: ride, busy: busy, route: route,
         onMinimize: onMinimize!, onArrived: onArrived,
-        onComplete: onComplete, onCancel: onCancel, onChat: onChat,
+        onComplete: onComplete, onCancel: onCancel, onChat: onChat, chatIcon: chatIcon,
         canNavigate: _canNavigate, navigationActive: navigationActive,
         onNavigate: onNavigate, onStopNavigation: onStopNavigation,
         onExternalNavigation: onExternalNavigation);
@@ -4496,7 +4503,7 @@ class _ActiveRideCard extends StatelessWidget {
               height: 46,
               child: OutlinedButton.icon(
                 onPressed: onChat,
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                icon: chatIcon ?? const Icon(Icons.chat_bubble_outline_rounded),
                 label: const Text('Mensagem com passageiro'),
               ),
             ),

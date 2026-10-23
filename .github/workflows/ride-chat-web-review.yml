@@ -1,0 +1,73 @@
+name: Ride chat Web review
+on:
+  push:
+    branches: [feature/ride-chat-unread-whatsapp-20261023]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ride-chat-web-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+      RAMO_CHAT_TEST_POSTGRES: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+        working-directory: backend/core
+      - run: npm run typecheck && npm run db:migrate && npm run db:migrate && npm test && npm run build
+        working-directory: backend/core
+  web:
+    name: Web ${{ matrix.app }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [driver, passenger]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+        working-directory: apps/${{ matrix.app }}
+      - name: Format and analyze
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          dart format lib test ../../packages/design_system/lib/src/chat ../../packages/design_system/test/ramo_ride_chat_test.dart
+          flutter analyze
+      - run: flutter test
+        working-directory: apps/${{ matrix.app }}
+      - run: flutter pub get && flutter test test/ramo_ride_chat_test.dart
+        working-directory: packages/design_system
+      - run: flutter build web --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+        working-directory: apps/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ride-chat-review-${{ matrix.app }}
+          path: |
+            apps/${{ matrix.app }}/lib/src/features/**/presentation/*chat*.dart
+            apps/${{ matrix.app }}/lib/src/features/**/data/http*.dart
+            packages/design_system/lib/src/chat/
+          retention-days: 7
