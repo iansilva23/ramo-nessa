@@ -15,7 +15,7 @@
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "DENY"
-    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    ?Permissions-Policy "camera=(), microphone=(), geolocation=()"
     Cross-Origin-Opener-Policy "same-origin"
     Cross-Origin-Resource-Policy "same-origin"
     X-Robots-Tag "noindex, nofollow, noarchive"
@@ -50,7 +50,7 @@
     # Apenas este escopo necessita de GPS. O ADM mantém geolocation=().
     header Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
     header Cache-Control "no-store"
-    header Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://http2.mlstatic.com 'wasm-unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.gstatic.com/firebasejs/13.0.0/; connect-src https://api.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com 'self' wss://{host} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; frame-src https://*.mercadopago.com https://*.mercadopago.com.br; script-src-attr 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    header Content-Security-Policy "default-src 'self'; script-src 'self' https://sdk.mercadopago.com https://http2.mlstatic.com 'wasm-unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://www.gstatic.com/firebasejs/13.0.0/; connect-src https://secure-fields.mercadopago.com https://api-static.mercadopago.com https://api.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com 'self' wss://{host} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; worker-src 'self' blob:; frame-src https://*.mercadopago.com https://*.mercadopago.com.br; script-src-attr 'none'; form-action 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     try_files {path} /index.html
     file_server
   }

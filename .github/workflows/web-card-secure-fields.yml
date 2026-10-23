@@ -1,0 +1,42 @@
+name: Web card Secure Fields regression
+on:
+  push:
+    branches: [fix/web-card-secure-fields-20261023]
+    paths-ignore: ['docs/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Guard exact policy patch, idempotence, mounted inode and rollback
+        run: node --test deploy/staging/fix-web-card-csp.test.mjs
+      - run: docker pull caddy:2.11.7-alpine
+      - name: Actual adapted Caddy routes over HTTP, hot reload and rollback
+        run: node deploy/staging/test-web-card-csp-http.mjs
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Existing card isolation, cancellation and token safety contracts
+        run: node --test scripts/web/card_fields_browser_test.mjs
+      - name: Actual SDK protected fields and CSP protections in both browser engines
+        run: |
+          for engine in chromium webkit; do
+            RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/security_browser_test.mjs scripts/web/card_fields_live_sdk_test.mjs
+          done
