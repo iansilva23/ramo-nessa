@@ -66,6 +66,7 @@
 .admin-workspace .cost-form{column-gap:16px;row-gap:18px}
 .admin-workspace .gl-sidebar{box-shadow:none;border-color:var(--workspace-line)}
 .admin-workspace .gl-row{border-color:var(--workspace-line)}
+.admin-workspace .geo-table-scroll{width:100%;min-width:0;overflow-x:auto;contain:inline-size}
 @media(max-width:1000px){
   .admin-workspace .communications-grid,.admin-workspace .benefits-layout{grid-template-columns:minmax(0,1fr)}
 }

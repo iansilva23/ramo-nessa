@@ -45,7 +45,7 @@ Total: 419 campos estáticos. Os campos gerados pelos controladores permanecem c
 
 ## Preservação e validação
 
-A mudança se limita à apresentação do ADM e a três textos de cabeçalho. Uma camada separada organiza os elementos originais sem copiar ou recriar seus controles. IDs, nomes, opções, valores, seleção, estados disabled/hidden, vínculos com formulários, restrições HTML e handlers continuam preservados. Os controladores de negócio, API, backend, integrações, tabelas financeiras, apps Passageiro/Motorista e configurações de produção não são modificados.
+A mudança se limita à apresentação do ADM e a textos de cabeçalho e orientação. Uma camada separada organiza os elementos originais sem copiar ou recriar seus controles. IDs, nomes, opções, valores, seleção, estados disabled/hidden, vínculos com formulários, restrições HTML e handlers continuam preservados. Os controladores de negócio, API, backend, integrações, tabelas financeiras, apps Passageiro/Motorista e configurações de produção não são modificados.
 
 O navegador verifica os 26 templates em 1440, 390 e 320 pixels, incluindo integridade dos controles e permissões; validação em formulário recolhido; valores mantidos ao usar os atalhos; associação dos checkboxes ao formulário. Os fluxos autenticados existentes de Guia e Regiões/preços são repetidos para verificar criação, edição, rascunhos, publicação, mapas, login/MFA e logout.
 

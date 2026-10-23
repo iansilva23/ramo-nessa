@@ -358,8 +358,8 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Saldo da empresa/i);
   assert.match(html, /Enviar saldo por Pix/i);
   assert.match(html, /Usar saldo total/i);
-  assert.match(html, /Comissão cash ainda não recebida/i);
-  assert.match(html, /Refunds parciais e contestações/i);
+  assert.match(html, /Comissão em dinheiro ainda não recebida/i);
+  assert.match(html, /Reembolsos parciais e contestações/i);
   assert.match(
     html,
     /sem debitar motorista\s+automaticamente/i,

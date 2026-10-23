@@ -30,10 +30,15 @@ export function organizeAdminNavigation(nav) {
 }
 
 export function syncAdminNavigation(nav) {
-  nav?.querySelectorAll('.admin-nav-group').forEach(group => {
+  if (!nav) return;
+  const active = nav.querySelector('.nav-item.is-active:not([hidden])')?.dataset.view ?? '';
+  const changed = nav.dataset.workspaceActive !== active;
+  nav.dataset.workspaceActive = active;
+  nav.querySelectorAll('.admin-nav-group').forEach(group => {
     const hidden = ![...group.querySelectorAll('.nav-item')].some(link => !link.hidden);
     if (group.hidden !== hidden) group.hidden = hidden;
-    if (!hidden && group.querySelector('.nav-item.is-active:not([hidden])') && !group.open) group.open = true;
+    const selected = !hidden && !!group.querySelector('.nav-item.is-active:not([hidden])');
+    if (changed && group.open !== selected) group.open = selected;
   });
 }
 
