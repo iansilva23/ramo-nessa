@@ -1829,7 +1829,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         activeRideId: _activeRide?.id,
         requestedDropoff: useDropoff,
         currentDropoff: _activeRide?.state == 'IN_PROGRESS',
-      )) return;
+      )) {
+        return;
+      }
       setState(() => _activeRoute = route);
       if (shouldFitRoute && _mapReady) {
         try {
