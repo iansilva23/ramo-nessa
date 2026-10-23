@@ -1,6 +1,6 @@
 # Organização do ADM inteiro
 
-Pedido: usar Localidades e Tarifas como referência visual para simplificar o ADM inteiro, mantendo as funcionalidades. A tentativa de modo claro no Guia foi cancelada; nenhum arquivo dos apps foi alterado nesta implementação.
+Pedido: usar Localidades e Tarifas como referência visual para simplificar o ADM inteiro, mantendo as funcionalidades. A tentativa de modo claro no Guia foi cancelada; nenhum arquivo dos apps Passageiro ou Motorista foi alterado nesta implementação.
 
 ## Revisão e decisões
 
@@ -50,3 +50,15 @@ A mudança se limita à apresentação do ADM e a textos de cabeçalho e orienta
 O navegador verifica os 26 templates em 1440, 390 e 320 pixels, incluindo integridade dos controles e permissões; validação em formulário recolhido; valores mantidos ao usar os atalhos; associação dos checkboxes ao formulário. Os fluxos autenticados existentes de Guia e Regiões/preços são repetidos para verificar criação, edição, rascunhos, publicação, mapas, login/MFA e logout.
 
 A revisão fica em PR DRAFT, sem merge na main. Nenhuma mudança é ativada na VPS por este workflow.
+
+## Validação concluída
+
+Revisão de código `c4adb9fd2c6a2b0bfc50de831a7a05ad55acf0da`, [run 40038106764](https://github.com/iansilva23/ramo-nessa/actions/runs/40038106764), concluído com sucesso:
+
+- 170 testes ADM aprovados, incluindo inclusão de todos os stylesheets na imagem distribuível.
+- Os 26 templates conferidos em Chromium e WebKit, em 1440, 390 e 320 pixels. Controles, valores, validações, associação aos formulários e permissões preservados.
+- Fluxos autenticados do Guia Local aprovados nos dois navegadores: cenários A–G, foto, contatos, mapa, rascunho/publicação, prévia, duplicação, reordenação, arquivo/restauração e login/MFA/logout.
+- Fluxos de Regiões e preços aprovados nos dois navegadores: cadastro, edição, arquivo/restauração, simulação, mapa, coordenadas, teclado e acesso somente de leitura.
+- Capturas finais revisadas; grupos do menu e lista/formulário organizados. O seletor nativo de localidade do GeoAgent recebeu contenção para impedir largura extra no Safari, sem alterar as opções ou a rolagem da tabela.
+
+As verificações utilizam conteúdo sintético e API autenticada de teste. Não acessam dados nem serviços da VPS. A ativação online e a aceitação pelo responsável no seu dispositivo permanecem como próxima etapa.
