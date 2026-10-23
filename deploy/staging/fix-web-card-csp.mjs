@@ -157,7 +157,7 @@ export async function repairCardPolicy() {
       const name = 'ramo-card-policy-test-' + process.pid;
       const file = join(root, 'test.json');
       writeFileSync(file, JSON.stringify(fixtureConfig(adapted)), { mode: 0o600 });
-      const args = ['run', '-d', '--name', name, '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--no-healthcheck', '--tmpfs', '/config', '--tmpfs', '/data', '--mount', 'type=bind,src=' + file + ',dst=/etc/caddy/test.json,readonly'];
+      const args = ['run', '-d', '--name', name, '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--cap-add', 'NET_BIND_SERVICE', '--security-opt', 'no-new-privileges', '--no-healthcheck', '--tmpfs', '/config', '--tmpfs', '/data', '--mount', 'type=bind,src=' + file + ',dst=/etc/caddy/test.json,readonly'];
       for (const destination of ['/srv/web', '/srv/admin']) {
         const mount = gateway.Mounts.find(value => value.Destination === destination);
         if (mount) {

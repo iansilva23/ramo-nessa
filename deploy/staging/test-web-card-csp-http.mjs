@@ -55,7 +55,7 @@ try {
   mkdirSync(join(root, 'admin'));
   writeFileSync(join(root, 'admin', 'index.html'), 'admin');
   writeFileSync(config, before);
-  docker(['run', '-d', '--name', name, '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--tmpfs', '/config', '--tmpfs', '/data', '--mount', 'type=bind,src=' + root + ',dst=/test,readonly', '--mount', 'type=bind,src=' + join(root, 'web') + ',dst=/srv/web,readonly', '--mount', 'type=bind,src=' + join(root, 'admin') + ',dst=/srv/admin,readonly', '--entrypoint', 'caddy', image, 'run', '--config', '/test/test.json']);
+  docker(['run', '-d', '--name', name, '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--cap-add', 'NET_BIND_SERVICE', '--security-opt', 'no-new-privileges', '--tmpfs', '/config', '--tmpfs', '/data', '--mount', 'type=bind,src=' + root + ',dst=/test,readonly', '--mount', 'type=bind,src=' + join(root, 'web') + ',dst=/srv/web,readonly', '--mount', 'type=bind,src=' + join(root, 'admin') + ',dst=/srv/admin,readonly', '--entrypoint', 'caddy', image, 'run', '--config', '/test/test.json']);
   await waitFor(passengerPolicy(source).policy);
   const original = JSON.parse(docker(['inspect', name]))[0];
   writeInPlace(config, after, hash(before));
