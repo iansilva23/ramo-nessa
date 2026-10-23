@@ -82,17 +82,17 @@ export async function installDriverRideWeb(args,fixture={}){
    for(const [n,h]of Object.entries(planHashes))if(hashFile(join(dir,n))!==h)throw Error('Plano de recuperação alterado.');
    for(const k of Object.keys(names).filter(k=>k!=='gateway'))if(runtimeIdentity(inspect(k))!==runtimeIdentity(before[k]))throw Error('Serviço fora do escopo mudou: '+k);
   };
-  const origin=fixture.origin??'https://app.ramonessa.com.br';
+  const origin=fixture.origin??'https://app.ramonessa.com.br',requestHttp=fixture.request??fetch;
   async function checkFile(root,role,file){
    const prefix=role==='driver'?'motorista':'passageiro';
-   const r=await fetch(origin+'/'+prefix+'/'+(file==='index.html'?'':file)+'?ride-review='+Date.now(),{cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(30000)});
+   const r=await requestHttp(origin+'/'+prefix+'/'+(file==='index.html'?'':file)+'?ride-review='+Date.now(),{cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(30000)});
    const bytes=Buffer.from(await r.arrayBuffer());
    const {createHash}=await import('node:crypto');
    if(r.status!==200||createHash('sha256').update(bytes).digest('hex')!==hashFile(join(root,role,file)))throw Error('Arquivo público divergente: '+role+'/'+file);
   }
   const publicFiles=async(root)=>{
    for(const role of ['driver','passenger'])for(const f of ['index.html','main.dart.js','flutter_bootstrap.js','ramo_push_config.js'])await checkFile(root,role,f);
-   for(const path of ['/ready','/administrodo/']){const r=await fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(30000)});await r.arrayBuffer();if(r.status!==200)throw Error('Rota indisponível: '+path);}
+   for(const path of ['/ready','/administrodo/']){const r=await requestHttp(origin+path,{redirect:'manual',signal:AbortSignal.timeout(30000)});await r.arrayBuffer();if(r.status!==200)throw Error('Rota indisponível: '+path);}
   };
   const verifyRuntime=(model,root,healthy=true)=>{const current=inspect('gateway');if(!healthy)current.State.Health={Status:'healthy'};assertWebGatewayRuntime(before.gateway,current,model,image,root);for(const k of ['Tmpfs','ShmSize','Dns','ExtraHosts','Ulimits','GroupAdd','Init'])if(!isDeepStrictEqual(current.HostConfig[k]??null,before.gateway.HostConfig[k]??null))throw Error('Opção Gateway divergente: '+k);for(const k of ['WorkingDir','Healthcheck','StopSignal'])if(!isDeepStrictEqual(current.Config[k]??null,before.gateway.Config[k]??null))throw Error('Inicialização Gateway divergente: '+k);};
   const health=async()=>{for(let n=0;n<90;n++){const c=inspect('gateway');if(c.State.Running&&c.State.Health?.Status==='healthy')return;await new Promise(r=>setTimeout(r,1000));}throw Error('Gateway não ficou saudável.');};

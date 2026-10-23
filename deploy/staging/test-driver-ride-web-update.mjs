@@ -25,19 +25,19 @@ for(const failAfterSwitch of [false,true]){
   docker(['network','create','--internal',net]);network=true;
   for(const v of volumes){docker(['volume','create',v]);madeVolumes.push(v);}
   const config=join(dir,'gateway.json');
-  const plan={name:'ramo-nessa-staging',services:{gateway:{image,container_name:names.gateway,labels:{'br.com.ramonessa.driver-ride-ci':'true'},environment:{LITERAL_SECRET:'fixture-$abc-${UNKNOWN}-$$'},ports:[{target:8080,published:'18088',host_ip:'127.0.0.1',protocol:'tcp'}],healthcheck:{test:['CMD','wget','-q','-O','/dev/null','http://127.0.0.1:8080/ready'],interval:'1s',timeout:'2s',retries:3},networks:{default:null},volumes:[{type:'bind',source:old,target:'/srv/web',read_only:true},{type:'bind',source:caddy,target:'/etc/caddy/Caddyfile',read_only:true},{type:'volume',source:'data',target:'/data'},{type:'volume',source:'config',target:'/config'}],cap_drop:['ALL'],cap_add:['NET_BIND_SERVICE'],security_opt:['no-new-privileges:true'],read_only:true}},networks:{default:{name:net,external:true}},volumes:{data:{name:volumes[0],external:true},config:{name:volumes[1],external:true}}};
+  const plan={name:'ramo-nessa-staging',services:{gateway:{image,container_name:names.gateway,labels:{'br.com.ramonessa.driver-ride-ci':'true'},environment:{LITERAL_SECRET:'fixture-$abc-${UNKNOWN}-$$'},healthcheck:{test:['CMD','wget','-q','-O','/dev/null','http://127.0.0.1:8080/ready'],interval:'1s',timeout:'2s',retries:3},networks:{default:null},volumes:[{type:'bind',source:old,target:'/srv/web',read_only:true},{type:'bind',source:caddy,target:'/etc/caddy/Caddyfile',read_only:true},{type:'volume',source:'data',target:'/data'},{type:'volume',source:'config',target:'/config'}],cap_drop:['ALL'],cap_add:['NET_BIND_SERVICE'],security_opt:['no-new-privileges:true'],read_only:true}},networks:{default:{name:net,external:true}},volumes:{data:{name:volumes[0],external:true},config:{name:volumes[1],external:true}}};
   writeFileSync(config,JSON.stringify(escapeCompose(plan)),{mode:0o600});
   created.push(names.gateway);docker(['compose','-p','ramo-nessa-staging','--env-file','/dev/null','-f',config,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','30','gateway']);
   for(const role of ['core','postgres','site']){docker(['run','-d','--name',names[role],'--network','none','--env','NODE_ENV=staging','--health-cmd','true','--health-interval','1s','--entrypoint','sh',image,'-c','while true; do sleep 60; done']);created.push(names[role]);}
   for(let n=0;n<15;n++){if(['core','postgres','site'].every(k=>JSON.parse(docker(['inspect',names[k]]))[0].State.Health?.Status==='healthy'))break;await new Promise(r=>setTimeout(r,1000));}
-  const fixture={root:join(dir,'private'),release:join(dir,'candidate'),names,origin:'http://127.0.0.1:18088',failAfterSwitch};
+  const fixture={root:join(dir,'private'),release:join(dir,'candidate'),names,origin:'http://127.0.0.1:8080',request:async url=>new Response(docker(['exec',names.gateway,'wget','-q','-O','-',url])),failAfterSwitch};
   if(failAfterSwitch)await assert.rejects(installDriverRideWeb([archive,checksum],fixture),e=>e.rollbackComplete===true);
   else assert.equal((await installDriverRideWeb([archive,checksum],fixture)).phase,'completed');
   const expectedRoot=failAfterSwitch?old:join(dir,'candidate','bundles');
   const current=JSON.parse(docker(['inspect',names.gateway]))[0];
   assert.equal(current.Mounts.find(m=>m.Destination==='/srv/web').Source,expectedRoot);
   assert.equal(readFileSync(join(old,'driver','main.dart.js'),'utf8'),'old driver retained');
-  const response=await fetch('http://127.0.0.1:18088/passageiro/main.dart.js');assert.equal(await response.text(),'unchanged passenger');
+  assert.equal(docker(['exec',names.gateway,'wget','-q','-O','-','http://127.0.0.1:8080/passageiro/main.dart.js']),'unchanged passenger');
   assert.equal(current.Image,image);assert.ok(current.Config.Env.includes('LITERAL_SECRET=fixture-$abc-${UNKNOWN}-$$'));
   console.log('FULL DRIVER RIDE WEB INSTALLER '+(failAfterSwitch?'ROLLBACK':'PUBLICATION')+' PASSED: actual Caddy, exact ZIP, unchanged passenger/Core/DB/site/image/configuration.');
  }finally{for(const n of created.reverse())docker(['rm','-f',n]);for(const v of madeVolumes)docker(['volume','rm',v]);if(network)docker(['network','rm',net]);rmSync(dir,{recursive:true,force:true});}
