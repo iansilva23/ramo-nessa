@@ -1385,6 +1385,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
+            // Keep the existing feedback above the compact summary controls.
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(14, 0, 14, 90),
             content: Text(
               'Corrida finalizada. Saldo disponível: '
               '${formatCents(result.driverBalanceCents)}',

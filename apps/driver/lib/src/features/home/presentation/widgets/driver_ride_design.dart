@@ -23,6 +23,24 @@ class _DriverDesignFrame extends StatelessWidget {
   Widget build(BuildContext context) => RamoWebMapOverlay(
     child: LayoutBuilder(
       builder: (context, constraints) {
+        // On short viewports the title can scroll with the details. The gesture
+        // handle and actions always remain outside that scrollable area.
+        final scrollHeader = constraints.maxHeight < 360;
+        final heading = Container(
+          color: darkHeader ? _rideInk : Colors.white,
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          child: header,
+        );
+        final details = Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: darkHeader
+                ? const BorderRadius.vertical(top: Radius.circular(24))
+                : null,
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: body,
+        );
         return ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: 480,
@@ -45,7 +63,7 @@ class _DriverDesignFrame extends StatelessWidget {
               ),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: darkHeader ? _rideInk : Colors.white,
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: const [
                     BoxShadow(
@@ -60,63 +78,55 @@ class _DriverDesignFrame extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        color: darkHeader ? _rideInk : Colors.white,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Semantics(
-                              label: 'Minimizar informações',
-                              button: true,
-                              onTap: onMinimize,
-                              child: GestureDetector(
-                                key: const ValueKey('ride-drag-handle'),
-                                behavior: HitTestBehavior.opaque,
-                                onVerticalDragEnd: (details) {
-                                  if ((details.primaryVelocity ?? 0) > 120) {
-                                    onMinimize();
-                                  }
-                                },
-                                onVerticalDragUpdate: (details) {
-                                  if (details.localPosition.dy > 38 &&
-                                      details.delta.dy > 0) {
-                                    onMinimize();
-                                  }
-                                },
-                                child: SizedBox(
-                                  height: 26,
-                                  width: double.infinity,
-                                  child: Center(
-                                    child: Container(
-                                      width: 34,
-                                      height: 4,
-                                      decoration: BoxDecoration(
-                                        color: darkHeader
-                                            ? Colors.white70
-                                            : const Color(0xFF8A8B90),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ),
-                                  ),
+                      Semantics(
+                        label: 'Minimizar informações',
+                        button: true,
+                        onTap: onMinimize,
+                        child: GestureDetector(
+                          key: const ValueKey('ride-drag-handle'),
+                          behavior: HitTestBehavior.opaque,
+                          onVerticalDragEnd: (details) {
+                            if ((details.primaryVelocity ?? 0) > 120) {
+                              onMinimize();
+                            }
+                          },
+                          onVerticalDragUpdate: (details) {
+                            if (details.localPosition.dy > 38 &&
+                                details.delta.dy > 0) {
+                              onMinimize();
+                            }
+                          },
+                          child: SizedBox(
+                            height: 26,
+                            width: double.infinity,
+                            child: Center(
+                              child: Container(
+                                width: 34,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: darkHeader
+                                      ? Colors.white70
+                                      : const Color(0xFF8A8B90),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                              child: header,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
+                      if (!scrollHeader) heading,
                       Flexible(
                         fit: FlexFit.loose,
                         child: SingleChildScrollView(
                           key: const ValueKey('ride-secondary-scroll'),
-                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                          child: body,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [if (scrollHeader) heading, details],
+                          ),
                         ),
                       ),
-                      Padding(
+                      Container(
+                        color: Colors.white,
                         padding: const EdgeInsets.fromLTRB(14, 2, 14, 14),
                         child: actions,
                       ),
