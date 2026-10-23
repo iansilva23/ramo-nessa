@@ -54,7 +54,7 @@ class _DriverDesignFrame extends StatelessWidget {
                             child: Center(child: Container(width: 34, height: 4,
                               decoration: BoxDecoration(
                                 color: darkHeader ? Colors.white70 : const Color(0xFF8A8B90),
-                                borderRadius: BorderRadius.circular(4)))))),
+                                borderRadius: BorderRadius.circular(4))))))),
                       Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                         child: header),
                     ])),
