@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {updatePassengerName,source as adminSourceRevision,baseAdmin as adminBaseRevision,baseCore} from './update-passenger-name.mjs';
 if(process.getuid?.()!==0||process.env.GITHUB_ACTIONS!=='true')throw Error('Disposable CI root only');
 const scenario=process.env.ADMIN_UPDATE_SCENARIO;
-if(!['success','rollback','rollback-core'].includes(scenario))throw Error('Unknown scenario');
+if(!['success','rollback','rollback-core','missing-gateway','missing-core'].includes(scenario))throw Error('Unknown scenario');
 const dir=mkdtempSync('/tmp/ramo-admin-ci-'),repo='/opt/ramo-nessa';mkdirSync(repo,{recursive:true});cpSync('.git',join(repo,'.git'),{recursive:true});
 function run(command,args,extra={}){const r=spawnSync(command,args,{encoding:'utf8',maxBuffer:64*1024**2,stdio:['pipe','pipe','pipe'],...extra});if(r.status!==0)throw Error(command+' failed: '+r.stderr+'\n'+r.stdout);return r.stdout;}
 const docker=args=>run('docker',args);
@@ -106,7 +106,8 @@ inDb(`
 `);
 const before=fingerprint(),policyBefore=await (await fetch('http://127.0.0.1:18080/v1/pricing/policy')).json();
 let failure;
-try{await updatePassengerName([adminSourceRevision],scenario==='rollback'?{testAfterSwitch:async()=>{throw Error('Synthetic failure after Gateway switch');}}:scenario==='rollback-core'?{testAfterCore:async()=>{throw Error('Synthetic failure after Core switch');}}:{});}catch(e){failure=e;}
+const rehearsal=scenario==='rollback'?{testAfterSwitch:async()=>{throw Error('Synthetic failure after Gateway switch');}}:scenario==='rollback-core'?{testAfterCore:async()=>{throw Error('Synthetic failure after Core switch');}}:scenario==='missing-gateway'?{testAfterSwitch:async()=>{docker(['rm','-f','ramo-nessa-staging-gateway-1']);throw Error('Synthetic missing Gateway');}}:scenario==='missing-core'?{testAfterCore:async()=>{docker(['rm','-f','ramo-nessa-staging-core-1']);throw Error('Synthetic missing Core');}}:{};
+try{await updatePassengerName([adminSourceRevision],rehearsal);}catch(e){failure=e;}
 if(scenario==='success'){
  assert.equal(failure,undefined);assert.notEqual(inspect('ramo-nessa-staging-gateway-1').Image,oldGateway.Image);
  const key=JSON.parse(inDb(`

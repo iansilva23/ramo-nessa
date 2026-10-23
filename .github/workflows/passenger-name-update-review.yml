@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: passenger-name-rollout-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   rollout:
     runs-on: ubuntu-24.04
@@ -12,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [success, rollback, rollback-core]
+        scenario: [success, rollback, rollback-core, missing-gateway, missing-core]
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
