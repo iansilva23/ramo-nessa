@@ -50,7 +50,7 @@ for(const mode of ['broken','fixed'])test(browserName+': real SDK '+(mode==='bro
   assert.equal(await page.locator('iframe').count(),3);
   assert(!violations.some(v=>secureFieldOrigins.some(host=>v.url.startsWith(host))),JSON.stringify(violations));
   for(let i=0;i<3;i++){
-   const input=page.frameLocator('iframe').nth(i).locator('input').first();await input.waitFor({state:'visible'});assert.equal(await input.isEditable(),true);
+   const input=page.frameLocator('iframe').nth(i).locator('input:visible').first();await input.waitFor({state:'visible'});assert.equal(await input.isEditable(),true);
   }
   assert(requests.includes('https://sdk.mercadopago.com/js/v2'));
   assert(requests.some(url=>url.startsWith(secureFieldOrigins[0])));
