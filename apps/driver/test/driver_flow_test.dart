@@ -246,9 +246,12 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('fluxo oferta → aceite → embarque → viagem cabe em celular 320px',
+  for (final viewport in const [
+    Size(320, 568), Size(320, 640), Size(375, 667), Size(390, 844), Size(430, 932),
+  ]) {
+  testWidgets('fluxo completo cabe em ${viewport.width} x ${viewport.height}',
       (tester) async {
-    tester.view.physicalSize = const Size(320, 640);
+    tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -310,9 +313,27 @@ void main() {
     expect(find.text('Finalizar corrida'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
+    expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Finalizar corrida'));
+    await tester.pumpAndSettle();
+    expect(find.text('Corrida finalizada'), findsOneWidget);
+    expect(find.text('Concluir e voltar para o mapa').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsOneWidget);
+    expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.pumpAndSettle();
+    expect(api.completionCalls, 1);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  }
 
   testWidgets(
     'cadastro aprovado sem supply inicializa offline usando GPS real',
