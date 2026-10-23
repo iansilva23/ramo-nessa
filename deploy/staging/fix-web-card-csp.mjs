@@ -128,7 +128,7 @@ export async function repairCardPolicy() {
     const protectedNames = ['ramo-nessa-staging-core-1', 'ramo-nessa-staging-postgres-1', 'ramo-nessa-site-institutional-site-1'];
     const protectedState = protectedNames.map(name => {
       const value = inspect(name);
-      assert.equal(value.State?.Health?.Status, 'healthy', 'Serviço sem saúde: ' + name);
+      assert(value.State?.Running&&(!value.State.Health||value.State.Health.Status==='healthy'), 'Serviço indisponível: '+name);
       return { name, id: value.Id, startedAt: value.State.StartedAt, image: value.Image };
     });
     const assertPreserved = () => {

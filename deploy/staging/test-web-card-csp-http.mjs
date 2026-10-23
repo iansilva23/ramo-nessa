@@ -1,7 +1,7 @@
 // Run with Docker: reproduce the real deferred-header bug and exercise SIGUSR1.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -9,6 +9,8 @@ import { patchCardPolicy, passengerPolicy, secureFieldOrigins, fixtureConfig, wr
 
 const image = 'caddy:2.11.7-alpine';
 const root = mkdtempSync(join(tmpdir(), 'ramo-card-csp-http-'));
+// Public disposable fixture must be readable after dropping all container capabilities.
+chmodSync(root,0o755);
 const name = 'ramo-card-csp-http-' + process.pid;
 const hash = value => createHash('sha256').update(value).digest('hex');
 function docker(args, input) {
@@ -66,6 +68,9 @@ try {
   assert.equal(final.Id, original.Id);
   assert.equal(final.State.StartedAt, original.State.StartedAt);
   console.log('HTTP PASS: passenger secure-field connections repaired, GPS preserved in both apps, ADM unchanged, reload and rollback preserve container identity.');
+} catch(error) {
+  try { console.error(docker(['logs',name])); } catch {}
+  throw error;
 } finally {
   try { docker(['rm', '-f', name]); } catch {}
   rmSync(root, { recursive: true });
