@@ -1,3 +1,4 @@
+import { passengerRatingRoutes } from './rides/passenger-rating-routes.js';
 import { rideChatRoutes, passengerWhatsApp } from './rides/ride-chat-routes.js';
 import {guideRoutes} from './guide/guide-routes.js';
 import { authorizeManagedQuote } from './pricing/quote-request-security.js';
@@ -7438,6 +7439,11 @@ const server = createServer(async (request, response) => {
       );
       return;
     }
+
+    if (await passengerRatingRoutes({
+      request, response, url: requestUrl, rides: rideRepository, readJson, json,
+      authenticate: () => resolveDriverId({request, sessions: authSessionRepository, identities: authOtpRepository}),
+    })) return;
 
     if (await rideChatRoutes({
       request, response, url: requestUrl, rides: rideRepository, identities: authOtpRepository,

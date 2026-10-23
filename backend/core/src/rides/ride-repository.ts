@@ -57,7 +57,19 @@ export interface DriverRideSummary {
   platformFeeCents: number;
 }
 
+export interface PassengerRatingRecord {
+  rideId: string;
+  driverId: string;
+  passengerId: string;
+  stars: number;
+  reasons: string[];
+  comment: string | null;
+  createdAt: string;
+}
+
 export interface RideRepository {
+  findPassengerRating(rideId: string, driverId: string): Promise<PassengerRatingRecord | null>;
+  recordPassengerRating(rating: PassengerRatingRecord): Promise<{rating: PassengerRatingRecord; created: boolean} | null>;
   create(ride: RideRecord): Promise<RideRecord>;
   findById(id: string): Promise<RideRecord | null>;
   findActiveByDriverId(driverId: string): Promise<RideRecord | null>;

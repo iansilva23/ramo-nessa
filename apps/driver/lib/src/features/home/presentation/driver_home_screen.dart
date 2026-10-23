@@ -1,3 +1,5 @@
+import '../data/passenger_rating_api.dart';
+import 'passenger_rating_sheet.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -157,6 +159,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _navigationMode = false;
   String? _collapsedRidePanel;
   AcceptedDriverRide? _completedPresentation;
+
+  Future<void> _openPassengerRating(String rideId) async {
+    final api = _api;
+    if (api is! DriverPassengerRatingApi) return;
+    await showPassengerRatingSheet(context, api: api as DriverPassengerRatingApi, rideId: rideId);
+  }
 
   void _dismissCompletedPresentation() {
     setState(() {
@@ -2010,6 +2018,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           onArrived: _markArrived, onStart: _startRide,
                           onComplete: presentedRide.state == 'COMPLETED'
                               ? _dismissCompletedPresentation : _completeRide,
+                          onRatePassenger: presentedRide.state == 'COMPLETED' && _api is DriverPassengerRatingApi
+                              ? () => _openPassengerRating(presentedRide.id) : null,
                           onCancel: _cancelRide, onChat: _openRideChat,
                           chatIcon: RamoUnreadChatIcon(api: _api, rideId: presentedRide.id),
                           onMinimize: minimize, route: _activeRoute,
@@ -2168,7 +2178,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               ...activity.rides.map(
                 (ride) => Padding(
                   padding: const EdgeInsets.only(bottom: RamoSpacing.sm),
-                  child: _ActivityRideCard(ride: ride),
+                  child: _ActivityRideCard(ride: ride, onRatePassenger: ride.state == 'COMPLETED' && _api is DriverPassengerRatingApi ? () => _openPassengerRating(ride.id) : null),
                 ),
               ),
           ],
@@ -3425,9 +3435,10 @@ class _ActivitySummaryGrid extends StatelessWidget {
 }
 
 class _ActivityRideCard extends StatelessWidget {
-  const _ActivityRideCard({required this.ride});
+  const _ActivityRideCard({required this.ride, this.onRatePassenger});
 
   final DriverActivityRide ride;
+  final VoidCallback? onRatePassenger;
 
   @override
   Widget build(BuildContext context) {
@@ -3469,6 +3480,9 @@ class _ActivityRideCard extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
+                  if (onRatePassenger != null)
+                    TextButton.icon(onPressed: onRatePassenger, icon: const Icon(Icons.star_outline_rounded, size: 18),
+                      label: const Text('Avaliar passageiro')),
                 ],
               ),
             ),
@@ -4252,6 +4266,7 @@ class _ActiveRideCard extends StatelessWidget {
     required this.onChat,
     required this.currentPosition,
     this.onMinimize,
+    this.onRatePassenger,
     this.chatIcon,
     this.route,
   });
@@ -4270,6 +4285,7 @@ class _ActiveRideCard extends StatelessWidget {
   final Widget? chatIcon;
   final LatLng currentPosition;
   final VoidCallback? onMinimize;
+  final VoidCallback? onRatePassenger;
   final DriverRouteInfo? route;
 
   String get _title => switch (ride.state) {
@@ -4331,7 +4347,7 @@ class _ActiveRideCard extends StatelessWidget {
       return _DriverActiveDesign(
         ride: ride, busy: busy, route: route,
         onMinimize: onMinimize!, onArrived: onArrived,
-        onComplete: onComplete, onCancel: onCancel, onChat: onChat, chatIcon: chatIcon,
+        onRatePassenger: onRatePassenger, onComplete: onComplete, onCancel: onCancel, onChat: onChat, chatIcon: chatIcon,
         canNavigate: _canNavigate, navigationActive: navigationActive,
         onNavigate: onNavigate, onStopNavigation: onStopNavigation,
         onExternalNavigation: onExternalNavigation);

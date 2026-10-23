@@ -579,9 +579,11 @@ class _DriverActiveDesign extends StatelessWidget {
     required this.onExternalNavigation,
     this.route,
     this.chatIcon,
+    this.onRatePassenger,
   });
   final AcceptedDriverRide ride;
   final Widget? chatIcon;
+  final VoidCallback? onRatePassenger;
   final bool busy, canNavigate, navigationActive;
   final DriverRouteInfo? route;
   final VoidCallback onMinimize,
@@ -754,11 +756,10 @@ class _DriverActiveDesign extends StatelessWidget {
       ),
       actions: done
           ? _ridePair(
-              // No passenger-rating capability exists in DriverApi. Never fake a submission.
-              const _RideButton(
+              _RideButton(
                 'Avaliar passageiro',
-                null,
-                icon: Icons.chat_outlined,
+                busy ? null : onRatePassenger,
+                icon: Icons.star_outline_rounded,
               ),
               _RideButton(
                 'Concluir e voltar para o mapa',
