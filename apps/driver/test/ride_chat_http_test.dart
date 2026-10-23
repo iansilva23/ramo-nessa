@@ -16,7 +16,7 @@ void main() {
         client: MockClient((request) async {
           requests.add(request);
           expect(request.headers['authorization'], 'Bearer session-token');
-          if (request.url.path.endsWith('/status'))
+          if (request.url.path.endsWith('/status')) {
             return http.Response(
               jsonEncode({
                 'unreadCount': 7,
@@ -24,8 +24,10 @@ void main() {
               }),
               200,
             );
-          if (request.url.path.endsWith('/read'))
+          }
+          if (request.url.path.endsWith('/read')) {
             return http.Response('{}', 200);
+          }
           return http.Response('{"messages":[]}', 200);
         }),
       );
