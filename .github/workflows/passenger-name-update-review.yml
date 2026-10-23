@@ -1,0 +1,30 @@
+name: Passenger names - safe scoped VPS rollout
+on:
+  push:
+    branches: [ops/admin-passenger-name-web-20261024]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rollout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [success, rollback, rollback-core]
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Exact source and preservation scope
+        run: node --test deploy/staging/update-passenger-name.test.mjs
+      - name: Real backup, Core/Gateway switch, persistence, idempotence or safe return
+        run: sudo env GITHUB_ACTIONS=true RAMO_ADMIN_CI_ORIGIN=http://127.0.0.1:18080 ADMIN_UPDATE_SCENARIO=${{ matrix.scenario }} "$(command -v node)" deploy/staging/passenger-name-update-ci.mjs
+      - name: Synthetic fixture diagnostics only
+        if: failure()
+        run: |
+          sudo find /opt/ramo-nessa-passenger-name/updates -type f \( -name last-command.private.log -o -name error.private.log -o -name recovery.private.log \) -exec tail -c 8000 {} \; || true
+          docker logs --tail 20 ramo-nessa-staging-core-1 || true
+          docker logs --tail 20 ramo-nessa-staging-gateway-1 || true
