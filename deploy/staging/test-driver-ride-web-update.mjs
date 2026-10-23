@@ -11,7 +11,8 @@ if(process.env.GITHUB_ACTIONS!=='true'||process.getuid?.()!==0)throw Error('Root
 const archive=resolve(process.argv[2]),checksum=createHash('sha256').update(readFileSync(archive)).digest('hex');
 function command(cmd,args){const r=spawnSync(cmd,args,{encoding:'utf8',maxBuffer:32*1024**2,timeout:180000});if(r.error||r.status!==0)throw Error(cmd+': '+r.stderr);return r.stdout;}
 const docker=a=>command('docker',a);
-for(const failAfterSwitch of [false,true]){
+for(const scenario of ['success','after-switch','missing-gateway']){
+ const failAfterSwitch=scenario==='after-switch',failWithMissingGateway=scenario==='missing-gateway',shouldFail=scenario!=='success';
  const dir=mkdtempSync(join(tmpdir(),'driver-ride-ci-')),prefix='driver-ride-ci-'+randomBytes(4).toString('hex'),names=Object.fromEntries(['core','gateway','postgres','site'].map(k=>[k,prefix+'-'+k])),net=prefix+'-net',created=[];
  let network=false;const volumes=[prefix+'-data',prefix+'-config'];const madeVolumes=[];
  try{
@@ -30,15 +31,15 @@ for(const failAfterSwitch of [false,true]){
   created.push(names.gateway);docker(['compose','-p','ramo-nessa-staging','--env-file','/dev/null','-f',config,'up','-d','--no-deps','--no-build','--pull','never','--wait','--wait-timeout','30','gateway']);
   for(const role of ['core','postgres','site']){docker(['run','-d','--name',names[role],'--network','none','--env','NODE_ENV=staging','--health-cmd','true','--health-interval','1s','--entrypoint','sh',image,'-c','while true; do sleep 60; done']);created.push(names[role]);}
   for(let n=0;n<15;n++){if(['core','postgres','site'].every(k=>JSON.parse(docker(['inspect',names[k]]))[0].State.Health?.Status==='healthy'))break;await new Promise(r=>setTimeout(r,1000));}
-  const fixture={root:join(dir,'private'),release:join(dir,'candidate'),names,origin:'http://127.0.0.1:8080',request:async url=>new Response(docker(['exec',names.gateway,'wget','-q','-O','-',url])),failAfterSwitch};
-  if(failAfterSwitch)await assert.rejects(installDriverRideWeb([archive,checksum],fixture),e=>e.rollbackComplete===true);
+  const fixture={root:join(dir,'private'),release:join(dir,'candidate'),names,origin:'http://127.0.0.1:8080',request:async url=>new Response(docker(['exec',names.gateway,'wget','-q','-O','-',url])),failAfterSwitch,failWithMissingGateway};
+  if(shouldFail)await assert.rejects(installDriverRideWeb([archive,checksum],fixture),e=>e.rollbackComplete===true);
   else assert.equal((await installDriverRideWeb([archive,checksum],fixture)).phase,'completed');
-  const expectedRoot=failAfterSwitch?old:join(dir,'candidate','bundles');
+  const expectedRoot=shouldFail?old:join(dir,'candidate','bundles');
   const current=JSON.parse(docker(['inspect',names.gateway]))[0];
   assert.equal(current.Mounts.find(m=>m.Destination==='/srv/web').Source,expectedRoot);
   assert.equal(readFileSync(join(old,'driver','main.dart.js'),'utf8'),'old driver retained');
   assert.equal(docker(['exec',names.gateway,'wget','-q','-O','-','http://127.0.0.1:8080/passageiro/main.dart.js']),'unchanged passenger');
   assert.equal(current.Image,image);assert.ok(current.Config.Env.includes('LITERAL_SECRET=fixture-$abc-${UNKNOWN}-$$'));
-  console.log('FULL DRIVER RIDE WEB INSTALLER '+(failAfterSwitch?'ROLLBACK':'PUBLICATION')+' PASSED: actual Caddy, exact ZIP, unchanged passenger/Core/DB/site/image/configuration.');
+  console.log('FULL DRIVER RIDE WEB INSTALLER '+scenario.toUpperCase()+' PASSED: actual Caddy, exact ZIP, unchanged passenger/Core/DB/site/image/configuration.');
  }finally{for(const n of created.reverse())docker(['rm','-f',n]);for(const v of madeVolumes)docker(['volume','rm',v]);if(network)docker(['network','rm',net]);rmSync(dir,{recursive:true,force:true});}
 }

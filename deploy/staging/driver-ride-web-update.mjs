@@ -102,10 +102,10 @@ export async function installDriverRideWeb(args,fixture={}){
   save('activation.private.json',{phase:'switching',at:new Date().toISOString(),source:rideWebSource});
   try{
    await switchDriverWeb({
-    up:async()=>{console.log('Atualizando somente o Motorista Web...');switched=true;up('candidate');},
+    up:async()=>{console.log('Atualizando somente o Motorista Web...');switched=true;if(fixture.failWithMissingGateway){docker(['rm','-f',names.gateway]);throw Error('Falha sintética de recriação sem container.');}up('candidate');},
     check:health,
     verify:async()=>{verifyRuntime(candidate,bundleRoot);intact();await publicFiles(bundleRoot);intact();if(fixture.failAfterSwitch)throw Error('Falha sintética de verificação.');},
-    rollback:async()=>{interrupted=false;intact();const current=inspect('gateway'),mounted=current.Mounts.find(m=>m.Destination==='/srv/web')?.Source;if(![oldRoot,bundleRoot].includes(mounted))throw Error('Gateway de outra operação; retorno recusado.');verifyRuntime(mounted===bundleRoot?candidate:rollback,mounted,false);up('rollback');await health();},
+    rollback:async()=>{interrupted=false;intact();const probe=spawnSync('docker',['inspect',names.gateway],{encoding:'utf8',timeout:30000});if(probe.status===0){const current=JSON.parse(probe.stdout)[0],mounted=current.Mounts.find(m=>m.Destination==='/srv/web')?.Source;if(![oldRoot,bundleRoot].includes(mounted))throw Error('Gateway de outra operação; retorno recusado.');verifyRuntime(mounted===bundleRoot?candidate:rollback,mounted,false);}else if(probe.error||!/No such (object|container)/i.test(probe.stderr??'')){throw Error('Não foi possível confirmar se o Gateway está ausente. Retorno requer conferência.');}up('rollback');await health();},
     verifyRollback:async()=>{verifyRuntime(rollback,oldRoot);intact();await publicFiles(oldRoot);},
    });
   }catch(e){writeFileSync(join(dir,'result.private.json'),JSON.stringify({phase:e.rollbackComplete?'rolled-back':'requires-review',rollbackComplete:e.rollbackComplete===true,error:e.message}),{mode:0o600});throw e;}
