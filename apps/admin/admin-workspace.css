@@ -71,6 +71,8 @@
   .admin-workspace .communications-grid,.admin-workspace .benefits-layout{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:720px){
+  .admin-workspace .geo-table{min-width:0;table-layout:fixed;width:100%}
+  .admin-workspace .geo-table th,.admin-workspace .geo-table td{padding:10px 6px;white-space:normal;overflow-wrap:anywhere}
   .admin-workspace .panel-card__header{flex-wrap:wrap}
   .admin-workspace .pill{max-width:100%;white-space:normal;overflow-wrap:anywhere}
   .admin-workspace .page-heading--split{align-items:start;gap:15px;flex-direction:column}
