@@ -25,12 +25,16 @@ class RamoMapCameraFit {
         !viewport.height.isFinite || !edgePadding.isFinite || edgePadding < 0 ||
         !minZoom.isFinite || !maxZoom.isFinite || minZoom > maxZoom ||
         [padding.left, padding.top, padding.right, padding.bottom]
-            .any((value) => !value.isFinite || value < 0)) return null;
+            .any((value) => !value.isFinite || value < 0)) {
+      return null;
+    }
     final width = viewport.width - padding.horizontal - edgePadding * 2;
     final height = viewport.height - padding.vertical - edgePadding * 2;
     if (width <= 0 || height <= 0) return null;
     if (points.any((p) => !p.latitude.isFinite || !p.longitude.isFinite ||
-        p.latitude.abs() > 90 || p.longitude.abs() > 180)) return null;
+        p.latitude.abs() > 90 || p.longitude.abs() > 180)) {
+      return null;
+    }
 
     // Use the shortest longitude interval, including trips across +/-180.
     final xs = points.map((p) => (p.longitude + 180) / 360).toList()..sort();
