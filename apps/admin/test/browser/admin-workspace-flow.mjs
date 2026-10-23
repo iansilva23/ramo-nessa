@@ -31,7 +31,7 @@ try {
     const browser = await (engine === 'webkit' ? webkit : chromium).launch({headless:true});
     const page = await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
     const settleLayout = () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
-    const errors = [], results = [];
+    const errors = [], results = [], layoutErrors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.abort());
     await page.goto(origin);
@@ -82,7 +82,7 @@ try {
         await page.evaluate(() => window.scrollTo(0,0));
         const overflow = await page.evaluate(() => ({width:innerWidth, scroll:document.documentElement.scrollWidth, elements:[...document.querySelectorAll('#route-outlet *')].filter(element => element.getBoundingClientRect().right > innerWidth+1 && element.getBoundingClientRect().width > 0).slice(0,10).map(element => ({tag:element.tagName,id:element.id,class:element.className,width:element.getBoundingClientRect().width}))}));
         if (overflow.scroll > overflow.width + 1) await page.screenshot({path:resolve(output, `${engine}-${file}-${width}-overflow.png`),fullPage:true});
-        assert.equal(overflow.scroll <= overflow.width + 1, true, `${file}: overflow at ${width}: ${JSON.stringify(overflow)}`);
+        if (overflow.scroll > overflow.width + 1) layoutErrors.push(`${file}: overflow at ${width}: ${JSON.stringify(overflow)}`);
       }
       if (['finance','drivers','staff','coupons','marketing','notifications','guide','costs'].some(name => file === name + '.html')) {
         await page.setViewportSize({width:1440,height:1000});
@@ -110,6 +110,7 @@ try {
         assert.equal(await check.evaluate(input => input.form.id), 'staff-create-form');
       }
     }
+    assert.deepEqual(layoutErrors, []);
     assert.deepEqual(errors, []);
     await writeFile(resolve(output, `${engine}-inventory.json`), JSON.stringify({engine,results,errors},null,2));
     console.log(`${engine}: ${results.length} pages retain controls, values, form associations, validation and permissions; desktop/mobile checked`);

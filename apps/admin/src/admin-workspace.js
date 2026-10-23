@@ -144,6 +144,12 @@ function prioritizeDailyWork(panel, view) {
       const header = panel.querySelector('.page-heading');
       const button = node('button', view === 'coupons' ? '+ Nova campanha' : '+ Adicionar funcionário', 'button button--primary admin-create-shortcut');
       button.type = 'button';
+      const syncShortcut = () => {
+        const submit = form.querySelector('button[type="submit"]');
+        button.disabled = submit?.disabled === true || form.hidden || editor.hidden;
+      };
+      syncShortcut();
+      new MutationObserver(syncShortcut).observe(editor, {subtree:true,attributes:true,attributeFilter:['disabled','hidden']});
       button.addEventListener('click', () => {
         revealAdminSection(editor);
         const first = form.querySelector('input:not([type=hidden])');

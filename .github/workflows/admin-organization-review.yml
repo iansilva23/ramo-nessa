@@ -38,8 +38,10 @@ jobs:
       - name: Every page, control preservation, responsive layout and keyboard
         run: node apps/admin/test/browser/admin-workspace-flow.mjs
       - name: Existing authenticated Guide workflows and full shell login, MFA and logout
+        if: ${{ !cancelled() }}
         run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/local-guide-flow.mjs
       - name: Approved pricing workflow regression
+        if: ${{ !cancelled() }}
         run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/regions-pricing-flow.mjs
       - uses: actions/upload-artifact@v4
         if: always()

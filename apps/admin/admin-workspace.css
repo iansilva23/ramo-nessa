@@ -1,5 +1,6 @@
 /* Shared visual language from the approved Regions and Pricing workspace.
    Scoped away from that page; no global theme or application styles change. */
+.admin-shell .topbar .button--ghost{color:var(--ink);background:white;border-color:var(--border)}
 .admin-nav-group{min-width:0;margin-bottom:8px}
 .admin-nav-group summary{display:flex;align-items:center;justify-content:space-between;padding:13px 12px;color:#b1b6b9;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.09em;text-transform:uppercase;cursor:pointer;list-style:none;border-radius:9px}
 .admin-nav-group summary::-webkit-details-marker{display:none}
@@ -69,6 +70,8 @@
   .admin-workspace .communications-grid,.admin-workspace .benefits-layout{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:720px){
+  .admin-workspace .panel-card__header{flex-wrap:wrap}
+  .admin-workspace .pill{max-width:100%;white-space:normal;overflow-wrap:anywhere}
   .admin-workspace .page-heading--split{align-items:start;gap:15px;flex-direction:column}
   .admin-workspace .panel-card{padding:18px;border-radius:16px}
   .admin-workspace .panel-card--table{padding:0}
