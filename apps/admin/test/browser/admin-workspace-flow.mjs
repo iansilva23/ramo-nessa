@@ -76,7 +76,9 @@ try {
       for (const width of [1440,390,320]) {
         await page.setViewportSize({width,height:1000});
         await page.evaluate(() => window.scrollTo(0,0));
-        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `${file}: overflow at ${width}`);
+        const overflow = await page.evaluate(() => ({width:innerWidth, scroll:document.documentElement.scrollWidth, elements:[...document.querySelectorAll('#route-outlet *')].filter(element => element.getBoundingClientRect().right > innerWidth+1 && element.getBoundingClientRect().width > 0).slice(0,10).map(element => ({tag:element.tagName,id:element.id,class:element.className,width:element.getBoundingClientRect().width}))}));
+        if (overflow.scroll > overflow.width + 1) await page.screenshot({path:resolve(output, `${engine}-${file}-${width}-overflow.png`),fullPage:true});
+        assert.equal(overflow.scroll <= overflow.width + 1, true, `${file}: overflow at ${width}: ${JSON.stringify(overflow)}`);
       }
       if (['finance','drivers','staff','coupons','marketing','notifications','guide','costs'].some(name => file === name + '.html')) {
         await page.setViewportSize({width:1440,height:1000});

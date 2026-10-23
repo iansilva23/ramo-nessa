@@ -23,7 +23,8 @@
 .admin-workspace textarea{min-height:94px;resize:vertical}
 .admin-workspace label{font-size:12px;line-height:1.6}
 .admin-workspace label small{font-size:11px;line-height:1.55}
-.admin-workspace .field,.admin-workspace form{min-width:0}
+.admin-workspace .field,.admin-workspace form,.admin-workspace .panel-card{min-width:0}
+.admin-workspace .communications-form>*{min-width:0;max-width:100%}
 .admin-workspace .field>span{font-weight:650}
 .admin-workspace .field small{color:var(--workspace-muted)}
 .admin-workspace table{font-size:12px}
@@ -44,6 +45,7 @@
 .admin-field-hint{font-size:11px;color:var(--workspace-muted);line-height:1.6;margin:0 0 14px}
 .admin-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .admin-field-grid>label:has(textarea){grid-column:1/-1}
+.admin-field-grid>.registry-span-2,.admin-field-grid>.communications-span-2{grid-column:1/-1}
 .admin-field-grid>label,.admin-field-grid>div{min-width:0}
 .admin-field-grid>p{grid-column:1/-1}
 .admin-workspace .admin-permissions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
@@ -58,7 +60,7 @@
 .admin-workspace .gl-sidebar{box-shadow:none;border-color:var(--workspace-line)}
 .admin-workspace .gl-row{border-color:var(--workspace-line)}
 @media(max-width:1000px){
-  .admin-workspace .communications-grid,.admin-workspace .benefits-layout{grid-template-columns:1fr}
+  .admin-workspace .communications-grid,.admin-workspace .benefits-layout{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:720px){
   .admin-workspace .page-heading--split{align-items:start;gap:15px;flex-direction:column}
@@ -69,4 +71,5 @@
   .admin-section-nav select{display:block}
   .admin-field-grid,.admin-workspace .admin-permissions{grid-template-columns:1fr}
   .admin-field-group{padding:15px}
+  .admin-workspace input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]),.admin-workspace select,.admin-workspace textarea{font-size:16px}
 }

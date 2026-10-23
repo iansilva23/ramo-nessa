@@ -118,6 +118,41 @@ function groupStaffPermissions(panel) {
   }
 }
 
+function prioritizeDailyWork(panel, view) {
+  // Consult and act first; configuration stays available farther down.
+  const moveToEnd = selector => {
+    const element = panel.querySelector(selector);
+    if (element?.parentElement === panel) panel.append(element);
+  };
+  if (view === 'drivers') {
+    moveToEnd('.operational-settings-card');
+    moveToEnd('#driver-search-policy-panel');
+  }
+  if (view === 'finance') {
+    [...panel.children].filter(element => element.matches('.finance-cash-card, .finance-card-price-card')).forEach(element => panel.append(element));
+  }
+  if (view === 'geo') moveToEnd('.geo-storage');
+  if (['coupons', 'staff'].includes(view)) {
+    const form = panel.querySelector(view === 'coupons' ? '#coupon-form' : '#staff-create-form');
+    const editor = form?.closest('.panel-card');
+    const list = [...panel.querySelectorAll(':scope > .panel-card')].find(card => card !== editor && card.querySelector(view === 'coupons' ? '#coupons-list' : '#staff-list'));
+    // Resolve using the original heading as a fallback for static table IDs.
+    const listCard = list ?? [...panel.querySelectorAll(':scope > .panel-card')].find(card => /Campanhas cadastradas|Acessos cadastrados/.test(card.querySelector('h2')?.textContent ?? ''));
+    if (editor && listCard) editor.before(listCard);
+    if (editor) {
+      const header = panel.querySelector('.page-heading');
+      const button = node('button', view === 'coupons' ? '+ Nova campanha' : '+ Adicionar funcionário', 'button button--primary admin-create-shortcut');
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        revealAdminSection(editor);
+        const first = form.querySelector('input:not([type=hidden])');
+        first?.focus({preventScroll:true});
+      });
+      header?.append(button);
+    }
+  }
+}
+
 export function revealAdminSection(target) {
   if (!target) return;
   for (let parent = target.parentElement; parent; parent = parent.parentElement) {
@@ -132,6 +167,7 @@ export function organizeAdminWorkspace(panel, view) {
   if (!panel || view === 'pricing' || panel.dataset.organized) return;
   panel.dataset.organized = 'true';
   panel.classList.add('admin-workspace');
+  prioritizeDailyWork(panel, view);
   for (const [id, groups] of Object.entries(formGroups)) {
     const form = panel.querySelector(`[id="${id}"]`);
     if (form) groupFields(form, groups);
