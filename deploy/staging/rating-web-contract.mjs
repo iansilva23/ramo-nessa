@@ -8,7 +8,7 @@ export const liveWeb='/opt/ramo-nessa-web/releases/chat-75ca2b7c3d9a/bundles';
 export const ratingWeb='/opt/ramo-nessa-web/releases/passenger-rating-'+ratingSource.slice(0,12)+'/bundles';
 export const ratingRoot='/opt/ramo-nessa-passenger-rating-web';
 export const ratingDirectory=ratingRoot+'/'+ratingSource.slice(0,12);
-export const coreDelta=['rides/repositories/in-memory-ride-repository.js','rides/repositories/postgres-ride-repository.js','rides/passenger-rating-routes.js','server.js'];
+export const coreDelta=['rides/passenger-rating-routes.js','rides/repositories/in-memory-ride-repository.js','rides/repositories/postgres-ride-repository.js','server.js'];
 export const adminDelta=[];
 export const migration='090_passenger_ratings.sql';
 export function assertRatingManifest(m){
