@@ -6,10 +6,12 @@ import type {
   AdminRideOperationalSummary,
   DriverRideSummary,
   RideChatMessageRecord,
+  RideChatSenderType,
   RideRepository,
 } from '../ride-repository.js';
 
 export class InMemoryRideRepository implements RideRepository {
+  private readonly chatReads = new Set<string>();
   private readonly rides = new Map<string, RideRecord>();
   private readonly chatMessages =
       new Map<string, RideChatMessageRecord[]>();
@@ -357,12 +359,30 @@ export class InMemoryRideRepository implements RideRepository {
   async listChatMessages(
     rideId: string,
     limit: number,
+    beforeId?: string,
   ): Promise<RideChatMessageRecord[]> {
     const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
-    const messages = this.chatMessages.get(rideId) ?? [];
+    const ordered = [...(this.chatMessages.get(rideId) ?? [])].sort((a,b) =>
+      a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const index = beforeId == null ? ordered.length : ordered.findIndex(m => m.id === beforeId);
+    const messages = ordered.slice(0, Math.max(0, index));
     return messages
       .slice(-safeLimit)
       .map((message) => structuredClone(message));
+  }
+
+  async countUnreadChatMessages(rideId: string, readerType: RideChatSenderType, readerId: string): Promise<number> {
+    return (this.chatMessages.get(rideId) ?? []).filter(m => m.senderType !== readerType &&
+      !this.chatReads.has(JSON.stringify([m.id, readerType, readerId]))).length;
+  }
+
+  async markChatMessagesRead(rideId: string, readerType: RideChatSenderType, readerId: string, messageIds: string[]): Promise<void> {
+    const ids = new Set(messageIds);
+    for (const m of this.chatMessages.get(rideId) ?? []) {
+      if (m.senderType !== readerType && ids.has(m.id)) {
+        this.chatReads.add(JSON.stringify([m.id, readerType, readerId]));
+      }
+    }
   }
 
   async appendChatMessage(

@@ -148,18 +148,21 @@ class _RideButton extends StatelessWidget {
     this.onPressed, {
     this.primary = false,
     this.icon,
+    this.leading,
     this.compact = false,
   });
   final String label;
   final VoidCallback? onPressed;
   final bool primary, compact;
   final IconData? icon;
+  final Widget? leading;
   @override
   Widget build(BuildContext context) {
     final content = Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (icon != null && MediaQuery.sizeOf(context).width >= 375) ...[
+        if (leading != null) ...[leading!, const SizedBox(width: 7)],
+        if (leading == null && icon != null && MediaQuery.sizeOf(context).width >= 375) ...[
           Icon(icon, size: compact ? 18 : 22),
           const SizedBox(width: 7),
         ],
@@ -575,8 +578,10 @@ class _DriverActiveDesign extends StatelessWidget {
     required this.onStopNavigation,
     required this.onExternalNavigation,
     this.route,
+    this.chatIcon,
   });
   final AcceptedDriverRide ride;
+  final Widget? chatIcon;
   final bool busy, canNavigate, navigationActive;
   final DriverRouteInfo? route;
   final VoidCallback onMinimize,
@@ -769,6 +774,7 @@ class _DriverActiveDesign extends StatelessWidget {
                   _RideButton(
                     'Mensagem com passageiro',
                     onChat,
+                    leading: chatIcon,
                     compact: true,
                     icon: Icons.chat_outlined,
                   ),

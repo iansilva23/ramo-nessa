@@ -16,3 +16,4 @@ export 'src/onboarding/ramo_notification_settings.dart';
 
 export 'src/map/ramo_web_map_overlay.dart';
 
+export 'src/chat/ramo_ride_chat.dart';

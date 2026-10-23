@@ -861,7 +861,7 @@ class _PassengerPersonalDataScreenState
             initialValue: widget.account.phoneE164,
             enabled: false,
             decoration: const InputDecoration(
-              labelText: 'Telefone verificado',
+              labelText: 'WhatsApp verificado',
             ),
           ),
           if (_error != null) ...[

@@ -92,7 +92,10 @@ export interface RideRepository {
   listChatMessages(
     rideId: string,
     limit: number,
+    beforeId?: string,
   ): Promise<RideChatMessageRecord[]>;
+  countUnreadChatMessages(rideId: string, readerType: RideChatSenderType, readerId: string): Promise<number>;
+  markChatMessagesRead(rideId: string, readerType: RideChatSenderType, readerId: string, messageIds: string[]): Promise<void>;
   appendChatMessage(
     message: RideChatMessageRecord,
   ): Promise<RideChatMessageRecord>;

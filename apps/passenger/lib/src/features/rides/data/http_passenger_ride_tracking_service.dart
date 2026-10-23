@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:ramo_design_system/ramo_design_system.dart';
+
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/ramo_core_config.dart';
@@ -8,16 +10,19 @@ import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
 
 class HttpPassengerRideTrackingService
-    implements PassengerRideTrackingService, PassengerRideRecoveryService {
+    implements
+        RamoRideChatApi,
+        PassengerRideTrackingService,
+        PassengerRideRecoveryService {
   HttpPassengerRideTrackingService({
     required Uri baseUrl,
     String? accessToken,
     String? passengerId,
     http.Client? client,
-  })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? '',
-        _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
-        _client = client ?? http.Client();
+  }) : _baseUrl = baseUrl,
+       _accessToken = accessToken ?? '',
+       _passengerId = passengerId ?? RamoCoreConfig.devPassengerId,
+       _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
@@ -25,12 +30,12 @@ class HttpPassengerRideTrackingService
   final http.Client _client;
 
   Map<String, String> get _identityHeaders => {
-        'content-type': 'application/json',
-        if (_accessToken.trim().isNotEmpty)
-          'authorization': 'Bearer ${_accessToken.trim()}'
-        else if (_passengerId.trim().isNotEmpty)
-          'x-dev-passenger-id': _passengerId.trim(),
-      };
+    'content-type': 'application/json',
+    if (_accessToken.trim().isNotEmpty)
+      'authorization': 'Bearer ${_accessToken.trim()}'
+    else if (_passengerId.trim().isNotEmpty)
+      'x-dev-passenger-id': _passengerId.trim(),
+  };
 
   @override
   Future<PassengerRideTrackingSnapshot> tracking(String rideId) async {
@@ -53,17 +58,12 @@ class HttpPassengerRideTrackingService
     }
 
     throw PassengerRideTrackingException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos atualizar sua corrida agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos atualizar sua corrida agora.'),
     );
   }
 
   @override
-  Future<PassengerRideRecoveryResult> retryDriverSearch(
-    String rideId,
-  ) async {
+  Future<PassengerRideRecoveryResult> retryDriverSearch(String rideId) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/retry-search'),
@@ -85,9 +85,7 @@ class HttpPassengerRideTrackingService
   }
 
   @override
-  Future<PassengerRideRecoveryResult> cancelSearch(
-    String rideId,
-  ) async {
+  Future<PassengerRideRecoveryResult> cancelSearch(String rideId) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/rides/$rideId/cancel-search'),
@@ -101,11 +99,59 @@ class HttpPassengerRideTrackingService
       );
     }
     throw PassengerRideTrackingException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos cancelar a busca agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos cancelar a busca agora.'),
     );
+  }
+
+  @override
+  Future<RamoRideChatStatus> rideChatStatus(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/rides/$rideId/messages/status'),
+          headers: _identityHeaders,
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível atualizar as mensagens.');
+    }
+    return RamoRideChatStatus.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> markRideMessagesRead(
+    String rideId,
+    List<String> messageIds,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/rides/$rideId/messages/read'),
+          headers: _identityHeaders,
+          body: jsonEncode({'messageIds': messageIds}),
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível registrar a leitura.');
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> rideChatPage(
+    String rideId, {
+    String? before,
+  }) async {
+    final uri = _baseUrl
+        .resolve('/v1/rides/$rideId/messages')
+        .replace(queryParameters: before == null ? null : {'before': before});
+    final response = await _client
+        .get(uri, headers: _identityHeaders)
+        .timeout(RamoCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível carregar as mensagens anteriores.');
+    }
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    return (decoded['messages'] as List).cast<Map<String, dynamic>>();
   }
 
   @override
@@ -128,10 +174,7 @@ class HttpPassengerRideTrackingService
     }
 
     throw PassengerRideTrackingException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos carregar as mensagens agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos carregar as mensagens agora.'),
     );
   }
 
@@ -157,10 +200,7 @@ class HttpPassengerRideTrackingService
     }
 
     throw PassengerRideTrackingException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos enviar sua mensagem agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos enviar sua mensagem agora.'),
     );
   }
 
@@ -189,11 +229,7 @@ class HttpPassengerRideTrackingService
     }
 
     throw PassengerRideTrackingException(
-      apiErrorMessage(
-        decoded,
-        'Não conseguimos enviar sua avaliação agora.',
-      ),
+      apiErrorMessage(decoded, 'Não conseguimos enviar sua avaliação agora.'),
     );
   }
-
 }

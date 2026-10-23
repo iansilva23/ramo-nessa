@@ -115,7 +115,7 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
         _passwordController.text.length < 10) {
       setState(() {
         _error =
-            'Preencha nome, celular, e-mail e uma senha com pelo menos 10 caracteres.';
+            'Preencha nome, WhatsApp, e-mail e uma senha com pelo menos 10 caracteres.';
       });
       return;
     }
@@ -493,7 +493,8 @@ class _PassengerAuthScreenState extends State<PassengerAuthScreen> {
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
           decoration: const InputDecoration(
-            labelText: 'Celular',
+            labelText: 'WhatsApp obrigatório',
+            helperText: 'Usado pelo motorista durante a corrida.',
             hintText: '(88) 99999-9999',
             prefixText: '+55  ',
           ),
