@@ -216,7 +216,7 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                       Expanded(
                         child: SingleChildScrollView(
                           padding: EdgeInsets.symmetric(
-                            horizontal: narrow ? 16 : 22,
+                            horizontal: narrow ? 14 : 18,
                             vertical: 12,
                           ),
                           child: Column(
@@ -224,8 +224,8 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                             children: [
                               Center(
                                 child: Container(
-                                  width: narrow ? 82 : 100,
-                                  height: narrow ? 82 : 100,
+                                  width: narrow ? 82 : 88,
+                                  height: narrow ? 82 : 88,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: const Color(0xFFE8E9EB),
@@ -248,7 +248,7 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                                 style: TextStyle(
                                   color: _ink,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: narrow ? 22 : 25,
+                                  fontSize: narrow ? 20 : 22,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -277,8 +277,11 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                                           ? () => setState(() => _stars = i + 1)
                                           : null,
                                       padding: EdgeInsets.zero,
-                                      iconSize: narrow ? 44 : 52,
+                                      iconSize: 44,
                                       style: IconButton.styleFrom(
+                                        foregroundColor: i < _stars
+                                            ? _yellow
+                                            : const Color(0xFF9AA0AA),
                                         disabledForegroundColor: i < _stars
                                             ? _yellow
                                             : const Color(0xFF9AA0AA),
@@ -468,6 +471,7 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                                   foregroundColor: _ink,
                                   minimumSize: const Size(0, 48),
                                   textStyle: const TextStyle(
+                                    fontFamily: 'Roboto',
                                     fontSize: 17,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -492,6 +496,7 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                                 side: const BorderSide(color: _ink),
                                 minimumSize: const Size(0, 48),
                                 textStyle: const TextStyle(
+                                  fontFamily: 'Roboto',
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
                                 ),

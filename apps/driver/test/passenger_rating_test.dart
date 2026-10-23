@@ -138,6 +138,16 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('passenger-rating-star-4')));
       await tester.pumpAndSettle();
       expect(find.text('Muito bom'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.byKey(const ValueKey('passenger-rating-star-4')),
+            )
+            .style!
+            .foregroundColor!
+            .resolve(<WidgetState>{}),
+        const Color(0xFFFFD600),
+      );
       await tester.tap(find.text('Educado'));
       await tester.tap(find.text('Boa comunicação'));
       await tester.ensureVisible(
