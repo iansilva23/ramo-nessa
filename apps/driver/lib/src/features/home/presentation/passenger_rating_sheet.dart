@@ -421,9 +421,9 @@ class _PassengerRatingSheetState extends State<PassengerRatingSheet> {
                                   child: CircularProgressIndicator(),
                                 ),
                               if (_stored)
-                                const Semantics(
+                                Semantics(
                                   liveRegion: true,
-                                  child: Text(
+                                  child: const Text(
                                     'Avaliação registrada. Obrigado!',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(

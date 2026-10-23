@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -27,8 +26,9 @@ class _Api implements DriverPassengerRatingApi {
     String? comment,
   }) async {
     calls++;
-    if (fail)
+    if (fail) {
       throw const DriverApiException('Falha de teste. Tente novamente.');
+    }
     if (pending != null) return pending!.future;
     return stored ??= DriverPassengerRating(
       stars: stars,
