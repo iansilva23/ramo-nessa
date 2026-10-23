@@ -81,7 +81,10 @@ try {
         await settleLayout();
         await page.evaluate(() => window.scrollTo(0,0));
         const overflow = await page.evaluate(() => ({width:innerWidth, scroll:document.documentElement.scrollWidth, elements:[...document.querySelectorAll('#route-outlet *')].filter(element => element.getBoundingClientRect().right > innerWidth+1 && element.getBoundingClientRect().width > 0).slice(0,10).map(element => ({tag:element.tagName,id:element.id,class:element.className,width:element.getBoundingClientRect().width}))}));
-        if (overflow.scroll > overflow.width + 1) await page.screenshot({path:resolve(output, `${engine}-${file}-${width}-overflow.png`),fullPage:true});
+        if (overflow.scroll > overflow.width + 1) {
+          overflow.debug = await page.evaluate(() => ({body: {scroll:document.body.scrollWidth,client:document.body.clientWidth,x:scrollX}, wide:[...document.querySelectorAll('body *')].filter(element => element.scrollWidth > element.clientWidth+10).slice(0,25).map(element => ({tag:element.tagName,id:element.id,class:element.className,scroll:element.scrollWidth,client:element.clientWidth,rect:element.getBoundingClientRect().toJSON(),overflow:getComputedStyle(element).overflow,contain:getComputedStyle(element).contain,display:getComputedStyle(element).display}))}));
+          await page.screenshot({path:resolve(output, `${engine}-${file}-${width}-overflow.png`),fullPage:true});
+        }
         if (overflow.scroll > overflow.width + 1) layoutErrors.push(`${file}: overflow at ${width}: ${JSON.stringify(overflow)}`);
       }
       if (['finance','drivers','staff','coupons','marketing','notifications','guide','costs'].some(name => file === name + '.html')) {
