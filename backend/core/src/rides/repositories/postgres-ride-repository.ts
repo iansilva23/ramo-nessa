@@ -10,6 +10,7 @@ import type {
   RideChatMessageRecord,
   RideChatSenderType,
   RideRepository,
+  PassengerRatingRecord,
 } from '../ride-repository.js';
 
 interface RideChatMessageRow {
@@ -167,6 +168,25 @@ export class PostgresRideRepository implements RideRepository {
 
   usesConnection(pool: Pool): boolean {
     return this.pool === pool;
+  }
+
+  async findPassengerRating(rideId: string, driverId: string): Promise<PassengerRatingRecord | null> {
+    const result = await this.pool.query(`SELECT ride_id AS "rideId", driver_id AS "driverId",
+      passenger_id AS "passengerId", stars, reasons, comment, created_at AS "createdAt"
+      FROM passenger_ratings WHERE ride_id = $1 AND driver_id = $2`, [rideId, driverId]);
+    const row = result.rows[0];
+    return row == null ? null : {...row, createdAt: row.createdAt.toISOString()};
+  }
+
+  async recordPassengerRating(rating: PassengerRatingRecord): Promise<{rating: PassengerRatingRecord; created: boolean} | null> {
+    const result = await this.pool.query(`INSERT INTO passenger_ratings
+      (ride_id, driver_id, passenger_id, stars, reasons, comment, created_at)
+      SELECT id, driver_id, passenger_id, $4, $5, $6, $7 FROM rides
+      WHERE id = $1 AND driver_id = $2 AND passenger_id = $3 AND state = 'COMPLETED'
+      ON CONFLICT (ride_id) DO NOTHING RETURNING ride_id`,
+      [rating.rideId, rating.driverId, rating.passengerId, rating.stars, rating.reasons, rating.comment, rating.createdAt]);
+    const stored = await this.findPassengerRating(rating.rideId, rating.driverId);
+    return stored == null ? null : {rating: stored, created: result.rowCount === 1};
   }
 
   async create(ride: RideRecord): Promise<RideRecord> {

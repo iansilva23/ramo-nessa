@@ -8,13 +8,29 @@ import type {
   RideChatMessageRecord,
   RideChatSenderType,
   RideRepository,
+  PassengerRatingRecord,
 } from '../ride-repository.js';
 
 export class InMemoryRideRepository implements RideRepository {
   private readonly chatReads = new Set<string>();
+  private readonly passengerRatings = new Map<string, PassengerRatingRecord>();
   private readonly rides = new Map<string, RideRecord>();
   private readonly chatMessages =
       new Map<string, RideChatMessageRecord[]>();
+
+  async findPassengerRating(rideId: string, driverId: string): Promise<PassengerRatingRecord | null> {
+    const rating = this.passengerRatings.get(rideId);
+    return rating?.driverId === driverId ? structuredClone(rating) : null;
+  }
+
+  async recordPassengerRating(rating: PassengerRatingRecord): Promise<{rating: PassengerRatingRecord; created: boolean} | null> {
+    const ride = this.rides.get(rating.rideId);
+    if (ride?.state !== 'COMPLETED' || ride.driverId !== rating.driverId || ride.passengerId !== rating.passengerId) return null;
+    const existing = this.passengerRatings.get(rating.rideId);
+    if (existing != null) return existing.driverId === rating.driverId ? {rating: structuredClone(existing), created: false} : null;
+    this.passengerRatings.set(rating.rideId, structuredClone(rating));
+    return {rating: structuredClone(rating), created: true};
+  }
 
   async create(ride: RideRecord): Promise<RideRecord> {
     if (this.rides.has(ride.id)) {

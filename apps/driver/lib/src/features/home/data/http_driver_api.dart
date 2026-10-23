@@ -10,11 +10,13 @@ import '../../benefits/data/driver_benefits_api.dart';
 import '../../benefits/domain/driver_benefits_models.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
+import 'passenger_rating_api.dart';
 
 class HttpDriverApi
     implements
         RamoRideChatApi,
         DriverApi,
+        DriverPassengerRatingApi,
         DriverRideCancellationApi,
         DriverBenefitsApi {
   HttpDriverApi({
@@ -39,6 +41,48 @@ class HttpDriverApi
     else if (_driverId.trim().isNotEmpty)
       'x-dev-driver-id': _driverId.trim(),
   };
+
+  @override
+  Future<DriverPassengerRating?> passengerRating(String rideId) async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/passenger-rating'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    final json = _expectObject(response, expectedStatus: 200);
+    final rating = json['rating'];
+    return rating == null
+        ? null
+        : DriverPassengerRating.fromJson(rating as Map<String, dynamic>);
+  }
+
+  @override
+  Future<DriverPassengerRating> ratePassenger({
+    required String rideId,
+    required int stars,
+    required List<String> reasons,
+    String? comment,
+  }) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/passenger-rating'),
+          headers: _headers,
+          body: jsonEncode({
+            'stars': stars,
+            'reasons': reasons,
+            'comment': comment,
+          }),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    final json = _expectObject(
+      response,
+      expectedStatus: response.statusCode == 201 ? 201 : 200,
+    );
+    return DriverPassengerRating.fromJson(
+      json['rating'] as Map<String, dynamic>,
+    );
+  }
 
   @override
   Future<DriverBenefitsSnapshot> benefits() async {

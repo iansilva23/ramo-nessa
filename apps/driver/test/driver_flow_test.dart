@@ -1,3 +1,4 @@
+import 'package:ramo_nessa_driver/src/features/home/data/passenger_rating_api.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -222,7 +223,13 @@ void main() {
     expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsNothing);
     final rating = tester.widget<OutlinedButton>(find.ancestor(
       of: find.text('Avaliar passageiro'), matching: find.byType(OutlinedButton)));
-    expect(rating.onPressed, isNull, reason: 'não inventar integração de avaliação');
+    expect(rating.onPressed, isNotNull);
+    await tester.tap(find.text('Avaliar passageiro'));
+    await tester.pumpAndSettle();
+    expect(find.text('Como foi sua experiência?'), findsOneWidget);
+    await tester.tap(find.text('Agora não'));
+    await tester.pumpAndSettle();
+    expect(api.completionCalls, 1, reason: 'abrir/fechar avaliação não repete liquidação');
     await tester.tap(find.text('Concluir e voltar para o mapa'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida finalizada'), findsNothing);
@@ -769,7 +776,11 @@ class _StreamingFakeLocationService implements DriverLocationService {
   Stream<DriverPosition> positionStream() => _controller.stream;
 }
 
-class _FakeDriverApi implements DriverApi, DriverBenefitsApi {
+class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRatingApi {
+  @override
+  Future<DriverPassengerRating?> passengerRating(String rideId) async => null;
+  @override
+  Future<DriverPassengerRating> ratePassenger({required String rideId, required int stars, required List<String> reasons, String? comment}) async => DriverPassengerRating(stars: stars, reasons: reasons, comment: comment);
   int benefitsCalls = 0;
 
   @override
