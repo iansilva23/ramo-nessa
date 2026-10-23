@@ -60,11 +60,12 @@ void main() {
       final api = _Chat();
       final scroll = ScrollController();
       late RamoChatReadController reads;
+      RamoChatReadController? retainedReads;
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
             builder: (context) {
-              reads = RamoChatReadController(
+              reads = retainedReads ??= RamoChatReadController(
                 api: api,
                 rideId: 'ride',
                 context: () => context,
@@ -101,12 +102,11 @@ void main() {
       await tester.pump();
       expect(api.reads, ['visible']);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      scroll.jumpTo(scroll.position.maxScrollExtent);
+      scroll.jumpTo(700);
       await tester.pump();
       expect(api.reads, ['visible']);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pump();
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(api.reads, ['visible', 'offscreen']);
       reads.checkVisible();
       await tester.pump();

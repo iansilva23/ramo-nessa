@@ -148,6 +148,7 @@ class RamoChatReadController with WidgetsBindingObserver {
   void checkVisible() {
     if (_disposed || _scheduled) return;
     _scheduled = true;
+    WidgetsBinding.instance.ensureVisualUpdate();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
       if (!_active) return;
