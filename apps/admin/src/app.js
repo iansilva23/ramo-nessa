@@ -1,3 +1,4 @@
+import { passengerDisplayName } from './passenger-directory.js';
 import {createGuideAdmin} from './guide-admin.js';
 let guideAdmin=null;
 import { createRegionsPricingAdmin } from './regions-pricing-admin.js';
@@ -6201,9 +6202,12 @@ function renderPassengerDirectory() {
     const row = document.createElement('tr');
 
     const identity = document.createElement('td');
-    const passengerId = document.createElement('strong');
-    passengerId.textContent = passenger.passengerId;
-    identity.append(passengerId);
+    const name = document.createElement('strong');
+    name.textContent = passengerDisplayName(passenger);
+    const reference = document.createElement('small');
+    reference.className = 'passenger-reference';
+    reference.textContent = `ID: ${passenger.passengerId}`;
+    identity.append(name, reference);
 
     const phone = document.createElement('td');
     phone.textContent = passenger.phoneE164 ?? '—';
@@ -6492,15 +6496,15 @@ function renderPassengerDetail(payload) {
   const kicker = document.createElement('span');
   kicker.className = 'eyebrow eyebrow--dark';
   kicker.textContent = 'PASSAGEIRO';
-  const id = document.createElement('h3');
-  id.textContent = passenger.passengerId;
-  title.append(kicker, id);
+  const name = document.createElement('h3');
+  name.textContent = passengerDisplayName(passenger);
+  title.append(kicker, name);
   identity.append(title);
 
   const grid = document.createElement('div');
   grid.className = 'passenger-detail-grid';
   grid.append(
-    passengerDetailItem('Nome', passenger.fullName ?? '—'),
+    passengerDetailItem('ID do passageiro', passenger.passengerId),
     passengerDetailItem('E-mail', passenger.email ?? '—'),
     passengerDetailItem('Telefone', passenger.phoneE164 ?? '—'),
     passengerDetailItem('Status', presentation.label),
