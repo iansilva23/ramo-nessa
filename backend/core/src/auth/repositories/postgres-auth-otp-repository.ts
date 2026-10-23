@@ -511,6 +511,10 @@ export class PostgresAuthOtpRepository implements AuthOtpRepository {
         AND ($2::text IS NULL OR status = $2)
         AND (
           $3::text IS NULL
+          OR ($1 = 'passenger' AND strpos(
+            translate(lower(COALESCE(full_name, '')), 'áàâãäåéèêëíìîïóòôõöúùûüçñ', 'aaaaaaeeeeiiiiooooouuuucn'),
+            translate(lower($3), 'áàâãäåéèêëíìîïóòôõöúùûüçñ', 'aaaaaaeeeeiiiiooooouuuucn')
+          ) > 0)
           OR strpos(lower(subject_id), lower($3)) > 0
           OR strpos(phone_e164, $3) > 0
           OR strpos(lower(COALESCE(email_normalized, '')), lower($3)) > 0

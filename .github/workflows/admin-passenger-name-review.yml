@@ -1,0 +1,39 @@
+name: Passenger name directory - real Core and PostgreSQL
+on:
+  push:
+    branches: [feature/admin-passenger-name-20261024]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ramonessa
+          POSTGRES_PASSWORD: ramonessa
+          POSTGRES_DB: ramonessa
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramonessa:ramonessa@127.0.0.1:5432/ramonessa
+      DB_SSL: 'false'
+      RAMO_CHAT_TEST_POSTGRES: 'true'
+      RAMO_RATING_TEST_POSTGRES: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run check --prefix apps/admin && npm test --prefix apps/admin
+      - name: Full Core regression and real PostgreSQL name persistence
+        working-directory: backend/core
+        run: npm run typecheck && npm run db:migrate && npm test && npm run build
+      - name: Actual HTTP directory, authorization and pagination
+        working-directory: backend/core
+        env:
+          RAMO_PASSENGER_DIRECTORY_HTTP: 'true'
+        run: node --import tsx --test test/admin_passenger_name_http.test.ts

@@ -5839,6 +5839,7 @@ const server = createServer(async (request, response) => {
       json(response, 200, {
         items: page.identities.map((identity) => ({
           passengerId: identity.subjectId,
+          fullName: identity.fullName ?? null,
           phoneE164: identity.phoneE164,
           status: identity.status,
           createdAt: identity.createdAt,

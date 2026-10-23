@@ -84,3 +84,11 @@
   .admin-field-group{padding:15px}
   .admin-workspace input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]),.admin-workspace select,.admin-workspace textarea{font-size:16px}
 }
+.passenger-reference {
+  display: block;
+  margin-top: 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

@@ -14,6 +14,10 @@ import type {
 } from '../auth-otp-repository.js';
 import type { AuthSubjectType } from '../auth-session-repository.js';
 
+function normalizePassengerDirectoryName(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 interface MemoryRateLimit {
   windowStartedAt: string;
   attemptCount: number;
@@ -319,6 +323,11 @@ export class InMemoryAuthOtpRepository implements AuthOtpRepository {
       .filter((identity) => {
         if (!search) return true;
         return (
+          (input.subjectType === 'passenger' &&
+            identity.fullName != null &&
+            normalizePassengerDirectoryName(identity.fullName).includes(
+              normalizePassengerDirectoryName(search),
+            )) ||
           identity.subjectId.toLowerCase().includes(search) ||
           identity.phoneE164.toLowerCase().includes(search) ||
           identity.emailNormalized?.toLowerCase().includes(search) === true
