@@ -18,7 +18,7 @@ import { GeoCatalogStorageLimitError } from './places/geo-catalog-repository.js'
 import { parseGeoStoragePolicy } from './places/geo-storage-maintenance.js';
 import { driverRegistrationStatus, submitDriverRegistration } from './drivers/driver-registration-service.js';
 import { defaultDriverSearchPolicy, validateDriverSearchPolicy, selectedDriverSearchRadius, customPickupFee } from './matching/driver-search-policy.js';
-import type { RideRecord } from './rides/ride.js';
+import { ridePaymentExpiresAt, type RideRecord } from './rides/ride.js';
 import { createPrepaymentDriverOffer, prepaymentDriverConfirmation } from './rides/prepayment-driver-confirmation.js';
 import { randomUUID } from 'node:crypto';
 import { diagnoseMercadoPagoCandidateSignature } from './payments/mercado-pago-webhook-diagnostic.js';
@@ -8181,7 +8181,9 @@ const server = createServer(async (request, response) => {
         driverConsentRequired: ride.driverConsentRequired === true,
         ride: passengerRideView(ride),
         priceFinal: true,
-        holdExpiresAt: ride.driverHoldExpiresAt,
+        holdExpiresAt: ridePaymentExpiresAt(ride),
+        paymentExpiresAt: ridePaymentExpiresAt(ride),
+        driverReservationExpiresAt: ride.driverHoldExpiresAt,
       });
       return;
     }

@@ -5,7 +5,7 @@ import { PaymentDomainError } from '../payments/payment.js';
 import type { RideRepository } from './ride-repository.js';
 import type { RideRecord } from './ride.js';
 import {
-  isDriverPaymentHoldExpired,
+  isRidePaymentWindowExpired,
   isRidePreparedForPayment,
 } from './ride.js';
 import { markRidePaid } from './ride-state.js';
@@ -75,7 +75,7 @@ export async function authorizeCashRide(input: {
       'Corrida precisa ser preparada antes de autorizar dinheiro.',
     );
   }
-  if (isDriverPaymentHoldExpired(ride, now)) {
+  if (isRidePaymentWindowExpired(ride, now)) {
     throw new PaymentDomainError(
       'DRIVER_HOLD_EXPIRED',
       'Reserva do motorista expirou antes da autorização cash.',

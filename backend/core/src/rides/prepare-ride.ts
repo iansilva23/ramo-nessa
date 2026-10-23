@@ -24,6 +24,8 @@ import {
 } from './ride-preparation-repository.js';
 
 export const DEFAULT_DRIVER_PAYMENT_HOLD_SECONDS = 90;
+export const PASSENGER_DRIVER_HOLD_SECONDS = 60;
+export const PASSENGER_PAYMENT_WINDOW_SECONDS = 600;
 
 export class RidePreparationError extends Error {
   constructor(
@@ -58,6 +60,7 @@ export async function prepareRideForPayment(input: {
   maxPickupDistanceKm?: number;
   pickupFeeForDistance?: (distanceKm: number) => number | undefined;
   requireDriverConsent?: boolean;
+  paymentWindowSeconds?: number;
   canUseDriver?: (driverId: string) => Promise<boolean>;
 }): Promise<RideRecord> {
   const passengerId = input.passengerId.trim();
@@ -79,6 +82,11 @@ export async function prepareRideForPayment(input: {
   }
 
   const now = input.now ?? new Date();
+  if (input.paymentWindowSeconds != null &&
+      (input.requireDriverConsent || !Number.isInteger(input.paymentWindowSeconds) ||
+       input.paymentWindowSeconds < holdSeconds || input.paymentWindowSeconds > 600)) {
+    throw new Error('Prazo de pagamento independente inválido.');
+  }
   const pricing =
     input.pricing ?? {
       snapshot: STATIC_PRICING_CATALOG_V1,
@@ -198,6 +206,9 @@ export async function prepareRideForPayment(input: {
     quote: snapshotExactFare(baseFare, pricing.reference),
     createdAt: instant,
     updatedAt: instant,
+    ...(input.paymentWindowSeconds == null ? {} : {
+      paymentExpiresAt: new Date(now.getTime() + input.paymentWindowSeconds * 1000).toISOString(),
+    }),
   };
 
   let ranked = rankEligibleDrivers({
@@ -321,5 +332,7 @@ export async function prepareRideForPayment(input: {
 export async function preparePassengerRideForPayment(
   input: Omit<Parameters<typeof prepareRideForPayment>[0], 'requireDriverConsent'>,
 ): Promise<RideRecord> {
-  return prepareRideForPayment({ ...input, requireDriverConsent: false });
+  return prepareRideForPayment({ ...input, requireDriverConsent: false,
+    holdSeconds: PASSENGER_DRIVER_HOLD_SECONDS,
+    paymentWindowSeconds: PASSENGER_PAYMENT_WINDOW_SECONDS });
 }

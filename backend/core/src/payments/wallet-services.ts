@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import {
-  isDriverPaymentHoldExpired,
+  isRidePaymentWindowExpired,
   isRidePreparedForPayment,
   type RideRecord,
 } from '../rides/ride.js';
@@ -143,10 +143,12 @@ export async function payRideWithWallet(
   }
 
   const now = input.now ?? new Date();
-  if (isDriverPaymentHoldExpired(input.ride, now)) {
+  if (isRidePaymentWindowExpired(input.ride, now)) {
     throw new PaymentDomainError(
       'DRIVER_HOLD_EXPIRED',
-      'A reserva do motorista expirou. Prepare a corrida novamente.',
+      input.ride.paymentExpiresAt != null && !input.ride.driverConsentRequired
+        ? 'O prazo de pagamento expirou. Solicite a corrida novamente.'
+        : 'A reserva do motorista expirou. Prepare a corrida novamente.',
     );
   }
 

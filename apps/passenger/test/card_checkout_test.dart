@@ -185,7 +185,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Reserva expirada'), findsOneWidget);
+    expect(find.textContaining('Prazo de pagamento encerrado'), findsOneWidget);
     expect(
       tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
       isNull,

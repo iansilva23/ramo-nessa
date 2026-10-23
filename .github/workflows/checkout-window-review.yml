@@ -1,0 +1,9 @@
+name: Checkout Window Review
+on:
+  push:
+    branches: [fix/checkout-reservation-window-20261023]
+permissions:
+  contents: read
+jobs:
+  preflight:
+    uses: ./.github/workflows/preflight.yml

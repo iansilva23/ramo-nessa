@@ -63,7 +63,7 @@ class _WebCardEntryScreenState extends State<WebCardEntryScreen> {
         setState(() {
           _expired = true;
           _valid = false;
-          _error = 'A reserva expirou. Volte e solicite novamente.';
+          _error = 'O prazo de pagamento expirou. Volte e solicite novamente.';
         });
       });
     }
@@ -145,7 +145,7 @@ class _WebCardEntryScreenState extends State<WebCardEntryScreen> {
       }
       if (_expired || !DateTime.now().isBefore(widget.holdExpiresAt)) {
         setState(
-          () => _error = 'A reserva expirou. Volte e solicite novamente.',
+          () => _error = 'O prazo de pagamento expirou. Volte e solicite novamente.',
         );
         return;
       }
