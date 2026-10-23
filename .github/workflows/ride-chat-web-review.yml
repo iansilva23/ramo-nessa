@@ -54,11 +54,11 @@ jobs:
       - name: Format and analyze
         working-directory: apps/${{ matrix.app }}
         run: |
-          dart format lib test ../../packages/design_system/lib/src/chat ../../packages/design_system/test/ramo_ride_chat_test.dart
+          dart format lib/src/features/${{ matrix.app == 'driver' && 'home' || 'rides' }}/presentation/${{ matrix.app }}_ride_chat_screen.dart lib/src/features/${{ matrix.app == 'driver' && 'home' || 'rides' }}/data/http_${{ matrix.app == 'driver' && 'driver_api' || 'passenger_ride_tracking_service' }}.dart test/ride_chat_http_test.dart ../../packages/design_system/lib/src/chat ../../packages/design_system/test/ramo_ride_chat_test.dart
           flutter analyze
       - run: flutter test
         working-directory: apps/${{ matrix.app }}
-      - run: flutter pub get && flutter test test/ramo_ride_chat_test.dart
+      - run: flutter pub get && flutter analyze lib/src/chat/ramo_ride_chat.dart test/ramo_ride_chat_test.dart && flutter test test/ramo_ride_chat_test.dart
         working-directory: packages/design_system
       - run: flutter build web --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
         working-directory: apps/${{ matrix.app }}

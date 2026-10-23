@@ -17,12 +17,21 @@ class RamoRideChatStatus {
 abstract interface class RamoRideChatApi {
   Future<RamoRideChatStatus> rideChatStatus(String rideId);
   Future<void> markRideMessagesRead(String rideId, List<String> messageIds);
-  Future<List<Map<String, dynamic>>> rideChatPage(String rideId, {String? before});
+  Future<List<Map<String, dynamic>>> rideChatPage(
+    String rideId, {
+    String? before,
+  });
 }
 
 class RamoUnreadChatIcon extends StatefulWidget {
-  const RamoUnreadChatIcon({super.key, required this.api, required this.rideId,
-    this.icon = Icons.chat_bubble_outline_rounded, this.color, this.size});
+  const RamoUnreadChatIcon({
+    super.key,
+    required this.api,
+    required this.rideId,
+    this.icon = Icons.chat_bubble_outline_rounded,
+    this.color,
+    this.size,
+  });
   final Object? api;
   final String rideId;
   final IconData icon;
@@ -38,7 +47,8 @@ class _RamoUnreadChatIconState extends State<RamoUnreadChatIcon>
   int _count = 0;
   int _generation = 0;
   bool _busy = false;
-  bool get _foreground => WidgetsBinding.instance.lifecycleState == null ||
+  bool get _foreground =>
+      WidgetsBinding.instance.lifecycleState == null ||
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
   @override
   void initState() {
@@ -47,6 +57,7 @@ class _RamoUnreadChatIconState extends State<RamoUnreadChatIcon>
     unawaited(_refresh());
     _timer = Timer.periodic(const Duration(seconds: 4), (_) => _refresh());
   }
+
   @override
   void didUpdateWidget(covariant RamoUnreadChatIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -57,10 +68,12 @@ class _RamoUnreadChatIconState extends State<RamoUnreadChatIcon>
       unawaited(_refresh());
     }
   }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) unawaited(_refresh());
   }
+
   Future<void> _refresh() async {
     final api = widget.api;
     if (_busy || !_foreground || api is! RamoRideChatApi) return;
@@ -77,12 +90,14 @@ class _RamoUnreadChatIconState extends State<RamoUnreadChatIcon>
       if (generation == _generation) _busy = false;
     }
   }
+
   @override
   void dispose() {
     _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) => Semantics(
     label: _count > 0 ? '$_count mensagens não lidas' : 'Mensagens',
@@ -99,8 +114,12 @@ class _RamoUnreadChatIconState extends State<RamoUnreadChatIcon>
 /// Acknowledge only incoming bubbles visible in the foreground chat route.
 /// Explicit message IDs avoid clearing arrivals concurrent with an HTTP fetch.
 class RamoChatReadController with WidgetsBindingObserver {
-  RamoChatReadController({required this.api, required this.rideId,
-    required this.context, required this.scrollController}) {
+  RamoChatReadController({
+    required this.api,
+    required this.rideId,
+    required this.context,
+    required this.scrollController,
+  }) {
     WidgetsBinding.instance.addObserver(this);
     scrollController.addListener(checkVisible);
   }
@@ -115,14 +134,17 @@ class RamoChatReadController with WidgetsBindingObserver {
   bool _disposed = false;
   bool _scheduled = false;
   GlobalKey messageKey(String id) => _keys.putIfAbsent(id, () => GlobalKey());
-  bool get _active => !_disposed &&
-    (WidgetsBinding.instance.lifecycleState == null ||
-     WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) &&
-    (ModalRoute.of(context())?.isCurrent ?? false);
+  bool get _active =>
+      !_disposed &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState ==
+              AppLifecycleState.resumed) &&
+      (ModalRoute.of(context())?.isCurrent ?? false);
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) checkVisible();
   }
+
   void checkVisible() {
     if (_disposed || _scheduled) return;
     _scheduled = true;
@@ -131,11 +153,17 @@ class RamoChatReadController with WidgetsBindingObserver {
       if (!_active) return;
       final service = api;
       final viewport = viewportKey.currentContext?.findRenderObject();
-      if (service is! RamoRideChatApi || viewport is! RenderBox || !viewport.hasSize) return;
+      if (service is! RamoRideChatApi ||
+          viewport is! RenderBox ||
+          !viewport.hasSize) {
+        return;
+      }
       final area = viewport.localToGlobal(Offset.zero) & viewport.size;
       final ids = <String>[];
       for (final entry in _keys.entries) {
-        if (_acknowledged.contains(entry.key) || _pending.contains(entry.key)) continue;
+        if (_acknowledged.contains(entry.key) || _pending.contains(entry.key)) {
+          continue;
+        }
         final box = entry.value.currentContext?.findRenderObject();
         if (box is! RenderBox || !box.attached || !box.hasSize) continue;
         final rect = box.localToGlobal(Offset.zero) & box.size;
@@ -144,13 +172,20 @@ class RamoChatReadController with WidgetsBindingObserver {
       }
       if (ids.isEmpty) return;
       _pending.addAll(ids);
-      unawaited(service.markRideMessagesRead(rideId, ids).then((_) {
-        _acknowledged.addAll(ids);
-      }).catchError((Object _) {
-        // Polling and scrolling retry a failed acknowledgement.
-      }).whenComplete(() => _pending.removeAll(ids)));
+      unawaited(
+        service
+            .markRideMessagesRead(rideId, ids)
+            .then((_) {
+              _acknowledged.addAll(ids);
+            })
+            .catchError((Object _) {
+              // Polling and scrolling retry a failed acknowledgement.
+            })
+            .whenComplete(() => _pending.removeAll(ids)),
+      );
     });
   }
+
   void dispose() {
     _disposed = true;
     scrollController.removeListener(checkVisible);

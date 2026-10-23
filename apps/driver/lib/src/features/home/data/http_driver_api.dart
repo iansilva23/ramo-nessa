@@ -11,16 +11,21 @@ import '../../benefits/domain/driver_benefits_models.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
 
-class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellationApi, DriverBenefitsApi {
+class HttpDriverApi
+    implements
+        RamoRideChatApi,
+        DriverApi,
+        DriverRideCancellationApi,
+        DriverBenefitsApi {
   HttpDriverApi({
     required Uri baseUrl,
     String? accessToken,
     String? driverId,
     http.Client? client,
-  })  : _baseUrl = baseUrl,
-        _accessToken = accessToken ?? '',
-        _driverId = driverId ?? DriverCoreConfig.devDriverId,
-        _client = client ?? http.Client();
+  }) : _baseUrl = baseUrl,
+       _accessToken = accessToken ?? '',
+       _driverId = driverId ?? DriverCoreConfig.devDriverId,
+       _client = client ?? http.Client();
 
   final Uri _baseUrl;
   final String _accessToken;
@@ -28,33 +33,33 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   final http.Client _client;
 
   Map<String, String> get _headers => {
-        'content-type': 'application/json',
-        if (_accessToken.trim().isNotEmpty)
-          'authorization': 'Bearer ${_accessToken.trim()}'
-        else if (_driverId.trim().isNotEmpty)
-          'x-dev-driver-id': _driverId.trim(),
-      };
+    'content-type': 'application/json',
+    if (_accessToken.trim().isNotEmpty)
+      'authorization': 'Bearer ${_accessToken.trim()}'
+    else if (_driverId.trim().isNotEmpty)
+      'x-dev-driver-id': _driverId.trim(),
+  };
 
   @override
   Future<DriverBenefitsSnapshot> benefits() async {
-    final response = await _client.get(
-      _baseUrl.resolve('/v1/driver/me/benefits'),
-      headers: _headers,
-    ).timeout(DriverCoreConfig.requestTimeout);
+    final response = await _client
+        .get(_baseUrl.resolve('/v1/driver/me/benefits'), headers: _headers)
+        .timeout(DriverCoreConfig.requestTimeout);
     try {
-      return DriverBenefitsSnapshot.fromJson(_expectObject(response, expectedStatus: 200));
+      return DriverBenefitsSnapshot.fromJson(
+        _expectObject(response, expectedStatus: 200),
+      );
     } on FormatException {
-      throw const DriverApiException('O servidor retornou um ranking inválido. Tente novamente.');
+      throw const DriverApiException(
+        'O servidor retornou um ranking inválido. Tente novamente.',
+      );
     }
   }
 
   @override
   Future<DriverSupplySnapshot> getSupply() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/supply'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/supply'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
     return DriverSupplySnapshot.fromJson(
       _expectObject(response, expectedStatus: 200),
@@ -88,10 +93,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverOffer?> currentOffer() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/offer'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/offer'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     final decoded = _expectObject(response, expectedStatus: 200);
@@ -103,10 +105,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<NearbyDriversSnapshot> nearbyDrivers() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/nearby'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/nearby'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return NearbyDriversSnapshot.fromJson(
@@ -117,10 +116,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverProfileSnapshot> profile() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/profile'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/profile'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverProfileSnapshot.fromJson(
@@ -131,10 +127,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverDocumentsSnapshot> documents() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/documents'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/documents'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverDocumentsSnapshot.fromJson(
@@ -170,10 +163,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverSecuritySnapshot> security() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/auth/session'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/auth/session'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverSecuritySnapshot.fromJson(
@@ -198,10 +188,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverSupportSnapshot> supportTickets() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/support'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/support'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverSupportSnapshot.fromJson(
@@ -265,9 +252,9 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
       query['to'] = to.toUtc().toIso8601String();
     }
 
-    final uri = _baseUrl.resolve('/v1/driver/me/activity').replace(
-      queryParameters: query,
-    );
+    final uri = _baseUrl
+        .resolve('/v1/driver/me/activity')
+        .replace(queryParameters: query);
     final response = await _client
         .get(uri, headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
@@ -280,10 +267,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<AcceptedDriverRide?> currentRide() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/ride'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/ride'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     final decoded = _expectObject(response, expectedStatus: 200);
@@ -302,9 +286,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
         .timeout(DriverCoreConfig.requestTimeout);
 
     final decoded = _expectObject(response, expectedStatus: 200);
-    return AcceptedDriverRide.fromJson(
-      decoded['ride'] as Map<String, dynamic>,
-    );
+    return AcceptedDriverRide.fromJson(decoded['ride'] as Map<String, dynamic>);
   }
 
   @override
@@ -320,10 +302,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
     return decoded['retryStatus'] as String;
   }
 
-  Future<AcceptedDriverRide> _rideAction(
-    String rideId,
-    String action,
-  ) async {
+  Future<AcceptedDriverRide> _rideAction(String rideId, String action) async {
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/driver/me/rides/$rideId/$action'),
@@ -332,9 +311,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
         .timeout(DriverCoreConfig.requestTimeout);
 
     final decoded = _expectObject(response, expectedStatus: 200);
-    return AcceptedDriverRide.fromJson(
-      decoded['ride'] as Map<String, dynamic>,
-    );
+    return AcceptedDriverRide.fromJson(decoded['ride'] as Map<String, dynamic>);
   }
 
   @override
@@ -383,25 +360,51 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
 
   @override
   Future<RamoRideChatStatus> rideChatStatus(String rideId) async {
-    final response = await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/messages/status'),
-      headers: _headers).timeout(DriverCoreConfig.requestTimeout);
-    if (response.statusCode != 200) throw Exception('Não foi possível atualizar as mensagens.');
-    return RamoRideChatStatus.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/messages/status'),
+          headers: _headers,
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível atualizar as mensagens.');
+    }
+    return RamoRideChatStatus.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   @override
-  Future<void> markRideMessagesRead(String rideId, List<String> messageIds) async {
-    final response = await _client.post(_baseUrl.resolve('/v1/driver/me/rides/$rideId/messages/read'),
-      headers: _headers, body: jsonEncode({'messageIds': messageIds})).timeout(DriverCoreConfig.requestTimeout);
-    if (response.statusCode != 200) throw Exception('Não foi possível registrar a leitura.');
+  Future<void> markRideMessagesRead(
+    String rideId,
+    List<String> messageIds,
+  ) async {
+    final response = await _client
+        .post(
+          _baseUrl.resolve('/v1/driver/me/rides/$rideId/messages/read'),
+          headers: _headers,
+          body: jsonEncode({'messageIds': messageIds}),
+        )
+        .timeout(DriverCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível registrar a leitura.');
+    }
   }
 
   @override
-  Future<List<Map<String, dynamic>>> rideChatPage(String rideId, {String? before}) async {
-    final uri = _baseUrl.resolve('/v1/driver/me/rides/$rideId/messages').replace(
-      queryParameters: before == null ? null : {'before': before});
-    final response = await _client.get(uri, headers: _headers).timeout(DriverCoreConfig.requestTimeout);
-    if (response.statusCode != 200) throw Exception('Não foi possível carregar as mensagens anteriores.');
+  Future<List<Map<String, dynamic>>> rideChatPage(
+    String rideId, {
+    String? before,
+  }) async {
+    final uri = _baseUrl
+        .resolve('/v1/driver/me/rides/$rideId/messages')
+        .replace(queryParameters: before == null ? null : {'before': before});
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(DriverCoreConfig.requestTimeout);
+    if (response.statusCode != 200) {
+      throw Exception('Não foi possível carregar as mensagens anteriores.');
+    }
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
     return (decoded['messages'] as List).cast<Map<String, dynamic>>();
   }
@@ -446,10 +449,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
   @override
   Future<DriverFinanceSummary> financeSummary() async {
     final response = await _client
-        .get(
-          _baseUrl.resolve('/v1/driver/me/finance'),
-          headers: _headers,
-        )
+        .get(_baseUrl.resolve('/v1/driver/me/finance'), headers: _headers)
         .timeout(DriverCoreConfig.requestTimeout);
 
     return DriverFinanceSummary.fromJson(
@@ -494,10 +494,7 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
         .put(
           _baseUrl.resolve('/v1/driver/me/payout-destination'),
           headers: _headers,
-          body: jsonEncode({
-            'pixKeyType': pixKeyType,
-            'pixKey': pixKey,
-          }),
+          body: jsonEncode({'pixKeyType': pixKeyType, 'pixKey': pixKey}),
         )
         .timeout(DriverCoreConfig.requestTimeout);
 
@@ -516,11 +513,13 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
     final response = await _client
         .post(
           _baseUrl.resolve('/v1/driver/me/payouts'),
-          headers: {
-            ..._headers,
-            'idempotency-key': idempotencyKey,
-          },
-          body: jsonEncode({'amountCents': amountCents, if (expectedFeeCents != null) 'expectedFeeCents': expectedFeeCents, if (expectedMinimumCents != null) 'expectedMinimumCents': expectedMinimumCents}),
+          headers: {..._headers, 'idempotency-key': idempotencyKey},
+          body: jsonEncode({
+            'amountCents': amountCents,
+            if (expectedFeeCents != null) 'expectedFeeCents': expectedFeeCents,
+            if (expectedMinimumCents != null)
+              'expectedMinimumCents': expectedMinimumCents,
+          }),
         )
         .timeout(DriverCoreConfig.requestTimeout);
 
@@ -544,10 +543,8 @@ class HttpDriverApi implements RamoRideChatApi, DriverApi, DriverRideCancellatio
       );
     }
 
-    if (
-      response.statusCode == expectedStatus &&
-      decoded is Map<String, dynamic>
-    ) {
+    if (response.statusCode == expectedStatus &&
+        decoded is Map<String, dynamic>) {
       return decoded;
     }
 
