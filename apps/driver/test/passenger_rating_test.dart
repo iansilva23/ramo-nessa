@@ -44,9 +44,24 @@ void main() {
     if (Platform.environment['RAMO_RATING_CAPTURE'] != 'true') return;
     final file = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
     if (file.existsSync()) {
-      final font = FontLoader('Roboto')
-        ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
-      await font.load();
+      for (final family in ['Roboto', 'Ahem', 'sans-serif']) {
+        final font = FontLoader(family)
+          ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+        await font.load();
+      }
+      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+      if (flutterRoot != null) {
+        final icons = File(
+          '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        );
+        if (icons.existsSync()) {
+          final font = FontLoader('MaterialIcons')
+            ..addFont(
+              Future.value(ByteData.sublistView(icons.readAsBytesSync())),
+            );
+          await font.load();
+        }
+      }
     }
   });
 
