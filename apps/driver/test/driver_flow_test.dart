@@ -35,7 +35,7 @@ void main() {
     }
     expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
     expect(find.textContaining('segundos restantes'), findsOneWidget);
-    expect(find.text('Cheguei'), findsNothing);
+    expect(find.text('Cheguei no embarque'), findsNothing);
     expect(find.text('Iniciar corrida'), findsNothing);
     expect(find.text('Navegar até o embarque'), findsNothing);
     expect(navigation.lastLatitude, isNull);
@@ -127,9 +127,24 @@ void main() {
     expect(find.text('EMBARQUE'), findsOneWidget);
     expect(find.text('DESTINO'), findsOneWidget);
 
+    // Presentation changes must not accept or reject an offer.
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('offer-mini-offer-1')), findsOneWidget);
+    expect(find.text('Aceitar corrida'), findsNothing);
+    expect(api.acceptedOfferId, isNull);
+    expect(api.rejectedOfferId, isNull);
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('offer-mini-offer-1')), findsNothing);
+    expect(find.text('Aceitar corrida'), findsOneWidget);
+
     await tester.ensureVisible(find.text('Aceitar corrida'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Aceitar corrida'));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
     await tester.pumpAndSettle();
 
     expect(
@@ -145,8 +160,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    expect(find.text('A caminho do embarque'), findsOneWidget);
-    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.text('Cheguei no embarque'), findsOneWidget);
     expect(find.text('Parar navegação'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Abrir no Google Maps'));
@@ -155,9 +170,9 @@ void main() {
     expect(navigation.lastLatitude, -2.82017);
     expect(navigation.lastLongitude, -40.41467);
 
-    await tester.ensureVisible(find.text('Cheguei'));
+    await tester.ensureVisible(find.text('Cheguei no embarque'));
     await tester.pump();
-    await tester.tap(find.text('Cheguei'));
+    await tester.tap(find.text('Cheguei no embarque'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Iniciar corrida'), findsOneWidget);
@@ -178,6 +193,16 @@ void main() {
     expect(navigation.lastLatitude, -2.7956);
     expect(navigation.lastLongitude, -40.5142);
 
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')), findsOneWidget);
+    expect(find.text('Finalizar corrida'), findsNothing);
+    expect(api.completedRideId, isNull);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide!.state, 'IN_PROGRESS');
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-IN_PROGRESS')), findsNothing);
+
     await tester.ensureVisible(find.text('Finalizar corrida'));
     await tester.pump();
     await tester.tap(find.text('Finalizar corrida'));
@@ -186,14 +211,47 @@ void main() {
 
     expect(find.textContaining('Saldo disponível: R\$ 110,00'), findsOneWidget);
     expect(api.completedRideId, 'ride-1');
+    expect(find.text('Corrida finalizada'), findsOneWidget);
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsOneWidget);
+    expect(find.text('Concluir e voltar para o mapa'), findsNothing);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).activeRide, isNull);
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsNothing);
+    final rating = tester.widget<OutlinedButton>(find.ancestor(
+      of: find.text('Avaliar passageiro'), matching: find.byType(OutlinedButton)));
+    expect(rating.onPressed, isNull, reason: 'não inventar integração de avaliação');
+    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Corrida finalizada'), findsNothing);
+    expect(api.completionCalls, 1, reason: 'fechar resumo não repete liquidação');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
 
-  testWidgets('fluxo oferta → aceite → embarque → viagem cabe em celular 320px',
+  testWidgets('Atividade preserva cartão existente sem controles exclusivos do mapa', (tester) async {
+    final api = _FakeDriverApi(initialOnline: true, initialBusy: true);
+    await tester.pumpWidget(RamoNessaDriverApp(
+      api: api, locationService: const _FakeLocationService()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Atividade'));
+    await tester.pumpAndSettle();
+    expect(find.text('Corrida atual'), findsOneWidget);
+    expect(find.byKey(const ValueKey('ride-drag-handle')), findsNothing);
+    expect(tester.takeException(), isNull);
+    expect(api.completedRideId, isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  for (final viewport in const [
+    Size(320, 568), Size(320, 640), Size(375, 667), Size(390, 844), Size(430, 932),
+  ]) {
+  testWidgets('fluxo completo cabe em ${viewport.width} x ${viewport.height}',
       (tester) async {
-    tester.view.physicalSize = const Size(320, 640);
+    tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -219,13 +277,15 @@ void main() {
     await tester.tap(find.text('Aceitar corrida'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
     expect(find.byTooltip('Expandir corrida'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'aceite e mini-barra 320 px');
 
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
-    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Cheguei no embarque'), findsOneWidget);
     final coletaError = tester.takeException();
     if (coletaError != null) {
       final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
@@ -239,8 +299,8 @@ void main() {
     }
     expect(coletaError, isNull, reason: 'coleta 320 px');
 
-    await tester.ensureVisible(find.text('Cheguei'));
-    await tester.tap(find.text('Cheguei'));
+    await tester.ensureVisible(find.text('Cheguei no embarque'));
+    await tester.tap(find.text('Cheguei no embarque'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('Iniciar corrida'), findsOneWidget);
@@ -253,9 +313,27 @@ void main() {
     expect(find.text('Finalizar corrida'), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'viagem 320 px');
 
+    expect(find.text('Finalizar corrida').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Finalizar corrida'));
+    await tester.pumpAndSettle();
+    expect(find.text('Corrida finalizada'), findsOneWidget);
+    expect(find.text('Concluir e voltar para o mapa').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
+    await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ride-mini-ride-1-COMPLETED')), findsOneWidget);
+    expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
+    await tester.tap(find.byTooltip('Expandir corrida'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.pumpAndSettle();
+    expect(api.completionCalls, 1);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
   });
+
+  }
 
   testWidgets(
     'cadastro aprovado sem supply inicializa offline usando GPS real',
@@ -347,8 +425,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(api.currentRideCalls, 1);
-    expect(find.text('A caminho do embarque'), findsOneWidget);
-    expect(find.text('Cheguei'), findsOneWidget);
+    expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.text('Cheguei no embarque'), findsOneWidget);
     expect(find.text('NOVA CORRIDA'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -755,6 +833,7 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi {
   String? acceptedOfferId;
   String? rejectedOfferId;
   String? completedRideId;
+  int completionCalls = 0;
   DriverPosition? lastSyncedPosition;
   AcceptedDriverRide? _currentRide;
   int currentRideCalls = 0;
@@ -1052,6 +1131,7 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi {
 
   @override
   Future<DriverRideCompletion> completeRide(String rideId) async {
+    completionCalls++;
     completedRideId = rideId;
     final ride = _currentRide!;
     final completed = AcceptedDriverRide(
