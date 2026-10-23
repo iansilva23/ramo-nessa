@@ -102,7 +102,7 @@ void main() {
     if (!kIsWeb) return;
     final previousErrorHandler = FlutterError.onError;
     FlutterError.onError = (details) {
-      print('PIN_GESTURE_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
+      debugPrint('PIN_GESTURE_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
       previousErrorHandler?.call(details);
     };
     addTearDown(() => FlutterError.onError = previousErrorHandler);
@@ -134,7 +134,7 @@ void main() {
     FlutterError.onError = (details) {
       // Provider-free diagnostic: expose framework errors hidden by Chrome's
       // test console while preserving the test binding's failure handler.
-      print('PIN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      debugPrint('PIN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
       originalErrorHandler?.call(details);
     };
     addTearDown(() => FlutterError.onError = originalErrorHandler);
@@ -151,11 +151,11 @@ void main() {
         searchService: NoSearch(), initialPosition: const LatLng(-2.82017, -40.41467),
       )));
       await tester.pumpAndSettle();
-      print('PIN_MOUNT: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
+      debugPrint('PIN_MOUNT: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
       expect(sdk.created.length, i + 1);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      print('PIN_DISPOSE: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
+      debugPrint('PIN_DISPOSE: cycle=$i created=${sdk.created} disposals=${sdk.disposals}');
       expect(sdk.disposals.length, i + 1);
       expect(sdk.disposals.values, everyElement(1));
       expect(tester.takeException(), isNull);

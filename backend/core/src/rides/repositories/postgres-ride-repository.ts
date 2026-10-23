@@ -30,6 +30,7 @@ interface RideRow {
   driver_consent_required: boolean;
   reserved_driver_id: string | null;
   driver_hold_expires_at: Date | null;
+  payment_expires_at: Date | null;
   driver_search_max_distance_km: string | null;
   pickup_instructions: string | null;
   dropoff_instructions: string | null;
@@ -79,6 +80,7 @@ function mapRow(row: RideRow): RideRecord {
     ...(row.driver_hold_expires_at != null
       ? { driverHoldExpiresAt: row.driver_hold_expires_at.toISOString() }
       : {}),
+    ...(row.payment_expires_at == null ? {} : { paymentExpiresAt: row.payment_expires_at.toISOString() }),
     ...(row.pickup_instructions == null ? {} : { pickupInstructions: row.pickup_instructions }),
     ...(row.dropoff_instructions == null ? {} : { dropoffInstructions: row.dropoff_instructions }),
     ...(row.pickup_latitude != null
@@ -144,7 +146,7 @@ function mapRow(row: RideRow): RideRecord {
 
 const RETURNING = `
   id, passenger_id, state, payment_status, payment_method, driver_id,
-  driver_consent_required, reserved_driver_id, driver_hold_expires_at, driver_search_max_distance_km,
+  driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
   dropoff_latitude, dropoff_longitude,
@@ -182,10 +184,10 @@ export class PostgresRideRepository implements RideRepository {
         pricing_catalog_version_id, pricing_catalog_version_number,
         base_amount_cents, pickup_compensation_cents,
         total_amount_cents, platform_commission_cents, driver_net_cents,
-        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions
+        promotion_snapshot, created_at, updated_at, driver_consent_required, pickup_instructions, dropoff_instructions, payment_expires_at
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38
+        $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
       )
       RETURNING ${RETURNING}
       `,
@@ -228,6 +230,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.driverConsentRequired ?? false,
         ride.pickupInstructions ?? null,
         ride.dropoffInstructions ?? null,
+        ride.paymentExpiresAt ?? null,
       ],
     );
 
@@ -697,7 +700,8 @@ export class PostgresRideRepository implements RideRepository {
         platform_commission_cents = $17,
         driver_net_cents = $18,
         promotion_snapshot = $19,
-        updated_at = $20
+        updated_at = $20,
+        payment_expires_at = $21
       WHERE id = $1
       RETURNING ${RETURNING}
       `,
@@ -722,6 +726,7 @@ export class PostgresRideRepository implements RideRepository {
         ride.quote.driverNetCents,
         ride.promotion ?? null,
         ride.updatedAt,
+        ride.paymentExpiresAt ?? null,
       ],
     );
 

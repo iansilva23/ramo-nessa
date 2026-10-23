@@ -49,7 +49,7 @@ void main() {
         final stage = destinationSelected ? 'selected' : 'empty';
         final imageName = width == 390
             ? 'v5-floating-$appearance-$stage.png'
-            : 'v5-floating-${width}-$appearance-$stage.png';
+            : 'v5-floating-$width-$appearance-$stage.png';
         testWidgets('review floating route ${width}px $appearance/$stage', (tester) async {
           tester.view.physicalSize = Size(width.toDouble(), width == 320 ? 640 : 844);
         tester.view.devicePixelRatio = 1;

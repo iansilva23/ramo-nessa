@@ -149,7 +149,7 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
       if (!mounted) return;
       if (_expired) {
         setState(
-          () => _error = 'A reserva expirou. Volte e solicite novamente.',
+          () => _error = 'O prazo de pagamento expirou. Volte e solicite novamente.',
         );
         return;
       }
@@ -280,8 +280,8 @@ class _CardCheckoutScreenState extends State<CardCheckoutScreen> {
               const SizedBox(height: 8),
               Text(
                 _expired
-                    ? 'Reserva expirada. Volte para procurar novamente.'
-                    : 'Motorista reservado por ${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')}',
+                    ? 'Prazo de pagamento encerrado. Solicite novamente.'
+                    : 'Tempo para pagar: ${remaining ~/ 60}:${(remaining % 60).toString().padLeft(2, '0')}',
               ),
               const SizedBox(height: 20),
               TextFormField(

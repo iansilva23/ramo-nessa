@@ -57,7 +57,7 @@ test('payment confirmation starts normal search and sends first offer without pr
 
 test('abandoned payment expires without requesting acceptance or accepting a late charge', async () => {
   const { ride, matching, now } = await setup();
-  const later = new Date(now.getTime() + 91_000);
+  const later = new Date(now.getTime() + 600_000);
   await assert.rejects(createPaymentForRide(new InMemoryFinanceRepository(), { ride, method: 'pix',
     processor: 'test', idempotencyKey: 'abandoned-payment', now: later }), { code: 'DRIVER_HOLD_EXPIRED' });
   assert.equal((await matching.listOffersForRide(ride.id)).length, 0);

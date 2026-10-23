@@ -72,7 +72,7 @@ Future<void> pick(WidgetTester tester, RamoPlace place, {bool origin = false}) a
   if (kIsWeb) {
     final previous = FlutterError.onError;
     FlutterError.onError = (details) {
-      print('WEB_PICK_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
+      debugPrint('WEB_PICK_FRAMEWORK_ERROR: ${details.exceptionAsString()}\n${details.stack}');
       previous?.call(details);
     };
     addTearDown(() => FlutterError.onError = previous);
@@ -112,7 +112,7 @@ void main() {
     if (!kIsWeb) return;
     final previous = FlutterError.onError;
     FlutterError.onError = (details) {
-      print('WEB_SELECTION_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      debugPrint('WEB_SELECTION_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
       previous?.call(details);
     };
     addTearDown(() => FlutterError.onError = previous);
@@ -121,7 +121,7 @@ void main() {
     if (!kIsWeb) return;
     final previousErrorHandler = FlutterError.onError;
     FlutterError.onError = (details) {
-      print('WEB_RETURN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
+      debugPrint('WEB_RETURN_FRAMEWORK_ERROR: ${details.exceptionAsString()}');
       previousErrorHandler?.call(details);
     };
     addTearDown(() => FlutterError.onError = previousErrorHandler);

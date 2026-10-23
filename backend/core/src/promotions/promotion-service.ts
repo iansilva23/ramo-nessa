@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
-  isDriverPaymentHoldExpired,
+  isRidePaymentWindowExpired,
+  ridePaymentExpiresAt,
   isRidePreparedForPayment,
   type RideQuoteSnapshot,
   type RideRecord,
@@ -569,9 +570,9 @@ export async function applyPromotionToRide(input: {
     discountCents: values.discountCents,
     passengerPayableCents: values.passengerPayableCents,
     driverEarningsCents: values.driverEarningsCents,
-    ...(ride.driverHoldExpiresAt == null
+    ...(ridePaymentExpiresAt(ride) == null
       ? {}
-      : { expiresAt: ride.driverHoldExpiresAt }),
+      : { expiresAt: ridePaymentExpiresAt(ride)! }),
     createdAt: instant,
     updatedAt: instant,
   };
@@ -887,10 +888,10 @@ export async function createFullyPromotionalPayment(input: {
       'A corrida não está pronta para confirmar o benefício promocional.',
     );
   }
-  if (isDriverPaymentHoldExpired(input.ride, now)) {
+  if (isRidePaymentWindowExpired(input.ride, now)) {
     throw new PromotionError(
       'PROMOTION_RIDE_STATE_INVALID',
-      'A reserva do motorista expirou. Prepare a corrida novamente.',
+      'O prazo de pagamento expirou. Solicite a corrida novamente.',
     );
   }
 

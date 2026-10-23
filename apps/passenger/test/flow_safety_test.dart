@@ -411,7 +411,7 @@ void main() {
     );
   });
 
-  testWidgets('Pix desativa QR quando a reserva expira', (tester) async {
+  testWidgets('Pix desativa QR quando o prazo de pagamento expira', (tester) async {
     final ride = PreparedRide(
       id: 'ride-pix-expiry-ui',
       state: 'AWAITING_PAYMENT',
@@ -439,7 +439,7 @@ void main() {
 
     expect(find.text('Copiar código Pix'), findsOneWidget);
     expect(
-      find.textContaining('Reserva do motorista:'),
+      find.textContaining('Tempo para pagar:'),
       findsOneWidget,
     );
 
@@ -450,7 +450,7 @@ void main() {
 
     expect(find.text('Copiar código Pix'), findsNothing);
     expect(
-      find.text('Reserva expirada · não faça mais este Pix'),
+      find.text('Prazo encerrado · não faça mais este Pix'),
       findsOneWidget,
     );
 

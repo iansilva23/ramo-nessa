@@ -254,7 +254,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
             latestEpoch: _routeEpoch,
             requestedStage: requestedStage,
             latestStage: _routeStage(latest),
-          )) return;
+          )) {
+        return;
+      }
       setState(() => _route = route);
       _fitTrackingRouteIfNeeded();
     } catch (_) {
@@ -284,7 +286,9 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
           !TrackingMapTransitionPolicy.isExpectedRide(
             expectedRideId: widget.rideId,
             receivedRideId: snapshot.rideId,
-          )) return;
+          )) {
+        return;
+      }
       _applySnapshot(snapshot);
     } on PassengerRideTrackingException catch (error) {
       if (!mounted || revisionAtRequest != _snapshotRevision) return;

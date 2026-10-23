@@ -1,5 +1,5 @@
 import type { AuthIdentityRecord } from '../auth/auth-otp-repository.js';
-import { isDriverPaymentHoldExpired, type RideRecord } from '../rides/ride.js';
+import { isRidePaymentWindowExpired, type RideRecord } from '../rides/ride.js';
 import { createPaymentForRide } from './create-payment.js';
 import type { FinanceRepository } from './finance-repository.js';
 import {
@@ -45,7 +45,7 @@ export function shouldRefundMercadoPagoPaymentBeforeDispatch(
 ): boolean {
   return (
     ride.state === 'AWAITING_PAYMENT' &&
-    isDriverPaymentHoldExpired(ride, now)
+    isRidePaymentWindowExpired(ride, now)
   );
 }
 

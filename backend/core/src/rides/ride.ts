@@ -31,6 +31,8 @@ export interface RideRecord {
   driverConsentRequired?: boolean;
   reservedDriverId?: string;
   driverHoldExpiresAt?: string;
+  /** Payment deadline is independent of the short, exclusive driver hold. */
+  paymentExpiresAt?: string;
   driverSearchMaxDistanceKm?: number;
   pickupInstructions?: string | undefined;
   dropoffInstructions?: string | undefined;
@@ -79,6 +81,20 @@ export function isDriverPaymentHoldExpired(
 
   const expiresAt = Date.parse(ride.driverHoldExpiresAt!);
   return Number.isNaN(expiresAt) || expiresAt <= now.getTime();
+}
+
+export function ridePaymentExpiresAt(ride: RideRecord): string | undefined {
+  // Old consent-first rides retain their original hold and deadline semantics.
+  return ride.driverConsentRequired ? ride.driverHoldExpiresAt
+    : ride.paymentExpiresAt ?? ride.driverHoldExpiresAt;
+}
+
+export function isRidePaymentWindowExpired(ride: RideRecord, now: Date): boolean {
+  if (ride.driverConsentRequired || ride.paymentExpiresAt == null) {
+    return isDriverPaymentHoldExpired(ride, now);
+  }
+  const expiresAt = Date.parse(ride.paymentExpiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now.getTime();
 }
 
 export function snapshotExactFare(

@@ -1026,8 +1026,10 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                     Expanded(
                       child: Text(
                         expired
-                            ? 'A reserva expirou. Volte e atualize a corrida.'
-                            : 'Preço e motorista reservados por $_countdown.',
+                            ? 'O prazo de pagamento expirou. Solicite novamente.'
+                            : _ride.driverConsentRequired
+                                ? 'Preço e motorista reservados por $_countdown.'
+                                : 'Conclua o pagamento em $_countdown. A corrida será enviada após a confirmação.',
                       ),
                     ),
                   ],
@@ -1455,7 +1457,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
         if (mounted) {
           setState(() {
             _statusMessage = _reservationExpired
-                ? 'A reserva expirou. Não faça mais este Pix. '
+                ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
                       'Se você já pagou, vamos confirmar ou estornar '
                       'automaticamente.'
                 : 'Aguardando confirmação do Pix…';
@@ -1479,7 +1481,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       if (dispatchStatus != 'NO_DRIVER_FOUND') {
         setState(() {
           _verified = true;
-          _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.';
+          _statusMessage = 'Pagamento confirmado. Vamos confirmar o motorista.';
         });
         if (!MediaQuery.disableAnimationsOf(context)) {
           await Future<void>.delayed(const Duration(milliseconds: 420));
@@ -1505,7 +1507,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       if (!mounted) return;
       setState(() {
         _statusMessage = _reservationExpired
-            ? 'A reserva expirou. Não faça mais este Pix. '
+            ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
                   'Se você já pagou, o status será atualizado automaticamente.'
             : 'Pix gerado. Estamos aguardando a confirmação do pagamento.';
       });
@@ -1513,7 +1515,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       if (!mounted) return;
       setState(() {
         _statusMessage = _reservationExpired
-            ? 'A reserva expirou. Não faça mais este Pix. '
+            ? 'O prazo de pagamento expirou. Não faça mais este Pix. '
                   'Se você já pagou, o status será atualizado automaticamente.'
             : 'Pix gerado. A confirmação será atualizada automaticamente.';
       });
@@ -1552,8 +1554,10 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
             const SizedBox(height: RamoSpacing.md),
             Text(
               reservationExpired
-                  ? 'Reserva expirada · não faça mais este Pix'
-                  : 'Reserva do motorista: $_reservationCountdown',
+                  ? 'Prazo encerrado · não faça mais este Pix'
+                  : widget.driverReserved
+                      ? 'Reserva do motorista: $_reservationCountdown'
+                      : 'Tempo para pagar: $_reservationCountdown',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
@@ -1796,7 +1800,7 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
       if (dispatchStatus != 'NO_DRIVER_FOUND') {
         setState(() {
           _verified = true;
-          _statusMessage = 'Pagamento confirmado. Seu motorista será liberado.';
+          _statusMessage = 'Pagamento confirmado. Vamos confirmar o motorista.';
         });
         if (!MediaQuery.disableAnimationsOf(context)) {
           await Future<void>.delayed(const Duration(milliseconds: 420));

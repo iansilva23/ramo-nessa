@@ -61,11 +61,14 @@ class PreparedRide {
       throw const FormatException('Preço preparado inválido.');
     }
 
-    final hold =
-        (json['holdExpiresAt'] ?? ride['driverHoldExpiresAt']) as String?;
+    final consentRequired = ride['driverConsentRequired'] == true;
+    final hold = (consentRequired
+        ? json['holdExpiresAt'] ?? ride['driverHoldExpiresAt']
+        : json['paymentExpiresAt'] ?? ride['paymentExpiresAt'] ??
+            json['holdExpiresAt'] ?? ride['driverHoldExpiresAt']) as String?;
 
     if (hold == null || hold.isEmpty) {
-      throw const FormatException('Reserva do motorista sem validade.');
+      throw const FormatException('Prazo de pagamento inválido.');
     }
 
     final rawPromotion = ride['promotion'];
@@ -82,7 +85,7 @@ class PreparedRide {
       totalAmountCents: (quote['totalAmountCents'] as num).toInt(),
       holdExpiresAt: DateTime.parse(hold),
       promotion: promotion,
-      driverConsentRequired: ride['driverConsentRequired'] == true,
+      driverConsentRequired: consentRequired,
       promotionMessage: json['promotionMessage'] as String?,
     );
   }
@@ -92,6 +95,7 @@ class PreparedRide {
   final int baseAmountCents;
   final int pickupCompensationCents;
   final int totalAmountCents;
+  /// Checkout deadline; a short driver hold may expire before this instant.
   final DateTime holdExpiresAt;
   final PreparedRidePromotion? promotion;
   final bool driverConsentRequired;
