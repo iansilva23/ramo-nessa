@@ -1,0 +1,51 @@
+name: ADM organization and preserved workflows
+on:
+  push:
+    branches: [feature/admin-organization-20261023]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: admin-organization-review
+  cancel-in-progress: true
+jobs:
+  admin:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve applications, backend and the approved pricing workspace
+        run: |
+          git diff --exit-code 41425345fbd91f586e5ebd34a9492e9da834413a HEAD -- backend apps/driver apps/passenger packages config deploy apps/admin/pages/regions-pricing.html apps/admin/src/regions-pricing-admin.js apps/admin/src/api.js apps/admin/styles.css apps/admin/guide.css
+      - name: ADM checks and regressions
+        run: |
+          npm run check --prefix apps/admin
+          node --check apps/admin/src/admin-workspace.js
+          npm test --prefix apps/admin
+      - name: Dependencies for existing authenticated controller tests
+        run: npm ci --prefix backend/core --no-audit --no-fund
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+          ln -s "$PWD/scripts/web/browser-tests/node_modules" node_modules
+      - name: Every page, control preservation, responsive layout and keyboard
+        run: node apps/admin/test/browser/admin-workspace-flow.mjs
+      - name: Existing authenticated Guide workflows and full shell login, MFA and logout
+        run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/local-guide-flow.mjs
+      - name: Approved pricing workflow regression
+        run: node --import ./backend/core/node_modules/tsx/dist/loader.mjs apps/admin/test/browser/regions-pricing-flow.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-organization-review
+          path: |
+            apps/admin/workspace-browser-artifacts/
+            apps/admin/guide-browser-artifacts/
+            apps/admin/regions-browser-artifacts/
