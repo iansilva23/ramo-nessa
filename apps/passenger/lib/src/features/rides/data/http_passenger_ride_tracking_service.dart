@@ -40,7 +40,16 @@ class HttpPassengerRideTrackingService
     throw PassengerRideTrackingException(apiErrorMessage(decoded,'Reconectando à sua corrida. Tente novamente.'));
   }
   @override
-  Future<Map<String,dynamic>> resumeRide({String? lastRideId})=>_getRecovery(_baseUrl.resolve('/v1/passenger/me/ride').replace(queryParameters:lastRideId==null?null:{'lastRideId':lastRideId}));
+  Future<Map<String,dynamic>> resumeRide({String? lastRideId}) async {
+    final data=await _getRecovery(_baseUrl.resolve('/v1/passenger/me/ride').replace(queryParameters:lastRideId==null?null:{'lastRideId':lastRideId}));
+    final ride=data['ride'];
+    // Only an explicit null from the server means there is no ride to recover.
+    if(!data.containsKey('ride') || (ride!=null &&
+        (ride is! Map<String,dynamic> || ride['id'] is! String || ride['state'] is! String))){
+      throw const PassengerRideTrackingException('Não conseguimos recuperar sua corrida. Tente novamente.');
+    }
+    return data;
+  }
   @override
   Future<Map<String,dynamic>> boardingStatus(String rideId)=>_getRecovery(_baseUrl.resolve('/v1/rides/$rideId/boarding'));
 

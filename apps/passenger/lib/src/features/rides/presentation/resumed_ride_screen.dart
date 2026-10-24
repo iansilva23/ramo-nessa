@@ -14,7 +14,12 @@ class ResumedRideScreen extends StatelessWidget {
  const ResumedRideScreen({super.key,required this.data,required this.onClose,required this.tracking,required this.payments,this.realtime,this.routes,this.networkTilesEnabled=true});
  final Map<String,dynamic> data;final VoidCallback onClose;final PassengerRideTrackingService tracking;
  final PassengerPaymentService? payments;final PassengerRideRealtimeService? realtime;final RouteService? routes;final bool networkTilesEnabled;
- @override Widget build(BuildContext context)=>Navigator(onGenerateRoute:(_)=>MaterialPageRoute<void>(builder:_buildRide));
+ @override Widget build(BuildContext context){
+  final ride=data['ride'] as Map<String,dynamic>,payment=data['payment'] as Map<String,dynamic>?;
+  // Recreate the restored route when a foreground check finds a different stage.
+  return Navigator(key:ValueKey(Object.hash(ride['id'],ride['state'],payment?['id'],payment?['status'],data['pix']!=null)),
+   onGenerateRoute:(_)=>MaterialPageRoute<void>(builder:_buildRide));
+ }
  Widget _buildRide(BuildContext context){
   final ride=data['ride'] as Map<String,dynamic>,payment=data['payment'] as Map<String,dynamic>?;
   final awaiting=const {'CREATED','AWAITING_PAYMENT','PAYMENT_FAILED'}.contains(ride['state']);

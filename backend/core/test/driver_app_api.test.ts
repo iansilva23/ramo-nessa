@@ -21,6 +21,7 @@ import { createDriverOffer } from '../src/matching/offer-service.js';
 import type { RankedDriver } from '../src/matching/select-driver.js';
 import { InMemoryRideRepository } from '../src/rides/repositories/in-memory-ride-repository.js';
 import type { RideRecord } from '../src/rides/ride.js';
+import { driverOperationalEligibility } from '../src/drivers/driver-operational-eligibility.js';
 
 const now = new Date('2026-09-23T17:00:00.000Z');
 
@@ -390,7 +391,7 @@ test('recusa limpa hold e envia corrida ao próximo motorista', async () => {
 });
 
 
-test('corrida ativa sobrevive a reabertura e completa liquidação uma única vez', async () => {
+test('corrida ativa sobrevive a reabertura e ao vencimento documental, liquidando uma única vez', async () => {
   const ctx = await setup();
   const finance = new InMemoryFinanceRepository();
 
@@ -450,6 +451,11 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
   });
   assert.equal(started.ride.state, 'IN_PROGRESS');
 
+  await approveRequiredDocuments(ctx.documents,'driver-one','2026-09-23');
+  const afterExpiry=new Date('2026-09-24T03:01:00.000Z');
+  assert.equal((await driverOperationalEligibility({registry:ctx.registry,documents:ctx.documents,driverId:'driver-one',enforceDocuments:false,now:afterExpiry})).eligible,false);
+  assert.equal((await currentDriverRide({rides:ctx.rides,drivers:ctx.drivers,driverId:'driver-one'}))?.state,'IN_PROGRESS');
+
   const completed = await performDriverRideAction({
     rides: ctx.rides,
     drivers: ctx.drivers,
@@ -457,7 +463,7 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
     driverId: 'driver-one',
     rideId: ctx.currentRide.id,
     action: 'complete',
-    now: new Date('2026-09-23T17:30:00.000Z'),
+    now: afterExpiry,
   });
   assert.equal(completed.ride.state, 'COMPLETED');
   assert.equal(completed.settlement?.duplicate, false);
@@ -474,7 +480,7 @@ test('corrida ativa sobrevive a reabertura e completa liquidação uma única ve
     driverId: 'driver-one',
     rideId: ctx.currentRide.id,
     action: 'complete',
-    now: new Date('2026-09-23T17:30:05.000Z'),
+    now: new Date('2026-09-24T03:01:05.000Z'),
   });
   assert.equal(repeated.settlement?.duplicate, true);
   assert.equal(repeated.settlement?.driverBalanceCents, 11000);

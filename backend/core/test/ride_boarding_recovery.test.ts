@@ -9,6 +9,7 @@ import {InMemoryRideRepository} from '../src/rides/repositories/in-memory-ride-r
 import {InMemoryFinanceRepository} from '../src/payments/repositories/in-memory-finance-repository.js';
 import {createRide} from '../src/rides/create-ride.js';
 import {boardingRoutes} from '../src/rides/boarding-routes.js';
+import {DocumentExpiryNotifier} from '../src/drivers/document-expiry.js';
 const actor={kind:'user' as const,id:'owner',name:'Responsável'};
 const categories=Object.fromEntries(BOARDING_CATEGORIES.map(k=>[k,true]));
 test('boarding policy requires an explicit switch and exactly the supported categories',()=>{
@@ -34,6 +35,16 @@ test('boarding endpoints authenticate role and ownership before returning a stat
   passenger:async()=>{throw Error('unauthenticated');},driver:async()=>'',authorize:async()=>actor,body:async()=>({}),json:(s:number,b:unknown)=>{status=s;body=b;}};
  await assert.rejects(()=>boardingRoutes(input),/unauthenticated/);
  await boardingRoutes({...input,passenger:async()=>'other'});assert.equal(status,404);assert.equal(body.error,'RIDE_NOT_FOUND');
+});
+test('reopening repeatedly preserves the same pending payment without creating another intent',async()=>{
+ const rides=new InMemoryRideRepository(),finance=new InMemoryFinanceRepository();
+ const ride=await createRide(rides,{passengerId:'payment-recovery',quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day',passengers:1}});
+ await rides.save({...ride,state:'AWAITING_PAYMENT'});
+ const payment=await finance.createPayment({id:randomUUID(),rideId:ride.id,method:'pix',processor:'mercado-pago-orders',status:'pending',amountCents:ride.quote.totalAmountCents,idempotencyKey:'recovery-existing-payment',createdAt:ride.createdAt,updatedAt:ride.updatedAt});
+ finance.createPayment=async()=>{throw new Error('Recovery must never create a payment');};
+ const results=await Promise.all(Array.from({length:5},()=>resumePassengerRide({rides,finance,boarding:null,passengerId:ride.passengerId})));
+ for(const result of results){assert.equal(result.payment?.id,payment.id);assert.equal(result.payment?.status,'pending');assert.equal(result.ride?.id,ride.id);}
+ assert.equal((await finance.findLatestPaymentByRideId(ride.id))?.id,payment.id);
 });
 test('PostgreSQL boarding defaults off, survives restart, enforces 5 attempts atomically, and audits support',{skip:process.env.RAMO_BOARDING_POSTGRES!=='true',timeout:60000},async()=>{
  const root=createPostgresPool(process.env.DATABASE_URL!),schema='boarding_'+randomUUID().replaceAll('-','');
@@ -68,5 +79,17 @@ test('PostgreSQL boarding defaults off, survives restart, enforces 5 attempts at
   const paymentId=randomUUID();await pool.query('INSERT INTO payments(id) VALUES($1)',[paymentId]);await store.saveCheckout(success,paymentId,{pix:{qrCode:'synthetic-code'}});
   assert.equal((await new PostgresBoardingStore(pool).checkout(success,paymentId)).pix.qrCode,'synthetic-code');
   assert.equal(await store.checkout(success,randomUUID()),null);
+  // A successful delivery is persisted once across concurrent workers and restarts.
+  const documentId=randomUUID();
+  await pool.query("INSERT INTO driver_documents(id,driver_id,document_type,is_current,status,expires_on) VALUES($1,'driver-expiry','driver_license',true,'approved','2026-10-25')",[documentId]);
+  const messages:string[]=[];
+  const notify=async(driverId:string,message:string)=>{assert.equal(driverId,'driver-expiry');messages.push(message);return true;};
+  await Promise.all(Array.from({length:3},()=>new DocumentExpiryNotifier(pool).run(notify,new Date('2026-10-24T12:00:00Z'))));
+  assert.equal(messages.length,1);assert.match(messages[0]!,/25\/10\/2026/);
+  await new DocumentExpiryNotifier(pool).run(notify,new Date('2026-10-26T02:59:00Z'));assert.equal(messages.length,1);
+  let attempts=0;
+  await new DocumentExpiryNotifier(pool).run(async()=>{attempts++;return false;},new Date('2026-10-26T03:00:00Z'));assert.equal(attempts,1);
+  await new DocumentExpiryNotifier(pool).run(notify,new Date('2026-10-26T03:00:00Z'));assert.equal(messages.length,2);assert.match(messages[1]!,/venceu/);
+  await new DocumentExpiryNotifier(pool).run(notify,new Date('2026-10-27T12:00:00Z'));assert.equal(messages.length,2);
  }finally{await pool.end();await root.query('DROP SCHEMA IF EXISTS '+schema+' CASCADE');await root.end();}
 });
