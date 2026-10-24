@@ -17,13 +17,25 @@ test('Postgres: frozen terms, deadline, retry, preserved driver credit and exact
  const oldPolicy=await store.policy();
  try{
   const rules=defaultCancellationPolicy();rules.car={enabled:true,freeSeconds:40,feeCents:500};
+  assert.equal(oldPolicy.systemEnabled,false);
   await store.savePolicy(rules,oldPolicy.revision,'test-admin');
   await drivers.upsert({driverId,vehicleId:'vehicle-'+driverId,categories:['car'],fourByFour:false,seatCapacity:4,online:true,busy:true,latitude:-2.82,longitude:-40.41,locationUpdatedAt:accepted,updatedAt:accepted});
   await rides.create({id:rideId,passengerId,driverId,state:'DRIVER_ASSIGNED',paymentStatus:'paid',paymentMethod:'pix',origin:{zoneId:'prea'},destination:{zoneId:'jijoca'},category:'car',period:'day',passengers:1,
    quote:{ruleId:'manual-test',baseAmountCents:10000,pickupCompensationCents:0,totalAmountCents:10000,platformCommissionCents:1000,driverNetCents:9000},createdAt:accepted,updatedAt:accepted});
   await pool.query("INSERT INTO ride_offers(id,ride_id,driver_id,status,approximate_pickup_distance_km,expires_at,created_at,updated_at) VALUES($1,$2,$3,'OFFERED',1,$4,$4,$4)",[offerId,rideId,driverId,accepted]);
   await pool.query("UPDATE ride_offers SET status='ACCEPTED' WHERE id=$1",[offerId]);
+  assert.equal((await store.terms(rideId,new Date(accepted))).cancelUntil,null);
+  const disabled={rideId,passengerId,actor:passengerId,passenger:true,reason:'Teste',now:new Date(accepted)};
+  await assert.rejects(store.cancel(disabled),e=>e instanceof Error&&e.message.includes('desativado'));
+  await assert.rejects(store.cancel({...disabled,passenger:false}),e=>e instanceof Error&&e.message.includes('desativado'));
+  assert.equal(await finance.getAccountBalanceCents('driver:'+driverId+':payable'),0);
+  assert.equal(await store.find(rideId),null);
+  const prepared=await store.policy();
+  await store.savePolicy(prepared.rules,prepared.revision,'test-admin',true);
   assert.equal((await store.terms(rideId,new Date(accepted))).cancelUntil,'2026-10-24T01:00:40.000Z');
+  const on=await store.policy();await store.savePolicy(on.rules,on.revision,'test-admin',false);
+  await assert.rejects(store.cancel(disabled),/desativado/);
+  const off=await store.policy();await store.savePolicy(off.rules,off.revision,'test-admin',true);
   const next=await store.policy();next.rules.car.feeCents=1500;await store.savePolicy(next.rules,next.revision,'test-admin');
   assert.equal((await store.terms(rideId)).rule.feeCents,500);
   await finance.createPayment({id:paymentId,rideId,method:'pix',processor:'fixture',status:'pending',amountCents:10000,idempotencyKey:randomUUID(),createdAt:accepted,updatedAt:accepted});
@@ -52,7 +64,7 @@ test('Postgres: frozen terms, deadline, retry, preserved driver credit and exact
   assert.equal((await finance.listLedgerTransactionsForAccounts(['ride:'+rideId+':escrow'],100)).filter(t=>t.kind==='MANUAL_PASSENGER_REFUND').length,1);
   assert.equal((await store.list()).find(c=>c.rideId===rideId)?.paidCents,10000);
  }finally{
-  const current=await store.policy();await store.savePolicy(oldPolicy.rules,current.revision,'test-cleanup');
+  const current=await store.policy();await store.savePolicy(oldPolicy.rules,current.revision,'test-cleanup',oldPolicy.systemEnabled);
   await pool.query('DELETE FROM ride_manual_cancellation_audit WHERE ride_id=$1',[rideId]);
   await pool.query('DELETE FROM ride_manual_cancellations WHERE ride_id=$1',[rideId]);
   await pool.query('DELETE FROM ledger_entries WHERE transaction_id IN(SELECT id FROM ledger_transactions WHERE ride_id=$1)',[rideId]);

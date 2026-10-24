@@ -20,7 +20,7 @@ test(browserName+': manual refund admin edits policy, reviews without reducing d
  try{
   const page=await browser.newPage({viewport:{width:1280,height:900},timezoneId:'America/Fortaleza'});page.on('pageerror',e=>errors.push(e.message));
   page.on('dialog',dialog=>dialog.accept());
-  let policy={revision:0,rules:Object.fromEntries(['moto','car','buggy','delivery','comfort_black'].map(k=>[k,{enabled:false,feeCents:null,freeSeconds:40}]))};
+  let policy={revision:0,systemEnabled:false,rules:Object.fromEntries(['moto','car','buggy','delivery','comfort_black'].map(k=>[k,{enabled:false,feeCents:null,freeSeconds:40}]))};
   let c={rideId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',passengerId:'fixture-passenger',passengerName:'Ian Silva',driverName:'João Silva',driverId:'fixture-driver',
    category:'car',paidCents:10000,creditedFeeCents:500,feeCents:500,status:'review',reason:'Passageiro solicitou cancelamento ao suporte',
    pix:{type:'email',key:'fixture@example.test',holder:'Ian Silva'},receipt:null,bankReference:null,revision:0,createdAt:'2026-10-24T01:01:00Z',updatedAt:'2026-10-24T01:01:00Z'};
@@ -28,7 +28,7 @@ test(browserName+': manual refund admin edits policy, reviews without reducing d
    const r=route.request(),path=new URL(r.url()).pathname;assert.equal(r.headers().authorization,'Bearer fixture-token');
    const b=r.method()==='GET'?null:r.postDataJSON();let value;
    if(path.endsWith('/cancellation-policy')){
-    if(b){assert.equal(b.rules.car.feeCents,500);assert.equal(b.rules.car.freeSeconds,40);policy={revision:1,rules:b.rules};}value=policy;
+    if(b){assert.equal(b.rules.car.feeCents,500);assert.equal(b.rules.car.freeSeconds,40);assert.equal(typeof b.systemEnabled,'boolean');policy={revision:policy.revision+1,rules:b.rules,systemEnabled:b.systemEnabled};}value=policy;
    }else if(path==='/v1/admin/manual-refunds')value={items:[c]};
    else if(path.endsWith('/review')){
     assert.equal(b.feeCents,200);assert.equal(b.revision,c.revision);c={...c,status:'approved',feeCents:200,revision:c.revision+1};value=c;
@@ -40,12 +40,23 @@ test(browserName+': manual refund admin edits policy, reviews without reducing d
   });
   await page.goto('http://127.0.0.1:'+server.address().port);
   await page.getByText('Casos atualizados.',{exact:true}).waitFor();
+  await page.getByText('Sistema desativado',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Ativar sistema de cancelamento',{exact:true}).isChecked(),false);
   await page.getByText('Regras por categoria',{exact:true}).click();
   await page.getByLabel('Categoria',{exact:true}).selectOption('car');
   await page.getByLabel('Cobrar taxa após o prazo gratuito').check();
   await page.getByLabel('Taxa de cancelamento (R$)',{exact:true}).fill('5.00');
   await page.getByRole('button',{name:'Salvar categoria',exact:true}).click();
   await page.getByText('Categoria salva. Novas corridas usarão esta regra.',{exact:true}).waitFor();
+  assert.equal(policy.systemEnabled,false,'preparing fees must not activate the system');
+  await page.getByLabel('Ativar sistema de cancelamento',{exact:true}).check();
+  await page.getByRole('button',{name:'Salvar ativação',exact:true}).click();
+  await page.getByText('Sistema ativado',{exact:true}).waitFor();
+  assert.equal(policy.systemEnabled,true);
+  await page.getByLabel('Ativar sistema de cancelamento',{exact:true}).uncheck();
+  await page.getByRole('button',{name:'Salvar ativação',exact:true}).click();
+  await page.getByText('Sistema desativado',{exact:true}).waitFor();
+  assert.equal(policy.rules.car.feeCents,500,'deactivation must preserve configured rules');
   await page.getByRole('button',{name:'Abrir ficha',exact:true}).click();
   await page.getByText('Devolução de Ian Silva',{exact:true}).waitFor();
   await mkdir('artifacts/manual-refunds',{recursive:true});

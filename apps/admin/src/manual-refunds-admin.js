@@ -10,6 +10,12 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
  host.replaceChildren();
  const header=el('div',null,'page-heading');header.append(el('h2','Cancelamentos e devoluções'),el('p','Analise o caso, faça o Pix pelo banco e registre o comprovante. Nenhum botão desta área envia dinheiro.'));
  const message=el('p','Carregando…');message.setAttribute('role','status');
+ const switchCard=el('div',null,'panel-card manual-refund-policy');
+ const system=field('Ativar sistema de cancelamento','checkbox');
+ const systemStatus=el('p');
+ const switchHelp=el('p','Desativado: sem botão, contagem, taxa ou novas devoluções manuais deste sistema. Você pode preparar as regras abaixo antes de ativar.');
+ const saveSwitch=el('button','Salvar ativação','button button--primary');saveSwitch.type='button';
+ switchCard.append(system.wrap,systemStatus,switchHelp,saveSwitch);
  const settings=el('details',null,'panel-card');settings.append(el('summary','Regras por categoria'));
  const ruleForm=el('div',null,'manual-refund-policy');
  const choose=el('select');choose.setAttribute('aria-label','Categoria');
@@ -24,21 +30,28 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
  const list=el('div',null,'manual-refund-list');
  const detail=el('div',null,'manual-refund-detail');
  const refresh=el('button','Atualizar casos','button button--ghost-dark');refresh.type='button';
- host.append(header,settings,refresh,tabs,message,list,detail);
+ host.append(header,switchCard,settings,refresh,tabs,message,list,detail);
  const request=(path,method='GET',body)=>api.manualRefundRequest(getToken(),path,method,body);
  function renderRule(){
   if(!policy)return;const r=policy.rules[choose.value];enabled.control.checked=r.enabled;fee.control.value=r.feeCents==null?'':(r.feeCents/100).toFixed(2);seconds.control.value=r.freeSeconds;
-  [enabled.control,fee.control,seconds.control,save].forEach(n=>n.disabled=!writable||busy);
+  system.control.checked=policy.systemEnabled===true;
+  systemStatus.textContent=policy.systemEnabled?'Sistema ativado':'Sistema desativado';
+  [system.control,saveSwitch,enabled.control,fee.control,seconds.control,save].forEach(n=>n.disabled=!writable||busy);
  }
  choose.addEventListener('change',()=>{renderRule();message.textContent='Categoria selecionada. Salve antes de trocar para manter alterações.';});
- async function execute(action){if(busy)return;busy=true;save.disabled=true;refresh.disabled=true;
+ async function execute(action){if(busy)return;busy=true;save.disabled=true;saveSwitch.disabled=true;system.control.disabled=true;refresh.disabled=true;
   try{await action();}catch(e){message.textContent=e.message||'Não foi possível concluir. Atualize antes de tentar novamente.';}
   finally{busy=false;refresh.disabled=false;renderRule();}}
+ saveSwitch.addEventListener('click',()=>execute(async()=>{
+  if(!writable||!policy)return;
+  policy=await request('/v1/admin/cancellation-policy','PUT',{rules:policy.rules,revision:policy.revision,systemEnabled:system.control.checked});
+  message.textContent=policy.systemEnabled?'Sistema ativado. O botão aparecerá para corridas elegíveis ao atualizar a tela.':'Sistema desativado. Botão, contagem, taxas e novos casos manuais estão desligados.';
+ }));
  save.addEventListener('click',()=>execute(async()=>{
   if(!writable||!policy)return;
   if(seconds.control.value.trim()===''||(enabled.control.checked&&fee.control.value.trim()===''))throw Error('Preencha o prazo e o valor antes de ativar a taxa.');
   const rules=structuredClone(policy.rules);rules[choose.value]={enabled:enabled.control.checked,freeSeconds:Number(seconds.control.value),feeCents:fee.control.value.trim()===''?null:Math.round(Number(fee.control.value)*100)};
-  policy=await request('/v1/admin/cancellation-policy','PUT',{rules,revision:policy.revision});
+  policy=await request('/v1/admin/cancellation-policy','PUT',{rules,revision:policy.revision,systemEnabled:policy.systemEnabled===true});
   renderRule();message.textContent='Categoria salva. Novas corridas usarão esta regra.';
  }));
  function renderList(){

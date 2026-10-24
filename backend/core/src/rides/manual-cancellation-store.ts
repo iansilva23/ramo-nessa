@@ -40,23 +40,25 @@ export class PostgresManualCancellationStore {
   if(!entries.length)return;assertBalanced(entries);
   await insertLedger(c,{id:randomUUID(),kind,rideId,...(paymentId?{paymentId}:{}),referenceKey,entries,createdAt:new Date().toISOString()});
  }
- async policy():Promise<{revision:number;rules:CancellationPolicy}>{
-  const r=await this.pool.query<{revision:number;rules:CancellationPolicy}>('SELECT revision,rules FROM ride_cancellation_policy WHERE id=true');
-  return r.rows[0]??{revision:0,rules:defaultCancellationPolicy()};
+ async policy():Promise<{revision:number;rules:CancellationPolicy;systemEnabled:boolean}>{
+  const r=await this.pool.query<{revision:number;rules:CancellationPolicy;systemEnabled:boolean}>('SELECT revision,rules,system_enabled AS "systemEnabled" FROM ride_cancellation_policy WHERE id=true');
+  return r.rows[0]??{revision:0,rules:defaultCancellationPolicy(),systemEnabled:false};
  }
- async savePolicy(rules:unknown,revision:number,actor:string){
+ async savePolicy(rules:unknown,revision:number,actor:string,systemEnabled?:unknown){
   if(!Number.isSafeInteger(revision)||revision<0)throw new CancellationError('INVALID_REVISION','Atualize as regras antes de salvar.',400);
+  if(systemEnabled!==undefined&&typeof systemEnabled!=='boolean')throw new CancellationError('INVALID_SWITCH','Informe se o sistema está ativado ou desativado.',400);
   const validated=validateCancellationPolicy(rules);
   return this.transaction(async c=>{
-   const r=await c.query<{revision:number;rules:CancellationPolicy}>('UPDATE ride_cancellation_policy SET rules=$1,revision=revision+1 WHERE id=true AND revision=$2 RETURNING revision,rules',[JSON.stringify(validated),revision]);
+   const r=await c.query<{revision:number;rules:CancellationPolicy;systemEnabled:boolean}>('UPDATE ride_cancellation_policy SET rules=$1,system_enabled=COALESCE($3,system_enabled),revision=revision+1 WHERE id=true AND revision=$2 RETURNING revision,rules,system_enabled AS "systemEnabled"',[JSON.stringify(validated),revision,systemEnabled??null]);
    if(!r.rows[0])throw new CancellationError('POLICY_CHANGED','Outra pessoa alterou as regras. Atualize antes de salvar.');
-   await this.audit(c,null,actor,'policy.updated',{revision:r.rows[0].revision,rules:validated});return r.rows[0];
+   await this.audit(c,null,actor,'policy.updated',{revision:r.rows[0].revision,rules:validated,systemEnabled:r.rows[0].systemEnabled});return r.rows[0];
   });
  }
  async terms(rideId:string,now=new Date()){
-  const r=await this.pool.query<{rule:CancellationRule;accepted_at:Date|null}>('SELECT rule,accepted_at FROM ride_cancellation_terms WHERE ride_id=$1',[rideId]);
+  const r=await this.pool.query<{rule:CancellationRule;accepted_at:Date|null;system_enabled:boolean}>('SELECT t.rule,t.accepted_at,p.system_enabled FROM ride_cancellation_terms t CROSS JOIN ride_cancellation_policy p WHERE t.ride_id=$1 AND p.id=true',[rideId]);
   const v=r.rows[0];if(!v)throw new CancellationError('TERMS_NOT_FOUND','Regras da corrida indisponíveis.');
-  return cancellationTerms(v.rule,v.accepted_at?.toISOString()??null,now);
+  const terms=cancellationTerms(v.rule,v.accepted_at?.toISOString()??null,now);
+  return {...terms,systemEnabled:v.system_enabled,cancelUntil:v.system_enabled?terms.cancelUntil:null};
  }
  async find(rideId:string):Promise<ManualCancellation|null>{
   const r=await this.pool.query<Row>('SELECT * FROM ride_manual_cancellations WHERE ride_id=$1',[rideId]);
@@ -75,6 +77,8 @@ export class PostgresManualCancellationStore {
    if(!ride||ride.passenger_id!==input.passengerId)throw new CancellationError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
    const existing=(await c.query<Row>('SELECT * FROM ride_manual_cancellations WHERE ride_id=$1',[ride.id])).rows[0];
    if(existing)return record(existing);
+   const policy=(await c.query<{system_enabled:boolean}>('SELECT system_enabled FROM ride_cancellation_policy WHERE id=true FOR SHARE')).rows[0];
+   if(policy?.system_enabled!==true)throw new CancellationError('CANCELLATION_DISABLED','O cancelamento pelo aplicativo está desativado.');
    if(!['PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND','DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'].includes(ride.state))throw new CancellationError('RIDE_NOT_CANCELLABLE','Esta corrida não pode ser cancelada nesta etapa.');
    const p=(await c.query<{id:string;amount_cents:number;status:string}>("SELECT id,amount_cents,status FROM payments WHERE ride_id=$1 AND status='paid' ORDER BY created_at DESC LIMIT 1 FOR UPDATE",[ride.id])).rows[0];
    const paidCents=p?.amount_cents??0;
