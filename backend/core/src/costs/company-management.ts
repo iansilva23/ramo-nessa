@@ -1,4 +1,5 @@
 import type {Pool} from 'pg';
+import {isDeepStrictEqual} from 'node:util';
 import type {AdminActor} from '../admin/admin-repository.js';
 import {InvalidAdminRequestError} from '../admin/admin-validation.js';
 import {dateValue,uuidValue,CostConflictError,localDate} from './company-costs.js';
@@ -26,7 +27,7 @@ export class PostgresManagementStore implements ManagementStore {
    await c.query('BEGIN');await c.query("SELECT pg_advisory_xact_lock(hashtextextended('company-management-writes',0))");
    const records=(await c.query('SELECT * FROM company_management_records ORDER BY created_at')).rows.map(map);
    const existing=records.find(r=>r.id===record.id);
-   if(existing){const fields=['kind','amountCents','occurredOn','description','referenceId','attachment'] as const;if(fields.some(k=>JSON.stringify(existing[k])!==JSON.stringify(record[k])))throw new CostConflictError('Identificador já usado por outro lançamento.');await c.query('COMMIT');return existing;}
+   if(existing){const fields=['kind','amountCents','occurredOn','description','referenceId','attachment'] as const;if(fields.some(k=>!isDeepStrictEqual(existing[k],record[k])))throw new CostConflictError('Identificador já usado por outro lançamento.');await c.query('COMMIT');return existing;}
    validateManagementWrite(records,record);
    const r=await c.query('INSERT INTO company_management_records(id,kind,amount_cents,occurred_on,description,reference_id,attachment,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[record.id,record.kind,record.amountCents,record.occurredOn,record.description,record.referenceId,record.attachment,record.actor]);
    await c.query('COMMIT');return map(r.rows[0]);
