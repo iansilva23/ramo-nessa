@@ -279,6 +279,7 @@ import {
   updateDriverProfilePhoto,
 } from './drivers/driver-profile-photo-service.js';
 import { nearbyDriversForApp } from './drivers/driver-nearby-service.js';
+import { passengerNearbyVehicles, validNearbyPoint } from './drivers/passenger-nearby-service.js';
 import { RideOfferError } from './matching/ride-offer.js';
 import { createRide, RideCreationError } from './rides/create-ride.js';
 import { passengerRideView } from './rides/passenger-ride-view.js';
@@ -7285,6 +7286,34 @@ const server = createServer(async (request, response) => {
         longitude: supply.longitude,
         locationUpdatedAt: supply.locationUpdatedAt,
       });
+      return;
+    }
+
+    if (
+      request.method === 'GET' &&
+      requestUrl.pathname === '/v1/passenger/me/nearby-vehicles'
+    ) {
+      const sessionKey = headerValue(request, 'authorization');
+      if (!sessionKey) {
+        json(response, 401, {error:'AUTH_REQUIRED',message:'Entre na sua conta para visualizar os veículos próximos.'});
+        return;
+      }
+      await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});
+      const lat = requestUrl.searchParams.get('latitude'), lng = requestUrl.searchParams.get('longitude');
+      const latitude = Number(lat), longitude = Number(lng);
+      if (lat == null || lng == null || !lat.trim() || !lng.trim() || !validNearbyPoint(latitude, longitude)) {
+        json(response, 400, {error:'INVALID_LOCATION',message:'Informe uma localização válida.'});
+        return;
+      }
+      const now = new Date();
+      json(response, 200, await passengerNearbyVehicles({
+        drivers:driverSupplyRepository,settings:operationalSettingsRepository,latitude,longitude,
+        sessionKey,now,
+        canUseDriver:async id => {
+          const identity = await authOtpRepository.findIdentityBySubject('driver', id);
+          return identity?.status === 'active' && await canDriverReceiveNewWorkUnderPolicy(id, now);
+        },
+      }));
       return;
     }
 

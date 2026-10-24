@@ -18,7 +18,7 @@ const session: AuthSessionRecord = {
   subjectId: 'driver-push',
   subjectType: 'driver',
   tokenHash: 'session-hash',
-  expiresAt: '2026-10-24T00:00:00.000Z',
+  expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   createdAt: '2026-09-24T00:00:00.000Z',
 };
 
