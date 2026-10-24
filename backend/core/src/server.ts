@@ -8024,7 +8024,8 @@ const server = createServer(async (request, response) => {
         passengerId, rideId: confirmationMatch[1]!,
       });
       if (confirmation == null) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
-      json(response, 200, confirmation); return;
+      const cancellationRule=manualCancellationStore?(await manualCancellationStore.terms(confirmationMatch[1]!)).rule:null;
+      json(response, 200, {...confirmation,cancellationRule}); return;
     }
 
     if (

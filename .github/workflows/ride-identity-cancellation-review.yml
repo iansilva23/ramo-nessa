@@ -42,3 +42,26 @@ jobs:
         with: {flutter-version: '3.47.5', channel: stable, cache: true}
       - run: flutter pub get --enforce-lockfile && flutter analyze && flutter test && flutter build web --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
         working-directory: apps/${{ matrix.app }}
+      - run: flutter test --update-goldens test/ride_identity_visual_review.dart
+        working-directory: apps/${{ matrix.app }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ride-identity-visual-${{ matrix.app }}
+          path: apps/${{ matrix.app }}/ride-identity-artifacts/
+          if-no-files-found: ignore
+  admin-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+          for engine in chromium webkit; do RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/manual_refunds_admin_browser_test.mjs; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: manual-refunds-admin-visual, path: artifacts/manual-refunds/, if-no-files-found: ignore}

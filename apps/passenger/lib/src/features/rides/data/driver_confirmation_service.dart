@@ -7,15 +7,17 @@ abstract interface class DriverConfirmationService {
 }
 
 class DriverConfirmation {
-  const DriverConfirmation({required this.ride, required this.status, this.driver});
+  const DriverConfirmation({required this.ride, required this.status, this.driver,this.cancellationRule});
   factory DriverConfirmation.fromJson(Map<String, dynamic> json) => DriverConfirmation(
     ride: PreparedRide.fromJson(json), status: json['status'] as String,
+    cancellationRule:json['cancellationRule'] as Map<String,dynamic>?,
     driver: json['driver'] is Map<String, dynamic>
         ? ConfirmedDriver.fromJson(json['driver'] as Map<String, dynamic>) : null,
   );
   final PreparedRide ride;
   final String status;
   final ConfirmedDriver? driver;
+  final Map<String,dynamic>? cancellationRule;
 }
 
 class ConfirmedDriver {

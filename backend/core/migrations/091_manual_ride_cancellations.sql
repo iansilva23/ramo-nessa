@@ -8,7 +8,7 @@ FROM unnest(ARRAY['moto','car','buggy','delivery','comfort_black']) c;
 
 ALTER TABLE rides ADD COLUMN manual_refund boolean NOT NULL DEFAULT false;
 CREATE TABLE ride_cancellation_terms (
- ride_id uuid PRIMARY KEY REFERENCES rides(id) ON DELETE CASCADE, rule jsonb NOT NULL, accepted_at timestamptz
+ ride_id uuid PRIMARY KEY REFERENCES rides(id) ON DELETE CASCADE, rule jsonb NOT NULL, accepted_at timestamptz, accepted_driver_id text
 );
 CREATE FUNCTION snapshot_ride_cancellation_terms() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -24,13 +24,14 @@ SELECT id,jsonb_build_object('enabled',false,'freeSeconds',40,'feeCents',null) F
 CREATE FUNCTION remember_ride_driver_acceptance() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF NEW.status='ACCEPTED' THEN
-  UPDATE ride_cancellation_terms SET accepted_at=COALESCE(accepted_at,NEW.updated_at) WHERE ride_id=NEW.ride_id;
+  UPDATE ride_cancellation_terms SET accepted_at=CASE WHEN accepted_driver_id IS DISTINCT FROM NEW.driver_id THEN NEW.updated_at ELSE COALESCE(accepted_at,NEW.updated_at) END,accepted_driver_id=NEW.driver_id WHERE ride_id=NEW.ride_id;
  END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER remember_ride_driver_acceptance AFTER UPDATE OF status ON ride_offers FOR EACH ROW EXECUTE FUNCTION remember_ride_driver_acceptance();
 UPDATE ride_cancellation_terms t SET accepted_at=o.accepted_at
 FROM (SELECT ride_id,MIN(updated_at) accepted_at FROM ride_offers WHERE status='ACCEPTED' GROUP BY ride_id) o WHERE t.ride_id=o.ride_id;
+UPDATE ride_cancellation_terms t SET accepted_driver_id=o.driver_id FROM ride_offers o WHERE o.ride_id=t.ride_id AND o.status='ACCEPTED';
 
 CREATE TABLE ride_manual_cancellations (
  ride_id uuid PRIMARY KEY REFERENCES rides(id), passenger_id text NOT NULL, driver_id text,

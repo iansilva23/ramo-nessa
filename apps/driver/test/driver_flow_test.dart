@@ -1268,3 +1268,11 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     return 'SEARCHING_DRIVER';
   }
 }
+
+class _IdentityReviewApi extends _FakeDriverApi implements DriverRideIdentityApi {
+ _IdentityReviewApi():super(initialOnline:true,initialBusy:true){_offerAvailable=false;}
+ @override Future<Map<String,dynamic>> rideIdentification(String rideId)async=>{
+  'passengerName':'Ian Silva','terms':{'cancelUntil':DateTime.now().add(const Duration(seconds:40)).toIso8601String(),'serverTime':DateTime.now().toIso8601String()}};
+}
+DriverApi identityReviewApi()=>_IdentityReviewApi();
+DriverLocationService identityReviewLocation()=>const _FakeLocationService();
