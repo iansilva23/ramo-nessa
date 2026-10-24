@@ -106,8 +106,9 @@ void main() {
       ),
     );
   });
+  for (final mode in ThemeMode.values.where((mode) => mode != ThemeMode.system)) {
   for (final width in [320, 390, 900]) {
-    testWidgets('home visual $width', (tester) async {
+    testWidgets('home visual ${mode.name} $width', (tester) async {
       tester.view.physicalSize = Size(
         width.toDouble(),
         width == 320 ? 740 : 1000,
@@ -133,6 +134,9 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          themeMode: mode,
           home: RepaintBoundary(
             key: const Key('capture'),
             child: LocalGuideScreen(
@@ -146,12 +150,12 @@ void main() {
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byKey(const Key('capture')),
-        matchesGoldenFile('../guide-test-artifacts/home-$width.png'),
+        matchesGoldenFile('../guide-test-artifacts/${mode.name}-home-$width.png'),
       );
     });
   }
   for (final model in models) {
-    testWidgets('category visual ${model[0]}', (tester) async {
+    testWidgets('category visual ${mode.name} ${model[0]}', (tester) async {
       tester.view.physicalSize = const Size(390, 1000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -179,6 +183,9 @@ void main() {
           );
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          themeMode: mode,
           home: RepaintBoundary(
             key: const Key('capture'),
             child: GuideCategoryPage(category: c, catalog: catalog),
@@ -189,8 +196,18 @@ void main() {
       expect(tester.takeException(), isNull);
       await expectLater(
         find.byKey(const Key('capture')),
-        matchesGoldenFile('../guide-test-artifacts/${model[0]}.png'),
+        matchesGoldenFile('../guide-test-artifacts/${mode.name}-${model[0]}.png'),
       );
     });
+  }
+  testWidgets('detail visual ${mode.name}', (tester) async {
+    tester.view.physicalSize = const Size(390,1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+    final item=GuideEntry({...sample('detail','item','Passeio pela região',template:'tours').json,'priceCents':15000,'highlights':['Praias e paisagens','Paradas para fotos']},baseUrl:core);
+    await tester.pumpWidget(MaterialApp(theme:ThemeData.light(),darkTheme:ThemeData.dark(),themeMode:mode,home:RepaintBoundary(key:const Key('capture'),child:GuideItemPage(entry:item,catalog:GuideCatalog(entries:[item])))));
+    await tester.pumpAndSettle();expect(tester.takeException(),isNull);
+    await expectLater(find.byKey(const Key('capture')),matchesGoldenFile('../guide-test-artifacts/${mode.name}-detail.png'));
+  });
   }
 }

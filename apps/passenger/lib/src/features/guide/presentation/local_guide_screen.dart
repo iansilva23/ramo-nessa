@@ -10,6 +10,14 @@ const _yellow = Color(0xFFFFDE00),
     _background = Color(0xFF090B0E),
     _card = Color(0xFF13161B),
     _muted = Color(0xFFB9BDC5);
+
+class _GuideColors {
+  const _GuideColors({required this.background, required this.card, required this.muted, required this.body, required this.accent, required this.border});
+  final Color background, card, muted, body, accent, border;
+  static const dark = _GuideColors(background:_background,card:_card,muted:_muted,body:Color(0xFFDEE0E4),accent:_yellow,border:Color(0xFF42464E));
+  static const light = _GuideColors(background:Color(0xFFF5F6F8),card:Colors.white,muted:Color(0xFF596273),body:Color(0xFF283141),accent:Color(0xFF806000),border:Color(0xFFD3D8E0));
+}
+_GuideColors _guideColors(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? _GuideColors.dark : _GuideColors.light;
 IconData guideIcon(String icon) =>
     const <String, IconData>{
       'eco': Icons.eco_outlined,
@@ -25,11 +33,13 @@ IconData guideIcon(String icon) =>
       'info': Icons.info_outline,
     }[icon] ??
     Icons.explore_outlined;
-ThemeData _guideTheme() => ThemeData(
+ThemeData _guideTheme(Brightness brightness) {
+  final colors = brightness == Brightness.dark ? _GuideColors.dark : _GuideColors.light;
+  return ThemeData(
   useMaterial3: true,
-  brightness: Brightness.dark,
-  scaffoldBackgroundColor: _background,
-  colorScheme: const ColorScheme.dark(
+  brightness: brightness,
+  scaffoldBackgroundColor: colors.background,
+  colorScheme: brightness == Brightness.dark ? const ColorScheme.dark(
     primary: _yellow,
     onPrimary: Colors.black,
     surface: _card,
@@ -38,9 +48,16 @@ ThemeData _guideTheme() => ThemeData(
     secondaryContainer: _card,
     onSecondary: Colors.white,
     onSecondaryContainer: Colors.white,
+  ) : ColorScheme.light(
+    primary:colors.accent,onPrimary:Colors.white,
+    surface:colors.card,onSurface:const Color(0xFF171C25),
+    onSurfaceVariant:colors.muted,secondary:colors.card,
+    secondaryContainer:colors.card,onSecondary:const Color(0xFF171C25),
+    onSecondaryContainer:const Color(0xFF171C25),outline:colors.border,
   ),
   fontFamily: 'Inter',
 );
+}
 
 class LocalGuideScreen extends StatefulWidget {
   const LocalGuideScreen({
@@ -118,15 +135,15 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                 .toList() ??
             [];
     return Theme(
-      data: _guideTheme(),
+      data: _guideTheme(Theme.of(context).brightness),
       child: Builder(
         builder: (context) => Scaffold(
-          backgroundColor: _background,
+          backgroundColor: _guideColors(context).background,
           body: SafeArea(
             bottom: false,
             child: RefreshIndicator(
               onRefresh: () => _load(refresh: true),
-              color: _yellow,
+              color: _guideColors(context).accent,
               child: CustomScrollView(
                 key: const PageStorageKey('guide-home'),
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -158,10 +175,10 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Experiências selecionadas pela Ramo Nessa Agência.',
                             style: TextStyle(
-                              color: _muted,
+                              color: _guideColors(context).muted,
                               fontSize: 14,
                               height: 1.5,
                             ),
@@ -198,11 +215,11 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                               ),
                             ),
                           if (catalog?.stale == true)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 12),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
                               child: Text(
                                 'Sem conexão. Exibindo o último conteúdo carregado.',
-                                style: TextStyle(color: _muted, fontSize: 12),
+                                style: TextStyle(color: _guideColors(context).muted, fontSize: 12),
                               ),
                             ),
                         ],
@@ -210,9 +227,9 @@ class _LocalGuideScreenState extends State<LocalGuideScreen> {
                     ),
                   ),
                   if (_loading)
-                    const SliverFillRemaining(
+                    SliverFillRemaining(
                       child: Center(
-                        child: CircularProgressIndicator(color: _yellow),
+                        child: CircularProgressIndicator(color: _guideColors(context).accent),
                       ),
                     )
                   else if (_error != null)
@@ -282,7 +299,7 @@ class _CategoryTile extends StatelessWidget {
     button: true,
     label: entry.name,
     child: Material(
-      color: _card,
+      color: _guideColors(context).card,
       borderRadius: BorderRadius.circular(21),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -329,6 +346,7 @@ class _CategoryTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: compact ? 14 : 18,
+                      color: Colors.white,
                       fontWeight: FontWeight.w800,
                       height: 1.12,
                     ),
@@ -351,7 +369,7 @@ class _CategoryTile extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.chevron_right, size: 22),
+                        const Icon(Icons.chevron_right, size: 22, color:Colors.white),
                       ],
                     ),
                   ],
@@ -424,9 +442,9 @@ class _GuideCategoryPageState extends State<GuideCategoryPage> {
         featured = items.where((e) => e.featured).toList(),
         other = items.where((e) => !e.featured).toList();
     return Theme(
-      data: _guideTheme(),
+      data: _guideTheme(Theme.of(context).brightness),
       child: Scaffold(
-        backgroundColor: _background,
+        backgroundColor: _guideColors(context).background,
         body: SafeArea(
           top: false,
           bottom: true,
@@ -471,8 +489,8 @@ class _GuideCategoryPageState extends State<GuideCategoryPage> {
                   ),
                 ),
               if (_busy)
-                const SliverToBoxAdapter(
-                  child: LinearProgressIndicator(color: _yellow, minHeight: 2),
+                SliverToBoxAdapter(
+                  child: LinearProgressIndicator(color: _guideColors(context).accent, minHeight: 2),
                 ),
               if (items.isEmpty)
                 const SliverFillRemaining(
@@ -603,6 +621,7 @@ class _Hero extends StatelessWidget {
               entry.name,
               style: const TextStyle(
                 fontSize: 29,
+                color: Colors.white,
                 fontWeight: FontWeight.w800,
                 height: 1.15,
                 letterSpacing: -.6,
@@ -641,7 +660,7 @@ class _ItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = entry, rules = template == 'rules';
     return Material(
-      color: _card,
+      color: _guideColors(context).card,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -699,9 +718,9 @@ class _ItemCard extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.chevron_right,
-                                  color: _muted,
+                                  color: _guideColors(context).muted,
                                   size: 20,
                                 ),
                               ],
@@ -724,8 +743,8 @@ class _ItemCard extends StatelessWidget {
                                 padding: const EdgeInsets.only(top: 6),
                                 child: Text(
                                   e.summary,
-                                  style: const TextStyle(
-                                    color: _muted,
+                                  style: TextStyle(
+                                    color: _guideColors(context).muted,
                                     fontSize: 12,
                                     height: 1.4,
                                   ),
@@ -736,8 +755,8 @@ class _ItemCard extends StatelessWidget {
                                 padding: const EdgeInsets.only(top: 8),
                                 child: Text(
                                   guidePrice(e),
-                                  style: const TextStyle(
-                                    color: _yellow,
+                                  style: TextStyle(
+                                    color: _guideColors(context).accent,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
                                   ),
@@ -771,7 +790,7 @@ class _FeaturedCard extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     height: 235,
     child: Material(
-      color: _card,
+      color: _guideColors(context).card,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -802,6 +821,7 @@ class _FeaturedCard extends StatelessWidget {
                     entry.name,
                     style: const TextStyle(
                       fontSize: 23,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -841,9 +861,9 @@ class _GuideItemPageState extends State<GuideItemPage> {
   Widget build(BuildContext context) {
     final e = widget.entry;
     return Theme(
-      data: _guideTheme(),
+      data: _guideTheme(Theme.of(context).brightness),
       child: Scaffold(
-        backgroundColor: _background,
+        backgroundColor: _guideColors(context).background,
         body: SafeArea(
           top: false,
           child: ListView(
@@ -870,8 +890,8 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
                           guidePrice(e),
-                          style: const TextStyle(
-                            color: _yellow,
+                          style: TextStyle(
+                            color: _guideColors(context).accent,
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
@@ -882,10 +902,10 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         child: Text(
                           e.text('description'),
-                          style: const TextStyle(
+                          style: TextStyle(
                             height: 1.65,
                             fontSize: 15,
-                            color: Color(0xFFDEE0E4),
+                            color: _guideColors(context).body,
                           ),
                         ),
                       ),
@@ -911,17 +931,17 @@ class _GuideItemPageState extends State<GuideItemPage> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.check_circle_outline,
                                   size: 16,
-                                  color: _yellow,
+                                  color: _guideColors(context).accent,
                                 ),
                                 const SizedBox(width: 9),
                                 Expanded(
                                   child: Text(
                                     line,
-                                    style: const TextStyle(
-                                      color: _muted,
+                                    style: TextStyle(
+                                      color: _guideColors(context).muted,
                                       height: 1.45,
                                     ),
                                   ),
@@ -935,13 +955,13 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         padding: const EdgeInsets.only(top: 18),
                         child: Text(
                           'Fonte: ${e.text('source')}',
-                          style: const TextStyle(color: _muted),
+                          style: TextStyle(color: _guideColors(context).muted),
                         ),
                       ),
                     if (e.text('updatedOn').isNotEmpty)
                       Text(
                         'Atualizado em ${formatGuideDate(e.text('updatedOn'))}',
-                        style: const TextStyle(fontSize: 12, color: _muted),
+                        style: TextStyle(fontSize: 12, color: _guideColors(context).muted),
                       ),
                     if (e.text('sourceUrl').isNotEmpty)
                       TextButton.icon(
@@ -953,7 +973,7 @@ class _GuideItemPageState extends State<GuideItemPage> {
                         label: const Text('Consultar fonte oficial'),
                       ),
                     const SizedBox(height: 22),
-                    if (_busy) const LinearProgressIndicator(color: _yellow),
+                    if (_busy) LinearProgressIndicator(color: _guideColors(context).accent),
                     IgnorePointer(
                       ignoring: _busy,
                       child: GuideActionButtons(
@@ -1008,9 +1028,9 @@ class GuideActionButtons extends StatelessWidget {
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               backgroundColor: a.primary ? _yellow : Colors.transparent,
-              foregroundColor: a.primary ? Colors.black : Colors.white,
+              foregroundColor: a.primary ? Colors.black : Theme.of(context).colorScheme.onSurface,
               side: BorderSide(
-                color: a.primary ? _yellow : const Color(0xFF42464E),
+                color: a.primary ? _yellow : _guideColors(context).border,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
               textStyle: const TextStyle(
@@ -1134,12 +1154,12 @@ class GuidePhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = entry.imageUrl;
     Widget empty() => ColoredBox(
-      color: _card,
+      color: _guideColors(context).card,
       child: Center(
         child: Icon(
           guideIcon(entry.text('icon')),
           size: 32,
-          color: const Color(0xFF53565E),
+          color: _guideColors(context).muted,
         ),
       ),
     );
@@ -1173,8 +1193,8 @@ class _Pill extends StatelessWidget {
       minimumSize: const Size(72, 44),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       backgroundColor: selected ? _yellow : Colors.transparent,
-      foregroundColor: selected ? Colors.black : Colors.white,
-      side: BorderSide(color: selected ? _yellow : const Color(0xFF353940)),
+      foregroundColor: selected ? Colors.black : Theme.of(context).colorScheme.onSurface,
+      side: BorderSide(color: selected ? _yellow : _guideColors(context).border),
       textStyle: TextStyle(
         fontFamily: 'Inter',
         fontSize: 13,
@@ -1217,12 +1237,12 @@ class _Meta extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: _muted, size: 15),
+        Icon(icon, color: _guideColors(context).muted, size: 15),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(color: _muted, fontSize: 12, height: 1.35),
+            style: TextStyle(color: _guideColors(context).muted, fontSize: 12, height: 1.35),
           ),
         ),
       ],
@@ -1239,7 +1259,7 @@ class _SectionTitle extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
     child: Row(
       children: [
-        Icon(icon, color: _yellow, size: 23),
+        Icon(icon, color: _guideColors(context).accent, size: 23),
         const SizedBox(width: 9),
         Expanded(
           child: Text(
@@ -1263,7 +1283,7 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.explore_outlined, color: _yellow, size: 36),
+          Icon(Icons.explore_outlined, color: _guideColors(context).accent, size: 36),
           const SizedBox(height: 16),
           Text(
             title,
@@ -1274,7 +1294,7 @@ class _Empty extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: _muted, height: 1.5),
+            style: TextStyle(color: _guideColors(context).muted, height: 1.5),
           ),
           if (action != null)
             TextButton(
