@@ -83,9 +83,13 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
   page.setDefaultTimeout(20000);
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = [], remote = [];
-  let completedCarLoads = 0;
+  const completedMarkerLoads = new Map();
+  const markerNames = ['passenger','destination','car','motorcycle','buggy','delivery','comfort'];
   const failedAssets = [];
-  page.on('requestfinished', request => { if(request.url().endsWith('/assets/map_markers/car.png')) completedCarLoads++; });
+  page.on('requestfinished', request => {
+    const name = markerNames.find(name => request.url().endsWith('/assets/map_markers/'+name+'.png'));
+    if(name) completedMarkerLoads.set(name,(completedMarkerLoads.get(name)??0)+1);
+  });
   page.on('requestfailed', request => { if(request.url().startsWith(origin+prefix+'assets/')) failedAssets.push({url:request.url(),error:request.failure()?.errorText}); });
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/*', async route => {
@@ -114,13 +118,13 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
     assert.equal(await page.locator('#ramo-entry-gate').count(), 0);
     assert.equal(await page.locator('flutter-view').evaluate(n => n.inert), false);
   }
-  async function settledHomeAssets(afterCount) {
-    // A visible profile label can precede the lazily loaded map marker. Do not
-    // unload the document while WebKit still resolves that fetch.
+  async function settledHomeAssets(before = new Map()) {
+    // Nearby category markers load sequentially. Wait for every marker rather
+    // than only the car before deliberately unloading the document in WebKit.
     if(role==='passenger'){
       const deadline=Date.now()+15000;
-      while(completedCarLoads<=afterCount){
-        if(Date.now()>deadline)throw Error('Passenger marker did not complete before deliberate reload.');
+      while(markerNames.some(name=>(completedMarkerLoads.get(name)??0)<=(before.get(name)??0))){
+        if(Date.now()>deadline)throw Error('Passenger markers did not complete before deliberate reload.');
         await new Promise(resolve=>setTimeout(resolve,50));
       }
     }
@@ -149,7 +153,7 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
     await page.getByRole('button', { name: 'Confirmar e continuar', exact: true }).click();
   }
   await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
-  await settledHomeAssets(0);
+  await settledHomeAssets();
   assert.equal(await page.getByText('Adicionar app à Tela de Início', { exact: true }).count(), 0);
   assert.equal(await page.getByText('Ative sua localização', { exact: true }).count(), 0);
   const setupEvidence = resolve('artifacts/web-csp'); await mkdir(setupEvidence, { recursive: true });
@@ -163,13 +167,13 @@ test(browserName + '/' + role + ': installed app opens directly, logs in, recove
   assert.ok(!(await page.evaluate(() => JSON.stringify({ ...localStorage }))).includes(privateCredential));
   await page.evaluate(() => localStorage.clear());
   await page.waitForLoadState('networkidle', { timeout: 10000 });
-  const beforeRestoreCarLoads=completedCarLoads;
+  const beforeRestoreMarkerLoads=new Map(completedMarkerLoads);
   await page.reload();
   await page.waitForSelector('flutter-view, flt-glass-pane', { timeout: 60000 });
   await assertDirectEntry();
   await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   await page.getByText(role === 'passenger' ? 'Perfil' : 'Cadastro de motorista', { exact: true }).first().waitFor({ timeout: 30000 });
-  await settledHomeAssets(beforeRestoreCarLoads);
+  await settledHomeAssets(beforeRestoreMarkerLoads);
   assert.equal(loginCalls, 1, 'Restoration must not perform another login');
   const logout = await page.evaluate(async handle => (await fetch('/v1/auth/session', { method: 'DELETE',
     credentials: 'same-origin', headers: { authorization: 'Bearer ' + handle } })).status, publicHandle);
