@@ -1,7 +1,7 @@
 FROM caddy:2-alpine
 
 COPY Caddyfile /etc/caddy/Caddyfile
-COPY index.html styles.css guide.css admin-workspace.css manual-refunds.css favicon.svg /srv/admin/
+COPY index.html styles.css guide.css admin-workspace.css manual-refunds.css company-dashboard.css favicon.svg /srv/admin/
 COPY src /srv/admin/src
 COPY pages /srv/admin/pages
 

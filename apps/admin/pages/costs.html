@@ -1,4 +1,6 @@
 <section id="view-costs" class="view-panel" hidden>
+<div data-company-dashboard></div>
+<details class="panel-card" data-company-cost-details><summary>Despesas, custos fixos e relatório detalhado</summary>
   <div class="page-heading"><span class="eyebrow eyebrow--dark">GESTÃO DA EMPRESA</span>
     <h1>Custos e Resultados</h1><p>Saiba quanto a empresa ganha, quanto gasta e o que sobra no período.</p></div>
   <p class="finance-readonly-note">Controle informativo. Estes registros não movimentam dinheiro. O resultado não é o saldo disponível para saque; inclui apenas despesas cadastradas e os lançamentos indicados abaixo.</p>
@@ -27,6 +29,7 @@
         <label>ID da regra mensal (opcional)<input id="cost-expense-rule" maxlength="36"><small>Vincule à regra para substituir a previsão do mês, sem somar duas vezes.</small></label>
 </div></details>
         <label>Observação<textarea id="cost-expense-notes" maxlength="500"></textarea></label>
+        <label>Comprovante (PDF, PNG ou JPEG até 500 KB)<input id="cost-expense-proof" type="file" accept=".pdf,.png,.jpg,.jpeg"></label>
         <p id="cost-expense-feedback" class="cost-form-feedback" role="status" aria-live="polite"></p>
         <button class="button button--dark" type="submit">Salvar despesa</button>
         <button id="cost-expense-reset" class="button button--ghost-dark" type="button">Limpar formulário</button>
@@ -34,6 +37,7 @@
     </details>
     <details class="panel-card cost-editor" id="cost-rule-editor"><summary>Criar regra de custo <small>Calcule automaticamente custos fixos ou percentuais</small></summary>
       <form id="cost-rule-form" class="cost-form">
+        <label>Frequência dos custos fixos<select id="cost-rule-frequency"><option value="monthly">Mensal</option><option value="quarterly">Trimestral</option><option value="yearly">Anual</option></select></label>
         <label>Nome<input id="cost-rule-name" maxlength="100" required placeholder="Ex.: VPS mensal"></label>
         <label>Categoria<input id="cost-rule-category" maxlength="60" required list="cost-categories" placeholder="Infraestrutura"></label>
         <label>Grupo do custo<select id="cost-rule-slot"><option value="general">Outros gastos</option><option value="processing_fee">Taxa do meio de pagamento</option><option value="server">Servidor</option><option value="whatsapp">WhatsApp</option><option value="maps">Mapas</option><option value="marketing">Divulgação</option><option value="tax">Impostos</option></select></label>
@@ -57,4 +61,4 @@
   <article class="panel-card"><h2>Despesas cadastradas</h2><div id="cost-expenses" class="cost-list"></div></article>
   <details class="panel-card cost-disclosure"><summary>Detalhamento do período</summary><p id="cost-lines-count" class="muted-copy"></p><div id="cost-lines" class="cost-list"></div></details>
   <details class="panel-card cost-disclosure"><summary>Resultado por corrida</summary><p class="muted-copy">Comissão e acréscimos recuperados, menos custos vinculados e registrados neste período. Despesas sem vínculo e mensais entram apenas no resumo geral.</p><div id="cost-rides" class="cost-list"></div></details>
-</section>
+</details></section>

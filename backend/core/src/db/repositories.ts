@@ -1,4 +1,5 @@
 import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
+import {PostgresManagementStore,type ManagementStore} from '../costs/company-management.js';
 import {PostgresManualCancellationStore} from '../rides/manual-cancellation-store.js';
 import { InMemoryAsaasPayoutStore, PostgresAsaasPayoutStore, type AsaasPayoutStore } from '../payments/asaas-payout-store.js';
 import { InMemoryGrowthRepository, PostgresGrowthRepository, type GrowthRepository } from '../growth/growth-repository.js';
@@ -85,6 +86,7 @@ export interface RepositoryBundle {
   rideRepository: RideRepository;
   financeRepository: FinanceRepository;
   companyCostRepository: CompanyCostRepository;
+  companyManagementStore: ManagementStore|null;
   growthRepository: GrowthRepository;
   paymentPolicySettingsRepository: PaymentPolicySettingsRepository;
   driverSupplyRepository: DriverSupplyRepository;
@@ -133,6 +135,7 @@ export function createRepositories(): RepositoryBundle {
       rideRepository,
       financeRepository: new PostgresFinanceRepository(pool),
       companyCostRepository: new PostgresCompanyCostRepository(pool),
+      companyManagementStore: new PostgresManagementStore(pool),
       growthRepository: new PostgresGrowthRepository(pool),
       paymentPolicySettingsRepository:
         new PostgresPaymentPolicySettingsRepository(pool),
@@ -197,6 +200,7 @@ export function createRepositories(): RepositoryBundle {
     rideRepository,
     financeRepository,
     companyCostRepository: new InMemoryCompanyCostRepository(financeRepository, adminRepository),
+    companyManagementStore: null,
     growthRepository: new InMemoryGrowthRepository(adminRepository),
     paymentPolicySettingsRepository:
       new InMemoryPaymentPolicySettingsRepository(),
