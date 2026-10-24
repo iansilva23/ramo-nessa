@@ -17,6 +17,7 @@ function matchScope(a: CostItem,b: CostItem) {
   if(a.data.voided || b.data.voided) return false;
   if(a.kind === 'rule') {
     if(a.data.basis !== b.data.basis) return false;
+    if(a.data.basis==='monthly')return false;
     return a.data.startsOn! <= (b.data.endsOn ?? '9999-12-31') && b.data.startsOn! <= (a.data.endsOn ?? '9999-12-31');
   }
   if(a.data.voided || b.data.voided) return false;

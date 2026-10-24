@@ -103,7 +103,7 @@ export function createCompanyCostsAdmin({root,api,getToken,hasScope,onError}) {
   }
   async function mutation(action) {
     if(busy||destroyed||!hasScope('costs:write'))return;busy=true;status('Salvando…');
-    try {await action();if(!destroyed)await load();}catch(e){status(e.message);onError?.(e);}finally{busy=false;}
+    try {await action();if(!destroyed){await load();root.dispatchEvent(new CustomEvent('company-costs-updated',{bubbles:true}));}}catch(e){status(e.message);onError?.(e);}finally{busy=false;}
   }
   function creationId(kind,data) {
     const fingerprint=JSON.stringify(data),old=pending.get(kind);
