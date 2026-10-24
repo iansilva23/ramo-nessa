@@ -17,6 +17,7 @@ interface DriverDocumentRow {
   mime_type: 'image/jpeg' | 'image/png' | 'application/pdf';
   size_bytes: string | number;
   expires_on: string | Date | null;
+  validity_controlled?: boolean;
   status: DriverDocumentStatus;
   is_current: boolean;
   rejection_reason: string | null;
@@ -45,6 +46,7 @@ function mapRow(row: DriverDocumentRow): DriverDocumentRecord {
     contentSha256: row.content_sha256,
     mimeType: row.mime_type,
     sizeBytes: Number(row.size_bytes),
+    ...(row.validity_controlled?{validityControlled:true}:{}),
     ...(row.expires_on == null
       ? {}
       : { expiresOn: dateOnly(row.expires_on) }),
@@ -142,10 +144,11 @@ export class PostgresDriverDocumentRepository
           content_sha256, mime_type, size_bytes, expires_on,
           status, is_current, rejection_reason, submitted_at,
           reviewed_at, reviewed_by_kind, reviewed_by_id,
-          reviewed_by_name, created_at, updated_at
+          reviewed_by_name, created_at, updated_at, validity_controlled
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
-          $13,$14,$15,$16,$17,$18
+          $13,$14,$15,$16,$17,$18,
+          EXISTS(SELECT 1 FROM driver_documents d WHERE d.driver_id=$2 AND d.document_type=$3 AND d.validity_controlled)
         )
         RETURNING *
         `,
@@ -191,6 +194,7 @@ export class PostgresDriverDocumentRepository
     driverId: string;
     documentType: DriverDocumentType;
     expectedStatus: 'pending' | 'approved';
+    expiresOn?: string | undefined;
     status: Exclude<DriverDocumentStatus, 'pending'>;
     rejectionReason?: string | undefined;
     reviewedAt: string;
@@ -206,7 +210,9 @@ export class PostgresDriverDocumentRepository
         reviewed_by_kind = $7,
         reviewed_by_id = $8,
         reviewed_by_name = $9,
-        updated_at = $6
+        updated_at = $6,
+        expires_on = COALESCE($10::date,expires_on),
+        validity_controlled = validity_controlled OR $4='approved'
       WHERE driver_id = $1
         AND document_type = $2
         AND is_current = true
@@ -223,6 +229,7 @@ export class PostgresDriverDocumentRepository
         input.reviewedBy.kind,
         input.reviewedBy.id,
         input.reviewedBy.name,
+        input.expiresOn ?? null,
       ],
     );
     return result.rows[0] == null ? null : mapRow(result.rows[0]);

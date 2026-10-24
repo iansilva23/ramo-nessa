@@ -72,6 +72,7 @@ export interface RideRepository {
   recordPassengerRating(rating: PassengerRatingRecord): Promise<{rating: PassengerRatingRecord; created: boolean} | null>;
   create(ride: RideRecord): Promise<RideRecord>;
   findById(id: string): Promise<RideRecord | null>;
+  findRecoverableByPassengerId(passengerId: string): Promise<RideRecord | null>;
   findActiveByDriverId(driverId: string): Promise<RideRecord | null>;
   listPendingDispatch(before: string, limit: number): Promise<RideRecord[]>;
   listNoDriverFoundBefore(

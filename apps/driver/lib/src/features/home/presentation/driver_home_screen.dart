@@ -1,5 +1,6 @@
 import '../data/passenger_rating_api.dart';
 import 'passenger_rating_sheet.dart';
+import 'boarding_code_dialog.dart';
 import 'driver_passenger_identity.dart';
 import 'dart:async';
 
@@ -207,7 +208,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void initState() {
     super.initState();
-    if (kIsWeb) WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
     _load();
     unawaited(_loadSocialLinks());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -329,6 +330,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if(state==AppLifecycleState.resumed)unawaited(_restoreCurrentRide());
     if (!kIsWeb) return;
     if (DriverWebAvailabilityPolicy.isBackgroundTransition(state)) {
       if (_webBackgrounded) return;
@@ -392,7 +394,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   void dispose() {
-    if (kIsWeb) WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _ticker?.cancel();
     _nearbyTimer?.cancel();
@@ -420,11 +422,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       if (!supply.busy) _startNearbyPolling();
     }
 
-    if (supply.busy || supply.online) {
+    {
       final ride = await _api?.currentRide();
       if (!mounted) return;
       setState(() => _activeRide = ride);
       if (ride != null) {
+        _startRealtime();
         await _refreshActiveRoute(force: true);
         if (ride.state == 'AWAITING_PAYMENT') _startPolling();
       } else if (supply.online) {
@@ -1096,6 +1099,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
+  Future<void> _restoreCurrentRide() async {
+    try{final ride=await _api?.currentRide();if(!mounted)return;
+      if(ride!=null){setState(()=>_activeRide=ride);_startRealtime();await _refreshActiveRoute(force:true);}
+    }catch(_){if(mounted&&_activeRide!=null)setState(()=>_message='Reconectando à sua corrida. Os dados continuam salvos.');}
+  }
+
   Future<void> _startRide() async {
     final api = _api;
     final ride = _activeRide;
@@ -1103,7 +1112,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
     setState(() => _rideAction = true);
     try {
-      final updated = await api.startRide(ride.id);
+      String? code;
+      if(api is DriverBoardingApi){
+        final boarding=api as DriverBoardingApi;
+        final status=await boarding.boardingStatus(ride.id);
+        if(!mounted)return;
+        if(status['required']==true){
+          if(status['blocked']==true)throw const DriverApiException('Limite de tentativas atingido. Procure o suporte.');
+          code=await showDialog<String>(context:context,builder:(_)=>BoardingCodeDialog(delivery:ride.category=='delivery',remainingAttempts:(status['remainingAttempts'] as num).toInt()));
+          if(!mounted)return;
+          if(code==null){setState(()=>_rideAction=false);return;}
+        }
+      }
+      final updated = code!=null && api is DriverBoardingApi
+          ? await (api as DriverBoardingApi).startWithBoardingCode(ride.id,code)
+          : await api.startRide(ride.id);
       if (!mounted) return;
       setState(() {
         _activeRide = updated;

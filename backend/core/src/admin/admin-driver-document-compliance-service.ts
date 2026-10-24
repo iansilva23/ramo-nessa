@@ -1,4 +1,5 @@
 import type { DriverRegistryRepository } from '../drivers/driver-registry-repository.js';
+import {documentDate} from '../drivers/document-expiry.js';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -78,7 +79,7 @@ export async function adminDriverDocumentComplianceView(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const today = now.toISOString().slice(0, 10);
+  const today = documentDate(now);
   const [records, control, settings] = await Promise.all([
     input.documents.listCurrent(input.driverId),
     input.controls.get(input.driverId),
@@ -115,7 +116,7 @@ export async function adminDriverDocumentComplianceView(input: {
   const autoEnforcementEnabled =
     settings.driverDocumentAutoEnforcement === true;
   const automaticBlock =
-    autoEnforcementEnabled && !documentsApproved;
+    (autoEnforcementEnabled && !documentsApproved) || issues.some(i=>i.status==='expired'||byType.get(i.documentType)?.validityControlled===true);
   const effectiveBlocked = manualBlocked || automaticBlock;
   const latestIssueAt = issues.reduce<string | null>(
     (latest, issue) => {

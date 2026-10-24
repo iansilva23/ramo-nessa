@@ -17,6 +17,7 @@ import '../../rides/data/passenger_ride_tracking_service.dart';
 import '../../rides/domain/prepared_ride.dart';
 import '../../rides/data/driver_confirmation_service.dart';
 import '../../rides/presentation/ride_tracking_screen.dart';
+import '../../rides/data/passenger_ride_resume_service.dart';
 import '../../map/data/route_service.dart';
 import '../data/card_tokenization_service.dart';
 import '../data/platform_card_tokenization_service.dart';
@@ -38,9 +39,11 @@ class RidePaymentScreen extends StatefulWidget {
     this.networkTilesEnabled = true,
     this.pickupLatitude,
     this.pickupLongitude,
+    this.onRecoveryClose,
   });
 
   final SharedTransferOption? sharedTransfer;
+  final VoidCallback? onRecoveryClose;
   final PreparedRide ride;
   final double? pickupLatitude, pickupLongitude;
   final PassengerPaymentService? paymentService;
@@ -98,6 +101,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
   void initState() {
     super.initState();
     _ride = widget.ride;
+    unawaited(RideRecoveryMemory.remember(_ride.id));
     _couponError = widget.ride.promotionMessage;
     final nonce = DateTime.now().microsecondsSinceEpoch;
     _walletIdempotencyKey = 'wallet-${_ride.id}-$nonce';
@@ -177,7 +181,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       if (!mounted) return;
       setState(() => _leaving = true);
       _confirmationTimer?.cancel();
-      Navigator.of(context).pop();
+      if(widget.onRecoveryClose!=null){widget.onRecoveryClose!();}else{Navigator.of(context).pop();}
     } catch (error) {
       if (mounted) {
         setState(
@@ -396,6 +400,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
           builder: (_) => tracking == null
               ? _PromotionConfirmedScreen(dispatchStatus: result.dispatchStatus)
               : RideTrackingScreen(
+                  onRecoveryClose: widget.onRecoveryClose,
                   rideId: _ride.id,
                   remainingWalletCents: null,
                   paymentMethod: 'promotion',
@@ -585,7 +590,8 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
 
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => _PixPaymentScreen(
+          builder: (_) => PixRidePaymentScreen(
+            onRecoveryClose: widget.onRecoveryClose,
             rideId: _ride.id,
             holdExpiresAt: _ride.holdExpiresAt,
             amountLabel: PreparedRide.formatCents(_pixTotalAmountCents),
@@ -697,6 +703,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => _CardPaymentStatusScreen(
+            onRecoveryClose: widget.onRecoveryClose,
             rideId: _ride.id,
             result: result,
             trackingService: widget.rideTrackingService,
@@ -773,6 +780,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   dispatchStatus: result.dispatchStatus,
                 )
               : RideTrackingScreen(
+                  onRecoveryClose: widget.onRecoveryClose,
                   rideId: _ride.id,
                   remainingWalletCents: null,
                   paymentMethod: 'cash',
@@ -853,6 +861,7 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                   dispatchStatus: result.dispatchStatus,
                 )
               : RideTrackingScreen(
+                  onRecoveryClose: widget.onRecoveryClose,
                   rideId: _ride.id,
                   remainingWalletCents: result.walletBalanceCents,
                   paymentMethod: 'wallet',
@@ -1317,8 +1326,10 @@ class _PromotionConfirmedScreen extends StatelessWidget {
   }
 }
 
-class _PixPaymentScreen extends StatefulWidget {
-  const _PixPaymentScreen({
+class PixRidePaymentScreen extends StatefulWidget {
+  const PixRidePaymentScreen({
+    super.key,
+    this.onRecoveryClose,
     required this.rideId,
     required this.holdExpiresAt,
     required this.amountLabel,
@@ -1331,6 +1342,7 @@ class _PixPaymentScreen extends StatefulWidget {
   });
 
   final String rideId;
+  final VoidCallback? onRecoveryClose;
   final DateTime holdExpiresAt;
   final String amountLabel;
   final bool driverReserved;
@@ -1341,10 +1353,10 @@ class _PixPaymentScreen extends StatefulWidget {
   final bool networkTilesEnabled;
 
   @override
-  State<_PixPaymentScreen> createState() => _PixPaymentScreenState();
+  State<PixRidePaymentScreen> createState() => _PixPaymentScreenState();
 }
 
-class _PixPaymentScreenState extends State<_PixPaymentScreen> {
+class _PixPaymentScreenState extends State<PixRidePaymentScreen> {
   Timer? _pollTimer;
   Timer? _holdTimer;
   Duration _reservationRemaining = Duration.zero;
@@ -1496,6 +1508,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideTrackingScreen(
+            onRecoveryClose: widget.onRecoveryClose,
             rideId: widget.rideId,
             remainingWalletCents: null,
             paymentMethod: 'pix',
@@ -1653,6 +1666,7 @@ class _PixPaymentScreenState extends State<_PixPaymentScreen> {
 
 class _CardPaymentStatusScreen extends StatefulWidget {
   const _CardPaymentStatusScreen({
+    this.onRecoveryClose,
     required this.rideId,
     required this.result,
     required this.trackingService,
@@ -1661,6 +1675,7 @@ class _CardPaymentStatusScreen extends StatefulWidget {
     required this.networkTilesEnabled,
   });
 
+  final VoidCallback? onRecoveryClose;
   final String rideId;
   final CardRidePaymentResult result;
   final PassengerRideTrackingService? trackingService;
@@ -1815,6 +1830,7 @@ class _CardPaymentStatusScreenState extends State<_CardPaymentStatusScreen> {
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RideTrackingScreen(
+                  onRecoveryClose: widget.onRecoveryClose,
             rideId: widget.rideId,
             remainingWalletCents: null,
             paymentMethod: 'card',

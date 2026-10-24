@@ -85,6 +85,10 @@ abstract interface class DriverApi {
 }
 
 abstract interface class DriverRideIdentityApi {Future<Map<String,dynamic>> rideIdentification(String rideId);}
+abstract interface class DriverBoardingApi {
+ Future<Map<String,dynamic>> boardingStatus(String rideId);
+ Future<AcceptedDriverRide> startWithBoardingCode(String rideId,String code);
+}
 
 class DriverRideCancellationResult {
   const DriverRideCancellationResult({

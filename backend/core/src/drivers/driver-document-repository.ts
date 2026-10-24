@@ -23,6 +23,7 @@ export interface DriverDocumentRecord {
   mimeType: 'image/jpeg' | 'image/png' | 'application/pdf';
   sizeBytes: number;
   expiresOn?: string;
+  validityControlled?: boolean;
   status: DriverDocumentStatus;
   isCurrent: boolean;
   rejectionReason?: string;
@@ -46,6 +47,7 @@ export interface DriverDocumentRepository {
     driverId: string;
     documentType: DriverDocumentType;
     expectedStatus: 'pending' | 'approved';
+    expiresOn?: string | undefined;
     status: Exclude<DriverDocumentStatus, 'pending'>;
     rejectionReason?: string | undefined;
     reviewedAt: string;

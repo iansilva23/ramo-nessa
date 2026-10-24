@@ -20,6 +20,24 @@ import { InMemoryDriverRegistryRepository } from '../src/drivers/repositories/in
 import { InMemoryDriverSupplyRepository } from '../src/drivers/repositories/in-memory-driver-supply-repository.js';
 
 const now = new Date('2026-09-25T12:00:00.000Z');
+
+test('recorded expiry always blocks NEW work and renewal cannot bypass manual approval',async()=>{
+ const registry=new InMemoryDriverRegistryRepository(),documents=new InMemoryDriverDocumentRepository(),controls=new InMemoryDriverDocumentComplianceRepository(),settings=new InMemoryOperationalSettingsRepository();
+ const driverId='driver-expiry-enforced';await approvedRegistry(registry,driverId);await approvedDocuments(documents,driverId,'2026-09-24');
+ assert.equal((await driverOperationalEligibility({registry,documents,driverId,enforceDocuments:false,now})).eligible,false);
+ const alert=await adminDriverDocumentComplianceView({documents,controls,settings,driverId,now});assert.equal(alert.automaticBlock,true);
+ const current=(await documents.findCurrent(driverId,'driver_license'))!;
+ const {expiresOn:_old,...renewal}=current;
+ await documents.submitCurrent({...renewal,id:'renewal-pending',status:'pending',updatedAt:now.toISOString()});
+ assert.equal((await documents.findCurrent(driverId,'driver_license'))?.validityControlled,true);
+ assert.equal((await driverOperationalEligibility({registry,documents,driverId,enforceDocuments:false,now})).eligible,false);
+});
+test('expiry uses Fortaleza calendar and remains valid through the last local day',async()=>{
+ const registry=new InMemoryDriverRegistryRepository(),documents=new InMemoryDriverDocumentRepository();const driverId='driver-local-expiry';
+ await approvedRegistry(registry,driverId);await approvedDocuments(documents,driverId,'2026-09-24');
+ assert.equal((await driverOperationalEligibility({registry,documents,driverId,enforceDocuments:false,now:new Date('2026-09-25T02:59:00Z')})).eligible,true);
+ assert.equal((await driverOperationalEligibility({registry,documents,driverId,enforceDocuments:false,now:new Date('2026-09-25T03:00:00Z')})).eligible,false);
+});
 const actor = {
   kind: 'user' as const,
   id: 'admin-document-compliance',

@@ -24,6 +24,10 @@ import 'features/pricing/data/pricing_policy_service.dart';
 import 'features/pricing/data/pricing_quote_service.dart';
 import 'features/rides/data/ride_preparation_service.dart';
 import 'features/rides/data/passenger_ride_tracking_service.dart';
+import 'features/rides/data/http_passenger_ride_tracking_service.dart';
+import 'features/rides/data/passenger_ride_resume_service.dart';
+import 'features/rides/presentation/ride_recovery_gate.dart';
+import 'features/rides/presentation/resumed_ride_screen.dart';
 import 'features/rides/data/passenger_ride_realtime_service.dart';
 import 'features/tours/data/agency_tour_service.dart';
 import 'passenger_session_services.dart';
@@ -123,7 +127,10 @@ class RamoNessaPassengerApp extends StatelessWidget {
                   : CoreRouteService(baseUrl: coreUri)
               : null);
 
-      return PassengerMainShell(
+      final resolvedTracking=rideTrackingService ?? (coreUri!=null && normalizedToken!=null
+          ? HttpPassengerRideTrackingService(baseUrl:coreUri,accessToken:normalizedToken)
+          : preview?.tracking);
+      final shell=PassengerMainShell(
         accessToken: normalizedToken,
         onLogout: logout,
         authService: authService,
@@ -152,11 +159,15 @@ class RamoNessaPassengerApp extends StatelessWidget {
           ridePreparationService:
               ridePreparationService ?? services.preparation,
           paymentService: services.payments,
-          rideTrackingService: rideTrackingService ?? preview?.tracking,
+          rideTrackingService: resolvedTracking,
           rideRealtimeService: rideRealtimeService,
           networkTilesEnabled: networkTilesEnabled,
         ),
       );
+      if(resolvedTracking==null || resolvedTracking is! PassengerRideResumeService)return shell;
+      return RideRecoveryGate(key:ValueKey('ride-recovery-$normalizedToken'),service:resolvedTracking as PassengerRideResumeService,child:shell,
+        rideBuilder:(data,close)=>ResumedRideScreen(data:data,onClose:close,tracking:resolvedTracking,payments:services.payments,realtime:rideRealtimeService,
+          routes:resolvedRouteService,networkTilesEnabled:networkTilesEnabled));
     }
 
 

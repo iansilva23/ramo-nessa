@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 
 import type { RideRecord } from '../ride.js';
+import {RECOVERABLE_RIDE_STATES} from '../ride-resumption.js';
 import type {
   AdminRideListInput,
   AdminRideListPage,
@@ -166,6 +167,10 @@ const RETURNING = `
 `;
 
 export class PostgresRideRepository implements RideRepository {
+  async findRecoverableByPassengerId(passengerId:string):Promise<RideRecord|null>{
+    const result=await this.pool.query<RideRow>("SELECT * FROM rides WHERE passenger_id=$1 AND state=ANY($2::text[]) ORDER BY (state='IN_PROGRESS') DESC,updated_at DESC,id DESC LIMIT 1",[passengerId,RECOVERABLE_RIDE_STATES]);
+    return result.rows[0]?mapRow(result.rows[0]):null;
+  }
   constructor(private readonly pool: Pool | PoolClient) {}
 
   usesConnection(pool: Pool): boolean {

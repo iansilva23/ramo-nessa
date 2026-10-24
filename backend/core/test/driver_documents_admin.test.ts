@@ -287,6 +287,18 @@ test('rejeição exige motivo e documento vencido não é aprovado', async () =>
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 
+test('manual review records the checked expiry and refuses missing, past or impossible dates',async()=>{
+ const registry=new InMemoryDriverRegistryRepository(),documents=new InMemoryDriverDocumentRepository(),admin=new InMemoryAdminRepository();
+ const driverId='driver-manual-expiry';await createRegistry(registry,driverId);
+ const {expiresOn:_expiry,...data}=submission(driverId,'manual-expiry');
+ await submitDriverDocumentFromAdmin({registry,documents,admin,actor,driverId,documentType:'driver_license',data,now:new Date('2026-10-24T12:00:00Z')});
+ await assert.rejects(()=>reviewDriverDocumentFromAdmin({documents,admin,actor,driverId,documentType:'driver_license',review:{status:'approved'},now:new Date('2026-10-24T12:00:00Z')}),{code:'DOCUMENT_EXPIRATION_INVALID'});
+ await assert.rejects(()=>reviewDriverDocumentFromAdmin({documents,admin,actor,driverId,documentType:'driver_license',review:{status:'approved',expiresOn:'2026-10-23'},now:new Date('2026-10-24T12:00:00Z')}),{code:'DOCUMENT_ALREADY_EXPIRED'});
+ assert.throws(()=>parseReviewDriverDocumentRequest({status:'approved',expiresOn:'2027-02-30'}));
+ const approved=await reviewDriverDocumentFromAdmin({documents,admin,actor,driverId,documentType:'driver_license',review:{status:'approved',expiresOn:'2027-10-24'},now:new Date('2026-10-24T12:00:00Z')});
+ assert.equal(approved.expiresOn,'2027-10-24');assert.equal((await documents.findCurrent(driverId,'driver_license'))?.validityControlled,true);
+});
+
 test(
   'PostgreSQL preserva histórico, uma versão atual e revisão auditada',
   { skip: !databaseUrl },

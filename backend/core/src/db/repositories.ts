@@ -1,4 +1,6 @@
 import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
+import {PostgresBoardingStore} from '../rides/boarding-store.js';
+import {DocumentExpiryNotifier} from '../drivers/document-expiry.js';
 import {PostgresManagementStore,type ManagementStore} from '../costs/company-management.js';
 import {PostgresManualCancellationStore} from '../rides/manual-cancellation-store.js';
 import { InMemoryAsaasPayoutStore, PostgresAsaasPayoutStore, type AsaasPayoutStore } from '../payments/asaas-payout-store.js';
@@ -77,6 +79,8 @@ import { InMemoryPassengerGeoLearningStore, PostgresPassengerGeoLearningStore, t
 import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCatalogRepository } from '../places/geo-catalog-repository.js';
 
 export interface RepositoryBundle {
+  boardingStore: PostgresBoardingStore|null;
+  documentExpiryNotifier: DocumentExpiryNotifier|null;
   manualCancellationStore: PostgresManualCancellationStore | null;
   asaasPayoutStore: AsaasPayoutStore;
   authSessionRepository: AuthSessionRepository;
@@ -124,6 +128,8 @@ export function createRepositories(): RepositoryBundle {
       new PostgresDriverSupplyRepository(pool);
 
     return {
+      boardingStore: new PostgresBoardingStore(pool),
+      documentExpiryNotifier: new DocumentExpiryNotifier(pool),
       manualCancellationStore: new PostgresManualCancellationStore(pool),
       guideStore: new PostgresGuideStore(pool),
       asaasPayoutStore: new PostgresAsaasPayoutStore(pool),
@@ -190,6 +196,8 @@ export function createRepositories(): RepositoryBundle {
   const driverSupplyRepository = new InMemoryDriverSupplyRepository();
 
   return {
+    boardingStore: null,
+    documentExpiryNotifier: null,
     manualCancellationStore: null,
     asaasPayoutStore: new InMemoryAsaasPayoutStore(),
     authSessionRepository: new InMemoryAuthSessionRepository(),
