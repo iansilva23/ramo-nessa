@@ -119,7 +119,9 @@ console.log(JSON.stringify({rideId:ride.id,tokens,payerToken,pendingRideId:pendi
  assert.equal(query('SELECT amount FROM ci_financial_sentinel').trim(),'12345');
  const resume=async()=>fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer '+recovery.tokens.passenger}});
  for(let i=0;i<3;i++){const r=await resume();assert.equal(r.status,200);assert.equal((await r.json()).ride.id,recovery.rideId);}
- assert.equal((await fetch('http://127.0.0.1:18080/v1/passenger/me/ride')).status,401);
+ const anonymous=await fetch('http://127.0.0.1:18080/v1/passenger/me/ride');assert.equal(anonymous.status,503);assert.equal((await anonymous.json()).error,'AUTH_NOT_CONFIGURED');
+ assert.equal((await fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer invalid-fixture-session'}})).status,401);
+ assert.equal((await fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer '+recovery.tokens.driver}})).status,401);
  for(let i=0;i<3;i++){
   const r=await fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer '+recovery.payerToken}}),d=await r.json();
   assert.equal(r.status,200);assert.equal(d.ride.id,recovery.pendingRideId);assert.equal(d.payment.id,recovery.paymentId);assert.equal(d.pix.pix.qrCode,'existing-synthetic-pix');
