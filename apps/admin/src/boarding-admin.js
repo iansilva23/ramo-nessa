@@ -20,12 +20,12 @@ export function createBoardingAdmin({root,api,getToken,hasScope}){
  function render(){enabled.checked=policy?.enabled===true;for(const key of Object.keys(categories))controls[key].checked=policy?.categories?.[key]===true;
  for(const control of [enabled,save,...Object.values(controls),id,reason,releaseButton])control.disabled=!writable||busy||!policy;
  message.textContent=policy?.enabled?'Código ativado para novas corridas nas categorias selecionadas.':'Código desativado. Nenhum código será exigido nas novas corridas.';}
- async function execute(action){if(busy)return;busy=true;render();try{await action();render();}catch(e){message.textContent=e.message||'Não foi possível concluir.';}finally{busy=false;for(const control of [enabled,save,...Object.values(controls),id,reason,releaseButton])control.disabled=!writable||!policy;}}
+ async function execute(action,successMessage){if(busy)return;busy=true;render();try{await action();render();if(successMessage)message.textContent=successMessage;}catch(e){message.textContent=e.message||'Não foi possível concluir.';}finally{busy=false;for(const control of [enabled,save,...Object.values(controls),id,reason,releaseButton])control.disabled=!writable||!policy;}}
  form.addEventListener('submit',e=>{e.preventDefault();const next={enabled:enabled.checked,categories:Object.fromEntries(Object.keys(categories).map(k=>[k,controls[k].checked])),revision:policy?.revision};
   void execute(async()=>{policy=await api.boardingRequest(getToken(),'/v1/admin/boarding-policy','PUT',next);});});
  releaseForm.addEventListener('submit',e=>{e.preventDefault();const rideId=id.value.trim(),note=reason.value.trim();
   if(!/^[0-9a-f-]{36}$/i.test(rideId)){message.textContent='Informe um identificador válido.';return;}
   if(!globalThis.confirm('Confirma que o suporte verificou o encontro e autoriza este embarque sem código?'))return;
-  void execute(async()=>{await api.boardingRequest(getToken(),`/v1/admin/rides/${rideId}/boarding-override`,'POST',{reason:note});reason.value='';});});
+  void execute(async()=>{await api.boardingRequest(getToken(),`/v1/admin/rides/${rideId}/boarding-override`,'POST',{reason:note});reason.value='';},'Liberação registrada. O motorista já pode confirmar o início da corrida.');});
  void api.boardingRequest(getToken(),'/v1/admin/boarding-policy').then(result=>{policy=result;render();}).catch(e=>{message.textContent=e.message;form.hidden=true;release.hidden=true;});
 }

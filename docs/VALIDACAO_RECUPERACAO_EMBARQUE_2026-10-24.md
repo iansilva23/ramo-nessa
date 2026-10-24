@@ -14,7 +14,7 @@ Ambiente: Flutter 3.47.5, Dart 3.13.4. Mesmo Flutter fixado no workflow.
 
 | Componente | Resultado |
 | --- | --- |
-| Core: suíte completa, execução sequencial | 839 passaram, 69 condicionais não executados, zero falhas |
+| Core: suíte completa, execução sequencial | 840 passaram, 69 condicionais não executados, zero falhas |
 | Core: verificação de tipos e build | Passaram |
 | ADM: suíte completa | 176 passaram, zero falhas |
 | Passageiro: análise e suíte completa | Sem problemas na análise; 244 testes passaram |
@@ -42,3 +42,16 @@ O workflow `.github/workflows/ride-recovery-boarding-review.yml` executa migraç
 Antes de uma publicação futura, validar o ciclo real de pagamento no ambiente de homologação do provedor e o encerramento/reabertura dos apps em aparelhos Android/iOS. Os testes automatizados não representam uma cobrança real, entrega de push em aparelho ou homologação de distribuição móvel.
 
 Nenhuma migração, instalação ou ativação foi realizada na VPS nesta etapa. O interruptor global do código de embarque permanece `false` na criação da política.
+
+## Revisão funcional complementar
+
+O responsável confirmou que o Mercado Pago já está em produção e funcionando nos apps. Não há proposta de reconfiguração dessa integração. A validação complementar trata da recuperação do pagamento existente pela nova versão, sem criar cobranças reais em produção.
+
+- Teste HTTP com sessões emitidas pelo serviço de autenticação: ausência de sessão, papel incorreto, isolamento entre passageiros, consulta repetida ao mesmo pagamento, proteção das rotas de motorista e permissões de leitura/escrita do ADM. Todas as consultas preservam a corrida e o pagamento pendentes.
+- Teste de navegador do ADM em largura desktop e móvel: configuração inicialmente desativada, persistência após recarregar, exclusão de Entregas, conflito entre administradores, cancelamento da confirmação pelo suporte, registro da liberação e acesso somente leitura.
+- Correção funcional: o suporte recebe uma confirmação explícita de liberação registrada após sucesso; a mensagem não é substituída pelo estado geral da política.
+- O teste de navegador aceita Chromium e WebKit e gera capturas em `artifacts/ride-recovery/`. A proposta de acrescentá-lo ao CI foi preservada separadamente: o GitHub recusou a alteração do workflow porque a credencial não possui o escopo `workflow`. O workflow existente continua executando o novo teste HTTP dentro da suíte Core.
+
+Resultado local complementar: teste HTTP e teste Chromium passaram; os 176 testes do ADM continuaram passando. O resultado WebKit é registrado na descrição do PR após a execução local.
+
+Essa execução usa contas, pagamentos e respostas artificiais, com servidor local temporário. Não representa o encerramento e reabertura dos apps nativos em aparelhos com a nova versão. Essa homologação permanece separada da integração de pagamentos que já funciona em produção.
