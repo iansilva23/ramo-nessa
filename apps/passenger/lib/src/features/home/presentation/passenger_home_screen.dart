@@ -240,12 +240,12 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsB
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _nearby?.setActive(_foreground && TickerMode.of(context));
+    _nearby?.setActive(_foreground && TickerMode.valuesOf(context).enabled);
   }
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    _nearby?.setActive(_foreground && TickerMode.of(context));
+    _nearby?.setActive(_foreground && TickerMode.valuesOf(context).enabled);
   }
 
   @override
