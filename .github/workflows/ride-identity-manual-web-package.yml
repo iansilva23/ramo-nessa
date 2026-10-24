@@ -1,0 +1,126 @@
+name: Ride identity and manual refunds - verified Web package
+on:
+  push:
+    branches: [ops/ride-identity-manual-web-20261024]
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+concurrency: {group: ride-identity-manual-package, cancel-in-progress: true}
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require exact reviewed application and green review
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          git diff --exit-code e36963c02716511da855f89a529175da04b51eff HEAD -- backend apps packages config/web
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40071027422 > /tmp/identity-evidence.json
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const r=JSON.parse(readFileSync('/tmp/identity-evidence.json'));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='e36963c02716511da855f89a529175da04b51eff')throw Error('Review evidence differs');
+          NODE
+      - name: Extraction and scoped installer contracts
+        run: |
+          node --check deploy/staging/identity-web-update.mjs
+          node --check deploy/staging/identity-migration.mjs
+          node --check deploy/staging/test-identity-web-update.mjs
+          node --test deploy/staging/google-search-update.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_identity.py
+      - name: Download exact active Web bundles
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release download passenger-nearby-web-20261024-r1 --pattern RamoNessa-Passageiro-Veiculos-Proximos-Web.zip --dir /tmp/active-web
+          gh release download passenger-rating-web-20261023-r1 --pattern RamoNessa-Avaliacao-Passageiro-Web.zip --dir /tmp/active-web
+          printf '%s  %s\n' da48409b64b3d874d8afcebd8bdd2bf3f1a258c63ff7accc60caffc1a7764c06 /tmp/active-web/RamoNessa-Passageiro-Veiculos-Proximos-Web.zip 5d1e87c9f1885db58f149444155d3489b8e87f04e7859c5f444ee4239f85151c /tmp/active-web/RamoNessa-Avaliacao-Passageiro-Web.zip | sha256sum --check -
+          python3 - <<'PY'
+          import zipfile
+          for archive,role in [('RamoNessa-Passageiro-Veiculos-Proximos-Web.zip','passenger/'),('RamoNessa-Avaliacao-Passageiro-Web.zip','driver/')]:
+              with zipfile.ZipFile('/tmp/active-web/'+archive) as z:
+                  for n in z.namelist():
+                      if n.startswith(role): z.extract(n,'baseline-web')
+          PY
+      - name: Build baseline and candidate Core
+        run: |
+          mkdir baseline
+          git archive 9ccd91e0c8dfd69eb5401a86b7c91975ba0d454c backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Build both configured Web applications
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          for role in passenger driver; do
+            node scripts/web/prepare_configured_web.mjs --role="$role"
+            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
+            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$route/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
+            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
+          done
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled login and ADM manual finance in Chromium and WebKit
+        run: |
+          for engine in chromium webkit; do
+            for role in passenger driver; do
+              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+            done
+            RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/manual_refunds_admin_browser_test.mjs
+          done
+      - name: Package exact reviewed application
+        run: |
+          node scripts/web/package_identity_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib,zipfile
+          with zipfile.ZipFile('RamoNessa-Corridas-Cancelamentos-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Corridas-Cancelamentos-Web.zip > RamoNessa-Corridas-Cancelamentos-Web.zip.sha256
+      - name: Real PostgreSQL Caddy backup rollback and financial HTTP rehearsal
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-identity-web-update.mjs "$PWD/RamoNessa-Corridas-Cancelamentos-Web.zip" "$PWD/baseline"
+      - name: Package installer sources
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Corridas-Cancelamentos-Web-r2.tar.gz
+          sha256sum Instalador-Corridas-Cancelamentos-Web-r2.tar.gz > Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ride-identity-manual-configured-web-tested
+          path: |
+            RamoNessa-Corridas-Cancelamentos-Web.zip
+            RamoNessa-Corridas-Cancelamentos-Web.zip.sha256
+            Instalador-Corridas-Cancelamentos-Web-r2.tar.gz
+            Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ride-identity-manual-session-evidence, path: artifacts/, if-no-files-found: ignore}
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ride-identity-manual-configured-web-tested, path: release}
+      - name: Publish verified Web installer
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          cd release
+          sha256sum -c RamoNessa-Corridas-Cancelamentos-Web.zip.sha256
+          sha256sum -c Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
+          gh release create ride-identity-manual-web-20261024-r2 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Identificação das corridas e devoluções manuais Web' --notes 'Guia claro/escuro, identificação, regras por categoria e devolução Pix manual no ADM. Backup, recuperação e preservação financeira ensaiados. Sem instalação automática na VPS e sem publicação Android/iOS.' ./*
