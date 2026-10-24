@@ -1,0 +1,40 @@
+name: Company finance dashboard review
+on:
+  push:
+    branches: [feature/company-finance-dashboard-20261024]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: ramo, POSTGRES_PASSWORD: ramo, POSTGRES_DB: ramo}
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ramo:ramo@127.0.0.1:5432/ramo
+      DB_SSL: 'false'
+      RAMO_COMPANY_MANAGEMENT_POSTGRES: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix backend/core --no-audit --no-fund
+      - run: npm run typecheck && npm run db:migrate && npm run db:migrate && npm test && npm run build
+        working-directory: backend/core
+      - run: npm test --prefix apps/admin
+  browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+          for engine in chromium webkit; do RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/company_dashboard_browser_test.mjs; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: company-dashboard-visual, path: artifacts/company-dashboard/, if-no-files-found: ignore}

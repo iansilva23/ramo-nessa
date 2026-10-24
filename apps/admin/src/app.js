@@ -8,7 +8,7 @@ import { createSiteAdmin } from './site-admin.js';
 let siteAdmin = null;
 import { createGrowthAdmin } from './growth-admin.js';
 let growthAdmin = null;
-import { createCompanyCostsAdmin } from './company-costs-admin.js';
+import { createCompanyDashboard } from './company-dashboard.js';
 import { createGeoAdmin } from './geo-admin.js';
 let companyCostsAdmin = null;
 let geoAdmin = null;
@@ -294,7 +294,7 @@ const adminRoutes = Object.freeze({
   },
   costs: {
     path: '/administrodo/custos-resultado',
-    title: 'Custos & Resultado',
+    title: 'Gestão financeira',
     page: 'costs',
   },
   finance: {
@@ -10659,6 +10659,7 @@ function bindRouteEvents(view) {
   }
 
   if (view === 'staff') {
+    bindRouteEvent('staff-accountant-preset','click',()=>{setStaffScopes('create',['costs:read']);byId('staff-create-name').focus();});
     bindRouteEvent('staff-refresh-button', 'click', () => {
       void loadStaff();
     });
@@ -10754,7 +10755,7 @@ function initializeRouteView(view) {
   if(view==='issues'||view==='marketing'){growthAdmin=createGrowthAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,view,onError(error){if(error instanceof AdminApiError&&error.status===401)handleAuthenticatedError(error);}});return;}
 
   if(view === 'costs') {
-    companyCostsAdmin = createCompanyCostsAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope,
+    companyCostsAdmin = createCompanyDashboard({root:routeOutlet,api,getToken:()=>state.token,hasScope,
       onError(error){if(error instanceof AdminApiError && error.status===401)handleAuthenticatedError(error);}});
     return;
   }

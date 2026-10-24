@@ -211,25 +211,6 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
     'finance-payout-paid-button',
     'finance-payout-cancel-button',
     'finance-payout-action-note',
-    'finance-company-payout-card',
-    'finance-company-owner-status',
-    'finance-company-available',
-    'finance-company-pending',
-    'finance-company-cash-debt',
-    'finance-company-note',
-    'finance-company-pix-form',
-    'finance-company-pix-status',
-    'finance-company-pix-type',
-    'finance-company-pix-key',
-    'finance-company-pix-save',
-    'finance-company-payout-form',
-    'finance-company-payout-amount',
-    'finance-company-use-all',
-    'finance-company-payout-submit',
-    'finance-company-payout-action-note',
-    'finance-company-payouts-visible',
-    'finance-company-payouts-body',
-    'finance-company-payouts-empty',
     'finance-external-adjustments-card',
     'finance-external-adjustments-visible',
     'finance-external-review-total',
@@ -355,7 +336,8 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Aprovar e enviar Pix/);
   assert.match(html, /Recusar \/ cancelar/);
   assert.match(html, /Pagar selecionados/);
-  assert.match(html, /Saldo da empresa/i);
+  assert.match(html, /Lucros e retiradas da empresa/i);
+  assert.doesNotMatch(html, /id=["']finance-company-payout-form["']/);
   assert.match(html, /Enviar saldo por Pix/i);
   assert.match(html, /Usar saldo total/i);
   assert.match(html, /Comissão em dinheiro ainda não recebida/i);

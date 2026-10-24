@@ -12,6 +12,7 @@ import { GrowthService } from './growth/growth-service.js';
 import { createGrowthChannels } from './growth/growth-channels.js';
 import { handleGrowthRoutes } from './growth/growth-routes.js';
 import { calculateCostReport, createCostItem, reportPeriod, uuidValue, CostConflictError } from './costs/company-costs.js';
+import {parseManagementRecord,managementTotals} from './costs/company-management.js';
 import { reverseCoordinate } from './places/reverse-coordinate.js';
 import { validateGeoBatch, type GeoCatalogPlace } from './places/geo-catalog-repository.js';
 import { collectOsmPlaces, GeoCollectionError, geoCollectionRegionForPoint, type GeoCollectionRegion } from './places/geo-collect-service.js';
@@ -548,6 +549,7 @@ const {
   rideRepository,
   financeRepository,
   companyCostRepository,
+  companyManagementStore,
   growthRepository,
   paymentPolicySettingsRepository,
   driverSupplyRepository,
@@ -4255,6 +4257,31 @@ const server = createServer(async (request, response) => {
       passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
       readJson:()=>readJson(request),json:(status,payload)=>json(response,status,payload),verifyOptout:growthChannels.verify}))return;
 
+    if(requestUrl.pathname==='/v1/admin/company-management'){
+      const actor=await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:request.method==='GET'?'costs:read':'costs:write'});
+      if(!companyManagementStore){json(response,503,{error:'PERSISTENCE_REQUIRED',message:'Gestão financeira exige banco persistente.'});return;}
+      try{
+       if(request.method==='POST'){
+        const record=parseManagementRecord(await readJson(request,720*1024),actor);
+        json(response,201,{record:await companyManagementStore.save(record)});return;
+       }
+       if(request.method==='GET'){
+        const recordId=requestUrl.searchParams.get('id');
+        if(recordId){const record=(await companyManagementStore.list()).find(r=>r.id===uuidValue(recordId));json(response,record?200:404,record?{record}:{error:'RECORD_NOT_FOUND'});return;}
+        const period=reportPeriod(requestUrl.searchParams.get('from'),requestUrl.searchParams.get('to'));
+        const [source,summary,records]=await Promise.all([companyCostRepository.source(period),financeRepository.adminFinanceSummary(),companyManagementStore.list()]);
+        const report=calculateCostReport(source,period),totals=managementTotals(records);
+        const today=new Date(Date.now()-3*3600000).toISOString().slice(0,10);
+        const reservePeriod={from:'1970-01-01',to:today.slice(0,8)+String(new Date(Number(today.slice(0,4)),Number(today.slice(5,7)),0).getDate()).padStart(2,'0'),start:'1970-01-01T03:00:00.000Z',end:period.end};
+        reservePeriod.end=new Date(Date.parse(reservePeriod.to+'T03:00:00Z')+86400000).toISOString();
+        const cumulative=calculateCostReport(await companyCostRepository.source(reservePeriod),reservePeriod);
+        // Ledger-funded coupons/adjustments already reduce platform revenue: subtract only manually recorded expenses/rules here.
+        const available=summary.platformRevenueCents-summary.driverCashCommissionDebtCents-summary.externalAdjustmentReviewCents-cumulative.summary.manualObligationsCents-totals.withdrawalsCents+totals.returnsCents+totals.contributionsCents;
+        json(response,200,{report,summary,totals,records:records.map(r=>({...r,attachment:r.attachment?{name:r.attachment.name}:null})),availableCents:available,toRestoreCents:Math.max(0,-available),generatedAt:new Date().toISOString(),basis:'Saldo gerencial acumulado, com custos previstos até o fim do mês atual. Não é saldo bancário sincronizado.'});return;
+       }
+       json(response,405,{error:'METHOD_NOT_ALLOWED'});return;
+      }catch(e){if(e instanceof CostConflictError){json(response,409,{message:e.message});return;}throw e;}
+    }
     if (requestUrl.pathname === '/v1/admin/costs' && request.method === 'GET') {
       await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,
         headers:request.headers,requiredScope:'costs:read'});
@@ -4302,106 +4329,9 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (
-      request.method === 'PUT' &&
-      requestUrl.pathname ===
-        '/v1/admin/finance/company-payout-destination'
-    ) {
-      const actor = await authenticateAdminPrincipal({
-        apiKeys: adminRepository,
-        humanAuth: adminHumanAuthRepository,
-        headers: request.headers,
-        requiredScope: 'finance:write',
-      });
-      assertAdminPayoutOwner(actor);
-      const destination = parseDriverPayoutDestinationRequest(
-        await readJson(request),
-      );
-      json(
-        response,
-        200,
-        await saveAdminCompanyPayoutDestination({
-          finance: financeRepository,
-          admin: adminRepository,
-          actor,
-          pixKeyType: destination.pixKeyType,
-          pixKey: destination.pixKey,
-        }),
-      );
-      return;
-    }
-
-    if (
-      request.method === 'POST' &&
-      requestUrl.pathname === '/v1/admin/finance/company-payouts'
-    ) {
-      const actor = await authenticateAdminPrincipal({
-        apiKeys: adminRepository,
-        humanAuth: adminHumanAuthRepository,
-        headers: request.headers,
-        requiredScope: 'finance:write',
-      });
-      assertAdminPayoutOwner(actor);
-      if (companyPayoutProvider == null) {
-        json(response, 503, {
-          error: 'PAYOUT_PROVIDER_NOT_CONFIGURED',
-          message: 'Provedor de repasse Pix não configurado.',
-        });
-        return;
-      }
-
-      const body = await readJson(request);
-      const payload =
-        body != null &&
-        typeof body === 'object' &&
-        !Array.isArray(body)
-          ? body as { amountCents?: unknown; requestId?: unknown }
-          : {};
-      if (
-        typeof payload.amountCents !== 'number' ||
-        !Number.isInteger(payload.amountCents) ||
-        payload.amountCents < 100 ||
-        typeof payload.requestId !== 'string' ||
-        !/^[0-9a-fA-F-]{36}$/.test(payload.requestId)
-      ) {
-        throw new InvalidAdminRequestError(
-          'Repasse da empresa inválido.',
-        );
-      }
-
-      const requested = await createAdminCompanyPayout({
-        finance: financeRepository,
-        admin: adminRepository,
-        actor,
-        amountCents: payload.amountCents,
-        idempotencyKey: `company:${payload.requestId}`,
-      });
-
-      let payout = requested.payout;
-      let providerRetryPending = false;
-      try {
-        const processed = await processCompanyPayout({
-          finance: financeRepository,
-          provider: companyPayoutProvider,
-          payoutId: requested.payout.id,
-        });
-        if (processed.payout != null) {
-          payout = adminCompanyPayoutView(processed.payout);
-        }
-      } catch (error) {
-        providerRetryPending = true;
-        logWarn('company.payout.provider_retry_pending', {
-          payoutId: requested.payout.id,
-          ...errorFields(error),
-        });
-      }
-
-      json(response, 201, {
-        payout,
-        duplicate: requested.duplicate,
-        providerRetryPending,
-      });
-      return;
+    if ((request.method==='PUT'&&requestUrl.pathname==='/v1/admin/finance/company-payout-destination')||(request.method==='POST'&&requestUrl.pathname==='/v1/admin/finance/company-payouts')) {
+      await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:'finance:write'});
+      json(response,410,{error:'COMPANY_TRANSFERS_DISABLED',message:'Transferências da empresa desativadas. Registre a retirada feita pelo banco na Gestão financeira.'});return;
     }
 
     const adminCompanyPayoutMatch = requestUrl.pathname.match(

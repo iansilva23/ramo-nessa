@@ -162,8 +162,12 @@ export function calculateCostReport(source: CostSource, period: ReturnType<typeo
   }
   for(const l of lines) if(l.rideId && rides.has(l.rideId)) rides.get(l.rideId)!.costsCents+=l.amountCents;
   for(const r of rides.values()) r.netCents=r.commissionCents-r.costsCents;
+  const daily=new Map<string,{date:string;revenueCents:number;costsCents:number}>();
+  for(const e of events){const date=localDate(e.at),d=daily.get(date)??{date,revenueCents:0,costsCents:0};d.revenueCents+=e.commissionCents+e.otherRevenueCents+e.feeRecoveryCents;daily.set(date,d);}
+  for(const l of lines){const d=daily.get(l.date)??{date:l.date,revenueCents:0,costsCents:0};d.costsCents+=l.amountCents;daily.set(l.date,d);}
   return { period:{from:period.from,to:period.to,timeZone:'America/Fortaleza'},generatedAt:new Date().toISOString(),
-    summary:{commissionCents,otherRevenueCents,feeRecoveryCents,totalRevenueCents,confirmedCostsCents,estimatedCostsCents,
+    daily:[...daily.values()].sort((a,b)=>a.date.localeCompare(b.date)),
+    summary:{commissionCents,otherRevenueCents,feeRecoveryCents,totalRevenueCents,confirmedCostsCents,estimatedCostsCents,manualObligationsCents:lines.filter(l=>l.source!=='ledger').reduce((s,l)=>s+l.amountCents,0),
       resultConfirmedCents:totalRevenueCents-confirmedCostsCents,projectedNetCents:totalRevenueCents-confirmedCostsCents-estimatedCostsCents},
     categories:Object.entries(categories).map(([category,amountCents])=>({category,amountCents})),
     lines:lines.slice(0,500),lineCount:lines.length,rides:[...rides.values()].slice(0,500),rideCount:rides.size,items:source.items,
