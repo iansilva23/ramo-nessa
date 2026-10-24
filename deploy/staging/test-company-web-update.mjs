@@ -105,7 +105,7 @@ import{createRide}from'./dist/src/rides/create-ride.js';
 const p=createPostgresPool(process.env.DATABASE_URL),identities=new PostgresAuthOtpRepository(p),sessions=new PostgresAuthSessionRepository(p),rides=new PostgresRideRepository(p),now=new Date().toISOString(),tokens={};
 const passenger=randomUUID(),driver=randomUUID();
 for(const [subjectType,subjectId,phoneE164]of [['passenger',passenger,'+5588999990001'],['driver',driver,'+5588999990002']]){
- await identities.createCompany({id:subjectId,subjectType,subjectId,phoneE164,status:'active',createdAt:now,updatedAt:now});tokens[subjectType]=(await issueAuthSession({repository:sessions,subjectType,subjectId})).token;
+ await identities.createIdentity({id:subjectId,subjectType,subjectId,phoneE164,status:'active',createdAt:now,updatedAt:now});tokens[subjectType]=(await issueAuthSession({repository:sessions,subjectType,subjectId})).token;
 }
 const ride=await createRide(rides,{passengerId:passenger,quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day'}});await rides.save({...ride,driverId:driver,state:'IN_PROGRESS'});console.log(JSON.stringify({rideId:ride.id,tokens,driverId:driver,passengerId:passenger}));await p.end();`;
  const company=JSON.parse(docker(['exec',names.core,'node','--input-type=module','-e',seedCompany]));
