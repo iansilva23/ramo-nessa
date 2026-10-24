@@ -41,6 +41,7 @@ import 'destination_search_screen.dart';
 import 'vehicle_selection_screen.dart';
 import 'widgets/ramo_live_map.dart';
 import 'widgets/ride_bottom_sheet.dart';
+import '../data/passenger_nearby_service.dart';
 
 class PassengerHomeScreen extends StatefulWidget {
   const PassengerHomeScreen({
@@ -63,6 +64,7 @@ class PassengerHomeScreen extends StatefulWidget {
     this.releasePolicyService,
     this.agencyPromotionService,
     this.networkTilesEnabled = true,
+    this.nearbyService,
   });
 
   final String? accessToken;
@@ -83,12 +85,15 @@ class PassengerHomeScreen extends StatefulWidget {
   final AppReleasePolicyService? releasePolicyService;
   final AgencyPromotionService? agencyPromotionService;
   final bool networkTilesEnabled;
+  final PassengerNearbyService? nearbyService;
 
   @override
   State<PassengerHomeScreen> createState() => _PassengerHomeScreenState();
 }
 
-class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
+class _PassengerHomeScreenState extends State<PassengerHomeScreen> with WidgetsBindingObserver {
+  PassengerNearbyController? _nearby;
+  bool _foreground = true;
   final RamoMapController _mapController = RamoMapController();
 
   late final String _accessToken = widget.accessToken?.trim() ?? '';
@@ -204,6 +209,14 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    final nearbyService = widget.nearbyService ?? (_authenticated && _accessToken.isNotEmpty
+        ? HttpPassengerNearbyService(baseUrl:RamoCoreConfig.baseUri!,accessToken:_accessToken) : null);
+    if (nearbyService != null) {
+      _nearby = PassengerNearbyController(nearbyService, canPoll:() => mounted && ModalRoute.of(context)?.isCurrent != false && !_preparingRide)
+        ..addListener(_nearbyChanged);
+    }
     widget.guideDestination?.addListener(_guideDestinationChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -215,9 +228,24 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nearby?.removeListener(_nearbyChanged);
+    _nearby?.dispose();
     widget.guideDestination?.removeListener(_guideDestinationChanged);
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _nearbyChanged() { if (mounted) setState(() {}); }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _nearby?.setActive(_foreground && TickerMode.of(context));
+  }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _nearby?.setActive(_foreground && TickerMode.of(context));
   }
 
   @override
@@ -519,6 +547,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
       if (!mounted) {
         return;
       }
+      _nearby?.setCenter(location);
 
       if (kIsWeb && originSelectionRevision != _originSelectionRevision) {
         setState(() => _locating = false);
@@ -1199,6 +1228,7 @@ class _PassengerHomeScreenState extends State<PassengerHomeScreen> {
               origin: _origin,
               destination: _destination,
               routePoints: _route?.points ?? const [],
+              nearbyVehicles: _nearby?.vehicles ?? const [],
               networkTilesEnabled: widget.networkTilesEnabled,
               cameraPadding: ramoHomeMapPadding(
                 viewport: constraints.biggest,

@@ -9,6 +9,7 @@ import 'package:ramo_design_system/ramo_design_system.dart';
 import '../../../../core/config/ramo_map_config.dart';
 import '../../../../core/map/ramo_map_marker_icons.dart';
 import '../../../map/domain/ramo_place.dart';
+import '../../data/passenger_nearby_service.dart';
 
 @visibleForTesting
 List<domain.LatLng> ramoVisibleRoutePoints(
@@ -179,6 +180,7 @@ class RamoLiveMap extends StatefulWidget {
     this.onMapReady,
     this.networkTilesEnabled = true,
     this.cameraPadding = EdgeInsets.zero,
+    this.nearbyVehicles = const [],
   });
 
   final RamoMapController controller;
@@ -193,6 +195,7 @@ class RamoLiveMap extends StatefulWidget {
   final VoidCallback? onMapReady;
   final bool networkTilesEnabled;
   final EdgeInsets cameraPadding;
+  final List<PassengerNearbyVehicle> nearbyVehicles;
 
   @override
   State<RamoLiveMap> createState() => _RamoLiveMapState();
@@ -207,6 +210,12 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   RamoRouteMotionPath? _driverMotionPath;
   late final AnimationController _driverMoveController;
   late final AnimationController _routeDrawController;
+  late final AnimationController _nearbyMoveController;
+  final Map<String,domain.LatLng> _nearbyPositions = {};
+  final Map<String,domain.LatLng> _nearbyFrom = {};
+  final Map<String,domain.LatLng> _nearbyTo = {};
+  final Map<String,double> _nearbyBearings = {};
+  final Map<String,gm.BitmapDescriptor> _nearbyIcons = {};
   gm.BitmapDescriptor _passengerIcon =
       gm.BitmapDescriptor.defaultMarker;
   gm.BitmapDescriptor _destinationIcon =
@@ -219,6 +228,9 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   @override
   void initState() {
     super.initState();
+    _nearbyMoveController = AnimationController(vsync:this,duration:const Duration(milliseconds:1500))..addListener(_tickNearbyMovement);
+    _syncNearbyVehicles();
+    _loadNearbyIcons();
     _displayDriverPosition = widget.driverPosition;
     _driverMoveController = AnimationController(
       vsync: this,
@@ -237,6 +249,44 @@ class _RamoLiveMapState extends State<RamoLiveMap>
 
   void _tickRouteDrawing() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _loadNearbyIcons() async {
+    final icons = <String,gm.BitmapDescriptor>{};
+    for (final category in ['moto','car','buggy','delivery','comfort_black']) {
+      icons[category] = await buildRamoMapMarker(icon:ramoVehicleIcon(category),assetName:ramoVehicleMarkerAsset(category),logicalSize:54);
+    }
+    if (mounted) setState(() => _nearbyIcons.addAll(icons));
+  }
+
+  void _syncNearbyVehicles() {
+    _nearbyMoveController.stop();
+    final ids = widget.nearbyVehicles.map((v) => v.id).toSet();
+    _nearbyPositions.removeWhere((id,_) => !ids.contains(id));
+    _nearbyBearings.removeWhere((id,_) => !ids.contains(id));
+    _nearbyFrom.clear(); _nearbyTo.clear();
+    for (final vehicle in widget.nearbyVehicles) {
+      final from = _nearbyPositions[vehicle.id];
+      if (from == null || _distanceMeters(from, vehicle.position) > 1000) {
+        _nearbyPositions[vehicle.id] = vehicle.position;
+      } else if (from.latitude != vehicle.position.latitude || from.longitude != vehicle.position.longitude) {
+        _nearbyFrom[vehicle.id] = from;
+        _nearbyTo[vehicle.id] = vehicle.position;
+        _nearbyBearings[vehicle.id] = _bearingBetween(from, vehicle.position);
+      }
+    }
+    if (_nearbyTo.isNotEmpty) _nearbyMoveController.forward(from:0);
+  }
+
+  void _tickNearbyMovement() {
+    if (!mounted) return;
+    final t = Curves.easeInOut.transform(_nearbyMoveController.value);
+    setState(() {
+      for (final entry in _nearbyTo.entries) {
+        final from = _nearbyFrom[entry.key]!, to = entry.value;
+        _nearbyPositions[entry.key] = domain.LatLng(from.latitude+(to.latitude-from.latitude)*t,from.longitude+(to.longitude-from.longitude)*t);
+      }
+    });
   }
 
   bool _sameRoute(
@@ -369,6 +419,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
   @override
   void didUpdateWidget(covariant RamoLiveMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.nearbyVehicles,widget.nearbyVehicles)) _syncNearbyVehicles();
 
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.detach();
@@ -437,6 +488,17 @@ class _RamoLiveMapState extends State<RamoLiveMap>
 
   Set<gm.Marker> get _markers {
     final markers = <gm.Marker>{};
+    for (final vehicle in widget.nearbyVehicles) {
+      final icon = _nearbyIcons[vehicle.category];
+      if (icon == null) continue;
+      final position = _nearbyPositions[vehicle.id] ?? vehicle.position;
+      markers.add(gm.Marker(
+        markerId:gm.MarkerId('nearby-${vehicle.id}'),
+        position:gm.LatLng(position.latitude,position.longitude),icon:icon,
+        anchor:const Offset(.5,.5),flat:true,rotation:_nearbyBearings[vehicle.id] ?? 0,
+        consumeTapEvents:true,
+      ));
+    }
 
     final origin = widget.origin;
     if (origin != null) {
@@ -528,6 +590,7 @@ class _RamoLiveMapState extends State<RamoLiveMap>
 
   @override
   void dispose() {
+    _nearbyMoveController.dispose();
     _driverMoveController.dispose();
     _routeDrawController.dispose();
     widget.controller.detach();
