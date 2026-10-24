@@ -1,0 +1,93 @@
+name: Company finance verified installation package
+on:
+  push:
+    branches: [ops/company-finance-web-20261024]
+  workflow_dispatch:
+permissions: {contents: read, actions: read}
+concurrency: {group: company-finance-package, cancel-in-progress: true}
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require exact application and approved real regression
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          git diff --exit-code 25d429e11b282be8832538ebd11d41123526fd5a HEAD -- backend apps packages config/web
+          gh run watch 40120842041 --repo iansilva23/ramo-nessa --exit-status
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40120842041 > /tmp/company-review.json
+          node --input-type=module - <<'JS'
+          import{readFileSync}from'node:fs';const r=JSON.parse(readFileSync('/tmp/company-review.json'));if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='25d429e11b282be8832538ebd11d41123526fd5a')throw Error('Application review mismatch');
+          JS
+      - name: Installer contracts
+        run: |
+          node --check deploy/staging/company-web-update.mjs
+          node --check deploy/staging/company-migration.mjs
+          node --check deploy/staging/test-company-web-update.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_company.py
+          node --test deploy/staging/google-search-update.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - name: Exact installed Web for preservation rehearsal
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh release download ride-identity-manual-web-20261024-r2 --pattern RamoNessa-Corridas-Cancelamentos-Web.zip --dir /tmp/active-web
+          printf '%s  %s\n' 8734ddf459941ff585aaa7cabb24e0ebe664ec4a68a3cbdf1a774c5c52a0d12b /tmp/active-web/RamoNessa-Corridas-Cancelamentos-Web.zip | sha256sum --check -
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('/tmp/active-web/RamoNessa-Corridas-Cancelamentos-Web.zip') as z:
+              for n in z.namelist():
+                  if n.startswith(('driver/','passenger/')): z.extract(n,'baseline-web')
+          PY
+      - name: Build exact baseline and candidate Core
+        run: |
+          mkdir baseline
+          git archive e36963c02716511da855f89a529175da04b51eff backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Assemble scoped payload
+        run: |
+          node scripts/web/package_company_window.mjs baseline release
+          python3 - <<'PY'
+          import pathlib,zipfile
+          with zipfile.ZipFile('RamoNessa-Gestao-Financeira-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for p in sorted(pathlib.Path('release').rglob('*')):
+                  if p.is_file(): z.write(p,p.relative_to('release'))
+          PY
+          sha256sum RamoNessa-Gestao-Financeira-Web.zip > RamoNessa-Gestao-Financeira-Web.zip.sha256
+      - name: Real PostgreSQL Caddy backup and recovery rehearsal
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-company-web-update.mjs "$PWD/RamoNessa-Gestao-Financeira-Web.zip" "$PWD/baseline"
+      - name: Package exact installer sources
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Gestao-Financeira-Web-r1.tar.gz
+          sha256sum Instalador-Gestao-Financeira-Web-r1.tar.gz > Instalador-Gestao-Financeira-Web-r1.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: company-finance-verified-installer
+          path: |
+            RamoNessa-Gestao-Financeira-Web.zip
+            RamoNessa-Gestao-Financeira-Web.zip.sha256
+            Instalador-Gestao-Financeira-Web-r1.tar.gz
+            Instalador-Gestao-Financeira-Web-r1.tar.gz.sha256
+          if-no-files-found: error
+  publish:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: company-finance-verified-installer, path: release}
+      - name: Publish tested installer
+        env: {GH_TOKEN: '${{ github.token }}', GH_REPO: '${{ github.repository }}'}
+        run: |
+          cd release
+          sha256sum -c RamoNessa-Gestao-Financeira-Web.zip.sha256
+          sha256sum -c Instalador-Gestao-Financeira-Web-r1.tar.gz.sha256
+          gh release create company-finance-web-20261024-r1 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Gestão financeira da empresa no ADM' --notes 'Atualiza somente Core e ADM. Backup com restauração isolada, recuperação ensaiada e proteção após novos registros financeiros. Preserva Passageiro/Motorista Web, provedores, pagamentos e repasses dos motoristas. Sem instalação automática na VPS.' ./*
