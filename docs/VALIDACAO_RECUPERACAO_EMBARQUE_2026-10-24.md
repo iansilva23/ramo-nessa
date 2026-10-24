@@ -2,6 +2,12 @@
 
 PR #61 permanece em DRAFT. Esta etapa valida código e builds web; não autoriza implantação, ativação do embarque ou publicação Android/iOS.
 
+## Escopo definido pelo responsável
+
+A entrega atual abrange somente a versão web de Passageiro, Motorista e ADM, com o Core necessário a esses fluxos. A revisão funcional deve considerar recarregar a página, fechar/reabrir a aba e retornar ao primeiro plano, inclusive em navegadores de celular.
+
+Android e iPhone ficam fora desta entrega. Todas as atualizações acumuladas serão sincronizadas a partir da versão web em uma etapa futura conjunta. Testes em aparelhos, builds nativos, assinatura e publicação nas lojas pertencem a essa etapa futura e não bloqueiam a conclusão da entrega web.
+
 ## Correções desta revisão
 
 - Os testes de reabertura usam armazenamento seguro simulado, sem aguardar chamadas nativas inexistentes no ambiente de testes.
@@ -39,7 +45,9 @@ Os testes condicionais de PostgreSQL dependem do ambiente do CI. O resultado loc
 
 O workflow `.github/workflows/ride-recovery-boarding-review.yml` executa migrações duas vezes, testes com PostgreSQL, compilação Core, testes ADM e análise/testes/build web de ambos os apps. O PR deve continuar DRAFT durante a revisão funcional.
 
-Antes de uma publicação futura, validar o ciclo real de pagamento no ambiente de homologação do provedor e o encerramento/reabertura dos apps em aparelhos Android/iOS. Os testes automatizados não representam uma cobrança real, entrega de push em aparelho ou homologação de distribuição móvel.
+Para concluir a entrega web, a revisão funcional deve validar a recuperação da corrida e do pagamento existente após recarregar e reabrir o navegador. A integração de produção do Mercado Pago permanece como está. Os testes isolados não representam cobranças reais nem entrega de push real.
+
+A homologação em aparelhos Android/iPhone será realizada somente na sincronização futura das versões nativas; não é pendência desta entrega web.
 
 Nenhuma migração, instalação ou ativação foi realizada na VPS nesta etapa. O interruptor global do código de embarque permanece `false` na criação da política.
 
@@ -54,4 +62,4 @@ O responsável confirmou que o Mercado Pago já está em produção e funcionand
 
 Resultado local complementar: teste HTTP, Chromium e WebKit passaram; os 176 testes do ADM continuaram passando. O resultado do CI para o commit final é registrado na descrição do PR.
 
-Essa execução usa contas, pagamentos e respostas artificiais, com servidor local temporário. Não representa o encerramento e reabertura dos apps nativos em aparelhos com a nova versão. Essa homologação permanece separada da integração de pagamentos que já funciona em produção.
+Essa execução usa contas, pagamentos e respostas artificiais, com servidor local temporário. A largura móvel e o WebKit validam a experiência no navegador, sem representar homologação dos apps nativos. A sincronização e homologação nativas ficam para a etapa futura definida pelo responsável.
