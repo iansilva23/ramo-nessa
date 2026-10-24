@@ -172,5 +172,5 @@ export function createCompanyCostsAdmin({root,api,getToken,hasScope,onError}) {
   if(!hasScope('costs:write'))for(const form of ['cost-expense-form','cost-rule-form'])for(const control of el(form).elements)control.disabled=true;
   syncRuleFields();
   void load();
-  return {load,destroy(){destroyed=true;request++;abort.abort();pending.clear();}};
+  return {load,prepareExpense(line){fillExpense({name:line.name,category:line.category,slot:line.slot,amountCents:line.amountCents,occurredOn:line.date,rideId:line.rideId,paymentId:line.paymentId,ruleId:!line.rideId&&!line.paymentId?line.ruleId:null,certainty:'confirmed',notes:'Pagamento conferido do custo previsto.'});},destroy(){destroyed=true;request++;abort.abort();pending.clear();}};
 }
