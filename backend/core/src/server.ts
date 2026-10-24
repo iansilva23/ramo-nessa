@@ -7293,7 +7293,12 @@ const server = createServer(async (request, response) => {
       request.method === 'GET' &&
       requestUrl.pathname === '/v1/passenger/me/nearby-vehicles'
     ) {
-      const passengerId = await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});
+      const sessionKey = headerValue(request, 'authorization');
+      if (!sessionKey) {
+        json(response, 401, {error:'AUTH_REQUIRED',message:'Entre na sua conta para visualizar os veículos próximos.'});
+        return;
+      }
+      await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});
       const lat = requestUrl.searchParams.get('latitude'), lng = requestUrl.searchParams.get('longitude');
       const latitude = Number(lat), longitude = Number(lng);
       if (lat == null || lng == null || !lat.trim() || !lng.trim() || !validNearbyPoint(latitude, longitude)) {
@@ -7303,7 +7308,7 @@ const server = createServer(async (request, response) => {
       const now = new Date();
       json(response, 200, await passengerNearbyVehicles({
         drivers:driverSupplyRepository,settings:operationalSettingsRepository,latitude,longitude,
-        sessionKey:headerValue(request,'authorization') ?? passengerId,now,
+        sessionKey,now,
         canUseDriver:async id => {
           const identity = await authOtpRepository.findIdentityBySubject('driver', id);
           return identity?.status === 'active' && await canDriverReceiveNewWorkUnderPolicy(id, now);

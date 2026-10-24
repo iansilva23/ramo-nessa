@@ -54,7 +54,7 @@ void main() {
     var now = DateTime(2026,10,24);
     final service = NearbyFixture();final feed = PassengerNearbyController(service,now:()=>now);
     feed.setCenter(center);feed.setActive(true);feed.setCenter(const LatLng(-2.83,-40.42));
-    service.requests.first.complete(const PassengerNearbySnapshot(vehicles:[vehicle]));await tester.pump();await tester.pump();
+    service.requests.first.complete(const PassengerNearbySnapshot(vehicles:[vehicle]));await tester.pump();await tester.pump(const Duration(milliseconds:1));
     expect(feed.vehicles,isEmpty);expect(service.requests.length,2);
     service.requests.last.complete(const PassengerNearbySnapshot(vehicles:[vehicle]));await tester.pump();expect(feed.vehicles.length,1);
     now = now.add(const Duration(seconds:16));await tester.pump(const Duration(seconds:16));
