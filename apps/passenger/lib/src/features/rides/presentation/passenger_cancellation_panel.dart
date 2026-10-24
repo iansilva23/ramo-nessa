@@ -54,7 +54,8 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
  String _money(num cents)=>'R\$ ${(cents/100).toStringAsFixed(2).replaceAll('.',',')}';
  @override Widget build(BuildContext context){
   final cancellation=_data?['cancellation'] as Map<String,dynamic>?;
-  final visible=_data?['canCancel']==true&&(_seconds==null||_seconds!>0);
+  final terms=_data?['terms'] as Map<String,dynamic>?;
+  final visible=terms?['systemEnabled']==true&&_data?['canCancel']==true&&(_seconds==null||_seconds!>0);
   final status=cancellation?['status'] as String?;
   return Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
    // Shrink the bottom-anchored panel so the information above moves down.

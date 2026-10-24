@@ -3,7 +3,7 @@ import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync,existsSync
 import {resolve,join,relative,dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {identitySource,identityBase,baselineCore,dependencyLock,coreDelta,adminDelta,migration,assertIdentityManifest} from '../../deploy/staging/identity-web-contract.mjs';
+import {identitySource,identityBase,baselineCore,dependencyLock,coreDelta,adminDelta,migrations,assertIdentityManifest} from '../../deploy/staging/identity-web-contract.mjs';
 const [baseArg,outputArg]=process.argv.slice(2);if(!baseArg||!outputArg)throw Error('baseline directory and output required');
 const base=resolve(baseArg),output=resolve(outputArg),hash=b=>createHash('sha256').update(b).digest('hex');
 function files(root,filter=()=>true){const rows=[];function walk(p){for(const e of readdirSync(p,{withFileTypes:true})){const q=join(p,e.name);if(e.isSymbolicLink())throw Error('Unexpected symlink');if(e.isDirectory())walk(q);else if(e.isFile()&&filter(relative(root,q)))rows.push([relative(root,q),hash(readFileSync(q))]);}}walk(root);return rows.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);}
@@ -17,12 +17,12 @@ const baselineAdmin=runtimeAdmin(join(base,'apps/admin')),candidateAdmin=runtime
 if(JSON.stringify([...new Set([...oldAdmin.keys(),...newAdmin.keys()])].filter(p=>oldAdmin.get(p)!==newAdmin.get(p)).sort())!==JSON.stringify(adminDelta))throw Error('Unreviewed admin delta');
 const baselineMigrations=files(join(base,'backend/core/migrations')).map(([filename,checksum])=>({filename,checksum}));
 for(const r of baselineMigrations)if(hash(readFileSync('backend/core/migrations/'+r.filename))!==r.checksum)throw Error('Old migration modified');
-if(JSON.stringify(readdirSync('backend/core/migrations').sort())!==JSON.stringify([...baselineMigrations.map(r=>r.filename),migration].sort()))throw Error('Unexpected migration');
+if(JSON.stringify(readdirSync('backend/core/migrations').sort())!==JSON.stringify([...baselineMigrations.map(r=>r.filename),...migrations].sort()))throw Error('Unexpected migration');
 mkdirSync(output,{recursive:false});const m={format:1,source:identitySource,baseline:identityBase,baselineCore,candidateCore:hash(JSON.stringify(after)),lock:dependencyLock,coreDelta,adminDelta,baselineAdmin,candidateAdmin,baselineMigrations,files:[]};
 function add(from,path){const bytes=readFileSync(from),target=join(output,path);mkdirSync(dirname(target),{recursive:true});copyFileSync(from,target);m.files.push({path,bytes:bytes.length,sha256:hash(bytes)});}
 for(const p of coreDelta)for(const suffix of ['','.map'])add('backend/core/dist/src/'+p+suffix,'core/dist/src/'+p+suffix);
 for(const p of adminDelta)add('apps/admin/'+p,'admin/'+p);
-add('backend/core/migrations/'+migration,'migration/'+migration);
+for(const migration of migrations)add('backend/core/migrations/'+migration,'migration/'+migration);
 for(const role of ['driver','passenger'])for(const [p]of files('apps/'+role+'/build/web'))add('apps/'+role+'/build/web/'+p,role+'/'+p);
 assertIdentityManifest(m);writeFileSync(join(output,'identity-manifest.json'),JSON.stringify(m,null,2));
 console.log(JSON.stringify({source:identitySource,baselineCore,candidateCore:m.candidateCore,files:m.files.length,driverUpdated:true,nativeUpdated:false}));

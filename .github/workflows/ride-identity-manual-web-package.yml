@@ -17,12 +17,12 @@ jobs:
       - name: Require exact reviewed application and green review
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
-          git diff --exit-code cd83cd360929f243b387395d522dc2d547e21852 HEAD -- backend apps packages config/web
-          gh api repos/iansilva23/ramo-nessa/actions/runs/40068655529 > /tmp/identity-evidence.json
+          git diff --exit-code e36963c02716511da855f89a529175da04b51eff HEAD -- backend apps packages config/web
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40071027422 > /tmp/identity-evidence.json
           node --input-type=module - <<'NODE'
           import {readFileSync} from 'node:fs';
           const r=JSON.parse(readFileSync('/tmp/identity-evidence.json'));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='cd83cd360929f243b387395d522dc2d547e21852')throw Error('Review evidence differs');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='e36963c02716511da855f89a529175da04b51eff')throw Error('Review evidence differs');
           NODE
       - name: Extraction and scoped installer contracts
         run: |
@@ -96,16 +96,16 @@ jobs:
           sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-identity-web-update.mjs "$PWD/RamoNessa-Corridas-Cancelamentos-Web.zip" "$PWD/baseline"
       - name: Package installer sources
         run: |
-          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Corridas-Cancelamentos-Web-r1.tar.gz
-          sha256sum Instalador-Corridas-Cancelamentos-Web-r1.tar.gz > Instalador-Corridas-Cancelamentos-Web-r1.tar.gz.sha256
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Corridas-Cancelamentos-Web-r2.tar.gz
+          sha256sum Instalador-Corridas-Cancelamentos-Web-r2.tar.gz > Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: ride-identity-manual-configured-web-tested
           path: |
             RamoNessa-Corridas-Cancelamentos-Web.zip
             RamoNessa-Corridas-Cancelamentos-Web.zip.sha256
-            Instalador-Corridas-Cancelamentos-Web-r1.tar.gz
-            Instalador-Corridas-Cancelamentos-Web-r1.tar.gz.sha256
+            Instalador-Corridas-Cancelamentos-Web-r2.tar.gz
+            Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -122,5 +122,5 @@ jobs:
         run: |
           cd release
           sha256sum -c RamoNessa-Corridas-Cancelamentos-Web.zip.sha256
-          sha256sum -c Instalador-Corridas-Cancelamentos-Web-r1.tar.gz.sha256
-          gh release create ride-identity-manual-web-20261024-r1 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Identificação das corridas e devoluções manuais Web' --notes 'Guia claro/escuro, identificação, regras por categoria e devolução Pix manual no ADM. Backup, recuperação e preservação financeira ensaiados. Sem instalação automática na VPS e sem publicação Android/iOS.' ./*
+          sha256sum -c Instalador-Corridas-Cancelamentos-Web-r2.tar.gz.sha256
+          gh release create ride-identity-manual-web-20261024-r2 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Identificação das corridas e devoluções manuais Web' --notes 'Guia claro/escuro, identificação, regras por categoria e devolução Pix manual no ADM. Backup, recuperação e preservação financeira ensaiados. Sem instalação automática na VPS e sem publicação Android/iOS.' ./*

@@ -12,7 +12,7 @@ import {names,assertImageDelta,assertCoreRuntime,switchSearch} from './google-se
 import {coreSourceFingerprintProgram} from './inspect-regions-pricing.mjs';
 import {hashFile,hashTree,digest,privateDir} from './google-search-update-io.mjs';
 import {assertMapProviders} from './prepare-web-map-update.mjs';
-import {identitySource,baselineCore,dependencyLock,liveWeb,identityWeb,identityRoot,identityDirectory,migration,assertIdentityManifest,assertIdentityGatewayDelta,inspectedWebFiles,inspectedCaddy} from './identity-web-contract.mjs';
+import {identitySource,baselineCore,dependencyLock,liveWeb,identityWeb,identityRoot,identityDirectory,migrations,assertIdentityManifest,assertIdentityGatewayDelta,inspectedWebFiles,inspectedCaddy} from './identity-web-contract.mjs';
 const here=dirname(fileURLToPath(import.meta.url));
 function host(directory){
  const run=(cmd,args,input)=>{const r=spawnSync(cmd,args,{encoding:'utf8',input,timeout:600000,maxBuffer:64*1024**2,env:{PATH:process.env.PATH},stdio:['pipe','pipe','pipe']});if(r.error||r.status!==0){if(directory)writeFileSync(join(directory,'command.private.log'),String(r.stdout??'')+String(r.stderr??''),{mode:0o600});throw Error('IDENTITY_COMMAND_FAILED: '+cmd);}return r.stdout;};
@@ -77,7 +77,7 @@ export async function prepareIdentity(args,fixture={}){
    if(role==='core'&&images.core.Config.User!=='node')throw Error('IDENTITY_CORE_USER_CHANGED');
    const folder=role==='core'?'core':'admin',files=manifest.files.filter(f=>f.path.startsWith(folder+'/'));
    for(const f of files){chmodSync(join(payload,f.path),0o644);let p=dirname(join(payload,f.path));while(p!==payload){chmodSync(p,0o755);p=dirname(p);}}
-   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY '+(role==='core'?'--chown=node:node ':'')+'--chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?'COPY --chown=node:node --chmod=0644 migration/'+migration+' /app/migrations/'+migration+'\n':'');
+   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY '+(role==='core'?'--chown=node:node ':'')+'--chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n'+(role==='core'?migrations.map(m=>'COPY --chown=node:node --chmod=0644 migration/'+m+' /app/migrations/'+m+'\n').join(''):'');
    const file=join(payload,role+'.Dockerfile');writeFileSync(file,dockerfile,{mode:0o600});const tag='ramo-nessa-identity-'+role+':'+identitySource.slice(0,12);
    h.docker(['build','--network','none','--pull=false','-f',file,'-t',tag,payload]);nextImages[role]=h.image(tag);assertImageDelta(images[role],nextImages[role]);
   }
@@ -129,8 +129,9 @@ export async function activateIdentity(args,rehearsal={}){
   await published(false);
   const verify=async candidate=>{assertCoreRuntime(before.core,h.inspect('core'),candidate?ca:cb,candidate?next.core:images.core);assertFingerprint(h.fingerprint(names.core,true),candidate?manifest.candidateCore:baselineCore);gatewayVerify(before.gateway,h.inspect('gateway'),candidate?ga:gb,candidate?next.gateway:images.gateway,candidate?identityWeb:liveWeb);if(!isDeepStrictEqual(h.admin(names.gateway,true),candidate?manifest.candidateAdmin:manifest.baselineAdmin))throw Error('IDENTITY_ADMIN_BYTES');await intact();await published(candidate);};
   barrier();record({phase:'migidentity'});console.log('Adicionando os registros de cancelamento e devolução manual, preservando as corridas existentes...');
-  const sql=readFileSync(join(payload,'migration',migration),'utf8'),program=readFileSync(join(here,'identity-migration.mjs'),'utf8');
-  try{h.run('docker',['exec','-i',names.core,'node','--input-type=module','-e',program],JSON.stringify({sql,checksum:hashFile(join(payload,'migration',migration)),baselineMigrations:manifest.baselineMigrations}));}catch(e){record({phase:'migration-failed',servicesRestarted:false});throw e;}
+  const program=readFileSync(join(here,'identity-migration.mjs'),'utf8');
+  const updates=migrations.map(filename=>({filename,sql:readFileSync(join(payload,'migration',filename),'utf8'),checksum:hashFile(join(payload,'migration',filename))}));
+  try{h.run('docker',['exec','-i',names.core,'node','--input-type=module','-e',program],JSON.stringify({migrations:updates,baselineMigrations:manifest.baselineMigrations}));}catch(e){record({phase:'migration-failed',servicesRestarted:false});throw e;}
   record({phase:'switching',additiveMigrationRetained:true});
   try{
    await switchSearch({

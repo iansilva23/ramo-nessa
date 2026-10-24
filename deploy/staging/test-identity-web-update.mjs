@@ -131,6 +131,12 @@ const ride=await createRide(rides,{passengerId:passenger,quoteRequest:{origin:{z
  const ridePath='/v1/rides/'+manual.rideId;
  let reply=await requestManual('passenger',ridePath+'/tracking');assert.equal(reply.status,200);let tracking=await reply.json();
  assert.equal(tracking.driver.displayName,'João Silva');assert.equal(tracking.driver.vehicle.plate,'ABC1D23');
+ reply=await requestManual('passenger',ridePath+'/cancellation');let dormant=await reply.json();assert.equal(dormant.canCancel,false);assert.equal(dormant.terms.cancelUntil,null);
+ reply=await requestManual('passenger',ridePath+'/cancellation','POST',{reason:'Disabled'});assert.equal(reply.status,409);assert.equal((await reply.json()).error,'CANCELLATION_DISABLED');
+ assert.equal(query("SELECT count(*) FROM ride_manual_cancellations WHERE ride_id='"+manual.rideId+"'").trim(),'0');
+ reply=await requestManual('admin','/v1/admin/cancellation-policy');let policy=await reply.json();assert.equal(policy.systemEnabled,false);
+ reply=await requestManual('admin','/v1/admin/cancellation-policy','PUT',{...policy,systemEnabled:true});assert.equal(reply.status,200);
+ reply=await requestManual('passenger',ridePath+'/cancellation');assert.equal((await reply.json()).terms.systemEnabled,true);
  reply=await requestManual('passenger',ridePath+'/cancellation','POST',{reason:'Too late'});assert.equal(reply.status,409);
  reply=await requestManual('admin','/v1/admin/rides/'+manual.rideId+'/cancel','POST',{reason:'Passageiro solicitou suporte'});assert.equal(reply.status,200);assert.equal((await reply.json()).refundStatus,'manual_review');
  reply=await requestManual('passenger',ridePath+'/refund-pix','PUT',{type:'email',key:'fixture@example.test',holder:'Ian Silva'});assert.equal(reply.status,200);

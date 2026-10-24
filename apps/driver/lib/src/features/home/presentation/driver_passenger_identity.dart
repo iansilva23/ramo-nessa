@@ -16,7 +16,7 @@ class _DriverPassengerIdentityState extends State<DriverPassengerIdentity> {
   if(_loading)return;_loading=true;
   try{final data=await widget.api.rideIdentification(widget.rideId);if(!mounted)return;
    final t=data['terms'] as Map<String,dynamic>?,until=DateTime.tryParse(t?['cancelUntil'] as String? ?? ''),server=DateTime.tryParse(t?['serverTime'] as String? ?? '');
-   setState((){_name=data['passengerName'] as String? ?? 'Passageiro Ramo Nessa';_remaining=until==null||server==null?null:until.difference(server);_clock..reset()..start();});
+   setState((){_name=data['passengerName'] as String? ?? 'Passageiro Ramo Nessa';_remaining=t?['systemEnabled']!=true||until==null||server==null?null:until.difference(server);_clock..reset()..start();});
   }catch(_){/* Identity failure must not block ride controls. */}finally{_loading=false;}
  }
  @override Widget build(BuildContext context){

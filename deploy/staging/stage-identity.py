@@ -20,7 +20,7 @@ def stage(archive, output, checksum):
         if any(i.flag_bits & 1 or i.file_size > 50 * 1024**2 or (i.external_attr >> 16) & 0o170000 == 0o120000 for i in infos):
             raise ValueError('Unsupported archive entry')
         manifest = json.loads(z.read('identity-manifest.json'))
-        if manifest.get('source') != 'cd83cd360929f243b387395d522dc2d547e21852':
+        if manifest.get('source') != 'e36963c02716511da855f89a529175da04b51eff':
             raise ValueError('Unexpected source')
         entries = manifest['files']
         names = [f['path'] for f in entries]

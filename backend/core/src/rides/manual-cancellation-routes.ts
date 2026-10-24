@@ -30,9 +30,9 @@ export async function handleManualCancellationRoutes(input:{
    if(!ride||ride.passengerId!==passengerId){input.json(404,{error:'RIDE_NOT_FOUND'});return true;}
    if(!store)throw new CancellationError('POSTGRES_REQUIRED','Devoluções manuais exigem armazenamento persistente.',503);
    if(method==='GET'&&passenger[2]==='cancellation'){
-    const c=await store.find(ride.id);
-    input.json(200,{terms:await store.terms(ride.id),cancellation:c?publicCancellation(c):null,
-     canCancel:['PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND','DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'].includes(ride.state)});return true;
+    const c=await store.find(ride.id),terms=await store.terms(ride.id);
+    input.json(200,{terms,cancellation:c?publicCancellation(c):null,
+     canCancel:terms.systemEnabled&&['PAID','SEARCHING_DRIVER','NO_DRIVER_FOUND','DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'].includes(ride.state)});return true;
    }
    if(method==='POST'&&['cancellation','cancel-search'].includes(passenger[2]!)){
     const body=await input.readBody() as {reason?:unknown};
@@ -54,13 +54,15 @@ export async function handleManualCancellationRoutes(input:{
    if(path==='/v1/admin/manual-refunds'&&method==='GET'){input.json(200,{items:await store.list()});return true;}
    if(path==='/v1/admin/cancellation-policy'&&method==='GET'){input.json(200,await store.policy());return true;}
    if(path==='/v1/admin/cancellation-policy'&&method==='PUT'){
-    const b=await input.readBody() as {rules?:unknown;revision?:unknown};
-    input.json(200,await store.savePolicy(b?.rules,Number(b?.revision),actorKey));return true;
+    const b=await input.readBody() as {rules?:unknown;revision?:unknown;systemEnabled?:unknown};
+    if(typeof b?.systemEnabled!=='boolean')throw new CancellationError('INVALID_SWITCH','Informe se o sistema está ativado ou desativado.',400);
+    input.json(200,await store.savePolicy(b?.rules,Number(b?.revision),actorKey,b.systemEnabled));return true;
    }
    if(adminCancel&&method==='POST'){
     await input.authorize('rides:write');
     const ride=await input.rides.findById(adminCancel[1]!);
     if(!ride){input.json(404,{error:'RIDE_NOT_FOUND'});return true;}
+    if(!ride.manualRefund&&!(await store.policy()).systemEnabled)return false;
     if(!ride.manualRefund&&['CANCELLED_BY_ADMIN','REFUND_PENDING','REFUNDED'].includes(ride.state))return false;
     const b=await input.readBody() as {reason?:unknown};
     const c=await store.cancel({rideId:ride.id,passengerId:ride.passengerId,actor:actorKey,passenger:false,reason:typeof b?.reason==='string'?b.reason:''});
