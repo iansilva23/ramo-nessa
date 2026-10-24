@@ -67,7 +67,7 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
   const data: CostData = { name: textValue(r.name, 'Nome', 100), category: textValue(r.category, 'Categoria', 60),
     notes: textValue(r.notes, 'Observação', 500, true), slot, certainty: r.certainty, amountCents: Number(r.amountCents) };
   if (kind === 'expense') {
-    if(r.attachment)data.attachment=validateCancellationReceipt(r.attachment);
+    try{if(r.attachment)data.attachment=validateCancellationReceipt(r.attachment);}catch(e){throw new InvalidAdminRequestError(e instanceof Error?e.message:'Comprovante inválido.');}
     if (data.amountCents <= 0) throw new InvalidAdminRequestError('Despesa deve ser maior que zero.');
     data.occurredOn = dateValue(r.occurredOn, 'Data');
     data.rideId = r.rideId ? uuidValue(r.rideId) : null;

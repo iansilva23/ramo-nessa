@@ -12,7 +12,9 @@ export function parseManagementRecord(raw:unknown,actor:AdminActor):ManagementRe
  if(['withdrawal','return','contribution'].includes(String(r.kind))&&Number(r.amountCents)===0)throw new InvalidAdminRequestError('Informe um valor maior que zero.');
  if(typeof r.description!=='string'||r.description.trim().length<3||r.description.length>500)throw new InvalidAdminRequestError('Informe uma descrição de 3 a 500 caracteres.');
  const occurredOn=dateValue(r.occurredOn,'Data');if(occurredOn>localDate(new Date()))throw new InvalidAdminRequestError('Registre somente movimentações já realizadas.');
- return {id:uuidValue(r.id),kind:r.kind as ManagementKind,amountCents:Number(r.amountCents),occurredOn,description:r.description.trim(),referenceId:r.referenceId?uuidValue(r.referenceId):null,attachment:r.attachment?validateCancellationReceipt(r.attachment):null,actor,createdAt:new Date().toISOString()};
+ let attachment:CancellationReceipt|null=null;
+ try{if(r.attachment)attachment=validateCancellationReceipt(r.attachment);}catch(e){throw new InvalidAdminRequestError(e instanceof Error?e.message:'Comprovante inválido.');}
+ return {id:uuidValue(r.id),kind:r.kind as ManagementKind,amountCents:Number(r.amountCents),occurredOn,description:r.description.trim(),referenceId:r.referenceId?uuidValue(r.referenceId):null,attachment,actor,createdAt:new Date().toISOString()};
 }
 function map(r:any):ManagementRecord{return {id:r.id,kind:r.kind,amountCents:Number(r.amount_cents),occurredOn:typeof r.occurred_on==='string'?r.occurred_on.slice(0,10):r.occurred_on.toISOString().slice(0,10),description:r.description,referenceId:r.reference_id,attachment:r.attachment,actor:r.actor,createdAt:r.created_at.toISOString()};}
 export interface ManagementStore {list():Promise<ManagementRecord[]>;save(record:ManagementRecord):Promise<ManagementRecord>}
