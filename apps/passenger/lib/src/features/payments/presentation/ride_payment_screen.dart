@@ -298,6 +298,10 @@ class _RidePaymentScreenState extends State<RidePaymentScreen> {
                 ),
                 const SizedBox(height: 16),
                 if (!_paymentOptionsOpen)
+                  if(_confirmation?.cancellationRule!=null)Padding(
+                    padding:const EdgeInsets.only(bottom:12),
+                    child:Text('Cancelamento gratuito até ${_confirmation!.cancellationRule!['freeSeconds']}s após o aceite. Depois, solicite à equipe. Taxa prevista: R\$ ${((_confirmation!.cancellationRule!['enabled']==true?(_confirmation!.cancellationRule!['feeCents'] as num?)??0:0)/100).toStringAsFixed(2).replaceAll('.',',')}. Devolução realizada manualmente pela equipe.',style:Theme.of(context).textTheme.bodySmall)),
+                if (!_paymentOptionsOpen)
                   RamoReveal(
                     delay: const Duration(milliseconds: 180),
                     child: FilledButton(

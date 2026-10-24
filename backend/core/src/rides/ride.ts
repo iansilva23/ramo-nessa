@@ -26,6 +26,7 @@ export interface RideRecord {
   passengerId: string;
   state: RideState;
   paymentStatus: PaymentStatus;
+  manualRefund?: boolean;
   paymentMethod?: RidePaymentMethod;
   driverId?: string;
   driverConsentRequired?: boolean;

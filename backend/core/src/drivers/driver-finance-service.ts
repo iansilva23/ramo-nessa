@@ -165,6 +165,8 @@ function accountDeltaCents(
 
 function transactionLabel(kind: string): string {
   switch (kind) {
+    case 'RIDE_CANCELLATION_FEE':
+      return 'Taxa de cancelamento';
     case 'RIDE_SETTLED':
       return 'Corrida concluída';
     case 'CASH_RIDE_COMMISSION_ACCRUED':

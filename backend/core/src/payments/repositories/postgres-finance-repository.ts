@@ -339,7 +339,7 @@ const COMPANY_PAYOUT_COLUMNS = `
   processor, processor_payout_id, created_at, updated_at
 `;
 
-async function insertLedger(
+export async function insertLedger(
   client: PoolClient,
   transaction: LedgerTransaction,
 ): Promise<void> {
@@ -433,7 +433,7 @@ async function loadLedgerByReference(
   };
 }
 
-async function accountBalanceCents(
+export async function accountBalanceCents(
   client: PoolClient,
   accountKey: string,
 ): Promise<number> {

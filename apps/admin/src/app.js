@@ -13,6 +13,7 @@ import { createGeoAdmin } from './geo-admin.js';
 let companyCostsAdmin = null;
 let geoAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
+import {createCancellationAdmin} from './manual-refunds-admin.js';
 let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
@@ -7720,7 +7721,7 @@ async function handleRideCancel(event) {
   const confirmed = window.confirm(
     retryRefund
       ? 'Tentar concluir o estorno desta corrida novamente? A corrida continuará cancelada.'
-      : 'Confirmar cancelamento administrativo desta corrida? Esta ação libera o motorista e inicia o estorno quando aplicável.',
+      : 'Confirmar cancelamento administrativo desta corrida? O motorista será liberado e receberá a taxa configurada, se aplicável. A devolução ao passageiro será tratada manualmente em Financeiro → Cancelamentos e devoluções.',
   );
   if (!confirmed) return;
 
@@ -7734,6 +7735,7 @@ async function handleRideCancel(event) {
 
     if (
       result.refundStatus !== 'refunded' &&
+      result.refundStatus !== 'manual_review' &&
       result.refundStatus !== 'pending_external_gateway'
     ) {
       throw new Error(
@@ -7744,7 +7746,9 @@ async function handleRideCancel(event) {
       result.refundStatus === 'pending_external_gateway';
     const duplicate =
       result.duplicateCancellation === true;
-    const message = pendingExternal
+    const message = result.refundStatus === 'manual_review'
+      ? 'Corrida cancelada. Confira a análise e a devolução manual em Financeiro → Cancelamentos e devoluções.'
+      : pendingExternal
       ? duplicate
         ? 'Corrida permanece cancelada. O estorno externo ainda está pendente de confirmação do gateway.'
         : 'Corrida cancelada. Reembolso externo ficou pendente de confirmação do gateway.'
@@ -10892,6 +10896,7 @@ function initializeRouteView(view) {
 
   if (view === 'finance') {
     renderFinance(state.finance);
+    if(hasScope('finance:read'))createCancellationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
     renderPaymentPolicy(state.finance.policy);
     if (hasScope('finance:read')) {
       void loadFinance({ announce: false });

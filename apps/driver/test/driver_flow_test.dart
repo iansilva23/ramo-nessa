@@ -10,12 +10,29 @@ import 'package:ramo_nessa_driver/src/core/navigation/driver_navigation_service.
 import 'package:ramo_nessa_driver/src/features/benefits/data/driver_benefits_api.dart';
 import 'package:ramo_nessa_driver/src/features/benefits/domain/driver_benefits_models.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_api.dart';
+import 'package:ramo_nessa_driver/src/features/home/data/driver_realtime_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/data/driver_route_service.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_models.dart';
 import 'package:ramo_nessa_driver/src/features/home/domain/driver_route_info.dart';
 import 'package:ramo_nessa_driver/src/features/home/presentation/widgets/driver_live_map.dart';
 
 void main() {
+  testWidgets('passenger cancellation immediately shows fee, refreshes balance and releases busy state',(tester)async{
+    final api=_IdentityReviewApi(),realtime=_CancellationReviewRealtime();
+    await tester.pumpWidget(RamoNessaDriverApp(api:api,locationService:const _FakeLocationService(),realtimeService:realtime));
+    await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    final before=api._supply;
+    api._currentRide=null;
+    api._supply=DriverSupplySnapshot(driverId:before.driverId,vehicleId:before.vehicleId,categories:before.categories,fourByFour:before.fourByFour,seatCapacity:before.seatCapacity,online:true,busy:false,latitude:before.latitude,longitude:before.longitude,locationUpdatedAt:before.locationUpdatedAt);
+    api._finance=const DriverFinanceSummary(availableBalanceCents:11500,payoutPendingCents:0);
+    realtime.controller.add(const DriverRealtimeUpdate(rideUpdated:true,cancelledRideId:'ride-restored',cancellationFeeCents:500));
+    await tester.pump();await tester.pump(const Duration(milliseconds:500));
+    expect(find.textContaining('Você recebeu R\$ 5,00'),findsOneWidget);
+    expect(find.text('R\$ 115,00'),findsOneWidget);
+    expect(tester.widget<DriverLiveMap>(find.byType(DriverLiveMap)).supply!.busy,isFalse);
+    expect(tester.takeException(),isNull);
+    await tester.pumpWidget(const SizedBox());await realtime.controller.close();
+  });
   testWidgets('reabrir app restaura reserva aguardando pagamento sem liberar ações de viagem', (tester) async {
     final api = _FakeDriverApi(initialOnline: true);
     api._offerAvailable = false;
@@ -1267,4 +1284,16 @@ class _FakeDriverApi implements DriverApi, DriverBenefitsApi, DriverPassengerRat
     _offerAvailable = false;
     return 'SEARCHING_DRIVER';
   }
+}
+
+class _IdentityReviewApi extends _FakeDriverApi implements DriverRideIdentityApi {
+ _IdentityReviewApi():super(initialOnline:true,initialBusy:true){_offerAvailable=false;}
+ @override Future<Map<String,dynamic>> rideIdentification(String rideId)async=>{
+  'passengerName':'Ian Silva','terms':{'cancelUntil':DateTime.now().add(const Duration(seconds:40)).toIso8601String(),'serverTime':DateTime.now().toIso8601String()}};
+}
+DriverApi identityReviewApi()=>_IdentityReviewApi();
+DriverLocationService identityReviewLocation()=>const _FakeLocationService();
+class _CancellationReviewRealtime implements DriverRealtimeService {
+ final controller=StreamController<DriverRealtimeUpdate>.broadcast();
+ @override Stream<DriverRealtimeUpdate> watch()=>controller.stream;
 }

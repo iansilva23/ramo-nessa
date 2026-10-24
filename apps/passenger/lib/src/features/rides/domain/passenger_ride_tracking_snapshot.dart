@@ -5,6 +5,10 @@ class PassengerDriverProfile {
     required this.ratingCount,
     this.photoPath,
     this.ratingAverage,
+    this.vehicleMake,
+    this.vehicleModel,
+    this.vehicleColor,
+    this.vehiclePlate,
   });
 
   factory PassengerDriverProfile.fromJson(Map<String, dynamic> json) {
@@ -15,6 +19,10 @@ class PassengerDriverProfile {
       photoPath: json['photoPath'] as String?,
       ratingAverage: (json['ratingAverage'] as num?)?.toDouble(),
       ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
+      vehicleMake: (json['vehicle'] as Map<String,dynamic>?)?['make'] as String?,
+      vehicleModel: (json['vehicle'] as Map<String,dynamic>?)?['model'] as String?,
+      vehicleColor: (json['vehicle'] as Map<String,dynamic>?)?['color'] as String?,
+      vehiclePlate: (json['vehicle'] as Map<String,dynamic>?)?['plate'] as String?,
     );
   }
 
@@ -23,6 +31,7 @@ class PassengerDriverProfile {
   final String? photoPath;
   final double? ratingAverage;
   final int ratingCount;
+  final String? vehicleMake, vehicleModel, vehicleColor, vehiclePlate;
 }
 
 class PassengerDriverLocation {

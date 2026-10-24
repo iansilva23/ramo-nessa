@@ -443,6 +443,7 @@ import {
 } from './rides/refund-external-no-driver.js';
 import { passengerRideTracking } from './rides/passenger-ride-tracking.js';
 import { automaticallyRefundRide } from './rides/automatic-ride-refund-service.js';
+import {handleManualCancellationRoutes} from './rides/manual-cancellation-routes.js';
 import {
   expireNoDriverDecisions,
   reconcilePendingRideRefunds,
@@ -560,6 +561,7 @@ const {
   pushDeviceRepository,
   adminCommunicationsRepository,
   operationalSettingsRepository,
+  manualCancellationStore,
   passengerSavedPlaceRepository,
   geoCatalogRepository,
   passengerGeoLearningStore,
@@ -4229,6 +4231,24 @@ const server = createServer(async (request, response) => {
       json(response, 200, fleet);
       return;
     }
+
+    if(await handleManualCancellationRoutes({path:requestUrl.pathname,method:request.method??'GET',store:manualCancellationStore,
+      rides:rideRepository,identities:authOtpRepository,
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
+      readBody:()=>readJson(request,/^\/v1\/admin\/manual-refunds\/[0-9a-f-]{36}\/paid$/i.test(requestUrl.pathname)?720*1024:undefined),json:(status,value)=>json(response,status,value),
+      cancelled:async c=>{
+        const cancelledRide=await rideRepository.findById(c.rideId);
+        if(cancelledRide)await releaseFundedRidePromotion({promotions:promotionRepository,finance:financeRepository,ride:cancelledRide,now:new Date()});
+        const tracking=await passengerRideTracking({rides:rideRepository,drivers:driverSupplyRepository,registry:driverRegistryRepository,rideId:c.rideId,passengerId:c.passengerId});
+        if(tracking)realtimeHub.publishPassengerRide(c.rideId,{type:'passenger.ride.tracking',tracking,serverTime:new Date().toISOString()});
+        if(c.driverId){
+          realtimeHub.publishDriver(c.driverId,{type:'driver.ride.updated',ride:null,cancelledRideId:c.rideId,cancellationFeeCents:c.creditedFeeCents,serverTime:new Date().toISOString()});
+          sendPushBestEffort({subjectType:'driver',subjectId:c.driverId,type:'driver.ride.cancelled_by_passenger',title:'Corrida cancelada pelo passageiro',
+            body:c.creditedFeeCents>0?`Você recebeu R$ ${(c.creditedFeeCents/100).toFixed(2).replace('.',',')} de taxa de cancelamento.`:'Corrida cancelada dentro do prazo gratuito.',data:{rideId:c.rideId}});
+        }
+      }}))return;
 
     if(await handleGrowthRoutes({request,response,url:requestUrl,service:growthService,
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
@@ -8004,7 +8024,9 @@ const server = createServer(async (request, response) => {
         passengerId, rideId: confirmationMatch[1]!,
       });
       if (confirmation == null) { json(response, 404, { error: 'RIDE_NOT_FOUND' }); return; }
-      json(response, 200, confirmation); return;
+      const cancellationTerms=manualCancellationStore?await manualCancellationStore.terms(confirmationMatch[1]!):null;
+      const cancellationRule=cancellationTerms?.systemEnabled?cancellationTerms.rule:null;
+      json(response, 200, {...confirmation,cancellationRule}); return;
     }
 
     if (

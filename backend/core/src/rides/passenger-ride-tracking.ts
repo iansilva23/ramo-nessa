@@ -35,6 +35,7 @@ export interface PassengerRideTrackingSnapshot {
     photoPath?: string;
     ratingAverage?: number;
     ratingCount: number;
+    vehicle?: { make: string; model: string; color: string; plate: string };
   } | null;
 }
 
@@ -74,6 +75,7 @@ export async function passengerRideTracking(input: {
     }
 
     const profile = await input.registry.findProfile(ride.driverId);
+    const vehicle = await input.registry.findVehicleByDriverId(ride.driverId);
     if (profile != null) {
       const photoPath = driverPhotoPath(
         ride.driverId,
@@ -90,6 +92,9 @@ export async function passengerRideTracking(input: {
           ? {}
           : { ratingAverage: profile.ratingAverage }),
         ratingCount: profile.ratingCount ?? 0,
+        ...(vehicle?.status === 'approved' ? { vehicle: {
+          make: vehicle.make, model: vehicle.model, color: vehicle.color, plate: vehicle.plateNormalized,
+        } } : {}),
       };
     }
   }

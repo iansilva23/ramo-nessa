@@ -57,6 +57,7 @@ export async function automaticallyRefundRide(input: {
   if (ride.passengerId !== input.passengerId) {
     throw new Error('Passageiro não corresponde à corrida do reembolso.');
   }
+  if (ride.manualRefund) throw new Error('Devolução sob análise manual no ADM. Estorno automático bloqueado.');
 
   const payment = await input.finance.findLatestPaymentByRideId(ride.id);
   if (payment == null) {

@@ -35,6 +35,8 @@ class IoDriverRealtimeService implements DriverRealtimeService {
       final ride = event['ride'];
       try {
         yield DriverRealtimeUpdate(
+          cancelledRideId:event['cancelledRideId'] as String?,
+          cancellationFeeCents:(event['cancellationFeeCents'] as num?)?.toInt(),
           offer: offer is Map<String, dynamic>
               ? DriverOffer.fromJson(offer)
               : null,

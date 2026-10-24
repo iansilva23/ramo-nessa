@@ -16,6 +16,7 @@ class HttpDriverApi
     implements
         RamoRideChatApi,
         DriverApi,
+        DriverRideIdentityApi,
         DriverPassengerRatingApi,
         DriverRideCancellationApi,
         DriverBenefitsApi {
@@ -55,6 +56,12 @@ class HttpDriverApi
     return rating == null
         ? null
         : DriverPassengerRating.fromJson(rating as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Map<String,dynamic>> rideIdentification(String rideId) async {
+    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/identification'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
+    return _expectObject(response,expectedStatus:200);
   }
 
   @override
