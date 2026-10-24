@@ -45,6 +45,8 @@ jobs:
           node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
       - name: Browser dependencies
         run: |
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
           if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
           npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
           node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
