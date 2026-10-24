@@ -17,6 +17,7 @@ class HttpDriverApi
         RamoRideChatApi,
         DriverApi,
         DriverRideIdentityApi,
+        DriverBoardingApi,
         DriverPassengerRatingApi,
         DriverRideCancellationApi,
         DriverBenefitsApi {
@@ -34,6 +35,17 @@ class HttpDriverApi
   final String _accessToken;
   final String _driverId;
   final http.Client _client;
+
+  @override
+  Future<Map<String,dynamic>> boardingStatus(String rideId) async {
+    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/boarding'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
+    return _expectObject(response,expectedStatus:200);
+  }
+  @override
+  Future<AcceptedDriverRide> startWithBoardingCode(String rideId,String code) async {
+    final response=await _client.post(_baseUrl.resolve('/v1/driver/me/rides/$rideId/start'),headers:_headers,body:jsonEncode({'code':code})).timeout(DriverCoreConfig.requestTimeout);
+    final data=_expectObject(response,expectedStatus:200);return AcceptedDriverRide.fromJson(data['ride'] as Map<String,dynamic>);
+  }
 
   Map<String, String> get _headers => {
     'content-type': 'application/json',

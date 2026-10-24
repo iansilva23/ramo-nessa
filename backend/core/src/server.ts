@@ -1,4 +1,6 @@
 import { passengerRatingRoutes } from './rides/passenger-rating-routes.js';
+import {boardingRoutes} from './rides/boarding-routes.js';
+import {BoardingError} from './rides/boarding-store.js';
 import { rideChatRoutes, passengerWhatsApp } from './rides/ride-chat-routes.js';
 import {guideRoutes} from './guide/guide-routes.js';
 import { authorizeManagedQuote } from './pricing/quote-request-security.js';
@@ -564,6 +566,8 @@ const {
   adminCommunicationsRepository,
   operationalSettingsRepository,
   manualCancellationStore,
+  boardingStore,
+  documentExpiryNotifier,
   passengerSavedPlaceRepository,
   geoCatalogRepository,
   passengerGeoLearningStore,
@@ -631,6 +635,15 @@ const geoLookupStats = { localSearchHits: 0, localDetails: 0, googleFallbacks: 0
 let geoCollectionRunning = false;
 let geoLastCollectedAt = 0;
 let geoStorageTimer: ReturnType<typeof setInterval> | null = null;
+let documentExpiryTimer: ReturnType<typeof setInterval> | null = null;
+let documentExpiryRunning=false;
+async function notifyDocumentExpiries(){
+  if(!documentExpiryNotifier||documentExpiryRunning||shuttingDown||pushNotificationService.providerKind==='disabled')return;
+  documentExpiryRunning=true;
+  try{await documentExpiryNotifier.run(async(driverId,message)=>{
+    const stats=await pushNotificationService.notifySubject({subjectType:'driver',subjectId:driverId,message:{type:'driver.document.expiry',title:'Atualize seus documentos',body:message,data:{screen:'documents'}}});return stats.delivered>0;
+  });}catch(e){logWarn('driver.document.expiry_notification_failed',errorFields(e));}finally{documentExpiryRunning=false;}
+}
 let geoStorageSweepRunning = false;
 async function approvedGeoPlace(place: GeoCatalogPlace) {
   try {
@@ -4234,6 +4247,12 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if(await boardingRoutes({url:requestUrl,method:request.method??'GET',store:boardingStore,rides:rideRepository,finance:financeRepository,
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
+      body:()=>readJson(request),json:(status,value)=>json(response,status,value)}))return;
+
     if(await handleManualCancellationRoutes({path:requestUrl.pathname,method:request.method??'GET',store:manualCancellationStore,
       rides:rideRepository,identities:authOtpRepository,
       passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
@@ -7608,6 +7627,11 @@ const server = createServer(async (request, response) => {
         | 'start'
         | 'complete';
 
+      if(action==='start'&&boardingStore){
+        const body=await readJson(request) as {code?:unknown}|null;
+        await boardingStore.start(rideId,driverId,body?.code);
+      }
+
       const result = await performDriverRideAction({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -9065,6 +9089,8 @@ const server = createServer(async (request, response) => {
           idempotencyKey,
         });
 
+        await boardingStore?.saveCheckout(ride.id,result.payment.id,{payment:{id:result.payment.id,status:result.payment.status},pix:result.pix});
+
         json(response, 201, {
           payment: result.payment,
           pricing: result.pricing,
@@ -9451,6 +9477,9 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (error instanceof BoardingError) {
+      json(response,error.status,{error:error.code,message:error.message,remainingAttempts:error.remainingAttempts});return;
+    }
     if (error instanceof DriverDocumentError) {
       const status =
         error.code === 'DOCUMENT_REVIEW_CONFLICT'
@@ -9914,6 +9943,7 @@ function shutdown(signal: string): Promise<void> {
     }
     if(growthTimer){clearInterval(growthTimer);growthTimer=null;}
     if(geoStorageTimer){clearInterval(geoStorageTimer);geoStorageTimer=null;}
+    if(documentExpiryTimer){clearInterval(documentExpiryTimer);documentExpiryTimer=null;}
     logInfo('core.shutdown.started', { signal });
 
     const forceTimer = setTimeout(() => {
@@ -9979,6 +10009,8 @@ server.listen(port, '0.0.0.0', () => {
   }
 
   growthTimer=setInterval(()=>void runGrowthMarketing(),15*60_000);
+  documentExpiryTimer=setInterval(()=>void notifyDocumentExpiries(),60*60_000);
+  documentExpiryTimer.unref();void notifyDocumentExpiries();
   growthTimer.unref();
   void runGrowthMarketing();
 

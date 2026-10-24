@@ -17,6 +17,8 @@ import 'passenger_ride_chat_screen.dart';
 import 'widgets/animated_ride_status.dart';
 import 'tracking_map_transition_policy.dart';
 import 'passenger_cancellation_panel.dart';
+import '../data/passenger_ride_resume_service.dart';
+import 'passenger_boarding_card.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -29,9 +31,11 @@ class RideTrackingScreen extends StatefulWidget {
     this.routeService,
     this.initialDispatchStatus,
     this.networkTilesEnabled = true,
+    this.onRecoveryClose,
   });
 
   final String rideId;
+  final VoidCallback? onRecoveryClose;
   final int? remainingWalletCents;
   final PassengerRideTrackingService trackingService;
   final String? paymentMethod;
@@ -44,7 +48,7 @@ class RideTrackingScreen extends StatefulWidget {
   State<RideTrackingScreen> createState() => _RideTrackingScreenState();
 }
 
-class _RideTrackingScreenState extends State<RideTrackingScreen> {
+class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBindingObserver {
   final RamoMapController _mapController = RamoMapController();
   Timer? _timer;
   StreamSubscription<PassengerRideTrackingSnapshot>? _realtimeSubscription;
@@ -70,6 +74,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(RideRecoveryMemory.remember(widget.rideId));
     _refresh();
     _startRealtime();
     _timer = Timer.periodic(
@@ -80,11 +86,15 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _realtimeSubscription?.cancel();
     _mapController.dispose();
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state){if(state==AppLifecycleState.resumed)unawaited(_refresh());}
 
   void _startRealtime() {
     final service = widget.realtimeService;
@@ -523,6 +533,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sua corrida'),
+        automaticallyImplyLeading: widget.onRecoveryClose==null,
       ),
       body: Column(
         children: [
@@ -612,6 +623,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                   ],
                   if (widget.trackingService is PassengerManualCancellationApi)
                     PassengerCancellationPanel(rideId:widget.rideId,api:widget.trackingService as PassengerManualCancellationApi,onChanged:()=>unawaited(_refresh())),
+                  if(widget.trackingService is PassengerBoardingApi && snapshot!=null && const {'DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED'}.contains(snapshot.state))
+                    PassengerBoardingCard(api:widget.trackingService as PassengerBoardingApi,rideId:widget.rideId,delivery:snapshot.category=='delivery'),
                   if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
                     const SizedBox(height: RamoSpacing.md),
                     Text(
@@ -705,8 +718,10 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () => Navigator.of(context)
-                            .popUntil((route) => route.isFirst),
+                        onPressed: widget.onRecoveryClose ?? () {
+                          unawaited(RideRecoveryMemory.clear());
+                          Navigator.of(context).popUntil((route) => route.isFirst);
+                        },
                         child: const Text('Voltar ao início'),
                       ),
                     ),

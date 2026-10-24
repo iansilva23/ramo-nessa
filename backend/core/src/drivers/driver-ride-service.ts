@@ -69,6 +69,8 @@ export async function currentDriverRide(input: {
     );
   }
 
+  const active=await input.rides.findActiveByDriverId(input.driverId);
+  if(active!=null)return driverRideView(active);
   if (!supply.busy) {
     if (supply.reservedRideId == null || Date.parse(supply.reservedUntil ?? '') <= Date.now()) return null;
     const pending = await input.rides.findById(supply.reservedRideId);
@@ -76,8 +78,7 @@ export async function currentDriverRide(input: {
       ? driverRideView(pending) : null;
   }
 
-  const ride = await input.rides.findActiveByDriverId(input.driverId);
-  return ride == null ? null : driverRideView(ride);
+  return null;
 }
 
 export async function performDriverRideAction(input: {

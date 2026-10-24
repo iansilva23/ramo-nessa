@@ -14,6 +14,7 @@ let companyCostsAdmin = null;
 let geoAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
 import {createCancellationAdmin} from './manual-refunds-admin.js';
+import {createBoardingAdmin} from './boarding-admin.js';
 let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
@@ -1880,6 +1881,9 @@ function syncDocumentReviewForm(payload) {
   }
 
   byId('driver-document-review-status').value = 'approved';
+  const expiry=byId('driver-document-review-expiry');
+  expiry.value=pending[0]?.expiresOn??'';expiry.required=true;
+  select.onchange=()=>{expiry.value=pending.find(item=>item.documentType===select.value)?.expiresOn??'';};
   byId('driver-document-rejection-reason').value = '';
   syncDocumentRejectionRequirement();
   byId('driver-document-review-button').disabled =
@@ -2045,7 +2049,7 @@ function renderDriverDocumentCompliance(payload) {
     status.className = 'pill pill--danger';
     status.textContent = 'Bloqueio automático';
     message.textContent =
-      'O modo automático está ligado e a pendência documental bloqueia novas corridas. Viagens já iniciadas não são interrompidas.';
+      'A pendência documental bloqueia novas corridas. Validades vencidas são bloqueadas automaticamente. Viagens já iniciadas não são interrompidas.';
   } else if (decisionRequired) {
     status.className = 'pill pill--warning';
     status.textContent = 'Aguardando sua decisão';
@@ -2371,6 +2375,8 @@ function syncDocumentRejectionRequirement() {
   const field = byId('driver-document-rejection-reason');
   field.required = rejected;
   field.disabled = !rejected;
+  byId('driver-document-review-expiry').required=!rejected;
+  byId('driver-document-review-expiry').disabled=rejected;
   if (!rejected) field.value = '';
 }
 
@@ -2411,6 +2417,8 @@ async function handleDriverDocumentReview(event) {
   }
 
   const status = byId('driver-document-review-status').value;
+  const expiresOn=byId('driver-document-review-expiry').value;
+  if(status==='approved'&&!expiresOn){setMessage(globalMessage,'Informe a validade antes de aprovar.','danger');return;}
   if (status !== 'approved' && status !== 'rejected') {
     setMessage(globalMessage, 'Decisão documental inválida.', 'danger');
     return;
@@ -2443,6 +2451,7 @@ async function handleDriverDocumentReview(event) {
       driverId: state.currentDriver.driverId,
       documentType,
       status,
+      ...(status==='approved'?{expiresOn}:{}),
       ...(status === 'rejected' ? { rejectionReason } : {}),
     });
     await loadDriverDocuments(state.currentDriver.driverId);
@@ -10898,6 +10907,7 @@ function initializeRouteView(view) {
   if (view === 'finance') {
     renderFinance(state.finance);
     if(hasScope('finance:read'))createCancellationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
+    if(hasScope('rides:read'))createBoardingAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
     renderPaymentPolicy(state.finance.policy);
     if (hasScope('finance:read')) {
       void loadFinance({ announce: false });

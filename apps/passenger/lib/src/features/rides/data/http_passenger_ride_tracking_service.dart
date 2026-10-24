@@ -8,12 +8,15 @@ import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
+import 'passenger_ride_resume_service.dart';
 
 class HttpPassengerRideTrackingService
     implements
         RamoRideChatApi,
         PassengerManualCancellationApi,
         PassengerRideTrackingService,
+        PassengerRideResumeService,
+        PassengerBoardingApi,
         PassengerRideRecoveryService {
   HttpPassengerRideTrackingService({
     required Uri baseUrl,
@@ -29,6 +32,17 @@ class HttpPassengerRideTrackingService
   final String _accessToken;
   final String _passengerId;
   final http.Client _client;
+
+  Future<Map<String,dynamic>> _getRecovery(Uri uri) async {
+    final response=await _client.get(uri,headers:_identityHeaders).timeout(RamoCoreConfig.requestTimeout);
+    final decoded=decodeJsonObject(response.body);
+    if(response.statusCode==200&&decoded!=null)return decoded;
+    throw PassengerRideTrackingException(apiErrorMessage(decoded,'Reconectando à sua corrida. Tente novamente.'));
+  }
+  @override
+  Future<Map<String,dynamic>> resumeRide({String? lastRideId})=>_getRecovery(_baseUrl.resolve('/v1/passenger/me/ride').replace(queryParameters:lastRideId==null?null:{'lastRideId':lastRideId}));
+  @override
+  Future<Map<String,dynamic>> boardingStatus(String rideId)=>_getRecovery(_baseUrl.resolve('/v1/rides/$rideId/boarding'));
 
   @override
   Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false}) async {

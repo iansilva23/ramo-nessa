@@ -64,8 +64,13 @@ export async function driverOperationalEligibility(input: {
     };
   }
 
+  const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(input.now ?? new Date());
+  // A manually recorded expiry is always enforced for NEW work, independently
+  // of the legacy switch for incomplete/pending documentation. Active rides continue.
+  if(documentRecords.some(record=>record.expiresOn!=null && record.expiresOn<today)){
+    return {eligible:false,reason:'documents'};
+  }
   if (input.enforceDocuments === true) {
-    const today = (input.now ?? new Date()).toISOString().slice(0, 10);
     const byType = new Map(
       documentRecords.map((record) => [record.documentType, record]),
     );

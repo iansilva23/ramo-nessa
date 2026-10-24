@@ -159,6 +159,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    boardingRequest(token,path,method='GET',body) {
+      if(!/^\/v1\/admin\/(boarding-policy$|rides\/[0-9a-f-]{36}\/boarding-override$)/i.test(path))throw new Error('Rota inválida.');
+      return request(path,{token,method,...(body===undefined?{}:{body})});
+    },
     companyManagementRequest(token,path,method='GET',body) {
       if(!/^\/v1\/admin\/company-management(?:\?|$)/.test(path))throw new Error('Rota inválida.');
       return request(path,{token,method,...(body===undefined?{}:{body})});
@@ -1015,7 +1019,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
 
     reviewDriverDocument(
       token,
-      { driverId, documentType, status, rejectionReason },
+      { driverId, documentType, status, rejectionReason, expiresOn },
     ) {
       return request(
         `/v1/admin/drivers/${driverId}/documents/${documentType}/review`,
@@ -1024,6 +1028,7 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
           token,
           body: {
             status,
+            ...(expiresOn ? { expiresOn } : {}),
             ...(rejectionReason
               ? { rejectionReason }
               : {}),

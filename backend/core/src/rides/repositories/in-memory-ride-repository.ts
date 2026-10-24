@@ -1,4 +1,5 @@
 import type { RideRecord } from '../ride.js';
+import {RECOVERABLE_RIDE_STATES} from '../ride-resumption.js';
 import type {
   AdminRideListInput,
   AdminRideListPage,
@@ -44,6 +45,12 @@ export class InMemoryRideRepository implements RideRepository {
   async findById(id: string): Promise<RideRecord | null> {
     const ride = this.rides.get(id);
     return ride == null ? null : structuredClone(ride);
+  }
+
+  async findRecoverableByPassengerId(passengerId: string): Promise<RideRecord | null> {
+    const matches=[...this.rides.values()].filter(r=>r.passengerId===passengerId && (RECOVERABLE_RIDE_STATES as readonly string[]).includes(r.state));
+    matches.sort((a,b)=>Number(b.state==='IN_PROGRESS')-Number(a.state==='IN_PROGRESS')||b.updatedAt.localeCompare(a.updatedAt)||b.id.localeCompare(a.id));
+    return matches[0]?structuredClone(matches[0]):null;
   }
 
   async findActiveByDriverId(

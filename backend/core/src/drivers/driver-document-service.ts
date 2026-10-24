@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import {documentDate} from './document-expiry.js';
 
 import type {
   AdminActor,
@@ -45,7 +46,7 @@ function expirationIsPast(
   now: Date,
 ): boolean {
   if (expiresOn == null) return false;
-  const today = now.toISOString().slice(0, 10);
+  const today = documentDate(now);
   return expiresOn < today;
 }
 
@@ -55,7 +56,7 @@ function safeDocumentView(
 ) {
   const expiredByDate =
     record.expiresOn != null &&
-    record.expiresOn < now.toISOString().slice(0, 10);
+    record.expiresOn < documentDate(now);
   const effectiveStatus: DriverDocumentStatus =
     record.status === 'approved' && expiredByDate
       ? 'expired'
@@ -163,7 +164,8 @@ function cleanDriverDocumentExpiration(
   if (!normalized) return undefined;
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(normalized) ||
-    Number.isNaN(Date.parse(`${normalized}T00:00:00.000Z`))
+    Number.isNaN(Date.parse(`${normalized}T00:00:00.000Z`)) ||
+    new Date(`${normalized}T00:00:00.000Z`).toISOString().slice(0,10)!==normalized
   ) {
     throw new DriverDocumentError(
       'DOCUMENT_EXPIRATION_INVALID',
@@ -362,9 +364,13 @@ export async function reviewDriverDocumentFromAdmin(input: {
   }
 
   const now = input.now ?? new Date();
+  const expiresOn = cleanDriverDocumentExpiration(input.review.expiresOn ?? current.expiresOn);
+  if(input.review.status==='approved' && expiresOn==null){
+    throw new DriverDocumentError('DOCUMENT_EXPIRATION_INVALID','Informe a validade ou a data limite de revisão antes de aprovar.');
+  }
   if (
     input.review.status === 'approved' &&
-    expirationIsPast(current.expiresOn, now)
+    expirationIsPast(expiresOn, now)
   ) {
     throw new DriverDocumentError(
       'DOCUMENT_ALREADY_EXPIRED',
@@ -382,6 +388,7 @@ export async function reviewDriverDocumentFromAdmin(input: {
     driverId: input.driverId,
     documentType: input.documentType,
     expectedStatus,
+    ...(input.review.status==='approved' && expiresOn!=null ? {expiresOn} : {}),
     status: input.review.status,
     ...(input.review.rejectionReason == null
       ? {}
@@ -405,6 +412,7 @@ export async function reviewDriverDocumentFromAdmin(input: {
     metadata: {
       documentType: input.documentType,
       status: updated.status,
+      expiresOn: updated.expiresOn ?? null,
     },
     createdAt: instant,
   });

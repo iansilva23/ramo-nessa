@@ -46,6 +46,7 @@ export interface DriverDocumentRepository {
     driverId: string;
     documentType: DriverDocumentType;
     expectedStatus: 'pending' | 'approved';
+    expiresOn?: string | undefined;
     status: Exclude<DriverDocumentStatus, 'pending'>;
     rejectionReason?: string | undefined;
     reviewedAt: string;

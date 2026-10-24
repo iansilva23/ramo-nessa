@@ -191,6 +191,7 @@ export class PostgresDriverDocumentRepository
     driverId: string;
     documentType: DriverDocumentType;
     expectedStatus: 'pending' | 'approved';
+    expiresOn?: string | undefined;
     status: Exclude<DriverDocumentStatus, 'pending'>;
     rejectionReason?: string | undefined;
     reviewedAt: string;
@@ -206,7 +207,8 @@ export class PostgresDriverDocumentRepository
         reviewed_by_kind = $7,
         reviewed_by_id = $8,
         reviewed_by_name = $9,
-        updated_at = $6
+        updated_at = $6,
+        expires_on = COALESCE($10::date,expires_on)
       WHERE driver_id = $1
         AND document_type = $2
         AND is_current = true
@@ -223,6 +225,7 @@ export class PostgresDriverDocumentRepository
         input.reviewedBy.kind,
         input.reviewedBy.id,
         input.reviewedBy.name,
+        input.expiresOn ?? null,
       ],
     );
     return result.rows[0] == null ? null : mapRow(result.rows[0]);

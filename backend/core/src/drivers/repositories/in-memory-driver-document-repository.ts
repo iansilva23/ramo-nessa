@@ -50,6 +50,7 @@ export class InMemoryDriverDocumentRepository
     driverId: string;
     documentType: DriverDocumentType;
     expectedStatus: 'pending' | 'approved';
+    expiresOn?: string | undefined;
     status: Exclude<DriverDocumentStatus, 'pending'>;
     rejectionReason?: string | undefined;
     reviewedAt: string;
@@ -73,6 +74,7 @@ export class InMemoryDriverDocumentRepository
 
     const updated: DriverDocumentRecord = {
       ...base,
+      ...(input.expiresOn == null ? {} : {expiresOn:input.expiresOn}),
       status: input.status,
       ...(input.rejectionReason == null
         ? {}
