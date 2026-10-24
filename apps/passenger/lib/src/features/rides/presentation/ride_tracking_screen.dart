@@ -842,8 +842,8 @@ class _AssignedDriverCard extends StatelessWidget {
      const SizedBox(width:12),
      Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(driver.displayName,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900)),
-      Row(children:[const Icon(Icons.star_rounded,color:RamoColors.brandYellow,size:19),const SizedBox(width:4),
-       Flexible(child:Text(driver.ratingAverage==null?'Novo motorista':driver.ratingAverage!.toStringAsFixed(2),style:const TextStyle(fontWeight:FontWeight.w800)))]),
+      FittedBox(fit:BoxFit.scaleDown,alignment:Alignment.centerLeft,child:Row(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.star_rounded,color:RamoColors.brandYellow,size:19),const SizedBox(width:4),
+       Text(driver.ratingAverage==null?'Novo motorista':driver.ratingAverage!.toStringAsFixed(2),maxLines:1,style:const TextStyle(fontWeight:FontWeight.w800))])),
      ])),
      if(plate!=null&&plate.isNotEmpty)...[
       const SizedBox(width:8),Column(children:[

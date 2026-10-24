@@ -631,6 +631,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
       (update) {
         if (!mounted) return;
         final previousRideState = _activeRide?.state;
+        final previousRideId=_activeRide?.id;
+        if(update.cancelledRideId!=null&&previousRideId!=null&&update.cancelledRideId!=previousRideId)return;
         setState(() {
           if (update.offerUpdated) {
             _offer = update.offer;
@@ -650,6 +652,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           unawaited(_refreshOfferRoutes(update.offer));
         }
         if (update.rideUpdated) {
+          if(update.cancelledRideId==previousRideId&&previousRideId!=null){
+            final fee=update.cancellationFeeCents??0;
+            ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content:Text(fee>0?'Corrida cancelada pelo passageiro. Você recebeu ${formatCents(fee)} de taxa de cancelamento.':'Corrida cancelada pelo passageiro. Sem taxa de cancelamento.')));
+            unawaited(_reloadAfterPassengerCancellation());
+          }
           if (previousRideState == 'AWAITING_PAYMENT' &&
               [
                 'DRIVER_ASSIGNED',
@@ -689,6 +696,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final subscription = _realtimeSubscription;
     _realtimeSubscription = null;
     await subscription?.cancel();
+  }
+
+  Future<void> _reloadAfterPassengerCancellation() async {
+    try{
+      final supply=await _api?.getSupply();
+      if(!mounted)return;
+      if(_activeRide==null&&supply!=null)setState(()=>_supply=supply);
+      await _refreshFinance(showError:false);
+      unawaited(_refreshActivity());
+      if(mounted&&_activeRide==null&&_supply?.online==true&&_supply?.busy==false){_startPolling();_startNearbyPolling();}
+    }catch(_){if(mounted)setState(()=>_message='Corrida cancelada. Atualize sua disponibilidade quando a conexão voltar.');}
   }
 
   void _startPolling() {
@@ -2005,6 +2023,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ? (collapsed
                       ? _ActiveRideCompactBar(
                           key: ValueKey('ride-mini-${presentedRide.id}-${presentedRide.state}'),
+                          identity:_api is DriverRideIdentityApi?DriverPassengerIdentity(api:_api as DriverRideIdentityApi,rideId:presentedRide.id,compact:true,showDeadline:false):null,
                           ride: presentedRide, route: _activeRoute,
                           onChat: presentedRide.state == 'COMPLETED' ? null : _openRideChat,
                           chatIcon: RamoUnreadChatIcon(api: _api, rideId: presentedRide.id, color: Colors.white, size: 20),
@@ -4122,6 +4141,7 @@ class _NavigationInstructionBanner extends StatelessWidget {
 
 class _ActiveRideCompactBar extends StatelessWidget {
   const _ActiveRideCompactBar({
+    this.identity,
     super.key,
     this.ride,
     this.offer,
@@ -4132,6 +4152,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
   });
 
   final AcceptedDriverRide? ride;
+  final Widget? identity;
   final DriverOffer? offer;
   final DriverRouteInfo? route;
   final VoidCallback onExpand;
@@ -4204,6 +4225,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
                             fontSize: 11,
                           ),
                         ),
+                        if(identity!=null)identity!,
                         Text(
                           route != null && ride?.state != 'COMPLETED'
                               ? '${route!.distanceLabel} · $_target' : _target,

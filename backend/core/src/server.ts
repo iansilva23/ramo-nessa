@@ -4244,7 +4244,7 @@ const server = createServer(async (request, response) => {
         const tracking=await passengerRideTracking({rides:rideRepository,drivers:driverSupplyRepository,registry:driverRegistryRepository,rideId:c.rideId,passengerId:c.passengerId});
         if(tracking)realtimeHub.publishPassengerRide(c.rideId,{type:'passenger.ride.tracking',tracking,serverTime:new Date().toISOString()});
         if(c.driverId){
-          realtimeHub.publishDriver(c.driverId,{type:'driver.ride.updated',ride:null,serverTime:new Date().toISOString()});
+          realtimeHub.publishDriver(c.driverId,{type:'driver.ride.updated',ride:null,cancelledRideId:c.rideId,cancellationFeeCents:c.creditedFeeCents,serverTime:new Date().toISOString()});
           sendPushBestEffort({subjectType:'driver',subjectId:c.driverId,type:'driver.ride.cancelled_by_passenger',title:'Corrida cancelada pelo passageiro',
             body:c.creditedFeeCents>0?`Você recebeu R$ ${(c.creditedFeeCents/100).toFixed(2).replace('.',',')} de taxa de cancelamento.`:'Corrida cancelada dentro do prazo gratuito.',data:{rideId:c.rideId}});
         }

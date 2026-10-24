@@ -29,7 +29,7 @@ void main(){
   testWidgets('passenger identification visual $width',(tester)async{
    tester.view.physicalSize=Size(width.toDouble(),900);tester.view.devicePixelRatio=1;
    addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
-   await tester.pumpWidget(MaterialApp(theme:RamoTheme.light,home:RepaintBoundary(key:const Key('capture'),
+   await tester.pumpWidget(MaterialApp(theme:RamoTheme.light.copyWith(appBarTheme:RamoTheme.light.appBarTheme.copyWith(titleTextStyle:const TextStyle(fontFamily:'Roboto',fontSize:21,fontWeight:FontWeight.w800))),home:RepaintBoundary(key:const Key('capture'),
     child:RideTrackingScreen(rideId:'ride-1',remainingWalletCents:null,trackingService:_Tracking(),networkTilesEnabled:false))));
    await tester.pump();await tester.pump(const Duration(milliseconds:800));
    expect(find.text('ABC1D23'),findsOneWidget);expect(find.text('João Silva'),findsOneWidget);expect(tester.takeException(),isNull);

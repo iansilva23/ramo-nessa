@@ -76,6 +76,8 @@ class IoDriverRealtimeService implements DriverRealtimeService {
               case 'driver.ride.updated':
                 final ride = decoded['ride'];
                 yield DriverRealtimeUpdate(
+                  cancelledRideId:decoded['cancelledRideId'] as String?,
+                  cancellationFeeCents:(decoded['cancellationFeeCents'] as num?)?.toInt(),
                   ride: ride is Map<String, dynamic>
                       ? AcceptedDriverRide.fromJson(ride)
                       : null,

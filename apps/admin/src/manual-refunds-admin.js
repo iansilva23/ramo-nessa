@@ -53,7 +53,7 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
    const card=el('article',null,'panel-card manual-refund-row');
    const info=el('div');info.append(el('strong',c.passengerName||'Passageiro sem nome cadastrado'),el('p',(labels[c.category]||'Corrida')+' · '+states[c.status]),el('small','Motorista: '+(c.driverName||'Não atribuído')));
    const amounts=el('div');amounts.append(el('strong','A devolver: '+money(c.paidCents-c.feeCents)),el('p','Pago: '+money(c.paidCents)+' · Taxa: '+money(c.feeCents)));
-   const open=el('button','Abrir ficha','button button--ghost-dark');open.type='button';open.onclick=()=>execute(async()=>renderDetail({...c,...await request('/v1/admin/manual-refunds/'+c.rideId)}));
+   const open=el('button','Abrir ficha','button button--ghost-dark');open.type='button';open.onclick=()=>execute(async()=>{settings.open=false;renderDetail({...c,...await request('/v1/admin/manual-refunds/'+c.rideId)});});
    card.append(info,amounts,open);list.append(card);
   }
  }
@@ -83,10 +83,11 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
   const summary=el('strong');function amount(){summary.textContent='Devolver: '+money(c.paidCents-Math.round(Number(f.control.value)*100))+' · A diferença da taxa sai da empresa.';}f.control.oninput=amount;amount();
   const approve=el('button','Aprovar devolução manual','button button--primary');approve.type='submit';
   [f.control,note.control,approve].forEach(n=>n.disabled=!writable);
-  review.append(f.wrap,note.wrap,summary,approve);detail.append(review);
+  review.append(f.wrap,note.wrap,summary,approve);
+  if(c.status==='approved'){const revise=el('details');revise.append(el('summary','Revisar taxa aprovada'),review);detail.append(revise);}else detail.append(review);
   review.onsubmit=e=>{e.preventDefault();execute(async()=>{
    const result=await request('/v1/admin/manual-refunds/'+c.rideId+'/review','POST',{feeCents:Math.round(Number(f.control.value)*100),revision:c.revision,note:note.control.value});
-   await load();renderDetail(result);message.textContent='Análise salva. A aprovação não envia o Pix.';
+   filter=result.status;await load();renderDetail(result);message.textContent='Análise salva. A aprovação não envia o Pix.';
   });};
   if(c.status==='approved'){
    const form=el('form',null,'manual-refund-policy');
@@ -101,7 +102,7 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
     const bytes=new Uint8Array(await selected.arrayBuffer());let binary='';bytes.forEach(b=>binary+=String.fromCharCode(b));
     const receipt={name:selected.name.replace(/[^\w .()-]/g,'_'),contentType:selected.type,base64:btoa(binary)};
     const result=await request('/v1/admin/manual-refunds/'+c.rideId+'/paid','POST',{revision:c.revision,bankReference:reference.control.value,receipt});
-    await load();renderDetail(result);message.textContent='Devolução registrada. O saldo do motorista foi preservado.';
+    filter='refunded';await load();renderDetail(result);message.textContent='Devolução registrada. O saldo do motorista foi preservado.';
    });};
   }
  }

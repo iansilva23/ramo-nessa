@@ -63,7 +63,7 @@ export class PostgresManualCancellationStore {
   return r.rows[0]?record(r.rows[0]):null;
  }
  async list():Promise<ManualCancellation[]>{
-  const r=await this.pool.query<Row>("SELECT c.*,NULL::jsonb AS receipt,p.full_name AS passenger_name,d.full_name AS driver_name,r.category FROM ride_manual_cancellations c JOIN rides r ON r.id=c.ride_id LEFT JOIN auth_identities p ON p.subject_type='passenger' AND p.subject_id::text=c.passenger_id LEFT JOIN driver_profiles d ON d.driver_id::text=c.driver_id ORDER BY c.updated_at DESC LIMIT 300");
+  const r=await this.pool.query<Row>("SELECT c.*,NULL::jsonb AS receipt,p.full_name AS passenger_name,d.full_name AS driver_name,r.category FROM ride_manual_cancellations c JOIN rides r ON r.id=c.ride_id LEFT JOIN auth_identities p ON p.subject_type='passenger' AND p.subject_id::text=c.passenger_id LEFT JOIN driver_profiles d ON d.driver_id::text=c.driver_id ORDER BY c.updated_at DESC");
   return r.rows.map(record);
  }
  async cancel(input:{rideId:string;passengerId:string;actor:string;passenger:boolean;reason:string;now?:Date}):Promise<ManualCancellation>{

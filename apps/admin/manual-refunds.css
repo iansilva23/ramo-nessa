@@ -3,8 +3,10 @@
 [data-manual-refunds] details>summary{cursor:pointer;font-weight:750;padding:8px 0}
 .manual-refund-policy{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:18px 0}
 .manual-refund-policy label{display:grid;gap:7px;min-width:0;font-weight:650}
-.manual-refund-policy input,.manual-refund-policy select{width:100%;max-width:100%;box-sizing:border-box}
-.manual-refund-policy input[type=checkbox]{width:22px;height:22px;accent-color:#ddbd00}
+.manual-refund-policy input,.manual-refund-policy select{width:100%;max-width:100%;box-sizing:border-box;min-height:44px;border:1px solid #ccd3dd;border-radius:10px;padding:10px 12px;background:white;font:inherit;color:#172231}
+.manual-refund-policy input:focus,.manual-refund-policy select:focus{outline:3px solid #ffdf0066;outline-offset:2px;border-color:#9b8400}
+.manual-refund-policy input[type=file]{font-size:12px;padding:10px}
+.manual-refund-policy input[type=checkbox]{width:22px;height:22px;min-height:22px;accent-color:#ddbd00}
 .manual-refund-policy>p,.manual-refund-policy>h4,.manual-refund-policy>strong{grid-column:1/-1}
 .manual-refund-tabs{display:flex;flex-wrap:wrap;gap:10px}
 .manual-refund-list{display:grid;gap:12px}
