@@ -69,7 +69,10 @@ export async function prepareNearby(args,fixture={}){
    const base='ramo-nessa-nearby-'+role+'-base:'+before[role].Image.slice(7);h.docker(['tag',before[role].Image,base]);if(h.image(base).Id!==before[role].Image)throw Error('NEARBY_IMAGE_REFERENCE');
    if(role==='core'&&images.core.Config.User!=='node')throw Error('NEARBY_CORE_USER_CHANGED');
    const folder=role==='core'?'core':'admin',files=manifest.files.filter(f=>f.path.startsWith(folder+'/'));
-   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n';
+   // The private archive is extracted under umask 077. Normalize only the
+   // compiled payload within its private parent before copying into /app.
+   for(const f of files){chmodSync(join(payload,f.path),0o644);let p=dirname(join(payload,f.path));while(p!==payload){chmodSync(p,0o755);p=dirname(p);}}
+   const dockerfile='FROM '+base+'\n'+files.map(f=>'COPY --chown=node:node --chmod=0644 '+f.path+' /'+(role==='core'?'app/':'srv/admin/')+f.path.slice(folder.length+1)).join('\n')+'\n';
    const file=join(payload,role+'.Dockerfile');writeFileSync(file,dockerfile,{mode:0o600});const tag='ramo-nessa-nearby-'+role+':'+nearbySource.slice(0,12);
    h.docker(['build','--network','none','--pull=false','-f',file,'-t',tag,payload]);nextImages[role]=h.image(tag);assertImageDelta(images[role],nextImages[role]);
   }
