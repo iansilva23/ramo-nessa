@@ -1,4 +1,5 @@
 import { InvalidAdminRequestError } from '../admin/admin-validation.js';
+import {validateCancellationReceipt,type CancellationReceipt} from '../rides/manual-cancellation-policy.js';
 
 export type CostBasis = 'monthly' | 'ride' | 'pix_payment' | 'card_payment' | 'commission_percent';
 export interface CostData {
@@ -6,6 +7,8 @@ export interface CostData {
   certainty: 'confirmed' | 'estimated'; amountCents: number;
   occurredOn?: string; rideId?: string | null; paymentId?: string | null; voided?: boolean; ruleId?: string | null;
   basis?: CostBasis; rateBps?: number; startsOn?: string; endsOn?: string | null;
+  frequency?: 'monthly'|'quarterly'|'yearly';
+  attachment?: CancellationReceipt|null;
 }
 export interface CostItem { id: string; kind: 'expense' | 'rule'; data: CostData; createdAt: string; updatedAt: string }
 export interface CostEvent {
@@ -54,7 +57,7 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) throw new InvalidAdminRequestError('Custo inválido.');
   const r = raw as Record<string, unknown>;
   const allowed = ['name','category','slot','notes','certainty','amountCents',
-    ...(kind === 'expense' ? ['occurredOn','rideId','paymentId','voided','ruleId'] : ['basis','rateBps','startsOn','endsOn','voided'])];
+    ...(kind === 'expense' ? ['occurredOn','rideId','paymentId','voided','ruleId','attachment'] : ['basis','rateBps','startsOn','endsOn','voided','frequency'])];
   if (Object.keys(r).some(k => !allowed.includes(k))) throw new InvalidAdminRequestError('Campo não reconhecido no custo.');
   if (r.certainty !== 'confirmed' && r.certainty !== 'estimated') throw new InvalidAdminRequestError('Escolha confirmado ou estimado.');
   if (!Number.isSafeInteger(r.amountCents) || Number(r.amountCents) < 0 || Number(r.amountCents) > 1000000000) throw new InvalidAdminRequestError('Valor inválido em centavos.');
@@ -64,6 +67,7 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
   const data: CostData = { name: textValue(r.name, 'Nome', 100), category: textValue(r.category, 'Categoria', 60),
     notes: textValue(r.notes, 'Observação', 500, true), slot, certainty: r.certainty, amountCents: Number(r.amountCents) };
   if (kind === 'expense') {
+    if(r.attachment)data.attachment=validateCancellationReceipt(r.attachment);
     if (data.amountCents <= 0) throw new InvalidAdminRequestError('Despesa deve ser maior que zero.');
     data.occurredOn = dateValue(r.occurredOn, 'Data');
     data.rideId = r.rideId ? uuidValue(r.rideId) : null;
@@ -78,6 +82,7 @@ export function parseCostData(raw: unknown, kind: CostItem['kind']): CostData {
     if (r.voided != null && typeof r.voided !== 'boolean') throw new InvalidAdminRequestError('Exclusão inválida.');
     if (r.voided === true) data.voided = true;
     data.basis = r.basis as CostBasis;
+    if(r.frequency!==undefined){if(!['monthly','quarterly','yearly'].includes(String(r.frequency)))throw new InvalidAdminRequestError('Frequência inválida.');data.frequency=r.frequency as NonNullable<CostData['frequency']>;}
     data.startsOn = dateValue(r.startsOn, 'Início da regra');
     data.endsOn = r.endsOn ? dateValue(r.endsOn, 'Fim da regra') : null;
     if (data.endsOn && data.endsOn < data.startsOn) throw new InvalidAdminRequestError('Fim da regra anterior ao início.');
@@ -96,7 +101,7 @@ export function createCostItem(kind: CostItem['kind'], raw: unknown, id: string,
 
 interface CostLine { key: string; name: string; category: string; slot: string; amountCents: number;
   certainty: 'confirmed' | 'estimated'; date: string; source: string; rideId?: string; paymentId?: string; ruleId?: string }
-export function calculateCostReport(source: CostSource, period: ReturnType<typeof reportPeriod>) {
+export function calculateCostReport(source: CostSource, period: ReturnType<typeof reportPeriod>,limit=500) {
   const inside = (date: string) => date >= period.from && date <= period.to;
   const rows = new Map<string,CostLine>();
   let commissionCents = 0, otherRevenueCents = 0, feeRecoveryCents = 0;
@@ -131,7 +136,9 @@ export function calculateCostReport(source: CostSource, period: ReturnType<typeo
         const [year,m] = month.split('-').map(Number) as [number,number];
         const day = Math.min(anchorDay,new Date(Date.UTC(year,m,0)).getUTCDate());
         const date = `${month}-${String(day).padStart(2,'0')}`;
-        if (inside(date) && isActive(d,date)) add(`month:${rule.id}:${month}`,date,d.amountCents);
+        const anchorYear=Number(d.startsOn!.slice(0,4)),anchorMonth=Number(d.startsOn!.slice(5,7));
+        const every=d.frequency==='yearly'?12:d.frequency==='quarterly'?3:1;
+        if (inside(date) && isActive(d,date)&&((year-anchorYear)*12+m-anchorMonth)%every===0) add(`month:${rule.id}:${month}`,date,d.amountCents);
         month = new Date(Date.UTC(year,m,1)).toISOString().slice(0,7);
       }
     } else if (d.basis === 'pix_payment' || d.basis === 'card_payment') {
@@ -170,6 +177,6 @@ export function calculateCostReport(source: CostSource, period: ReturnType<typeo
     summary:{commissionCents,otherRevenueCents,feeRecoveryCents,totalRevenueCents,confirmedCostsCents,estimatedCostsCents,manualObligationsCents:lines.filter(l=>l.source!=='ledger').reduce((s,l)=>s+l.amountCents,0),
       resultConfirmedCents:totalRevenueCents-confirmedCostsCents,projectedNetCents:totalRevenueCents-confirmedCostsCents-estimatedCostsCents},
     categories:Object.entries(categories).map(([category,amountCents])=>({category,amountCents})),
-    lines:lines.slice(0,500),lineCount:lines.length,rides:[...rides.values()].slice(0,500),rideCount:rides.size,items:source.items,
+    lines:lines.slice(0,limit),lineCount:lines.length,rides:[...rides.values()].slice(0,limit),rideCount:rides.size,items:source.items,
     note:'Resultado gerencial dos custos registrados. Estimativas não são cobranças verificadas. Não equivale ao saldo disponível para saque. Custos fixos não são rateados por corrida.' };
 }

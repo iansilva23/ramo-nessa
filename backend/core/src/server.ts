@@ -4270,7 +4270,7 @@ const server = createServer(async (request, response) => {
         if(recordId){const record=(await companyManagementStore.list()).find(r=>r.id===uuidValue(recordId));json(response,record?200:404,record?{record}:{error:'RECORD_NOT_FOUND'});return;}
         const period=reportPeriod(requestUrl.searchParams.get('from'),requestUrl.searchParams.get('to'));
         const [source,summary,records]=await Promise.all([companyCostRepository.source(period),financeRepository.adminFinanceSummary(),companyManagementStore.list()]);
-        const report=calculateCostReport(source,period),totals=managementTotals(records);
+        const report=calculateCostReport(source,period,requestUrl.searchParams.get('export')==='true'?50000:500),totals=managementTotals(records);
         const today=new Date(Date.now()-3*3600000).toISOString().slice(0,10);
         const reservePeriod={from:'1970-01-01',to:today.slice(0,8)+String(new Date(Number(today.slice(0,4)),Number(today.slice(5,7)),0).getDate()).padStart(2,'0'),start:'1970-01-01T03:00:00.000Z',end:period.end};
         reservePeriod.end=new Date(Date.parse(reservePeriod.to+'T03:00:00Z')+86400000).toISOString();
@@ -4294,7 +4294,7 @@ const server = createServer(async (request, response) => {
     if (costMatch && (request.method === 'POST' || request.method === 'PUT')) {
       const actor=await authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,
         headers:request.headers,requiredScope:'costs:write'});
-      const body=await readJson(request) as Record<string,unknown>;
+      const body=await readJson(request,720*1024) as Record<string,unknown>;
       if(!body || typeof body!=='object' || Array.isArray(body) || (body.kind!=='expense' && body.kind!=='rule')) throw new InvalidAdminRequestError('Tipo de custo inválido.');
       const updating=request.method==='PUT';
       if(updating && (!costMatch[1] || typeof body.expectedUpdatedAt!=='string' || !Number.isFinite(Date.parse(body.expectedUpdatedAt)))) throw new InvalidAdminRequestError('Atualize o custo antes de salvar.');

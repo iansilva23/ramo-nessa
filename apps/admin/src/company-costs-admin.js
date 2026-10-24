@@ -87,7 +87,7 @@ export function createCompanyCostsAdmin({root,api,getToken,hasScope,onError}) {
     el('cost-lines-count').textContent=`${data.lineCount} lançamentos no total. Mostrando ${data.lines.length}; o resumo considera todos.`;
     el('cost-lines').replaceChildren(...data.lines.map(l=>{
       const box=node('div','','cost-row');box.append(node('strong',`${l.name}: ${formatCurrencyCents(l.amountCents)}`),node('p',`${l.date} · ${l.category} · ${l.certainty==='confirmed'?'Confirmado':'Estimado'}${l.paymentId?' · Pagamento '+l.paymentId:''}${l.rideId?' · Corrida '+l.rideId:''}`));
-      if(l.source==='rule'&&l.certainty==='estimated')box.append(button('Registrar valor confirmado',async()=>{
+      if(l.source==='rule')box.append(button('Registrar valor confirmado',async()=>{
         const rule=rules.find(i=>i.id===l.ruleId);
         fillExpense({name:l.name,category:l.category,slot:l.slot,amountCents:l.amountCents,occurredOn:l.date,
           rideId:l.rideId,paymentId:l.paymentId,ruleId:rule?.data.basis==='monthly'?l.ruleId:null,certainty:'confirmed',notes:'Valor conferido da estimativa.'});
@@ -116,6 +116,8 @@ export function createCompanyCostsAdmin({root,api,getToken,hasScope,onError}) {
   listen('cost-expense-form','submit',e=>{e.preventDefault();void mutation(async()=>{
     const data={name:value('cost-expense-name'),category:value('cost-expense-category'),slot:value('cost-expense-slot'),amountCents:moneyToCents(value('cost-expense-amount')),
       occurredOn:value('cost-expense-date'),certainty:value('cost-expense-certainty'),rideId:value('cost-expense-ride')||null,paymentId:value('cost-expense-payment')||null,ruleId:value('cost-expense-rule')||null,notes:value('cost-expense-notes'),voided:false};
+    if(editing?.data?.attachment)data.attachment=editing.data.attachment;
+    const proof=el('cost-expense-proof')?.files?.[0];if(proof){if(proof.size>512000)throw Error('Comprovante maior que 500 KB.');const base64=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(proof);});data.attachment={name:proof.name,contentType:proof.type,base64};}
     await api.saveCost(getToken(),{id:editing?.id??creationId('expense',data),kind:'expense',data,...(editing?{expectedUpdatedAt:editing.updatedAt}:{})});clearExpense();
   });});
   function syncRuleFields() {
@@ -162,7 +164,7 @@ export function createCompanyCostsAdmin({root,api,getToken,hasScope,onError}) {
     const {amountCents,rateBps}=ruleCalculation(basis,value('cost-rule-calculation'),value('cost-rule-amount'),value('cost-rule-rate'));
     const data={name:value('cost-rule-name'),category:value('cost-rule-category'),slot:value('cost-rule-slot'),notes:value('cost-rule-notes'),basis,
       amountCents,rateBps,
-      startsOn:value('cost-rule-start'),endsOn:value('cost-rule-end')||null,certainty:value('cost-rule-certainty')};
+      startsOn:value('cost-rule-start'),endsOn:value('cost-rule-end')||null,certainty:value('cost-rule-certainty'),frequency:value('cost-rule-frequency')};
     await api.saveCost(getToken(),{id:creationId('rule',data),kind:'rule',data});pending.delete('rule');el('cost-rule-form').reset();el('cost-rule-start').value=today();
     syncRuleFields();
   });});

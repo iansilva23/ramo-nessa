@@ -29,6 +29,7 @@
         <label>ID da regra mensal (opcional)<input id="cost-expense-rule" maxlength="36"><small>Vincule à regra para substituir a previsão do mês, sem somar duas vezes.</small></label>
 </div></details>
         <label>Observação<textarea id="cost-expense-notes" maxlength="500"></textarea></label>
+        <label>Comprovante (PDF, PNG ou JPEG até 500 KB)<input id="cost-expense-proof" type="file" accept=".pdf,.png,.jpg,.jpeg"></label>
         <p id="cost-expense-feedback" class="cost-form-feedback" role="status" aria-live="polite"></p>
         <button class="button button--dark" type="submit">Salvar despesa</button>
         <button id="cost-expense-reset" class="button button--ghost-dark" type="button">Limpar formulário</button>
@@ -36,6 +37,7 @@
     </details>
     <details class="panel-card cost-editor" id="cost-rule-editor"><summary>Criar regra de custo <small>Calcule automaticamente custos fixos ou percentuais</small></summary>
       <form id="cost-rule-form" class="cost-form">
+        <label>Frequência dos custos fixos<select id="cost-rule-frequency"><option value="monthly">Mensal</option><option value="quarterly">Trimestral</option><option value="yearly">Anual</option></select></label>
         <label>Nome<input id="cost-rule-name" maxlength="100" required placeholder="Ex.: VPS mensal"></label>
         <label>Categoria<input id="cost-rule-category" maxlength="60" required list="cost-categories" placeholder="Infraestrutura"></label>
         <label>Grupo do custo<select id="cost-rule-slot"><option value="general">Outros gastos</option><option value="processing_fee">Taxa do meio de pagamento</option><option value="server">Servidor</option><option value="whatsapp">WhatsApp</option><option value="maps">Mapas</option><option value="marketing">Divulgação</option><option value="tax">Impostos</option></select></label>
