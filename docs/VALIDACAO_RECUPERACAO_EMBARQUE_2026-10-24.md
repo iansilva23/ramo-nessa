@@ -50,8 +50,8 @@ O responsável confirmou que o Mercado Pago já está em produção e funcionand
 - Teste HTTP com sessões emitidas pelo serviço de autenticação: ausência de sessão, papel incorreto, isolamento entre passageiros, consulta repetida ao mesmo pagamento, proteção das rotas de motorista e permissões de leitura/escrita do ADM. Todas as consultas preservam a corrida e o pagamento pendentes.
 - Teste de navegador do ADM em largura desktop e móvel: configuração inicialmente desativada, persistência após recarregar, exclusão de Entregas, conflito entre administradores, cancelamento da confirmação pelo suporte, registro da liberação e acesso somente leitura.
 - Correção funcional: o suporte recebe uma confirmação explícita de liberação registrada após sucesso; a mensagem não é substituída pelo estado geral da política.
-- O teste de navegador aceita Chromium e WebKit e gera capturas em `artifacts/ride-recovery/`. A proposta de acrescentá-lo ao CI foi preservada separadamente: o GitHub recusou a alteração do workflow porque a credencial não possui o escopo `workflow`. O workflow existente continua executando o novo teste HTTP dentro da suíte Core.
+- O teste de navegador executa no CI em Chromium e WebKit e gera capturas em `artifacts/ride-recovery/`, guardadas como artefatos `boarding-admin-*`. A limitação da credencial do terminal para editar workflows foi resolvida usando a conexão integrada do GitHub. O teste HTTP continua dentro da suíte Core.
 
-Resultado local complementar: teste HTTP e teste Chromium passaram; os 176 testes do ADM continuaram passando. O resultado WebKit é registrado na descrição do PR após a execução local.
+Resultado local complementar: teste HTTP, Chromium e WebKit passaram; os 176 testes do ADM continuaram passando. O resultado do CI para o commit final é registrado na descrição do PR.
 
 Essa execução usa contas, pagamentos e respostas artificiais, com servidor local temporário. Não representa o encerramento e reabertura dos apps nativos em aparelhos com a nova versão. Essa homologação permanece separada da integração de pagamentos que já funciona em produção.
