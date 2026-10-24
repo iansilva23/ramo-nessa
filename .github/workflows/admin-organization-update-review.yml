@@ -1,0 +1,31 @@
+name: ADM organization - isolated safe update
+on:
+  push:
+    branches: [ops/admin-organization-web-20261023]
+    paths: [deploy/staging/update-admin-organization*, deploy/staging/admin-organization-update-ci.mjs, .github/workflows/admin-organization-update-review.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admin-update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [success, rollback]
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Pinned source and preservation contracts
+        run: node --test deploy/staging/update-admin-organization.test.mjs
+      - name: Actual disposable Core, PostgreSQL and Gateway update or rollback
+        run: sudo env GITHUB_ACTIONS=true RAMO_ADMIN_CI_ORIGIN=http://127.0.0.1:18080 ADMIN_UPDATE_SCENARIO=${{ matrix.scenario }} "$(command -v node)" deploy/staging/admin-organization-update-ci.mjs
+      - name: Synthetic fixture diagnostics only
+        if: failure()
+        run: |
+          sudo find /opt/ramo-nessa-admin-organization/updates -type f \( -name last-command.private.log -o -name error.private.log \) -exec tail -c 8000 {} \; || true
+          docker logs --tail 30 ramo-nessa-staging-core-1 || true
+          docker logs --tail 30 ramo-nessa-staging-gateway-1 || true

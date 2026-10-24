@@ -1,0 +1,234 @@
+import '../domain/managed_pricing_catalog.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:latlong2/latlong.dart';
+import '../../service_area/domain/service_zone.dart';
+import 'package:http/http.dart' as http;
+
+import '../../../core/config/ramo_core_config.dart';
+import '../../../core/network/json_response.dart';
+
+class PassengerPricingPolicy {
+  const PassengerPricingPolicy({
+    required this.enabledCategories,
+    required this.enabledZones,
+    required this.buggyMinPassengers,
+    required this.buggyMaxPassengers,
+    this.sharedTransfers,
+    this.catalogZones,
+    this.preaLocalityCategories = const {},
+    this.jijocaLocalityCategories = const {},
+    this.managementMode = false,
+    this.managedRegionCategories = const {},
+  });
+
+  factory PassengerPricingPolicy.fromJson(Map<String, dynamic> json) {
+    final categories = json['enabledCategories'];
+    final zones = json['enabledZones'];
+    final buggy = json['buggy'];
+
+    if (
+      categories is! List ||
+      zones is! List ||
+      buggy is! Map<String, dynamic>
+    ) {
+      throw const FormatException(
+        'Política pública de preços inválida.',
+      );
+    }
+
+    final minPassengers =
+        (buggy['minPassengers'] as num?)?.toInt();
+    final maxPassengers =
+        (buggy['maxPassengers'] as num?)?.toInt();
+    if (
+      minPassengers == null ||
+      maxPassengers == null ||
+      minPassengers < 1 ||
+      maxPassengers < minPassengers
+    ) {
+      throw const FormatException(
+        'Limites do Buggy inválidos.',
+      );
+    }
+
+    final catalogZones = _catalogZones(json['localityGeofences'], json['regions']);
+    ManagedPricingCatalog.update(
+      enabled: json['managementMode'] == 'managed',
+      zones: catalogZones,
+      categories: json['categories'],
+    );
+    return PassengerPricingPolicy(
+      managementMode: json['managementMode'] == 'managed',
+      managedRegionCategories: _regionCategories(json['regions']),
+      sharedTransfers: json['sharedTransfers'],
+      catalogZones: catalogZones,
+      enabledCategories: categories
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet(),
+      enabledZones: zones
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet(),
+      buggyMinPassengers: minPassengers,
+      buggyMaxPassengers: maxPassengers,
+      preaLocalityCategories: _localityCategories(
+        json['localityPolicies'],
+        'prea',
+      ),
+      jijocaLocalityCategories: _localityCategories(
+        json['localityPolicies'],
+        'jijoca',
+      ),
+    );
+  }
+
+  final List<ServiceZone>? catalogZones;
+  final dynamic sharedTransfers;
+  final Set<String> enabledCategories;
+  final Set<String> enabledZones;
+  final int buggyMinPassengers;
+  final int buggyMaxPassengers;
+  final Map<String, Set<String>> preaLocalityCategories;
+  final Map<String, Set<String>> jijocaLocalityCategories;
+  final bool managementMode;
+  final Map<String, Set<String>> managedRegionCategories;
+
+  bool get usesManagedRegions => kIsWeb && managementMode;
+
+  Set<String> managedCategoriesForTrip(String originId, String destinationId) {
+    if (!usesManagedRegions) return const {};
+    final origin = managedRegionCategories[originId];
+    final destination = managedRegionCategories[destinationId];
+    if (origin == null || destination == null) return const {};
+    return enabledCategories.intersection(origin).intersection(destination);
+  }
+
+  static Map<String, Set<String>> _regionCategories(dynamic raw) {
+    if (raw is! List) return const {};
+    return Map.unmodifiable({
+      for (final region in raw.whereType<Map>())
+        if (region['id'] is String && region['enabled'] == true &&
+            region['archived'] == false && region['categoryIds'] is List)
+          region['id'] as String: Set<String>.unmodifiable(
+            (region['categoryIds'] as List).whereType<String>(),
+          ),
+    });
+  }
+
+  Set<String>? localityCategories({
+    required String zoneId,
+    required String localityId,
+  }) {
+    if (zoneId == 'prea') {
+      return preaLocalityCategories[localityId];
+    }
+    if (zoneId == 'jijoca') {
+      return jijocaLocalityCategories[localityId];
+    }
+    return null;
+  }
+
+  static List<ServiceZone>? _catalogZones(dynamic raw, [dynamic rawRegions]) {
+    if (raw is! List) return null;
+    final labels = <String, String>{};
+    if (rawRegions is List) {
+      for (final region in rawRegions.whereType<Map>()) {
+        if (region['id'] is String && region['name'] is String) {
+          labels[region['id'] as String] = region['name'] as String;
+        }
+      }
+    }
+    final zones = <ServiceZone>[];
+    for (final area in raw.whereType<Map>()) {
+      final id = area['zoneId']?.toString();
+      final locality = area['localityId']?.toString();
+      final lat = area['centerLatitude'], lng = area['centerLongitude'], radius = area['radiusKm'];
+      if (!['jericoacoara','prea','jijoca','external'].contains(id) || locality == null ||
+          lat is! num || lng is! num || radius is! num ||
+          !lat.isFinite || !lng.isFinite || !radius.isFinite ||
+          lat.abs() > 90 || lng.abs() > 180 || radius <= 0) {
+        continue;
+      }
+      zones.add(ServiceZone(id: id!,label: labels[locality] ?? locality,localityId: locality,
+        center: LatLng(lat.toDouble(),lng.toDouble()),radiusMeters: radius.toDouble()*1000));
+    }
+    return zones;
+  }
+
+  static Map<String, Set<String>> _localityCategories(
+    dynamic rawPolicies,
+    String zoneId,
+  ) {
+    if (rawPolicies is! Map) return const {};
+    final zoneRaw = rawPolicies[zoneId];
+    if (zoneRaw is! List) return const {};
+
+    final output = <String, Set<String>>{};
+    for (final raw in zoneRaw.whereType<Map>()) {
+      final localityId = raw['localityId']?.toString().trim() ?? '';
+      final categories = raw['enabledCategories'];
+      if (localityId.isEmpty || categories is! List) continue;
+      output[localityId] = categories
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+    }
+    return output;
+  }
+}
+
+abstract interface class PricingPolicyService {
+  Future<PassengerPricingPolicy> load();
+}
+
+class HttpPricingPolicyService implements PricingPolicyService {
+  HttpPricingPolicyService({
+    required Uri baseUrl,
+    http.Client? client,
+  })  : _baseUrl = baseUrl,
+        _client = client ?? http.Client();
+
+  final Uri _baseUrl;
+  final http.Client _client;
+
+  @override
+  Future<PassengerPricingPolicy> load() async {
+    final response = await _client
+        .get(
+          _baseUrl.resolve('/v1/pricing/policy'),
+          headers: const {'accept': 'application/json'},
+        )
+        .timeout(RamoCoreConfig.requestTimeout);
+    final decoded = decodeJsonObject(response.body);
+
+    if (response.statusCode == 200 && decoded != null) {
+      try {
+        return PassengerPricingPolicy.fromJson(decoded);
+      } catch (_) {
+        throw const PricingPolicyException(
+          'O servidor retornou uma política de serviços inválida.',
+        );
+      }
+    }
+
+    throw PricingPolicyException(
+      apiErrorMessage(
+        decoded,
+        'Não conseguimos atualizar os serviços disponíveis agora.',
+      ),
+    );
+  }
+}
+
+class PricingPolicyException implements Exception {
+  const PricingPolicyException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
