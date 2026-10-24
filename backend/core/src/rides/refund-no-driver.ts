@@ -35,6 +35,7 @@ export async function refundWalletRide(input: {
   now?: Date;
 }): Promise<RideRefundResult> {
   let ride = await input.rides.findById(input.rideId);
+  if(ride?.manualRefund)throw new Error('Devolução manual: estorno automático bloqueado.');
   if (ride == null) {
     throw new RideRefundError(
       'RIDE_NOT_FOUND',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ramo_nessa_passenger/src/features/rides/presentation/passenger_cancellation_panel.dart';
+import 'package:ramo_nessa_passenger/src/features/rides/data/passenger_ride_tracking_service.dart';
 class _Api implements PassengerManualCancellationApi{
  late DateTime now;final accepted=DateTime.utc(2026,10,24,1);
  @override Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false})async=> {
@@ -12,7 +13,7 @@ void main(){
   final api=_Api();var now=api.accepted;api.now=now;
   await tester.pumpWidget(MaterialApp(home:Scaffold(body:Column(children:[
    const Expanded(child:SizedBox()),
-   Container(key:const ValueKey('card'),width:double.infinity,child:Column(mainAxisSize:MainAxisSize.min,children:[
+   SizedBox(key:const ValueKey('card'),width:double.infinity,child:Column(mainAxisSize:MainAxisSize.min,children:[
     const Text('João Silva',key:ValueKey('driver-name')),
     PassengerCancellationPanel(rideId:'ride',api:api,onChanged:(){},now:()=>now),
    ])),

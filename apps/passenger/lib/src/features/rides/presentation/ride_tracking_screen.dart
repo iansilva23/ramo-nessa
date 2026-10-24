@@ -854,7 +854,7 @@ class _AssignedDriverCard extends StatelessWidget {
       ]),
      ],
     ]),
-    if(vehicle.isNotEmpty)...[const SizedBox(height:10),Text(vehicle+(driver.vehicleColor?.trim().isNotEmpty==true?' · '+driver.vehicleColor!:''),style:const TextStyle(fontWeight:FontWeight.w700))],
+    if(vehicle.isNotEmpty)...[const SizedBox(height:10),Text('$vehicle${driver.vehicleColor?.trim().isNotEmpty==true?' · ${driver.vehicleColor!}':''}',style:const TextStyle(fontWeight:FontWeight.w700))],
     if(plate!=null&&plate.isNotEmpty)...[const SizedBox(height:6),Text('Confira o nome e a placa antes de embarcar.',style:TextStyle(fontSize:12,color:Theme.of(context).colorScheme.onSurfaceVariant))],
    ]));
  }

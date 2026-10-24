@@ -4237,7 +4237,7 @@ const server = createServer(async (request, response) => {
       passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
       driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
       authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
-      readBody:()=>readJson(request),json:(status,value)=>json(response,status,value),
+      readBody:()=>readJson(request,/^\/v1\/admin\/manual-refunds\/[0-9a-f-]{36}\/paid$/i.test(requestUrl.pathname)?720*1024:undefined),json:(status,value)=>json(response,status,value),
       cancelled:async c=>{
         const cancelledRide=await rideRepository.findById(c.rideId);
         if(cancelledRide)await releaseFundedRidePromotion({promotions:promotionRepository,finance:financeRepository,ride:cancelledRide,now:new Date()});

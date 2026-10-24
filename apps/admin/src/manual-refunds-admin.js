@@ -5,6 +5,7 @@ const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.te
 function field(label,type='text',value=''){const wrap=el('label',label);const control=el('input');control.type=type;control.value=value;wrap.append(control);return {wrap,control};}
 export function createCancellationAdmin({root,api,getToken,hasScope}){
  const host=root.querySelector('[data-manual-refunds]');if(!host)return;
+ const heading=root.querySelector('.page-heading');if(heading)heading.after(host);
  let policy=null,items=[],filter='review',busy=false;const writable=hasScope('finance:write');
  host.replaceChildren();
  const header=el('div',null,'page-heading');header.append(el('h2','Cancelamentos e devoluções'),el('p','Analise o caso, faça o Pix pelo banco e registre o comprovante. Nenhum botão desta área envia dinheiro.'));

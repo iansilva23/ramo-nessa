@@ -41,6 +41,7 @@ export async function refundMercadoPagoRide(input: {
   now?: Date;
 }): Promise<ExternalRideRefundResult> {
   let ride = await input.rides.findById(input.rideId);
+  if(ride?.manualRefund)throw new Error('Devolução manual: estorno automático bloqueado.');
   if (ride == null) {
     throw new ExternalRideRefundError(
       'RIDE_NOT_FOUND',

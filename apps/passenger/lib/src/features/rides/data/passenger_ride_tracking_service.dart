@@ -1,5 +1,9 @@
 import '../domain/passenger_ride_tracking_snapshot.dart';
 
+abstract interface class PassengerManualCancellationApi {
+ Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false});
+}
+
 class PassengerDriverRatingResult {
   const PassengerDriverRatingResult({
     required this.stars,

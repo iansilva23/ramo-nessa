@@ -84,6 +84,8 @@ abstract interface class DriverApi {
   });
 }
 
+abstract interface class DriverRideIdentityApi {Future<Map<String,dynamic>> rideIdentification(String rideId);}
+
 class DriverRideCancellationResult {
   const DriverRideCancellationResult({
     required this.refundStatus,

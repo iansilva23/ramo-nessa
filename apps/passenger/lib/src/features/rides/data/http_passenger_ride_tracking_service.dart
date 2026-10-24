@@ -8,7 +8,6 @@ import '../../../core/config/ramo_core_config.dart';
 import '../../../core/network/json_response.dart';
 import '../domain/passenger_ride_tracking_snapshot.dart';
 import 'passenger_ride_tracking_service.dart';
-import '../presentation/passenger_cancellation_panel.dart';
 
 class HttpPassengerRideTrackingService
     implements
@@ -33,7 +32,7 @@ class HttpPassengerRideTrackingService
 
   @override
   Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false}) async {
-    final url=_baseUrl.resolve('/v1/rides/'+rideId+'/'+(pix?'refund-pix':'cancellation'));
+    final url=_baseUrl.resolve('/v1/rides/$rideId/${pix?'refund-pix':'cancellation'}');
     final request=http.Request(method,url)..headers.addAll(_identityHeaders);
     if(body!=null)request.body=jsonEncode(body);
     final response=await http.Response.fromStream(await _client.send(request).timeout(RamoCoreConfig.requestTimeout));

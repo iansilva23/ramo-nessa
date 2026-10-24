@@ -11,7 +11,6 @@ import '../../benefits/domain/driver_benefits_models.dart';
 import '../domain/driver_models.dart';
 import 'driver_api.dart';
 import 'passenger_rating_api.dart';
-import '../presentation/driver_passenger_identity.dart';
 
 class HttpDriverApi
     implements
@@ -61,7 +60,7 @@ class HttpDriverApi
 
   @override
   Future<Map<String,dynamic>> rideIdentification(String rideId) async {
-    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/'+rideId+'/identification'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
+    final response=await _client.get(_baseUrl.resolve('/v1/driver/me/rides/$rideId/identification'),headers:_headers).timeout(DriverCoreConfig.requestTimeout);
     return _expectObject(response,expectedStatus:200);
   }
 

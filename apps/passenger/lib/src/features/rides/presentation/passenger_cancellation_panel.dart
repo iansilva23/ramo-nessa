@@ -2,20 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/passenger_ride_tracking_service.dart';
 
-abstract interface class PassengerManualCancellationApi {
- Future<Map<String,dynamic>> cancellationRequest(String rideId,{String method='GET',Map<String,dynamic>? body,bool pix=false});
-}
 class PassengerCancellationPanel extends StatefulWidget {
- const PassengerCancellationPanel({super.key,required this.rideId,required this.api,required this.onChanged});
+ const PassengerCancellationPanel({super.key,required this.rideId,required this.api,required this.onChanged,this.now});
+ final DateTime Function()? now;
  final String rideId;final PassengerManualCancellationApi api;final VoidCallback onChanged;
  @override State<PassengerCancellationPanel> createState()=>_PassengerCancellationPanelState();
 }
 class _PassengerCancellationPanelState extends State<PassengerCancellationPanel> {
  Timer? _timer;Map<String,dynamic>? _data;String? _error;bool _busy=false,_loading=false;
  final _key=TextEditingController(),_holder=TextEditingController();String _type='cpf';
- final _elapsed=Stopwatch();Duration? _remaining;
+ DateTime? _receivedAt;Duration? _remaining;int _ticks=0;
+ DateTime get _now=>widget.now?.call()??DateTime.now();
  @override void initState(){super.initState();_load();_timer=Timer.periodic(const Duration(seconds:1),(_){
-  if(!mounted)return;setState((){});if(_elapsed.elapsed.inSeconds>=10&&!_loading)_load();
+  if(!mounted)return;setState((){});if(++_ticks>=10&&!_loading)_load();
  });}
  @override void dispose(){_timer?.cancel();_key.dispose();_holder.dispose();super.dispose();}
  Future<void> _load() async {
@@ -26,11 +25,11 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
    final terms=data['terms'] as Map<String,dynamic>?;
    final until=DateTime.tryParse(terms?['cancelUntil'] as String? ?? '');
    final server=DateTime.tryParse(terms?['serverTime'] as String? ?? '');
-   setState((){_data=data;_remaining=until==null||server==null?null:until.difference(server);_elapsed..reset()..start();});
+   setState((){_data=data;_remaining=until==null||server==null?null:until.difference(server);_receivedAt=_now;_ticks=0;});
   }catch(_){if(mounted&&_data==null)setState(()=>_error='Não foi possível conferir o prazo de cancelamento. Tente atualizar.');}
   finally{_loading=false;}
  }
- int? get _seconds=>_remaining==null?null:(_remaining!-_elapsed.elapsed).inSeconds;
+ int? get _seconds=>_remaining==null||_receivedAt==null?null:((_remaining!-_now.difference(_receivedAt!)).inMicroseconds/1000000).ceil();
  Future<void> _cancel() async {
   if(_busy)return;
   final confirm=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
@@ -52,7 +51,7 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
   catch(_){if(mounted)setState(()=>_error='Não foi possível salvar o Pix.');}
   finally{if(mounted)setState(()=>_busy=false);}
  }
- String _money(num cents)=>'R\$ '+(cents/100).toStringAsFixed(2).replaceAll('.',',');
+ String _money(num cents)=>'R\$ ${(cents/100).toStringAsFixed(2).replaceAll('.',',')}';
  @override Widget build(BuildContext context){
   final cancellation=_data?['cancellation'] as Map<String,dynamic>?;
   final visible=_data?['canCancel']==true&&(_seconds==null||_seconds!>0);
@@ -62,13 +61,13 @@ class _PassengerCancellationPanelState extends State<PassengerCancellationPanel>
    AnimatedSize(duration:const Duration(milliseconds:280),curve:Curves.easeInOutCubic,alignment:Alignment.bottomCenter,
     child:visible?Padding(padding:const EdgeInsets.only(top:12),child:OutlinedButton.icon(
      key:const ValueKey('passenger-free-cancel'),onPressed:_busy?null:_cancel,
-     icon:const Icon(Icons.cancel_outlined),label:Text(_seconds==null?'Cancelar corrida':'Cancelar gratuitamente · '+_seconds.toString()+'s'))):const SizedBox(width:double.infinity)),
+     icon:const Icon(Icons.cancel_outlined),label:Text(_seconds==null?'Cancelar corrida':'Cancelar gratuitamente · ${_seconds}s'))):const SizedBox(width:double.infinity)),
    if(cancellation!=null)...[
     const SizedBox(height:12),
     Text(status=='refunded'?'Devolução realizada':'Corrida cancelada',style:const TextStyle(fontWeight:FontWeight.w800)),
-    Text(status=='refunded'?'A equipe registrou a devolução de '+_money((cancellation['refundCents'] as num?)??0)+'.':
+    Text(status=='refunded'?'A equipe registrou a devolução de ${_money((cancellation['refundCents'] as num?)??0)}.':
      'Sua devolução será analisada e realizada manualmente pela equipe Ramo Nessa.'),
-    Text('Taxa: '+_money((cancellation['feeCents'] as num?)??0)+' · A devolver: '+_money((cancellation['refundCents'] as num?)??0)),
+    Text('Taxa: ${_money((cancellation['feeCents'] as num?)??0)} · A devolver: ${_money((cancellation['refundCents'] as num?)??0)}'),
     if(status=='awaiting_pix'||status=='review')...[
      const SizedBox(height:12),
      if(cancellation['pix']!=null)const Text('Dados Pix enviados. Você pode corrigir antes da aprovação.'),

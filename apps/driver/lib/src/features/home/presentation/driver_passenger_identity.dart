@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-abstract interface class DriverRideIdentityApi {Future<Map<String,dynamic>> rideIdentification(String rideId);}
+import '../data/driver_api.dart';
 class DriverPassengerIdentity extends StatefulWidget {
  const DriverPassengerIdentity({super.key,required this.api,required this.rideId,this.showDeadline=true,this.compact=false});
  final DriverRideIdentityApi api;final String rideId;final bool showDeadline,compact;
@@ -28,7 +28,7 @@ class _DriverPassengerIdentityState extends State<DriverPassengerIdentity> {
     const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      const Text('PASSAGEIRO',style:TextStyle(color:Color(0xFF70747D),fontSize:11,fontWeight:FontWeight.w700)),
      Text(_name,style:const TextStyle(color:Colors.black,fontSize:17,fontWeight:FontWeight.w800)),
-     if(widget.showDeadline&&seconds!=null)Text(seconds>0?'Cancelamento gratuito por mais '+seconds.toString()+'s':'Prazo de cancelamento gratuito encerrado',
+     if(widget.showDeadline&&seconds!=null)Text(seconds>0?'Cancelamento gratuito por mais ${seconds}s':'Prazo de cancelamento gratuito encerrado',
       style:const TextStyle(color:Color(0xFF70747D),fontSize:12)),
     ]))]));
  }
