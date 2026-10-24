@@ -13,8 +13,9 @@ export async function handleManualCancellationRoutes(input:{
  if(passenger?.[2]==='cancel-search'&&!store)return false;
  const driver=path.match(/^\/v1\/driver\/me\/rides\/([0-9a-f-]{36})\/identification$/i);
  const adminCase=path.match(/^\/v1\/admin\/manual-refunds\/([0-9a-f-]{36})\/(review|paid)$/i);
+ const adminDetail=path.match(/^\/v1\/admin\/manual-refunds\/([0-9a-f-]{36})$/i);
  const adminCancel=path.match(/^\/v1\/admin\/rides\/([0-9a-f-]{36})\/cancel$/i);
- if(!passenger&&!driver&&!adminCase&&!adminCancel&&!['/v1/admin/manual-refunds','/v1/admin/cancellation-policy'].includes(path))return false;
+ if(!passenger&&!driver&&!adminCase&&!adminDetail&&!adminCancel&&!['/v1/admin/manual-refunds','/v1/admin/cancellation-policy'].includes(path))return false;
  try{
   if(driver&&method==='GET'){
    const driverId=await input.driver(),ride=await input.rides.findById(driver[1]!);
@@ -46,6 +47,10 @@ export async function handleManualCancellationRoutes(input:{
    const actor=await input.authorize(method==='GET'?'finance:read':'finance:write');
    if(!store)throw new CancellationError('POSTGRES_REQUIRED','Devoluções manuais exigem armazenamento persistente.',503);
    const actorKey=JSON.stringify(actor);
+   if(adminDetail&&method==='GET'){
+    const c=await store.find(adminDetail[1]!);if(!c){input.json(404,{error:'CASE_NOT_FOUND'});return true;}
+    input.json(200,{...c,terms:await store.terms(c.rideId)});return true;
+   }
    if(path==='/v1/admin/manual-refunds'&&method==='GET'){input.json(200,{items:await store.list()});return true;}
    if(path==='/v1/admin/cancellation-policy'&&method==='GET'){input.json(200,await store.policy());return true;}
    if(path==='/v1/admin/cancellation-policy'&&method==='PUT'){
@@ -56,6 +61,7 @@ export async function handleManualCancellationRoutes(input:{
     await input.authorize('rides:write');
     const ride=await input.rides.findById(adminCancel[1]!);
     if(!ride){input.json(404,{error:'RIDE_NOT_FOUND'});return true;}
+    if(!ride.manualRefund&&['CANCELLED_BY_ADMIN','REFUND_PENDING','REFUNDED'].includes(ride.state))return false;
     const b=await input.readBody() as {reason?:unknown};
     const c=await store.cancel({rideId:ride.id,passengerId:ride.passengerId,actor:actorKey,passenger:false,reason:typeof b?.reason==='string'?b.reason:''});
     await input.cancelled(c);input.json(200,{ride:{id:ride.id,state:'CANCELLED_BY_PASSENGER'},refundStatus:'manual_review',cancellation:c});return true;

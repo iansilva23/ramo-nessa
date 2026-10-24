@@ -4430,8 +4430,8 @@ class _ActiveRideCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
+          if(identity!=null)identity!,
           _DriverRouteTimeline(
-            // Passenger identity is rendered above the route in the new map card.
             origin: ride.pickupInstructions ?? ride.origin.displayName,
             destination: ride.dropoffInstructions ?? ride.destination.displayName,
           ),

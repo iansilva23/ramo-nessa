@@ -53,7 +53,7 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
    const card=el('article',null,'panel-card manual-refund-row');
    const info=el('div');info.append(el('strong',c.passengerName||'Passageiro sem nome cadastrado'),el('p',(labels[c.category]||'Corrida')+' · '+states[c.status]),el('small','Motorista: '+(c.driverName||'Não atribuído')));
    const amounts=el('div');amounts.append(el('strong','A devolver: '+money(c.paidCents-c.feeCents)),el('p','Pago: '+money(c.paidCents)+' · Taxa: '+money(c.feeCents)));
-   const open=el('button','Abrir ficha','button button--ghost-dark');open.type='button';open.onclick=()=>renderDetail(c);
+   const open=el('button','Abrir ficha','button button--ghost-dark');open.type='button';open.onclick=()=>execute(async()=>renderDetail({...c,...await request('/v1/admin/manual-refunds/'+c.rideId)}));
    card.append(info,amounts,open);list.append(card);
   }
  }
@@ -62,13 +62,16 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
   detail.append(el('p','Motorista: '+(c.driverName||'Não atribuído')+' · '+(labels[c.category]||'')),el('p','Motivo: '+c.reason),
    el('p','Valor pago: '+money(c.paidCents)),el('p','Crédito preservado do motorista: '+money(c.creditedFeeCents)),
    el('p','Custo da empresa por isenção: '+money(c.creditedFeeCents-c.feeCents)));
+  detail.append(el('p','Cancelamento: '+new Date(c.createdAt).toLocaleString('pt-BR')));
+  if(c.terms)detail.append(el('p','Aceite: '+(c.terms.acceptedAt?new Date(c.terms.acceptedAt).toLocaleString('pt-BR'):'Sem aceite')+' · Prazo gratuito: '+c.terms.rule.freeSeconds+'s'));
   const id=el('details');id.append(el('summary','Referência da corrida'),el('code',c.rideId));detail.append(id);
   if(c.pix){
    const pix=el('article',null,'panel-card');pix.append(el('strong','Dados para o Pix'),el('p','Titular informado: '+c.pix.holder),el('p','Tipo: '+c.pix.type),el('code',c.pix.key));
    const copy=el('button','Copiar chave Pix','button button--ghost-dark');copy.type='button';copy.onclick=async()=>{try{await navigator.clipboard.writeText(c.pix.key);message.textContent='Chave copiada. Confira o titular no banco antes de transferir.';}catch{message.textContent='Não foi possível copiar. Selecione a chave exibida.';}};pix.append(copy);detail.append(pix);
   }else detail.append(el('p','Aguardando os dados Pix do passageiro. O cancelamento já liberou o motorista.'));
   if(c.status==='refunded'){
-   detail.append(el('strong','Devolução concluída: '+money(c.paidCents-c.feeCents)),el('p','Identificador bancário: '+c.bankReference));
+   detail.append(el('strong',c.paidCents===c.feeCents?'Concluído sem valor a devolver':'Devolução concluída: '+money(c.paidCents-c.feeCents)));
+   if(c.bankReference)detail.append(el('p','Identificador bancário: '+c.bankReference));
    if(c.receipt){const download=el('button','Baixar comprovante','button button--ghost-dark');download.type='button';download.onclick=()=>{
     const bytes=Uint8Array.from(atob(c.receipt.base64),ch=>ch.charCodeAt(0)),url=URL.createObjectURL(new Blob([bytes],{type:c.receipt.contentType}));
     const a=el('a');a.href=url;a.download=c.receipt.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

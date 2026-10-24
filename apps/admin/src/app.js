@@ -7721,7 +7721,7 @@ async function handleRideCancel(event) {
   const confirmed = window.confirm(
     retryRefund
       ? 'Tentar concluir o estorno desta corrida novamente? A corrida continuará cancelada.'
-      : 'Confirmar cancelamento desta corrida? O motorista será liberado e receberá a taxa configurada, se aplicável. A devolução ao passageiro será tratada manualmente em Financeiro → Cancelamentos e devoluções.',
+      : 'Confirmar cancelamento administrativo desta corrida? O motorista será liberado e receberá a taxa configurada, se aplicável. A devolução ao passageiro será tratada manualmente em Financeiro → Cancelamentos e devoluções.',
   );
   if (!confirmed) return;
 

@@ -45,6 +45,7 @@ export class PostgresManualCancellationStore {
   return r.rows[0]??{revision:0,rules:defaultCancellationPolicy()};
  }
  async savePolicy(rules:unknown,revision:number,actor:string){
+  if(!Number.isSafeInteger(revision)||revision<0)throw new CancellationError('INVALID_REVISION','Atualize as regras antes de salvar.',400);
   const validated=validateCancellationPolicy(rules);
   return this.transaction(async c=>{
    const r=await c.query<{revision:number;rules:CancellationPolicy}>('UPDATE ride_cancellation_policy SET rules=$1,revision=revision+1 WHERE id=true AND revision=$2 RETURNING revision,rules',[JSON.stringify(validated),revision]);
@@ -62,7 +63,7 @@ export class PostgresManualCancellationStore {
   return r.rows[0]?record(r.rows[0]):null;
  }
  async list():Promise<ManualCancellation[]>{
-  const r=await this.pool.query<Row>("SELECT c.*,p.full_name AS passenger_name,d.full_name AS driver_name,r.category FROM ride_manual_cancellations c JOIN rides r ON r.id=c.ride_id LEFT JOIN auth_identities p ON p.subject_type='passenger' AND p.subject_id::text=c.passenger_id LEFT JOIN driver_profiles d ON d.driver_id::text=c.driver_id ORDER BY c.updated_at DESC LIMIT 300");
+  const r=await this.pool.query<Row>("SELECT c.*,NULL::jsonb AS receipt,p.full_name AS passenger_name,d.full_name AS driver_name,r.category FROM ride_manual_cancellations c JOIN rides r ON r.id=c.ride_id LEFT JOIN auth_identities p ON p.subject_type='passenger' AND p.subject_id::text=c.passenger_id LEFT JOIN driver_profiles d ON d.driver_id::text=c.driver_id ORDER BY c.updated_at DESC LIMIT 300");
   return r.rows.map(record);
  }
  async cancel(input:{rideId:string;passengerId:string;actor:string;passenger:boolean;reason:string;now?:Date}):Promise<ManualCancellation>{
@@ -106,6 +107,7 @@ export class PostgresManualCancellationStore {
   });
  }
  async review(rideId:string,feeCents:number,revision:number,actor:string,note:string){
+  if(!Number.isSafeInteger(revision)||revision<0)throw new CancellationError('INVALID_REVISION','Atualize a ficha antes de salvar.',400);
   if(!Number.isSafeInteger(feeCents)||feeCents<0||!note.trim()||note.length>500)throw new CancellationError('INVALID_REVIEW','Informe um valor válido e a justificativa.',400);
   return this.transaction(async c=>{
    const r=(await c.query<Row>('SELECT * FROM ride_manual_cancellations WHERE ride_id=$1 FOR UPDATE',[rideId])).rows[0];
@@ -122,12 +124,13 @@ export class PostgresManualCancellationStore {
       {accountKey:'platform:revenue',direction:difference>0?'debit':'credit',amountCents:amount},
       {accountKey:'ride:'+rideId+':escrow',direction:difference>0?'credit':'debit',amountCents:amount}]);
    }
-   const next=await c.query<Row>("UPDATE ride_manual_cancellations SET fee_cents=$2,status='approved',reviewed_by=$3,reviewed_at=now(),revision=revision+1,updated_at=now() WHERE ride_id=$1 RETURNING *",[rideId,feeCents,actor]);
+   const next=await c.query<Row>("UPDATE ride_manual_cancellations SET fee_cents=$2,status=CASE WHEN paid_cents=$2 THEN 'refunded' ELSE 'approved' END,refunded_at=CASE WHEN paid_cents=$2 THEN now() ELSE NULL END,reviewed_by=$3,reviewed_at=now(),revision=revision+1,updated_at=now() WHERE ride_id=$1 RETURNING *",[rideId,feeCents,actor]);
    await this.audit(c,rideId,actor,'refund.approved',{feeCents,refundCents:refund,companyCostCents:r.credited_fee_cents-feeCents,note});
    return record(next.rows[0]!);
   });
  }
  async markRefunded(rideId:string,revision:number,actor:string,bankReference:string,receiptValue:unknown){
+  if(!Number.isSafeInteger(revision)||revision<0)throw new CancellationError('INVALID_REVISION','Atualize a ficha antes de salvar.',400);
   const receipt=validateCancellationReceipt(receiptValue);
   if(typeof bankReference!=='string'||bankReference.trim().length<8||bankReference.length>150)throw new CancellationError('INVALID_BANK_REFERENCE','Informe o identificador da transferência no banco.',400);
   return this.transaction(async c=>{
