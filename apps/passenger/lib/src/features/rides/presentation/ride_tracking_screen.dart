@@ -713,7 +713,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> with WidgetsBin
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
-                  if (snapshot?.isTerminal == true) ...[
+                  if (snapshot?.isTerminal == true || snapshot?.state=='REFUND_PENDING') ...[
                     const SizedBox(height: RamoSpacing.md),
                     SizedBox(
                       width: double.infinity,

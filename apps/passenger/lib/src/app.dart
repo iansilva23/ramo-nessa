@@ -164,7 +164,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
           networkTilesEnabled: networkTilesEnabled,
         ),
       );
-      if(resolvedTracking is! PassengerRideResumeService)return shell;
+      if(resolvedTracking==null || resolvedTracking is! PassengerRideResumeService)return shell;
       return RideRecoveryGate(key:ValueKey('ride-recovery-$normalizedToken'),service:resolvedTracking as PassengerRideResumeService,child:shell,
         rideBuilder:(data,close)=>ResumedRideScreen(data:data,onClose:close,tracking:resolvedTracking,payments:services.payments,realtime:rideRealtimeService,
           routes:resolvedRouteService,networkTilesEnabled:networkTilesEnabled));

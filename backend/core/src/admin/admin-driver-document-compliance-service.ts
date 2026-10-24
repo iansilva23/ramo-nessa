@@ -116,7 +116,7 @@ export async function adminDriverDocumentComplianceView(input: {
   const autoEnforcementEnabled =
     settings.driverDocumentAutoEnforcement === true;
   const automaticBlock =
-    (autoEnforcementEnabled && !documentsApproved) || issues.some(i=>i.status==='expired');
+    (autoEnforcementEnabled && !documentsApproved) || issues.some(i=>i.status==='expired'||byType.get(i.documentType)?.validityControlled===true);
   const effectiveBlocked = manualBlocked || automaticBlock;
   const latestIssueAt = issues.reduce<string | null>(
     (latest, issue) => {

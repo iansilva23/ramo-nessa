@@ -1,4 +1,6 @@
 -- Disabled by default. Only NEW rides snapshot the policy; existing rides are preserved.
+ALTER TABLE driver_documents ADD COLUMN IF NOT EXISTS validity_controlled boolean NOT NULL DEFAULT false;
+UPDATE driver_documents SET validity_controlled=true WHERE status='approved' AND expires_on IS NOT NULL AND NOT validity_controlled;
 CREATE TABLE IF NOT EXISTS ride_boarding_policy (
  singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),
  enabled boolean NOT NULL DEFAULT false,

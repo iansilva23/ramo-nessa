@@ -42,8 +42,10 @@ export class InMemoryDriverDocumentRepository
         this.records.set(id, { ...existing, isCurrent: false });
       }
     }
-    this.records.set(record.id, structuredClone(record));
-    return structuredClone(record);
+    const controlled=[...this.records.values()].some(r=>r.driverId===record.driverId&&r.documentType===record.documentType&&(r.validityControlled===true||(r.status==='approved'&&r.expiresOn!=null)));
+    const stored={...record,...(controlled?{validityControlled:true}:{})};
+    this.records.set(record.id, structuredClone(stored));
+    return structuredClone(stored);
   }
 
   async reviewCurrent(input: {
@@ -76,6 +78,7 @@ export class InMemoryDriverDocumentRepository
       ...base,
       ...(input.expiresOn == null ? {} : {expiresOn:input.expiresOn}),
       status: input.status,
+      ...(input.status==='approved'?{validityControlled:true}:{}),
       ...(input.rejectionReason == null
         ? {}
         : { rejectionReason: input.rejectionReason }),

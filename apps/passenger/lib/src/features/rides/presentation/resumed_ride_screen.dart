@@ -22,11 +22,11 @@ class ResumedRideScreen extends StatelessWidget {
    final pix=data['pix'];
    if(pix is Map<String,dynamic> && payment?['status']=='pending'){
     final deadline=ride['paymentExpiresAt']??ride['driverHoldExpiresAt'];
-    if(deadline is String)return PixRidePaymentScreen(rideId:ride['id'] as String,holdExpiresAt:DateTime.parse(deadline),
-     amountLabel:PreparedRide.formatCents(((ride['quote'] as Map<String,dynamic>)['totalAmountCents'] as num).toInt()),driverReserved:ride['driverConsentRequired']==true,
-     result:PixRidePaymentResult.fromJson(pix),trackingService:tracking,realtimeService:realtime,routeService:routes,networkTilesEnabled:networkTilesEnabled,onRecoveryClose:onClose);
+    if(deadline is String){return PixRidePaymentScreen(rideId:ride['id'] as String,holdExpiresAt:DateTime.parse(deadline),
+     amountLabel:PreparedRide.formatCents(((payment?['amountCents']??(ride['quote'] as Map<String,dynamic>)['totalAmountCents']) as num).toInt()),driverReserved:ride['driverConsentRequired']==true,
+     result:PixRidePaymentResult.fromJson(pix),trackingService:tracking,realtimeService:realtime,routeService:routes,networkTilesEnabled:networkTilesEnabled,onRecoveryClose:onClose);}
    }
-   if(payment!=null && const {'pending','created','processing'}.contains(payment['status'])){
+   if(payment!=null && const {'pending','created','authorized','paid'}.contains(payment['status'])){
     return _PendingPaymentRecovery(data:data,service:tracking as PassengerRideResumeService,onClose:onClose,
      buildNext:(next)=>ResumedRideScreen(data:next,onClose:onClose,tracking:tracking,payments:payments,realtime:realtime,routes:routes,networkTilesEnabled:networkTilesEnabled));
    }
@@ -49,7 +49,7 @@ class _PendingPaymentRecoveryState extends State<_PendingPaymentRecovery>{
   final next=await widget.service.resumeRide(lastRideId:ride['id'] as String);if(!mounted)return;
   if(next['ride']==null){widget.onClose();return;}
   final state=(next['ride'] as Map<String,dynamic>)['state'];final payment=next['payment'] as Map<String,dynamic>?;
-  if(state!=ride['state']||next['pix']!=null||!const {'pending','created','processing'}.contains(payment?['status'])){_timer?.cancel();setState(()=>_next=next);}
+  if(state!=ride['state']||next['pix']!=null||!const {'pending','created','authorized','paid'}.contains(payment?['status'])){_timer?.cancel();setState(()=>_next=next);}
  }catch(_){/* Keep the pending payment; never create another charge on failure. */}finally{_loading=false;}}
  @override Widget build(BuildContext context)=>_next!=null?widget.buildNext(_next!):Scaffold(appBar:AppBar(title:const Text('Recuperando pagamento'),automaticallyImplyLeading:false),body:const Center(child:Padding(padding:EdgeInsets.all(24),child:Text('Estamos consultando o pagamento da sua corrida. Não faça outro pagamento. Se precisar, procure o suporte.'))));
 }

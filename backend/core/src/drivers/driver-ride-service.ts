@@ -70,7 +70,7 @@ export async function currentDriverRide(input: {
   }
 
   const active=await input.rides.findActiveByDriverId(input.driverId);
-  if(active!=null)return driverRideView(active);
+  if(active!=null && (active.state!=='COMPLETED'||supply.busy))return driverRideView(active);
   if (!supply.busy) {
     if (supply.reservedRideId == null || Date.parse(supply.reservedUntil ?? '') <= Date.now()) return null;
     const pending = await input.rides.findById(supply.reservedRideId);

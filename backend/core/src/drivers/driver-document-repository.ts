@@ -23,6 +23,7 @@ export interface DriverDocumentRecord {
   mimeType: 'image/jpeg' | 'image/png' | 'application/pdf';
   sizeBytes: number;
   expiresOn?: string;
+  validityControlled?: boolean;
   status: DriverDocumentStatus;
   isCurrent: boolean;
   rejectionReason?: string;
