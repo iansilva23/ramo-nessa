@@ -5,7 +5,7 @@ const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.te
 export function createCompanyDashboard({root,api,getToken,hasScope,onError}){
  const host=root.querySelector('[data-company-dashboard]');if(!host)return {destroy(){}};
  let dead=false,data=null,busy=false,requestId=crypto.randomUUID();const writable=hasScope('costs:write');
- const request=(path,method='GET',body)=>api.manualRefundRequest(getToken(),path,method,body);
+ const request=(path,method='GET',body)=>api.companyManagementRequest(getToken(),path,method,body);
  const date=new Date(Date.now()-10800000).toISOString().slice(0,10);
  const header=el('header',null,'cd-header');const heading=el('div');heading.append(el('small','RAMO NESSA / GESTÃO FINANCEIRA'),el('h1','Lucros e retiradas'),el('p','Uma visão completa da empresa.'));header.append(heading);
  const actions=el('div',null,'cd-actions');const refresh=el('button','Atualizar'),exportButton=el('button','Exportar planilha');actions.append(refresh,exportButton);header.append(actions);

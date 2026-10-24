@@ -159,6 +159,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    companyManagementRequest(token,path,method='GET',body) {
+      if(!/^\/v1\/admin\/company-management(?:\?|$)/.test(path))throw new Error('Rota inválida.');
+      return request(path,{token,method,...(body===undefined?{}:{body})});
+    },
     manualRefundRequest(token,path,method='GET',body) {
       if(!/^\/v1\/admin\/(manual-refunds|cancellation-policy)(\/|$)/.test(path)) throw new Error('Rota inválida.');
       return request(path,{token,method,...(body===undefined?{}:{body})});

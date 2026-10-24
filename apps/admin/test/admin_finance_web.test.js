@@ -338,8 +338,8 @@ test('frontend financeiro mantém ledger protegido e gerencia conciliação de s
   assert.match(html, /Pagar selecionados/);
   assert.match(html, /Lucros e retiradas da empresa/i);
   assert.doesNotMatch(html, /id=["']finance-company-payout-form["']/);
-  assert.match(html, /Enviar saldo por Pix/i);
-  assert.match(html, /Usar saldo total/i);
+  assert.doesNotMatch(html, /Enviar saldo por Pix/i);
+  assert.doesNotMatch(html, /Usar saldo total/i);
   assert.match(html, /Comissão em dinheiro ainda não recebida/i);
   assert.match(html, /Reembolsos parciais e contestações/i);
   assert.match(
