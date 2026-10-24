@@ -17,10 +17,11 @@ jobs:
       - name: Require exact application and approved real regression
         env: {GH_TOKEN: '${{ github.token }}'}
         run: |
-          git diff --exit-code 938157fc23711fce4bf539afadb3b75eb8c05178 HEAD -- backend apps packages config/web
-          gh api repos/iansilva23/ramo-nessa/actions/runs/40118880225 > /tmp/company-review.json
+          git diff --exit-code 25d429e11b282be8832538ebd11d41123526fd5a HEAD -- backend apps packages config/web
+          gh run watch 40120842041 --repo iansilva23/ramo-nessa --exit-status
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40120842041 > /tmp/company-review.json
           node --input-type=module - <<'JS'
-          import{readFileSync}from'node:fs';const r=JSON.parse(readFileSync('/tmp/company-review.json'));if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='938157fc23711fce4bf539afadb3b75eb8c05178')throw Error('Application review mismatch');
+          import{readFileSync}from'node:fs';const r=JSON.parse(readFileSync('/tmp/company-review.json'));if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='25d429e11b282be8832538ebd11d41123526fd5a')throw Error('Application review mismatch');
           JS
       - name: Installer contracts
         run: |

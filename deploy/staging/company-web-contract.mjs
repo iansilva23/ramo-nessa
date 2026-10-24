@@ -1,7 +1,7 @@
 import {isDeepStrictEqual} from 'node:util';
-export const companySource='938157fc23711fce4bf539afadb3b75eb8c05178',companyBase='e36963c02716511da855f89a529175da04b51eff';
+export const companySource='25d429e11b282be8832538ebd11d41123526fd5a',companyBase='e36963c02716511da855f89a529175da04b51eff';
 export const baselineCore='15438b314c7aa4d8a1eeba1da025602f2162c88f636974de6748bb4d95684249';
-export const candidateCore='1c4a5cc1d3b3c643a1e458029b4446693399278602437b87df602222540896e5';
+export const candidateCore='591fa41486d42bcc68ee2f4f3f625bd6d749e9869af75afcb811c6c28ea8562e';
 export const dependencyLock='3c131484e89086f9de48ab3ba97bb62be54baa407c0d34fa52629a55bd2a403e';
 export const liveWeb='/opt/ramo-nessa-web/releases/ride-identity-e36963c02716/bundles',companyWeb=liveWeb;
 export const companyRoot='/opt/ramo-nessa-company-finance-web',companyDirectory=companyRoot+'/'+companySource.slice(0,12);

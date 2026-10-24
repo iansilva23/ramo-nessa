@@ -13,7 +13,7 @@ class Extraction(unittest.TestCase):
     def build(self, root, name='admin/index.html', duplicate=False, wrong=False):
         archive = root / 'release.zip'
         payload = b'fixture'
-        m = {'source': '938157fc23711fce4bf539afadb3b75eb8c05178', 'files': [{'path': name, 'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}]}
+        m = {'source': '25d429e11b282be8832538ebd11d41123526fd5a', 'files': [{'path': name, 'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}]}
         with zipfile.ZipFile(archive, 'w') as z:
             z.writestr('company-manifest.json', json.dumps(m))
             z.writestr(name, b'changed' if wrong else payload)
