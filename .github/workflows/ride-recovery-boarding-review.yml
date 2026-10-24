@@ -41,3 +41,25 @@ jobs:
         with: {flutter-version: '3.47.5', channel: stable, cache: true}
       - run: flutter pub get --enforce-lockfile && flutter analyze && flutter test && flutter build web --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
         working-directory: apps/${{ matrix.app }}
+  admin-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: {engine: [chromium, webkit]}
+    env:
+      RAMO_BROWSER_ENGINE: ${{ matrix.engine }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+      - run: npx --no-install playwright install --with-deps ${{ matrix.engine }}
+        working-directory: scripts/web/browser-tests
+      - run: node --test scripts/web/boarding_admin_browser_test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boarding-admin-${{ matrix.engine }}
+          path: artifacts/ride-recovery/
+          if-no-files-found: ignore
