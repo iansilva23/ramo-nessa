@@ -23,7 +23,7 @@ try{
  mkdirSync(lab,{recursive:true});mkdirSync(dirnameSafe(liveWeb),{recursive:true});mkdirSync(liveWeb);
  docker(['build','-t','identity-web-ci-core',join(baseline,'backend/core')]);
  const gatewayContext=join(lab,'gateway');cpSync(join(baseline,'apps/admin'),gatewayContext,{recursive:true});
- writeFileSync(join(gatewayContext,'Dockerfile'),'FROM caddy:2.11.7-alpine\nCOPY index.html styles.css guide.css favicon.svg /srv/admin/\nCOPY src /srv/admin/src\nCOPY pages /srv/admin/pages\n');
+ writeFileSync(join(gatewayContext,'Dockerfile'),'FROM caddy:2.11.7-alpine\nCOPY index.html styles.css guide.css admin-workspace.css favicon.svg /srv/admin/\nCOPY src /srv/admin/src\nCOPY pages /srv/admin/pages\n');
  docker(['build','-t','identity-web-ci-gateway',gatewayContext]);
  const coreImage=image('identity-web-ci-core'),gatewayImage=image('identity-web-ci-gateway'),pgImage=image('postgres:16');
  // Use the candidate's configured public bridge for a synthetic previous bundle.
@@ -33,7 +33,7 @@ try{
  const caddy='{\n admin off\n auto_https off\n}\n:8080 {\n header ?Permissions-Policy \"camera=(), microphone=(), geolocation=()\"\n respond /healthz 200\n handle /health {\n reverse_proxy core:8080\n }\n handle /ready {\n reverse_proxy core:8080\n }\n handle /v1/* {\n reverse_proxy core:8080\n }\n handle_path /passageiro/* {\n header Permissions-Policy \"camera=(), microphone=(), geolocation=(self)\"\n root * /srv/web/passenger\n file_server\n }\n handle_path /motorista/* {\n header Permissions-Policy \"camera=(), microphone=(), geolocation=(self)\"\n root * /srv/web/driver\n file_server\n }\n handle_path /administrodo/* {\n root * /srv/admin\n file_server\n }\n}\n';writeFileSync(lab+'/Caddyfile',caddy);writeFileSync(lab+'/documents-sentinel','do not change');
  docker(['run','--rm','--network','none','--mount','type=bind,src='+lab+'/Caddyfile,dst=/etc/caddy/Caddyfile,readonly',gatewayImage,'caddy','validate','--config','/etc/caddy/Caddyfile','--adapter','caddyfile']);
  docker(['network','create','--internal',net]);docker(['network','create',net+'-ingress']);for(const v of volumes)docker(['volume','create',v]);
- const labels={'br.com.ramonessa.rating-ci':'true'},security={read_only:true,cap_drop:['ALL'],security_opt:['no-new-privileges:true'],tmpfs:['/tmp:rw,noexec,nosuid,size=64m']};
+ const labels={'br.com.ramonessa.identity-ci':'true'},security={read_only:true,cap_drop:['ALL'],security_opt:['no-new-privileges:true'],tmpfs:['/tmp:rw,noexec,nosuid,size=64m']};
  const service=(role,id)=>({image:id,container_name:names[role],networks:{default:{aliases:[role]}},labels});
  const env={NODE_ENV:'staging',DATABASE_URL:'postgresql://ci:synthetic@postgres:5432/ci',DB_SSL:'false',PASSENGER_PAYMENT_SETTINGS_KEY:'a'.repeat(64),DRIVER_PAYOUT_SETTINGS_KEY:'b'.repeat(64),ADMIN_MFA_ENCRYPTION_KEY:Buffer.alloc(32,1).toString('base64'),DOCUMENT_INSPECTION_ENCRYPTION_KEY:Buffer.alloc(32,2).toString('base64'),MERCADO_PAGO_MODE:'production',MERCADO_PAGO_ACCESS_TOKEN:'APP_USR-synthetic-fixture-no-real-credentials',ASAAS_PAYOUTS_ENABLED:'false',LITERAL_SECRET:'fixture-$abc-${NO_VALUE}-$$'};
  const model={name:'ramo-nessa-staging',services:{
@@ -75,7 +75,7 @@ await p.query("UPDATE driver_supply SET reserved_ride_id=NULL,reserved_until=NUL
  assert.equal(statSync(identityDirectory).mode&0o777,0o700);
  const ids=[inspect('core').Id,inspect('gateway').Id];
  writeFileSync(lab+'/Caddyfile',caddy+'\n# concurrent change');await assert.rejects(activateIdentity([prepared.directory,prepared.sha256]),/IDENTITY_ACTIVE_CONFIGURATION_CHANGED/);assert.deepEqual([inspect('core').Id,inspect('gateway').Id],ids);writeFileSync(lab+'/Caddyfile',caddy);
- await assert.rejects(activateIdentity([prepared.directory,prepared.sha256],{failAfterCore:true}),e=>e.rollbackComplete===true);preserved();assert.equal(inspect('core').Image,coreImage);assert.equal(inspect('gateway').Image,gatewayImage);assert.equal(query("SELECT count(*) FROM schema_migrations WHERE filename='090_passenger_identitys.sql'").trim(),'1');
+ await assert.rejects(activateIdentity([prepared.directory,prepared.sha256],{failAfterCore:true}),e=>e.rollbackComplete===true);preserved();assert.equal(inspect('core').Image,coreImage);assert.equal(inspect('gateway').Image,gatewayImage);assert.equal(query("SELECT count(*) FROM schema_migrations WHERE filename='091_manual_ride_cancellations.sql'").trim(),'1');
  await reset();prepared=await prepareIdentity([archive,hashFile(archive)],fixture);
  await assert.rejects(activateIdentity([prepared.directory,prepared.sha256],{failAfterWeb:true}),e=>e.rollbackComplete===true);preserved();assert.equal(inspect('core').Image,coreImage);assert.equal(inspect('gateway').Image,gatewayImage);
  await reset();prepared=await prepareIdentity([archive,hashFile(archive)],fixture);
