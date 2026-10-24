@@ -565,6 +565,7 @@ class _DriverOfferDesign extends StatelessWidget {
 
 class _DriverActiveDesign extends StatelessWidget {
   const _DriverActiveDesign({
+    this.identity,
     required this.ride,
     required this.busy,
     required this.onMinimize,
@@ -582,6 +583,7 @@ class _DriverActiveDesign extends StatelessWidget {
     this.onRatePassenger,
   });
   final AcceptedDriverRide ride;
+  final Widget? identity;
   final Widget? chatIcon;
   final VoidCallback? onRatePassenger;
   final bool busy, canNavigate, navigationActive;
@@ -625,6 +627,7 @@ class _DriverActiveDesign extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if(identity!=null)identity!,
           if (done) ...[
             Container(
               padding: const EdgeInsets.all(12),

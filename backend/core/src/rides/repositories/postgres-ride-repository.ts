@@ -27,6 +27,7 @@ interface RideRow {
   passenger_id: string;
   state: RideRecord['state'];
   payment_status: RideRecord['paymentStatus'];
+  manual_refund?: boolean;
   payment_method: RideRecord['paymentMethod'] | null;
   driver_id: string | null;
   driver_consent_required: boolean;
@@ -71,6 +72,7 @@ function mapRow(row: RideRow): RideRecord {
     ...(row.driver_search_max_distance_km == null ? {} : { driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km) }),
     state: row.state,
     paymentStatus: row.payment_status,
+    ...(row.manual_refund ? { manualRefund: true } : {}),
     ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
     ...(row.payment_method != null
       ? { paymentMethod: row.payment_method }
@@ -147,7 +149,7 @@ function mapRow(row: RideRow): RideRecord {
 }
 
 const RETURNING = `
-  id, passenger_id, state, payment_status, payment_method, driver_id,
+  id, passenger_id, state, payment_status, payment_method, driver_id, manual_refund,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,

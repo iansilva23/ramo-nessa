@@ -16,6 +16,7 @@ import '../domain/prepared_ride.dart';
 import 'passenger_ride_chat_screen.dart';
 import 'widgets/animated_ride_status.dart';
 import 'tracking_map_transition_policy.dart';
+import 'passenger_cancellation_panel.dart';
 
 class RideTrackingScreen extends StatefulWidget {
   const RideTrackingScreen({
@@ -609,10 +610,12 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                       ),
                     ),
                   ],
+                  if (widget.trackingService is PassengerManualCancellationApi)
+                    PassengerCancellationPanel(rideId:widget.rideId,api:widget.trackingService as PassengerManualCancellationApi,onChanged:()=>unawaited(_refresh())),
                   if (snapshot?.state == 'NO_DRIVER_FOUND') ...[
                     const SizedBox(height: RamoSpacing.md),
                     Text(
-                      'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente ou cancelar a corrida e receber o reembolso integral. Se não escolher, a busca será encerrada automaticamente após o prazo configurado.',
+                      'Seu pagamento continua protegido. Você pode tentar uma nova busca sem pagar novamente. Se cancelar, acompanhe a devolução pelo app.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: RamoSpacing.sm),
@@ -629,7 +632,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                           ),
                         ),
                         const SizedBox(width: RamoSpacing.sm),
-                        Expanded(
+                        if (widget.trackingService is! PassengerManualCancellationApi) Expanded(
                           flex: 3,
                           child: FilledButton(
                             onPressed:
@@ -819,87 +822,40 @@ class _DriverRatingPanel extends StatelessWidget {
 
 
 class _AssignedDriverCard extends StatelessWidget {
-  const _AssignedDriverCard({required this.driver});
-
-  final PassengerDriverProfile driver;
-
-  String? get _photoUrl {
-    final path = driver.photoPath?.trim();
-    final base = RamoCoreConfig.baseUri;
-    if (path == null || path.isEmpty || base == null) return null;
-    return base.resolve(path).toString();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final photoUrl = _photoUrl;
-    final rating = driver.ratingAverage;
-
-    return Container(
-      padding: const EdgeInsets.all(RamoSpacing.md),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(RamoRadius.md),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: RamoColors.brandYellow,
-            foregroundColor: RamoColors.brandBlack,
-            backgroundImage:
-                photoUrl == null ? null : NetworkImage(photoUrl),
-            child: photoUrl == null
-                ? const Icon(Icons.person_rounded, size: 30)
-                : null,
-          ),
-          const SizedBox(width: RamoSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  driver.displayName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.star_rounded,
-                      size: 18,
-                      color: RamoColors.brandYellow,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      rating == null
-                          ? 'Novo motorista'
-                          : rating.toStringAsFixed(2),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (driver.ratingCount > 0) ...[
-                      const SizedBox(width: 4),
-                      Text(
-                        '(${driver.ratingCount})',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.verified_rounded, size: 20),
-        ],
-      ),
-    );
-  }
+ const _AssignedDriverCard({required this.driver});
+ final PassengerDriverProfile driver;
+ String? get _photoUrl{
+  final path=driver.photoPath?.trim(),base=RamoCoreConfig.baseUri;
+  return path==null||path.isEmpty||base==null?null:base.resolve(path).toString();
+ }
+ @override Widget build(BuildContext context){
+  final photo=_photoUrl;
+  final vehicle=[driver.vehicleMake,driver.vehicleModel].whereType<String>().where((s)=>s.trim().isNotEmpty).join(' ');
+  final plate=driver.vehiclePlate?.trim();
+  return Container(
+   padding:const EdgeInsets.all(RamoSpacing.md),
+   decoration:BoxDecoration(color:Theme.of(context).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(18)),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Row(children:[
+     CircleAvatar(radius:28,backgroundColor:RamoColors.brandYellow,foregroundColor:RamoColors.brandBlack,
+      backgroundImage:photo==null?null:NetworkImage(photo),child:photo==null?const Icon(Icons.person_rounded,size:30):null),
+     const SizedBox(width:12),
+     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(driver.displayName,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w900)),
+      Row(children:[const Icon(Icons.star_rounded,color:RamoColors.brandYellow,size:19),const SizedBox(width:4),
+       Flexible(child:Text(driver.ratingAverage==null?'Novo motorista':driver.ratingAverage!.toStringAsFixed(2),style:const TextStyle(fontWeight:FontWeight.w800)))]),
+     ])),
+     if(plate!=null&&plate.isNotEmpty)...[
+      const SizedBox(width:8),Column(children:[
+       const Text('PLACA',style:TextStyle(fontSize:10,fontWeight:FontWeight.w700)),
+       Container(padding:const EdgeInsets.symmetric(horizontal:9,vertical:7),
+        decoration:BoxDecoration(color:Colors.white,border:Border.all(color:Colors.black,width:1.5),borderRadius:BorderRadius.circular(8)),
+        child:Text(plate,style:const TextStyle(color:Colors.black,fontSize:18,fontWeight:FontWeight.w900))),
+      ]),
+     ],
+    ]),
+    if(vehicle.isNotEmpty)...[const SizedBox(height:10),Text(vehicle+(driver.vehicleColor?.trim().isNotEmpty==true?' · '+driver.vehicleColor!:''),style:const TextStyle(fontWeight:FontWeight.w700))],
+    if(plate!=null&&plate.isNotEmpty)...[const SizedBox(height:6),Text('Confira o nome e a placa antes de embarcar.',style:TextStyle(fontSize:12,color:Theme.of(context).colorScheme.onSurfaceVariant))],
+   ]));
+ }
 }

@@ -13,6 +13,7 @@ import { createGeoAdmin } from './geo-admin.js';
 let companyCostsAdmin = null;
 let geoAdmin = null;
 import { createDriverSearchAdmin } from './driver-search-admin.js';
+import {createCancellationAdmin} from './manual-refunds-admin.js';
 let driverSearchAdmin = null;
 import { canReconcilePayouts, reconciliationMessage } from './finance-reconciliation.js';
 import { createPromotionsAdmin } from './promotions-admin.js';
@@ -10892,6 +10893,7 @@ function initializeRouteView(view) {
 
   if (view === 'finance') {
     renderFinance(state.finance);
+    if(hasScope('finance:read'))createCancellationAdmin({root:routeOutlet,api,getToken:()=>state.token,hasScope});
     renderPaymentPolicy(state.finance.policy);
     if (hasScope('finance:read')) {
       void loadFinance({ announce: false });

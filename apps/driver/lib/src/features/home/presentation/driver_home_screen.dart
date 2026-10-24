@@ -1,5 +1,6 @@
 import '../data/passenger_rating_api.dart';
 import 'passenger_rating_sheet.dart';
+import 'driver_passenger_identity.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -2010,6 +2011,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           onExpand: restore)
                       : _ActiveRideCard(
                           key: ValueKey('ride-${presentedRide.id}-${presentedRide.state}'),
+                          identity:_api is DriverRideIdentityApi?DriverPassengerIdentity(api:_api as DriverRideIdentityApi,rideId:presentedRide.id,showDeadline:['DRIVER_ASSIGNED','DRIVER_ARRIVING'].contains(presentedRide.state)):null,
                           ride: presentedRide, busy: _rideAction,
                           navigationActive: _navigationMode,
                           onNavigate: _startInAppNavigation,
@@ -2145,6 +2147,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               const SizedBox(height: RamoSpacing.sm),
               _ActiveRideCard(
                 ride: _activeRide!,
+                identity:_api is DriverRideIdentityApi?DriverPassengerIdentity(api:_api as DriverRideIdentityApi,rideId:_activeRide!.id,showDeadline:false):null,
                 busy: _rideAction,
                 navigationActive: _navigationMode,
                 onNavigate: _startInAppNavigation,
@@ -4252,6 +4255,7 @@ class _ActiveRideCompactBar extends StatelessWidget {
 
 class _ActiveRideCard extends StatelessWidget {
   const _ActiveRideCard({
+    this.identity,
     super.key,
     required this.ride,
     required this.busy,
@@ -4272,6 +4276,7 @@ class _ActiveRideCard extends StatelessWidget {
   });
 
   final AcceptedDriverRide ride;
+  final Widget? identity;
   final bool busy;
   final bool navigationActive;
   final VoidCallback onNavigate;
@@ -4345,6 +4350,7 @@ class _ActiveRideCard extends StatelessWidget {
     if (onMinimize != null &&
         ['DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED'].contains(ride.state)) {
       return _DriverActiveDesign(
+        identity:identity,
         ride: ride, busy: busy, route: route,
         onMinimize: onMinimize!, onArrived: onArrived,
         onRatePassenger: onRatePassenger, onComplete: onComplete, onCancel: onCancel, onChat: onChat, chatIcon: chatIcon,
@@ -4425,6 +4431,7 @@ class _ActiveRideCard extends StatelessWidget {
             const SizedBox(height: 12),
           ],
           _DriverRouteTimeline(
+            // Passenger identity is rendered above the route in the new map card.
             origin: ride.pickupInstructions ?? ride.origin.displayName,
             destination: ride.dropoffInstructions ?? ride.destination.displayName,
           ),

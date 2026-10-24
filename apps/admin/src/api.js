@@ -159,6 +159,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    manualRefundRequest(token,path,method='GET',body) {
+      if(!/^\/v1\/admin\/(manual-refunds|cancellation-policy)(\/|$)/.test(path)) throw new Error('Rota inválida.');
+      return request(path,{token,method,...(body===undefined?{}:{body})});
+    },
     geoStats(token) {
       return request('/v1/admin/geo/stats', { token });
     },
