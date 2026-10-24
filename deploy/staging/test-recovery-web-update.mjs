@@ -96,12 +96,19 @@ import{PostgresAuthSessionRepository}from'./dist/src/auth/repositories/postgres-
 import{issueAuthSession}from'./dist/src/auth/auth-service.js';
 import{PostgresRideRepository}from'./dist/src/rides/repositories/postgres-ride-repository.js';
 import{createRide}from'./dist/src/rides/create-ride.js';
+import{PostgresFinanceRepository}from'./dist/src/payments/repositories/postgres-finance-repository.js';
+import{PostgresBoardingStore}from'./dist/src/rides/boarding-store.js';
 const p=createPostgresPool(process.env.DATABASE_URL),identities=new PostgresAuthOtpRepository(p),sessions=new PostgresAuthSessionRepository(p),rides=new PostgresRideRepository(p),now=new Date().toISOString(),tokens={};
 const passenger=randomUUID(),driver=randomUUID();
 for(const [subjectType,subjectId,phoneE164]of [['passenger',passenger,'+5588999990001'],['driver',driver,'+5588999990002']]){
  await identities.createIdentity({id:subjectId,subjectType,subjectId,phoneE164,status:'active',createdAt:now,updatedAt:now});tokens[subjectType]=(await issueAuthSession({repository:sessions,subjectType,subjectId})).token;
 }
-const ride=await createRide(rides,{passengerId:passenger,quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day'}});await rides.save({...ride,driverId:driver,state:'IN_PROGRESS'});console.log(JSON.stringify({rideId:ride.id,tokens}));await p.end();`;
+const ride=await createRide(rides,{passengerId:passenger,quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day'}});await rides.save({...ride,driverId:driver,state:'IN_PROGRESS'});
+const payer=randomUUID();await identities.createIdentity({id:payer,subjectType:'passenger',subjectId:payer,phoneE164:'+5588999990003',status:'active',createdAt:now,updatedAt:now});const payerToken=(await issueAuthSession({repository:sessions,subjectType:'passenger',subjectId:payer})).token;
+const pending=await createRide(rides,{passengerId:payer,quoteRequest:{origin:{zoneId:'prea'},destination:{zoneId:'jericoacoara'},category:'comfort_black',period:'day'}});await rides.save({...pending,state:'AWAITING_PAYMENT',paymentExpiresAt:new Date(Date.now()+600000).toISOString()});
+const payment=await new PostgresFinanceRepository(p).createPayment({id:randomUUID(),rideId:pending.id,method:'pix',processor:'synthetic-isolated',status:'pending',amountCents:pending.quote.totalAmountCents,idempotencyKey:'recovery-rehearsal-same-pix',createdAt:now,updatedAt:now});
+await new PostgresBoardingStore(p).saveCheckout(pending.id,payment.id,{payment:{id:payment.id,status:'pending'},pix:{orderId:'synthetic-order',paymentId:'synthetic-payment',qrCode:'existing-synthetic-pix',qrCodeBase64:''}});
+console.log(JSON.stringify({rideId:ride.id,tokens,payerToken,pendingRideId:pending.id,paymentId:payment.id}));await p.end();`;
  const recovery=JSON.parse(docker(['exec',names.core,'node','--input-type=module','-e',seedRecovery]));
  const call=async(role,path='',method='GET',body)=>fetch('http://127.0.0.1:18080/v1/'+(role==='driver'?'driver/me/':'')+'rides/'+recovery.rideId+'/messages'+path,{method,headers:{authorization:'Bearer '+recovery.tokens[role],'content-type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(15000)});
  let response=await call('passenger','','POST',{body:'Estou no portão'});assert.equal(response.status,201);const message=(await response.json()).message;
@@ -113,6 +120,11 @@ const ride=await createRide(rides,{passengerId:passenger,quoteRequest:{origin:{z
  const resume=async()=>fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer '+recovery.tokens.passenger}});
  for(let i=0;i<3;i++){const r=await resume();assert.equal(r.status,200);assert.equal((await r.json()).ride.id,recovery.rideId);}
  assert.equal((await fetch('http://127.0.0.1:18080/v1/passenger/me/ride')).status,401);
+ for(let i=0;i<3;i++){
+  const r=await fetch('http://127.0.0.1:18080/v1/passenger/me/ride',{headers:{authorization:'Bearer '+recovery.payerToken}}),d=await r.json();
+  assert.equal(r.status,200);assert.equal(d.ride.id,recovery.pendingRideId);assert.equal(d.payment.id,recovery.paymentId);assert.equal(d.pix.pix.qrCode,'existing-synthetic-pix');
+ }
+ assert.equal(query("SELECT count(*) FROM payments WHERE ride_id='"+recovery.pendingRideId+"'").trim(),'1');
  assert.equal(query('SELECT enabled FROM ride_boarding_policy').trim(),'f');
  assert.equal(query('SELECT count(*) FROM ride_boarding_codes').trim(),'0');
  assert.equal(query('SELECT count(*) FROM ride_boarding_audit').trim(),'0');

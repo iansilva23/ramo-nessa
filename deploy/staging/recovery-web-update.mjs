@@ -12,7 +12,7 @@ import {names,assertImageDelta,assertCoreRuntime,switchSearch} from './google-se
 import {coreSourceFingerprintProgram} from './inspect-regions-pricing.mjs';
 import {hashFile,hashTree,digest,privateDir} from './google-search-update-io.mjs';
 import {assertMapProviders} from './prepare-web-map-update.mjs';
-import {recoverySource,baselineCore,dependencyLock,liveCore,liveGateway,liveWeb,recoveryWeb,recoveryRoot,recoveryDirectory,migration,assertRecoveryManifest,assertRecoveryGatewayDelta,inspectedWebFiles,inspectedCaddy} from './recovery-web-contract.mjs';
+import {recoverySource,baselineCore,dependencyLock,liveWeb,recoveryWeb,recoveryRoot,recoveryDirectory,migration,assertRecoveryManifest,assertRecoveryGatewayDelta,inspectedWebFiles,inspectedCaddy} from './recovery-web-contract.mjs';
 const here=dirname(fileURLToPath(import.meta.url));
 function host(directory){
  const run=(cmd,args,input)=>{const r=spawnSync(cmd,args,{encoding:'utf8',input,timeout:600000,maxBuffer:64*1024**2,env:{PATH:process.env.PATH},stdio:['pipe','pipe','pipe']});if(r.error||r.status!==0){if(directory)writeFileSync(join(directory,'command.private.log'),String(r.stdout??'')+String(r.stderr??''),{mode:0o600});throw Error('RECOVERY_COMMAND_FAILED: '+cmd);}return r.stdout;};
