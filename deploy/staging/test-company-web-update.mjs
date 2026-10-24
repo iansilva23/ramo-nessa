@@ -68,10 +68,11 @@ await p.query("UPDATE driver_supply SET reserved_ride_id=NULL,reserved_until=NUL
  const original=data(),oldWeb=hashTree(liveWeb),untouched=Object.fromEntries(['postgres','maps','site'].map(r=>[r,runtimeCompany(inspect(r))]));
  const preserved=()=>{assert.equal(data(),original);assert.equal(hashTree(liveWeb),oldWeb);assert.equal(readFileSync(lab+'/Caddyfile','utf8'),caddy);for(const r of Object.keys(untouched))assert.equal(runtimeCompany(inspect(r)),untouched[r]);};
  const reset=async()=>{compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');rmSync(companyDirectory,{recursive:true});};
+ const webModes=[companyWeb,join(companyWeb,'driver'),join(companyWeb,'passenger')].map(p=>statSync(p).mode&0o777);
  let prepared=await prepareCompany([archive,hashFile(archive)],fixture);
  const nextCore=JSON.parse(readFileSync(join(companyDirectory,'images-after.private.json'))).core;
  assert.equal(nextCore.Config.User,'node');
- for(const p of [companyWeb,join(companyWeb,'driver'),join(companyWeb,'passenger')])assert.equal(statSync(p).mode&0o777,0o755);
+ assert.deepEqual([companyWeb,join(companyWeb,'driver'),join(companyWeb,'passenger')].map(p=>statSync(p).mode&0o777),webModes);
  assert.equal(statSync(companyDirectory).mode&0o777,0o700);
  const ids=[inspect('core').Id,inspect('gateway').Id];
  writeFileSync(lab+'/Caddyfile',caddy+'\n# concurrent change');await assert.rejects(activateCompany([prepared.directory,prepared.sha256]),/COMPANY_ACTIVE_CONFIGURATION_CHANGED/);assert.deepEqual([inspect('core').Id,inspect('gateway').Id],ids);writeFileSync(lab+'/Caddyfile',caddy);
