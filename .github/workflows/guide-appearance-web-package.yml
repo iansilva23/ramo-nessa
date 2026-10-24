@@ -1,0 +1,89 @@
+name: Guide appearance - configured Web and verified installation
+on:
+  push:
+    branches: [ops/guide-appearance-web-20261024]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guide-appearance-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require unchanged tested application and successful theme tests
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          git diff --exit-code de3267ea2543d8b499f1a430aa20533173c9553f HEAD -- backend apps packages config/web
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40047537891 > /tmp/guide-evidence.json
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const r=JSON.parse(readFileSync('/tmp/guide-evidence.json'));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='de3267ea2543d8b499f1a430aa20533173c9553f')throw Error('Theme test evidence differs.');
+          NODE
+      - name: Installer and safe extraction contracts
+        run: |
+          node --check deploy/staging/guide-appearance-web-update.mjs
+          node --test deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_guide_appearance_web.py -v
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Build configured Passenger Web only
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=passenger
+          (cd apps/passenger && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href=/passageiro/ --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
+          node scripts/web/verify_web_bundle.mjs --role=passenger --dist=apps/passenger/build/web
+      - name: Browser dependencies
+        run: |
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+      - name: Compiled Web login sessions in both browsers
+        run: |
+          for engine in chromium webkit; do
+            RAMO_WEB_TEST_ROLE=passenger RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/web_direct_entry_auth_test.mjs
+          done
+      - name: Package exact reviewed Web
+        run: |
+          python3 scripts/web/package_guide_appearance_web.py
+          sha256sum RamoNessa-Guia-Claro-Escuro-Web.zip > RamoNessa-Guia-Claro-Escuro-Web.zip.sha256
+      - name: Real Caddy publication and rollback rehearsal
+        run: |
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-guide-appearance-web-update.mjs "$PWD/RamoNessa-Guia-Claro-Escuro-Web.zip"
+      - name: Package installer
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Guia-Claro-Escuro-Web-r1.tar.gz
+          sha256sum Instalador-Guia-Claro-Escuro-Web-r1.tar.gz > Instalador-Guia-Claro-Escuro-Web-r1.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-appearance-configured-web-tested
+          path: |
+            RamoNessa-Guia-Claro-Escuro-Web.zip
+            RamoNessa-Guia-Claro-Escuro-Web.zip.sha256
+            Instalador-Guia-Claro-Escuro-Web-r1.tar.gz
+            Instalador-Guia-Claro-Escuro-Web-r1.tar.gz.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: guide-appearance-web-session-evidence, path: artifacts/web-csp/, if-no-files-found: ignore}
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: guide-appearance-configured-web-tested, path: release}
+      - name: Publish tested installation assets
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: gh release create guide-appearance-web-20261024-r1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Guia Local claro e escuro no Passageiro Web" --notes "Temas do Guia testados; publicação e recuperação verificadas com Caddy. Sem publicação Android/iOS." release/*

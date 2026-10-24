@@ -1,7 +1,0 @@
-{
-  "name": "ramo-web-card-contract-tests",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "devDependencies": { "playwright": "1.62.1" }
-}
