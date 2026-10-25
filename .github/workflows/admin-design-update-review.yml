@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Source remains identical to the browser-reviewed ADM
-        run: git diff --exit-code b4fe3d0ef02b7184ecbfab32dea9d5d66e48b58c HEAD -- apps backend packages config
+        run: git diff --exit-code d3e8c5e7c471221b3477aff40b69a46a9b50e5df HEAD -- apps backend packages config
       - name: Pinned source and update contracts
         run: node --test deploy/staging/update-admin-design.test.mjs
       - name: Actual disposable Core, PostgreSQL and Gateway update or rollback

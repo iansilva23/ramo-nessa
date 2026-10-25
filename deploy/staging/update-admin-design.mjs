@@ -9,7 +9,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {validate,runtimeIdentity} from './backup-regions-pricing.mjs';
 import {makeModels,assertRuntime} from './regions-activation-contract.mjs';
 
-export const adminSourceRevision='b4fe3d0ef02b7184ecbfab32dea9d5d66e48b58c';
+export const adminSourceRevision='d3e8c5e7c471221b3477aff40b69a46a9b50e5df';
 export const adminBaseRevision='3c5fa5e5ab635fac7654895d5a4bd6909cd6360a';
 const names={core:'ramo-nessa-staging-core-1',gateway:'ramo-nessa-staging-gateway-1',postgres:'ramo-nessa-staging-postgres-1',maps:'ramo-nessa-staging-google-maps-mock-1',site:'ramo-nessa-site-institutional-site-1'};
 const changedFiles=new Set(['admin-workspace.css','src/admin-components.js','src/admin-workspace.js','src/app.js','src/boarding-admin.js','src/manual-refunds-admin.js','src/ride-occurrences-admin.js']);
