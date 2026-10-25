@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/driver_core_config.dart';
 import '../../../core/config/driver_map_config.dart';
+import '../../../core/config/driver_web_heading_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
@@ -44,6 +45,7 @@ import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
+import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
 
@@ -595,12 +597,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             hasActiveRide: _activeRide != null,
             navigationMode: _navigationMode,
           )) {
-        unawaited(
-          _mapController.move(
-            LatLng(updated.latitude, updated.longitude),
-            _navigationMode ? 17.2 : _mapController.currentZoom,
-          ),
-        );
+        final point = LatLng(updated.latitude, updated.longitude);
+        if (_navigationMode &&
+            (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
+          unawaited(_mapController.followNavigation(
+            point, route: _activeRoute?.points ?? const [],
+          ));
+        } else {
+          unawaited(_mapController.move(
+            point,
+            _navigationMode
+                ? DriverMapConfig.navigationZoom
+                : _mapController.currentZoom,
+          ));
+        }
       }
       if (_activeRide != null) {
         unawaited(_refreshActiveRoute());
@@ -1071,12 +1081,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     });
 
     if (_mapReady) {
-      await _mapController.move(
-        LatLng(supply.latitude, supply.longitude),
-        17.2,
-      );
+      final point = LatLng(supply.latitude, supply.longitude);
+      if (kIsWeb && !DriverWebHeadingConfig.hasVectorMap) {
+        await _mapController.move(point, DriverMapConfig.navigationZoom);
+      } else {
+        _mapController.resumeNativeFollow();
+        await _mapController.followNavigation(
+          point, route: _activeRoute?.points ?? const [],
+        );
+      }
     }
     await _refreshActiveRoute(force: true);
+    _enterWebDrivingPerspectiveIfNeeded();
   }
 
   void _stopInAppNavigation() {
@@ -1263,6 +1279,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _message = null;
       });
       await _refreshActiveRoute(force: true);
+      _enterWebDrivingPerspectiveIfNeeded();
     } on DriverApiException catch (error) {
       _boardingPromptOpen = false;
       if (!mounted) return;
@@ -2063,15 +2080,36 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     );
   }
 
+  void _enterWebDrivingPerspectiveIfNeeded() {
+    if (!mounted || !kIsWeb ||
+        !DriverWebHeadingConfig.cinematicTiltEnabled ||
+        !_navigationMode ||
+        _activeRide?.state != 'IN_PROGRESS' ||
+        !_mapReady || _supply == null) {
+      return;
+    }
+    final current = _supply!;
+    unawaited(_mapController.enterWebDrivingPerspective(
+      LatLng(current.latitude, current.longitude),
+      route: _activeRoute?.points ?? const [],
+    ));
+  }
+
   void _centerDriverOnMap() {
     final supply = _supply;
     if (!_mapReady || supply == null) return;
-    unawaited(
-      _mapController.move(
-        LatLng(supply.latitude, supply.longitude),
-        DriverMapConfig.recenterZoom(_mapController.currentZoom),
-      ),
-    );
+    final point = LatLng(supply.latitude, supply.longitude);
+    if (_navigationMode &&
+        (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
+      _mapController.resumeNativeFollow();
+      unawaited(_mapController.followNavigation(
+        point, route: _activeRoute?.points ?? const [],
+      ));
+    } else {
+      unawaited(_mapController.move(
+        point, DriverMapConfig.recenterZoom(_mapController.currentZoom),
+      ));
+    }
   }
 
   Widget _buildHomeMap(DriverSupplySnapshot supply) {
@@ -2103,6 +2141,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
           onMapReady: () {
             _mapReady = true;
             _centerDriverOnMap();
+            _enterWebDrivingPerspectiveIfNeeded();
           },
         ),
         SafeArea(
@@ -2124,16 +2163,45 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     onTap: () => setState(() => _selectedTab = 1),
                   ),
                   const Spacer(),
-                  _MapCircleButton(
-                    tooltip: 'Centralizar mapa',
-                    icon: Icons.my_location_rounded,
-                    onPressed: _updateLocation,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _mapController.followPaused,
+                    builder: (context, paused, _) => _MapCircleButton(
+                      tooltip: _navigationMode &&
+                              (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
+                          ? (paused ? 'Retomar GPS'
+                              : (kIsWeb
+                                  ? 'Centralizar GPS Cinema'
+                                  : 'Centralizar GPS 3D'))
+                          : 'Centralizar mapa',
+                      icon: _navigationMode && paused &&
+                              (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
+                          ? Icons.navigation_rounded
+                          : Icons.my_location_rounded,
+                      onPressed: _navigationMode &&
+                              (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
+                          ? () {
+                              _mapController.resumeNativeFollow();
+                              _centerDriverOnMap();
+                            }
+                          : _updateLocation,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ),
+        if (_navigationMode && _activeRide != null &&
+            DriverWebHeadingConfig.hasVectorMap)
+          Positioned(
+            top: _message == null ? 221 : 268,
+            right: 14,
+            child: SafeArea(
+              child: DriverWebHeadingCompass(
+                heading: _mapController.webHeading,
+              ),
+            ),
+          ),
         if (_navigationMode && _activeRide != null)
           Positioned(
             top: 78,
