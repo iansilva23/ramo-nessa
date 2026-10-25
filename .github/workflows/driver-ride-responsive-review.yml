@@ -1,0 +1,90 @@
+name: Driver responsive ride sheet - review only
+
+on:
+  push:
+    branches: [feature/driver-ride-responsive-sheet-20261024]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: driver-ride-responsive-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Driver ${{ matrix.target }} - responsive ride sheet
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            runner: ubuntu-24.04
+          - target: android
+            runner: ubuntu-24.04
+          - target: ios
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scope protection - UI only
+        run: |
+          set -euo pipefail
+          git diff --exit-code e36963c02716511da855f89a529175da04b51eff HEAD -- \
+            apps/passenger backend apps/admin apps/driver/lib/src/features/home/data \
+            apps/driver/lib/src/features/home/domain packages config
+          ! test -f apps/passenger/lib/src/features/rides/presentation/ride_recovery_gate.dart
+          ! test -f backend/core/migrations/094_ride_boarding_recovery.sql
+      - uses: actions/setup-java@v5
+        if: matrix.target == 'android'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve locked Flutter dependencies
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Format review and compile
+        run: |
+          dart format apps/driver/lib/src/features/home/presentation/driver_home_screen.dart \
+            apps/driver/lib/src/features/home/presentation/widgets/driver_ride_design.dart \
+            apps/driver/test/driver_flow_test.dart
+      - name: Flutter analyzer
+        working-directory: apps/driver
+        run: flutter analyze
+      - name: Widget, viewport and realtime regression suite
+        working-directory: apps/driver
+        run: flutter test
+      - name: Render visual review fixtures (320, 390, 900)
+        working-directory: apps/driver
+        run: flutter test --update-goldens test/ride_identity_visual_review.dart
+      - name: Compile Web
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: flutter build web --release --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Compile Android debug
+        if: matrix.target == 'android'
+        working-directory: apps/driver
+        run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Compile iOS simulator
+        if: matrix.target == 'ios'
+        working-directory: apps/driver
+        run: flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Collect visual snapshots
+        if: always() && matrix.target == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: driver-responsive-visual-review
+          path: |
+            apps/driver/test/goldens/**
+            apps/driver/test/**/goldens/**
+          if-no-files-found: ignore
+          retention-days: 14
