@@ -30,6 +30,9 @@ try {
   ['migrations','schema_migrations','SELECT filename FROM schema_migrations ORDER BY filename DESC LIMIT 12'],
   ['boarding','ride_boarding_policy','SELECT enabled,categories,revision FROM ride_boarding_policy'],
   ['cancellation','ride_cancellation_policy','SELECT system_enabled,rules,revision FROM ride_cancellation_policy'],
+  ['occurrences','ride_occurrence_policy','SELECT enabled,bonus_enabled,bonus_cents,revision FROM ride_occurrence_policy'],
+  ['occurrence_counts','ride_occurrences','SELECT kind,status,count(*)::int AS count FROM ride_occurrences GROUP BY kind,status ORDER BY kind,status'],
+  ['bonus_counts','ride_occurrence_penalties','SELECT status,count(*)::int AS count FROM ride_occurrence_penalties GROUP BY status ORDER BY status'],
   ['payments','payment_policy_settings','SELECT cash_enabled,pix_enabled,card_enabled,wallet_enabled FROM payment_policy_settings']
  ]) {
   if ((await client.query('SELECT to_regclass($1) AS name',[table])).rows[0].name == null) {result[key]='table_absent';continue;}
