@@ -368,7 +368,10 @@ void main() {
     await tester.tap(find.text('Finalizar corrida'));
     await tester.pumpAndSettle();
     expect(find.text('Corrida finalizada'), findsOneWidget);
-    expect(find.text('Concluir e voltar para o mapa').hitTestable(), findsOneWidget);
+    final dismissLabel = viewport.width < 360
+        ? 'Voltar ao mapa'
+        : 'Concluir e voltar para o mapa';
+    expect(find.text(dismissLabel).hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull, reason: 'resumo final $viewport');
     await tester.drag(find.byKey(const ValueKey('ride-drag-handle')), const Offset(0, 90));
     await tester.pumpAndSettle();
@@ -376,7 +379,7 @@ void main() {
     expect(find.byTooltip('Expandir corrida').hitTestable(), findsOneWidget);
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Concluir e voltar para o mapa'));
+    await tester.tap(find.text(dismissLabel));
     await tester.pumpAndSettle();
     expect(api.completionCalls, 1);
 
