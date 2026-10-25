@@ -40,6 +40,13 @@ class DriverMapController {
   bool _disposed = false;
   double _currentZoom = DriverMapConfig.fallbackZoom;
   Size _viewport = Size.zero;
+  // Camera-only driving mode for Android/iOS. Web behaviour is untouched.
+  final ValueNotifier<bool> followPaused = ValueNotifier<bool>(false);
+  bool _nativeNavigationActive = false;
+  bool _appCameraMovement = false;
+  DateTime _ignoreGestureUntil = DateTime.fromMillisecondsSinceEpoch(0);
+  domain.LatLng? _lastCoursePoint;
+  double? _lastCourseBearing;
 
   void updateViewport(Size size) {
     _viewport = size;
@@ -62,6 +69,95 @@ class DriverMapController {
     _nativeController = null;
   }
 
+  void onCameraMoveStarted() {
+    if (kIsWeb ||
+        !_nativeNavigationActive ||
+        _appCameraMovement ||
+        DateTime.now().isBefore(_ignoreGestureUntil)) {
+      return;
+    }
+    // Never fight the driver's manual map inspection. The top-right
+    // recenter control explicitly resumes automatic 3D following.
+    followPaused.value = true;
+  }
+
+  void resumeNativeFollow() {
+    if (kIsWeb) return;
+    followPaused.value = false;
+  }
+
+  Future<void> _changeNativeCamera(gm.CameraPosition position) async {
+    final controller = _nativeController;
+    if (kIsWeb || !ready || controller == null) return;
+    _appCameraMovement = true;
+    try {
+      await controller.animateCamera(
+        gm.CameraUpdate.newCameraPosition(position),
+      );
+    } finally {
+      _ignoreGestureUntil =
+          DateTime.now().add(const Duration(milliseconds: 850));
+      _appCameraMovement = false;
+    }
+  }
+
+  Future<void> followNavigation(
+    domain.LatLng point, {
+    List<domain.LatLng> route = const [],
+  }) async {
+    // Preserve the original Google Maps Web camera and billing behaviour.
+    if (kIsWeb) return move(point, DriverMapConfig.navigationZoom);
+    _nativeNavigationActive = true;
+
+    final from = _lastCoursePoint;
+    final course =
+        from == null ? null : DriverMapConfig.courseFromMovement(from, point);
+    if (from == null ||
+        (from != null &&
+            DriverMapConfig.distanceMeters(from, point) >=
+                DriverMapConfig.headingMinTravelMeters)) {
+      _lastCoursePoint = point;
+    }
+    if (course != null) {
+      _lastCourseBearing = _lastCourseBearing == null
+          ? course
+          : DriverMapConfig.smoothBearing(_lastCourseBearing!, course);
+    } else {
+      _lastCourseBearing ??= DriverMapConfig.routeBearing(point, route);
+    }
+    if (followPaused.value) return;
+    _currentZoom = DriverMapConfig.navigationZoom;
+    await _changeNativeCamera(gm.CameraPosition(
+      target: gm.LatLng(point.latitude, point.longitude),
+      zoom: DriverMapConfig.navigationZoom,
+      tilt: DriverMapConfig.navigationTilt,
+      bearing: _lastCourseBearing ?? 0,
+    ));
+  }
+
+  Future<void> stopNativeNavigation(domain.LatLng point) async {
+    if (kIsWeb) return;
+    if (!_nativeNavigationActive) return;
+    _nativeNavigationActive = false;
+    _lastCoursePoint = null;
+    _lastCourseBearing = null;
+    followPaused.value = false;
+    // Return to the familiar north-up map without changing the ride.
+    _currentZoom = DriverMapConfig.recenterMinimumZoom;
+    await _changeNativeCamera(gm.CameraPosition(
+      target: gm.LatLng(point.latitude, point.longitude),
+      zoom: DriverMapConfig.recenterMinimumZoom,
+    ));
+  }
+
+  void resetNavigationForNewMap() {
+    if (kIsWeb) return;
+    _nativeNavigationActive = false;
+    _lastCoursePoint = null;
+    _lastCourseBearing = null;
+    followPaused.value = false;
+  }
+
   Future<void> move(domain.LatLng point, [double? zoom]) async {
     final controller = _nativeController;
     if (!ready || controller == null) return;
@@ -69,12 +165,19 @@ class DriverMapController {
     final targetZoom = zoom ?? _currentZoom;
     _currentZoom = targetZoom;
 
-    await controller.animateCamera(
-      gm.CameraUpdate.newLatLngZoom(
-        gm.LatLng(point.latitude, point.longitude),
-        targetZoom,
-      ),
-    );
+    if (!kIsWeb) {
+      await _changeNativeCamera(gm.CameraPosition(
+        target: gm.LatLng(point.latitude, point.longitude),
+        zoom: targetZoom,
+      ));
+    } else {
+      await controller.animateCamera(
+        gm.CameraUpdate.newLatLngZoom(
+          gm.LatLng(point.latitude, point.longitude),
+          targetZoom,
+        ),
+      );
+    }
   }
 
   Future<void> fitCoordinates(
@@ -140,6 +243,7 @@ class DriverMapController {
   void dispose() {
     _disposed = true;
     detach();
+    followPaused.dispose();
   }
 }
 
@@ -370,6 +474,11 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       _notifyPlaceholderReadyIfNeeded();
     }
 
+    if (!kIsWeb && oldWidget.navigationMode && !widget.navigationMode) {
+      // Covers trip completion, cancellation and screen restoration too.
+      unawaited(widget.controller.stopNativeNavigation(_driverPoint));
+    }
+
     if (!_sameRoute(oldWidget.route, widget.route)) {
       if ((widget.route?.points.length ?? 0) < 2) {
         _routeDrawController.stop();
@@ -428,6 +537,9 @@ class _DriverLiveMapState extends State<DriverLiveMap>
   void _onMapCreated(gm.GoogleMapController controller) {
     _nativeController = controller;
     widget.controller.attach(controller);
+    if (!widget.navigationMode) {
+      widget.controller.resetNavigationForNewMap();
+    }
     _notifyMapReady();
   }
 
@@ -550,16 +662,17 @@ class _DriverLiveMapState extends State<DriverLiveMap>
       ),
       onMapCreated: _onMapCreated,
       onCameraMove: widget.controller.updateCamera,
+      onCameraMoveStarted: widget.controller.onCameraMoveStarted,
       markers: _markers,
       polylines: _polylines,
       minMaxZoomPreference: const gm.MinMaxZoomPreference(4, 19),
-      compassEnabled: false,
+      compassEnabled: !kIsWeb && widget.navigationMode,
       zoomControlsEnabled: false,
       mapToolbarEnabled: false,
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
       rotateGesturesEnabled: true,
-      tiltGesturesEnabled: false,
+      tiltGesturesEnabled: !kIsWeb && widget.navigationMode,
       buildingsEnabled: true,
       indoorViewEnabled: false,
       trafficEnabled: widget.navigationMode,
