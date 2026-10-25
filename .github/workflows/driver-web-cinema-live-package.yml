@@ -22,14 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 3f2204647bb9385f589040c7fe1ce1659dc48223
+          ref: d8ddfb102f88269083b64bccd44860d05e3703cb
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Verify source and that newer ride features are preserved
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "3f2204647bb9385f589040c7fe1ce1659dc48223"
+          test "$(git rev-parse HEAD)" = "d8ddfb102f88269083b64bccd44860d05e3703cb"
           git diff --exit-code c05e3b82949ab22963ac9018b3834d8e7c46060d HEAD -- \
             apps/admin apps/passenger backend packages scripts/web \
             apps/driver/android apps/driver/ios apps/driver/web
@@ -115,7 +115,7 @@ jobs:
           }
           await walk();
           const data={
-            schemaVersion:1,role:'driver',sourceCommit:'3f2204647bb9385f589040c7fe1ce1659dc48223',
+            schemaVersion:1,role:'driver',sourceCommit:'d8ddfb102f88269083b64bccd44860d05e3703cb',
             expectedOrigin:cfg.expectedOrigin,expectedProject:cfg.expectedProject,
             basePath:'/motorista/',publicConfigSha256:sha(JSON.stringify(cfg.apps.driver)),
             files,compiledFinanceTerms:true,browserLoginChromium:true,
@@ -128,7 +128,7 @@ jobs:
           from pathlib import Path
           root=Path('artifacts/driver-package')
           manifest=json.loads((root/'release.driver.json').read_text())
-          name='RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip'
+          name='RamoNessa-Motorista-Web-GPSCinema-d8ddfb102f88.zip'
           target=root/name
           with zipfile.ZipFile(target,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as out:
               out.write(root/'release.driver.json','release.driver.json')
