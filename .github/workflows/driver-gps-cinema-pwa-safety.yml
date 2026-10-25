@@ -1,0 +1,66 @@
+name: Driver GPS Cinema installed PWA manifest safety
+on:
+  push:
+    branches: [ops/driver-gps-cinema-pwa-shortcut-20261025]
+    paths:
+      - deploy/staging/fix-driver-cinema-installed-pwa.py
+      - .github/workflows/driver-gps-cinema-pwa-safety.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Python syntax and manifest identity without touching VPS
+        run: |
+          set -euo pipefail
+          python3 -m py_compile deploy/staging/fix-driver-cinema-installed-pwa.py
+          python3 - <<'PY'
+          import importlib.util, json, hashlib
+          from pathlib import Path
+          from urllib.parse import urljoin
+          file = 'deploy/staging/fix-driver-cinema-installed-pwa.py'
+          spec = importlib.util.spec_from_file_location('pwa', file)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          original = Path('apps/driver/web/manifest.json').read_bytes()
+          assert hashlib.sha256(original).hexdigest() == mod.EXPECTED_ORIGINAL_MANIFEST, 'Original manifest changed'
+          updated = mod.build_manifest(original)
+          m = json.loads(updated)
+          before = json.loads(original)
+          assert mod.sha(updated) != mod.sha(original)
+          assert m['id'] == '/motorista/gps-cinema/'
+          assert m['scope'] == '/motorista/gps-cinema/'
+          assert m['start_url'] == '/motorista/gps-cinema/index.html'
+          assert m['display'] == 'standalone'
+          assert m['icons'] == before['icons']
+          assert before['start_url'] == '.'
+          assert urljoin(mod.APP + mod.BASE + 'manifest.json', m['start_url']) == mod.APP + mod.BASE + 'index.html'
+          assert m['id'] != '/motorista/'
+          assert m['short_name'] != before['short_name']
+          for key in before:
+              if key not in ('name', 'short_name', 'id', 'start_url', 'scope'):
+                  assert m[key] == before[key], 'Unexpected manifest change: ' + key
+          for invalid in (
+              {**before, 'name':'Other app'},
+              {**before, 'start_url':'/motorista/'},
+              {**before, 'display':'browser'},
+          ):
+              try:
+                  mod.build_manifest(json.dumps(invalid).encode())
+              except RuntimeError:
+                  pass
+              else:
+                  raise AssertionError('Unsafe manifest permitted')
+          src=Path(file).read_text()
+          for required in ('EXPECTED_INDEX', 'EXPECTED_MAIN', 'EXACT', 'rollback', 'gps-cinema'):
+              if required == 'EXACT':
+                  continue
+              assert required in src
+          assert 'docker restart' not in src
+          assert 'docker compose' not in src
+          print('PASS: identity, standalone, direct index launch, scope, rollback safety, legacy preservation')
+          PY
