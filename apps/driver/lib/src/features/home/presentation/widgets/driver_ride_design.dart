@@ -262,6 +262,7 @@ Widget _rideHeading(
   String subtitle,
   String category, {
   bool done = false,
+  bool compact = false,
 }) => Row(
   children: [
     Container(
@@ -296,7 +297,10 @@ Widget _rideHeading(
     ),
     if (!done) ...[
       const SizedBox(width: 6),
-      Flexible(child: _rideCategory(category)),
+      ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? 112 : 148),
+        child: _rideCategory(category),
+      ),
     ],
   ],
 );
@@ -497,12 +501,20 @@ class _DriverOfferDesign extends StatelessWidget {
                   backgroundColor: const Color(0xFF292D31),
                   strokeWidth: 4,
                 ),
-                Text(
-                  '${seconds}s',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                SizedBox(
+                  width: 40,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${seconds}s',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -528,17 +540,27 @@ class _DriverOfferDesign extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text(
-                      formatCents(offer.driverEarningsCents),
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        formatCents(offer.driverEarningsCents),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              Flexible(child: _rideCategory(offer.categoryLabel)),
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 128),
+                child: _rideCategory(offer.categoryLabel),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -642,7 +664,7 @@ class _DriverActiveDesign extends StatelessWidget {
         done
             ? 'Corrida finalizada'
             : waitingForPayment
-            ? 'Aguardando pagamento do passageiro'
+            ? (narrowScreen ? 'Aguardando pagamento' : 'Aguardando pagamento do passageiro')
             : underway
             ? 'Corrida em andamento'
             : arrived
@@ -651,7 +673,7 @@ class _DriverActiveDesign extends StatelessWidget {
         done
             ? 'Viagem concluída com sucesso'
             : waitingForPayment
-            ? 'Aguarde a confirmação antes de iniciar a viagem'
+            ? 'Aguarde a confirmação para começar'
             : underway
             ? 'Passageiro a bordo'
             : arrived
@@ -659,6 +681,7 @@ class _DriverActiveDesign extends StatelessWidget {
             : 'Chegue no embarque',
         category,
         done: done,
+        compact: narrowScreen,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,7 +835,7 @@ class _DriverActiveDesign extends StatelessWidget {
                 icon: Icons.star_outline_rounded,
               ),
               _RideButton(
-                'Concluir e voltar para o mapa',
+                narrowScreen ? 'Voltar ao mapa' : 'Concluir e voltar para o mapa',
                 onComplete,
                 primary: true,
                 icon: Icons.check_circle,
@@ -827,21 +850,29 @@ class _DriverActiveDesign extends StatelessWidget {
           : Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ridePair(
+                if (canNavigate)
+                  _ridePair(
+                    _RideButton(
+                      narrowScreen ? 'Mensagem' : 'Mensagem com passageiro',
+                      onChat,
+                      leading: chatIcon,
+                      compact: true,
+                      icon: Icons.chat_outlined,
+                    ),
+                    _RideButton(
+                      narrowScreen ? 'Google Maps' : 'Abrir no Google Maps',
+                      onExternalNavigation,
+                      compact: true,
+                      icon: Icons.chevron_right,
+                    ),
+                  )
+                else
                   _RideButton(
                     narrowScreen ? 'Mensagem' : 'Mensagem com passageiro',
                     onChat,
                     leading: chatIcon,
-                    compact: true,
                     icon: Icons.chat_outlined,
                   ),
-                  _RideButton(
-                    narrowScreen ? 'Google Maps' : 'Abrir no Google Maps',
-                    canNavigate ? onExternalNavigation : null,
-                    compact: true,
-                    icon: Icons.chevron_right,
-                  ),
-                ),
                 const SizedBox(height: 8),
                 if (underway)
                   _RideButton(
