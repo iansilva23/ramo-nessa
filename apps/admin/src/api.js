@@ -159,6 +159,10 @@ export function createAdminApi(fetchImpl = globalThis.fetch) {
   }
 
   return {
+    occurrenceRequest(token,path,method='GET',body){
+      if(!/^\/v1\/admin\/(occurrence-policy$|ride-occurrences(?:\/[0-9a-f-]{36}\/decision)?$)/i.test(path))throw new Error('Rota inválida.');
+      return request(path,{token,method,...(body===undefined?{}:{body})});
+    },
     boardingRequest(token,path,method='GET',body) {
       if(!/^\/v1\/admin\/(boarding-policy$|rides\/[0-9a-f-]{36}\/boarding-override$)/i.test(path))throw new Error('Rota inválida.');
       return request(path,{token,method,...(body===undefined?{}:{body})});

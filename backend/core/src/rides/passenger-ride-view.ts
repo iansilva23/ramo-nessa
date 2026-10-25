@@ -31,12 +31,16 @@ export function passengerRideView(ride: RideRecord) {
   const {
     reservedDriverId: _reservedDriverId,
     promotion: _promotion,
+    occurrenceBonus: _occurrenceBonus,
+    occurrenceTerms: _occurrenceTerms,
     ...publicRide
   } = ride;
 
   return {
     ...publicRide,
-    quote: publicRideQuoteView(ride.quote),
+    occurrencesEnabled: ride.occurrenceTerms?.enabled ?? false,
+    occurrenceAdditionalAmountCents: ride.occurrenceBonus?.amountCents ?? 0,
+    quote: {...publicRideQuoteView(ride.quote), totalAmountCents: ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)},
     ...(ride.promotion == null
       ? {}
       : {
@@ -48,7 +52,7 @@ export function passengerRideView(ride: RideRecord) {
             normalTotalCents: ride.promotion.normalTotalCents,
             discountCents: ride.promotion.discountCents,
             passengerPayableCents:
-              ride.promotion.passengerPayableCents,
+              ride.promotion.passengerPayableCents+(ride.occurrenceBonus?.amountCents??0),
           },
         }),
   };

@@ -15,6 +15,7 @@ export interface PassengerRideTrackingSnapshot {
   ride: {
     id: string;
     state: RideRecord['state'];
+    occurrencesEnabled?: boolean;
     category: RideRecord['category'];
     origin: RideRecord['origin'];
     destination: RideRecord['destination'];
@@ -103,6 +104,7 @@ export async function passengerRideTracking(input: {
     ride: {
       id: ride.id,
       state: ride.state,
+      occurrencesEnabled:ride.occurrenceTerms?.enabled ?? false,
       category: ride.category,
       origin: ride.origin,
       destination: ride.destination,

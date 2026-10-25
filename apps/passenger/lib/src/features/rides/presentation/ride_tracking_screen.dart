@@ -486,12 +486,13 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
     return switch (state) {
       'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'Seu motorista está a caminho',
       'DRIVER_ARRIVED' => 'Seu motorista chegou',
+      'INTERRUPTED' => 'Viagem interrompida',
       'IN_PROGRESS' => 'Corrida em andamento',
       'COMPLETED' => 'Corrida finalizada',
       'NO_DRIVER_FOUND' => 'Nenhum motorista disponível nesta rodada',
-      'CANCELLED_BY_PASSENGER' ||
-      'CANCELLED_BY_DRIVER' ||
-      'CANCELLED_BY_ADMIN' => 'Corrida cancelada',
+      'CANCELLED_BY_PASSENGER' => 'Corrida cancelada por você',
+      'CANCELLED_BY_DRIVER' => 'Corrida cancelada pelo motorista',
+      'CANCELLED_BY_ADMIN' => 'Corrida cancelada pelo suporte',
       'REFUND_PENDING' => 'Estorno em processamento',
       'REFUNDED' => 'Pagamento devolvido',
       'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',
@@ -645,6 +646,8 @@ class _RideTrackingScreenState extends State<RideTrackingScreen>
                           ),
                         ),
                       ],
+                      if (snapshot?.occurrencesEnabled == true && widget.trackingService is RamoRideOccurrenceApi)
+                        RamoRideOccurrencePanel(api: widget.trackingService as RamoRideOccurrenceApi, rideId: widget.rideId, paymentMethod: widget.paymentMethod, onChanged: _refresh),
                       if (widget.trackingService
                           is PassengerManualCancellationApi)
                         PassengerCancellationPanel(

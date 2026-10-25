@@ -467,6 +467,11 @@ export class GoogleRoutesProvider
     };
   }
 
+  async routeEstimate(input: {from:GeoPoint;to:GeoPoint}) {
+    const result=await this.route(input);
+    return {distanceKm:result.distanceMeters/1000,durationSeconds:result.durationSeconds};
+  }
+
   async routeDistanceKm(input: {
     from: GeoPoint;
     to: GeoPoint;

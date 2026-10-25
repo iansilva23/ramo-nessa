@@ -36,6 +36,8 @@ interface RideRow {
   state: RideRecord['state'];
   payment_status: RideRecord['paymentStatus'];
   payment_method: RideRecord['paymentMethod'] | null;
+  occurrence_terms?: RideRecord['occurrenceTerms'];
+  occurrence_bonus?: RideRecord['occurrenceBonus'];
   driver_id: string | null;
   driver_consent_required: boolean;
   reserved_driver_id: string | null;
@@ -69,7 +71,7 @@ interface RideRow {
 }
 
 const RIDE_COLUMNS = `
-  id, passenger_id, state, payment_status, payment_method, driver_id,
+  id, passenger_id, state, payment_status, payment_method, driver_id, occurrence_terms, occurrence_bonus,
   driver_consent_required, reserved_driver_id, driver_hold_expires_at, payment_expires_at, driver_search_max_distance_km,
   pickup_instructions, dropoff_instructions,
   pickup_latitude, pickup_longitude,
@@ -109,6 +111,8 @@ function mapRide(row: RideRow): RideRecord {
     ...(row.promotion_snapshot == null ? {} : { promotion: row.promotion_snapshot }),
     ...(row.driver_search_max_distance_km == null ? {} : { driverSearchMaxDistanceKm: Number(row.driver_search_max_distance_km) }),
     state: row.state,
+    ...(row.occurrence_terms ? {occurrenceTerms:row.occurrence_terms} : {}),
+    ...(row.occurrence_bonus ? {occurrenceBonus:row.occurrence_bonus} : {}),
     paymentStatus: row.payment_status,
     ...(row.driver_consent_required ? { driverConsentRequired: true } : {}),
     ...(row.payment_method != null
@@ -185,11 +189,17 @@ export class PostgresRideMatchingRepository
     implements RideMatchingRepository {
   constructor(private readonly pool: Pool) {}
 
-  async releasePrepaymentHold(input: { rideId: string; at: string }) {
+  async releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string }) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const ride = await lockRide(client, input.rideId);
+      if (input.cancelledByDriverId != null && ride?.driver_id !== input.cancelledByDriverId) {
+        throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pertence a este motorista.');
+      }
+      if (input.cancelledByDriverId != null && ride?.state === 'CANCELLED_BY_DRIVER') {
+        await client.query('COMMIT'); return mapRide(ride);
+      }
       if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driver_consent_required) {
         throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
       }
@@ -197,9 +207,10 @@ export class PostgresRideMatchingRepository
         updated_at = $2 WHERE reserved_ride_id = $1`, [ride.id, input.at]);
       await client.query(`UPDATE ride_offers SET status = 'CANCELLED', updated_at = $2
         WHERE ride_id = $1 AND status IN ('OFFERED', 'ACCEPTED')`, [ride.id, input.at]);
-      const updated = await client.query<RideRow>(`UPDATE rides SET driver_id = NULL,
+      const updated = await client.query<RideRow>(`UPDATE rides SET driver_id = CASE WHEN $3::text IS NULL THEN NULL ELSE driver_id END,
+        state = CASE WHEN $3::text IS NULL THEN state ELSE 'CANCELLED_BY_DRIVER' END,
         driver_hold_expires_at = $2, updated_at = $2 WHERE id = $1 RETURNING ${RIDE_COLUMNS}`,
-        [ride.id, input.at]);
+        [ride.id, input.at, input.cancelledByDriverId ?? null]);
       await client.query('COMMIT');
       return mapRide(updated.rows[0]!);
     } catch (error) { await client.query('ROLLBACK'); throw error; }

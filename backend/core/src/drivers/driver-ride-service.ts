@@ -11,8 +11,10 @@ export type DriverRideAction = 'arrive' | 'start' | 'complete';
 export function driverRideView(ride: RideRecord) {
   return {
     id: ride.id,
+    occurrencesEnabled: ride.occurrenceTerms?.enabled ?? false,
     state: ride.state,
-    totalAmountCents: ride.quote.totalAmountCents,
+    totalAmountCents: ride.quote.totalAmountCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
+    occurrenceBonusCents: ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0,
     paymentStatus: ride.paymentStatus,
     driverHoldExpiresAt: ride.driverHoldExpiresAt,
     category: ride.category,
@@ -25,12 +27,12 @@ export function driverRideView(ride: RideRecord) {
     pickupLongitude: ride.pickupLongitude,
     dropoffLatitude: ride.dropoffLatitude,
     dropoffLongitude: ride.dropoffLongitude,
-    driverEarningsCents: ride.quote.driverNetCents,
+    driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
     pickupCompensationCents: ride.quote.pickupCompensationCents,
     paymentMethod: ride.paymentMethod ?? null,
     cashCollectionAmountCents:
       ride.paymentMethod === 'cash'
-        ? ride.quote.totalAmountCents
+        ? ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)
         : null,
     cashCommissionCents:
       ride.paymentMethod === 'cash'

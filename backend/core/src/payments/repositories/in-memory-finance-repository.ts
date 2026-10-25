@@ -1,3 +1,4 @@
+import {occurrenceBonusLedger} from '../ledger.js';
 import { anticipationPolicy } from '../payout.js';
 import { randomUUID } from 'node:crypto';
 
@@ -1180,6 +1181,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
 
     const createdAt = (input.settledAt ?? new Date()).toISOString();
     const ledger = rideSettlementLedger({
+        ...(input.occurrenceBonus == null ? {} : {occurrenceBonus:input.occurrenceBonus}),
       rideId: input.rideId,
       paymentId: input.paymentId,
       driverId: input.driverId,
@@ -1195,6 +1197,7 @@ export class InMemoryFinanceRepository implements FinanceRepository {
     });
 
     this.ledgerByReference.set(referenceKey, structuredClone(ledger));
+    if(input.occurrenceBonus){const bonus=occurrenceBonusLedger({...input.occurrenceBonus,rideId:input.rideId,paymentId:input.paymentId,createdAt});this.ledgerByReference.set(bonus.referenceKey,bonus);}
 
     return {
       ledgerTransaction: structuredClone(ledger),

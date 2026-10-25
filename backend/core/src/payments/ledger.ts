@@ -439,6 +439,7 @@ export function walletPromotionGrantLedger(input: {
 }
 
 export function rideSettlementLedger(input: {
+  occurrenceBonus?: {amountCents:number;driverId:string};
   rideId: string;
   paymentId: string;
   driverId: string;
@@ -457,7 +458,7 @@ export function rideSettlementLedger(input: {
     input.driverNetCents < 0 ||
     input.platformCommissionCents + input.driverNetCents !==
     input.fareAmountCents ||
-    input.fareAmountCents + input.paymentAdjustmentCents !==
+    input.fareAmountCents + input.paymentAdjustmentCents + (input.occurrenceBonus?.amountCents ?? 0) !==
       input.totalAmountCents ||
     !Number.isInteger(input.paymentAdjustmentCents) ||
     input.paymentAdjustmentCents < 0
@@ -467,6 +468,7 @@ export function rideSettlementLedger(input: {
     );
   }
 
+  if(input.occurrenceBonus&&(!Number.isSafeInteger(input.occurrenceBonus.amountCents)||input.occurrenceBonus.amountCents<=0||!input.occurrenceBonus.driverId.trim()))throw new LedgerError('Bônus de ocorrência inválido.');
   const cashDebtRecoveryCents =
     input.cashDebtRecoveryCents ?? 0;
   if (
@@ -485,7 +487,7 @@ export function rideSettlementLedger(input: {
     {
       accountKey: `ride:${input.rideId}:escrow`,
       direction: 'debit',
-      amountCents: input.totalAmountCents,
+      amountCents: input.totalAmountCents-(input.occurrenceBonus?.amountCents??0),
     },
     ...(input.platformCommissionCents > 0
       ? [{
@@ -937,3 +939,8 @@ export function companyPayoutCancelledLedger(input: {
   };
 }
 
+
+export function occurrenceBonusLedger(input:{rideId:string;paymentId:string;amountCents:number;driverId:string;createdAt:string}):LedgerTransaction{
+ const entries:LedgerEntry[]=[{accountKey:`ride:${input.rideId}:escrow`,direction:'debit',amountCents:input.amountCents},{accountKey:`driver:${input.driverId}:payable`,direction:'credit',amountCents:input.amountCents}];assertBalanced(entries);
+ return {id:randomUUID(),kind:'OCCURRENCE_BONUS',rideId:input.rideId,paymentId:input.paymentId,referenceKey:`occurrence-bonus:${input.rideId}`,createdAt:input.createdAt,entries};
+}

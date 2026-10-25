@@ -1,3 +1,8 @@
+import {OccurrenceError} from './rides/ride-occurrence-store.js';
+import {passengerPayableCents} from './promotions/promotion-service.js';
+import {bonusForMethod} from './rides/occurrence-bonus.js';
+import {occurrenceRoutes} from './rides/ride-occurrence-routes.js';
+import {rideSupportContext} from './rides/ride-support-context.js';
 import { passengerRatingRoutes } from './rides/passenger-rating-routes.js';
 import {boardingRoutes} from './rides/boarding-routes.js';
 import {BoardingError} from './rides/boarding-store.js';
@@ -567,6 +572,7 @@ const {
   operationalSettingsRepository,
   manualCancellationStore,
   boardingStore,
+  occurrenceStore,
   documentExpiryNotifier,
   passengerSavedPlaceRepository,
   geoCatalogRepository,
@@ -974,6 +980,21 @@ async function processConfirmedMercadoPagoRide(
   const confirmationTime = new Date();
   const rideBeforeConfirmation =
     await rideRepository.findById(payment.rideId);
+  if (rideBeforeConfirmation?.state.startsWith('CANCELLED_')) {
+    const closed = await confirmRidePayment(rideRepository, { rideId: payment.rideId, payment, confirmedAt: confirmationTime, notifyPassenger: false });
+    // A late provider notification must never resurrect a cancelled trip or bypass manual review.
+    if (!closed.manualRefund) {
+      if (mercadoPagoOrdersClient != null) {
+        // Refund the exact payment from this notification, not a newer pending retry.
+        await refundMercadoPagoRideAfterNoDriver({ rides: rideRepository, finance: financeRepository,
+          gateway: mercadoPagoOrdersClient, rideId: closed.id, paymentId: payment.id,
+          passengerId: closed.passengerId, now: confirmationTime });
+      } else {
+        await rideRepository.save({ ...closed, state: 'REFUND_PENDING', updatedAt: confirmationTime.toISOString() });
+      }
+    }
+    return;
+  }
   const expiredHold =
     rideBeforeConfirmation != null &&
     shouldRefundMercadoPagoPaymentBeforeDispatch(
@@ -2955,6 +2976,7 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await passengerActivityForApp({
+          finance: financeRepository,
           registry: driverRegistryRepository,
           rides: rideRepository,
           passengerId: session.subjectId,
@@ -4247,6 +4269,18 @@ const server = createServer(async (request, response) => {
       json(response, 200, fleet);
       return;
     }
+
+    if(await occurrenceRoutes({path:requestUrl.pathname,method:request.method??'GET',store:occurrenceStore,
+      passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      driver:()=>resolveDriverId({request,sessions:authSessionRepository,identities:authOtpRepository}),
+      authorize:scope=>authenticateAdminPrincipal({apiKeys:adminRepository,humanAuth:adminHumanAuthRepository,headers:request.headers,requiredScope:scope}),
+      body:()=>readJson(request),json:(status,value)=>json(response,status,value),
+      context:async(rideId,driverId)=>{const context=await rideSupportContext({rides:rideRepository,finance:financeRepository,drivers:driverSupplyRepository,registry:driverRegistryRepository,rideId,requesterType:'driver',requesterId:driverId});if(!context)throw new Error('Contexto da corrida indisponível.');return context;},
+      settle:async(rideId,driverId)=>{const ride=await rideRepository.findById(rideId);const payment=await financeRepository.findPaidPaymentByRideId(rideId);if(!ride||!payment||payment.method!=='pix')throw new Error('Pagamento confirmado indisponível.');const payable=passengerPayableCents(ride);const adjustment=payment.amountCents-payable;return financeRepository.settleRide({rideId,paymentId:payment.id,driverId,totalAmountCents:ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)+adjustment,paymentAmountCents:payment.amountCents,fareAmountCents:ride.quote.totalAmountCents,paymentAdjustmentCents:adjustment,platformCommissionCents:ride.quote.platformCommissionCents,driverNetCents:ride.quote.driverNetCents,...(ride.occurrenceBonus?{occurrenceBonus:bonusForMethod(ride.occurrenceBonus,'pix',driverId)}:{})});},
+      refund:async rideId=>{const ride=await rideRepository.findById(rideId);if(!ride)throw new Error('Corrida indisponível.');return automaticallyRefundRide({rides:rideRepository,finance:financeRepository,promotions:promotionRepository,gateway:mercadoPagoOrdersClient,rideId,passengerId:ride.passengerId});},
+      dispatch:async rideId=>{const ride=await rideRepository.findById(rideId);if(!ride)throw new Error('Corrida indisponível.');return dispatchRideAfterPayment({rides:rideRepository,drivers:driverSupplyRepository,matching:rideMatchingRepository,ride,...(routingDistanceProvider?{routing:routingDistanceProvider}:{}),finance:financeRepository,paymentPolicySettings:paymentPolicySettingsRepository,operationalSettings:operationalSettingsRepository,canOfferDriver:id=>canDriverReceiveNewWorkUnderPolicy(id,new Date())});},
+      publish:async rideId=>{const ride=await rideRepository.findById(rideId);if(!ride)return;const tracking=await passengerRideTracking({rides:rideRepository,drivers:driverSupplyRepository,registry:driverRegistryRepository,rideId,passengerId:ride.passengerId});if(tracking)realtimeHub.publishPassengerRide(rideId,{type:'passenger.ride.tracking',tracking,serverTime:new Date().toISOString()});if(ride.driverId)realtimeHub.publishDriver(ride.driverId,{type:'driver.ride.updated',ride:driverRideView(ride),serverTime:new Date().toISOString()});}
+    }))return;
 
     if(await boardingRoutes({url:requestUrl,method:request.method??'GET',store:boardingStore,rides:rideRepository,finance:financeRepository,
       passenger:()=>resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository}),
@@ -7500,14 +7534,17 @@ const server = createServer(async (request, response) => {
           : {};
       const rideId = driverRideCancelMatch[1]!;
       const pendingRide = await rideRepository.findById(rideId);
-      if (pendingRide?.state === 'AWAITING_PAYMENT' && pendingRide.driverConsentRequired && pendingRide.driverId === driverId) {
-        const released = await rideMatchingRepository.releasePrepaymentHold({ rideId, at: new Date().toISOString() });
+      if (pendingRide != null && ['AWAITING_PAYMENT', 'CANCELLED_BY_DRIVER'].includes(pendingRide.state) && pendingRide.driverConsentRequired && pendingRide.driverId === driverId && !['paid', 'authorized', 'refunded'].includes(pendingRide.paymentStatus)) {
+        const released = await rideMatchingRepository.releasePrepaymentHold({ rideId, at: new Date().toISOString(), cancelledByDriverId: driverId });
         await releaseRidePromotionReservation({ promotions: promotionRepository, ride: pendingRide });
+        const tracking = await passengerRideTracking({ rides: rideRepository, drivers: driverSupplyRepository, registry: driverRegistryRepository, rideId, passengerId: pendingRide.passengerId });
+        if (tracking != null) realtimeHub.publishPassengerRide(rideId, { type: 'passenger.ride.tracking', tracking, serverTime: new Date().toISOString() });
         realtimeHub.publishDriver(driverId, { type: 'driver.ride.updated', ride: null, serverTime: new Date().toISOString() });
         json(response, 200, { ride: driverRideView(released), refundStatus: 'not_charged',
           adminReviewRequired: false, adminReviewCreated: false,
           compensationReviewRequired: false, duplicateCancellation: false }); return;
       }
+      if(pendingRide!=null&&(pendingRide.state==='IN_PROGRESS'||pendingRide.paymentMethod==='cash')&&pendingRide.driverId===driverId&&occurrenceStore&&(await occurrenceStore.view(rideId,'driver',driverId)).enabled){json(response,409,{error:'OCCURRENCE_REQUIRED',message:'Registre a interrupção e escolha o procedimento da ocorrência.'});return;}
       const cancelled = await cancelDriverRide({
         rides: rideRepository,
         drivers: driverSupplyRepository,
@@ -7551,7 +7588,7 @@ const server = createServer(async (request, response) => {
             ? null
             : `Observação: ${cancelled.note}`,
           cancelled.compensationReviewRequired
-            ? 'O passageiro recebeu reembolso integral; avaliar eventual compensação ao motorista separadamente.'
+            ? `Situação da devolução: ${refund.refundStatus}. Avaliar eventual compensação separadamente; não presumir recebimento.`
             : 'Revisar a ocorrência e tomar medidas operacionais se necessário.',
         ].filter((item): item is string => item != null).join(' ');
 
@@ -7603,7 +7640,9 @@ const server = createServer(async (request, response) => {
           refund.refundStatus === 'refunded'
             ? 'O valor da corrida foi devolvido integralmente.'
             : refund.refundStatus === 'not_charged'
-              ? 'A corrida foi cancelada e nenhum valor foi cobrado.'
+              ? stored.paymentMethod === 'cash'
+                ? 'Corrida cancelada. Se você entregou dinheiro, confira a devolução com o motorista e o suporte.'
+                : 'A corrida foi cancelada e nenhum valor foi cobrado.'
               : 'O reembolso integral já foi solicitado e está em processamento.',
         data: { rideId },
       });
@@ -7636,6 +7675,7 @@ const server = createServer(async (request, response) => {
         | 'start'
         | 'complete';
 
+      if(action==='start'&&occurrenceStore){try{await occurrenceStore.assertCashReceived(rideId,driverId);}catch(e){if(e instanceof OccurrenceError){json(response,e.status,{error:e.code,message:e.message});return;}throw e;}}
       if(action==='start'&&boardingStore){
         const body=await readJson(request) as {code?:unknown}|null;
         await boardingStore.start(rideId,driverId,body?.code);
@@ -7650,6 +7690,7 @@ const server = createServer(async (request, response) => {
         action,
       });
 
+      if(action==='complete'&&occurrenceStore)await occurrenceStore.consumeBonus(rideId);
       realtimeHub.publishDriver(driverId, {
         type: 'driver.ride.updated',
         ride: result.ride,
@@ -7892,10 +7933,9 @@ const server = createServer(async (request, response) => {
             pickup:rawQuoteBody.pickup as {latitude:number;longitude:number},
             dropoff:rawQuoteBody.dropoff as {latitude:number;longitude:number},
             routing:routingDistanceProvider});
-      json(response, 200, {
-        ...publicFareQuoteView(quote),
-        pricingCatalog: pricing.reference,
-      });
+      let additional=0;
+      if(occurrenceStore&&(await occurrenceStore.policy()).bonusEnabled){const subject=await resolvePassengerId({request,sessions:authSessionRepository,identities:authOtpRepository});additional=await occurrenceStore.quoteBonus(subject);}
+      json(response, 200, {...publicFareQuoteView(quote),...(quote.kind==='exact'?{totalAmountCents:quote.totalAmountCents+additional}:{minTotalAmountCents:quote.minTotalAmountCents+additional,maxTotalAmountCents:quote.maxTotalAmountCents+additional}),occurrenceAdditionalAmountCents:additional,pricingCatalog:pricing.reference});
       return;
     }
 
@@ -8124,6 +8164,7 @@ const server = createServer(async (request, response) => {
           }
         }
       }
+      if(occurrenceStore){await occurrenceStore.reserveBonus(ride.id,passengerId);ride=(await rideRepository.findById(ride.id))!;}
       json(response, 201, {
         ...(promotionMessage == null ? {} : { promotionMessage }),
         driverConsentRequired: ride.driverConsentRequired === true,
@@ -8155,12 +8196,13 @@ const server = createServer(async (request, response) => {
         versions: pricingCatalogVersionRepository,
         at: now,
       });
-      const ride = await createRide(rideRepository, {
+      let ride = await createRide(rideRepository, {
         passengerId,
         quoteRequest: body.quoteRequest,
         pricing,
         now,
       });
+      if(occurrenceStore){await occurrenceStore.reserveBonus(ride.id,passengerId);ride=(await rideRepository.findById(ride.id))!;}
       json(response, 201, passengerRideView(ride));
       return;
     }
@@ -8730,6 +8772,7 @@ const server = createServer(async (request, response) => {
 
       await assertPrepaymentDriverAvailable(ride);
       const body = parseCreatePaymentRequest(await readJson(request));
+      if(ride.occurrenceBonus&&!['pix','cash'].includes(body.method))throw new PaymentDomainError('PAYMENT_METHOD_DISABLED','Esta corrida com adicional está disponível por Pix ou dinheiro.');
       const idempotencyKey = readIdempotencyKey(request.headers);
       const paymentSettings =
         await paymentPolicySettingsRepository.get();
@@ -8822,7 +8865,7 @@ const server = createServer(async (request, response) => {
           authorization: {
             method: 'cash',
             status: 'authorized',
-            amountCents: currentRide.quote.totalAmountCents,
+            amountCents: passengerPayableCents(currentRide),
           },
           ride: passengerRideView(currentRide),
           dispatchStatus,

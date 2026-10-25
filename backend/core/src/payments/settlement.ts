@@ -1,3 +1,4 @@
+import {bonusForMethod} from '../rides/occurrence-bonus.js';
 import type { PaymentRecord } from './payment.js';
 import type { RideRecord } from '../rides/ride.js';
 import type { FinanceRepository } from './finance-repository.js';
@@ -77,7 +78,7 @@ export async function settleCompletedRide(
     ? input.payment.amountCents - payableCents
     : 0;
   const settlementTotalCents =
-    fareAmountCents + paymentAdjustmentCents;
+    fareAmountCents + paymentAdjustmentCents + (input.ride.occurrenceBonus?.amountCents ?? 0);
 
   return repository.settleRide({
     rideId: input.ride.id,
@@ -87,6 +88,7 @@ export async function settleCompletedRide(
     paymentAmountCents: input.payment.amountCents,
     fareAmountCents,
     paymentAdjustmentCents,
+    ...(input.ride.occurrenceBonus ? {occurrenceBonus:bonusForMethod(input.ride.occurrenceBonus,input.payment.method,driverId)} : {}),
     platformCommissionCents: input.ride.quote.platformCommissionCents,
     driverNetCents: input.ride.quote.driverNetCents,
     ...(input.ride.promotion?.kind === 'fixed_driver_fare'

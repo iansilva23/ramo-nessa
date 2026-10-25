@@ -96,6 +96,7 @@ export interface PromotionLedgerResult {
 }
 
 export interface SettleRideInput {
+  occurrenceBonus?: {amountCents:number;driverId:string};
   rideId: string;
   paymentId: string;
   driverId: string;

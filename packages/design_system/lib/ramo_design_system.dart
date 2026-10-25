@@ -19,3 +19,5 @@ export 'src/map/ramo_web_map_overlay.dart';
 export 'src/chat/ramo_ride_chat.dart';
 export 'src/rides/ramo_ride_activity.dart';
 export 'src/rides/ramo_ride_support.dart';
+
+export 'src/rides/ramo_ride_occurrence.dart';

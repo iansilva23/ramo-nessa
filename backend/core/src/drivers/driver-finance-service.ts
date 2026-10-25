@@ -165,6 +165,8 @@ function accountDeltaCents(
 
 function transactionLabel(kind: string): string {
   switch (kind) {
+    case 'OCCURRENCE_BONUS':
+      return 'Bônus de ocorrência';
     case 'RIDE_CANCELLATION_FEE':
       return 'Taxa de cancelamento';
     case 'RIDE_SETTLED':

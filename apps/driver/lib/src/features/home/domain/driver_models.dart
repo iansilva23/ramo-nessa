@@ -99,10 +99,12 @@ class DriverOffer {
     this.paymentMethod,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
+    this.occurrenceBonusCents=0,
   });
 
   factory DriverOffer.fromJson(Map<String, dynamic> json) {
     return DriverOffer(
+      occurrenceBonusCents:(json['occurrenceBonusCents'] as num?)?.toInt()??0,
       id: json['id'] as String,
       rideId: json['rideId'] as String,
       expiresAt: DateTime.parse(json['expiresAt'] as String),
@@ -152,6 +154,7 @@ class DriverOffer {
   final String? paymentMethod;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
+  final int occurrenceBonusCents;
 
   bool get isCash => paymentMethod == 'cash';
 
@@ -168,6 +171,8 @@ class DriverOffer {
 class AcceptedDriverRide {
   const AcceptedDriverRide({
     required this.id,
+    this.occurrencesEnabled = false,
+    this.occurrenceBonusCents = 0,
     required this.state,
     required this.category,
     required this.passengers,
@@ -192,6 +197,8 @@ class AcceptedDriverRide {
   factory AcceptedDriverRide.fromJson(Map<String, dynamic> json) {
     return AcceptedDriverRide(
       id: json['id'] as String,
+      occurrencesEnabled: json['occurrencesEnabled'] == true,
+      occurrenceBonusCents: (json['occurrenceBonusCents'] as num?)?.toInt() ?? 0,
       state: json['state'] as String,
       category: json['category'] as String,
       passengers: (json['passengers'] as num).toInt(),
@@ -222,6 +229,8 @@ class AcceptedDriverRide {
   }
 
   final String id;
+  final bool occurrencesEnabled;
+  final int occurrenceBonusCents;
   final String state;
   final String category;
   final int passengers;

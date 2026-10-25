@@ -1,3 +1,4 @@
+import {RideOccurrenceStore} from '../rides/ride-occurrence-store.js';
 import {MemoryGuideStore,PostgresGuideStore,type GuideStore} from '../guide/guide-store.js';
 import {PostgresBoardingStore} from '../rides/boarding-store.js';
 import {DocumentExpiryNotifier} from '../drivers/document-expiry.js';
@@ -80,6 +81,7 @@ import { InMemoryGeoCatalogRepository, PostgresGeoCatalogRepository, type GeoCat
 
 export interface RepositoryBundle {
   boardingStore: PostgresBoardingStore|null;
+  occurrenceStore: RideOccurrenceStore|null;
   documentExpiryNotifier: DocumentExpiryNotifier|null;
   manualCancellationStore: PostgresManualCancellationStore | null;
   asaasPayoutStore: AsaasPayoutStore;
@@ -129,6 +131,7 @@ export function createRepositories(): RepositoryBundle {
 
     return {
       boardingStore: new PostgresBoardingStore(pool),
+      occurrenceStore: new RideOccurrenceStore(pool),
       documentExpiryNotifier: new DocumentExpiryNotifier(pool),
       manualCancellationStore: new PostgresManualCancellationStore(pool),
       guideStore: new PostgresGuideStore(pool),
@@ -197,6 +200,7 @@ export function createRepositories(): RepositoryBundle {
 
   return {
     boardingStore: null,
+    occurrenceStore: null,
     documentExpiryNotifier: null,
     manualCancellationStore: null,
     asaasPayoutStore: new InMemoryAsaasPayoutStore(),

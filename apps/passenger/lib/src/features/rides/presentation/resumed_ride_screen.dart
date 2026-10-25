@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:ramo_design_system/ramo_design_system.dart';
+import '../domain/passenger_activity.dart';
 import 'package:flutter/material.dart';
 import '../../map/data/route_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
@@ -18,6 +20,7 @@ class ResumedRideScreen extends StatelessWidget {
     required this.tracking,
     required this.payments,
     this.realtime,
+    this.support,
     this.routes,
     this.networkTilesEnabled = true,
   });
@@ -26,6 +29,7 @@ class ResumedRideScreen extends StatelessWidget {
   final PassengerRideTrackingService tracking;
   final PassengerPaymentService? payments;
   final PassengerRideRealtimeService? realtime;
+  final RamoRideSupportApi? support;
   final RouteService? routes;
   final bool networkTilesEnabled;
   @override
@@ -50,6 +54,17 @@ class ResumedRideScreen extends StatelessWidget {
   Widget _buildRide(BuildContext context) {
     final ride = data['ride'] as Map<String, dynamic>,
         payment = data['payment'] as Map<String, dynamic>?;
+    final state = ride['state'] as String;
+    if (state.startsWith('CANCELLED_') ||
+        const {'COMPLETED', 'REFUND_PENDING', 'REFUNDED', 'EXPIRED'}.contains(state)) {
+      final details = PassengerActivityRide.fromJson({
+        ...ride,
+        'totalAmountCents': (ride['quote'] as Map<String, dynamic>)['totalAmountCents'],
+      }).activityData;
+      return RamoRideDetailsScreen(ride: details, onHelp: support == null ? null : () {
+        Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => RamoRideSupportScreen(api: support!, ride: details)));
+      });
+    }
     final awaiting = const {
       'CREATED',
       'AWAITING_PAYMENT',
@@ -94,6 +109,7 @@ class ResumedRideScreen extends StatelessWidget {
           onClose: onClose,
           buildNext: (next) => ResumedRideScreen(
             data: next,
+            support: support,
             onClose: onClose,
             tracking: tracking,
             payments: payments,

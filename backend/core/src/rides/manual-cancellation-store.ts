@@ -92,7 +92,7 @@ export class PostgresManualCancellationStore {
    if(fee>0)await this.ledger(c,ride.id,p?.id??null,'RIDE_CANCELLATION_FEE','ride-cancel-fee:'+ride.id,[
     {accountKey:'ride:'+ride.id+':escrow',direction:'debit',amountCents:fee},
     {accountKey:'driver:'+ride.driver_id+':payable',direction:'credit',amountCents:fee}]);
-   await c.query("UPDATE rides SET state='CANCELLED_BY_PASSENGER',manual_refund=true,updated_at=$2 WHERE id=$1",[ride.id,now]);
+   await c.query("UPDATE rides SET state=$3,manual_refund=true,updated_at=$2 WHERE id=$1",[ride.id,now,input.passenger?'CANCELLED_BY_PASSENGER':'CANCELLED_BY_ADMIN']);
    await c.query("UPDATE ride_offers SET status='CANCELLED',updated_at=$2 WHERE ride_id=$1 AND status='OFFERED'",[ride.id,now]);
    await c.query('UPDATE driver_supply SET reserved_ride_id=NULL,reserved_until=NULL,updated_at=$2 WHERE reserved_ride_id=$1',[ride.id,now]);
    if(ride.driver_id)await c.query("UPDATE driver_supply SET busy=false,updated_at=$2 WHERE driver_id=$1 AND NOT EXISTS(SELECT 1 FROM rides WHERE driver_id=$1 AND state IN ('DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'))",[ride.driver_id,now]);

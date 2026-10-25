@@ -534,6 +534,7 @@ class _DriverOfferDesign extends StatelessWidget {
             tripDistance: trip,
             passengers: offer.passengers,
           ),
+          if(offer.occurrenceBonusCents>0)_DriverNoticeStrip(icon:Icons.add_rounded,text:'Bônus de ocorrência + ${formatCents(offer.occurrenceBonusCents)}'),
           if (offer.pickupCompensationCents > 0) ...[
             const SizedBox(height: 10),
             _DriverNoticeStrip(
@@ -730,6 +731,7 @@ class _DriverActiveDesign extends StatelessWidget {
               ),
             ),
           ] else ...[
+            if(ride.occurrenceBonusCents>0)_DriverNoticeStrip(icon:Icons.add_rounded,text:'Bônus de ocorrência + ${formatCents(ride.occurrenceBonusCents)}'),
             // Preserve financial information and existing navigation controls.
             const SizedBox(height: 8),
             _DriverNoticeStrip(

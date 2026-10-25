@@ -92,6 +92,13 @@ export async function confirmRidePayment(
     );
   }
 
+  if (ride.state.startsWith('CANCELLED_') && ride.paymentStatus !== 'refunded' && input.payment.status === 'paid') {
+    if (ride.paymentMethod != null && ride.paymentMethod !== input.payment.method) {
+      throw new RidePaymentConfirmationError('RIDE_NOT_AWAITING_PAYMENT', 'Corrida encerrada possui outra forma de pagamento.');
+    }
+    return repository.save({ ...ride, paymentStatus: 'paid', paymentMethod: input.payment.method, updatedAt: (input.confirmedAt ?? new Date()).toISOString() });
+  }
+
   if (ride.state !== 'AWAITING_PAYMENT') {
     throw new RidePaymentConfirmationError(
       'RIDE_NOT_AWAITING_PAYMENT',

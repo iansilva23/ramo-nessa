@@ -151,6 +151,7 @@ class RamoNessaPassengerApp extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (routeContext) => ResumedRideScreen(
                       data: data,
+                      support: services.support is RamoRideSupportApi ? services.support as RamoRideSupportApi : null,
                       onClose: () => Navigator.of(routeContext).pop(),
                       tracking: resolvedTracking!,
                       payments: services.payments,

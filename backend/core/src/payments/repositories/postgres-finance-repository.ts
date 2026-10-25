@@ -1,3 +1,4 @@
+import {occurrenceBonusLedger} from '../ledger.js';
 import { anticipationPolicy } from '../payout.js';
 import { randomUUID } from 'node:crypto';
 
@@ -2113,6 +2114,9 @@ export class PostgresFinanceRepository implements FinanceRepository {
         );
       }
 
+      const committed = await loadLedgerByReference(client,referenceKey);
+      if(committed){await client.query('COMMIT');return {ledgerTransaction:committed,duplicateSettlement:true,cashDebtRecoveredCents:committed.entries.filter(e=>e.accountKey===debtAccount&&e.direction==='credit').reduce((n,e)=>n+e.amountCents,0)};}
+
       const escrowAccount = `ride:${input.rideId}:escrow`;
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
@@ -2147,6 +2151,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
       );
 
       const ledger = rideSettlementLedger({
+        ...(input.occurrenceBonus == null ? {} : {occurrenceBonus:input.occurrenceBonus}),
         rideId: input.rideId,
         paymentId: input.paymentId,
         driverId: input.driverId,
@@ -2162,6 +2167,7 @@ export class PostgresFinanceRepository implements FinanceRepository {
       });
 
       await insertLedger(client, ledger);
+      if(input.occurrenceBonus)await insertLedger(client,occurrenceBonusLedger({...input.occurrenceBonus,rideId:input.rideId,paymentId:input.paymentId,createdAt:ledger.createdAt}));
       await client.query('COMMIT');
 
       return {

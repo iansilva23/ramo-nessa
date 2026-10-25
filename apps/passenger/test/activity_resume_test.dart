@@ -12,6 +12,7 @@ import 'package:ramo_nessa_passenger/src/features/profile/data/http_passenger_su
 
 class ActivityFixture implements PassengerActivityService {
   bool fail = false;
+  String state = 'DRIVER_ARRIVED';
   @override
   Future<PassengerActivitySnapshot> fetch() async {
     if (fail) throw StateError('offline');
@@ -20,7 +21,7 @@ class ActivityFixture implements PassengerActivityService {
       'rides': [
         {
           'id': 'ride-one',
-          'state': 'DRIVER_ARRIVED',
+          'state': state,
           'category': 'moto',
           'origin': {'zoneId': 'prea'},
           'destination': {'zoneId': 'jijoca'},
@@ -47,6 +48,27 @@ class ActivityFixture implements PassengerActivityService {
 }
 
 void main() {
+  testWidgets('hidden activities refresh the home callback after driver cancels', (tester) async {
+    final service = ActivityFixture();
+    PassengerActivitySnapshot? latest;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PassengerActivityScreen(
+      service: service, visible: false, refreshWhenHidden: true,
+      onLoaded: (snapshot) => latest = snapshot,
+    ))));
+    await tester.pumpAndSettle();
+    expect(latest!.rides.first.state, 'DRIVER_ARRIVED');
+    service.state = 'CANCELLED_BY_DRIVER';
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+    expect(latest!.rides.first.state, 'CANCELLED_BY_DRIVER');
+    expect(find.text('Acompanhar'), findsNothing);
+    await tester.tap(find.text('Histórico'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelada pelo motorista'), findsWidgets);
+    expect(find.text('Ver pagamento'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
     'activities resumes only the chosen ride, preserves stale data and separates history',
     (tester) async {

@@ -58,6 +58,7 @@ export class InMemoryRideRepository implements RideRepository {
     driverId: string,
   ): Promise<RideRecord | null> {
     const activeStates = new Set<RideRecord['state']>([
+      'INTERRUPTED',
       'DRIVER_ASSIGNED',
       'DRIVER_ARRIVING',
       'DRIVER_ARRIVED',
@@ -255,10 +256,10 @@ export class InMemoryRideRepository implements RideRepository {
       inProgress: rides.filter((ride) => inProgressStates.has(ride.state)).length,
       earningsCents: rides
         .filter((ride) => ride.state === 'COMPLETED')
-        .reduce((sum, ride) => sum + ride.quote.driverNetCents, 0),
+        .reduce((sum, ride) => sum + ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0), 0),
       grossCents: rides
         .filter((ride) => ride.state === 'COMPLETED')
-        .reduce((sum, ride) => sum + ride.quote.totalAmountCents, 0),
+        .reduce((sum, ride) => sum + ride.quote.totalAmountCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0), 0),
       platformFeeCents: rides
         .filter((ride) => ride.state === 'COMPLETED')
         .reduce(
@@ -422,6 +423,7 @@ export class InMemoryRideRepository implements RideRepository {
   }
 
   async save(ride: RideRecord): Promise<RideRecord> {
+    if (ride.state.startsWith('CANCELLED_')) ride = { ...ride, cancellationState: ride.state };
     if (!this.rides.has(ride.id)) {
       throw new Error('Ride not found.');
     }

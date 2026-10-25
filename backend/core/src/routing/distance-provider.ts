@@ -8,6 +8,7 @@ export class RoutingDistanceError extends Error {
 }
 
 export interface RoutingDistanceProvider {
+  routeEstimate?(input: {from: GeoPoint;to: GeoPoint}): Promise<{distanceKm:number;durationSeconds:number}>;
   routeDistanceKm(input: {
     from: GeoPoint;
     to: GeoPoint;

@@ -30,8 +30,12 @@ export class InMemoryRideMatchingRepository
     private readonly promotions?: PromotionRepository,
   ) {}
 
-  async releasePrepaymentHold(input: { rideId: string; at: string }) {
+  async releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string }) {
     const ride = await this.rides.findById(input.rideId);
+    if (input.cancelledByDriverId != null && ride?.driverId !== input.cancelledByDriverId) {
+      throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pertence a este motorista.');
+    }
+    if (input.cancelledByDriverId != null && ride?.state === 'CANCELLED_BY_DRIVER') return ride;
     if (ride?.state !== 'AWAITING_PAYMENT' || !ride.driverConsentRequired) {
       throw new RideOfferError('RIDE_NOT_READY', 'A reserva não pode mais ser cancelada.');
     }
@@ -46,6 +50,10 @@ export class InMemoryRideMatchingRepository
         const { reservedRideId: _id, reservedUntil: _until, ...released } = driver;
         await this.drivers.upsert({ ...released, updatedAt: input.at });
       }
+    }
+    if (input.cancelledByDriverId != null) {
+      return this.rides.save({ ...ride, state: 'CANCELLED_BY_DRIVER',
+        driverHoldExpiresAt: input.at, updatedAt: input.at });
     }
     const { driverId: _driver, ...pending } = ride;
     // Retain the expiry for the existing late-Pix refund path.

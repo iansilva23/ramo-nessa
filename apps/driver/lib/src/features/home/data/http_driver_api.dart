@@ -14,6 +14,7 @@ import 'passenger_rating_api.dart';
 
 class HttpDriverApi
     implements
+        RamoRideOccurrenceApi,
         RamoRideSupportApi,
         RamoRideChatApi,
         DriverApi,
@@ -33,6 +34,15 @@ class HttpDriverApi
        _client = client ?? http.Client();
 
   final Uri _baseUrl;
+
+  @override
+  Future<Map<String,dynamic>> occurrenceRequest(String path,{String method='GET',Map<String,dynamic>? body}) async {
+    if(!RegExp(r'^/v1/(driver/me/)?(rides/[0-9a-f-]{36}/(occurrences(/[0-9a-f-]{36})?|cash-received)|occurrences/[0-9a-f-]{36}/cash-return)$',caseSensitive:false).hasMatch(path))throw StateError('Rota de ocorrência inválida.');
+    final response=await _client.send(http.Request(method,_baseUrl.resolve(path))..headers.addAll(_headers)..body=body==null?'':jsonEncode(body)).timeout(DriverCoreConfig.requestTimeout);
+    final decoded=jsonDecode(await response.stream.bytesToString());
+    if(response.statusCode==200&&decoded is Map<String,dynamic>)return decoded;
+    throw StateError(decoded is Map&&decoded['message'] is String?decoded['message']:'Não foi possível registrar a ocorrência.');
+  }
   final String _accessToken;
   final String _driverId;
   final http.Client _client;

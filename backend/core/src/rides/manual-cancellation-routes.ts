@@ -66,7 +66,7 @@ export async function handleManualCancellationRoutes(input:{
     if(!ride.manualRefund&&['CANCELLED_BY_ADMIN','REFUND_PENDING','REFUNDED'].includes(ride.state))return false;
     const b=await input.readBody() as {reason?:unknown};
     const c=await store.cancel({rideId:ride.id,passengerId:ride.passengerId,actor:actorKey,passenger:false,reason:typeof b?.reason==='string'?b.reason:''});
-    await input.cancelled(c);input.json(200,{ride:{id:ride.id,state:'CANCELLED_BY_PASSENGER'},refundStatus:'manual_review',cancellation:c});return true;
+    await input.cancelled(c);input.json(200,{ride:{id:ride.id,state:'CANCELLED_BY_ADMIN'},refundStatus:'manual_review',cancellation:c});return true;
    }
    if(adminCase&&method==='POST'){
     const b=await input.readBody() as {revision?:unknown;feeCents?:unknown;note?:unknown;bankReference?:unknown;receipt?:unknown};
