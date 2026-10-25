@@ -1,0 +1,84 @@
+name: Activities Web r2 installer for the confirmed restored Web
+on:
+  push:
+    branches: [ops/ride-activities-web-20261025]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ride-activities-web-package
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Preserve the reviewed application revision
+        run: git diff --exit-code c05e3b82949ab22963ac9018b3834d8e7c46060d HEAD -- backend apps packages config/web
+      - name: Verify installer contracts and extraction
+        run: |
+          node --check deploy/staging/activities-web-update.mjs
+          node --check deploy/staging/activities-migrations.mjs
+          node --check deploy/staging/test-activities-web-update.mjs
+          node --test deploy/staging/activities-web.test.mjs deploy/staging/google-search-update.test.mjs deploy/staging/asaas-activation-plan-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
+          python3 -m unittest discover -s deploy/staging -p test_stage_activities.py
+      - name: Compile the exact installed baseline and reviewed Core overlay
+        run: |
+          mkdir baseline
+          git archive 25d429e11b282be8832538ebd11d41123526fd5a backend/core apps/admin | tar -x -C baseline
+          npm ci --prefix baseline/backend/core --no-audit --no-fund
+          npm run build --prefix baseline/backend/core
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+      - name: Reuse the exact application ZIP already tested in Chromium and WebKit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download ride-activities-web-20261025-r1 --pattern RamoNessa-Atividades-Web.zip --dir .
+          printf '%s  %s\n' a4033228493d9ebe5612631f5e7c56f5656aa786b2b068b1ab3d31464240b45b RamoNessa-Atividades-Web.zip > RamoNessa-Atividades-Web.zip.sha256
+          sha256sum -c RamoNessa-Atividades-Web.zip.sha256
+          python3 deploy/staging/stage-activities.py "$PWD/RamoNessa-Atividades-Web.zip" "$PWD/release" a4033228493d9ebe5612631f5e7c56f5656aa786b2b068b1ab3d31464240b45b
+          mkdir -p apps/passenger/build apps/driver/build
+          cp -a release/passenger apps/passenger/build/web
+          cp -a release/driver apps/driver/build/web
+          node scripts/web/package_activities_window.mjs baseline reviewed-payload
+          cmp release/activities-manifest.json reviewed-payload/activities-manifest.json
+      - name: Rehearse refusal, empty preparation retry, backup, migration and return on the confirmed Web path
+        run: |
+          docker pull postgres:16
+          docker pull caddy:2.11.7-alpine
+          sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-activities-web-update.mjs "$PWD/RamoNessa-Atividades-Web.zip" "$PWD/baseline"
+      - name: Package exact installer sources
+        run: |
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Atividades-Web-r2.tar.gz
+          sha256sum Instalador-Atividades-Web-r2.tar.gz > Instalador-Atividades-Web-r2.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ride-activities-r2-tested
+          path: |
+            RamoNessa-Atividades-Web.zip
+            RamoNessa-Atividades-Web.zip.sha256
+            Instalador-Atividades-Web-r2.tar.gz
+            Instalador-Atividades-Web-r2.tar.gz.sha256
+          if-no-files-found: error
+  publish-package:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {contents: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: ride-activities-r2-tested, path: package}
+      - name: Publish r2 only after the new installer rehearsal; never access the VPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd package
+          sha256sum -c RamoNessa-Atividades-Web.zip.sha256
+          sha256sum -c Instalador-Atividades-Web-r2.tar.gz.sha256
+          gh release create ride-activities-web-20261025-r2 RamoNessa-Atividades-Web.zip RamoNessa-Atividades-Web.zip.sha256 Instalador-Atividades-Web-r2.tar.gz Instalador-Atividades-Web-r2.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Atividades Web — instalador corrigido para a base restaurada' --notes 'Mesmo ZIP de aplicação da r1, já validado em Chromium e WebKit. Instalador r2 fixa o caminho driver-responsive-b5c44292ff76 confirmado na VPS e permite retomar somente uma preparação vazia e privada. Novo ensaio Docker de recusa, retomada, backups restaurados, instalação e retorno sem apagar pagamentos recentes. Embarque permanece DESATIVADO. Sem instalação automática na VPS, cobrança real ou atualização Android/iOS.'
