@@ -1,0 +1,98 @@
+name: Driver Web 2D GPS heading — review only
+
+on:
+  push:
+    branches: [feature/driver-web-heading-2d-20261025]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ramo-web-2d-heading-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: GPS 2D — ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            runner: ubuntu-24.04
+          - target: android
+            runner: ubuntu-24.04
+          - target: ios
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Scope and deployment protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 6f3975f16d2f424b0fe53862f73da8c470f59474 HEAD -- \
+            apps/passenger apps/admin backend packages deploy config \
+            apps/driver/android apps/driver/ios apps/driver/web
+          changed=$(git diff --name-only 6f3975f16d2f424b0fe53862f73da8c470f59474 HEAD)
+          disallowed=$(printf '%s\n' "$changed" | grep -vE '^((apps/driver/lib/src/core/config/driver_web_heading_config.dart)|(apps/driver/lib/src/features/home/presentation/driver_home_screen.dart)|(apps/driver/lib/src/features/home/presentation/widgets/(driver_live_map|driver_web_heading_compass).dart)|(apps/driver/test/driver_web_heading_config_test.dart)|(.github/workflows/driver-web-heading-2d-review.yml))$' || true)
+          if [ -n "$disallowed" ]; then echo "Unapproved paths: $disallowed"; exit 1; fi
+      - uses: actions/setup-java@v5
+        if: matrix.target == 'android'
+        with: {distribution: temurin, java-version: '21'}
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Resolve locked packages
+        working-directory: apps/driver
+        run: flutter pub get --enforce-lockfile
+      - name: Format only review copy
+        run: |
+          dart format apps/driver/lib/src/core/config/driver_web_heading_config.dart \
+            apps/driver/lib/src/features/home/presentation/widgets/driver_web_heading_compass.dart \
+            apps/driver/lib/src/features/home/presentation/widgets/driver_live_map.dart \
+            apps/driver/lib/src/features/home/presentation/driver_home_screen.dart \
+            apps/driver/test/driver_web_heading_config_test.dart
+      - name: Flutter analyzer
+        working-directory: apps/driver
+        run: flutter analyze
+      - name: Full Motorista test suite
+        working-directory: apps/driver
+        run: flutter test
+      - name: Web vector 2D review build (preview only, not for publication)
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: |
+          flutter build web --release --no-pub \
+            --dart-define=RAMO_CORE_BASE_URL=https://example.invalid \
+            --dart-define=RAMO_WEB_2D_HEADING_ENABLED=true \
+            --dart-define=RAMO_GOOGLE_MAPS_WEB_VECTOR_MAP_ID=DEMO_MAP_ID
+          grep -R -q '__RAMO_GOOGLE_MAPS_WEB_KEY__' build/web/index.html
+          mkdir -p ../../artifacts/web-2d-vector
+          cp -R build/web/. ../../artifacts/web-2d-vector/
+          printf '%s\n' 'Apenas prototipo. DEMO_MAP_ID + chave Web placeholder devem ser substituidos antes de executar em origem configurada. O estilo Google Cloud do Map ID vetorial deve ser homologado para corresponder ao mapa atual. Nao fazer deploy/merge sem aprovacao.' > ../../artifacts/LEIA-ME.txt
+      - name: Test legacy Web build with feature OFF
+        if: matrix.target == 'web'
+        working-directory: apps/driver
+        run: flutter build web --release --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: Package Web vector preview for isolated inspection
+        if: matrix.target == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramo-motorista-web-2d-heading-review
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Android native 3D regression APK
+        if: matrix.target == 'android'
+        working-directory: apps/driver
+        run: flutter build apk --debug --no-pub --dart-define=RAMO_CORE_BASE_URL=https://example.invalid
+      - name: iOS native 3D simulator regression
+        if: matrix.target == 'ios'
+        working-directory: apps/driver
+        run: flutter build ios --simulator --debug --no-pub --no-codesign --dart-define=RAMO_CORE_BASE_URL=https://example.invalid

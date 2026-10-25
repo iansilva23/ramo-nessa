@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/driver_core_config.dart';
 import '../../../core/config/driver_map_config.dart';
+import '../../../core/config/driver_web_heading_config.dart';
 import '../../../core/location/device_driver_location_service.dart';
 import '../../../core/location/driver_location_service.dart';
 import '../../../core/navigation/driver_navigation_service.dart';
@@ -43,6 +44,7 @@ import 'driver_ride_chat_screen.dart';
 import 'driver_route_refresh_policy.dart';
 import 'driver_web_availability_policy.dart';
 import 'widgets/driver_live_map.dart';
+import 'widgets/driver_web_heading_compass.dart';
 
 part 'widgets/driver_ride_design.dart';
 
@@ -573,13 +575,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         navigationMode: _navigationMode,
       )) {
         final point = LatLng(updated.latitude, updated.longitude);
-        if (!kIsWeb && _navigationMode) {
+        if (_navigationMode &&
+            (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
           unawaited(_mapController.followNavigation(
             point,
             route: _activeRoute?.points ?? const [],
           ));
         } else {
-          // Keep Web and ordinary map behaviour exactly as it was.
+          // Original Web raster and ordinary 2D map behaviour preserved.
           unawaited(_mapController.move(
             point,
             _navigationMode
@@ -1036,7 +1039,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
     if (_mapReady) {
       final point = LatLng(supply.latitude, supply.longitude);
-      if (kIsWeb) {
+      if (kIsWeb && !DriverWebHeadingConfig.hasVectorMap) {
         await _mapController.move(point, DriverMapConfig.navigationZoom);
       } else {
         _mapController.resumeNativeFollow();
@@ -1900,13 +1903,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         return;
       }
       setState(() => _activeRoute = route);
-      if (_mapReady && !kIsWeb && _navigationMode) {
+      if (_mapReady && _navigationMode &&
+          (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
         unawaited(_mapController.followNavigation(
           currentPosition,
           route: route.points,
         ));
       }
-      if (shouldFitRoute && _mapReady && (kIsWeb || !_navigationMode)) {
+      if (shouldFitRoute && _mapReady &&
+          (!_navigationMode ||
+              (kIsWeb && !DriverWebHeadingConfig.hasVectorMap))) {
         try {
           await _mapController.fitCoordinates(
             route.points,
@@ -1942,7 +1948,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     final supply = _supply;
     if (!_mapReady || supply == null) return;
     final point = LatLng(supply.latitude, supply.longitude);
-    if (!kIsWeb && _navigationMode) {
+    if (_navigationMode &&
+        (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)) {
       _mapController.resumeNativeFollow();
       unawaited(_mapController.followNavigation(
         point,
@@ -2007,13 +2014,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ValueListenableBuilder<bool>(
                     valueListenable: _mapController.followPaused,
                     builder: (context, paused, _) => _MapCircleButton(
-                      tooltip: !kIsWeb && _navigationMode
-                          ? (paused ? 'Retomar GPS 3D' : 'Centralizar GPS 3D')
+                      tooltip: _navigationMode &&
+                          (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
+                          ? (paused
+                              ? 'Retomar GPS'
+                              : (kIsWeb ? 'Centralizar GPS 2D' : 'Centralizar GPS 3D'))
                           : 'Centralizar mapa',
-                      icon: !kIsWeb && _navigationMode && paused
+                      icon: _navigationMode && paused &&
+                          (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
                           ? Icons.navigation_rounded
                           : Icons.my_location_rounded,
-                      onPressed: !kIsWeb && _navigationMode
+                      onPressed: _navigationMode &&
+                          (!kIsWeb || DriverWebHeadingConfig.hasVectorMap)
                           ? () {
                               _mapController.resumeNativeFollow();
                               _centerDriverOnMap();
@@ -2026,6 +2038,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             ),
           ),
         ),
+        if (_navigationMode && _activeRide != null &&
+            DriverWebHeadingConfig.hasVectorMap)
+          Positioned(
+            top: _message == null ? 205 : 252,
+            right: 14,
+            child: SafeArea(
+              child: DriverWebHeadingCompass(
+                heading: _mapController.webHeading,
+              ),
+            ),
+          ),
         if (_navigationMode && _activeRide != null)
           Positioned(
             top: 78,
