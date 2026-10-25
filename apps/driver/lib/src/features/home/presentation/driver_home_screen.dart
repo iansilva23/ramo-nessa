@@ -632,7 +632,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         if (!mounted) return;
         final previousRideState = _activeRide?.state;
         final previousRideId=_activeRide?.id;
-        if(update.cancelledRideId!=null&&previousRideId!=null&&update.cancelledRideId!=previousRideId)return;
+        if (update.cancelledRideId != null &&
+            previousRideId != null &&
+            update.cancelledRideId != previousRideId) {
+          return;
+        }
         setState(() {
           if (update.offerUpdated) {
             _offer = update.offer;
@@ -702,11 +706,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     try{
       final supply=await _api?.getSupply();
       if(!mounted)return;
-      if(_activeRide==null&&supply!=null)setState(()=>_supply=supply);
+      if (_activeRide == null && supply != null) {
+        setState(() => _supply = supply);
+      }
       await _refreshFinance(showError:false);
       unawaited(_refreshActivity());
       if(mounted&&_activeRide==null&&_supply?.online==true&&_supply?.busy==false){_startPolling();_startNearbyPolling();}
-    }catch(_){if(mounted)setState(()=>_message='Corrida cancelada. Atualize sua disponibilidade quando a conexão voltar.');}
+    } catch (_) {
+      if (mounted) {
+        setState(() => _message = 'Corrida cancelada. Atualize sua disponibilidade quando a conexão voltar.');
+      }
+    }
   }
 
   void _startPolling() {
