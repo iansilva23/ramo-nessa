@@ -43,9 +43,7 @@ class DriverMapController {
   // Camera-only driving mode for Android/iOS. Web behaviour is untouched.
   final ValueNotifier<bool> followPaused = ValueNotifier<bool>(false);
   bool _nativeNavigationActive = false;
-  bool _appCameraMovement = false;
   int _nativeMapTouches = 0;
-  DateTime _ignoreGestureUntil = DateTime.fromMillisecondsSinceEpoch(0);
   domain.LatLng? _lastCoursePoint;
   double? _lastCourseBearing;
 
@@ -83,12 +81,7 @@ class DriverMapController {
     // The Flutter plugin doesn't expose the native "reason" for a camera
     // movement. A pointer on the map distinguishes user gestures from our
     // programmatic camera animations on both Android and iOS.
-    final userGesturing = _nativeMapTouches > 0;
-    if (!userGesturing &&
-        (_appCameraMovement ||
-            DateTime.now().isBefore(_ignoreGestureUntil))) {
-      return;
-    }
+    if (_nativeMapTouches == 0) return;
     // Pausing makes manual map inspection predictable until Recenter is tapped.
     followPaused.value = true;
   }
@@ -101,7 +94,6 @@ class DriverMapController {
   Future<void> _changeNativeCamera(gm.CameraPosition position) async {
     final controller = _nativeController;
     if (kIsWeb || !ready || controller == null) return;
-    _appCameraMovement = true;
     try {
       await controller.animateCamera(
         gm.CameraUpdate.newCameraPosition(position),
@@ -110,10 +102,6 @@ class DriverMapController {
       // The native map can be destroyed mid-animation on a tab change or
       // app background transition. Keep the trip and route functioning.
       debugPrint('Motorista GPS 3D: movimentação da câmera indisponível: $error');
-    } finally {
-      _ignoreGestureUntil =
-          DateTime.now().add(const Duration(milliseconds: 180));
-      _appCameraMovement = false;
     }
   }
 
