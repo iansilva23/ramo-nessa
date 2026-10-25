@@ -12,6 +12,8 @@ const role=process.env.RAMO_WEB_TEST_ROLE;
 if(!['passenger','driver'].includes(role))throw Error('Specify RAMO_WEB_TEST_ROLE');
 const fontFile=process.env.RAMO_TEST_FONT || resolve(process.env.FLUTTER_ROOT || dirname(dirname(execFileSync('which',['flutter'],{encoding:'utf8'}).trim())),'bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
 const root=resolve(new URL('../../apps/'+role+'/build/web/',import.meta.url).pathname);
+const basePath=(await readFile(resolve(root,'index.html'),'utf8')).match(/<base\s+href=["']([^"']+)["']/i)?.[1]??'/';
+if(!['/','/passageiro/','/motorista/'].includes(basePath))throw Error('Unexpected test bundle base path');
 const rideId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const instant='2026-10-25T14:38:00.000Z';
 const baseRide={id:rideId,state:role==='passenger'?'AWAITING_PAYMENT':'DRIVER_ARRIVED',category:'moto',passengers:1,
@@ -54,9 +56,10 @@ test(`${browserName}/${role}: Activities survives reopen and help stays bound to
    if(path==='/v1/driver/me/finance')return json(200,{availableBalanceCents:0,payoutPendingCents:0});
    return json(404,{});
   }
-  let file=resolve(root,decodeURIComponent(path.slice(1))||'index.html');
+  const assetPath=basePath!=='/'&&path.startsWith(basePath)?path.slice(basePath.length):path.slice(1);
+  let file=resolve(root,decodeURIComponent(assetPath)||'index.html');
   if(!file.startsWith(root+sep)){res.writeHead(404);res.end();return;}
-  try{let body=await readFile(file);if(file.endsWith('flutter_bootstrap.js')){const source=body.toString();body=Buffer.from(source.slice(0,source.lastIndexOf('_flutter.loader.load('))+"_flutter.loader.load({config:{canvasKitBaseUrl:'/canvaskit/'}});");}res.writeHead(200,{'content-type':({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm','.json':'application/json','.png':'image/png','.ttf':'font/ttf','.woff2':'font/woff2'})[extname(file)]??'application/octet-stream','cache-control':'no-store'});res.end(body);}catch{res.writeHead(404);res.end();}
+  try{let body=await readFile(file);if(file.endsWith('flutter_bootstrap.js')){const source=body.toString();body=Buffer.from(source.slice(0,source.lastIndexOf('_flutter.loader.load('))+"_flutter.loader.load({config:{canvasKitBaseUrl:'"+basePath+"canvaskit/'}});");}res.writeHead(200,{'content-type':({'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm','.json':'application/json','.png':'image/png','.ttf':'font/ttf','.woff2':'font/woff2'})[extname(file)]??'application/octet-stream','cache-control':'no-store'});res.end(body);}catch{res.writeHead(404);res.end();}
  });
  server.listen(0,'127.0.0.1');await once(server,'listening');
  t.after(()=>new Promise(r=>{server.closeAllConnections();server.close(r);}));
@@ -72,7 +75,7 @@ test(`${browserName}/${role}: Activities survives reopen and help stays bound to
  });
  await context.addInitScript(()=>Object.defineProperty(navigator,'standalone',{value:true}));
  async function open(){
-  const page=await context.newPage();page.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&m.text().includes('EXCEPTION'))console.error(m.text());});await page.goto(origin+'/');
+  const page=await context.newPage();page.setDefaultTimeout(25000);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&m.text().includes('EXCEPTION'))console.error(m.text());});await page.goto(origin+basePath);
   await page.waitForSelector('flutter-view',{timeout:60000});await page.locator('flt-semantics-placeholder').dispatchEvent('click');
   try{await page.getByText('Perfil',{exact:true}).first().waitFor();}catch(e){console.error('REQUESTS',requests);console.error(await page.locator('body').ariaSnapshot());await page.screenshot({path:resolve(tmpdir(),'ramo-'+role+'-browser-failed.png')});throw e;}return page;
  }
