@@ -52,6 +52,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
     expect(find.text('Aguardando pagamento do passageiro'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget,
+      reason: 'Reserva pendente usa o mesmo painel, sem cartão aninhado');
+    expect(find.byKey(const ValueKey('driver-surface-floating')), findsNothing);
     expect(find.textContaining('segundos restantes'), findsOneWidget);
     expect(find.text('Cheguei no embarque'), findsNothing);
     expect(find.text('Iniciar corrida'), findsNothing);
@@ -139,6 +142,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
 
     expect(find.text('NOVA CORRIDA'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-floating')), findsOneWidget,
+      reason: 'Oferta é uma notificação flutuante, não o painel da corrida');
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsNothing);
     expect(find.text('R\$ 110,00'), findsAtLeastNWidgets(1));
     expect(find.text('Preá'), findsOneWidget);
     expect(find.text('Jijoca'), findsOneWidget);
@@ -179,6 +185,7 @@ void main() {
     await tester.tap(find.byTooltip('Expandir corrida'));
     await tester.pumpAndSettle();
     expect(find.text('Indo buscar passageiro'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget);
     expect(find.text('Cheguei no embarque'), findsOneWidget);
     expect(find.text('Parar navegação'), findsOneWidget);
 
@@ -194,6 +201,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Iniciar corrida'), findsOneWidget);
+    expect(find.byKey(const ValueKey('driver-surface-docked')), findsOneWidget);
+    expect(find.text('Cheguei no embarque'), findsNothing,
+      reason: 'Após chegar, o botão primário só pode iniciar o embarque');
 
     await tester.ensureVisible(find.text('Iniciar corrida'));
     await tester.pump();
@@ -201,6 +211,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(find.text('Finalizar corrida'), findsOneWidget);
+    expect(find.text('Cheguei no destino'), findsNothing,
+      reason: 'Não deve existir uma segunda ação para a mesma finalização');
     expect(find.text('Parar navegação'), findsOneWidget);
     expect(find.text('Abrir no Google Maps'), findsOneWidget);
 
@@ -295,6 +307,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('NOVA CORRIDA'), findsOneWidget);
+    final floatingRect = tester.getRect(
+        find.byKey(const ValueKey('driver-surface-floating')));
+    expect(floatingRect.left, greaterThan(0),
+        reason: 'Oferta continua flutuante sobre o mapa');
+    expect(floatingRect.right, lessThan(viewport.width),
+        reason: 'Oferta não vira página de tela inteira');
     expect(tester.takeException(), isNull, reason: 'oferta 320 px');
 
     await tester.ensureVisible(find.text('Aceitar corrida'));
@@ -310,6 +328,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450));
     expect(find.text('Cheguei no embarque'), findsOneWidget);
+    final surface = find.byKey(const ValueKey('driver-surface-docked'));
+    expect(surface, findsOneWidget);
+    final dockedRect = tester.getRect(surface);
+    expect(dockedRect.left, closeTo(0, 1),
+        reason: 'Painel de corrida deve chegar à borda esquerda do telefone');
+    expect(dockedRect.width, closeTo(viewport.width, 1),
+        reason: 'Painel de corrida deve ocupar toda a largura útil do telefone');
+    expect(tester.getSize(find.byKey(const ValueKey('ride-secondary-scroll'))).height,
+        greaterThan(0), reason: 'Detalhes só rolam dentro da área útil');
     final coletaError = tester.takeException();
     if (coletaError != null) {
       final lines = tester.binding.renderViews.first.toStringDeep().split('\n');
