@@ -26,6 +26,11 @@ export async function buildPlan(root){
   if(!heading.test(compose))throw Error('Serviço esperado ausente.');
   compose=compose.replace(heading,'  '+service+':\n    mem_limit: '+limit);
  }
+ const health=JSON.parse(await readFile(join(root,'deploy/homologation/runtime-health.json'),'utf8'));
+ for(const [service,settings] of Object.entries(health.services)){
+  const heading=new RegExp('^  '+service+':$','m');
+  compose=compose.replace(heading,'  '+service+':\n    healthcheck: '+JSON.stringify(settings.healthcheck));
+ }
  return {compose,project,port:18080};
 }
 export async function prepare(output,root=fileURLToPath(new URL('../../',import.meta.url))){

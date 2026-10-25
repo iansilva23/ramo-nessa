@@ -13,3 +13,13 @@ test('prepare writes private files and never overwrites an existing destination'
   await assert.rejects(prepare(join(temp,'ramo-nessa-staging'),root));
  }finally{await rm(temp,{recursive:true,force:true});}
 });
+test('simulator health override checks their own ports without credentials or changes to the active app',async()=>{
+ const c=JSON.parse(await readFile(join(root,'deploy/homologation/runtime-health.json'),'utf8'));
+ assert.deepEqual(Object.keys(c.services).sort(),['document-storage','google-maps-mock']);
+ for(const [name,service] of Object.entries(c.services)){
+  assert.deepEqual(Object.keys(service),['healthcheck']);
+  const expression=service.healthcheck.test[3];
+  assert.match(expression,new RegExp(name==='document-storage'?'8090':'8091'));
+  assert.doesNotMatch(expression,/TOKEN|SECRET|PASSWORD|8080/);
+ }
+});
