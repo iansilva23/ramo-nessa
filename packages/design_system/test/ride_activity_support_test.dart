@@ -42,6 +42,16 @@ class SupportFixture implements RamoRideSupportApi {
 }
 
 void main() {
+  test('expired unpaid attempt belongs to history without a payment action', () {
+    const attempt = RamoRideActivityData(id: 'deff08f0', state: 'EXPIRED',
+      origin: 'Jeri', destination: 'Jeri', category: 'buggy', amountCents: 100,
+      paymentStatus: 'created');
+    expect(attempt.terminal, isTrue);
+    expect(attempt.awaitingPayment, isFalse);
+    expect(attempt.statusLabel, 'Solicitação expirada');
+    expect(attempt.paymentLabel, 'Sem pagamento registrado');
+  });
+
   test('cash cancellation is terminal and never offers payment', () {
     const cancelled = RamoRideActivityData(id: 'cash-cancelled',
       state: 'CANCELLED_BY_DRIVER', origin: 'Jeri', destination: 'Preá',

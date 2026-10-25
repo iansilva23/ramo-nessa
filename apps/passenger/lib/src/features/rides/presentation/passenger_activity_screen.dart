@@ -261,7 +261,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
                     const SizedBox(height: 6),
                     Text(
                       _history
-                          ? 'Suas viagens concluídas aparecerão aqui.'
+                          ? 'Suas corridas concluídas, canceladas ou expiradas aparecerão aqui.'
                           : 'Quando você pedir uma corrida, acompanhe por aqui.',
                       textAlign: TextAlign.center,
                       style: TextStyle(

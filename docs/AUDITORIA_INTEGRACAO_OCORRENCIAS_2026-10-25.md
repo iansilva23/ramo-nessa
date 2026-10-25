@@ -51,3 +51,16 @@ Correções presentes: cancelamento explícito de reserva pelo motorista, recons
 O relatório `deploy/staging/inspect-ride-consistency.mjs` consulta exclusivamente versões, políticas, migrações e até 30 registros relacionados aos IDs dos prints, em transação PostgreSQL REPEATABLE READ READ ONLY. Omite nomes, telefones, documentos, PINs, QR codes e credenciais. Sua execução pelo responsável continua necessária para confirmar o cenário real antes de decidir qualquer conciliação histórica. Não foi executado na VPS nesta sessão.
 
 A regra de bônus foi aprovada e está registrada acima; **não está implementada nem ativada nesta primeira correção**. O ledger atual exige tarifa = comissão + líquido de um único motorista, e classifica excesso como recuperação de custo de pagamento. A próxima integração precisa separar o adicional e o beneficiário, mantendo liquidação atômica e bloqueando a dupla compensação com a taxa antiga. Não apresentar este PR como entrega de substituição, ocorrências completas ou bônus operacional.
+
+
+## Evidência recebida da VPS (consulta do responsável)
+
+O gateway serve `/opt/ramo-nessa-web/releases/driver-cinema-d8ddfb102f88/bundles`; banco até migração 095. Core imagem `sha256:b2e1742a4811bfd9455f550612628986871d9d00d2c9ec79242e907d4c51cc4d`; gateway `sha256:afd2bf7ee10435bf192c150d048310db027f81cb3334ce5ea5038307f7ca982f`, ambos running. Imagem identifica o artefato, não comprova sozinha o commit-fonte do Core.
+
+Embarque desativado (revisão 0); cancelamento manual desativado (revisão 4). Existem taxas configuradas por categoria, mas o interruptor geral está desligado. Dinheiro, Pix e carteira habilitados; cartão desativado. Nenhuma dessas configurações foi alterada.
+
+As referências dos prints DEFF08F0 e 3603B4F3 possuem estado AWAITING_PAYMENT, payment_status created, método nulo, nenhum motorista e nenhum registro de pagamento. Os prazos venceram. A mesma conta tem outras quatro tentativas equivalentes (01A12E9F, EA983590, 3857BC69, EBD88B5A), explicando as seis atividades. Cancelamentos reais em dinheiro, como 6D007B2F, 502ABCF5, 3E93FBED, F16E0661 e F53448FD, estão em CANCELLED_BY_DRIVER, cash/authorized e sem pagamento digital. Portanto, não há evidência de que os IDs dos prints sejam as corridas efetivamente canceladas: a principal causa do aviso observado é a classificação de tentativas vencidas como ativas.
+
+Correção adicionada: modelo de leitura EXPIRED para tentativa sem motorista, sem método e sem pagamento registrado, com prazo válido já vencido. Atividades mostra Solicitação expirada no Histórico; retomada explícita abre detalhes sem cobrança. Não altera o estado persistido nem fabrica autoria de cancelamento. Pagamento existente (inclusive Pix pendente), estado confirmado, motorista atribuído ou prazo inválido impedem essa classificação automática. Não há limpeza em lote ou decisão financeira.
+
+A compilação dos quatro alvos nativos na primeira revisão terminou, mas o job falhou na conferência final porque Flutter retirou duas linhas vazias finais de cada pubspec.lock. Normalizados somente esses finais de arquivo, sem mudança de versão, hash ou dependência. Nova execução ainda deve ser conferida antes de declarar aprovação final.

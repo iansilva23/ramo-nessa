@@ -62,6 +62,7 @@ class PassengerActivityRide {
   final DateTime updatedAt;
 
   String get stateLabel => switch (state) {
+    'EXPIRED' => 'Solicitação expirada',
     'COMPLETED' => 'Concluída',
     'CANCELLED_BY_PASSENGER' => 'Cancelada por você',
     'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',

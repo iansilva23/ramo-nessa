@@ -10,6 +10,7 @@ import {confirmRidePayment} from '../src/rides/confirm-payment.js';
 import {resumePassengerRide} from '../src/rides/ride-resumption.js';
 import {passengerActivityForApp} from '../src/rides/passenger-activity-service.js';
 import {createPaymentForRide} from '../src/payments/create-payment.js';
+import {isAbandonedCheckoutExpired} from '../src/rides/ride-checkout-presentation.js';
 
 async function fixture() {
  const rides=new InMemoryRideRepository(),drivers=new InMemoryDriverSupplyRepository();
@@ -18,6 +19,37 @@ async function fixture() {
  const ride=await rides.save({...base,state:'AWAITING_PAYMENT',driverConsentRequired:true,driverId:'consistency-driver',reservedDriverId:'consistency-driver',driverHoldExpiresAt:new Date(Date.now()+60000).toISOString()});
  return {rides,drivers,finance,matching,ride};
 }
+test('six unpaid expired attempts leave active Activities without rewriting cash cancellations',async()=>{
+ const c=await fixture();const now=new Date('2026-10-25T16:00:00Z');
+ const {driverId:_driver,reservedDriverId:_reserved,...attempt}=c.ride;
+ await c.rides.save({...c.ride,state:'CANCELLED_BY_DRIVER',paymentMethod:'cash',paymentStatus:'authorized'});
+ const ids=['deff08f0','3603b4f3','01a12e9f','ea983590','3857bc69','ebd88b5a'];
+ for(const id of ids) await c.rides.create({...attempt,id,driverConsentRequired:false,driverHoldExpiresAt:'2026-10-23T04:23:10Z',paymentExpiresAt:'2026-10-23T04:32:10Z'});
+ const result=await passengerActivityForApp({...c,passengerId:c.ride.passengerId,now});
+ assert.equal(result.rides.filter(r=>r.state==='EXPIRED').length,6);
+ assert.equal(result.rides.find(r=>r.id===c.ride.id)?.state,'CANCELLED_BY_DRIVER');
+ for(const id of ids) assert.equal((await c.rides.findById(id))?.state,'AWAITING_PAYMENT');
+ assert.equal((await resumePassengerRide({...c,boarding:null,passengerId:c.ride.passengerId,now})).ride,null);
+ const selected=await resumePassengerRide({...c,boarding:null,passengerId:c.ride.passengerId,rideId:ids[0]!,now});
+ assert.equal(selected.ride?.state,'EXPIRED');assert.equal(selected.pix,null);assert.equal(selected.payment,null);
+});
+test('expiration never hides confirmed, assigned or paid trips and requires a known deadline',async()=>{
+ const c=await fixture();const {driverId:_driver,reservedDriverId:_reserved,...attempt}=c.ride;
+ const now=new Date('2026-10-25T16:00:00Z');
+ const expired={...attempt,driverConsentRequired:false,driverHoldExpiresAt:'2026-10-23T04:00:00Z',paymentExpiresAt:'2026-10-23T04:10:00Z'};
+ assert.equal(isAbandonedCheckoutExpired(expired,null,now),true);
+ for(const protectedRide of [
+  {...expired,paymentExpiresAt:'2026-10-26T00:00:00Z'},
+  {...expired,paymentExpiresAt:'invalid'},
+  {...expired,paymentMethod:'cash' as const,paymentStatus:'authorized' as const},
+  {...expired,state:'IN_PROGRESS' as const,paymentStatus:'paid' as const},
+  {...expired,driverId:'assigned-driver'},
+ ]) assert.equal(isAbandonedCheckoutExpired(protectedRide,null,now),false);
+ for(const status of ['created','pending','paid','refunded'] as const){
+  const payment={id:randomUUID(),rideId:expired.id,method:'pix' as const,processor:'mercado-pago-orders',status,amountCents:expired.quote.totalAmountCents,idempotencyKey:'protected-checkout-'+status,createdAt:expired.createdAt,updatedAt:expired.updatedAt};
+  assert.equal(isAbandonedCheckoutExpired(expired,payment,now),false);
+ }
+});
 test('driver cancellation of accepted prepayment hold is terminal, owned and idempotent',async()=>{
  const c=await fixture();
  await assert.rejects(c.matching.releasePrepaymentHold({rideId:c.ride.id,at:new Date().toISOString(),cancelledByDriverId:'other-driver'}));

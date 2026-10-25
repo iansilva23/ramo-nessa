@@ -2970,6 +2970,7 @@ const server = createServer(async (request, response) => {
         response,
         200,
         await passengerActivityForApp({
+          finance: financeRepository,
           registry: driverRegistryRepository,
           rides: rideRepository,
           passengerId: session.subjectId,

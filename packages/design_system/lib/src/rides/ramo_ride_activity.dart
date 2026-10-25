@@ -53,6 +53,7 @@ class RamoRideActivityData {
         'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
         'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
         'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
+        'EXPIRED' => 'Solicitação expirada',
         'COMPLETED' => 'Concluída',
         'REFUNDED' => 'Reembolsada',
         'REFUND_PENDING' => 'Reembolso em andamento',
@@ -61,6 +62,7 @@ class RamoRideActivityData {
           state.startsWith('CANCELLED_') ? 'Cancelada' : 'Atualizando corrida',
       };
   String get paymentLabel {
+    if (state == 'EXPIRED' && paymentMethod == null && paymentStatus == 'created') return 'Sem pagamento registrado';
     final method = switch (paymentMethod) {
       'pix' => 'Pix',
       'wallet' => 'Carteira',
