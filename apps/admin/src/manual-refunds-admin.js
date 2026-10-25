@@ -9,10 +9,11 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
  let policy=null,items=[],filter='review',busy=false;const writable=hasScope('finance:write');
  host.replaceChildren();
  const header=el('div',null,'page-heading');header.append(el('h2','Cancelamentos e devoluções'),el('p','Analise o caso, faça o Pix pelo banco e registre o comprovante. Nenhum botão desta área envia dinheiro.'));
- const message=el('p','Carregando…');message.setAttribute('role','status');
- const switchCard=el('div',null,'panel-card manual-refund-policy');
+ const message=el('p','Carregando…','admin-feedback');message.setAttribute('role','status');
+ const switchCard=el('div',null,'panel-card manual-refund-policy manual-refund-activation');
  const system=field('Ativar sistema de cancelamento','checkbox');
- const systemStatus=el('p');
+ system.wrap.classList.add('admin-policy-toggle');
+ const systemStatus=el('p',null,'admin-policy-note');
  const switchHelp=el('p','Desativado: sem botão, contagem, taxa ou novas devoluções manuais deste sistema. Você pode preparar as regras abaixo antes de ativar.');
  const saveSwitch=el('button','Salvar ativação','button button--primary');saveSwitch.type='button';
  switchCard.append(system.wrap,systemStatus,switchHelp,saveSwitch);
@@ -28,7 +29,7 @@ export function createCancellationAdmin({root,api,getToken,hasScope}){
  ruleForm.append(choose,enabled.wrap,fee.wrap,seconds.wrap,help,save);settings.append(ruleForm);
  const tabs=el('nav',null,'manual-refund-tabs');tabs.setAttribute('aria-label','Etapas da devolução');
  const list=el('div',null,'manual-refund-list');
- const detail=el('div',null,'manual-refund-detail');
+ const detail=el('div',null,'manual-refund-detail');detail.setAttribute('aria-live','polite');
  const refresh=el('button','Atualizar casos','button button--ghost-dark');refresh.type='button';
  host.append(header,switchCard,settings,refresh,tabs,message,list,detail);
  const request=(path,method='GET',body)=>api.manualRefundRequest(getToken(),path,method,body);
