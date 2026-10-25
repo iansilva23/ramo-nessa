@@ -61,7 +61,7 @@ def safe_zip(blob, max_size, allow_dirs):
         name = item.filename
         p = PurePosixPath(name)
         if (not name or name.startswith("/") or "\\" in name or
-            "\\x00" in name or ":" in name or any(x in ("..", ".") for x in p.parts)):
+            chr(0) in name or ":" in name or any(x in ("..", ".") for x in p.parts)):
             reject("Caminho inseguro no pacote ZIP")
         mode = stat.S_IFMT(item.external_attr >> 16)
         if mode not in (0, stat.S_IFDIR, stat.S_IFREG):
@@ -159,7 +159,13 @@ def main(args):
         inner = outer["ramo-motorista-gps2d-vps-web.zip"]
         checksum = hashlib.sha256(inner).hexdigest()
         sums = outer["SHA256SUMS"].decode("ascii").strip()
-        if sums != checksum + "  ramo-motorista-gps2d-vps-web.zip":
+        # sha256sum in GitHub Actions records "artifacts/<filename>".
+        parts = sums.split()
+        if (len(parts) != 2 or parts[0] != checksum or
+            parts[1].removeprefix("*") not in (
+                "artifacts/ramo-motorista-gps2d-vps-web.zip",
+                "ramo-motorista-gps2d-vps-web.zip",
+            )):
             reject("SHA-256 do bundle interno não coincide")
         files = safe_zip(inner, MAX_INNER, True)
         required = {"index.html", "main.dart.js", "flutter_bootstrap.js",
