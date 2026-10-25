@@ -1,0 +1,166 @@
+name: Driver responsive Web - configured package and rollback rehearsal
+on:
+  push:
+    branches: [ops/driver-responsive-web-20261024]
+    paths:
+      - '.github/workflows/driver-responsive-web-package.yml'
+      - 'deploy/staging/*driver-responsive*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: driver-responsive-web-package
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require exact reviewed UI and green native/Web validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git cat-file -e 'b5c44292ff76e881c14bfdcdb55474165dc6eb36^{commit}'
+          git diff --exit-code b5c44292ff76e881c14bfdcdb55474165dc6eb36 HEAD -- apps backend packages config scripts/web
+          git diff --exit-code e36963c02716511da855f89a529175da04b51eff b5c44292ff76e881c14bfdcdb55474165dc6eb36 --             apps/passenger backend packages config scripts/web
+          ! test -f apps/passenger/lib/src/features/rides/presentation/ride_recovery_gate.dart
+          ! test -f backend/core/migrations/094_ride_boarding_recovery.sql
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40154453457 > /tmp/driver-responsive-evidence.json
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const r=JSON.parse(readFileSync('/tmp/driver-responsive-evidence.json','utf8'));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='b5c44292ff76e881c14bfdcdb55474165dc6eb36')
+            throw Error('Exact reviewed source has no valid Web/Android/iOS check.');
+          NODE
+      - name: Validate archive and switching contracts
+        run: |
+          set -euo pipefail
+          node --check deploy/staging/driver-responsive-web-update.mjs
+          node --check deploy/staging/test-driver-responsive-web-update.mjs
+          python3 -m py_compile deploy/staging/stage-driver-responsive-web.py
+          node --test deploy/staging/asaas-driver-web-contract.test.mjs             deploy/staging/asaas-driver-web-switch-contract.test.mjs
+      - uses: subosito/flutter-action@v2.23.0
+        with: {flutter-version: '3.47.5', channel: stable, cache: true}
+      - name: Configure only the real Motorista Web
+        env:
+          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet Pillow==11.3.0
+          python3 scripts/web/generate_pwa_icons.py
+          node scripts/web/prepare_configured_web.mjs --role=driver
+          cd apps/driver
+          flutter pub get --enforce-lockfile
+          flutter analyze
+          flutter test
+          flutter build web --release --no-web-resources-cdn --no-pub             --base-href=/motorista/             --dart-define=RAMO_CORE_BASE_URL=             --dart-define=RAMO_PREVIEW_MODE=false
+      - name: Ensure bundle has real browser settings and preserved contracts
+        run: |
+          set -euo pipefail
+          node scripts/web/verify_web_bundle.mjs --role=driver --dist=apps/driver/build/web
+          git diff --exit-code -- '*.dart' '*/pubspec.yaml' '*/pubspec.lock'
+          node --input-type=module - <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const code=readFileSync('apps/driver/build/web/main.dart.js','utf8');
+          for(const field of ['anticipationMinimumCents','anticipationFeeCents','expectedMinimumCents','expectedFeeCents']){
+            if(!code.includes(field)) throw Error('Financial contract missing: '+field);
+          }
+          NODE
+      - name: Test configured compiled Web login and logout in Chromium and WebKit
+        run: |
+          set -euo pipefail
+          npm ci --prefix backend/core --no-audit --no-fund
+          npm run build --prefix backend/core
+          npm ci --prefix scripts/web/browser-tests --ignore-scripts --no-audit --no-fund
+          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
+          for engine in chromium webkit; do
+            RAMO_WEB_TEST_ROLE=driver RAMO_BROWSER_ENGINE="$engine"               node --test scripts/web/bundle_csp_browser_test.mjs
+          done
+      - name: Write complete driver-only manifest and ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          node --input-type=module - <<'NODE'
+          import {readFile,writeFile,readdir,lstat} from 'node:fs/promises';
+          import {join} from 'node:path';
+          import {createHash} from 'node:crypto';
+          import {loadPublicWebConfiguration} from './scripts/web/public_web_configuration.mjs';
+          const root='apps/driver/build/web',config=await loadPublicWebConfiguration();
+          const hash=x=>createHash('sha256').update(x).digest('hex');
+          const raw=await readFile(join(root,'ramo_push_config.js'),'utf8');
+          const match=raw.match(/^\/\/[^\n]*\nself\.ramoPushConfig = ([\s\S]+);\s*$/);
+          if(!match)throw Error('Unexpected public Push config');
+          const actual=JSON.parse(match[1]);
+          if(Object.keys(config.apps.driver).some(k=>actual[k]!==config.apps.driver[k]))
+            throw Error('Driver Push settings mismatch');
+          const files=[];
+          async function walk(relative=''){
+            for(const name of (await readdir(join(root,relative))).sort()){
+              const path=relative?relative+'/'+name:name,full=join(root,path),st=await lstat(full);
+              if(st.isSymbolicLink())throw Error('Bundle symlink detected');
+              if(st.isDirectory())await walk(path);
+              else if(st.isFile())files.push({path,bytes:st.size,sha256:hash(await readFile(full))});
+              else throw Error('Unsupported bundle entry');
+            }
+          }
+          await walk();
+          const manifest={
+            schemaVersion:1,role:'driver',sourceCommit:'b5c44292ff76e881c14bfdcdb55474165dc6eb36',
+            expectedOrigin:config.expectedOrigin,expectedProject:config.expectedProject,
+            basePath:'/motorista/',publicConfigSha256:hash(JSON.stringify(config.apps.driver)),
+            files,compiledFinanceTerms:true,browserLoginChromium:true,browserLoginWebKit:true,
+            realProviderAcceptance:false
+          };
+          await writeFile('artifacts/release.driver.json',JSON.stringify(manifest,null,2)+'\n',{flag:'wx'});
+          NODE
+          python3 - <<'PY'
+          import hashlib,json,zipfile
+          from pathlib import Path
+          directory=Path('artifacts')
+          manifest=json.loads((directory/'release.driver.json').read_text())
+          destination=directory/'RamoNessa-Motorista-Web-b5c44292.zip'
+          with zipfile.ZipFile(destination,'x',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              z.write(directory/'release.driver.json','release.driver.json')
+              for file in manifest['files']:
+                  content=(Path('apps/driver/build/web')/file['path']).read_bytes()
+                  if len(content)!=file['bytes'] or hashlib.sha256(content).hexdigest()!=file['sha256']:
+                      raise RuntimeError('Bundle changed since manifest')
+                  z.writestr('driver/'+file['path'],content)
+          print('ZIP_SHA256:',hashlib.sha256(destination.read_bytes()).hexdigest())
+          PY
+          sha256sum artifacts/RamoNessa-Motorista-Web-b5c44292.zip             > artifacts/RamoNessa-Motorista-Web-b5c44292.zip.sha256
+          python3 deploy/staging/stage-driver-responsive-web.py             --archive "$PWD/artifacts/RamoNessa-Motorista-Web-b5c44292.zip"             --sha256 "$(cut -d' ' -f1 artifacts/RamoNessa-Motorista-Web-b5c44292.zip.sha256)"             --output "$RUNNER_TEMP/driver-responsive-staged"
+      - name: Rehearse real Caddy switch, rollback and missing-Gateway recovery
+        run: |
+          set -euo pipefail
+          docker pull caddy:2.11.7-alpine
+          sudo env GITHUB_ACTIONS=true PATH="$PATH" node             deploy/staging/test-driver-responsive-web-update.mjs             "$PWD/artifacts/RamoNessa-Motorista-Web-b5c44292.zip"
+      - name: Archive tested installer and its integrity
+        run: |
+          set -euo pipefail
+          git archive HEAD deploy/staging scripts/web | gzip -n > artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz
+          sha256sum artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz             > artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz.sha256
+          cd artifacts
+          sha256sum -c RamoNessa-Motorista-Web-b5c44292.zip.sha256
+          sha256sum -c Instalador-Driver-Responsive-b5c44292.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-responsive-web-b5c44292-tested
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish tested files for deliberate, manual VPS activation only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create 'driver-responsive-web-b5c44292-r1'             artifacts/RamoNessa-Motorista-Web-b5c44292.zip             artifacts/RamoNessa-Motorista-Web-b5c44292.zip.sha256             artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz             artifacts/Instalador-Driver-Responsive-b5c44292.tar.gz.sha256             --repo iansilva23/ramo-nessa             --target "$GITHUB_SHA" --prerelease --latest=false             --title 'Motorista Web — painel responsivo sem moldura dupla'             --notes 'Pacote configurado, testes de UI e sessões Chromium/WebKit, atualização exclusiva do Motorista com ensaios Caddy de retorno, nenhuma publicação automática na VPS, sem alterações no Passageiro, Core, ADM ou banco. Requer confirmação do runtime e execução manual com sudo.'
