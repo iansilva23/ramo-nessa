@@ -11,6 +11,7 @@ class RamoRideActivityData {
     required this.category,
     required this.amountCents,
     this.paymentMethod,
+    this.cancellationState,
     this.paymentStatus,
     this.participant,
     this.vehicle,
@@ -18,7 +19,7 @@ class RamoRideActivityData {
   });
   final String id, state, origin, destination, category;
   final int amountCents;
-  final String? paymentMethod, paymentStatus, participant, vehicle;
+  final String? paymentMethod, paymentStatus, participant, vehicle, cancellationState;
   final DateTime? date;
   bool get terminal =>
       state == 'COMPLETED' ||
@@ -30,7 +31,7 @@ class RamoRideActivityData {
         'EXPIRED',
       }.contains(state);
   bool get awaitingPayment =>
-      const {'CREATED', 'AWAITING_PAYMENT', 'PAYMENT_FAILED'}.contains(state);
+      paymentMethod != 'cash' && const {'CREATED', 'AWAITING_PAYMENT', 'PAYMENT_FAILED'}.contains(state);
   String get reference => id.length > 8 ? id.substring(0, 8).toUpperCase() : id;
   String get amount =>
       'R\$ ${(amountCents / 100).toStringAsFixed(2).replaceAll('.', ',')}';
@@ -48,7 +49,10 @@ class RamoRideActivityData {
         'DRIVER_ASSIGNED' || 'DRIVER_ARRIVING' => 'A caminho do embarque',
         'PAID' || 'SEARCHING_DRIVER' => 'Procurando motorista',
         'NO_DRIVER_FOUND' => 'Aguardando sua decisão',
-        'CREATED' || 'AWAITING_PAYMENT' => 'Aguardando pagamento',
+        'CREATED' || 'AWAITING_PAYMENT' => paymentMethod == 'cash' ? 'Confirmação pendente' : 'Aguardando pagamento',
+        'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
+        'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
+        'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
         'COMPLETED' => 'Concluída',
         'REFUNDED' => 'Reembolsada',
         'REFUND_PENDING' => 'Reembolso em andamento',
@@ -64,7 +68,7 @@ class RamoRideActivityData {
       'card' => 'Cartão',
       _ => 'Pagamento',
     };
-    if (paymentMethod == 'cash') return 'Dinheiro · cobrança ao final';
+    if (paymentMethod == 'cash') return terminal ? 'Dinheiro · corrida encerrada' : 'Dinheiro · pagamento presencial';
     return switch (paymentStatus) {
       'paid' => '$method confirmado',
       'authorized' => '$method autorizado',
@@ -377,6 +381,13 @@ class RamoRideDetailsScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
+            if (ride.cancellationState != null && ride.cancellationState != ride.state)
+              Text(switch (ride.cancellationState) {
+                'CANCELLED_BY_DRIVER' => 'Cancelada pelo motorista',
+                'CANCELLED_BY_ADMIN' => 'Cancelada pelo suporte',
+                'CANCELLED_BY_PASSENGER' => 'Cancelada pelo passageiro',
+                _ => 'Corrida cancelada',
+              }),
             SelectableText('Corrida ${ride.id}'),
             if (ride.date != null)
               Text(

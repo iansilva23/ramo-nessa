@@ -50,7 +50,7 @@ export interface CancelRideByAdminResult {
 }
 
 export interface RideMatchingRepository {
-  releasePrepaymentHold(input: { rideId: string; at: string }): Promise<RideRecord>;
+  releasePrepaymentHold(input: { rideId: string; at: string; cancelledByDriverId?: string }): Promise<RideRecord>;
   createOffer(
     input: CreateRideOfferInput,
   ): Promise<RideOfferMutationResult>;

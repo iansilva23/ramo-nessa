@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'package:ramo_design_system/ramo_design_system.dart';
+import '../domain/passenger_activity.dart';
 import 'package:flutter/material.dart';
 import '../../map/data/route_service.dart';
 import '../../payments/data/passenger_payment_service.dart';
@@ -50,6 +52,13 @@ class ResumedRideScreen extends StatelessWidget {
   Widget _buildRide(BuildContext context) {
     final ride = data['ride'] as Map<String, dynamic>,
         payment = data['payment'] as Map<String, dynamic>?;
+    final details = PassengerActivityRide.fromJson({
+      ...ride,
+      'totalAmountCents': (ride['quote'] as Map<String, dynamic>)['totalAmountCents'],
+    }).activityData;
+    if (details.terminal && !details.awaitingPayment) {
+      return RamoRideDetailsScreen(ride: details, onHelp: null);
+    }
     final awaiting = const {
       'CREATED',
       'AWAITING_PAYMENT',

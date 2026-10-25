@@ -70,6 +70,7 @@ class PassengerMainShell extends StatefulWidget {
 class _PassengerMainShellState extends State<PassengerMainShell> {
   int _index = 0;
   PassengerActivityRide? _currentRide;
+  bool _activityFresh = true;
   final ValueNotifier<RamoPlace?> _guideDestination = ValueNotifier(null);
 
   @override
@@ -193,13 +194,14 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
                   dense: true,
                   leading: const Icon(Icons.route_outlined),
                   title: Text(
+                    !_activityFresh ? 'Última situação registrada' :
                     _currentRide!.activityData.awaitingPayment
                         ? 'Você tem um pagamento pendente'
                         : 'Você tem uma corrida em andamento',
                     style: const TextStyle(fontSize: 13),
                   ),
-                  subtitle: const Text(
-                    'Ver em Atividades',
+                  subtitle: Text(
+                    _activityFresh ? 'Ver em Atividades' : 'Atualização indisponível. Ver em Atividades',
                     style: TextStyle(fontSize: 12),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -229,11 +231,16 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       PassengerActivityScreen(
         service: widget.activityService,
         visible: _index == 2,
+        refreshWhenHidden: true,
+        onFreshnessChanged: (fresh) {
+          if (mounted && fresh != _activityFresh) setState(() => _activityFresh = fresh);
+        },
         onLoaded: (snapshot) {
           final active = snapshot.rides.where((r) => !r.activityData.terminal);
           final next = active.isEmpty ? null : active.first;
           if (next?.id != _currentRide?.id ||
-              next?.state != _currentRide?.state) {
+              next?.state != _currentRide?.state ||
+              next?.paymentStatus != _currentRide?.paymentStatus) {
             setState(() => _currentRide = next);
           }
         },

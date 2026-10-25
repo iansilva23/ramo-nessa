@@ -12,11 +12,15 @@ class PassengerActivityScreen extends StatefulWidget {
     this.support,
     this.visible = true,
     this.onLoaded,
+    this.refreshWhenHidden = false,
+    this.onFreshnessChanged,
   });
   final PassengerActivityService? service;
   final Future<void> Function(PassengerActivityRide ride)? onResume;
   final RamoRideSupportApi? support;
   final bool visible;
+  final bool refreshWhenHidden;
+  final ValueChanged<bool>? onFreshnessChanged;
   final ValueChanged<PassengerActivitySnapshot>? onLoaded;
   @override
   State<PassengerActivityScreen> createState() =>
@@ -29,13 +33,14 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
   bool _loading = false, _history = false;
   String? _error, _opening;
   Timer? _timer;
+  bool _foreground = true, _reloadRequested = false;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_load());
     _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (widget.visible) unawaited(_load());
+      if (_foreground && (widget.visible || widget.refreshWhenHidden)) unawaited(_load());
     });
   }
 
@@ -47,7 +52,9 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && widget.visible) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground && (widget.visible || widget.refreshWhenHidden)) {
+      if (_loading) _reloadRequested = true;
       unawaited(_load());
     }
   }
@@ -70,7 +77,10 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
     setState(() => _loading = true);
     try {
       final activity = await widget.service!.fetch();
-      if (mounted) widget.onLoaded?.call(activity);
+      if (mounted && !_reloadRequested) {
+        widget.onLoaded?.call(activity);
+        widget.onFreshnessChanged?.call(true);
+      }
       if (mounted) {
         setState(() {
           _activity = activity;
@@ -80,11 +90,17 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
       }
     } catch (_) {
       if (mounted) {
+        widget.onFreshnessChanged?.call(false);
         setState(() {
           _loading = false;
           _error =
               'Não conseguimos atualizar. Os últimos registros continuam visíveis.';
         });
+      }
+    } finally {
+      if (mounted && _reloadRequested) {
+        _reloadRequested = false;
+        unawaited(_load());
       }
     }
   }

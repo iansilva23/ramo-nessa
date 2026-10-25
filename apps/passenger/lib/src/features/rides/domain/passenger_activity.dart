@@ -11,6 +11,7 @@ class PassengerActivityRide {
     required this.createdAt,
     required this.updatedAt,
     this.paymentMethod,
+    this.cancellationState,
     this.paymentStatus,
     this.driverName,
     this.vehicleLabel,
@@ -25,6 +26,7 @@ class PassengerActivityRide {
       destination: _locationLabel(json['destination']),
       totalAmountCents: (json['totalAmountCents'] as num).toInt(),
       paymentMethod: json['paymentMethod'] as String?,
+      cancellationState: json['cancellationState'] as String?,
       paymentStatus: json['paymentStatus'] as String?,
       driverName: (json['driver'] as Map?)?['name'] as String?,
       vehicleLabel: ((json['driver'] as Map?)?['vehicle'] as Map?)?.values
@@ -41,7 +43,7 @@ class PassengerActivityRide {
   final String origin;
   final String destination;
   final int totalAmountCents;
-  final String? paymentMethod, paymentStatus, driverName, vehicleLabel;
+  final String? paymentMethod, paymentStatus, driverName, vehicleLabel, cancellationState;
   RamoRideActivityData get activityData => RamoRideActivityData(
     id: id,
     state: state,
@@ -50,6 +52,7 @@ class PassengerActivityRide {
     category: category,
     amountCents: totalAmountCents,
     paymentMethod: paymentMethod,
+    cancellationState: cancellationState,
     paymentStatus: paymentStatus,
     participant: driverName,
     vehicle: vehicleLabel,

@@ -19,6 +19,7 @@ export async function passengerActivityForApp(input: {
     rides: await Promise.all(rides.map(async (ride) => ({
       id: ride.id,
       state: ride.state,
+      cancellationState: ride.cancellationState ?? null,
       category: ride.category,
       origin: ride.origin,
       destination: ride.destination,

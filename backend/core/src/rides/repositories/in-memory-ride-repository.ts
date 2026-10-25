@@ -422,6 +422,7 @@ export class InMemoryRideRepository implements RideRepository {
   }
 
   async save(ride: RideRecord): Promise<RideRecord> {
+    if (ride.state.startsWith('CANCELLED_')) ride = { ...ride, cancellationState: ride.state };
     if (!this.rides.has(ride.id)) {
       throw new Error('Ride not found.');
     }

@@ -974,6 +974,12 @@ async function processConfirmedMercadoPagoRide(
   const confirmationTime = new Date();
   const rideBeforeConfirmation =
     await rideRepository.findById(payment.rideId);
+  if (rideBeforeConfirmation?.state.startsWith('CANCELLED_')) {
+    const closed = await confirmRidePayment(rideRepository, { rideId: payment.rideId, payment, confirmedAt: confirmationTime, notifyPassenger: false });
+    // A late provider notification must never resurrect a cancelled trip or bypass manual review.
+    if (!closed.manualRefund) await automaticallyRefundRide({ rides: rideRepository, finance: financeRepository, promotions: promotionRepository, gateway: mercadoPagoOrdersClient, rideId: closed.id, passengerId: closed.passengerId, now: confirmationTime });
+    return;
+  }
   const expiredHold =
     rideBeforeConfirmation != null &&
     shouldRefundMercadoPagoPaymentBeforeDispatch(
@@ -7500,9 +7506,11 @@ const server = createServer(async (request, response) => {
           : {};
       const rideId = driverRideCancelMatch[1]!;
       const pendingRide = await rideRepository.findById(rideId);
-      if (pendingRide?.state === 'AWAITING_PAYMENT' && pendingRide.driverConsentRequired && pendingRide.driverId === driverId) {
-        const released = await rideMatchingRepository.releasePrepaymentHold({ rideId, at: new Date().toISOString() });
+      if (pendingRide != null && ['AWAITING_PAYMENT', 'CANCELLED_BY_DRIVER'].includes(pendingRide.state) && pendingRide.driverConsentRequired && pendingRide.driverId === driverId && !['paid', 'authorized', 'refunded'].includes(pendingRide.paymentStatus)) {
+        const released = await rideMatchingRepository.releasePrepaymentHold({ rideId, at: new Date().toISOString(), cancelledByDriverId: driverId });
         await releaseRidePromotionReservation({ promotions: promotionRepository, ride: pendingRide });
+        const tracking = await passengerRideTracking({ rides: rideRepository, drivers: driverSupplyRepository, registry: driverRegistryRepository, rideId, passengerId: pendingRide.passengerId });
+        if (tracking != null) realtimeHub.publishPassengerRide(rideId, { type: 'passenger.ride.tracking', tracking, serverTime: new Date().toISOString() });
         realtimeHub.publishDriver(driverId, { type: 'driver.ride.updated', ride: null, serverTime: new Date().toISOString() });
         json(response, 200, { ride: driverRideView(released), refundStatus: 'not_charged',
           adminReviewRequired: false, adminReviewCreated: false,
@@ -7551,7 +7559,7 @@ const server = createServer(async (request, response) => {
             ? null
             : `Observação: ${cancelled.note}`,
           cancelled.compensationReviewRequired
-            ? 'O passageiro recebeu reembolso integral; avaliar eventual compensação ao motorista separadamente.'
+            ? `Situação da devolução: ${refund.refundStatus}. Avaliar eventual compensação separadamente; não presumir recebimento.`
             : 'Revisar a ocorrência e tomar medidas operacionais se necessário.',
         ].filter((item): item is string => item != null).join(' ');
 
