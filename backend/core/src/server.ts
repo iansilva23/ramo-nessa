@@ -977,7 +977,16 @@ async function processConfirmedMercadoPagoRide(
   if (rideBeforeConfirmation?.state.startsWith('CANCELLED_')) {
     const closed = await confirmRidePayment(rideRepository, { rideId: payment.rideId, payment, confirmedAt: confirmationTime, notifyPassenger: false });
     // A late provider notification must never resurrect a cancelled trip or bypass manual review.
-    if (!closed.manualRefund) await automaticallyRefundRide({ rides: rideRepository, finance: financeRepository, promotions: promotionRepository, gateway: mercadoPagoOrdersClient, rideId: closed.id, passengerId: closed.passengerId, now: confirmationTime });
+    if (!closed.manualRefund) {
+      if (mercadoPagoOrdersClient != null) {
+        // Refund the exact payment from this notification, not a newer pending retry.
+        await refundMercadoPagoRideAfterNoDriver({ rides: rideRepository, finance: financeRepository,
+          gateway: mercadoPagoOrdersClient, rideId: closed.id, paymentId: payment.id,
+          passengerId: closed.passengerId, now: confirmationTime });
+      } else {
+        await rideRepository.save({ ...closed, state: 'REFUND_PENDING', updatedAt: confirmationTime.toISOString() });
+      }
+    }
     return;
   }
   const expiredHold =
