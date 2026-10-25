@@ -1,4 +1,4 @@
-name: Activities Web configured package and verified installer
+name: Activities Web r2 installer for the confirmed restored Web
 on:
   push:
     branches: [ops/ride-activities-web-20261025]
@@ -10,7 +10,7 @@ concurrency:
 jobs:
   package:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
@@ -33,68 +33,38 @@ jobs:
           npm run build --prefix baseline/backend/core
           npm ci --prefix backend/core --no-audit --no-fund
           npm run build --prefix backend/core
-      - uses: subosito/flutter-action@v2.23.0
-        with: {flutter-version: '3.47.5', channel: stable, cache: true}
-      - name: Build both configured Web apps without native packages
+      - name: Reuse the exact application ZIP already tested in Chromium and WebKit
         env:
-          RAMO_GOOGLE_MAPS_WEB_API_KEY: ${{ secrets.RAMO_GOOGLE_MAPS_WEB_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          python3 -m pip install --quiet Pillow==11.3.0
-          python3 scripts/web/generate_pwa_icons.py
-          for role in passenger driver; do
-            node scripts/web/prepare_configured_web.mjs --role="$role"
-            if [ "$role" = passenger ]; then route=passageiro; else route=motorista; fi
-            (cd "apps/$role" && flutter pub get --enforce-lockfile && flutter build web --release --no-web-resources-cdn --base-href="/$route/" --dart-define=RAMO_CORE_BASE_URL= --dart-define=RAMO_PREVIEW_MODE=false)
-            node scripts/web/verify_web_bundle.mjs --role="$role" --dist="apps/$role/build/web"
-          done
-      - name: Package only reviewed Core, ADM, migration and Web files
-        run: |
-          node scripts/web/package_activities_window.mjs baseline release
-          python3 - <<'PY'
-          import pathlib, zipfile
-          with zipfile.ZipFile('RamoNessa-Atividades-Web.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
-              for p in sorted(pathlib.Path('release').rglob('*')):
-                  if p.is_file(): z.write(p,p.relative_to('release'))
-          PY
-          sha256sum RamoNessa-Atividades-Web.zip > RamoNessa-Atividades-Web.zip.sha256
-      - name: Install isolated browser test runtimes
-        run: |
-          npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
-          node scripts/web/browser-tests/node_modules/playwright/cli.js install --with-deps chromium webkit
-      - name: Compiled Web login, reload and same Pix recovery in both browsers
-        run: |
-          for role in passenger driver; do
-            for engine in chromium webkit; do
-              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/activities_configured_sessions_test.mjs
-              RAMO_WEB_TEST_ROLE="$role" RAMO_BROWSER_ENGINE="$engine" node --test scripts/web/activities_configured_browser_test.mjs
-            done
-          done
-      - name: Rehearse real Docker backups, migration, rollback and authenticated recovery
+          gh release download ride-activities-web-20261025-r1 --pattern RamoNessa-Atividades-Web.zip --dir .
+          printf '%s  %s\n' a4033228493d9ebe5612631f5e7c56f5656aa786b2b068b1ab3d31464240b45b RamoNessa-Atividades-Web.zip > RamoNessa-Atividades-Web.zip.sha256
+          sha256sum -c RamoNessa-Atividades-Web.zip.sha256
+          python3 deploy/staging/stage-activities.py "$PWD/RamoNessa-Atividades-Web.zip" "$PWD/release" a4033228493d9ebe5612631f5e7c56f5656aa786b2b068b1ab3d31464240b45b
+          mkdir -p apps/passenger/build apps/driver/build
+          cp -a release/passenger apps/passenger/build/web
+          cp -a release/driver apps/driver/build/web
+          node scripts/web/package_activities_window.mjs baseline reviewed-payload
+          cmp release/activities-manifest.json reviewed-payload/activities-manifest.json
+      - name: Rehearse refusal, empty preparation retry, backup, migration and return on the confirmed Web path
         run: |
           docker pull postgres:16
           docker pull caddy:2.11.7-alpine
           sudo --preserve-env=PATH,GITHUB_ACTIONS node deploy/staging/test-activities-web-update.mjs "$PWD/RamoNessa-Atividades-Web.zip" "$PWD/baseline"
       - name: Package exact installer sources
         run: |
-          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Atividades-Web-r1.tar.gz
-          sha256sum Instalador-Atividades-Web-r1.tar.gz > Instalador-Atividades-Web-r1.tar.gz.sha256
+          git archive HEAD deploy/staging scripts/web | gzip -n > Instalador-Atividades-Web-r2.tar.gz
+          sha256sum Instalador-Atividades-Web-r2.tar.gz > Instalador-Atividades-Web-r2.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: ride-activities-configured-web-tested
+          name: ride-activities-r2-tested
           path: |
             RamoNessa-Atividades-Web.zip
             RamoNessa-Atividades-Web.zip.sha256
-            Instalador-Atividades-Web-r1.tar.gz
-            Instalador-Atividades-Web-r1.tar.gz.sha256
+            Instalador-Atividades-Web-r2.tar.gz
+            Instalador-Atividades-Web-r2.tar.gz.sha256
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: activities-web-session-evidence
-          path: |
-            artifacts/web-csp/
-            artifacts/ride-activities/
-          if-no-files-found: ignore
   publish-package:
     needs: package
     runs-on: ubuntu-24.04
@@ -102,13 +72,13 @@ jobs:
     permissions: {contents: write}
     steps:
       - uses: actions/download-artifact@v4
-        with: {name: ride-activities-configured-web-tested, path: package}
-      - name: Publish verified files only; never access the VPS
+        with: {name: ride-activities-r2-tested, path: package}
+      - name: Publish r2 only after the new installer rehearsal; never access the VPS
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           cd package
           sha256sum -c RamoNessa-Atividades-Web.zip.sha256
-          sha256sum -c Instalador-Atividades-Web-r1.tar.gz.sha256
-          gh release create ride-activities-web-20261025-r1 RamoNessa-Atividades-Web.zip RamoNessa-Atividades-Web.zip.sha256 Instalador-Atividades-Web-r1.tar.gz Instalador-Atividades-Web-r1.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Atividades do passageiro e motorista — Web' --notes 'Passageiro e Motorista Web, ADM e Core sobre a base financeira confirmada na VPS. Embarque preparado DESATIVADO. Migrações 094/095 sem apagar registros existentes, backup com restauração isolada e retornos ensaiados. Ajuda vinculada à corrida e embarque DESATIVADO. Configuração dos provedores preservada; nenhuma cobrança real ou instalação automática na VPS. Android/iPhone ficam para sincronização futura.'
+          sha256sum -c Instalador-Atividades-Web-r2.tar.gz.sha256
+          gh release create ride-activities-web-20261025-r2 RamoNessa-Atividades-Web.zip RamoNessa-Atividades-Web.zip.sha256 Instalador-Atividades-Web-r2.tar.gz Instalador-Atividades-Web-r2.tar.gz.sha256 --target "$GITHUB_SHA" --prerelease --latest=false --title 'Atividades Web — instalador corrigido para a base restaurada' --notes 'Mesmo ZIP de aplicação da r1, já validado em Chromium e WebKit. Instalador r2 fixa o caminho driver-responsive-b5c44292ff76 confirmado na VPS e permite retomar somente uma preparação vazia e privada. Novo ensaio Docker de recusa, retomada, backups restaurados, instalação e retorno sem apagar pagamentos recentes. Embarque permanece DESATIVADO. Sem instalação automática na VPS, cobrança real ou atualização Android/iOS.'
