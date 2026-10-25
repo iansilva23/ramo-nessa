@@ -99,10 +99,12 @@ class DriverOffer {
     this.paymentMethod,
     this.cashCollectionAmountCents,
     this.cashCommissionCents,
+    this.occurrenceBonusCents=0,
   });
 
   factory DriverOffer.fromJson(Map<String, dynamic> json) {
     return DriverOffer(
+      occurrenceBonusCents:(json['occurrenceBonusCents'] as num?)?.toInt()??0,
       id: json['id'] as String,
       rideId: json['rideId'] as String,
       expiresAt: DateTime.parse(json['expiresAt'] as String),
@@ -152,6 +154,7 @@ class DriverOffer {
   final String? paymentMethod;
   final int? cashCollectionAmountCents;
   final int? cashCommissionCents;
+  final int occurrenceBonusCents;
 
   bool get isCash => paymentMethod == 'cash';
 

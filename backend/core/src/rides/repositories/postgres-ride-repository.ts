@@ -438,7 +438,7 @@ export class PostgresRideRepository implements RideRepository {
         )::int AS cancelled,
         COALESCE(SUM(
           CASE
-            WHEN state = 'COMPLETED' THEN total_amount_cents
+            WHEN state = 'COMPLETED' THEN total_amount_cents+CASE WHEN payment_method='cash' THEN COALESCE((occurrence_bonus->>'amountCents')::int,0) ELSE 0 END
             ELSE 0
           END
         ), 0)::int AS "completedAmountCents"
@@ -507,13 +507,13 @@ export class PostgresRideRepository implements RideRepository {
         )::int AS "inProgress",
         COALESCE(SUM(
           CASE
-            WHEN state = 'COMPLETED' THEN driver_net_cents
+            WHEN state = 'COMPLETED' THEN driver_net_cents+CASE WHEN payment_method='cash' THEN COALESCE((occurrence_bonus->>'amountCents')::int,0) ELSE 0 END
             ELSE 0
           END
         ), 0)::int AS "earningsCents",
         COALESCE(SUM(
           CASE
-            WHEN state = 'COMPLETED' THEN total_amount_cents
+            WHEN state = 'COMPLETED' THEN total_amount_cents+CASE WHEN payment_method='cash' THEN COALESCE((occurrence_bonus->>'amountCents')::int,0) ELSE 0 END
             ELSE 0
           END
         ), 0)::int AS "grossCents",

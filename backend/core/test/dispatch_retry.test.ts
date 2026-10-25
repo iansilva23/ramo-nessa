@@ -308,3 +308,17 @@ test('dispatch usa a validade máxima de GPS configurada no Admin', async () => 
 
   assert.equal(result.kind, 'NO_DRIVER_FOUND');
 });
+
+test('replacement chooses verified shortest ETA with original quote and the existing 35-second offer',async()=>{
+ const ctx=await setup();const original=ride();await ctx.rides.save({...original,state:'SEARCHING_DRIVER',occurrenceTerms:{enabled:true,bonusEnabled:false,bonusCents:0,continuation:true}});
+ const result=await dispatchNextDriver({...ctx,rideId:original.id,pickup:{latitude:-2.82017,longitude:-40.41467},now,
+  routing:{routeDistanceKm:async()=>1,routeEstimate:async({from})=>({distanceKm:1,durationSeconds:from.latitude===-2.83?60:300})}});
+ assert.equal(result.kind,'OFFER_CREATED');if(result.kind!=='OFFER_CREATED')return;
+ assert.equal(result.offer.driverId,'driver-next');assert.equal(Date.parse(result.offer.expiresAt)-now.getTime(),35000);
+ assert.deepEqual((await ctx.rides.findById(original.id))?.quote,original.quote);
+});
+test('unavailable routing or GPS cannot invent a substitute arrival time',async()=>{
+ const ctx=await setup();await ctx.rides.save({...ride(),state:'SEARCHING_DRIVER',occurrenceTerms:{enabled:true,bonusEnabled:false,bonusCents:0,continuation:true}});
+ const result=await dispatchNextDriver({...ctx,rideId:ride().id,pickup:{latitude:-2.82017,longitude:-40.41467},now,routing:{routeDistanceKm:async()=>1,routeEstimate:async()=>{throw Error('offline');}}});
+ assert.equal(result.kind,'NO_DRIVER_FOUND');assert.deepEqual((await ctx.rides.findById(ride().id))?.quote,ride().quote);
+});

@@ -13,6 +13,11 @@ export function validateOccurrencePolicy(value:unknown):OccurrencePolicy{
  return {enabled:p.enabled,bonusEnabled:p.bonusEnabled,bonusCents:Object.fromEntries(OCCURRENCE_CATEGORIES.map(k=>[k,p.bonusCents[k]!])),revision:p.revision};
 }
 export function occurrenceText(value:unknown){if(typeof value!=='string'||value.trim().length<10||value.length>2000)throw new OccurrenceError('INVALID_STATEMENT','Descreva o ocorrido em 10 a 2000 caracteres.',400);return value.trim();}
+export function confirmedOccurrencePickup(context:any,now=Date.now()){
+ const p=context?.currentDriverLocation??context?.events?.at(-1)?.driverLocation;
+ const age=now-Date.parse(p?.observedAt);
+ return p&&Number.isFinite(p.latitude)&&Math.abs(p.latitude)<=90&&Number.isFinite(p.longitude)&&Math.abs(p.longitude)<=180&&age>=0&&age<120000?{latitude:p.latitude as number,longitude:p.longitude as number}:null;
+}
 export class RideOccurrenceStore{
  constructor(private pool:Pool){}
  private async transaction<T>(work:(c:PoolClient)=>Promise<T>){const c=await this.pool.connect();try{await c.query('BEGIN');const r=await work(c);await c.query('COMMIT');return r;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}
@@ -28,7 +33,7 @@ export class RideOccurrenceStore{
   if(!ride||(role==='passenger'?ride.passenger_id!==subjectId:ride.driver_id!==subjectId&&!involved))throw new OccurrenceError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
   const records=(await this.pool.query(`SELECT id,ride_id,driver_id,ticket_id,kind,status,driver_statement,passenger_statement,passenger_choice,cash_received_at,cash_returned_at,cash_return_confirmed,decision,revision,created_at,updated_at FROM ride_occurrences WHERE ride_id=$1 ORDER BY created_at`,[rideId])).rows;
   let pickup=null;
-  if(role==='passenger'&&records.length){const context=(await this.pool.query('SELECT ride_context FROM driver_support_tickets WHERE id=$1',[records.at(-1).ticket_id])).rows[0]?.ride_context;const point=context?.currentDriverLocation??context?.events?.at(-1)?.driverLocation;if(point&&Number.isFinite(point.latitude)&&Number.isFinite(point.longitude)&&Number.isFinite(Date.parse(point.observedAt))&&Date.now()-Date.parse(point.observedAt)>=0&&Date.now()-Date.parse(point.observedAt)<120000)pickup={latitude:point.latitude,longitude:point.longitude};}
+  if(role==='passenger'&&records.length){const context=(await this.pool.query('SELECT ride_context FROM driver_support_tickets WHERE id=$1',[records.at(-1).ticket_id])).rows[0]?.ride_context;pickup=confirmedOccurrencePickup(context);}
   return {pickup,enabled:ride.occurrence_terms.enabled,items:records,cashReceived:(await this.pool.query('SELECT 1 FROM ride_cash_receipts WHERE ride_id=$1',[rideId])).rowCount!==0};
  }
  async receiveCash(rideId:string,driverId:string){return this.transaction(async c=>{
@@ -52,6 +57,7 @@ export class RideOccurrenceStore{
    if(!r.occurrence_terms.enabled)throw new OccurrenceError('FEATURE_DISABLED','Novas ocorrências estão desativadas para esta corrida.');
    if(r.payment_method==='cash'?!['DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS'].includes(r.state):r.state!=='IN_PROGRESS')throw new OccurrenceError('INVALID_STAGE','Esta opção exige uma corrida iniciada.');
    if(r.payment_method==='cash'?kind!=='cash':r.payment_method!=='pix'||r.payment_status!=='paid'||kind==='cash')throw new OccurrenceError('INVALID_METHOD','Procedimento incompatível com o pagamento.');
+   if(r.payment_method==='pix'&&(await c.query('SELECT 1 FROM ledger_transactions WHERE reference_key=$1',['ride-settlement:'+r.id])).rowCount)throw new OccurrenceError('FINANCIAL_REVIEW_REQUIRED','O valor já recebeu decisão financeira. Procure o suporte.');
    const id=randomUUID(),ticket=randomUUID();
    await c.query(`INSERT INTO driver_support_tickets(id,driver_id,category,subject,message,status,ride_id,ride_context,created_at,updated_at) VALUES($1,$2,'ride','Interrupção de corrida',$3,'open',$4,$5,now(),now())`,[ticket,input.driverId,statement,r.id,input.context]);
    const record=(await c.query(`INSERT INTO ride_occurrences(id,ride_id,driver_id,ticket_id,kind,status,driver_statement,cash_received_at) VALUES($1,$2,$3,$4,$5,$6,$7,(SELECT received_at FROM ride_cash_receipts WHERE ride_id=$2)) RETURNING *`,[id,r.id,input.driverId,ticket,kind,kind==='refund'?'refund_pending':'awaiting_passenger',statement])).rows[0];
@@ -63,13 +69,14 @@ export class RideOccurrenceStore{
   const statement=occurrenceText(input.statement),choice=String(input.choice);
   if(!['refund','continue','dispute','cash_confirm','cash_contest'].includes(choice))throw new OccurrenceError('INVALID_CHOICE','Escolha como continuar.',400);
   return this.transaction(async c=>{
-   const o=(await c.query('SELECT o.*,r.passenger_id,r.state,r.payment_method FROM ride_occurrences o JOIN rides r ON r.id=o.ride_id WHERE o.id=$1 FOR UPDATE OF r,o',[input.id])).rows[0];
+   const o=(await c.query('SELECT o.*,r.passenger_id,r.state,r.payment_method,t.ride_context FROM ride_occurrences o JOIN rides r ON r.id=o.ride_id JOIN driver_support_tickets t ON t.id=o.ticket_id WHERE o.id=$1 FOR UPDATE OF r,o',[input.id])).rows[0];
    if(!o||o.ride_id!==input.rideId||o.passenger_id!==input.passengerId)throw new OccurrenceError('OCCURRENCE_NOT_FOUND','Ocorrência não encontrada.',404);
    if(o.revision!==input.revision||!['awaiting_passenger','review','replacement_search'].includes(o.status))throw new OccurrenceError('CASE_CHANGED','A ocorrência foi atualizada.');
    let status='review';
    if(choice==='continue'){
     if(o.status!=='awaiting_passenger'||o.kind!=='mechanical'||o.payment_method!=='pix')throw new OccurrenceError('INVALID_CHOICE','A substituição é exclusiva de problema mecânico em Pix.');
     const p=input.pickup;if(!p||!Number.isFinite(p.latitude)||Math.abs(p.latitude)>90||!Number.isFinite(p.longitude)||Math.abs(p.longitude)>180)throw new OccurrenceError('PICKUP_REQUIRED','Confirme um local seguro de embarque com GPS válido.',400);
+    const trusted=confirmedOccurrencePickup(o.ride_context);if(!trusted||trusted.latitude!==p.latitude||trusted.longitude!==p.longitude)throw new OccurrenceError('PICKUP_UNVERIFIED','Atualize o GPS ou procure o suporte para confirmar o embarque.');
     await c.query("UPDATE rides SET occurrence_terms=jsonb_set(occurrence_terms,'{continuation}','true'::jsonb),state='SEARCHING_DRIVER',driver_id=NULL,driver_consent_required=false,reserved_driver_id=NULL,driver_hold_expires_at=NULL,pickup_latitude=$2,pickup_longitude=$3,updated_at=now() WHERE id=$1",[o.ride_id,p.latitude,p.longitude]);status='replacement_search';
    }else if(choice==='refund'){
     if(o.payment_method!=='pix'||!['mechanical','refund'].includes(o.kind))throw new OccurrenceError('INVALID_CHOICE','Solicite a análise do suporte.');
@@ -78,7 +85,7 @@ export class RideOccurrenceStore{
     if(o.kind!=='cash'||(choice==='cash_confirm'&&o.cash_received_at&&!o.cash_returned_at))throw new OccurrenceError('CASH_RETURN_UNCONFIRMED','Aguarde o registro da devolução pelo motorista.');
     await c.query("UPDATE rides SET state='CANCELLED_BY_DRIVER',updated_at=now() WHERE id=$1",[o.ride_id]);
    }
-   if(choice==='continue'||choice==='refund'||choice.startsWith('cash_'))await c.query('UPDATE driver_supply SET busy=false WHERE driver_id=$1',[o.driver_id]);
+   if(choice==='continue'||choice==='refund'||choice.startsWith('cash_'))await c.query("UPDATE driver_supply SET busy=false WHERE driver_id=$1 AND NOT EXISTS(SELECT 1 FROM rides WHERE driver_id=$1 AND state IN ('DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS','INTERRUPTED'))",[o.driver_id]);
    const result=(await c.query('UPDATE ride_occurrences SET passenger_statement=$2,passenger_choice=$3,status=$4,cash_return_confirmed=$5,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *',[o.id,statement,choice,status,choice==='cash_confirm'?true:choice==='cash_contest'?false:null])).rows[0];
    await this.audit(c,o.id,'passenger.responded',{passengerId:input.passengerId},{choice});return result;
   });
@@ -112,7 +119,7 @@ export class RideOccurrenceStore{
    const status=input.action==='refund'?'refund_pending':input.action==='pay_driver'?'review':'resolved';
    const result=(await c.query('UPDATE ride_occurrences SET decision=$2,status=$3,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *',[o.id,decision,status])).rows[0];
    if(input.action!=='pay_driver')await c.query("UPDATE rides SET state='CANCELLED_BY_ADMIN',updated_at=now() WHERE id=$1 AND state='INTERRUPTED'",[o.ride_id]);
-   if(input.action!=='pay_driver')await c.query('UPDATE driver_supply SET busy=false WHERE driver_id=$1',[o.driver_id]);
+   if(input.action!=='pay_driver')await c.query("UPDATE driver_supply SET busy=false WHERE driver_id=$1 AND NOT EXISTS(SELECT 1 FROM rides WHERE driver_id=$1 AND state IN ('DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS','INTERRUPTED'))",[o.driver_id]);
    await this.audit(c,o.id,'moderation.decision',input.actor,decision);return result;
   });
  }
@@ -122,7 +129,7 @@ export class RideOccurrenceStore{
   if(!(await c.query("SELECT 1 FROM ledger_transactions WHERE reference_key=$1",['ride-settlement:'+o.ride_id])).rowCount)throw new OccurrenceError('SETTLEMENT_PENDING','Crédito ainda não confirmado.');
   await c.query("UPDATE ride_occurrence_penalties SET status='consumed' WHERE reserved_ride_id=$1 AND status='reserved' AND EXISTS(SELECT 1 FROM ledger_transactions WHERE reference_key='occurrence-bonus:'||$1::text)",[o.ride_id]);
   await c.query("UPDATE rides SET state='CANCELLED_BY_ADMIN',updated_at=now() WHERE id=$1 AND state='INTERRUPTED'",[o.ride_id]);
-  await c.query('UPDATE driver_supply SET busy=false WHERE driver_id=$1',[o.driver_id]);
+  await c.query("UPDATE driver_supply SET busy=false WHERE driver_id=$1 AND NOT EXISTS(SELECT 1 FROM rides WHERE driver_id=$1 AND state IN ('DRIVER_ASSIGNED','DRIVER_ARRIVING','DRIVER_ARRIVED','IN_PROGRESS','INTERRUPTED'))",[o.driver_id]);
   await c.query("UPDATE ride_occurrences SET status='resolved',revision=revision+1,updated_at=now() WHERE id=$1",[id]);return {resolved:true};
  });}
  async quoteBonus(passengerId:string){
@@ -131,6 +138,7 @@ export class RideOccurrenceStore{
    WHERE p.passenger_id=$1 AND (p.status='pending' OR (p.status='reserved' AND r.state='AWAITING_PAYMENT' AND r.driver_id IS NULL AND r.payment_method IS NULL AND r.payment_status='created' AND COALESCE(r.payment_expires_at,r.driver_hold_expires_at)<now() AND NOT EXISTS(SELECT 1 FROM payments WHERE ride_id=r.id))) ORDER BY p.created_at,p.id LIMIT 1`,[passengerId]);return result.rows[0]?.amount_cents??0;
  }
  async reserveBonus(rideId:string,passengerId:string){return this.transaction(async c=>{
+  await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['occurrence-penalty:'+passengerId]);
   const r=(await c.query('SELECT * FROM rides WHERE id=$1 AND passenger_id=$2 FOR UPDATE',[rideId,passengerId])).rows[0];
   if(!r||!r.occurrence_terms.bonusEnabled||r.occurrence_bonus)return;
   const p=(await c.query(`SELECT p.* FROM ride_occurrence_penalties p LEFT JOIN rides r ON r.id=p.reserved_ride_id

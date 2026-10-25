@@ -75,7 +75,7 @@ jobs:
       - run: npm ci --prefix scripts/web/browser-tests --no-audit --no-fund
       - run: npx --no-install playwright install --with-deps ${{ matrix.engine }}
         working-directory: scripts/web/browser-tests
-      - run: node --test scripts/web/boarding_admin_browser_test.mjs
+      - run: node --test scripts/web/boarding_admin_browser_test.mjs scripts/web/occurrences_admin_browser_test.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

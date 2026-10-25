@@ -55,6 +55,8 @@ BEGIN
   IF EXISTS(SELECT 1 FROM ride_boarding_codes WHERE ride_id=NEW.id AND assignment_driver_id=NEW.driver_id) THEN RETURN NEW;END IF;
   INSERT INTO ride_boarding_history(ride_id,driver_id,code,attempts,verified_at,override_at)
   SELECT ride_id,assignment_driver_id,code,attempts,verified_at,override_at FROM ride_boarding_codes WHERE ride_id=NEW.id;
+  INSERT INTO ride_boarding_audit(ride_id,action,actor,details) VALUES(NEW.id,'boarding.reissued','{"kind":"system"}',jsonb_build_object('driverId',NEW.driver_id));
+  IF (SELECT count(*) FROM ride_boarding_history WHERE ride_id=NEW.id)>=1000 THEN RAISE EXCEPTION 'Boarding history exhausted; support review required';END IF;
   active:=true;
  END IF;
  IF active THEN
@@ -63,7 +65,7 @@ BEGIN
    WHILE length(digits)<3 LOOP
     b:=get_byte(gen_random_bytes(1),0);IF b<250 THEN digits:=digits||(b%10)::text;END IF;
    END LOOP;
-   EXIT WHEN previous IS NULL OR digits<>previous;
+   EXIT WHEN (previous IS NULL OR digits<>previous) AND NOT EXISTS(SELECT 1 FROM ride_boarding_history WHERE ride_id=NEW.id AND code=digits);
   END LOOP;
   INSERT INTO ride_boarding_codes(ride_id,code,assignment_driver_id) VALUES(NEW.id,digits,NEW.driver_id)
   ON CONFLICT(ride_id) DO UPDATE SET code=EXCLUDED.code,assignment_driver_id=EXCLUDED.assignment_driver_id,
@@ -86,6 +88,9 @@ BEGIN
  IF NEW.state='IN_PROGRESS' AND EXISTS(SELECT 1 FROM ride_occurrences WHERE ride_id=NEW.id AND status='replacement_search' AND driver_id<>NEW.driver_id) THEN
   UPDATE ride_occurrences SET status='resolved',revision=revision+1,updated_at=now(),decision=jsonb_build_object('action','continued','originalDriverAmountCents',0,'replacementDriverId',NEW.driver_id) WHERE ride_id=NEW.id AND status='replacement_search';
  END IF;
+ IF NEW.state IN ('CANCELLED_BY_PASSENGER','CANCELLED_BY_DRIVER','CANCELLED_BY_ADMIN') THEN
+  UPDATE ride_occurrences SET status='refund_pending',revision=revision+1,updated_at=now() WHERE ride_id=NEW.id AND status='replacement_search';
+ END IF;
  IF NEW.state='REFUNDED' THEN
   UPDATE ride_occurrences SET status='resolved',revision=revision+1,updated_at=now() WHERE ride_id=NEW.id AND status='refund_pending';
  END IF;
@@ -95,3 +100,14 @@ BEGIN
  RETURN NEW;
 END $$;
 CREATE TRIGGER rides_occurrence_completion AFTER UPDATE OF state ON rides FOR EACH ROW WHEN(OLD.state IS DISTINCT FROM NEW.state) EXECUTE FUNCTION update_ride_occurrence_completion();
+
+-- Consume within the same database transaction as the real settlement, including
+-- retries after a process crash. Recovery GETs never perform financial actions.
+CREATE FUNCTION consume_settled_occurrence_bonus() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ UPDATE ride_occurrence_penalties p SET status='consumed',revision=revision+1,updated_at=now()
+ FROM rides r WHERE p.reserved_ride_id=r.id AND r.state='COMPLETED' AND p.status='reserved'
+ AND NEW.reference_key=CASE WHEN r.payment_method='cash' THEN 'cash-ride-commission:'||r.id::text ELSE 'occurrence-bonus:'||r.id::text END;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER ledger_occurrence_bonus AFTER INSERT ON ledger_transactions FOR EACH ROW EXECUTE FUNCTION consume_settled_occurrence_bonus();

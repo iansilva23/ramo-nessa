@@ -266,13 +266,14 @@ export function driverOfferView(offer: {
     passengers: ride.passengers,
     origin: ride.origin,
     destination: ride.destination,
-    driverEarningsCents: ride.quote.driverNetCents,
+    driverEarningsCents: ride.quote.driverNetCents+(ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0),
+    occurrenceBonusCents:ride.paymentMethod==='cash'?(ride.occurrenceBonus?.amountCents??0):0,
     pickupCompensationCents: ride.quote.pickupCompensationCents,
     awaitingPassengerPayment: ride.state === 'AWAITING_PAYMENT',
     paymentMethod: ride.paymentMethod ?? null,
     cashCollectionAmountCents:
       ride.paymentMethod === 'cash'
-        ? ride.quote.totalAmountCents
+        ? ride.quote.totalAmountCents+(ride.occurrenceBonus?.amountCents??0)
         : null,
     cashCommissionCents:
       ride.paymentMethod === 'cash'
@@ -403,6 +404,8 @@ export async function acceptOfferFromDriverApp(input: {
     offerId: result.offer.id,
     ride: {
       id: result.ride.id,
+      occurrencesEnabled:result.ride.occurrenceTerms?.enabled??false,
+      occurrenceBonusCents:result.ride.paymentMethod==='cash'?(result.ride.occurrenceBonus?.amountCents??0):0,
       state: result.ride.state,
       driverHoldExpiresAt: result.ride.driverHoldExpiresAt,
       category: result.ride.category,
@@ -413,13 +416,13 @@ export async function acceptOfferFromDriverApp(input: {
       pickupLongitude: result.ride.pickupLongitude,
       dropoffLatitude: result.ride.dropoffLatitude,
       dropoffLongitude: result.ride.dropoffLongitude,
-      driverEarningsCents: result.ride.quote.driverNetCents,
+      driverEarningsCents: result.ride.quote.driverNetCents+(result.ride.paymentMethod==='cash'?(result.ride.occurrenceBonus?.amountCents??0):0),
       pickupCompensationCents:
         result.ride.quote.pickupCompensationCents,
       paymentMethod: result.ride.paymentMethod ?? null,
       cashCollectionAmountCents:
         result.ride.paymentMethod === 'cash'
-          ? result.ride.quote.totalAmountCents
+          ? result.ride.quote.totalAmountCents+(result.ride.occurrenceBonus?.amountCents??0)
           : null,
       cashCommissionCents:
         result.ride.paymentMethod === 'cash'

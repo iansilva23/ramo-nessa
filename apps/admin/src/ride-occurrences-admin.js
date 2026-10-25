@@ -28,9 +28,10 @@ export function createOccurrencesAdmin({root,api,getToken,hasScope,view,openTick
    const card=node('article');card.className='panel-card';card.append(node('h3','Corrida '+c.ride_id.slice(0,8)),node('p','Situação: '+c.status+' · '+c.payment_method),node('p','Motorista: '+c.driver_statement),node('p','Passageiro: '+(c.passenger_statement||'Aguardando versão')),node('p','Atendimento existente: '+c.ticket_id));
    const ticket=node('button','Abrir atendimento e evidências');ticket.type='button';ticket.onclick=()=>openTicket?.(c.ticket_id);card.append(ticket);
    if(c.cash_returned_at)card.append(node('p',c.cash_return_confirmed===true?'Passageiro confirmou a devolução em dinheiro':c.cash_return_confirmed===false?'Passageiro contestou a devolução':'Motorista registrou devolução; passageiro ainda não confirmou'));
-   if(c.decision)card.append(node('p','Decisão: '+c.decision.action+' — '+c.decision.note));
+   if(c.decision){card.append(node('p','Decisão: '+c.decision.action+' — '+c.decision.note));if(c.decision.penalty)card.append(node('p','Adicional futuro aprovado após moderação.'));}
    const evidence=node('details');evidence.append(node('summary','Referência e dados financeiros'),node('p','Corrida: '+c.ride_id),node('p','Estado da corrida: '+c.ride_state+' · pagamento: '+c.payment_status));card.append(evidence);
-   if(c.status!=='resolved'&&hasScope('support:write')){
+   if(c.decision&&c.status!=='resolved'&&hasScope('support:write')&&hasScope('finance:write')){const retry=node('button','Consultar e concluir operação financeira pendente');retry.type='button';retry.onclick=()=>void execute(async()=>{await request(`/v1/admin/ride-occurrences/${c.id}/decision`,'POST',{...c.decision,revision:c.revision});await load();});card.append(retry);}
+   if(!c.decision&&c.status!=='resolved'&&hasScope('support:write')){
     const form=node('form'),choice=node('select'),note=node('textarea'),penalty=node('input'),penaltyLabel=node('label','Aplicar adicional futuro por desistência injustificada após analisar as duas versões'),save=node('button','Registrar decisão');
     for(const [value,label]of [['close','Encerrar sem penalidade'],['refund','Solicitar devolução integral por Pix'],['pay_driver','Creditar tarifa ao motorista']]){
      const o=node('option',label);o.value=value;o.disabled=value!=='close'&&(!hasScope('finance:write')||c.payment_method!=='pix')||value==='pay_driver'&&c.kind!=='dispute';choice.append(o);
