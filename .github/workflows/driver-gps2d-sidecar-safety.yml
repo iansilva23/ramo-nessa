@@ -42,6 +42,9 @@ jobs:
               except RuntimeError: pass
               else: raise AssertionError('Unsafe path accepted: '+bad)
           assert module.EXPECTED_MAP_ID=='de20bf289d6db3ad15fdb14b'
-          assert module.URL.endswith('/motorista/gps2d/')
+          assert module.URL.endswith('/motorista/gps2d/index.html')
+          # Caddy's existing SPA try_files currently falls back to
+          # /motorista/index.html on /motorista/gps2d/ directory requests.
+          # We target the actual file and keep the base-href on /gps2d/.
           print('Sidecar ZIP validation and isolation path approved')
           PY
