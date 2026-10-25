@@ -1,0 +1,30 @@
+name: ADM design - isolated installation and rollback
+on:
+  push:
+    branches: [ops/admin-design-web-20261025]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: {scenario: [success, rollback]}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Source remains identical to the browser-reviewed ADM
+        run: git diff --exit-code b4fe3d0ef02b7184ecbfab32dea9d5d66e48b58c HEAD -- apps backend packages config
+      - name: Pinned source and update contracts
+        run: node --test deploy/staging/update-admin-design.test.mjs
+      - name: Actual disposable Core, PostgreSQL and Gateway update or rollback
+        run: sudo env GITHUB_ACTIONS=true RAMO_ADMIN_CI_ORIGIN=http://127.0.0.1:18080 ADMIN_UPDATE_SCENARIO=${{ matrix.scenario }} "$(command -v node)" deploy/staging/admin-design-update-ci.mjs
+      - name: Synthetic fixture diagnostics only
+        if: failure()
+        run: |
+          sudo find /opt/ramo-nessa-admin-design/updates -type f \( -name last-command.private.log -o -name error.private.log \) -exec tail -c 8000 {} \; || true
+          docker logs --tail 30 ramo-nessa-staging-core-1 || true
+          docker logs --tail 30 ramo-nessa-staging-gateway-1 || true
