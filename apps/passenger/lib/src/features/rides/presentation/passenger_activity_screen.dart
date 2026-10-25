@@ -11,11 +11,13 @@ class PassengerActivityScreen extends StatefulWidget {
     this.onResume,
     this.support,
     this.visible = true,
+    this.onLoaded,
   });
   final PassengerActivityService? service;
   final Future<void> Function(PassengerActivityRide ride)? onResume;
   final RamoRideSupportApi? support;
   final bool visible;
+  final ValueChanged<PassengerActivitySnapshot>? onLoaded;
   @override
   State<PassengerActivityScreen> createState() =>
       _PassengerActivityScreenState();
@@ -68,6 +70,7 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
     setState(() => _loading = true);
     try {
       final activity = await widget.service!.fetch();
+      if (mounted) widget.onLoaded?.call(activity);
       if (mounted) {
         setState(() {
           _activity = activity;
@@ -190,15 +193,10 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
               ],
             ),
             const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _tab('Em andamento · ${active.length}', false),
-                ),
-                const SizedBox(width: 16),
-                Expanded(flex: 2, child: _tab('Histórico', true)),
-              ],
+            RamoRideActivityTabs(
+              activeCount: active.length,
+              history: _history,
+              onChanged: (value) => setState(() => _history = value),
             ),
             const Divider(height: 1),
             const SizedBox(height: 22),
@@ -283,22 +281,4 @@ class _PassengerActivityScreenState extends State<PassengerActivityScreen>
       ),
     );
   }
-
-  Widget _tab(String label, bool history) => TextButton(
-    onPressed: () => setState(() => _history = history),
-    style: TextButton.styleFrom(
-      foregroundColor: Theme.of(context).colorScheme.onSurface,
-      textStyle: const TextStyle(fontSize: 13),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      minimumSize: const Size(0, 48),
-      shape: const RoundedRectangleBorder(),
-      side: BorderSide(
-        color: _history == history
-            ? Theme.of(context).colorScheme.onSurface
-            : Colors.transparent,
-        width: 2,
-      ),
-    ),
-    child: Text(label),
-  );
 }

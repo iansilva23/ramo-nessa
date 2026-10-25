@@ -17,12 +17,16 @@ export function renderSupportRideContext(ticket, {section, container}) {
   line('Situação', context.ride?.state);
   line('Passageiro', context.ride?.passengerId);
   line('Motorista', context.driver?.name || context.ride?.driverId);
-  line('Veículo', context.vehicle ? `${context.vehicle.make} ${context.vehicle.model} · ${context.vehicle.color} · ${context.vehicle.plate}` : null);
+  line('Veículo cadastrado no atendimento', context.vehicle ? `${context.vehicle.make} ${context.vehicle.model} · ${context.vehicle.color} · ${context.vehicle.plate}` : null);
   line('Pagamento', context.payment ? `${context.payment.method} · ${context.payment.status} · ${formatCurrencyCents(context.payment.amountCents)} · ${context.payment.id}` : context.ride?.paymentStatus);
   const events = Array.isArray(context.events) ? context.events : [];
   if (!events.length) line('Etapas', 'Sem histórico de etapas disponível. Registros antigos não foram reconstruídos.');
   events.forEach(event => {
     line('Etapa registrada', `${formatDateTime(event.recordedAt)} · ${event.state} · pagamento ${event.paymentStatus}`);
+    if (event.vehicleSnapshot) {
+      const vehicle = event.vehicleSnapshot;
+      line('Veículo registrado nesta etapa', `${vehicle.make} ${vehicle.model} · ${vehicle.color} · ${vehicle.plate}`);
+    }
     if (event.driverLocation) {
       const gps = event.driverLocation;
       line('GPS observado pelo dispositivo', `${gps.latitude}, ${gps.longitude} · ${formatDateTime(gps.observedAt)} · precisão ${gps.accuracyMeters == null ? 'não disponível' : `${gps.accuracyMeters} m`}`);
@@ -30,4 +34,3 @@ export function renderSupportRideContext(ticket, {section, container}) {
   });
   line('Limites dos registros', context.evidenceNote);
 }
-

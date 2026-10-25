@@ -168,10 +168,10 @@ const RETURNING = `
 
 export class PostgresRideRepository implements RideRepository {
   async listActivityEvents(rideId: string): Promise<import('../ride-support-context.js').RideActivityEvent[]> {
-    const result = await this.pool.query(`SELECT state, payment_status, driver_id, recorded_at, driver_location
+    const result = await this.pool.query(`SELECT state, payment_status, driver_id, recorded_at, driver_location, vehicle_snapshot
       FROM ride_activity_events WHERE ride_id = $1 ORDER BY id`, [rideId]);
     return result.rows.map(row => ({state: row.state, paymentStatus: row.payment_status,
-      driverId: row.driver_id, recordedAt: row.recorded_at.toISOString(), driverLocation: row.driver_location}));
+      driverId: row.driver_id, recordedAt: row.recorded_at.toISOString(), driverLocation: row.driver_location, vehicleSnapshot: row.vehicle_snapshot}));
   }
 
   async findRecoverableByPassengerId(passengerId:string):Promise<RideRecord|null>{

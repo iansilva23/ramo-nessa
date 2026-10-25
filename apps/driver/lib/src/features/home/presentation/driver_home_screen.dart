@@ -1185,7 +1185,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     } catch (_) {
       if (mounted) setState(() => _rideConnectionIssue = true);
     } finally {
-      _restoringRide = false;
+      if (mounted) {
+        setState(() => _restoringRide = false);
+      } else {
+        _restoringRide = false;
+      }
     }
   }
 
@@ -2428,34 +2432,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               ],
             ),
             const SizedBox(height: 22),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => setState(() => _activityHistory = false),
-                  child: Text(
-                    'Em andamento · ${data == null || data.terminal ? 0 : 1}',
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontWeight: _activityHistory
-                          ? FontWeight.w400
-                          : FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () => setState(() => _activityHistory = true),
-                  child: Text(
-                    'Histórico',
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontWeight: _activityHistory
-                          ? FontWeight.w700
-                          : FontWeight.w400,
-                    ),
-                  ),
-                ),
-              ],
+            RamoRideActivityTabs(
+              activeCount: data == null || data.terminal ? 0 : 1,
+              history: _activityHistory,
+              onChanged: (value) => setState(() => _activityHistory = value),
             ),
             const Divider(height: 1),
             const SizedBox(height: 22),

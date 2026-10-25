@@ -1,3 +1,4 @@
+import '../foundation/ramo_colors.dart';
 import 'package:flutter/material.dart';
 
 import 'ramo_ride_activity.dart';
@@ -29,6 +30,7 @@ class _RamoRideSupportScreenState extends State<RamoRideSupportScreen> {
   final _description = TextEditingController();
   String? _reason, _error;
   bool _sending = false, _loading = true;
+  int _loadGeneration = 0;
   List<Map<String, dynamic>> _tickets = [];
   @override
   void initState() {
@@ -43,16 +45,17 @@ class _RamoRideSupportScreenState extends State<RamoRideSupportScreen> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
     try {
       final tickets = await widget.api.rideSupportTickets(widget.ride.id);
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _tickets = tickets;
           _loading = false;
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _loadGeneration) {
         setState(() {
           _loading = false;
           _error =
@@ -191,6 +194,11 @@ class _RamoRideSupportScreenState extends State<RamoRideSupportScreen> {
                 ),
               ),
             FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: RamoColors.brandYellow,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11))),
               onPressed: _sending ? null : _send,
               icon: _sending
                   ? const SizedBox(

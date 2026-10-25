@@ -400,3 +400,48 @@ class RamoRideDetailsScreen extends StatelessWidget {
         ),
       );
 }
+
+class RamoRideActivityTabs extends StatelessWidget {
+  const RamoRideActivityTabs(
+      {super.key,
+      required this.activeCount,
+      required this.history,
+      required this.onChanged});
+  final int activeCount;
+  final bool history;
+  final ValueChanged<bool> onChanged;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    Widget tab(String label, bool value) => DecoratedBox(
+        decoration: BoxDecoration(
+            border: Border(
+                bottom: BorderSide(
+                    color: history == value
+                        ? colors.onSurface
+                        : Colors.transparent,
+                    width: 2))),
+        child: Semantics(
+            selected: history == value,
+            child: TextButton(
+                onPressed: () => onChanged(value),
+                style: TextButton.styleFrom(
+                    foregroundColor: history == value
+                        ? colors.onSurface
+                        : colors.onSurfaceVariant,
+                    textStyle: TextStyle(
+                        fontSize: 13,
+                        fontWeight: history == value
+                            ? FontWeight.w600
+                            : FontWeight.w400),
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    shape: const RoundedRectangleBorder()),
+                child: Text(label))));
+    return Row(children: [
+      Expanded(flex: 3, child: tab('Em andamento · $activeCount', false)),
+      const SizedBox(width: 16),
+      Expanded(flex: 2, child: tab('Histórico', true))
+    ]);
+  }
+}

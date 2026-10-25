@@ -69,6 +69,7 @@ class PassengerMainShell extends StatefulWidget {
 
 class _PassengerMainShellState extends State<PassengerMainShell> {
   int _index = 0;
+  PassengerActivityRide? _currentRide;
   final ValueNotifier<RamoPlace?> _guideDestination = ValueNotifier(null);
 
   @override
@@ -181,7 +182,40 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      widget.homeBuilder(() => _select(3), () => _select(1), _guideDestination),
+      Column(
+        children: [
+          if (_currentRide != null)
+            SafeArea(
+              bottom: false,
+              child: Material(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.route_outlined),
+                  title: Text(
+                    _currentRide!.activityData.awaitingPayment
+                        ? 'Você tem um pagamento pendente'
+                        : 'Você tem uma corrida em andamento',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  subtitle: const Text(
+                    'Ver em Atividades',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _select(2),
+                ),
+              ),
+            ),
+          Expanded(
+            child: widget.homeBuilder(
+              () => _select(3),
+              () => _select(1),
+              _guideDestination,
+            ),
+          ),
+        ],
+      ),
       widget.guideService == null
           ? AgencyToursScreen(service: widget.tourService)
           : LocalGuideScreen(
@@ -195,6 +229,14 @@ class _PassengerMainShellState extends State<PassengerMainShell> {
       PassengerActivityScreen(
         service: widget.activityService,
         visible: _index == 2,
+        onLoaded: (snapshot) {
+          final active = snapshot.rides.where((r) => !r.activityData.terminal);
+          final next = active.isEmpty ? null : active.first;
+          if (next?.id != _currentRide?.id ||
+              next?.state != _currentRide?.state) {
+            setState(() => _currentRide = next);
+          }
+        },
         onResume: widget.onResumeRide == null
             ? null
             : (ride) => widget.onResumeRide!(context, ride),

@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS ride_activity_events (
   state text NOT NULL,
   payment_status text NOT NULL,
   driver_id text,
-  driver_location jsonb
+  driver_location jsonb,
+  vehicle_snapshot jsonb
 );
 CREATE INDEX IF NOT EXISTS ride_activity_events_ride_idx ON ride_activity_events(ride_id, id);
 
@@ -24,11 +25,13 @@ BEGIN
       RETURN NEW;
     END IF;
   END IF;
-  INSERT INTO ride_activity_events(ride_id, state, payment_status, driver_id, driver_location)
+  INSERT INTO ride_activity_events(ride_id, state, payment_status, driver_id, driver_location, vehicle_snapshot)
   VALUES (NEW.id, NEW.state, NEW.payment_status, NEW.driver_id,
     (SELECT jsonb_build_object('latitude', latitude, 'longitude', longitude,
       'observedAt', location_updated_at, 'accuracyMeters', NULL)
-     FROM driver_supply WHERE driver_id = NEW.driver_id));
+     FROM driver_supply WHERE driver_id = NEW.driver_id),
+    (SELECT jsonb_build_object('id', id, 'plate', plate_normalized, 'make', make, 'model', model, 'color', color)
+     FROM driver_vehicles WHERE driver_id = NEW.driver_id));
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS rides_activity_event ON rides;

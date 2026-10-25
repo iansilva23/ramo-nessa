@@ -9,6 +9,7 @@ export interface RideActivityEvent {
   paymentStatus: string;
   recordedAt: string;
   driverId: string | null;
+  vehicleSnapshot: {id:string;plate:string;make:string;model:string;color:string} | null;
   driverLocation: {latitude: number; longitude: number; observedAt: string; accuracyMeters: number | null} | null;
 }
 export interface RideSupportDependencies {
@@ -41,6 +42,7 @@ export async function rideSupportContext(input: RideSupportDependencies & {
     capturedAt: (input.now ?? new Date()).toISOString(),
     ride: {id: ride.id, passengerId: ride.passengerId, driverId: ride.driverId ?? null,
       state: ride.state, category: ride.category, origin: ride.origin, destination: ride.destination,
+      pickupInstructions: ride.pickupInstructions ?? null, dropoffInstructions: ride.dropoffInstructions ?? null,
       pickupLatitude: ride.pickupLatitude ?? null, pickupLongitude: ride.pickupLongitude ?? null,
       dropoffLatitude: ride.dropoffLatitude ?? null, dropoffLongitude: ride.dropoffLongitude ?? null,
       createdAt: ride.createdAt, updatedAt: ride.updatedAt, totalAmountCents: ride.quote.totalAmountCents,

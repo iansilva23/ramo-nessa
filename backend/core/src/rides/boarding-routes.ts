@@ -13,7 +13,7 @@ export async function boardingRoutes(i:{url:URL;method:string;store:PostgresBoar
  try{
   if(path==='/v1/passenger/me/ride'&&i.method==='GET'){
    const id=await i.passenger(),last=i.url.searchParams.get('lastRideId'),selected=i.url.searchParams.get('rideId');
-   if(selected && !/^[0-9a-f-]{36}$/i.test(selected))throw new BoardingError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
+   if(selected && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selected))throw new BoardingError('RIDE_NOT_FOUND','Corrida não encontrada.',404);
    i.json(200,await resumePassengerRide({rides:i.rides,finance:i.finance,boarding:i.store,passengerId:id,...(selected?{rideId:selected}:{}),...(last&&/^[0-9a-f-]{36}$/i.test(last)?{lastRideId:last}:{})}));return true;
   }
   if((passenger||driver)&&i.method==='GET'){
