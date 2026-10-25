@@ -116,9 +116,8 @@ def check_published(expected_manifest):
         fail("Manifesto HTTPS público não é o mesmo preparado")
     if sha(api(BASE + "index.html?ramo=pwa")) != EXPECTED_INDEX:
         fail("Atalho Web não abre o HTML correto")
-    if api("/ready").strip() not in (b"", b"OK", b"ok", b"ready", b"READY"):
-        # Health body is implementation-defined; HTTP 200 above is what matters.
-        pass
+    # Body can vary; HTTP 200 is the only required health contract.
+    api("/ready")
 
 def main(mode):
     if mode not in ("install", "rollback", "status"):
