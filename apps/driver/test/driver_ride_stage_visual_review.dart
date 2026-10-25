@@ -49,9 +49,15 @@ void main() {
           await tester.tap(find.text('Finalizar corrida'));
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 500));
+          // Capture the settled completion panel, not its transient snackbar.
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pump(const Duration(milliseconds: 400));
         }
 
-        expect(find.text(entry.value), findsOneWidget);
+        final expected = width < 360 && entry.key == 'AWAITING_PAYMENT'
+            ? 'Aguardando pagamento'
+            : entry.value;
+        expect(find.text(expected), findsOneWidget);
         expect(tester.takeException(), isNull);
 
         await expectLater(
