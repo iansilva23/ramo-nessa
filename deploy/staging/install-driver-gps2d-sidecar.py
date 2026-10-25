@@ -22,7 +22,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 EXPECTED_MAP_ID = "de20bf289d6db3ad15fdb14b"
-URL = "https://app.ramonessa.com.br/motorista/gps2d/"
+URL = "https://app.ramonessa.com.br/motorista/gps2d/index.html"
 GATEWAY = "ramo-nessa-staging-gateway-1"
 MAX_OUTER = 140 * 1024 * 1024
 MAX_INNER = 140 * 1024 * 1024
@@ -92,7 +92,7 @@ def public_check(expected_digest):
             reject("URL de teste não retornou HTTP 200")
         content = response.read(10 * 1024 * 1024)
     if hashlib.sha256(content).hexdigest() != expected_digest:
-        reject("URL não está servindo o index.html do GPS2D; publicação revertida")
+        reject("O arquivo index.html do GPS2D não corresponde ao publicado; instalação revertida")
     with urllib.request.urlopen(
         urllib.request.Request(
             "https://app.ramonessa.com.br/ready",
@@ -212,7 +212,7 @@ def main(args):
                 shutil.rmtree(staged, ignore_errors=True)
             raise
         print("INSTALAÇÃO DE TESTE CONCLUÍDA (sem reiniciar Gateway).")
-        print("Abrir:", URL)
+        print("Abrir (arquivo direto; a rota com barra pode cair no index antigo):", URL)
         print("Web principal, passageiro e serviços preservados.")
         print("ATENÇÃO: rota é teste; confirme visualmente ruas girando (Map ID VECTOR).")
         print("Para remover após o teste: sudo rm -rf -- " + str(target))
