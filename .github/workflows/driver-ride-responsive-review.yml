@@ -64,6 +64,7 @@ jobs:
         working-directory: apps/driver
         run: flutter test
       - name: Render visual review fixtures (320, 390, 900)
+        if: matrix.target == 'web'
         working-directory: apps/driver
         run: flutter test --update-goldens test/ride_identity_visual_review.dart
       - name: Compile Web
@@ -84,6 +85,7 @@ jobs:
         with:
           name: driver-responsive-visual-review
           path: |
+            apps/driver/ride-identity-artifacts/**
             apps/driver/test/goldens/**
             apps/driver/test/**/goldens/**
           if-no-files-found: ignore
