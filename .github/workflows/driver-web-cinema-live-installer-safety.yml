@@ -16,38 +16,38 @@ jobs:
       - name: Confirm source and no unauthorized project modifications
         run: |
           set -euo pipefail
-          git diff --exit-code 3f2204647bb9385f589040c7fe1ce1659dc48223 HEAD -- apps backend packages scripts/web
+          git diff --exit-code d8ddfb102f88269083b64bccd44860d05e3703cb HEAD -- apps backend packages scripts/web
           node --check deploy/staging/activate-driver-cinema-live.mjs
           node --check deploy/staging/test-activate-driver-cinema-live.mjs
           python3 -m py_compile deploy/staging/stage-driver-cinema-live.py
-          test "$(grep -c '3f2204647bb9385f589040c7fe1ce1659dc48223' deploy/staging/stage-driver-cinema-live.py)" = 1
+          test "$(grep -c 'd8ddfb102f88269083b64bccd44860d05e3703cb' deploy/staging/stage-driver-cinema-live.py)" = 1
       - name: Require successful pinned packaged production build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/iansilva23/ramo-nessa/actions/runs/40171410143 > /tmp/ramo-cinema-release.json
+          gh api repos/iansilva23/ramo-nessa/actions/runs/40171548645 > /tmp/ramo-cinema-release.json
           node --input-type=module - <<'NODE'
           import {readFileSync} from 'node:fs';
           const r=JSON.parse(readFileSync('/tmp/ramo-cinema-release.json'));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='75749d6c61ff3158b81c3f06d6bdabe2d019190e')
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!=='6a123207fcd491d9fae8e68052ba9bd6f6ad681c')
             throw Error('Production release must pass before any rehearsal');
           NODE
           mkdir -p artifacts/driver-package
-          gh run download 40171410143 --repo iansilva23/ramo-nessa --name ramo-motorista-web-gps-cinema-oficial --dir artifacts/driver-package
-          (cd artifacts/driver-package && sha256sum -c RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip.sha256)
+          gh run download 40171548645 --repo iansilva23/ramo-nessa --name ramo-motorista-web-gps-cinema-oficial --dir artifacts/driver-package
+          (cd artifacts/driver-package && sha256sum -c RamoNessa-Motorista-Web-GPSCinema-d8ddfb102f88.zip.sha256)
       - name: Verify ZIP and all installer invariants
         run: |
           set -euo pipefail
           node --test deploy/staging/asaas-driver-web-contract.test.mjs deploy/staging/asaas-driver-web-switch-contract.test.mjs
           python3 deploy/staging/stage-driver-cinema-live.py \
-            --archive "$PWD/artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip" \
-            --sha256 "$(cut -d ' ' -f 1 artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip.sha256)" \
+            --archive "$PWD/artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-d8ddfb102f88.zip" \
+            --sha256 "$(cut -d ' ' -f 1 artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-d8ddfb102f88.zip.sha256)" \
             --output "$RUNNER_TEMP/staged-driver"
           node scripts/web/verify_web_bundle.mjs --role=driver --dist="$RUNNER_TEMP/staged-driver"
       - name: Rehearse production activation + rollback + missing gateway
         run: |
           docker pull caddy:2.11.7-alpine
           sudo env GITHUB_ACTIONS=true PATH="$PATH" node deploy/staging/test-activate-driver-cinema-live.mjs \
-            "$PWD/artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-3f2204647bb9.zip"
+            "$PWD/artifacts/driver-package/RamoNessa-Motorista-Web-GPSCinema-d8ddfb102f88.zip"
           echo "PASS: activation and rollback with real Caddy, isolated private Docker fixtures"
