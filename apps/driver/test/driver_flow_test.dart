@@ -1320,6 +1320,36 @@ class _IdentityReviewApi extends _FakeDriverApi implements DriverRideIdentityApi
 }
 DriverApi identityReviewApi()=>_IdentityReviewApi();
 DriverLocationService identityReviewLocation()=>const _FakeLocationService();
+
+/// Dedicated in-memory visual fixture: no network, payments or live drivers.
+DriverApi driverVisualStageApi(String stage) {
+  if (stage == 'offer') return _FakeDriverApi();
+  return _DriverVisualStageApi(stage == 'complete' ? 'IN_PROGRESS' : stage);
+}
+
+class _DriverVisualStageApi extends _IdentityReviewApi {
+  _DriverVisualStageApi(String state) : super() {
+    final current = _currentRide!;
+    _currentRide = AcceptedDriverRide(
+      id: current.id,
+      state: state,
+      category: current.category,
+      passengers: current.passengers,
+      origin: current.origin,
+      destination: current.destination,
+      driverEarningsCents: current.driverEarningsCents,
+      pickupCompensationCents: current.pickupCompensationCents,
+      pickupLatitude: current.pickupLatitude,
+      pickupLongitude: current.pickupLongitude,
+      dropoffLatitude: current.dropoffLatitude,
+      dropoffLongitude: current.dropoffLongitude,
+      driverHoldExpiresAt: state == 'AWAITING_PAYMENT'
+          ? DateTime.now().add(const Duration(minutes: 4))
+          : null,
+    );
+  }
+}
+
 class _CancellationReviewRealtime implements DriverRealtimeService {
  final controller=StreamController<DriverRealtimeUpdate>.broadcast();
  @override Stream<DriverRealtimeUpdate> watch()=>controller.stream;
