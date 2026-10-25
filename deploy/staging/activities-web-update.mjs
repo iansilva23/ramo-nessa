@@ -38,9 +38,13 @@ export async function prepareActivities(args,fixture={}){
  if(args.length!==2||!args[0].startsWith('/')||!args[0].endsWith('.zip')||!/^[a-f0-9]{64}$/.test(args[1]))throw Error('Informe o ZIP absoluto e SHA-256 revisado.');
  rootOnly();const unlock=lock();
  try{
-  if(existsSync(activitiesDirectory)||existsSync(activitiesWeb))throw Error('ACTIVITIES_PREPARATION_EXISTS');
+  if(existsSync(activitiesWeb))throw Error('ACTIVITIES_PREPARATION_EXISTS');
+  if(existsSync(activitiesDirectory)){
+   privateDir(activitiesDirectory);
+   if(readdirSync(activitiesDirectory).length!==0)throw Error('ACTIVITIES_PREPARATION_EXISTS');
+  }
   if(statfsSync(activitiesRoot).bavail*statfsSync(activitiesRoot).bsize<4*1024**3)throw Error('ACTIVITIES_DISK_SPACE');
-  mkdirSync(activitiesDirectory,{mode:0o700});const h=host(activitiesDirectory),before=Object.fromEntries(Object.keys(names).map(k=>[k,h.inspect(k)]));fixtureAllowed(fixture,before);
+  if(!existsSync(activitiesDirectory))mkdirSync(activitiesDirectory,{mode:0o700});const h=host(activitiesDirectory),before=Object.fromEntries(Object.keys(names).map(k=>[k,h.inspect(k)]));fixtureAllowed(fixture,before);
   validate(before,{'core-image':fixture.coreImage??before.core.Image,'gateway-image':fixture.gatewayImage??before.gateway.Image});
   if(!before.core.Config.Env.includes('NODE_ENV=staging'))throw Error('ACTIVITIES_RUNTIME_MODE');
   assertFingerprint(h.fingerprint(before.core.Id,true),baselineCore);

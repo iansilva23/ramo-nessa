@@ -10,8 +10,9 @@ import {names} from './google-search-update-contract.mjs';
 import {hashFile,hashTree,digest} from './google-search-update-io.mjs';
 import {activitiesRoot,activitiesDirectory,activitiesWeb,liveWeb} from './activities-web-contract.mjs';
 if(process.getuid?.()!==0||process.env.GITHUB_ACTIONS!=='true')throw Error('CI isolated root only');
+const formerWeb='/opt/ramo-nessa-web/releases/ride-identity-e36963c02716/bundles';
 const [archiveArg,baselineArg]=process.argv.slice(2),archive=resolve(archiveArg),baseline=resolve(baselineArg),lab='/opt/ramo-activities-web-ci',net='activities-web-ci',config=lab+'/compose.json';
-for(const p of [activitiesRoot,dirnameSafe(liveWeb),dirnameSafe(activitiesWeb),lab])if(existsSync(p))throw Error('Refusing preexisting disposable path: '+p);
+for(const p of [activitiesRoot,dirnameSafe(liveWeb),dirnameSafe(activitiesWeb),dirnameSafe(formerWeb),lab])if(existsSync(p))throw Error('Refusing preexisting disposable path: '+p);
 function dirnameSafe(p){return p.slice(0,p.lastIndexOf('/'));}
 function docker(args){const r=spawnSync('docker',args,{encoding:'utf8',timeout:600000,maxBuffer:64*1024**2});if(r.error||r.status!==0)throw Error('CI Docker: '+r.stderr);return r.stdout;}
 const inspect=role=>JSON.parse(docker(['inspect',names[role]]))[0],image=tag=>JSON.parse(docker(['image','inspect',tag]))[0].Id;
@@ -71,6 +72,23 @@ await p.query("UPDATE driver_supply SET reserved_ride_id=NULL,reserved_until=NUL
  const checkoutState=()=>query("SELECT md5(coalesce(jsonb_agg(to_jsonb(d) ORDER BY ride_id)::text,'[]')) FROM ride_checkout_recovery d").trim();
  const preserved=()=>{if(existingCheckoutState!=null)assert.equal(checkoutState(),existingCheckoutState);assert.equal(data(),original);assert.equal(supportState(),originalSupport);assert.equal(documentState(),originalDocuments);assert.equal(hashTree(join(liveWeb,'driver')),driver);assert.equal(readFileSync(lab+'/Caddyfile','utf8'),caddy);for(const r of Object.keys(untouched))assert.equal(runtimeIdentity(inspect(r)),untouched[r]);};
  const reset=async()=>{compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','core','gateway']);await health('core');await health('gateway');rmSync(activitiesDirectory,{recursive:true});rmSync(dirnameSafe(activitiesWeb),{recursive:true});};
+ // Reproduce the VPS refusal from r1, then retry its empty preparation directory.
+ mkdirSync(dirnameSafe(formerWeb),{recursive:true});cpSync(liveWeb,formerWeb,{recursive:true});
+ const wrongModel=structuredClone(model);wrongModel.services.gateway.volumes.find(m=>m.target==='/srv/web').source=formerWeb;
+ const wrongConfig=join(lab,'wrong-web.compose.json');writeFileSync(wrongConfig,JSON.stringify(escapeCompose(wrongModel)),{mode:0o600});
+ docker(['compose','-p','ramo-nessa-staging','--env-file','/dev/null','-f',wrongConfig,'up','-d','--no-deps','--no-build','--pull','never','--force-recreate','gateway']);await health('gateway');
+ const refusedIds=[inspect('core').Id,inspect('gateway').Id];
+ await assert.rejects(prepareActivities([archive,hashFile(archive)],fixture),/ACTIVITIES_WEB_BASE_CHANGED/);
+ assert.deepEqual([inspect('core').Id,inspect('gateway').Id],refusedIds);
+ assert.equal(query("SELECT count(*) FROM schema_migrations WHERE filename IN ('094_ride_boarding_recovery.sql','095_ride_activity_support.sql')").trim(),'0','wrong Web base cannot apply a migration');
+ assert.deepEqual((await import('node:fs')).readdirSync(activitiesDirectory),[]);
+ compose(['up','-d','--no-deps','--no-build','--pull','never','--force-recreate','gateway']);await health('gateway');
+ // A previous plan or other file must never be silently overwritten.
+ const sentinel=join(activitiesDirectory,'existing-operation.private.json');writeFileSync(sentinel,'preserve this operation',{mode:0o600});
+ const protectedIds=[inspect('core').Id,inspect('gateway').Id];
+ await assert.rejects(prepareActivities([archive,hashFile(archive)],fixture),/ACTIVITIES_PREPARATION_EXISTS/);
+ assert.equal(readFileSync(sentinel,'utf8'),'preserve this operation');assert.deepEqual([inspect('core').Id,inspect('gateway').Id],protectedIds);
+ rmSync(sentinel);
  let prepared=await prepareActivities([archive,hashFile(archive)],fixture);
  const nextCore=JSON.parse(readFileSync(join(activitiesDirectory,'images-after.private.json'))).core;
  assert.equal(nextCore.Config.User,'node');
@@ -174,7 +192,7 @@ console.log(JSON.stringify({rideId:ride.id,tokens,payerToken,pendingRideId:pendi
  assert.equal(query("SELECT count(*) FROM payments WHERE ride_id='"+recovery.pendingRideId+"'").trim(),'1');
  assert.equal(query("SELECT count(*) FROM driver_support_tickets WHERE id='"+ticket.id+"'").trim(),'1');
  assert.equal(query('SELECT amount FROM ci_financial_sentinel').trim(),'12345');
- console.log('ACTIVITIES UPDATE REHEARSAL PASSED: restore-tested backups; exact Core and ADM overlays; both configured Web bundles; migrations 094/095 preserve existing records and default boarding OFF; concurrent configuration rejected; failures after Core, Web and missing Gateway rolled back; adopted policy retains compatible Core; repeated authenticated recovery and existing chat survive restart; provider settings and financial data preserved. No real provider calls or native packages.');
+ console.log('ACTIVITIES R2 UPDATE REHEARSAL PASSED: actual restored Web path pinned; wrong base rejected without restart or migration; empty interrupted preparation safely retried; nonempty preparation protected; restore-tested backups; exact Core and ADM overlays; both configured Web bundles; migrations 094/095 preserve existing records and default boarding OFF; concurrent configuration rejected; failures after Core, Web and missing Gateway rolled back; adopted policy retains compatible Core; repeated authenticated recovery and existing chat survive restart; provider settings and financial data preserved. No real provider calls or native packages.');
 
 }catch(e){if(existsSync(activitiesDirectory+'/command.private.log'))console.error('Synthetic fixture log: '+readFileSync(activitiesDirectory+'/command.private.log','utf8').slice(-5000));for(const role of ['core','gateway']){const r=spawnSync('docker',['logs','--tail','30',names[role]],{encoding:'utf8'});console.error('CI '+role+': '+r.stdout+r.stderr);const state=spawnSync('docker',['inspect','--format','{{json .State}}',names[role]],{encoding:'utf8'});console.error('CI state '+role+': '+state.stdout);}throw e;}
-finally{if(started)for(const role of Object.keys(names))spawnSync('docker',['rm','-fv',names[role]]);for(const v of volumes)spawnSync('docker',['volume','rm',v]);for(const n of [net,net+'-ingress'])spawnSync('docker',['network','rm',n]);for(const p of [activitiesRoot,dirnameSafe(liveWeb),dirnameSafe(activitiesWeb),lab])rmSync(p,{recursive:true,force:true});}
+finally{if(started)for(const role of Object.keys(names))spawnSync('docker',['rm','-fv',names[role]]);for(const v of volumes)spawnSync('docker',['volume','rm',v]);for(const n of [net,net+'-ingress'])spawnSync('docker',['network','rm',n]);for(const p of [activitiesRoot,dirnameSafe(liveWeb),dirnameSafe(activitiesWeb),dirnameSafe(formerWeb),lab])rmSync(p,{recursive:true,force:true});}
